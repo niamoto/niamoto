@@ -1,36 +1,91 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { TransformPage } from '@/pages/transform'
-import { ExportPage } from '@/pages/export'
-import { VisualizePage } from '@/pages/visualize'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
-import { ThemeProvider } from '@/hooks/use-theme'
+import { useWelcomeScreen } from '@/hooks/useWelcomeScreen'
+import { ThemeProvider } from '@/components/theme'
+import { Toaster } from 'sonner'
 import './App.css'
 
 // Lazy load pages
-const DataExplorer = lazy(() => import('@/pages/data-explorer').then(m => ({ default: m.DataExplorer })))
-const LivePreview = lazy(() => import('@/pages/live-preview').then(m => ({ default: m.LivePreview })))
-const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
-const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
-const ApiDocs = lazy(() => import('@/pages/api-docs').then(m => ({ default: m.ApiDocs })))
-const ConfigEditor = lazy(() => import('@/pages/config-editor').then(m => ({ default: m.ConfigEditor })))
-const Bootstrap = lazy(() => import('@/components/pipeline/Bootstrap').then(m => ({ default: m.Bootstrap })))
+const WelcomeScreen = lazy(() => import('@/pages/welcome'))
+const ProjectHub = lazy(() => import('@/pages/home'))
 
-// Demo pages for transform/export interface options
-const EntityCentricDemo = lazy(() => import('@/pages/demos/EntityCentricDemo').then(m => ({ default: m.EntityCentricDemo })))
-const PipelineVisualDemo = lazy(() => import('@/pages/demos/PipelineVisualDemo').then(m => ({ default: m.PipelineVisualDemo })))
-const WizardFormDemo = lazy(() => import('@/pages/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
-const GoalDrivenPageBuilder = lazy(() => import('@/pages/demos/GoalDrivenPageBuilder'))
-const Showcase = lazy(() => import('@/pages/showcase'))
-// const EntityConfigPage = lazy(() => import('@/pages/entity-config').then(m => ({ default: m.EntityConfigPage })))
-const OnboardingWizard = lazy(() => import('@/pages/onboarding'))
+// Module components (not lazy — they manage their own content)
+import { DataModule } from '@/components/data'
+import { GroupsModule } from '@/components/groups'
+import { PublishModule } from '@/components/publish'
+
+// Site pages
+const SiteIndexPage = lazy(() => import('@/pages/site'))
+const SitePagesPage = lazy(() => import('@/pages/site/pages'))
+const SiteNavigationPage = lazy(() => import('@/pages/site/navigation'))
+const SiteGeneralPage = lazy(() => import('@/pages/site/general'))
+const SiteAppearancePage = lazy(() => import('@/pages/site/appearance'))
+
+// Tools pages (accessible via Cmd+K)
+const DataExplorer = lazy(() => import('@/pages/tools/explorer').then(m => ({ default: m.DataExplorer })))
+const LivePreview = lazy(() => import('@/pages/tools/preview').then(m => ({ default: m.LivePreview })))
+const Settings = lazy(() => import('@/pages/tools/settings').then(m => ({ default: m.Settings })))
+const Plugins = lazy(() => import('@/pages/tools/plugins').then(m => ({ default: m.Plugins })))
+const ApiDocs = lazy(() => import('@/pages/tools/docs/index').then(m => ({ default: m.ApiDocs })))
+const ConfigEditor = lazy(() => import('@/pages/tools/config-editor').then(m => ({ default: m.ConfigEditor })))
+
+// Publish pages (used by PublishModule internally)
+
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-full">Loading...</div>
+)
+
+// Check if running in Tauri
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
 function App() {
-  const { data: projectInfo } = useProjectInfo()
+  const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
+  const [initialized, setInitialized] = useState(!isTauri)
+
+  const {
+    showWelcome,
+    loading: welcomeLoading,
+    error: welcomeError,
+    settings,
+    recentProjects,
+    isTauri: isTauriMode,
+    createProject,
+    openProject,
+    browseAndOpen,
+    browseFolder,
+    removeProject,
+    updateSettings,
+  } = useWelcomeScreen()
 
   useEffect(() => {
-    // Update document title based on project name
+    if (!isTauri) return
+    if (showWelcome) {
+      setInitialized(true)
+      return
+    }
+
+    const initializeProject = async () => {
+      try {
+        const response = await fetch('/api/health/reload-project', {
+          method: 'POST',
+        })
+
+        if (response.ok) {
+          await refetchProjectInfo()
+        }
+      } catch (err) {
+        console.error('Failed to initialize project:', err)
+      } finally {
+        setInitialized(true)
+      }
+    }
+
+    initializeProject()
+  }, [refetchProjectInfo, showWelcome])
+
+  useEffect(() => {
     if (projectInfo?.name) {
       document.title = `Niamoto - ${projectInfo.name}`
     } else {
@@ -38,85 +93,88 @@ function App() {
     }
   }, [projectInfo?.name])
 
+  if (isTauriMode && welcomeLoading) {
+    return (
+      <ThemeProvider>
+        <div className="flex h-screen items-center justify-center bg-background">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </ThemeProvider>
+    )
+  }
+
+  if (isTauriMode && showWelcome) {
+    return (
+      <ThemeProvider>
+        <Suspense
+          fallback={
+            <div className="flex h-screen items-center justify-center bg-background">
+              <div className="text-muted-foreground">Loading...</div>
+            </div>
+          }
+        >
+          <WelcomeScreen
+            recentProjects={recentProjects}
+            settings={settings}
+            error={welcomeError}
+            onOpenProject={openProject}
+            onBrowseProject={browseAndOpen}
+            onCreateProject={createProject}
+            onRemoveProject={removeProject}
+            onUpdateSettings={updateSettings}
+            onBrowseFolder={browseFolder}
+          />
+        </Suspense>
+      </ThemeProvider>
+    )
+  }
+
+  if (!initialized) {
+    return (
+      <ThemeProvider>
+        <div className="flex h-screen items-center justify-center bg-background">
+          <div className="text-muted-foreground">Loading project...</div>
+        </div>
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider>
+      <Toaster position="bottom-right" richColors />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="showcase" replace />} />
-            <Route path="setup/bootstrap" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Bootstrap />
-              </Suspense>
-            } />
-            <Route path="setup/import" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <OnboardingWizard />
-              </Suspense>
-            } />
-            <Route path="setup/transform" element={<TransformPage />} />
-            <Route path="setup/export" element={<ExportPage />} />
-            <Route path="setup/visualize" element={<VisualizePage />} />
-            <Route path="data/explorer" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <DataExplorer />
-              </Suspense>
-            } />
-            <Route path="data/preview" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <LivePreview />
-              </Suspense>
-            } />
-            <Route path="tools/settings" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Settings />
-              </Suspense>
-            } />
-            <Route path="tools/plugins" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Plugins />
-              </Suspense>
-            } />
-            <Route path="tools/docs" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ApiDocs />
-              </Suspense>
-            } />
-            <Route path="tools/config-editor" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ConfigEditor />
-              </Suspense>
-            } />
+            <Route index element={<Suspense fallback={<PageFallback />}><ProjectHub /></Suspense>} />
 
+            {/* Sources - Import & Data (sidebar module) */}
+            <Route path="sources/*" element={<DataModule />} />
 
-            {/* Showcase page */}
-            <Route path="showcase" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Showcase />
-              </Suspense>
-            } />
+            {/* Groups - Widget configuration (sidebar module) */}
+            <Route path="groups/*" element={<GroupsModule />} />
 
-            {/* Demo pages for transform/export interface options */}
-            <Route path="demos/entity-centric" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <EntityCentricDemo />
-              </Suspense>
-            } />
-            <Route path="demos/pipeline-visual" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PipelineVisualDemo />
-              </Suspense>
-            } />
-            <Route path="demos/wizard-form" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <WizardFormDemo />
-              </Suspense>
-            } />
-            <Route path="demos/goal-driven" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <GoalDrivenPageBuilder />
-              </Suspense>
-            } />
+            {/* Site - Static site configuration */}
+            <Route path="site" element={<Suspense fallback={<PageFallback />}><SiteIndexPage /></Suspense>} />
+            <Route path="site/pages" element={<Suspense fallback={<PageFallback />}><SitePagesPage /></Suspense>} />
+            <Route path="site/navigation" element={<Suspense fallback={<PageFallback />}><SiteNavigationPage /></Suspense>} />
+            <Route path="site/general" element={<Suspense fallback={<PageFallback />}><SiteGeneralPage /></Suspense>} />
+            <Route path="site/appearance" element={<Suspense fallback={<PageFallback />}><SiteAppearancePage /></Suspense>} />
+
+            {/* Tools (no sidebar entry — accessible via Cmd+K) */}
+            <Route path="tools/explorer" element={<Suspense fallback={<PageFallback />}><DataExplorer /></Suspense>} />
+            <Route path="tools/preview" element={<Suspense fallback={<PageFallback />}><LivePreview /></Suspense>} />
+            <Route path="tools/settings" element={<Suspense fallback={<PageFallback />}><Settings /></Suspense>} />
+            <Route path="tools/plugins" element={<Suspense fallback={<PageFallback />}><Plugins /></Suspense>} />
+            <Route path="tools/docs" element={<Suspense fallback={<PageFallback />}><ApiDocs /></Suspense>} />
+            <Route path="tools/config-editor" element={<Suspense fallback={<PageFallback />}><ConfigEditor /></Suspense>} />
+
+            {/* Publish - Build & Deploy (sidebar module) */}
+            <Route path="publish/*" element={<PublishModule />} />
+
+            {/* Catch-all: redirect old routes and 404s */}
+            <Route path="labs/*" element={<Navigate to="/" replace />} />
+            <Route path="showcase" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

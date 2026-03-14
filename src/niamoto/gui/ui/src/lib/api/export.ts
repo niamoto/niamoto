@@ -3,6 +3,7 @@ import { apiClient } from './client'
 export interface ExportRequest {
   config_path?: string
   export_types?: string[]
+  include_transform?: boolean
 }
 
 export interface ExportResponse {
@@ -17,6 +18,7 @@ export interface ExportStatus {
   status: string
   progress: number
   message: string
+  phase?: string | null
   started_at: string
   completed_at?: string | null
   result?: {
@@ -108,6 +110,14 @@ export async function getExportMetrics(): Promise<{
 }
 
 /**
+ * Get the currently active export job (running or recently completed)
+ */
+export async function getActiveExportJob(): Promise<ExportStatus | null> {
+  const response = await apiClient.get('/export/active')
+  return response.data
+}
+
+/**
  * Execute export using CLI command
  */
 export async function executeExportCLI(): Promise<{
@@ -124,7 +134,7 @@ export async function executeExportCLI(): Promise<{
  */
 export async function executeExportAndWait(
   request: ExportRequest = {},
-  onProgress?: (progress: number, message: string) => void
+  onProgress?: (progress: number, message: string, phase?: string | null) => void
 ): Promise<ExportStatus> {
   // Start the export
   const { job_id } = await executeExport(request)
@@ -136,7 +146,7 @@ export async function executeExportAndWait(
         const status = await getExportStatus(job_id)
 
         if (onProgress) {
-          onProgress(status.progress, status.message)
+          onProgress(status.progress, status.message, status.phase)
         }
 
         if (status.status === 'completed') {

@@ -81,17 +81,18 @@ def test_basic_category_extraction(plugin, sample_data):
 
     result = plugin.transform(sample_data, config)
 
-    assert "categories" in result
-    assert "values" in result
-    assert result["categories"] == categories_order
-    assert len(result["values"]) == len(categories_order)
+    # Output format matches top_ranking: {"tops": [...], "counts": [...]}
+    assert "tops" in result
+    assert "counts" in result
+    assert result["tops"] == categories_order
+    assert len(result["counts"]) == len(categories_order)
 
     # Check values correspond to the order, with 0 for missing
-    assert pytest.approx(result["values"][0]) == 720.1  # NUM
-    assert pytest.approx(result["values"][1]) == 220.5  # UM
-    assert pytest.approx(result["values"][2]) == 245.8  # SEC
-    assert pytest.approx(result["values"][3]) == 321.7  # FORET
-    assert pytest.approx(result["values"][4]) == 0.0  # HUMIDE (missing)
+    assert pytest.approx(result["counts"][0]) == 720.1  # NUM
+    assert pytest.approx(result["counts"][1]) == 220.5  # UM
+    assert pytest.approx(result["counts"][2]) == 245.8  # SEC
+    assert pytest.approx(result["counts"][3]) == 321.7  # FORET
+    assert pytest.approx(result["counts"][4]) == 0.0  # HUMIDE (missing)
 
 
 def test_error_missing_columns(plugin):
@@ -130,7 +131,7 @@ def test_error_missing_field_data(plugin, sample_data):
 def test_error_invalid_config(plugin):
     """Test errors during config validation."""
 
-    # Case 1: Missing class_object
+    # Case 1: Missing class_object (required field)
     config_missing_co = {
         "plugin": "class_object_categories_extractor",
         "params": {
@@ -143,22 +144,20 @@ def test_error_invalid_config(plugin):
     error_str = str(exc_info_co.value)
     assert "params.class_object" in error_str and "Field required" in error_str
 
-    # Case 2: Missing categories_order
-    config_missing_cat = {
+    # Case 2: categories_order is now optional (supports auto-detection)
+    # This should NOT raise an error
+    config_no_categories = {
         "plugin": "class_object_categories_extractor",
         "params": {
             "class_object": "land_use"
-            # Missing "categories_order"
+            # categories_order is optional, auto-detection is enabled
         },
     }
-    with pytest.raises(DataTransformError) as exc_info_cat:
-        plugin.validate_config(config_missing_cat)
-    error_str_cat = str(exc_info_cat.value)
-    assert (
-        "params.categories_order" in error_str_cat and "Field required" in error_str_cat
-    )
+    validated = plugin.validate_config(config_no_categories)
+    assert validated.params.class_object == "land_use"
+    assert validated.params.categories_order is None
 
-    # Case 3: categories_order is not a list
+    # Case 3: categories_order is not a list (when provided)
     config_cat_not_list = {
         "plugin": "class_object_categories_extractor",
         "params": {"class_object": "land_use", "categories_order": "not_a_list"},
@@ -250,6 +249,7 @@ def test_transform_with_custom_entity_names(plugin, sample_data):
     # So this test validates that the plugin accepts custom entity names
     result = plugin.transform(sample_data, config)
 
-    assert "categories" in result
-    assert "values" in result
-    assert result["categories"] == categories_order
+    # Output format matches top_ranking: {"tops": [...], "counts": [...]}
+    assert "tops" in result
+    assert "counts" in result
+    assert result["tops"] == categories_order

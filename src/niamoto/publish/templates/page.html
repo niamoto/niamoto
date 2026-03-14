@@ -1,0 +1,262 @@
+{% extends "_base.html" %}
+{#
+    Template: page.html
+    Description: Page avec contenu markdown et detection automatique des sous-pages.
+    Si la page a des children dans la navigation, une section "Acceder aux donnees"
+    s'affiche automatiquement avec des cartes cliquables vers les sous-pages.
+    Variables:
+        - title: Titre de la page
+        - page_content_html: Contenu markdown converti en HTML
+        - navigation: Liste de navigation (injectee automatiquement)
+        - output_file: Nom du fichier de sortie (injecte automatiquement)
+#}
+
+{% block title %}{{ title | default('Page') }} - {{ site.title | default('Niamoto') }}{% endblock %}
+
+{% block content %}
+<div class="simple-page py-12">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {# Auto-detect nav children for this page #}
+        {% set ns = namespace(children=[]) %}
+        {% for nav_item in navigation %}
+            {% if nav_item.children and nav_item.url and nav_item.url.lstrip('/') == output_file | default('') %}
+                {% set ns.children = nav_item.children %}
+            {% endif %}
+        {% endfor %}
+
+        <!-- Page Header -->
+        {% if title %}
+        <header class="page-header mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">{{ title }}</h1>
+            <div class="w-20 h-1 bg-green-600 {% if ns.children %}mb-4{% endif %}"></div>
+            {% if ns.children %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                {% for child in ns.children %}
+                {% set child_url = child.url | default('') | lower %}
+                <a href="{{ child.url | relative_url(nav_depth|default(depth|default(0))) if child.url else '#' }}"
+                   class="hub-card group block bg-white rounded-xl border border-gray-200 px-6 py-5 hover:shadow-md hover:border-green-300 transition-all duration-200">
+                    <div class="flex items-center gap-4">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition-colors">
+                            {% if child.icon %}
+                                <i data-lucide="{{ child.icon }}" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'taxon' in child_url or 'tree' in child_url or 'arbre' in child_url %}
+                                <i data-lucide="tree-pine" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'plot' in child_url or 'parcelle' in child_url %}
+                                <i data-lucide="map-pin" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'shape' in child_url or 'commune' in child_url or 'province' in child_url %}
+                                <i data-lucide="map" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'forest' in child_url or 'foret' in child_url %}
+                                <i data-lucide="trees" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'biblio' in child_url or 'reference' in child_url %}
+                                <i data-lucide="book-open" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'team' in child_url or 'equipe' in child_url %}
+                                <i data-lucide="users" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'method' in child_url %}
+                                <i data-lucide="flask-conical" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'contact' in child_url %}
+                                <i data-lucide="mail" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'glossary' in child_url or 'glossaire' in child_url %}
+                                <i data-lucide="spell-check" class="w-5 h-5 text-green-600"></i>
+                            {% else %}
+                                <i data-lucide="arrow-right" class="w-5 h-5 text-green-600"></i>
+                            {% endif %}
+                        </div>
+                        <span class="flex-1 text-lg font-semibold text-gray-800 group-hover:text-green-700 transition-colors">
+                            {{ child.text }}
+                        </span>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 group-hover:text-green-400 transition-colors"></i>
+                    </div>
+                    {% if child.description %}
+                    <p class="mt-2 ml-14 text-sm text-gray-500">{{ child.description }}</p>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </header>
+        {% endif %}
+
+        <!-- Main Content -->
+        {% if page_content_html %}
+        <article class="bg-white rounded-lg shadow-md p-8 lg:p-12">
+            <div class="markdown-content">
+                {{ page_content_html | safe }}
+            </div>
+        </article>
+        {% endif %}
+
+        <!-- Back Navigation -->
+        <div class="mt-8">
+            <a href="{{ 'index.html' | relative_url(nav_depth|default(depth|default(0))) }}"
+               class="inline-flex items-center text-green-600 hover:text-green-800 transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>
+                Retour a l'accueil
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .markdown-content h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .markdown-content h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    .markdown-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #374151;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .markdown-content p {
+        color: #4b5563;
+        margin-bottom: 1rem;
+        line-height: 1.75;
+    }
+    .markdown-content ul, .markdown-content ol {
+        margin-bottom: 1rem;
+        margin-left: 1.5rem;
+        color: #4b5563;
+    }
+    .markdown-content ul { list-style-type: disc; }
+    .markdown-content ol { list-style-type: decimal; }
+    .markdown-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+    }
+    .markdown-content blockquote {
+        border-left: 4px solid #10b981;
+        padding-left: 1rem;
+        margin: 1.5rem 0;
+        color: #6b7280;
+        font-style: italic;
+    }
+    .markdown-content code {
+        background-color: #f3f4f6;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+    }
+    .markdown-content pre {
+        background-color: #1f2937;
+        color: #e5e7eb;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+    }
+    .markdown-content pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+    .markdown-content a {
+        color: #059669;
+        text-decoration: underline;
+        transition: color 0.2s;
+    }
+    .markdown-content a:hover {
+        color: #047857;
+    }
+    .markdown-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+    }
+    .markdown-content th, .markdown-content td {
+        border: 1px solid #e5e7eb;
+        padding: 0.75rem;
+        text-align: left;
+    }
+    .markdown-content th {
+        background-color: #f9fafb;
+        font-weight: 600;
+    }
+    .markdown-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin: 1.5rem 0;
+    }
+
+    /* ===========================================
+       Image Gallery Support
+       Consecutive images (without blank lines in markdown)
+       will display side-by-side automatically
+       =========================================== */
+
+    /* Container for gallery detection */
+    .markdown-content {
+        /* Enable gallery layout detection */
+    }
+
+    /* Paragraphs containing only an image become gallery items */
+    .markdown-content p:has(> img:only-child) {
+        display: inline-block;
+        vertical-align: top;
+        margin: 0.25rem;
+        max-width: calc(50% - 0.5rem); /* Default: 2 images per row */
+    }
+
+    .markdown-content p:has(> img:only-child) img {
+        margin: 0;
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+    }
+
+    /* Reset margin for first image in a gallery sequence */
+    .markdown-content p:has(> img:only-child):not(p:has(> img:only-child) + p) {
+        margin-left: 0;
+    }
+
+    /* When 3+ consecutive images, make them smaller */
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child) + p:has(> img:only-child) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child) + p:has(> img:only-child) ~ p:has(> img:only-child) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child):has(+ p:has(> img:only-child) + p:has(> img:only-child)) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child):has(+ p:has(> img:only-child)) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+
+    /* Gallery container styling - wrap for multiple rows */
+    .markdown-content p:has(> img:only-child) + p:not(:has(> img:only-child)) {
+        clear: both;
+    }
+
+    /* Add spacing after gallery */
+    .markdown-content p:has(> img:only-child):last-child,
+    .markdown-content p:has(> img:only-child) + p:not(:has(> img:only-child)) {
+        margin-top: 1.5rem;
+    }
+
+    /* Hover effect on gallery images */
+    .markdown-content p:has(> img:only-child) img:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .markdown-content p:has(> img:only-child) img {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}

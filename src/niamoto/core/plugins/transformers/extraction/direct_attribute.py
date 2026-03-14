@@ -88,9 +88,7 @@ class DirectAttribute(TransformerPlugin):
         super().__init__(db, registry)
         try:
             self.config = Config()
-            self.imports_config = (
-                self.config.get_imports_config() if self.config else {}
-            )
+            self.imports_config = self.config.get_imports_config if self.config else {}
             # Use registry from parent if provided, otherwise create new instance
             if not self.registry:
                 self.registry = EntityRegistry(db)

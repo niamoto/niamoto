@@ -19,9 +19,23 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/preview': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
   build: {
     chunkSizeWarningLimit: 1000, // Augmente la limite à 1MB au lieu de 500KB
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Ignore les warnings de commentaires PURE de @daybrush/utils
+        if (warning.code === 'SOURCEMAP_ERROR' ||
+            (warning.message && warning.message.includes('/*#__PURE__*/'))) {
+          return
+        }
+        warn(warning)
+      },
+    },
   },
 })

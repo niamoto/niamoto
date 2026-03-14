@@ -33,7 +33,7 @@ html {
 /* Modern widget styling */
 .widget-modern {
     background-color: white;
-    border-radius: 12px;
+    border-radius: var(--border-radius-lg, 12px);
     border: 1px solid #e2e8f0;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     overflow: visible; /* Changed from hidden to visible for tooltips */
@@ -216,8 +216,9 @@ html {
 
 .search-input:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(31, 185, 157, 0.1);
+    border-color: var(--color-primary, #228b22);
+    box-shadow: 0 0 0 3px rgba(34, 139, 34, 0.1); /* Fallback for older browsers */
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #228b22) 10%, transparent);
 }
 
 /* Chart containers */
@@ -309,11 +310,11 @@ html {
 
 /* Modern Widget Header Styles */
 .widget-header-modern {
-    background: linear-gradient(135deg, #228b22 0%, #2d8f47 50%, #1f7a1f 100%);
+    background: linear-gradient(135deg, var(--color-primary, #228b22) 0%, var(--color-secondary, #2d8f47) 50%, var(--color-primary, #1f7a1f) 100%);
     background-size: 200% 200%;
     animation: gradientShift 8s ease infinite;
     padding: 16px 20px;
-    border-radius: 12px 12px 0 0;
+    border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
     margin: -1px -1px 0 -1px; /* Align with widget border */
     position: relative;
     overflow: visible; /* Changed to visible for tooltips */
@@ -418,33 +419,33 @@ html {
     transform: translateX(-50%) translateY(0);
 }
 
-/* Alternative color schemes for variety - Green-based palette */
+/* Alternative color schemes for variety - Using theme colors with variations */
 .widget:nth-child(2n) .widget-header-modern {
-    background: linear-gradient(135deg, #228b22 0%, #32a852 50%, #1e7e1e 100%);
+    background: linear-gradient(135deg, var(--color-primary, #228b22) 0%, var(--color-secondary, #32a852) 50%, var(--color-primary, #1e7e1e) 100%);
 }
 
 .widget:nth-child(3n) .widget-header-modern {
-    background: linear-gradient(135deg, #2d8b47 0%, #228b22 50%, #5cb85c 100%);
+    background: linear-gradient(135deg, var(--color-secondary, #2d8b47) 0%, var(--color-primary, #228b22) 50%, var(--color-secondary, #5cb85c) 100%);
 }
 
 .widget:nth-child(4n) .widget-header-modern {
-    background: linear-gradient(135deg, #1f7a1f 0%, #228b22 50%, #3e9b3e 100%);
+    background: linear-gradient(135deg, var(--color-primary, #1f7a1f) 0%, var(--color-secondary, #228b22) 50%, var(--color-primary, #3e9b3e) 100%);
 }
 
 .widget:nth-child(5n) .widget-header-modern {
-    background: linear-gradient(135deg, #228b22 0%, #4caf50 50%, #2e7d32 100%);
+    background: linear-gradient(135deg, var(--color-primary, #228b22) 0%, var(--color-secondary, #4caf50) 50%, var(--color-primary, #2e7d32) 100%);
 }
 
 .widget:nth-child(6n) .widget-header-modern {
-    background: linear-gradient(135deg, #388e3c 0%, #228b22 50%, #1b5e20 100%);
+    background: linear-gradient(135deg, var(--color-secondary, #388e3c) 0%, var(--color-primary, #228b22) 50%, var(--color-primary, #1b5e20) 100%);
 }
 
 .widget:nth-child(7n) .widget-header-modern {
-    background: linear-gradient(135deg, #228b22 0%, #66bb6a 50%, #2e7d32 100%);
+    background: linear-gradient(135deg, var(--color-primary, #228b22) 0%, var(--color-secondary, #66bb6a) 50%, var(--color-primary, #2e7d32) 100%);
 }
 
 .widget:nth-child(8n) .widget-header-modern {
-    background: linear-gradient(135deg, #43a047 0%, #228b22 50%, #1b5e20 100%);
+    background: linear-gradient(135deg, var(--color-secondary, #43a047) 0%, var(--color-primary, #228b22) 50%, var(--color-primary, #1b5e20) 100%);
 }
 
 /* Responsive adjustments */
@@ -535,7 +536,8 @@ html {
 }
 
 .js-plotly-plot .modebar-btn:hover {
-    background: rgba(34, 139, 34, 0.1) !important;
+    background: rgba(34, 139, 34, 0.1) !important; /* Fallback for older browsers */
+    background: color-mix(in srgb, var(--color-primary, #228b22) 10%, transparent) !important;
     opacity: 1 !important;
     transform: translateY(-1px) !important;
 }
@@ -546,13 +548,13 @@ html {
 
 /* Icon color */
 .js-plotly-plot .modebar-btn svg {
-    fill: #228b22 !important;
+    fill: var(--color-primary, #228b22) !important;
     width: 18px !important;
     height: 18px !important;
 }
 
 .js-plotly-plot .modebar-btn:hover svg {
-    fill: #1e7e1e !important;
+    fill: var(--color-secondary, #1e7e1e) !important;
 }
 
 /* Add separator between button groups */
@@ -561,7 +563,8 @@ html {
     display: block;
     width: 1px;
     height: 20px;
-    background: rgba(34, 139, 34, 0.2);
+    background: rgba(34, 139, 34, 0.2); /* Fallback for older browsers */
+    background: color-mix(in srgb, var(--color-primary, #228b22) 20%, transparent);
     margin: 0 4px;
 }
 
@@ -613,10 +616,41 @@ html {
 @media (prefers-color-scheme: dark) {
 
     .js-plotly-plot .modebar-btn:hover {
-        background: rgba(34, 139, 34, 0.2) !important;
+        background: rgba(34, 139, 34, 0.2) !important; /* Fallback */
+        background: color-mix(in srgb, var(--color-primary, #228b22) 20%, transparent) !important;
     }
 
     .js-plotly-plot .modebar-group:not(:last-child)::after {
-        background: rgba(34, 139, 34, 0.3);
+        background: rgba(34, 139, 34, 0.3); /* Fallback */
+        background: color-mix(in srgb, var(--color-primary, #228b22) 30%, transparent);
     }
+}
+
+/* Markdown content tables */
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.875rem;
+}
+
+.markdown-content thead th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.625rem 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.markdown-content tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.markdown-content tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.markdown-content table strong {
+    color: #111827;
 }

@@ -11,7 +11,7 @@ Exporters, Widgets), and the registration decorator.
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Optional, List, TYPE_CHECKING
+from typing import Any, AsyncIterator, Optional, List, Dict, TYPE_CHECKING
 
 # Import pandas for type hinting in LoaderPlugin, but avoid runtime dependency if possible
 # Or use 'Any' if pandas might not always be present where this base is imported.
@@ -33,6 +33,7 @@ class PluginType(Enum):
     EXPORTER = "exporter"
     WIDGET = "widget"
     LOADER = "loader"
+    DEPLOYER = "deployer"
 
 
 class Plugin(ABC):
@@ -116,6 +117,10 @@ class TransformerPlugin(Plugin, ABC):
     type = PluginType.TRANSFORMER
     # Concrete transformers should define: config_model = MyTransformerConfig
 
+    # Pattern matching: Declare output data structure
+    # Example: {"bins": "list", "counts": "list", "percentages": "list"}
+    output_structure: Optional[Dict[str, str]] = None
+
     @abstractmethod
     def transform(self, data: Any, params: "BaseModel") -> Any:
         """
@@ -161,6 +166,10 @@ class WidgetPlugin(Plugin, ABC):
 
     type = PluginType.WIDGET
     # Concrete widgets should define: config_model = MyWidgetParams
+
+    # Pattern matching: Declare compatible input data structures
+    # Example: [{"bins": "list", "counts": "list"}, {"categories": "list", "values": "list"}]
+    compatible_structures: Optional[List[Dict[str, str]]] = None
 
     def get_dependencies(self) -> List[str]:
         """
@@ -270,6 +279,117 @@ class WidgetPlugin(Plugin, ABC):
             </div>
         </div>
         """
+
+
+class DeployerPlugin(Plugin, ABC):
+    """Abstract base class for deployment platform plugins.
+
+    Deployers publish static sites to hosting platforms (Cloudflare, GitHub Pages,
+    Netlify, etc.) via their HTTP APIs. They don't need database access.
+    """
+
+    type = PluginType.DEPLOYER
+
+    def __init__(self, db: Any = None, registry: Optional[Any] = None):
+        """Initialize deployer. db/registry are unused but kept for Plugin compatibility."""
+        super().__init__(db=db, registry=registry)
+
+    @abstractmethod
+    async def deploy(self, config: Any) -> "AsyncIterator[str]":
+        """Deploy files and yield SSE log lines.
+
+        Args:
+            config: A DeployConfig instance with platform, exports_dir, project_name, etc.
+
+        Yields strings in the format:
+        - Regular log: "data: some message\\n\\n"
+        - Error: "data: ERROR: message\\n\\n"
+        - Success: "data: SUCCESS: message\\n\\n"
+        - URL: "data: URL: https://...\\n\\n"
+        - Done: "data: DONE\\n\\n"
+        """
+        yield ""  # pragma: no cover
+
+    async def unpublish(self, config: Any) -> "AsyncIterator[str]":
+        """Remove a deployed site from the platform and yield SSE log lines.
+
+        Default implementation returns an error. Override in subclasses
+        that support unpublishing.
+        """
+        yield self.sse_error(
+            f"Unpublish is not supported for platform '{config.platform}'."
+        )
+        yield self.sse_done()
+
+    def validate_exports(self, config: Any) -> list[str]:
+        """Pre-flight validation of export directory. Returns list of errors."""
+        import os
+        from pathlib import Path
+
+        errors = []
+        exports_dir = config.exports_dir
+
+        if not exports_dir.exists():
+            errors.append(f"Export directory not found: {exports_dir}")
+            return errors
+
+        if not (exports_dir / "index.html").exists():
+            errors.append("No index.html found in export directory")
+
+        from niamoto.core.plugins.deployers.models import PLATFORM_LIMITS
+
+        limits = PLATFORM_LIMITS.get(config.platform, {})
+        max_file_size = limits.get("max_file_size")
+        max_files = limits.get("max_files")
+
+        file_count = 0
+        for root, _dirs, files in os.walk(exports_dir):
+            for f in files:
+                file_count += 1
+                if max_file_size:
+                    file_path = Path(root) / f
+                    size = file_path.stat().st_size
+                    if size > max_file_size:
+                        size_mb = size / (1024 * 1024)
+                        limit_mb = max_file_size / (1024 * 1024)
+                        errors.append(
+                            f"File too large for {config.platform}: "
+                            f"{file_path.relative_to(exports_dir)} "
+                            f"({size_mb:.1f} MiB > {limit_mb:.0f} MiB limit)"
+                        )
+
+        if max_files and file_count > max_files:
+            errors.append(
+                f"Too many files for {config.platform}: "
+                f"{file_count} files (limit: {max_files})"
+            )
+
+        return errors
+
+    @staticmethod
+    def sse_log(message: str) -> str:
+        """Format a message as an SSE data line."""
+        return f"data: {message}\n\n"
+
+    @staticmethod
+    def sse_error(message: str) -> str:
+        """Format an error as an SSE data line."""
+        return f"data: ERROR: {message}\n\n"
+
+    @staticmethod
+    def sse_success(message: str) -> str:
+        """Format a success as an SSE data line."""
+        return f"data: SUCCESS: {message}\n\n"
+
+    @staticmethod
+    def sse_url(url: str) -> str:
+        """Format a URL as an SSE data line."""
+        return f"data: URL: {url}\n\n"
+
+    @staticmethod
+    def sse_done() -> str:
+        """Format the done signal as an SSE data line."""
+        return "data: DONE\n\n"
 
 
 # Decorator for plugin registration

@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 from pydantic import Field, ConfigDict
 
-from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
+from niamoto.common.utils.data_access import convert_to_dataframe
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
@@ -162,141 +162,336 @@ class BarPlotParams(BasePluginParams):
         }
     )
 
-    title: Optional[str] = Field(
-        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
-    )
-    description: Optional[str] = Field(
+    # =========================================================================
+    # GROUP 1: Transformation (ui:group="1_transform") - Shows first
+    # =========================================================================
+    transform: Optional[str] = Field(
         default=None,
-        description="Chart description",
-        json_schema_extra={"ui:widget": "textarea"},
+        description="Type de transformation a appliquer aux donnees",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:group": "1_transform",
+            "ui:order": 0,
+            "ui:options": [
+                {"value": "bins_to_df", "label": "Histogramme (bins/counts)"},
+                {"value": "monthly_data", "label": "Donnees mensuelles/phenologie"},
+                {"value": "category_with_labels", "label": "Categories avec labels"},
+                {
+                    "value": "nested_dict_to_long",
+                    "label": "Dict imbrique → long format",
+                },
+                {"value": "pyramid_chart", "label": "Pyramide (gauche/droite)"},
+            ],
+        },
     )
+    transform_params: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Parametres de la transformation (selon le type choisi)",
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:group": "1_transform",
+            "ui:order": 1,
+            "ui:transform_schemas": {
+                "bins_to_df": {
+                    "bin_field": {
+                        "type": "string",
+                        "default": "bins",
+                        "description": "Champ contenant les bins",
+                    },
+                    "count_field": {
+                        "type": "string",
+                        "default": "counts",
+                        "description": "Champ contenant les comptages",
+                    },
+                    "x_field": {
+                        "type": "string",
+                        "default": "bin",
+                        "description": "Nom colonne X en sortie",
+                    },
+                    "y_field": {
+                        "type": "string",
+                        "default": "count",
+                        "description": "Nom colonne Y en sortie",
+                    },
+                    "use_percentages": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Utiliser les pourcentages",
+                    },
+                },
+                "monthly_data": {
+                    "labels_field": {
+                        "type": "string",
+                        "default": "labels",
+                        "description": "Champ des labels (mois)",
+                    },
+                    "data_field": {
+                        "type": "string",
+                        "default": "month_data",
+                        "description": "Champ des donnees",
+                    },
+                    "series_name": {
+                        "type": "string",
+                        "description": "Nom de la serie (optionnel)",
+                    },
+                    "melt": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Transformer en format long",
+                    },
+                },
+                "category_with_labels": {
+                    "category_field": {
+                        "type": "string",
+                        "default": "categories",
+                        "description": "Champ des categories",
+                    },
+                    "count_field": {
+                        "type": "string",
+                        "default": "counts",
+                        "description": "Champ des comptages",
+                    },
+                    "label_field": {
+                        "type": "string",
+                        "default": "labels",
+                        "description": "Champ des labels",
+                    },
+                    "use_percentages": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Utiliser les pourcentages",
+                    },
+                },
+                "nested_dict_to_long": {
+                    "primary_keys": {
+                        "type": "array",
+                        "description": "Cles primaires a extraire",
+                    },
+                    "category_field": {
+                        "type": "string",
+                        "default": "category",
+                        "description": "Nom colonne categorie",
+                    },
+                    "value_field": {
+                        "type": "string",
+                        "default": "value",
+                        "description": "Nom colonne valeur",
+                    },
+                    "type_field": {
+                        "type": "string",
+                        "default": "type",
+                        "description": "Nom colonne type",
+                    },
+                },
+                "pyramid_chart": {
+                    "class_field": {
+                        "type": "string",
+                        "default": "class_name",
+                        "description": "Champ des classes",
+                    },
+                    "series_field": {
+                        "type": "string",
+                        "default": "series",
+                        "description": "Champ des series",
+                    },
+                    "left_series": {
+                        "type": "string",
+                        "description": "Serie gauche (valeurs negatives)",
+                    },
+                    "right_series": {
+                        "type": "string",
+                        "description": "Serie droite (valeurs positives)",
+                    },
+                    "left_label": {
+                        "type": "string",
+                        "default": "Left",
+                        "description": "Label gauche",
+                    },
+                    "right_label": {
+                        "type": "string",
+                        "default": "Right",
+                        "description": "Label droite",
+                    },
+                },
+            },
+        },
+    )
+    field_mapping: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping des champs source vers les colonnes attendues",
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:group": "1_transform",
+            "ui:order": 2,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 2: Data mapping (ui:group="2_data")
+    # =========================================================================
     x_axis: str = Field(
         ...,
-        description="Field name for the X-axis (categories)",
-        json_schema_extra={"ui:widget": "field-select"},
+        description="Champ pour l'axe X (categories)",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 0,
+        },
     )
     y_axis: str = Field(
         ...,
-        description="Field name for the Y-axis (values)",
-        json_schema_extra={"ui:widget": "field-select"},
+        description="Champ pour l'axe Y (valeurs)",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 1,
+        },
     )
     color_field: Optional[str] = Field(
         default=None,
-        description="Field name for color grouping (creates grouped/stacked bars)",
-        json_schema_extra={"ui:widget": "field-select"},
-    )
-    barmode: Optional[str] = Field(
-        default="group",
-        description="Bar display mode",
+        description="Champ pour le groupement par couleur",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["group", "stack", "relative"],
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 2,
         },
     )
-    orientation: Optional[str] = Field(
-        default="v",
-        description="Bar orientation",
+    hover_name: Optional[str] = Field(
+        default=None,
+        description="Champ pour le label au survol",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 3,
+        },
+    )
+    hover_data: Optional[List[str]] = Field(
+        default=None,
+        description="Champs additionnels au survol",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:item-widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 4,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 3: Layout (ui:group="3_layout")
+    # =========================================================================
+    barmode: str = Field(
+        default="group",
+        description="Mode d'affichage des barres",
         json_schema_extra={
             "ui:widget": "select",
+            "ui:group": "3_layout",
+            "ui:order": 0,
+            "ui:options": [
+                {"value": "group", "label": "Groupees"},
+                {"value": "stack", "label": "Empilees"},
+                {"value": "relative", "label": "Relatives"},
+            ],
+        },
+    )
+    orientation: str = Field(
+        default="v",
+        description="Orientation des barres",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:group": "3_layout",
+            "ui:order": 1,
             "ui:options": [
                 {"value": "v", "label": "Vertical"},
                 {"value": "h", "label": "Horizontal"},
             ],
         },
     )
-    text_auto: Union[bool, str] = Field(
-        default=True,
-        description="Display values on bars (True, False, or formatting string like '.2f')",
-        json_schema_extra={"ui:widget": "text"},
-    )
-    hover_name: Optional[str] = Field(
+    sort_order: Optional[str] = Field(
         default=None,
-        description="Field for primary hover label",
-        json_schema_extra={"ui:widget": "field-select"},
-    )
-    hover_data: Optional[List[str]] = Field(
-        default=None,
-        description="Additional fields for hover tooltip",
-        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
-    )
-    color_discrete_map: Optional[Any] = Field(
-        default=None,
-        description="Mapping for discrete colors",
-        json_schema_extra={"ui:widget": "json"},
-    )
-    color_continuous_scale: Optional[str] = Field(
-        default=None,
-        description="Plotly color scale name (if color_field is numeric)",
-        json_schema_extra={"ui:widget": "text"},
+        description="Ordre de tri des barres",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:group": "3_layout",
+            "ui:order": 2,
+            "ui:options": [
+                {"value": None, "label": "Aucun"},
+                {"value": "ascending", "label": "Croissant"},
+                {"value": "descending", "label": "Decroissant"},
+            ],
+        },
     )
     range_y: Optional[List[float]] = Field(
         default=None,
-        description="Y-axis range [min, max]",
-        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
+        description="Plage de l'axe Y [min, max]",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:item-widget": "number",
+            "ui:group": "3_layout",
+            "ui:order": 3,
+        },
     )
     labels: Optional[Any] = Field(
         default=None,
-        description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}",
-        json_schema_extra={"ui:widget": "json"},
+        description="Labels personnalises pour axes et legende",
+        json_schema_extra={"ui:widget": "json", "ui:group": "3_layout", "ui:order": 4},
     )
-    sort_order: Optional[str] = Field(
+
+    # =========================================================================
+    # GROUP 4: Colors (ui:group="4_colors")
+    # =========================================================================
+    color_discrete_map: Optional[Any] = Field(
         default=None,
-        description="Sort bars order",
-        json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": [
-                {"value": None, "label": "None"},
-                {"value": "ascending", "label": "Ascending"},
-                {"value": "descending", "label": "Descending"},
-            ],
-        },
+        description="Couleurs par categorie",
+        json_schema_extra={"ui:widget": "json", "ui:group": "4_colors", "ui:order": 0},
     )
-    # New fields for data transformation
-    transform: Optional[str] = Field(
+    color_continuous_scale: Optional[str] = Field(
         default=None,
-        description="Type of transformation to apply to data",
-        json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["extract_series", "unpivot", "pivot"],
-        },
-    )
-    transform_params: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Parameters for the transformation",
-        json_schema_extra={"ui:widget": "json"},
-    )
-    # Fields for field mappings
-    field_mapping: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Mapping from data fields to expected column names",
-        json_schema_extra={"ui:widget": "json"},
+        description="Echelle de couleur Plotly (si color_field numerique)",
+        json_schema_extra={"ui:widget": "text", "ui:group": "4_colors", "ui:order": 1},
     )
     auto_color: bool = Field(
         default=False,
-        description="Automatically generate harmonious colors for each bar",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Generer automatiquement des couleurs harmonieuses",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "4_colors",
+            "ui:order": 2,
+        },
     )
     gradient_color: Optional[str] = Field(
         default=None,
-        description="Base color for gradient generation (e.g., '#1fb99d'). Overrides auto_color if set",
-        json_schema_extra={"ui:widget": "color"},
+        description="Couleur de base pour gradient (ex: '#1fb99d')",
+        json_schema_extra={"ui:widget": "color", "ui:group": "4_colors", "ui:order": 3},
     )
     gradient_mode: Optional[str] = Field(
         default="luminance",
-        description="Gradient mode",
+        description="Mode de gradient",
         json_schema_extra={
             "ui:widget": "select",
+            "ui:group": "4_colors",
+            "ui:order": 4,
             "ui:options": [
-                {"value": "luminance", "label": "Light to dark"},
-                {"value": "saturation", "label": "Saturated to pale"},
+                {"value": "luminance", "label": "Clair vers fonce"},
+                {"value": "saturation", "label": "Sature vers pale"},
             ],
         },
     )
+
+    # =========================================================================
+    # GROUP 5: Display (ui:group="5_display")
+    # =========================================================================
+    text_auto: Union[bool, str] = Field(
+        default=True,
+        description="Afficher valeurs sur les barres (True, False, ou format '.2f')",
+        json_schema_extra={"ui:widget": "text", "ui:group": "5_display", "ui:order": 0},
+    )
     bar_width: Optional[float] = Field(
         default=None,
-        description="Width of bars (0.0 to 1.0). If None, width is calculated automatically based on data count",
+        description="Largeur des barres (0.0 a 1.0)",
         json_schema_extra={
             "ui:widget": "number",
+            "ui:group": "5_display",
+            "ui:order": 1,
             "ui:min": 0.0,
             "ui:max": 1.0,
             "ui:step": 0.1,
@@ -304,13 +499,39 @@ class BarPlotParams(BasePluginParams):
     )
     filter_zero_values: bool = Field(
         default=False,
-        description="Remove bars with zero or null values from the plot",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Masquer les barres avec valeurs nulles",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "5_display",
+            "ui:order": 2,
+        },
     )
     show_legend: bool = Field(
         default=True,
-        description="Show or hide the legend",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Afficher la legende",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "5_display",
+            "ui:order": 3,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 6: General (ui:group="6_general") - Title & description at the end
+    # =========================================================================
+    title: Optional[str] = Field(
+        default=None,
+        description="Titre du graphique",
+        json_schema_extra={"ui:widget": "text", "ui:group": "6_general", "ui:order": 0},
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Description du graphique",
+        json_schema_extra={
+            "ui:widget": "textarea",
+            "ui:group": "6_general",
+            "ui:order": 1,
+        },
     )
 
 
@@ -320,9 +541,286 @@ class BarPlotWidget(WidgetPlugin):
 
     param_schema = BarPlotParams  # Correct name for validation
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {"bins": "list", "counts": "list"},  # binned_distribution (minimal)
+        {
+            "bins": "list",
+            "counts": "list",
+            "percentages": "list",
+        },  # binned_distribution (with percentages)
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+        },  # binned_distribution (with labels)
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },  # binned_distribution (complete)
+        {"categories": "list", "values": "list"},  # categorical data
+        {"categories": "list", "counts": "list"},  # categorical counts
+        {
+            "categories": "list",
+            "counts": "list",
+            "labels": "list",
+        },  # categorical_distribution (with labels)
+        {
+            "categories": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },  # categorical_distribution (complete)
+        {"tops": "list", "counts": "list"},  # top_ranking
+        {"labels": "list", "values": "list"},  # generic labeled data
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
         return get_plotly_dependencies()
+
+    @staticmethod
+    def _apply_transform(data: Any, transform_type: str, params: Dict[str, Any]) -> Any:
+        """Apply data transformation specific to bar_plot widget.
+
+        Args:
+            data: Input data to transform
+            transform_type: Type of transformation to apply
+            params: Parameters for the transformation
+
+        Returns:
+            Transformed data (usually a DataFrame)
+        """
+        # Transformation for histograms (bins/counts)
+        if transform_type == "bins_to_df":
+            bin_field = params.get("bin_field", "bins")
+            count_field = params.get("count_field", "counts")
+            x_field = params.get("x_field", "bin")
+            y_field = params.get("y_field", "count")
+            use_percentages = params.get("use_percentages", False)
+            percentage_field = params.get("percentage_field", "percentages")
+
+            if isinstance(data, dict) and bin_field in data and count_field in data:
+                bins = data[bin_field]
+                counts = data[count_field]
+
+                # Use percentages if available and requested
+                if use_percentages and percentage_field in data:
+                    values = data[percentage_field]
+                else:
+                    values = counts
+
+                # Make sure lengths match - typically we have one more bin than count
+                if len(bins) == len(values) + 1:
+                    bins = bins[:-1]  # Remove the last bin
+
+                if len(bins) == len(values):
+                    # Create bin labels for better display
+                    bin_labels = []
+                    for i in range(len(bins)):
+                        if i < len(bins) - 1:
+                            next_bin = (
+                                bins[i + 1]
+                                if i + 1 < len(bins)
+                                else bins[i] + (bins[i] - bins[i - 1] if i > 0 else 10)
+                            )
+                            bin_labels.append(f"{bins[i]}-{next_bin}")
+                        else:
+                            bin_labels.append(f"{bins[i]}+")
+
+                    return pd.DataFrame(
+                        {
+                            x_field: bin_labels,
+                            y_field: values,
+                            "bin_value": bins,  # Keep original bin values for sorting
+                        }
+                    )
+
+        # Transformation for monthly/phenology data
+        elif transform_type == "monthly_data":
+            labels_field = params.get("labels_field", "labels")
+            data_field = params.get("data_field", "month_data")
+            series_name = params.get("series_name")
+            melt = params.get("melt", False)
+
+            if isinstance(data, dict) and labels_field in data and data_field in data:
+                labels = data[labels_field]
+                month_data = data[data_field]
+
+                if isinstance(month_data, dict):
+                    if series_name and series_name in month_data:
+                        return pd.DataFrame(
+                            {"labels": labels, series_name: month_data[series_name]}
+                        )
+                    else:
+                        df = pd.DataFrame({"labels": labels})
+                        for series, values in month_data.items():
+                            if len(values) == len(labels):
+                                df[series] = values
+
+                        if melt and len(df.columns) > 1:
+                            return pd.melt(
+                                df,
+                                id_vars=["labels"],
+                                var_name="series",
+                                value_name="value",
+                            )
+                        return df
+
+        # Transformation for categorical data with labels
+        elif transform_type == "category_with_labels":
+            category_field = params.get("category_field", "categories")
+            count_field = params.get("count_field", "counts")
+            label_field = params.get("label_field", "labels")
+            percentage_field = params.get("percentage_field", "percentages")
+            use_percentages = params.get("use_percentages", True)
+            x_field = params.get("x_field", "category_label")
+            y_field = params.get("y_field", "value")
+
+            if (
+                isinstance(data, dict)
+                and category_field in data
+                and label_field in data
+            ):
+                result = []
+                categories = data[category_field]
+                labels = data[label_field]
+
+                if len(categories) == len(labels):
+                    if use_percentages and percentage_field in data:
+                        values = data[percentage_field]
+                    elif count_field in data:
+                        values = data[count_field]
+                    else:
+                        return data
+
+                    if len(values) == len(categories):
+                        for i in range(len(categories)):
+                            result.append(
+                                {
+                                    x_field: labels[i],
+                                    y_field: values[i],
+                                    "category": categories[i],
+                                }
+                            )
+                        return pd.DataFrame(result)
+
+        # Transformation for nested dictionaries (Holdridge)
+        elif transform_type == "nested_dict_to_long":
+            primary_keys = params.get("primary_keys", [])
+            category_field = params.get("category_field", "category")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+
+            if isinstance(data, dict) and all(key in data for key in primary_keys):
+                rows = []
+                for primary_key in primary_keys:
+                    primary_dict = data[primary_key]
+                    if isinstance(primary_dict, dict):
+                        for category, value in primary_dict.items():
+                            rows.append(
+                                {
+                                    category_field: category,
+                                    value_field: value,
+                                    type_field: primary_key,
+                                }
+                            )
+                if rows:
+                    return pd.DataFrame(rows)
+
+        # Transformation for pyramid charts (negative/positive values)
+        elif transform_type == "pyramid_chart":
+            class_field = params.get("class_field", "class_name")
+            series_field = params.get("series_field", "series")
+            left_series = params.get("left_series")
+            right_series = params.get("right_series")
+            left_label = params.get("left_label", "Left")
+            right_label = params.get("right_label", "Right")
+            class_suffix = params.get("class_suffix", "")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+            class_label = params.get("class_label", "class")
+
+            if isinstance(data, dict) and class_field in data and series_field in data:
+                classes = data[class_field]
+                series_data = data[series_field]
+
+                if (
+                    isinstance(series_data, dict)
+                    and left_series in series_data
+                    and right_series in series_data
+                ):
+                    left_values = series_data[left_series]
+                    right_values = series_data[right_series]
+
+                    if len(classes) == len(left_values) == len(right_values):
+                        rows = []
+                        for i, cls in enumerate(classes):
+                            rows.append(
+                                {
+                                    class_label: f"{cls}{class_suffix}",
+                                    type_field: left_label,
+                                    value_field: -abs(left_values[i]),
+                                }
+                            )
+                            rows.append(
+                                {
+                                    class_label: f"{cls}{class_suffix}",
+                                    type_field: right_label,
+                                    value_field: abs(right_values[i]),
+                                }
+                            )
+                        return pd.DataFrame(rows)
+
+        # Transformation for subset/complement stacked data
+        elif transform_type == "subset_complement_stacked":
+            data_field = params.get("data_field", None)
+            classes_field = params.get("classes_field", "classes")
+            subset_field = params.get("subset_field", "subset")
+            complement_field = params.get("complement_field", "complement")
+            class_label = params.get("class_label", "class")
+            subset_label = params.get("subset_label", "Subset")
+            complement_label = params.get("complement_label", "Complement")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+            class_suffix = params.get("class_suffix", "")
+
+            if data_field and isinstance(data, dict) and data_field in data:
+                data = data[data_field]
+
+            if (
+                isinstance(data, dict)
+                and classes_field in data
+                and subset_field in data
+                and complement_field in data
+            ):
+                classes = data[classes_field]
+                subset = data[subset_field]
+                complement = data[complement_field]
+
+                if len(classes) == len(subset) == len(complement):
+                    rows = []
+                    for i, cls in enumerate(classes):
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: subset_label,
+                                value_field: subset[i],
+                            }
+                        )
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: complement_label,
+                                value_field: complement[i],
+                            }
+                        )
+                    return pd.DataFrame(rows)
+
+        # No transformation or unrecognized type
+        return data
 
     def render(self, data: Optional[Any], params: BarPlotParams) -> str:
         """Generate the HTML for the bar plot."""
@@ -331,7 +829,9 @@ class BarPlotWidget(WidgetPlugin):
 
         # 1. Apply transformation if specified
         if params.transform:
-            data = transform_data(data, params.transform, params.transform_params or {})
+            data = self._apply_transform(
+                data, params.transform, params.transform_params or {}
+            )
 
         # 2. Convert data to DataFrame using our generic utility
         processed_data = convert_to_dataframe(

@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any, List, Optional, Set, Union, Dict
 import json
@@ -73,10 +74,10 @@ class InfoItem(BaseModel):
     )
     format: Optional[str] = Field(
         default=None,
-        description="Optional format for the value (e.g., 'map', 'number').",
+        description="Optional format for the value (e.g., 'map', 'number', 'stats').",
         json_schema_extra={
             "ui:widget": "select",
-            "ui:options": ["map", "number", "image"],
+            "ui:options": ["map", "number", "image", "stats"],
         },
     )
     mapping: Optional[Dict[str, str]] = Field(
@@ -124,7 +125,7 @@ class InfoGridParams(BasePluginParams):
         json_schema_extra={"ui:widget": "textarea"},
     )
     items: List[InfoItem] = Field(
-        ...,
+        default_factory=list,
         description="A list of info items to display in the grid.",
         json_schema_extra={"ui:widget": "array"},
     )
@@ -144,6 +145,12 @@ class InfoGridWidget(WidgetPlugin):
     """Displays a grid of key information items (KPIs, stats, labels)."""
 
     param_schema = InfoGridParams
+
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {"*": "dict"},  # field_aggregator - dynamic keys with {value, units} structure
+        {"name": "dict", "rank": "dict"},  # Partial field_aggregator structure
+    ]
 
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Currently relies on framework (e.g., Bootstrap)."""
@@ -191,11 +198,11 @@ class InfoGridWidget(WidgetPlugin):
         # Container for the whole widget with title if provided
         title_html = ""
         if params.title:
-            title_html = f'<div class="mb-4"><h3 class="text-lg font-medium text-gray-900">{params.title}</h3></div>'
+            title_html = f'<div class="mb-4"><h3 class="text-lg font-medium text-gray-900">{html.escape(str(params.title))}</h3></div>'
 
         description_html = ""
         if params.description:
-            description_html = f'<div class="mb-4"><p class="text-sm text-gray-500">{params.description}</p></div>'
+            description_html = f'<div class="mb-4"><p class="text-sm text-gray-500">{html.escape(str(params.description))}</p></div>'
 
         item_html_parts = []
         for item in params.items:
@@ -230,14 +237,15 @@ class InfoGridWidget(WidgetPlugin):
             if item_value is None:
                 continue
 
-            # Default display value is the string representation
-            display_value = str(item_value)
+            # Default display value is the string representation (escaped for HTML safety)
+            display_value = html.escape(str(item_value))
 
             # Apply formatting if specified
             if item.format == "map" and item.mapping:
-                display_value = item.mapping.get(
-                    str(item_value), display_value
-                )  # Use str(item_value) for lookup
+                mapped = item.mapping.get(str(item_value))
+                display_value = (
+                    html.escape(str(mapped)) if mapped is not None else display_value
+                )
             elif item.format == "number":
                 # Check if value is nested in a dict like {'value': 123}
                 value_to_format = item_value
@@ -262,6 +270,9 @@ class InfoGridWidget(WidgetPlugin):
                     """ logger.warning(
                         f"Could not format value '{value_to_format}' as number for item '{item.label}'."
                     ) """
+            elif item.format == "stats" and isinstance(item_value, dict):
+                # Handle stats format (mean, min, max, std, count)
+                display_value = self._render_stats(item_value)
             elif item.format == "image" and item.image_mapping:
                 # Handle image gallery format
                 # Debug log to see what we're getting
@@ -276,37 +287,58 @@ class InfoGridWidget(WidgetPlugin):
             # Handle icons - support for Font Awesome and other icon libraries
             icon_html = ""
             if item.icon:
+                safe_icon = html.escape(str(item.icon), quote=True)
                 if item.icon.startswith("fa"):
                     # Font Awesome icon
-                    icon_html = f'<i class="{item.icon} mr-2"></i>'
+                    icon_html = f'<i class="{safe_icon} mr-2"></i>'
                 else:
                     # Assume it's a simple icon name and use Font Awesome solid as default
-                    icon_html = f'<i class="fas fa-{item.icon} mr-2"></i>'
+                    icon_html = f'<i class="fas fa-{safe_icon} mr-2"></i>'
 
             unit_html = (
-                f'<span class="text-gray-500 text-sm ml-1">{item.unit}</span>'
+                f'<span class="text-gray-500 text-sm ml-1">{html.escape(str(item.unit))}</span>'
                 if item.unit
                 else ""
             )
-            tooltip_attr = f'title="{item.description}"' if item.description else ""
+            tooltip_attr = (
+                f'title="{html.escape(str(item.description), quote=True)}"'
+                if item.description
+                else ""
+            )
 
-            # Generate HTML for each item with Tailwind styling
+            # Generate HTML for each item with Tailwind + inline styles as fallback
+            card_style = "padding: 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+            label_style = "font-size: 0.875rem; font-weight: 500; color: #6b7280; margin-bottom: 0.25rem;"
+            value_style = "font-size: 1.5rem; font-weight: 600; color: #111827;"
+
+            safe_label = html.escape(str(item.label))
+
             # Special handling for image format
             if item.format == "image":
                 item_html = f"""
-                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
-                    <div class="flex flex-col h-full">
-                        <div class="text-sm font-medium text-gray-500 mb-3">{icon_html}{item.label}</div>
-                        <div class="flex-1">{display_value}</div>
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style} margin-bottom: 0.75rem;">{icon_html}{safe_label}</div>
+                        <div style="flex: 1;">{display_value}</div>
+                    </div>
+                </div>
+                """
+            elif item.format == "stats":
+                # Stats format has its own styling from _render_stats
+                item_html = f"""
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style}">{icon_html}{safe_label}</div>
+                        <div>{display_value}</div>
                     </div>
                 </div>
                 """
             else:
                 item_html = f"""
-                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
-                    <div class="flex flex-col h-full">
-                        <div class="text-sm font-medium text-gray-500 mb-1">{icon_html}{item.label}</div>
-                        <div class="text-2xl font-semibold text-gray-900">{display_value}{unit_html}</div>
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style}">{icon_html}{safe_label}</div>
+                        <div style="{value_style}">{display_value}{unit_html}</div>
                     </div>
                 </div>
                 """
@@ -316,19 +348,68 @@ class InfoGridWidget(WidgetPlugin):
         if not item_html_parts:
             return ""
 
-        # Wrap items in a responsive grid layout
+        # Wrap items in a responsive grid layout with inline styles as fallback
         items_html = "\n".join(item_html_parts)
+
+        # Calculate grid template based on columns
+        grid_cols = params.grid_columns or 3
         output_html = f"""
-        <div class="info-grid-widget">
+        <div class="info-grid-widget" style="padding: 1rem;">
             {title_html}
             {description_html}
-            <div class="grid {grid_cols_class} gap-4">
+            <div class="grid {grid_cols_class} gap-4" style="display: grid; grid-template-columns: repeat({grid_cols}, minmax(0, 1fr)); gap: 1rem;">
                 {items_html}
             </div>
         </div>
         """
 
         return output_html
+
+    def _render_stats(self, stats_data: Dict[str, Any]) -> str:
+        """Render statistics (mean, min, max, std, count) in a compact format."""
+        if not stats_data:
+            return '<span style="color: #9ca3af;">-</span>'
+
+        parts = []
+
+        # Format mean as the main value
+        mean_val = stats_data.get("mean")
+        if mean_val is not None:
+            safe_mean = html.escape(str(mean_val))
+            parts.append(
+                f'<span style="font-size: 1.5rem; font-weight: 600; color: #111827;">{safe_mean}</span>'
+            )
+
+        # Build secondary stats line
+        secondary_parts = []
+        min_val = stats_data.get("min")
+        max_val = stats_data.get("max")
+        if min_val is not None and max_val is not None:
+            safe_min = html.escape(str(min_val))
+            safe_max = html.escape(str(max_val))
+            secondary_parts.append(
+                f"<span style='color: #6b7280;'>{safe_min} - {safe_max}</span>"
+            )
+
+        std_val = stats_data.get("std")
+        if std_val is not None:
+            safe_std = html.escape(str(std_val))
+            secondary_parts.append(f"<span style='color: #9ca3af;'>σ={safe_std}</span>")
+
+        count_val = stats_data.get("count")
+        if count_val is not None:
+            safe_count = html.escape(str(count_val))
+            secondary_parts.append(
+                f"<span style='color: #9ca3af;'>n={safe_count}</span>"
+            )
+
+        if secondary_parts:
+            secondary_html = " · ".join(secondary_parts)
+            parts.append(
+                f'<div style="font-size: 0.75rem; margin-top: 0.25rem;">{secondary_html}</div>'
+            )
+
+        return "".join(parts) if parts else '<span style="color: #9ca3af;">-</span>'
 
     def _render_image_gallery(
         self, image_data: Any, image_mapping: ImageMapping, label: str
@@ -344,18 +425,8 @@ class InfoGridWidget(WidgetPlugin):
                 image_data = [image_data]
             else:
                 try:
-                    # Try to parse as literal_eval for Python literals first
-                    import ast
-
-                    if image_data.startswith("[") and image_data.endswith("]"):
-                        image_data = ast.literal_eval(image_data)
-                    elif image_data.startswith("{") and image_data.endswith("}"):
-                        image_data = ast.literal_eval(image_data)
-                    else:
-                        # Try JSON parsing
-                        image_data = json.loads(image_data)
-                except (ValueError, SyntaxError, json.JSONDecodeError):
-                    # If all parsing fails, treat as single URL
+                    image_data = json.loads(image_data)
+                except (json.JSONDecodeError, TypeError):
                     image_data = [image_data]
 
         all_images = []
@@ -420,9 +491,10 @@ class InfoGridWidget(WidgetPlugin):
         for index, image_url in enumerate(display_images):
             # Escape quotes properly for HTML attributes
             escaped_modal_images = json.dumps(modal_images).replace('"', "&quot;")
+            safe_url = html.escape(image_url, quote=True).replace("'", "&#39;")
             image_elements.append(f"""
                 <div class="w-16 h-16 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
-                     style="background-image: url('{image_url}')"
+                     style="background-image: url('{safe_url}')"
                      title="Image {index + 1}"
                      onclick="openImageLightbox({escaped_modal_images}, {index})">
                 </div>
@@ -432,9 +504,10 @@ class InfoGridWidget(WidgetPlugin):
         hidden_images = []
         for index, image_url in enumerate(all_images[6:], start=6):
             escaped_modal_images = json.dumps(modal_images).replace('"', "&quot;")
+            safe_url = html.escape(image_url, quote=True).replace("'", "&#39;")
             hidden_images.append(f"""
                 <div class="w-16 h-16 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity hidden gallery-hidden"
-                     style="background-image: url('{image_url}')"
+                     style="background-image: url('{safe_url}')"
                      title="Image {index + 1}"
                      onclick="openImageLightbox({escaped_modal_images}, {index})">
                 </div>

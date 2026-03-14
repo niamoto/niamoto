@@ -229,13 +229,14 @@ class HierarchicalNavWidget(WidgetPlugin):
         # JavaScript initialization
         if load_from_js:
             # Load data from external JS file
+            safe_json = json.dumps(js_config, ensure_ascii=False).replace("</", "<\\/")
             html_parts.append(f"""
                 <script src="../assets/js/{js_file}"></script>
                 <script>
                 // Use a more robust initialization approach
                 function initializeHierarchicalNav() {{
                     if (typeof NiamotoHierarchicalNav !== 'undefined' && typeof {data_var} !== 'undefined') {{
-                        const config = {json.dumps(js_config, ensure_ascii=False)};
+                        const config = {safe_json};
                         config.items = {data_var};  // Get data from loaded JS file
                         new NiamotoHierarchicalNav(config);
                     }} else {{
@@ -256,11 +257,12 @@ class HierarchicalNavWidget(WidgetPlugin):
         else:
             # Use inline data (fallback for compatibility)
             js_config["items"] = data_list if isinstance(data_list, list) else []
+            safe_json = json.dumps(js_config, ensure_ascii=False).replace("</", "<\\/")
             html_parts.append(f"""
                 <script>
                 document.addEventListener('DOMContentLoaded', function() {{
                     if (typeof NiamotoHierarchicalNav !== 'undefined') {{
-                        new NiamotoHierarchicalNav({json.dumps(js_config, ensure_ascii=False)});
+                        new NiamotoHierarchicalNav({safe_json});
                     }} else {{
                         console.error('NiamotoHierarchicalNav script not loaded. Make sure niamoto_hierarchical_nav.js is included.');
                     }}

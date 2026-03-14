@@ -191,7 +191,7 @@ Before creating a release:
 - [ ] CHANGELOG updated (if you have one)
 - [ ] Documentation updated
 - [ ] Local build works: `pyinstaller build_scripts/niamoto.spec`
-- [ ] React UI builds: `cd src/niamoto/gui/ui && npm run build`
+- [ ] React UI builds: `cd src/niamoto/gui/ui && pnpm run build`
 
 ## 🎯 Version Numbering
 

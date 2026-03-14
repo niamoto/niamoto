@@ -20,20 +20,32 @@ class LayerConfig(BasePluginParams):
 
     path: str = Field(
         ...,
-        description="Path to the layer file",
-        json_schema_extra={"ui:widget": "file-select"},
+        description="Path to the vector layer file",
+        json_schema_extra={
+            "ui:widget": "layer-select",
+            "ui:accept": "vector",
+            "ui:placeholder": "Select a vector layer...",
+        },
     )
 
     field: str = Field(
         default="",
         description="Field containing the category values",
-        json_schema_extra={"ui:widget": "field-select"},
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:placeholder": "e.g., type, category, class",
+            "ui:help": "Column name in the vector layer containing category values",
+        },
     )
 
     categories: List[str] = Field(
         ...,
         description="List of categories to analyze",
-        json_schema_extra={"ui:widget": "array"},
+        json_schema_extra={
+            "ui:widget": "tags",
+            "ui:placeholder": "Add category...",
+            "ui:help": "Values from the field column to include in analysis",
+        },
     )
 
 

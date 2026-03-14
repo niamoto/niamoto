@@ -15,6 +15,92 @@
     "aggregations": "Agrégations",
     "summary": "Résumé"
   },
+  "sidebar": {
+    "nav": {
+      "home": "Accueil",
+      "data": "Données",
+      "groups": "Groupes",
+      "site": "Site",
+      "publish": "Publication"
+    },
+    "cmdkHint": "Outils & recherche",
+    "footer": {
+      "settings": "Paramètres",
+      "previewSite": "Prévisualiser le site"
+    }
+  },
+  "command": {
+    "search": "Rechercher une page ou un outil...",
+    "no_results": "Aucun résultat.",
+    "navigation": "Navigation",
+    "tools": "Outils",
+    "preferences": "Préférences",
+    "light_theme": "Thème clair",
+    "dark_theme": "Thème sombre",
+    "system_theme": "Thème système",
+    "importDesc": "Importer un fichier de données",
+    "explorerDesc": "Requêtes SQL sur vos données",
+    "configDesc": "Éditer les fichiers YAML",
+    "pluginsDesc": "Gérer les plugins",
+    "docsDesc": "Référence des endpoints",
+    "select_hint": "Sélectionner",
+    "close_hint": "Fermer",
+    "navigate_hint": "Naviguer"
+  },
+  "pipeline": {
+    "never_run": "Pas encore exécuté",
+    "running": "Traitement en cours...",
+    "data_stale": "Données importées — groupes à recalculer",
+    "data_fresh": "Données à jour",
+    "groups_stale": "Calculs périmés — données modifiées depuis le dernier calcul",
+    "groups_stale_count": "{{count}} groupe(s) à recalculer",
+    "groups_fresh": "Tous les groupes sont à jour",
+    "site_stale": "Site non configuré",
+    "site_fresh": "Site configuré",
+    "publication_stale": "Groupes recalculés — site à reconstruire",
+    "publication_fresh": "Site généré et à jour",
+    "action_import": "Importer",
+    "action_transform": "Recalculer les groupes",
+    "action_recalculate": "Recalculer",
+    "action_rebuild": "Reconstruire le site",
+    "action_deploy": "Déployer",
+    "action_configure": "Configurer",
+    "running_import": "Import en cours...",
+    "running_transform": "Calcul en cours...",
+    "running_export": "Construction en cours...",
+    "cascade": {
+      "title": "Cascade de mises à jour",
+      "description": "Recalculer {{count}} groupe(s) → Reconstruire le site → Publier"
+    },
+    "dashboard": {
+      "title": "Tableau de bord",
+      "stale_subtitle": "Des mises à jour sont nécessaires",
+      "fresh_subtitle": "Tout est à jour",
+      "update_all": "Mettre à jour"
+    },
+    "summary": {
+      "quality": "Qualité {{score}}%",
+      "alert": "1 alerte",
+      "alerts": "{{count}} alertes",
+      "groups_ratio": "{{fresh}}/{{total}} à jour",
+      "groups_stale_ratio": "{{stale}}/{{total}} à recalculer",
+      "pages": "{{count}} pages",
+      "html_pages": "{{count}} pages HTML",
+      "built_in": "en {{seconds}}s"
+    },
+    "onboarding": {
+      "title": "Bienvenue sur Niamoto",
+      "subtitle": "Suivez ces étapes pour configurer votre portail de données écologiques.",
+      "step1": "Importer vos données",
+      "step1_desc": "Fichiers CSV, taxonomie, shapefile",
+      "step2": "Configurer les groupes",
+      "step2_desc": "Choisir les widgets et statistiques à calculer",
+      "step3": "Personnaliser le site",
+      "step3_desc": "Pages, navigation, apparence",
+      "step4": "Publier",
+      "step4_desc": "Construire et déployer le site web"
+    }
+  },
   "actions": {
     "save": "Enregistrer",
     "cancel": "Annuler",
@@ -41,7 +127,11 @@
     "goTo": "Aller à",
     "retry": "Réessayer",
     "start": "Lancer",
-    "addNew": "Ajouter"
+    "addNew": "Ajouter",
+    "hidePreview": "Masquer l'aperçu",
+    "duplicate": "Dupliquer",
+    "preview": "Aperçu",
+    "refresh": "Actualiser"
   },
   "status": {
     "loading": "Chargement...",
@@ -54,7 +144,14 @@
     "failed": "Échec",
     "pending": "En attente",
     "inProgress": "En cours",
-    "testing": "Test en cours..."
+    "testing": "Test en cours...",
+    "selected": "Sélectionné",
+    "deleting": "Suppression...",
+    "saving": "Sauvegarde...",
+    "registering": "Enregistrement...",
+    "noFieldsAvailable": "Aucun champ disponible",
+    "unsavedChanges": "non sauvegardé",
+    "saved": "sauvegardé"
   },
   "validation": {
     "required": "Ce champ est requis",
@@ -99,6 +196,19 @@
     "fr": "Français",
     "en": "English"
   },
+  "i18n": {
+    "enableMultilingual": "Activer le contenu multilingue",
+    "multilingual": "Multilingue",
+    "simplify": "Simplifier",
+    "simplifyDescription": "Supprimer les traductions et ne garder qu'une seule valeur",
+    "languageSwitcher": "Sélecteur de langue",
+    "defaultLanguage": "Langue par défaut",
+    "availableLanguages": "Langues disponibles",
+    "addLanguage": "Ajouter une langue",
+    "removeLanguage": "Supprimer la langue",
+    "contentLanguages": "Langues du contenu",
+    "generateForLanguages": "Générer pour ces langues"
+  },
   "messages": {
     "noData": "Aucune donnée à afficher",
     "allMapped": "Tous les champs mappés",
@@ -113,6 +223,134 @@
     "suggested": "(suggéré)",
     "optional": "(optionnel)",
     "example": "ex: {{example}}",
-    "or": "ou"
+    "or": "ou",
+    "notFound": "Non trouvé",
+    "navigatingTo": "Navigation vers \"{{name}}\"",
+    "pageNotFound": "Page non trouvée : {{href}}"
+  },
+  "dialogs": {
+    "deleteConfirm": "Supprimer {{item}} ?",
+    "deleteConfirmDescription": "Cela supprimera <strong>\"{{item}}\"</strong> de la configuration.",
+    "cannotUndo": "Cette action est irréversible.",
+    "replaceExisting": "Remplacer la configuration existante ?"
+  },
+  "placeholders": {
+    "search": "Rechercher...",
+    "selectOption": "Sélectionner...",
+    "enterValue": "Entrer une valeur...",
+    "autoDetect": "Auto-détection"
+  },
+  "labels": {
+    "title": "Titre",
+    "description": "Description",
+    "name": "Nom",
+    "source": "Source",
+    "field": "Champ",
+    "type": "Type",
+    "value": "Valeur",
+    "settings": "Paramètres",
+    "preview": "Aperçu"
+  },
+  "empty": {
+    "noItems": "Aucun élément",
+    "noData": "Aucune donnée disponible",
+    "clickToAdd": "Cliquez sur \"{{button}}\" pour commencer."
+  },
+  "responsive": {
+    "mobile": "Mobile",
+    "tablet": "Tablette",
+    "desktop": "Bureau"
+  },
+  "display": {
+    "grid": "Grille",
+    "list": "Liste",
+    "hierarchical": "Hiérarchique"
+  },
+  "aria": {
+    "close": "Fermer",
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "duplicate": "Dupliquer",
+    "settings": "Paramètres",
+    "previewSite": "Prévisualiser le site"
+  },
+  "breadcrumb": {
+    "data": "Données",
+    "import": "Import"
+  },
+  "network": {
+    "offline": "Hors ligne",
+    "offline_title": "Mode hors connexion",
+    "enrichment_unavailable": "Enrichissement API : indisponible",
+    "deploy_unavailable": "Publication : indisponible",
+    "tiles_unavailable": "Tuiles cartographiques : indisponibles"
+  },
+  "dashboard": {
+    "title": "Tableau de bord des données",
+    "description": "Vue d'ensemble de la qualité et de la complétude des données importées.",
+    "noData": "Aucune donnée",
+    "noDataHint": "Commencez par importer vos fichiers de données.",
+    "importData": "Importer des données",
+    "import": "Importer"
+  },
+  "detail": {
+    "referenceNotFound": "Référence introuvable",
+    "datasetNotFound": "Dataset introuvable"
+  },
+  "tree": {
+    "overview": "Vue d'ensemble",
+    "build": "Build",
+    "deploy": "Déploiement",
+    "history": "Historique",
+    "datasets": "Datasets",
+    "references": "Références",
+    "groups": "Groupes",
+    "import": "Import",
+    "importData": "Importer des données",
+    "noDatasets": "Aucun dataset importé",
+    "noReferences": "Aucune référence importée",
+    "noGroups": "Aucun groupe",
+    "noPages": "Aucune page",
+    "loading": "Chargement...",
+    "general": "Général",
+    "navigation": "Navigation",
+    "appearance": "Apparence",
+    "mainMenu": "Menu principal",
+    "footerMenu": "Menu pied de page",
+    "settings": "Paramètres"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "active_jobs": "En cours",
+    "recent": "Récents",
+    "no_notifications": "Aucune notification",
+    "mark_all_read": "Tout marquer comme lu",
+    "clear_all": "Effacer",
+    "timeAgo": {
+      "justNow": "à l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}}h",
+      "daysAgo": "il y a {{count}}j"
+    },
+    "jobTypes": {
+      "import": "Import",
+      "enrichment": "Enrichissement",
+      "transform": "Transformation",
+      "export": "Export"
+    }
+  },
+  "diagnostic": {
+    "loadingDiagnostic": "Chargement des informations de diagnostic...",
+    "diagnosticError": "Erreur de diagnostic",
+    "workingDirectory": "Répertoire de travail",
+    "database": "Base de données",
+    "notFound": "Non trouvée",
+    "tables": "Tables",
+    "moreOthers": "+{{count}} autres",
+    "configFiles": "Fichiers de configuration"
   }
 }

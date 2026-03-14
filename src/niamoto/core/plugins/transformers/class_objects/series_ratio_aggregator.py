@@ -16,12 +16,38 @@ from niamoto.common.exceptions import DataTransformError
 
 
 class DistributionConfig(BaseModel):
-    """Configuration for a distribution ratio calculation"""
+    """Configuration for a distribution ratio calculation."""
 
-    total: str  # Field name to match in class_object for total distribution
-    subset: str  # Field name to match in class_object for subset distribution
-    complement_mode: str = (
-        "ratio"  # Mode for complement calculation: "ratio" or "difference"
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["total", "subset", "complement_mode"],
+        }
+    )
+
+    total: str = Field(
+        ...,
+        description="Class object for total distribution",
+        json_schema_extra={
+            "ui:placeholder": "e.g., land_elevation",
+            "ui:help": "Class object representing the total population (denominator)",
+        },
+    )
+    subset: str = Field(
+        ...,
+        description="Class object for subset distribution",
+        json_schema_extra={
+            "ui:placeholder": "e.g., forest_elevation",
+            "ui:help": "Class object representing the subset to compare (numerator)",
+        },
+    )
+    complement_mode: str = Field(
+        default="ratio",
+        description="Mode for complement calculation",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["ratio", "difference"],
+            "ui:help": "'ratio' = 1 - (subset/total), 'difference' = total - subset",
+        },
     )
 
 
@@ -59,7 +85,10 @@ class SeriesRatioParams(BasePluginParams):
     distributions: Dict[str, DistributionConfig] = Field(
         default_factory=dict,
         description="Mapping of distribution names to total/subset field pairs",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:add_button_text": "Add distribution",
+            "ui:help": "Each distribution compares a subset against a total (e.g., forest vs land elevation)",
+        },
     )
 
     numeric_class_name: bool = Field(

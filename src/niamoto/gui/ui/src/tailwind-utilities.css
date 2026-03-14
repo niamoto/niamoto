@@ -66,4 +66,185 @@
   .ring-offset-background {
     --tw-ring-offset-color: theme(--color-background);
   }
+
+  /* Semantic status colors */
+  .bg-success {
+    background-color: theme(--color-success);
+  }
+
+  .text-success {
+    color: theme(--color-success);
+  }
+
+  .text-success-foreground {
+    color: theme(--color-success-foreground);
+  }
+
+  .border-success {
+    border-color: theme(--color-success);
+  }
+
+  .bg-warning {
+    background-color: theme(--color-warning);
+  }
+
+  .text-warning {
+    color: theme(--color-warning);
+  }
+
+  .text-warning-foreground {
+    color: theme(--color-warning-foreground);
+  }
+
+  .border-warning {
+    border-color: theme(--color-warning);
+  }
+
+  .bg-info {
+    background-color: theme(--color-info);
+  }
+
+  .text-info {
+    color: theme(--color-info);
+  }
+
+  .text-info-foreground {
+    color: theme(--color-info-foreground);
+  }
+
+  .border-info {
+    border-color: theme(--color-info);
+  }
+
+  /* Data source colors */
+  .bg-data-source-primary {
+    background-color: theme(--color-data-source-primary);
+  }
+
+  .text-data-source-primary {
+    color: theme(--color-data-source-primary);
+  }
+
+  .text-data-source-primary-foreground {
+    color: theme(--color-data-source-primary-foreground);
+  }
+
+  .border-data-source-primary {
+    border-color: theme(--color-data-source-primary);
+  }
+
+  .bg-data-source-secondary {
+    background-color: theme(--color-data-source-secondary);
+  }
+
+  .text-data-source-secondary {
+    color: theme(--color-data-source-secondary);
+  }
+
+  .text-data-source-secondary-foreground {
+    color: theme(--color-data-source-secondary-foreground);
+  }
+
+  .border-data-source-secondary {
+    border-color: theme(--color-data-source-secondary);
+  }
+
+  /* ========================================
+   * TYPOGRAPHY UTILITIES
+   * ======================================== */
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* ========================================
+   * SHAPE UTILITIES
+   * ======================================== */
+  .rounded-theme-none {
+    border-radius: var(--radius-none);
+  }
+
+  .rounded-theme-sm {
+    border-radius: var(--radius-sm);
+  }
+
+  .rounded-theme-md {
+    border-radius: var(--radius-md);
+  }
+
+  .rounded-theme-lg {
+    border-radius: var(--radius-lg);
+  }
+
+  .rounded-theme-xl {
+    border-radius: var(--radius-xl);
+  }
+
+  .rounded-theme-full {
+    border-radius: var(--radius-full);
+  }
+
+  /* ========================================
+   * SHADOW UTILITIES
+   * ======================================== */
+  .shadow-theme-none {
+    box-shadow: var(--shadow-none);
+  }
+
+  .shadow-theme-sm {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .shadow-theme-md {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-theme-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .shadow-theme-xl {
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* ========================================
+   * EFFECT UTILITIES
+   * ======================================== */
+  .backdrop-blur-theme {
+    backdrop-filter: blur(var(--backdrop-blur));
+  }
+
+  .surface-glass {
+    background-color: oklch(from var(--background) l c h / var(--surface-opacity));
+    backdrop-filter: blur(var(--backdrop-blur));
+  }
+
+  /* ========================================
+   * TRANSITION UTILITIES
+   * ======================================== */
+  .transition-theme-fast {
+    transition-duration: var(--transition-fast);
+    transition-timing-function: var(--transition-easing);
+  }
+
+  .transition-theme-base {
+    transition-duration: var(--transition-base);
+    transition-timing-function: var(--transition-easing);
+  }
+
+  .transition-theme-slow {
+    transition-duration: var(--transition-slow);
+    transition-timing-function: var(--transition-easing);
+  }
+
+  .ease-theme {
+    transition-timing-function: var(--transition-easing);
+  }
 }

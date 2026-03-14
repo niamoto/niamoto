@@ -197,28 +197,23 @@ class TestBinaryCounterTransform:
         assert result == expected_result
 
     def test_transform_with_db_source(self, binary_counter_plugin):
-        """Test transformation loading data from a database source."""
-        # Setup mock DB result
-        mock_cursor = MagicMock()
-        mock_cursor.description = [("db_field",)]
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [
-            (1,),
-            (0,),
-            (1,),
-            (0,),
-            (1,),
-        ]  # 3 ones, 2 zeros
-        mock_result.cursor = mock_cursor
-        # Configure the mock directly
-        binary_counter_plugin.db.execute_select.return_value = mock_result
+        """Test transformation with data loaded from a database source.
 
-        # Input data is ignored when source is not 'occurrences'
-        input_data = pd.DataFrame()
+        Note: Since the plugin refactoring, the service layer is responsible
+        for loading data from the database. The plugin only transforms the
+        provided data.
+        """
+        # Simulate data that was loaded by the service layer from a DB source
+        db_data = pd.DataFrame(
+            {
+                "db_field": [1, 0, 1, 0, 1],  # 3 ones, 2 zeros
+            }
+        )
+
         config = {
             "plugin": "binary_counter",
             "params": {
-                "source": "my_table",  # Load from this table
+                "source": "my_table",  # This tells the service which table to load
                 "field": "db_field",
                 "true_label": "Valid",
                 "false_label": "Invalid",
@@ -226,12 +221,11 @@ class TestBinaryCounterTransform:
         }
         expected_result = {"Valid": 3, "Invalid": 2}
 
-        # Use the plugin instance from the fixture
-        result = binary_counter_plugin.transform(input_data, config)
+        # The plugin receives pre-loaded data from the service layer
+        result = binary_counter_plugin.transform(db_data, config)
 
-        # Assert the mock was called correctly
-        expected_sql = "SELECT * FROM my_table"
-        binary_counter_plugin.db.execute_select.assert_called_once_with(expected_sql)
+        # The plugin no longer calls the database directly
+        binary_counter_plugin.db.execute_select.assert_not_called()
         assert result == expected_result
 
     def test_transform_invalid_config(self, binary_counter_plugin):

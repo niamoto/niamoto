@@ -35,8 +35,8 @@ class TestConfig(NiamotoTestCase):
         """Test initialization with default configuration."""
         # In test mode, files are not created but config should still work
         config = Config(config_dir=self.config_dir, create_default=True)
-        # Check that config has default values
-        self.assertEqual(config.database_path, "db/niamoto.duckdb")
+        # Check that config has default values (database_path is resolved to absolute)
+        self.assertTrue(config.database_path.endswith("db/niamoto.duckdb"))
         self.assertEqual(config.logs_path, "logs")
 
     def test_init_with_custom_dir(self):
@@ -49,7 +49,8 @@ class TestConfig(NiamotoTestCase):
     def test_database_path(self):
         """Test getting database path."""
         config = Config(config_dir=self.config_dir, create_default=True)
-        self.assertEqual(config.database_path, "db/niamoto.duckdb")
+        # database_path is resolved to absolute path
+        self.assertTrue(config.database_path.endswith("db/niamoto.duckdb"))
 
     def test_logs_path(self):
         """Test getting logs path."""

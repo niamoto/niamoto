@@ -7,20 +7,26 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Info } from 'lucide-react';
 
-// Import our specialized widgets
-import TextField from './widgets/TextField';
-import NumberField from './widgets/NumberField';
-import SelectField from './widgets/SelectField';
-import CheckboxField from './widgets/CheckboxField';
-import FieldSelectField from './widgets/FieldSelectField';
-import EntitySelectField from './widgets/EntitySelectField';
-import TransformSourceSelectField from './widgets/TransformSourceSelectField';
-import ArrayField from './widgets/ArrayField';
-import JsonField from './widgets/JsonField';
-import ColorField from './widgets/ColorField';
-import DirectorySelectField from './widgets/DirectorySelectField';
-import TextAreaField from './widgets/TextAreaField';
-import ObjectField from './widgets/ObjectField';
+// Import our specialized fields
+import TextField from './fields/TextField';
+import NumberField from './fields/NumberField';
+import SelectField from './fields/SelectField';
+import CheckboxField from './fields/CheckboxField';
+import FieldSelectField from './fields/FieldSelectField';
+import EntitySelectField from './fields/EntitySelectField';
+import TransformSourceSelectField from './fields/TransformSourceSelectField';
+import ArrayField from './fields/ArrayField';
+import JsonField from './fields/JsonField';
+import ColorField from './fields/ColorField';
+import DirectorySelectField from './fields/DirectorySelectField';
+import TextAreaField from './fields/TextAreaField';
+import ObjectField from './fields/ObjectField';
+import KeyValuePairsField from './fields/KeyValuePairsField';
+import TagsField from './fields/TagsField';
+import ClassObjectSelectField from './fields/ClassObjectSelectField';
+import FilePickerField from './fields/FilePickerField';
+import FieldListEditor from './fields/FieldListEditor';
+import LayerSelectField from './fields/LayerSelectField';
 
 interface JsonSchemaFormProps {
   pluginId: string;
@@ -33,6 +39,7 @@ interface JsonSchemaFormProps {
   className?: string;
   showTitle?: boolean;
   availableFields?: string[]; // For field-select widgets
+  initialValues?: Record<string, any>; // Initial values to populate the form
 }
 
 interface PluginSchema {
@@ -63,6 +70,7 @@ interface FieldSchema {
   maxItems?: number;
   items?: any;
   properties?: Record<string, any>;
+  additionalProperties?: { type?: string };
   json_schema_extra?: Record<string, any>;
   anyOf?: any[];
   allOf?: any[];
@@ -78,19 +86,24 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   readOnly = false,
   className = '',
   showTitle = true,
-  availableFields = []
+  availableFields = [],
+  initialValues = {}
 }) => {
   const [schema, setSchema] = useState<PluginSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
 
-  // Fetch schema from API
+  // Track if we've initialized with initialValues
+  const initializedRef = React.useRef(false);
+
+  // Fetch schema from API (only when pluginId changes)
   useEffect(() => {
     const fetchSchema = async () => {
       try {
         setLoading(true);
         setError(null);
+        initializedRef.current = false;
 
         const response = await fetch(`/api/plugins/${pluginId}/schema`);
         if (!response.ok) {
@@ -109,7 +122,12 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               defaults[key] = fieldSchema.default;
             }
           });
-          setFormData(defaults);
+          // Merge: defaults first, then initialValues override
+          setFormData({ ...defaults, ...initialValues });
+          initializedRef.current = true;
+        } else if (Object.keys(initialValues).length > 0) {
+          setFormData(initialValues);
+          initializedRef.current = true;
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load plugin schema');
@@ -122,6 +140,20 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       fetchSchema();
     }
   }, [pluginId]);
+
+  // Update form data when initialValues change (after initial load)
+  useEffect(() => {
+    if (schema && !loading && Object.keys(initialValues).length > 0) {
+      // Only update if values are different to avoid loops
+      const hasNewValues = Object.keys(initialValues).some(
+        key => initialValues[key] !== formData[key]
+      );
+      if (hasNewValues && !initializedRef.current) {
+        setFormData(prev => ({ ...prev, ...initialValues }));
+        initializedRef.current = true;
+      }
+    }
+  }, [initialValues, schema, loading]);
 
   // Handle field changes
   const handleFieldChange = (fieldName: string, value: any) => {
@@ -147,8 +179,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   // Render a single field based on its schema
   const renderField = (fieldName: string, fieldSchema: FieldSchema, required: boolean = false) => {
 
-    // Get UI widget type from json_schema_extra
-    const uiWidget = fieldSchema.json_schema_extra?.['ui:widget'];
+    // Get UI widget type from json_schema_extra or directly from fieldSchema
+    // Pydantic places ui:widget directly in the schema, not nested in json_schema_extra
+    const uiWidget = fieldSchema.json_schema_extra?.['ui:widget'] || (fieldSchema as any)['ui:widget'];
     const fieldValue = form ? form.watch(fieldName) : formData[fieldName];
 
     // Common props for all fields
@@ -183,7 +216,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'select':
+          // Options can be in json_schema_extra['ui:options'] or directly in fieldSchema['ui:options']
           const options = fieldSchema.json_schema_extra?.['ui:options'] ||
+                         (fieldSchema as any)['ui:options'] ||
                          fieldSchema.enum?.map(val => ({ value: val, label: val })) || [];
           return (
             <SelectField
@@ -216,6 +251,19 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             />
           );
 
+        case 'class-object-select':
+          const coSource = fieldSchema.json_schema_extra?.['ui:source'] || (fieldSchema as any)['ui:source'];
+          const coMultiple = fieldSchema.json_schema_extra?.['ui:multiple'] || (fieldSchema as any)['ui:multiple'];
+          return (
+            <ClassObjectSelectField
+              key={fieldName}
+              {...commonProps}
+              groupBy={groupBy}
+              source={coSource}
+              multiple={coMultiple}
+            />
+          );
+
         case 'transform-source-select':
           const sourceGroupBy = fieldSchema.json_schema_extra?.['ui:groupBy'];
           return (
@@ -223,6 +271,18 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               key={fieldName}
               {...commonProps}
               groupBy={sourceGroupBy || groupBy}
+            />
+          );
+
+        case 'field-list':
+        case 'field-list-editor':
+          return (
+            <FieldListEditor
+              key={fieldName}
+              {...commonProps}
+              groupBy={groupBy}
+              minItems={fieldSchema.minItems}
+              maxItems={fieldSchema.maxItems}
             />
           );
 
@@ -266,6 +326,12 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         case 'json':
           return <JsonField key={fieldName} {...commonProps} />;
 
+        case 'key-value-pairs':
+          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+
+        case 'tags':
+          return <TagsField key={fieldName} {...commonProps} />;
+
         case 'object':
           return (
             <ObjectField
@@ -279,8 +345,30 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           return <ColorField key={fieldName} {...commonProps} />;
 
         case 'directory-select':
-        case 'file-select':
           return <DirectorySelectField key={fieldName} {...commonProps} />;
+
+        case 'file-select':
+        case 'file-picker':
+          const fileAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
+          const fileBasePath = fieldSchema.json_schema_extra?.['ui:basePath'] || (fieldSchema as any)['ui:basePath'] || 'imports/';
+          return (
+            <FilePickerField
+              key={fieldName}
+              {...commonProps}
+              accept={fileAccept}
+              basePath={fileBasePath}
+            />
+          );
+
+        case 'layer-select':
+          const layerAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
+          return (
+            <LayerSelectField
+              key={fieldName}
+              {...commonProps}
+              accept={layerAccept}
+            />
+          );
 
         case 'hidden':
           return null; // Don't render hidden fields
@@ -322,6 +410,11 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         return <CheckboxField key={fieldName} {...commonProps} />;
 
       case 'array':
+        // Check if it's a simple string array (tags)
+        if (fieldSchema.items?.type === 'string' && !fieldSchema.items.enum) {
+          return <TagsField key={fieldName} {...commonProps} />;
+        }
+
         // Determine the item type based on the items schema
         let itemType = 'text';
         let resolvedItemSchema = fieldSchema.items;
@@ -356,6 +449,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         );
 
       case 'object':
+        // Check if it's a Dict[str, str] (additionalProperties with string type)
+        if (fieldSchema.additionalProperties?.type === 'string') {
+          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+        }
         return (
           <ObjectField
             key={fieldName}
@@ -446,6 +543,19 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
   // Loading state
   if (loading) {
+    // Minimal skeleton when showTitle is false (embedded mode)
+    if (!showTitle) {
+      return (
+        <div className={className}>
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-3/4" />
+          </div>
+        </div>
+      );
+    }
+    // Full skeleton with card header
     return (
       <Card className={className}>
         <CardHeader>

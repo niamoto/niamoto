@@ -1,5 +1,6 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
+import logging
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form
 from pydantic import BaseModel
@@ -12,9 +13,11 @@ from niamoto.common.exceptions import (
 )
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.common.table_resolver import quote_identifier
 from ..utils.database import open_database
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
@@ -207,13 +210,140 @@ async def list_import_jobs(
     return {"total": total, "limit": limit, "offset": offset, "jobs": jobs}
 
 
-@router.get("/entities")
-async def list_entities() -> Dict[str, Any]:
-    """List all entities defined in import.yml configuration."""
+class DeleteEntityRequest(BaseModel):
+    """Request to delete an entity."""
+
+    delete_table: bool = False  # Also drop the database table
+
+
+@router.delete("/entities/{entity_type}/{entity_name}")
+async def delete_entity(
+    entity_type: str, entity_name: str, delete_table: bool = False
+) -> Dict[str, Any]:
+    """
+    Delete an entity from import.yml configuration.
+
+    Args:
+        entity_type: Type of entity ('dataset' or 'reference')
+        entity_name: Name of the entity to delete
+        delete_table: If True, also drop the associated database table
+
+    Returns:
+        Success message
+    """
+    import yaml
+    from ..context import get_working_directory
+
+    if entity_type not in ["dataset", "reference"]:
+        raise HTTPException(
+            status_code=400,
+            detail="entity_type must be 'dataset' or 'reference'",
+        )
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    config_path = work_dir / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
 
     try:
-        config = Config()
+        # Read current config
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities", {})
+        section_key = "datasets" if entity_type == "dataset" else "references"
+        section = entities.get(section_key, {})
+
+        if entity_name not in section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{entity_type.capitalize()} '{entity_name}' not found in configuration",
+            )
+
+        # Remove entity from config
+        del section[entity_name]
+        entities[section_key] = section
+        import_config["entities"] = entities
+
+        # Write updated config
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                import_config,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+
+        # Optionally drop the database table
+        table_dropped = False
+        if delete_table:
+            try:
+                config_dir = str(work_dir / "config")
+                config = Config(config_dir=config_dir, create_default=False)
+                with open_database(config.database_path) as db:
+                    # Try different table naming conventions
+                    table_names = [
+                        entity_name,
+                        f"reference_{entity_name}",
+                        f"dataset_{entity_name}",
+                    ]
+                    for table_name in table_names:
+                        if db.has_table(table_name):
+                            quoted_table = quote_identifier(db, table_name)
+                            db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+                            table_dropped = True
+                            break
+            except Exception as e:
+                # Log but don't fail - config was already updated
+                logger.warning(
+                    "Could not drop table for entity '%s': %s", entity_name, e
+                )
+
+        return {
+            "success": True,
+            "message": f"{entity_type.capitalize()} '{entity_name}' deleted successfully",
+            "table_dropped": table_dropped,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting entity: {str(e)}")
+
+
+@router.get("/entities")
+async def list_entities() -> Dict[str, Any]:
+    """List all entities defined in import.yml configuration with their actual table names."""
+    from pathlib import Path
+    from ..context import get_working_directory
+
+    try:
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
+
+        # Get table names from EntityRegistry if available
+        table_name_map: Dict[str, str] = {}
+        try:
+            db_path = Path(config.database_path)
+            if db_path.exists():
+                with open_database(config.database_path) as db:
+                    # Check if registry table exists before querying
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+        except Exception as exc:
+            logger.debug("Could not read entity registry for list_entities: %s", exc)
 
         references = []
         datasets = []
@@ -222,9 +352,12 @@ async def list_entities() -> Dict[str, Any]:
             # List references
             if generic_config.entities.references:
                 for name, ref_config in generic_config.entities.references.items():
+                    # Get actual table name from registry, fallback to convention
+                    table_name = table_name_map.get(name, f"reference_{name}")
                     references.append(
                         {
                             "name": name,
+                            "table_name": table_name,
                             "kind": ref_config.kind or "generic",
                             "connector_type": ref_config.connector.type
                             if ref_config.connector
@@ -238,9 +371,12 @@ async def list_entities() -> Dict[str, Any]:
             # List datasets
             if generic_config.entities.datasets:
                 for name, ds_config in generic_config.entities.datasets.items():
+                    # Get actual table name from registry, fallback to convention
+                    table_name = table_name_map.get(name, f"dataset_{name}")
                     datasets.append(
                         {
                             "name": name,
+                            "table_name": table_name,
                             "connector_type": ds_config.connector.type
                             if ds_config.connector
                             else "N/A",
@@ -256,23 +392,30 @@ async def list_entities() -> Dict[str, Any]:
             "datasets": datasets,
         }
 
-    except ConfigurationError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Configuration error: {e.message}. Details: {e.details}",
-        )
+    except ConfigurationError:
+        # No import.yml or empty config - return empty lists
+        return {
+            "references": [],
+            "datasets": [],
+        }
 
 
 @router.get("/status", response_model=ImportStatusResponse)
 async def get_import_status() -> ImportStatusResponse:
     """Check which entities have been imported and their row counts."""
+    from ..context import get_working_directory
 
     try:
-        config = Config()
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         references: List[ImportStatus] = []
         datasets: List[ImportStatus] = []
 
-        with open_database(config.database_path, read_only=True) as db:
+        with open_database(config.database_path) as db:
             registry = EntityRegistry(db)
 
             for entity in registry.list_all():
@@ -281,13 +424,19 @@ async def get_import_status() -> ImportStatusResponse:
 
                 if db.has_table(entity.table_name):
                     try:
+                        quoted_table_name = quote_identifier(db, entity.table_name)
                         count_row = db.execute_sql(
-                            f"SELECT COUNT(*) FROM {entity.table_name}", fetch=True
+                            f"SELECT COUNT(*) FROM {quoted_table_name}", fetch=True
                         )
                         row_count = count_row[0] if count_row else 0
                         is_imported = row_count > 0
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "Could not count rows for entity '%s' (table '%s'): %s",
+                            entity.name,
+                            entity.table_name,
+                            exc,
+                        )
 
                 status = ImportStatus(
                     entity_name=entity.name,
@@ -318,6 +467,7 @@ async def process_generic_import_all(
     """Process generic import of all entities in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
+    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -331,8 +481,13 @@ async def process_generic_import_all(
         job["progress"] = 10
         job["message"] = "Loading configuration..."
 
-        # Get config and create importer
-        config = Config()
+        # Get config and create importer using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise ValueError("Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
@@ -364,6 +519,30 @@ async def process_generic_import_all(
             job["message"] = "Import completed successfully"
             job["result"] = {"summary": result}
 
+            # Auto-scaffold transform.yml et export.yml (non-fatal)
+            try:
+                from niamoto.gui.api.services.templates.config_scaffold import (
+                    scaffold_configs,
+                )
+
+                changed, msg = scaffold_configs(work_dir)
+                if changed:
+                    logger.info("Auto-scaffold configs: %s", msg)
+            except Exception as e:
+                logger.warning("Config scaffold failed (non-fatal): %s", e)
+
+            # Invalider le cache du moteur de preview (données changées)
+            try:
+                from niamoto.gui.api.services.preview_engine.engine import (
+                    get_preview_engine,
+                )
+
+                engine = get_preview_engine()
+                if engine:
+                    engine.invalidate()
+            except Exception as e:
+                logger.warning("Preview engine invalidation failed (non-fatal): %s", e)
+
         finally:
             # Always close database connections
             importer.close()
@@ -375,10 +554,7 @@ async def process_generic_import_all(
         job["errors"].append(str(e))
         job["message"] = f"Import failed: {str(e)}"
 
-        import traceback
-
-        print(f"Import failed: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.exception("Import-all job '%s' failed: %s", job_id, e)
 
 
 async def process_generic_import_entity(
@@ -390,6 +566,7 @@ async def process_generic_import_entity(
     """Process generic import of a single entity in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
+    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -403,8 +580,13 @@ async def process_generic_import_entity(
         job["progress"] = 10
         job["message"] = f"Loading configuration for {entity_name}..."
 
-        # Get config and create importer
-        config = Config()
+        # Get config and create importer using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise ValueError("Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
@@ -455,6 +637,18 @@ async def process_generic_import_entity(
             job["message"] = f"Import of {entity_name} completed successfully"
             job["result"] = {"summary": result}
 
+            # Invalider le cache du moteur de preview (données changées)
+            try:
+                from niamoto.gui.api.services.preview_engine.engine import (
+                    get_preview_engine,
+                )
+
+                engine = get_preview_engine()
+                if engine:
+                    engine.invalidate()
+            except Exception as e:
+                logger.warning("Preview engine invalidation failed (non-fatal): %s", e)
+
         finally:
             # Always close database connections
             importer.close()
@@ -466,7 +660,10 @@ async def process_generic_import_entity(
         job["errors"].append(str(e))
         job["message"] = f"Import failed: {str(e)}"
 
-        import traceback
-
-        print(f"Import failed: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.exception(
+            "Import job '%s' failed for %s '%s': %s",
+            job_id,
+            entity_type,
+            entity_name,
+            e,
+        )

@@ -88,9 +88,9 @@ class ReferenceResolver:
         "unique": lambda x: list(set(x)) if isinstance(x, list) else x,
         "sort": sorted,
         "reverse": lambda x: list(reversed(x)) if isinstance(x, list) else x,
-        "filter_null": lambda x: [i for i in x if i is not None]
-        if isinstance(x, list)
-        else x,
+        "filter_null": lambda x: (
+            [i for i in x if i is not None] if isinstance(x, list) else x
+        ),
     }
 
     def __init__(

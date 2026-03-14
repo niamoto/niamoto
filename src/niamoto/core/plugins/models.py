@@ -13,6 +13,8 @@ from typing import Dict, Any, Optional, List, Union
 # Use pydantic v2 features if available (e.g., model_validator instead of root_validator)
 from pydantic import BaseModel, Field, model_validator, ValidationError, ConfigDict
 
+from niamoto.common.i18n import LocalizedString
+
 # --- Base Models ---
 
 
@@ -44,6 +46,13 @@ class PluginConfig(BaseModel):
     )
 
 
+class WidgetLayoutConfig(BaseModel):
+    """Layout configuration for a widget."""
+
+    colspan: int = Field(default=1, ge=1, le=2, description="Column span (1 or 2)")
+    order: int = Field(default=0, description="Display order (lower values first)")
+
+
 class WidgetConfig(BaseModel):
     """
     Model representing a widget configuration within the 'widgets' list
@@ -55,15 +64,21 @@ class WidgetConfig(BaseModel):
         ..., description="Key identifying the data for this widget"
     )
     # Common display options often controlled at the widget level in the config
-    title: Optional[str] = Field(
-        None, description="Optional title displayed above the widget"
+    # Support localized strings: simple string or {"fr": "...", "en": "..."}
+    title: Optional[LocalizedString] = Field(
+        None, description="Optional title displayed above the widget (supports i18n)"
     )
-    description: Optional[str] = Field(
-        None, description="Optional description displayed below the title"
+    description: Optional[LocalizedString] = Field(
+        None,
+        description="Optional description displayed below the title (supports i18n)",
     )
     params: Dict[str, Any] = Field(
         default_factory=dict,
         description="Dictionary of parameters specific to this widget plugin",
+    )
+    layout: Optional[WidgetLayoutConfig] = Field(
+        default=None,
+        description="Layout configuration (colspan, order)",
     )
 
 
@@ -73,36 +88,62 @@ class WidgetConfig(BaseModel):
 class SiteConfig(BaseModel):
     """Global site configuration options."""
 
-    title: str = "Niamoto Data Export"
+    model_config = ConfigDict(extra="allow")
+
+    # Support localized title: simple string or {"fr": "...", "en": "..."}
+    title: LocalizedString = "Niamoto Data Export"
     logo_header: Optional[str] = None
     logo_footer: Optional[str] = None
     lang: str = "en"
+    # Internationalization settings
+    # When None, single-language mode is used (backward compatible)
+    # When set with multiple languages, generates separate directories per language
+    languages: Optional[List[str]] = Field(
+        default=None,
+        description="List of language codes to generate (e.g., ['fr', 'en']). If None, uses single-language mode.",
+    )
+    language_switcher: bool = Field(
+        default=False,
+        description="Whether to display a language switcher in the site header",
+    )
+    primary_color: str = "#228b22"
+    nav_color: str = "#228b22"
 
 
 class NavigationItem(BaseModel):
     """A single item in the site navigation menu."""
 
-    text: str
+    # Support localized text: simple string or {"fr": "...", "en": "..."}
+    text: LocalizedString
+    url: Optional[str] = None
+    children: Optional[List["NavigationItem"]] = None
+
+
+class FooterLink(BaseModel):
+    """A single link in a footer section."""
+
+    text: LocalizedString
     url: str
+    external: bool = False
+
+
+class FooterSection(BaseModel):
+    """A footer section with a title and a list of links."""
+
+    title: LocalizedString
+    links: List[FooterLink] = Field(default_factory=list)
 
 
 class StaticPageContext(BaseModel):
     """Context data for a static page."""
 
-    title: Optional[str] = None
+    # Support localized title: simple string or {"fr": "...", "en": "..."}
+    title: Optional[LocalizedString] = None
+    # content_source can be a base path (e.g., "pages/about") that auto-resolves to
+    # "pages/about.{lang}.md" based on current language, or a direct file path
     content_source: Optional[str] = None
-    content_markdown: Optional[str] = None
 
     model_config = ConfigDict(extra="allow")  # Allow other custom context keys
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_content_source_or_markdown(cls, values):
-        if values.get("content_source") and values.get("content_markdown"):
-            raise ValueError(
-                "Cannot specify both 'content_source' and 'content_markdown'."
-            )
-        return values
 
 
 class StaticPageConfig(BaseModel):
@@ -155,6 +196,7 @@ class HtmlExporterParams(BasePluginParams):
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
+    footer_navigation: List[FooterSection] = Field(default_factory=list)
     include_default_assets: bool = Field(
         default=True,
         description="Whether to automatically include Niamoto's default CSS/JS assets",
@@ -169,7 +211,8 @@ class IndexGeneratorDisplayField(BaseModel):
     source: str  # JSON path like "general_info.name.value"
     fallback: Optional[str] = None  # Fallback field if source is None
     type: str = "text"  # text, select, boolean, json_array
-    label: Optional[str] = None
+    # Support localized label: simple string or {"fr": "...", "en": "..."}
+    label: Optional[LocalizedString] = None
     searchable: bool = False
     format: Optional[str] = None  # badge, map, number, etc.
     mapping: Optional[Dict[str, str]] = None  # For format="map"
@@ -214,8 +257,9 @@ class IndexGeneratorFilterConfig(BaseModel):
 class IndexGeneratorPageConfig(BaseModel):
     """Configuration for the page display in index generator."""
 
-    title: str
-    description: Optional[str] = None
+    # Support localized strings: simple string or {"fr": "...", "en": "..."}
+    title: LocalizedString
+    description: Optional[LocalizedString] = None
     items_per_page: int = 20
 
 
@@ -231,7 +275,7 @@ class IndexGeneratorConfig(BaseModel):
     """Complete configuration for the index generator."""
 
     enabled: bool = True
-    template: str = "group_index.html"
+    template: str = "_group_index.html"
     page_config: IndexGeneratorPageConfig
     filters: Optional[List[IndexGeneratorFilterConfig]] = None
     display_fields: List[IndexGeneratorDisplayField]
@@ -251,8 +295,8 @@ class GroupConfigWeb(BaseModel):
     )
     index_template: Optional[str] = None  # Template for the index page, optional
     page_template: Optional[str] = None  # Template for the detail page, optional
-    output_pattern: str
-    index_output_pattern: str
+    output_pattern: str = "{group_by}/{id}.html"
+    index_output_pattern: str = "{group_by}/index.html"
     widgets: List[WidgetConfig]
     index_generator: Optional[IndexGeneratorConfig] = None  # New index generator config
 

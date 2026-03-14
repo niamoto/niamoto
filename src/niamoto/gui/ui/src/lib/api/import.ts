@@ -214,6 +214,7 @@ export async function executeImportAndWait(
 
 export interface EntityInfo {
   name: string
+  table_name: string
   kind?: string
   connector_type: string
   path: string
@@ -227,5 +228,23 @@ export interface EntitiesResponse {
 
 export async function getEntities(): Promise<EntitiesResponse> {
   const response = await axios.get<EntitiesResponse>('/api/imports/entities')
+  return response.data
+}
+
+export interface DeleteEntityResponse {
+  success: boolean
+  message: string
+  table_dropped: boolean
+}
+
+export async function deleteEntity(
+  entityType: 'dataset' | 'reference',
+  entityName: string,
+  deleteTable: boolean = false
+): Promise<DeleteEntityResponse> {
+  const response = await axios.delete<DeleteEntityResponse>(
+    `/api/imports/entities/${entityType}/${entityName}`,
+    { params: { delete_table: deleteTable } }
+  )
   return response.data
 }

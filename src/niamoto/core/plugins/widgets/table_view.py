@@ -1,3 +1,4 @@
+import html as html_module
 import logging
 from typing import List, Optional, Set
 
@@ -166,7 +167,7 @@ class TableViewWidget(WidgetPlugin):
                 )
             if not valid_cols:
                 logger.error("None of the specified columns exist in the DataFrame.")
-                return f"<p class='error'>Configuration Error: None of the specified columns found: {params.columns}</p>"
+                return f"<p class='error'>Configuration Error: None of the specified columns found: {html_module.escape(str(params.columns))}</p>"
             df_display = df_display[valid_cols]
 
         # Sorting
@@ -202,7 +203,7 @@ class TableViewWidget(WidgetPlugin):
                     )
                 except Exception as e:
                     logger.error(f"Error during sorting by {valid_sort_cols}: {e}")
-                    return f"<p class='error'>Error sorting data: {e}</p>"
+                    return f"<p class='error'>Error sorting data: {html_module.escape(str(e))}</p>"
 
         # Limit rows
         df_display = df_display.head(params.max_rows)
@@ -220,4 +221,4 @@ class TableViewWidget(WidgetPlugin):
             return html_table
         except Exception as e:
             logger.exception(f"Error generating HTML table for TableViewWidget: {e}")
-            return f"<p class='error'>Error displaying table: {e}</p>"
+            return f"<p class='error'>Error displaying table: {html_module.escape(str(e))}</p>"

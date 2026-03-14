@@ -5,6 +5,7 @@ import yaml
 from typing import Any, Dict, Optional, List
 
 from niamoto.core.imports.config_models import GenericImportConfig
+from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.common.exceptions import (
     ConfigurationError,
     FileReadError,
@@ -43,7 +44,9 @@ class Config:
             self.imports: Dict[str, Any] = {}
             self.transforms: Any = {}
             self.exports: Any = {}
+            self.deploy: Dict[str, Any] = {}
             self._generic_import_config: Optional[GenericImportConfig] = None
+            self._validated_transforms_config: Optional[List[Dict[str, Any]]] = None
 
             self._load_files(create_default)
 
@@ -91,6 +94,15 @@ class Config:
                     message="Failed to load configuration file",
                     details={"file": file_path, "error": str(e)},
                 )
+
+        # deploy.yml is optional — load if present, otherwise empty dict
+        deploy_path = os.path.join(self.config_dir, "deploy.yml")
+        if os.path.exists(deploy_path):
+            try:
+                with open(deploy_path, "r") as f:
+                    self.deploy = yaml.safe_load(f) or {}
+            except Exception:
+                self.deploy = {}
 
     @staticmethod
     @error_handler(log=True, raise_error=True)
@@ -784,7 +796,7 @@ exports:
         """
         Get the database path from config.yml.
         Returns:
-            str: database path
+            str: database path (resolved to absolute path)
         """
         path = self.config.get("database", {}).get("path")
         if not path:
@@ -793,6 +805,10 @@ exports:
                 message="Database path not configured",
                 details={"config": self.config.get("database", {})},
             )
+        # Resolve relative paths against NIAMOTO_HOME (project root)
+        if not os.path.isabs(path):
+            project_root = os.path.dirname(self.config_dir)
+            path = os.path.join(project_root, path)
         return path
 
     @property
@@ -829,6 +845,16 @@ exports:
                 details={"config": self.config},
             )
         return exports
+
+    @property
+    def get_deploy_config(self) -> Dict[str, Any]:
+        """Get the deploy configuration from deploy.yml (optional).
+
+        Returns:
+            Dict with keys: platform, project_name, branch, extra.
+            Empty dict if deploy.yml does not exist.
+        """
+        return self.deploy or {}
 
     @property
     @error_handler(log=True, raise_error=True)
@@ -877,14 +903,39 @@ exports:
         Returns:
             List[Dict[str, Any]]: transformations config
         """
-
         if not self.transforms:
             raise ConfigurationError(
                 config_key="transforms",
                 message="No transforms configuration found",
                 details={"transforms_file": "transform.yml"},
             )
-        return self.transforms
+        if not isinstance(self.transforms, list):
+            raise ConfigurationError(
+                config_key="transforms",
+                message="Invalid transform configuration - transform.yml must be a list",
+                details={
+                    "transforms_file": "transform.yml",
+                    "current_type": type(self.transforms).__name__,
+                },
+            )
+        # Keep compatibility with non-group-based transform configs used by legacy tests/tools.
+        if not all(
+            isinstance(item, dict) and "group_by" in item for item in self.transforms
+        ):
+            return self.transforms
+        if self._validated_transforms_config is not None:
+            return self._validated_transforms_config
+        try:
+            self._validated_transforms_config = validate_transform_config(
+                self.transforms
+            )
+        except Exception as e:
+            raise ConfigurationError(
+                config_key="transforms",
+                message="Invalid transform configuration",
+                details={"transforms_file": "transform.yml", "error": str(e)},
+            ) from e
+        return self._validated_transforms_config
 
     @error_handler(log=True, raise_error=True)
     def get_exports_config(self) -> List[Dict[str, Any]]:

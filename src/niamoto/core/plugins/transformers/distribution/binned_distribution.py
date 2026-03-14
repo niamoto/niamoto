@@ -46,6 +46,7 @@ class BinnedDistributionParams(BasePluginParams):
             "examples": [[0, 100, 200, 500, 1000], [0, 10, 50, 100]],
             "ui_component": "array_number",
             "ui_help": "Enter bin edges in ascending order. Example: [0, 100, 200, 500] creates 3 bins: 0-100, 100-200, 200-500",
+            "ui:quick_edit": True,
         },
     )
 
@@ -56,6 +57,7 @@ class BinnedDistributionParams(BasePluginParams):
             "examples": [["Low", "Medium", "High"], ["0-100m", "100-200m", "200m+"]],
             "ui_component": "array_text",
             "ui_help": "Optional: provide labels for each bin. Number of labels must equal number of bins minus 1.",
+            "ui:quick_edit": True,
         },
     )
 
@@ -63,6 +65,26 @@ class BinnedDistributionParams(BasePluginParams):
         default=False,
         description="Whether to include percentage calculations in the output",
         json_schema_extra={"ui_component": "checkbox"},
+    )
+
+    x_label: Optional[str] = Field(
+        default=None,
+        description="Label for X axis (e.g., 'DBH (cm)', 'Elevation (m)')",
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:quick_edit": True,
+            "ui:placeholder": "Label axe X",
+        },
+    )
+
+    y_label: Optional[str] = Field(
+        default=None,
+        description="Label for Y axis (e.g., '%', 'Effectif', 'Count')",
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:quick_edit": True,
+            "ui:placeholder": "Label axe Y",
+        },
     )
 
     @field_validator("bins")
@@ -124,6 +146,15 @@ class BinnedDistribution(TransformerPlugin):
     """Plugin for creating binned distributions"""
 
     config_model = BinnedDistributionConfig
+    param_schema = BinnedDistributionParams  # For exposing params with UI hints
+
+    # Pattern matching: Declare output data structure
+    output_structure = {
+        "bins": "list",
+        "counts": "list",
+        "labels": "list",  # optional
+        "percentages": "list",  # optional
+    }
 
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
@@ -163,23 +194,18 @@ class BinnedDistribution(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate config and get typed parameters
             validated_config = self.config_model(**config)
             # Convert to typed params for easier access and type safety
             params = BinnedDistributionParams(**validated_config.params)
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {params.source}
-                """)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             # Get field data
             field_data = data[params.field]
 

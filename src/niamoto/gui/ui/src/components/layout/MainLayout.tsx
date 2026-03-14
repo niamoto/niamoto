@@ -1,19 +1,25 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
 import { BreadcrumbNav } from './BreadcrumbNav'
 import { CommandPalette } from './CommandPalette'
-import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
+import { DesktopTitlebar } from './DesktopTitlebar'
+import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
+import { useRuntimeMode } from '@/hooks/useRuntimeMode'
+import { usePlatform } from '@/hooks/usePlatform'
+import { useJobPolling } from '@/hooks/useJobPolling'
 import { cn } from '@/lib/utils'
 
 export function MainLayout() {
   const location = useLocation()
-  const { t } = useTranslation()
   const { setBreadcrumbs } = useNavigationStore()
+  const { isDesktop } = useRuntimeMode()
 
-  // Update breadcrumbs based on current route
+  usePlatform()
+  useJobPolling()
+
+  // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {
     const pathParts = location.pathname.split('/').filter(Boolean)
     const breadcrumbs: { label: string; path?: string }[] = []
@@ -22,24 +28,18 @@ export function MainLayout() {
     pathParts.forEach((part, index) => {
       currentPath += `/${part}`
 
-      // Find the label from navigation sections
-      let label = part
-      for (const section of navigationSections) {
-        const item = section.items.find(i => i.path === currentPath)
-        if (item) {
-          label = t(`navigation.${item.id}`, item.label)
-          break
-        }
-      }
+      // Try exact match in routeLabels, then fall back to capitalized path segment
+      const label = routeLabels[currentPath]
+        || part.charAt(0).toUpperCase() + part.slice(1)
 
       breadcrumbs.push({
-        label: label.charAt(0).toUpperCase() + label.slice(1),
+        label,
         path: index < pathParts.length - 1 ? currentPath : undefined
       })
     })
 
     setBreadcrumbs(breadcrumbs)
-  }, [location.pathname, setBreadcrumbs, t])
+  }, [location.pathname, setBreadcrumbs])
 
   // Handle responsive sidebar
   useEffect(() => {
@@ -50,7 +50,6 @@ export function MainLayout() {
       } else if (width < 1024) {
         useNavigationStore.getState().setSidebarMode('compact')
       } else {
-        // Don't force full mode on desktop, respect user preference
         const currentMode = useNavigationStore.getState().sidebarMode
         if (currentMode === 'hidden') {
           useNavigationStore.getState().setSidebarMode('full')
@@ -64,30 +63,27 @@ export function MainLayout() {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <NavigationSidebar />
+    <div className="flex h-screen flex-col overflow-hidden">
+      {isDesktop && <DesktopTitlebar />}
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <NavigationSidebar />
 
-        {/* Breadcrumb navigation */}
-        <BreadcrumbNav />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <TopBar />
+          <BreadcrumbNav />
 
-        {/* Page content */}
-        <main
-          className={cn(
-            'flex-1 overflow-auto bg-background',
-            'transition-all duration-200'
-          )}
-        >
-          <Outlet />
-        </main>
+          <main
+            className={cn(
+              'flex-1 overflow-auto bg-background',
+              'transition-all duration-200'
+            )}
+          >
+            <Outlet />
+          </main>
+        </div>
       </div>
 
-      {/* Command Palette (hidden by default) */}
       <CommandPalette />
     </div>
   )

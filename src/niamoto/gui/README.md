@@ -9,7 +9,7 @@ The Niamoto GUI provides a web-based interface for configuring and managing Niam
 
 ## For End Users (pip install niamoto)
 
-When you install Niamoto via pip, the GUI is included as pre-built static files. No Node.js or npm is required.
+When you install Niamoto via pip, the GUI is included as pre-built static files. No Node.js or pnpm is required.
 
 ### Usage
 
@@ -33,7 +33,7 @@ niamoto gui --reload      # Enable auto-reload (development)
 
 ## For Developers
 
-If you're developing the GUI, you'll need Node.js and npm installed.
+If you're developing the GUI, you'll need Node.js and pnpm installed.
 
 ### Quick Start (Recommended)
 
@@ -41,7 +41,7 @@ From the repository root:
 
 ```bash
 # 1. Install frontend dependencies (first time only)
-cd src/niamoto/gui/ui && npm install && cd ../../../..
+cd src/niamoto/gui/ui && pnpm install && cd ../../../..
 
 # 2. Start development environment with hot reload
 ./scripts/dev_gui.sh test-instance/niamoto-nc
@@ -63,7 +63,7 @@ python scripts/dev_api.py --instance test-instance/niamoto-nc
 **Terminal 2 - Frontend:**
 ```bash
 cd src/niamoto/gui/ui
-npm run dev
+pnpm run dev
 ```
 
 Access the frontend at `http://127.0.0.1:5173` (Vite will proxy `/api/*` requests to port 8080).
@@ -81,7 +81,7 @@ The GUI needs to know which Niamoto instance to work with. Context is resolved i
 1. Make changes to React code in `ui/src/` or Python code in `api/`
 2. Changes are automatically reloaded (no manual rebuild needed)
 3. Test in browser at `http://127.0.0.1:5173`
-4. Before publishing, build with `npm run build` and test production mode
+4. Before publishing, build with `pnpm run build` and test production mode
 
 ### Building for Distribution
 

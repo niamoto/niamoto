@@ -784,3 +784,46 @@ async def get_exports_structure() -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Error getting exports structure: {str(e)}"
         )
+
+
+@router.get("/serve/{file_path:path}")
+async def serve_file(file_path: str):
+    """
+    Serve a file from the project directory.
+
+    Used for displaying images like logos in the UI.
+    """
+    from fastapi.responses import FileResponse
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    # Decode the path and resolve it
+    full_path = work_dir / file_path
+
+    # Security check: ensure the path is within the working directory
+    try:
+        full_path = full_path.resolve()
+        work_dir_resolved = work_dir.resolve()
+        if not str(full_path).startswith(str(work_dir_resolved)):
+            raise HTTPException(status_code=403, detail="Access denied")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if not full_path.is_file():
+        raise HTTPException(status_code=400, detail="Not a file")
+
+    # Determine content type
+    import mimetypes
+
+    content_type, _ = mimetypes.guess_type(str(full_path))
+
+    return FileResponse(
+        full_path,
+        media_type=content_type or "application/octet-stream",
+        filename=full_path.name,
+    )

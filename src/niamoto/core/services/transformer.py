@@ -4,12 +4,12 @@ Service for transforming data based on YAML configuration.
 
 from typing import Dict, Any, List, Optional, Callable
 import logging
-import difflib
 import json
 import numpy as np
 import pandas as pd
 from datetime import datetime
 from rich.console import Console
+from sqlalchemy import inspect
 from sqlalchemy.sql import quoted_name
 from pydantic import ValidationError as PydanticValidationError
 from niamoto.common.config import Config
@@ -27,6 +27,7 @@ from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.common.transform_config_models import TransformGroupConfig
 
 # Check if we're in CLI context for progress display
 try:
@@ -87,6 +88,110 @@ class TransformerService:
 
         # Registry is used for entity lookups across transform/export
         self.entity_registry = EntityRegistry(self.db)
+
+    @classmethod
+    def for_preview(cls, db: Database, config_dir: str) -> "TransformerService":
+        """Lightweight factory for widget preview.
+
+        Properly initialises all fields and loads plugins via cascade,
+        but reuses an existing Database connection and skips CLI setup.
+        """
+        from pathlib import Path
+
+        svc = cls.__new__(cls)
+        svc.db = db
+        svc.config = Config(config_dir, create_default=False)
+        svc.transforms_config = svc.config.get_transforms_config()
+        svc.console = None
+        svc.transform_metrics = None
+        svc.use_cli_integration = False
+        svc._table_buffers: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        svc._table_flush_modes: Dict[str, bool] = {}
+
+        svc.plugin_loader = PluginLoader()
+        svc.plugin_loader.load_plugins_with_cascade(Path(config_dir).parent)
+
+        svc.entity_registry = EntityRegistry(db)
+        return svc
+
+    def transform_single_widget(
+        self,
+        group_config: Dict[str, Any],
+        widget_name: str,
+        group_id: Any,
+    ) -> Any:
+        """Transform a single widget for a given entity.
+
+        Replicates the per-widget logic from transform_data() so that
+        both the full pipeline and the preview engine share one code path.
+
+        Args:
+            group_config: Full group config dict from transform.yml.
+            widget_name: Key in ``widgets_data``.
+            group_id: The entity ID to process.
+
+        Returns:
+            Transformer result (typically a dict).
+
+        Raises:
+            DataTransformError: On missing widget, source or transform failure.
+        """
+        widgets_config = group_config.get("widgets_data", {})
+        widget_config = widgets_config.get(widget_name)
+        if not widget_config:
+            raise DataTransformError(
+                f"Widget '{widget_name}' not found in group config",
+                details={"available": list(widgets_config.keys())},
+            )
+
+        group_by_name = group_config["group_by"]
+
+        # Load data for this entity using real loaders
+        group_data = self._get_group_data(group_config, None, group_id)
+        if not group_data:
+            raise DataTransformError("No data available for preview")
+
+        # Build config exactly as the main loop does
+        transformer_cls = PluginRegistry.get_plugin(
+            widget_config["plugin"], PluginType.TRANSFORMER
+        )
+        transformer = transformer_cls(self.db, registry=self.entity_registry)
+
+        config = {
+            "plugin": widget_config["plugin"],
+            "params": {
+                "source": widget_config.get("source"),
+                "field": widget_config.get("field"),
+                **widget_config.get("params", {}),
+            },
+            "group_id": group_id,
+            "available_sources": list(group_data.keys()),
+        }
+
+        # Smart source selection (shared with transform_data)
+        source_requested = widget_config.get("params", {}).get("source")
+
+        if source_requested and source_requested not in group_data:
+            if source_requested == group_by_name:
+                group_data[source_requested] = self._load_reference_entity(
+                    group_by_name, group_id
+                )
+            else:
+                group_data[source_requested] = self._load_additional_source(
+                    source_requested
+                )
+
+        if source_requested and source_requested in group_data:
+            data_to_pass = group_data[source_requested]
+        elif len(group_data) == 1:
+            data_to_pass = next(iter(group_data.values()))
+        else:
+            data_to_pass = group_data
+
+        self._validate_plugin_configuration(
+            transformer, config, widget_config["plugin"]
+        )
+        return transformer.transform(data_to_pass, config)
 
     @error_handler(log=True, raise_error=True)
     def transform_data(
@@ -174,6 +279,11 @@ class TransformerService:
             widgets_config = group_config.get("widgets_data", {})
             group_by_name = group_config.get("group_by", "unknown")
 
+            # Pre-load id→name mapping for progress display
+            id_name_map: Dict[int, str] = {}
+            if progress_callback:
+                id_name_map = self._load_group_names(group_config, group_ids)
+
             # Calculate the total number of operations
             total_ops = len(group_ids) * len(widgets_config)
 
@@ -246,6 +356,26 @@ class TransformerService:
                         # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
 
+                        # If a source is requested but not available in group_data, load it
+                        if source_requested and source_requested not in group_data:
+                            try:
+                                # Special case: if source matches group_by name, load the reference entity
+                                if source_requested == group_by_name:
+                                    group_data[source_requested] = (
+                                        self._load_reference_entity(
+                                            group_by_name, group_id
+                                        )
+                                    )
+                                else:
+                                    group_data[source_requested] = (
+                                        self._load_additional_source(source_requested)
+                                    )
+                            except Exception as e:
+                                raise DataTransformError(
+                                    f"Failed to load requested source '{source_requested}'",
+                                    details={"error": str(e), "widget": widget_name},
+                                ) from e
+
                         if source_requested and source_requested in group_data:
                             # Plugin explicitly requests a specific source
                             data_to_pass = group_data[source_requested]
@@ -292,6 +422,7 @@ class TransformerService:
                             {
                                 "group": group_by_name,
                                 "widget": widget_name,
+                                "item_label": id_name_map.get(group_id, str(group_id)),
                                 "processed": None,
                                 "total": None,
                             }
@@ -347,6 +478,11 @@ class TransformerService:
             widgets_config = group_config.get("widgets_data", {})
             group_by_name = group_config.get("group_by", "unknown")
 
+            # Pre-load id→name mapping for progress display
+            id_name_map_simple: Dict[int, str] = {}
+            if progress_callback:
+                id_name_map_simple = self._load_group_names(group_config, group_ids)
+
             # Create or update the table
             self._create_group_table(group_by_name, widgets_config, recreate_table)
 
@@ -390,6 +526,26 @@ class TransformerService:
                         # 2. If only one source exists, pass it directly
                         # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
+
+                        # If a source is requested but not available in group_data, load it
+                        if source_requested and source_requested not in group_data:
+                            try:
+                                # Special case: if source matches group_by name, load the reference entity
+                                if source_requested == group_by_name:
+                                    group_data[source_requested] = (
+                                        self._load_reference_entity(
+                                            group_by_name, group_id
+                                        )
+                                    )
+                                else:
+                                    group_data[source_requested] = (
+                                        self._load_additional_source(source_requested)
+                                    )
+                            except Exception as e:
+                                raise DataTransformError(
+                                    f"Failed to load requested source '{source_requested}'",
+                                    details={"error": str(e), "widget": widget_name},
+                                ) from e
 
                         if source_requested and source_requested in group_data:
                             # Plugin explicitly requests a specific source
@@ -442,6 +598,9 @@ class TransformerService:
                             {
                                 "group": group_by_name,
                                 "widget": widget_name,
+                                "item_label": id_name_map_simple.get(
+                                    group_id, str(group_id)
+                                ),
                                 "processed": processed_ops,
                                 "total": total_ops,
                             }
@@ -455,7 +614,7 @@ class TransformerService:
         return results
 
     def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
-        """Filter configurations by group, attempting various matching strategies."""
+        """Filter configurations by exact group_by match."""
         if not self.transforms_config:
             raise ConfigurationError(
                 "transforms",
@@ -471,53 +630,20 @@ class TransformerService:
             for config in self.transforms_config
             if config.get("group_by")
         ]
-        filtered = []
+        filtered = [
+            config
+            for config in self.transforms_config
+            if config.get("group_by") == group_by
+        ]
 
-        # Single pass through configurations with prioritized checks
-        for config in self.transforms_config:
-            config_group = config.get("group_by")
-            if not config_group:
-                continue
-
-            # Exact match
-            if config_group == group_by:
-                filtered.append(config)
-                break
-            # Case-insensitive match
-            elif config_group.lower() == group_by.lower():
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using group '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-            # Singular/plural match
-            elif group_by.endswith("s") and config_group == group_by[:-1]:
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using singular form '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-            elif not group_by.endswith("s") and config_group == f"{group_by}s":
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using plural form '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-
-        # If no match, raise an error with a suggestion
         if not filtered:
-            suggestion = ""
-            if available_groups:
-                matches = difflib.get_close_matches(group_by, available_groups, n=1)
-                if matches:
-                    suggestion = f" Did you mean '{matches[0]}'?"
             raise ConfigurationError(
                 "transforms",
                 f"No configuration found for group: {group_by}",
                 details={
                     "group": group_by,
                     "available_groups": available_groups,
-                    "help": f"Available groups are: {', '.join(available_groups)}.{suggestion}",
+                    "help": f"Available groups are: {', '.join(available_groups)}.",
                 },
             )
 
@@ -571,6 +697,14 @@ class TransformerService:
         Raises:
             ValidationError: If configuration is invalid
         """
+        try:
+            TransformGroupConfig.model_validate(config)
+        except PydanticValidationError as exc:
+            raise ConfigurationError(
+                "transforms",
+                "Invalid transform group configuration",
+                details={"errors": exc.errors()},
+            ) from exc
         self._validate_sources_config(config)
 
     def _validate_sources_config(self, config: Dict[str, Any]) -> None:
@@ -616,14 +750,57 @@ class TransformerService:
 
             # Validate relation
             relation = source_config["relation"]
-            if (
-                "plugin" not in relation and "type" not in relation
-            ) or "key" not in relation:
+            if "plugin" not in relation or "key" not in relation:
                 raise ConfigurationError(
                     f"sources[{idx}].relation",
                     f"Missing required relation fields in source '{source_name}'",
-                    details={"required": ["plugin or type", "key"]},
+                    details={"required": ["plugin", "key"]},
                 )
+
+    def _load_group_names(
+        self, group_config: Dict[str, Any], group_ids: List[int]
+    ) -> Dict[int, str]:
+        """Load a mapping of group_id → display name for progress messages."""
+        if not group_ids:
+            return {}
+        try:
+            sources = group_config.get("sources", [])
+            if not sources:
+                return {}
+            grouping_table = sources[0]["grouping"]
+            resolved_table = self._resolve_table_name(grouping_table)
+
+            # Find the best name column
+            columns = self.db.get_table_columns(resolved_table) or []
+            name_col = None
+            for candidate in ["name", "full_name", "label", "title"]:
+                if candidate in columns:
+                    name_col = candidate
+                    break
+            if not name_col:
+                # Try *_name pattern
+                for col in columns:
+                    if col.endswith("_name"):
+                        name_col = col
+                        break
+            if not name_col:
+                return {}
+
+            id_field = "id"
+            try:
+                metadata = self.entity_registry.get(grouping_table)
+                id_field = metadata.config.get("schema", {}).get("id_field", "id")
+            except (Exception,):
+                pass
+
+            qt = str(quoted_name(resolved_table, quote=True))
+            qi = str(quoted_name(id_field, quote=True))
+            qn = str(quoted_name(name_col, quote=True))
+            rows = self.db.fetch_all(f"SELECT {qi}, {qn} FROM {qt}")
+            return {row[id_field]: row[name_col] for row in rows} if rows else {}
+        except Exception as e:
+            logger.debug("Could not load group names: %s", e)
+            return {}
 
     def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
         """Get all group IDs to process."""
@@ -679,6 +856,132 @@ class TransformerService:
                     "table": resolved_table,
                     "id_field": id_field,
                     "query": query,
+                },
+            ) from e
+
+    def _load_reference_entity(self, entity_name: str, entity_id: int) -> pd.DataFrame:
+        """Load a single reference entity record (e.g., a specific shape, plot, or taxon).
+
+        This method is called when a widget requests the grouping entity itself as a source.
+        For example, when processing shapes and a widget needs shape data (name, type, etc.),
+        this loads the specific shape record from the entity table.
+
+        Args:
+            entity_name: The logical entity name (e.g., 'shapes', 'plots', 'taxonomy')
+            entity_id: The ID of the specific entity to load
+
+        Returns:
+            pd.DataFrame: Single-row DataFrame with the entity data
+
+        Raises:
+            DataTransformError: If the entity cannot be loaded
+        """
+        try:
+            # Resolve logical entity name to physical table name
+            table_name = self._resolve_table_name(entity_name)
+
+            # Get the ID field name from entity metadata
+            id_field = "id"  # Default
+            try:
+                metadata = self.entity_registry.get(entity_name)
+                id_field = metadata.config.get("schema", {}).get("id_field", "id")
+            except (DatabaseQueryError, AttributeError, KeyError) as exc:
+                logger.debug(
+                    "Falling back to default id field for entity '%s': %s",
+                    entity_name,
+                    exc,
+                )
+
+            # Validate identifier names to prevent SQL injection
+            if not table_name.replace("_", "").replace(".", "").isalnum():
+                raise DataTransformError(
+                    f"Invalid table name: {table_name}",
+                    details={"table": table_name},
+                )
+            if not id_field.replace("_", "").isalnum():
+                raise DataTransformError(
+                    f"Invalid field name: {id_field}",
+                    details={"field": id_field},
+                )
+
+            # Use quoted names for safe SQL
+            quoted_table = str(quoted_name(table_name, quote=True))
+            quoted_id_field = str(quoted_name(id_field, quote=True))
+
+            # Load the specific entity record using fetch_all
+            # We use fetch_all which properly manages session lifecycle
+            sql_query = (
+                f"SELECT * FROM {quoted_table} WHERE {quoted_id_field} = :entity_id"
+            )
+            rows = self.db.fetch_all(sql_query, {"entity_id": entity_id})
+
+            if not rows:
+                raise DataTransformError(
+                    f"Entity not found: {entity_name} with {id_field}={entity_id}",
+                    details={
+                        "entity": entity_name,
+                        "table": table_name,
+                        "id_field": id_field,
+                        "id": entity_id,
+                    },
+                )
+
+            # Convert list of dicts to DataFrame
+            df = pd.DataFrame(rows)
+
+            return df
+
+        except DataTransformError:
+            raise
+        except Exception as e:
+            raise DataTransformError(
+                f"Failed to load reference entity '{entity_name}' with id {entity_id}",
+                details={
+                    "error": str(e),
+                    "entity": entity_name,
+                    "table": table_name if "table_name" in locals() else entity_name,
+                    "id": entity_id,
+                },
+            ) from e
+
+    def _load_additional_source(self, source_name: str) -> pd.DataFrame:
+        """Load an additional data source that wasn't in the original config.
+
+        This method is called when a transformer requests a source that wasn't
+        preloaded in group_data. It loads the entire table as a DataFrame.
+
+        Args:
+            source_name: The logical entity name or table name to load
+
+        Returns:
+            pd.DataFrame: The loaded data
+
+        Raises:
+            DataTransformError: If the source cannot be loaded
+        """
+        try:
+            # Resolve logical entity name to physical table name
+            table_name = self._resolve_table_name(source_name)
+            quoted_table_name = inspect(
+                self.db.engine
+            ).dialect.identifier_preparer.quote(table_name)
+
+            # Load entire table as DataFrame using fetch_all
+            # We use fetch_all which properly manages session lifecycle
+            sql_query = f"SELECT * FROM {quoted_table_name}"
+            rows = self.db.fetch_all(sql_query)
+
+            # Convert list of dicts to DataFrame
+            df = pd.DataFrame(rows)
+
+            return df
+
+        except Exception as e:
+            raise DataTransformError(
+                f"Failed to load additional source '{source_name}'",
+                details={
+                    "error": str(e),
+                    "table": table_name if "table_name" in locals() else source_name,
                 },
             ) from e
 

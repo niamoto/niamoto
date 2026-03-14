@@ -1,17 +1,20 @@
 """FastAPI application for Niamoto GUI."""
 
+import logging
+import os
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .routers import (
-    bootstrap,
     config,
     database,
     files,
     health,
     imports,
+    layers,
     plugins,
     transform,
     export,
@@ -19,8 +22,19 @@ from .routers import (
     entities,
     deploy,
     smart_config,
+    site,
+    stats,
+    enrichment,
+    transformer_suggestions,
+    templates,
+    sources,
+    layout,
+    recipes,
+    preview,
+    pipeline,
 )
 from .context import get_working_directory
+from .services.job_file_store import JobFileStore
 
 # Get the path to the built React app
 # Works in both source and frozen (PyInstaller) modes
@@ -37,10 +51,26 @@ def create_app() -> FastAPI:
         redoc_url="/api/redoc",
     )
 
+    configured_origins = os.getenv("NIAMOTO_CORS_ORIGINS")
+    if configured_origins:
+        allow_origins = [
+            origin.strip() for origin in configured_origins.split(",") if origin.strip()
+        ]
+    else:
+        # Safe defaults for local development + Tauri desktop runtime.
+        allow_origins = [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "tauri://localhost",
+            "http://tauri.localhost",
+        ]
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production, replace with specific origins
+        allow_origins=allow_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -51,6 +81,9 @@ def create_app() -> FastAPI:
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])
+    app.include_router(
+        layers.router, prefix="/api", tags=["layers"]
+    )  # Geographic layers API
     app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
     app.include_router(transform.router, prefix="/api/transform", tags=["transform"])
@@ -59,18 +92,43 @@ def create_app() -> FastAPI:
     app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
     app.include_router(deploy.router, prefix="/api/deploy", tags=["deploy"])
     app.include_router(smart_config.router, prefix="/api/smart", tags=["smart-config"])
-    app.include_router(bootstrap.router, prefix="/api", tags=["bootstrap"])
+    app.include_router(site.router, prefix="/api/site", tags=["site"])
+    app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
+    app.include_router(enrichment.router, prefix="/api/enrichment", tags=["enrichment"])
+    app.include_router(
+        transformer_suggestions.router
+    )  # Already has /api/transformer-suggestions prefix
+    app.include_router(preview.router, prefix="/api")  # Unified preview engine (new)
+    app.include_router(
+        templates.router, prefix="/api"
+    )  # Templates API for Smart Setup V2
+    app.include_router(sources.router, prefix="/api")  # Pre-calculated sources API
+    app.include_router(layout.router, prefix="/api")  # Layout editor API
+    app.include_router(recipes.router, prefix="/api")  # Widget recipes API
+    app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
-    # Serve exported site from exports/web/ directory
+    # Initialiser le JobFileStore et détecter les jobs orphelins
+    logger = logging.getLogger(__name__)
     work_dir = get_working_directory()
     if work_dir:
+        job_store = JobFileStore(work_dir)
+        orphan = job_store.recover_on_startup()
+        if orphan:
+            logger.warning("Job orphelin récupéré au démarrage : %s", orphan["id"])
+        app.state.job_store = job_store
+    else:
+        app.state.job_store = None
+
+    # Serve exported site from exports/web/ directory
+    # Always create the directory so the mount exists even before the first export
+    if work_dir:
         exports_web_dir = work_dir / "exports" / "web"
-        if exports_web_dir.exists():
-            app.mount(
-                "/preview",
-                StaticFiles(directory=exports_web_dir, html=True),
-                name="exported-site",
-            )
+        exports_web_dir.mkdir(parents=True, exist_ok=True)
+        app.mount(
+            "/preview",
+            StaticFiles(directory=exports_web_dir, html=True),
+            name="exported-site",
+        )
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():

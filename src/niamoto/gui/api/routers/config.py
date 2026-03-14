@@ -1,7 +1,7 @@
 """Configuration management API endpoints for reading and updating YAML configs."""
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
 import yaml
@@ -9,14 +9,75 @@ import shutil
 from datetime import datetime
 
 from ..context import get_working_directory
+from niamoto.gui.api.services.templates.config_service import (
+    load_transform_config as _load_transform_config_impl,
+    save_transform_config as _save_transform_config_impl,
+    load_export_config as _load_export_config_impl,
+    save_export_config as _save_export_config_impl,
+    find_transform_group as _find_transform_group_impl,
+    find_export_group as _find_export_group_impl,
+    find_or_create_transform_group as _find_or_create_transform_group_impl,
+)
 
 router = APIRouter()
+
+
+# Wrapper functions for backward compatibility (use get_working_directory)
+def _load_transform_config() -> List[Dict[str, Any]]:
+    """Load transform.yml using centralized service."""
+    return _load_transform_config_impl(get_working_directory())
+
+
+def _save_transform_config(groups: List[Dict[str, Any]]) -> None:
+    """Save transform.yml using centralized service with backup."""
+    _save_transform_config_impl(get_working_directory(), groups, create_backup=True)
+
+
+def _load_export_config() -> Dict[str, Any]:
+    """Load export.yml using centralized service."""
+    return _load_export_config_impl(get_working_directory())
+
+
+def _save_export_config(config: Dict[str, Any]) -> None:
+    """Save export.yml using centralized service with backup."""
+    _save_export_config_impl(get_working_directory(), config, create_backup=True)
+
+
+def _find_transform_group(
+    groups: List[Dict[str, Any]], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a group by group_by value using centralized service."""
+    return _find_transform_group_impl(groups, group_by)
+
+
+def _find_export_group(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find export group by group_by value using centralized service."""
+    return _find_export_group_impl(export_config, group_by)
+
+
+def _is_known_reference(group_by: str) -> bool:
+    """Vérifie que group_by correspond à une référence déclarée dans import.yml."""
+    try:
+        work_dir = get_working_directory()
+        import_path = work_dir / "config" / "import.yml"
+        if not import_path.exists():
+            return False
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+        references = import_config.get("entities", {}).get("references", {}) or {}
+        return group_by in references
+    except Exception:
+        return False
 
 
 class ConfigUpdate(BaseModel):
     """Request body for updating configuration."""
 
-    content: Dict[str, Any]
+    content: Union[
+        Dict[str, Any], List[Any]
+    ]  # Accept both dict and list for transform.yml
     backup: bool = True
 
 
@@ -25,7 +86,7 @@ class ConfigResponse(BaseModel):
 
     success: bool
     message: str
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[Union[Dict[str, Any], List[Any]]] = None
     backup_path: Optional[str] = None
 
 
@@ -80,6 +141,486 @@ async def get_project_info() -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Error reading project info: {str(e)}"
         )
+
+
+# =============================================================================
+# References Discovery Endpoint (MUST be before /{config_name} route)
+# =============================================================================
+
+
+class HierarchyFields(BaseModel):
+    """Detected hierarchy fields in a reference table."""
+
+    has_nested_set: bool = False  # lft/rght columns present
+    has_parent: bool = False  # parent_id column present
+    has_level: bool = False  # level column present
+    lft_field: Optional[str] = None
+    rght_field: Optional[str] = None
+    parent_id_field: Optional[str] = None
+    level_field: Optional[str] = None
+    id_field: Optional[str] = None  # Detected primary key
+    name_field: Optional[str] = None  # Detected display name field
+
+
+class ReferenceInfo(BaseModel):
+    """Information about a reference entity from import.yml."""
+
+    name: str
+    table_name: str  # Actual table name from EntityRegistry
+    kind: str  # "hierarchical" | "generic" | "spatial"
+    description: Optional[str] = None
+    schema_fields: List[Dict[str, Any]] = []
+    entity_count: Optional[int] = None
+    is_hierarchical: bool = (
+        False  # True if has hierarchy structure (lft/rght or parent_id)
+    )
+    hierarchy_fields: Optional[HierarchyFields] = None  # Detected hierarchy columns
+
+
+class ReferencesResponse(BaseModel):
+    """Response for listing references."""
+
+    references: List[ReferenceInfo]
+    total: int
+
+
+@router.get("/references", response_model=ReferencesResponse)
+async def get_references():
+    """
+    List all reference entities discovered from import.yml.
+
+    This endpoint dynamically discovers references (group_by targets)
+    from the import configuration. No hardcoded entity names.
+
+    Returns:
+        List of references with their kind, schema, and entity count.
+    """
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        return ReferencesResponse(references=[], total=0)
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        references = []
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        # Early return if no references configured
+        if not refs_section:
+            return ReferencesResponse(references=[], total=0)
+
+        # Try to get entity info from database (table names and counts)
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        entity_counts = {}
+        table_name_map = {}
+
+        if db_path.exists():
+            try:
+                from niamoto.common.database import Database
+                from niamoto.core.imports.registry import EntityRegistry
+
+                db = Database(str(db_path))
+                try:
+                    # Get table names from EntityRegistry (if table exists)
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+
+                    # Get counts for each reference
+                    for ref_name in refs_section.keys():
+                        actual_table = table_name_map.get(
+                            ref_name, f"reference_{ref_name}"
+                        )
+                        if db.has_table(actual_table):
+                            import pandas as pd
+
+                            result = pd.read_sql(
+                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                db.engine,
+                            )
+                            entity_counts[ref_name] = int(result.iloc[0]["cnt"])
+                finally:
+                    db.close_db_session()
+            except Exception:
+                pass  # Continue without counts if DB access fails
+
+        for ref_name, ref_config in refs_section.items():
+            if not isinstance(ref_config, dict):
+                continue
+
+            kind = ref_config.get("kind", "generic")
+            description = ref_config.get("description")
+
+            # Get actual table name from registry, fallback to convention
+            actual_table_name = table_name_map.get(ref_name, f"reference_{ref_name}")
+
+            # Extract schema fields
+            schema = ref_config.get("schema", {})
+            schema_fields = schema.get("fields", [])
+            if isinstance(schema_fields, dict):
+                # Convert dict format to list format
+                schema_fields = [
+                    {"name": k, **v} if isinstance(v, dict) else {"name": k, "type": v}
+                    for k, v in schema_fields.items()
+                ]
+
+            # Detect hierarchy fields from actual table columns
+            hierarchy_fields = None
+            is_hierarchical = False
+
+            if db_path and db_path.exists():
+                try:
+                    from niamoto.common.database import Database
+
+                    db = Database(str(db_path))
+                    try:
+                        if db.has_table(actual_table_name):
+                            # Get column names from the table
+                            columns_df = pd.read_sql(
+                                f"SELECT * FROM {actual_table_name} LIMIT 0",
+                                db.engine,
+                            )
+                            columns = set(columns_df.columns.tolist())
+
+                            # Detect hierarchy structure
+                            has_nested_set = "lft" in columns and "rght" in columns
+                            has_parent = "parent_id" in columns
+                            has_level = "level" in columns
+
+                            is_hierarchical = has_nested_set or (
+                                has_parent and has_level
+                            )
+
+                            # Detect ID field
+                            id_candidates = [f"id_{ref_name}", f"{ref_name}_id", "id"]
+                            id_field = next(
+                                (c for c in id_candidates if c in columns), None
+                            )
+                            if not id_field:
+                                # Fallback: first column containing 'id'
+                                id_field = next(
+                                    (c for c in columns if "id" in c.lower()), "id"
+                                )
+
+                            # Detect name field
+                            name_candidates = [
+                                "full_name",
+                                "name",
+                                "plot",
+                                "label",
+                                "title",
+                                ref_name,
+                            ]
+                            name_field = next(
+                                (c for c in name_candidates if c in columns), None
+                            )
+                            if not name_field:
+                                # Fallback: first string column that's not id
+                                name_field = next(
+                                    (
+                                        c
+                                        for c in columns
+                                        if c != id_field and "name" in c.lower()
+                                    ),
+                                    id_field,
+                                )
+
+                            hierarchy_fields = HierarchyFields(
+                                has_nested_set=has_nested_set,
+                                has_parent=has_parent,
+                                has_level=has_level,
+                                lft_field="lft" if has_nested_set else None,
+                                rght_field="rght" if has_nested_set else None,
+                                parent_id_field="parent_id" if has_parent else None,
+                                level_field="level" if has_level else None,
+                                id_field=id_field,
+                                name_field=name_field,
+                            )
+                    finally:
+                        db.close_db_session()
+                except Exception:
+                    pass  # Continue without hierarchy detection if DB access fails
+
+            references.append(
+                ReferenceInfo(
+                    name=ref_name,
+                    table_name=actual_table_name,
+                    kind=kind,
+                    description=description,
+                    schema_fields=schema_fields,
+                    entity_count=entity_counts.get(ref_name),
+                    is_hierarchical=is_hierarchical,
+                    hierarchy_fields=hierarchy_fields,
+                )
+            )
+
+        return ReferencesResponse(references=references, total=len(references))
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error reading references: {str(e)}"
+        )
+
+
+# =============================================================================
+# Datasets Discovery Endpoint
+# =============================================================================
+
+
+class DatasetInfo(BaseModel):
+    """Information about a dataset entity from import.yml."""
+
+    name: str
+    table_name: str  # Actual table name from EntityRegistry
+    description: Optional[str] = None
+    schema_fields: List[Dict[str, Any]] = []
+    entity_count: Optional[int] = None
+
+
+class DatasetsResponse(BaseModel):
+    """Response for listing datasets."""
+
+    datasets: List[DatasetInfo]
+    total: int
+
+
+@router.get("/references/{reference_name}/config")
+async def get_reference_config(reference_name: str):
+    """Get full configuration for a specific reference from import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        if reference_name not in refs_section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Reference '{reference_name}' not found in import.yml",
+            )
+
+        return {"name": reference_name, "config": refs_section[reference_name]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading config: {str(e)}")
+
+
+@router.put("/references/{reference_name}/config")
+async def update_reference_config(
+    reference_name: str, config: Dict[str, Any] = Body(...)
+):
+    """Update configuration for a specific reference in import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        if reference_name not in refs_section:
+            raise HTTPException(
+                status_code=404, detail=f"Reference '{reference_name}' not found"
+            )
+
+        # Backup before modifying
+        create_backup(config_path)
+
+        # Update the reference config
+        refs_section[reference_name] = config
+        import_config["entities"]["references"] = refs_section
+
+        # Write back
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Reference '{reference_name}' configuration updated",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating config: {str(e)}")
+
+
+@router.get("/datasets/{dataset_name}/config")
+async def get_dataset_config(dataset_name: str):
+    """Get full configuration for a specific dataset from import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if dataset_name not in datasets_section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dataset '{dataset_name}' not found in import.yml",
+            )
+
+        return {"name": dataset_name, "config": datasets_section[dataset_name]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading config: {str(e)}")
+
+
+@router.put("/datasets/{dataset_name}/config")
+async def update_dataset_config(dataset_name: str, config: Dict[str, Any] = Body(...)):
+    """Update configuration for a specific dataset in import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if dataset_name not in datasets_section:
+            raise HTTPException(
+                status_code=404, detail=f"Dataset '{dataset_name}' not found"
+            )
+
+        # Backup before modifying
+        create_backup(config_path)
+
+        # Update the dataset config
+        datasets_section[dataset_name] = config
+        import_config["entities"]["datasets"] = datasets_section
+
+        # Write back
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Dataset '{dataset_name}' configuration updated",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating config: {str(e)}")
+
+
+@router.get("/datasets", response_model=DatasetsResponse)
+async def get_datasets():
+    """
+    List all dataset entities discovered from import.yml.
+
+    Returns:
+        List of datasets with their schema and entity count.
+    """
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        return DatasetsResponse(datasets=[], total=0)
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        datasets = []
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if not datasets_section:
+            return DatasetsResponse(datasets=[], total=0)
+
+        # Get entity info from database
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        entity_counts = {}
+        table_name_map = {}
+
+        if db_path.exists():
+            try:
+                from niamoto.common.database import Database
+                from niamoto.core.imports.registry import EntityRegistry
+                import pandas as pd
+
+                db = Database(str(db_path))
+                try:
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+
+                    for ds_name in datasets_section.keys():
+                        actual_table = table_name_map.get(ds_name, f"dataset_{ds_name}")
+                        if db.has_table(actual_table):
+                            result = pd.read_sql(
+                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                db.engine,
+                            )
+                            entity_counts[ds_name] = int(result.iloc[0]["cnt"])
+                finally:
+                    db.close_db_session()
+            except Exception:
+                pass
+
+        for ds_name, ds_config in datasets_section.items():
+            if not isinstance(ds_config, dict):
+                continue
+
+            description = ds_config.get("description")
+            actual_table_name = table_name_map.get(ds_name, f"dataset_{ds_name}")
+
+            schema = ds_config.get("schema", {})
+            schema_fields = schema.get("fields", [])
+            if isinstance(schema_fields, dict):
+                schema_fields = [
+                    {"name": k, **v} if isinstance(v, dict) else {"name": k, "type": v}
+                    for k, v in schema_fields.items()
+                ]
+
+            datasets.append(
+                DatasetInfo(
+                    name=ds_name,
+                    table_name=actual_table_name,
+                    description=description,
+                    schema_fields=schema_fields,
+                    entity_count=entity_counts.get(ds_name),
+                )
+            )
+
+        return DatasetsResponse(datasets=datasets, total=len(datasets))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading datasets: {str(e)}")
+
+
+# =============================================================================
+# Configuration CRUD Endpoints
+# =============================================================================
 
 
 @router.get("/{config_name}")
@@ -545,10 +1086,10 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
                     elif entity_config["kind"] not in [
                         "hierarchical",
                         "spatial",
-                        "flat",
+                        "generic",
                     ]:
                         entity_errors.append(
-                            "Kind must be 'hierarchical', 'spatial', or 'flat'"
+                            "Kind must be 'hierarchical', 'spatial', or 'generic'"
                         )
 
                     # Validate hierarchical specific
@@ -730,7 +1271,7 @@ async def get_import_v2_schema():
                 "properties": {
                     "kind": {
                         "type": "string",
-                        "enum": ["hierarchical", "spatial", "flat"],
+                        "enum": ["hierarchical", "spatial", "generic"],
                     },
                     "description": {"type": "string"},
                     "connector": {"$ref": "#/definitions/Connector"},
@@ -828,3 +1369,1536 @@ async def get_import_v2_schema():
     }
 
     return schema
+
+
+# =============================================================================
+# Widget CRUD Endpoints for Transform and Export configurations
+# =============================================================================
+
+
+class TransformWidgetUpdate(BaseModel):
+    """Request body for updating a transform widget."""
+
+    plugin: str
+    params: Dict[str, Any] = {}
+
+
+class ExportWidgetUpdate(BaseModel):
+    """Request body for updating an export widget."""
+
+    plugin: str
+    data_source: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    params: Dict[str, Any] = {}
+
+
+class WidgetSummary(BaseModel):
+    """Summary of a widget configuration."""
+
+    id: str
+    plugin: str
+    params: Dict[str, Any] = {}
+
+
+@router.get("/transform/{group_by}/widgets")
+async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
+    """
+    List all widgets in transform.yml for a specific group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        List of widget summaries
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            return []
+
+        widgets_data = group.get("widgets_data", {})
+        widgets = []
+
+        for widget_id, widget_config in widgets_data.items():
+            widgets.append(
+                WidgetSummary(
+                    id=widget_id,
+                    plugin=widget_config.get("plugin", ""),
+                    params=widget_config.get("params", {}),
+                )
+            )
+
+        return widgets
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing widgets: {str(e)}")
+
+
+@router.get("/transform/{group_by}/widgets/{widget_id}")
+async def get_transform_widget(group_by: str, widget_id: str) -> WidgetSummary:
+    """
+    Get a specific widget from transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+
+    Returns:
+        Widget summary
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+
+        widgets_data = group.get("widgets_data", {})
+        if widget_id not in widgets_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        widget_config = widgets_data[widget_id]
+        return WidgetSummary(
+            id=widget_id,
+            plugin=widget_config.get("plugin", ""),
+            params=widget_config.get("params", {}),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting widget: {str(e)}")
+
+
+@router.put("/transform/{group_by}/widgets/{widget_id}")
+async def update_transform_widget(
+    group_by: str, widget_id: str, update: TransformWidgetUpdate
+) -> WidgetSummary:
+    """
+    Create or update a widget in transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+        update: Widget configuration
+
+    Returns:
+        Updated widget summary
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            # Auto-créer seulement si le group_by est une référence connue
+            if not _is_known_reference(group_by):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found and is not a known reference in import.yml",
+                )
+            group = _find_or_create_transform_group_impl(groups, group_by)
+
+        if "widgets_data" not in group:
+            group["widgets_data"] = {}
+
+        group["widgets_data"][widget_id] = {
+            "plugin": update.plugin,
+            "params": update.params,
+        }
+
+        _save_transform_config(groups)
+
+        return WidgetSummary(
+            id=widget_id,
+            plugin=update.plugin,
+            params=update.params,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating widget: {str(e)}")
+
+
+@router.delete("/transform/{group_by}/widgets/{widget_id}")
+async def delete_transform_widget(group_by: str, widget_id: str) -> Dict[str, bool]:
+    """
+    Delete a widget from transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+
+    Returns:
+        Success status
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+
+        widgets_data = group.get("widgets_data", {})
+        if widget_id not in widgets_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        del widgets_data[widget_id]
+        _save_transform_config(groups)
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting widget: {str(e)}")
+
+
+@router.get("/export/{group_by}/widgets")
+async def list_export_widgets(group_by: str) -> List[Dict[str, Any]]:
+    """
+    List all widgets in export.yml for a specific group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        List of widget configurations
+    """
+    try:
+        export_config = _load_export_config()
+        group = _find_export_group(export_config, group_by)
+
+        if not group:
+            return []
+
+        return group.get("widgets", [])
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error listing export widgets: {str(e)}"
+        )
+
+
+@router.put("/export/{group_by}/widgets/{widget_id}")
+async def update_export_widget(
+    group_by: str, widget_id: str, update: ExportWidgetUpdate
+) -> Dict[str, Any]:
+    """
+    Create or update a widget in export.yml.
+
+    The widget_id corresponds to the data_source field.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier (data_source)
+        update: Widget configuration
+
+    Returns:
+        Updated widget configuration
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the export entry with groups
+        target_group = None
+
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            # Auto-créer seulement si le group_by est une référence connue
+            if not _is_known_reference(group_by):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found in export config and is not a known reference in import.yml",
+                )
+            exports = export_config.setdefault("exports", [])
+            web_export = None
+            for entry in exports:
+                if isinstance(entry, dict) and entry.get("name") == "web_pages":
+                    web_export = entry
+                    break
+            if not web_export:
+                web_export = {
+                    "name": "web_pages",
+                    "enabled": True,
+                    "exporter": "html_page_exporter",
+                    "groups": [],
+                }
+                exports.append(web_export)
+            target_group = {"group_by": group_by, "widgets": []}
+            web_export.setdefault("groups", []).append(target_group)
+
+        # Ensure widgets list exists
+        if "widgets" not in target_group:
+            target_group["widgets"] = []
+
+        # Find existing widget by data_source
+        existing_idx = None
+        for idx, widget in enumerate(target_group["widgets"]):
+            if widget.get("data_source") == widget_id:
+                existing_idx = idx
+                break
+
+        new_widget = {
+            "plugin": update.plugin,
+            "data_source": update.data_source,
+            "params": update.params,
+        }
+        if update.title:
+            new_widget["title"] = update.title
+        if update.description:
+            new_widget["description"] = update.description
+
+        if existing_idx is not None:
+            target_group["widgets"][existing_idx] = new_widget
+        else:
+            target_group["widgets"].append(new_widget)
+
+        _save_export_config(export_config)
+
+        return new_widget
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error updating export widget: {str(e)}"
+        )
+
+
+@router.delete("/export/{group_by}/widgets/{widget_id}")
+async def delete_export_widget(group_by: str, widget_id: str) -> Dict[str, bool]:
+    """
+    Delete a widget from export.yml.
+
+    The widget_id corresponds to the data_source field.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier (data_source)
+
+    Returns:
+        Success status
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the group
+        target_group = None
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        widgets = target_group.get("widgets", [])
+        original_len = len(widgets)
+
+        # Filter out the widget
+        target_group["widgets"] = [
+            w for w in widgets if w.get("data_source") != widget_id
+        ]
+
+        if len(target_group["widgets"]) == original_len:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        _save_export_config(export_config)
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting export widget: {str(e)}"
+        )
+
+
+# =============================================================================
+# Index Generator Configuration Endpoints
+# =============================================================================
+
+
+class IndexGeneratorPageConfigUpdate(BaseModel):
+    """Page configuration for index generator."""
+
+    title: str
+    description: Optional[str] = None
+    items_per_page: int = 24
+
+
+class IndexGeneratorFilterUpdate(BaseModel):
+    """Filter configuration for index generator."""
+
+    field: str
+    values: List[Any]
+    operator: str = "in"
+
+
+class IndexGeneratorDisplayFieldUpdate(BaseModel):
+    """Display field configuration for index generator."""
+
+    name: str
+    source: str
+    fallback: Optional[str] = None
+    type: str = "text"
+    label: Optional[str] = None
+    searchable: bool = False
+    format: Optional[str] = None
+    mapping: Optional[Dict[str, str]] = None
+    filter_options: Optional[List[Dict[str, str]]] = None
+    dynamic_options: bool = False
+    inline_badge: bool = False
+    true_label: Optional[str] = None
+    false_label: Optional[str] = None
+    badge_color: Optional[str] = None
+    badge_style: Optional[str] = None
+    badge_colors: Optional[Dict[str, str]] = None
+    badge_styles: Optional[Dict[str, str]] = None
+    tooltip_mapping: Optional[Dict[str, str]] = None
+    display: Optional[str] = None
+    link_label: Optional[str] = None
+    link_template: Optional[str] = None
+    link_title: Optional[str] = None
+    link_target: Optional[str] = None
+    css_class: Optional[str] = None
+    css_style: Optional[str] = None
+    image_fields: Optional[Dict[str, str]] = None
+
+
+class IndexGeneratorViewUpdate(BaseModel):
+    """View configuration for index generator."""
+
+    type: str
+    default: bool = False
+
+
+class IndexGeneratorConfigUpdate(BaseModel):
+    """Complete index generator configuration."""
+
+    enabled: bool = True
+    template: str = "group_index.html"
+    page_config: IndexGeneratorPageConfigUpdate
+    filters: Optional[List[IndexGeneratorFilterUpdate]] = None
+    display_fields: List[IndexGeneratorDisplayFieldUpdate]
+    views: Optional[List[IndexGeneratorViewUpdate]] = None
+
+
+@router.get("/export/{group_by}/index-generator")
+async def get_index_generator(group_by: str) -> Dict[str, Any]:
+    """
+    Get index_generator configuration for a group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        Index generator configuration
+
+    Raises:
+        HTTPException 404: If group not found or no index_generator configured
+    """
+    try:
+        export_config = _load_export_config()
+        group = _find_export_group(export_config, group_by)
+
+        if not group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        index_generator = group.get("index_generator")
+        if not index_generator:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No index_generator configuration for group '{group_by}'",
+            )
+
+        return index_generator
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting index generator config: {str(e)}"
+        )
+
+
+@router.put("/export/{group_by}/index-generator")
+async def update_index_generator(
+    group_by: str, config: IndexGeneratorConfigUpdate
+) -> Dict[str, Any]:
+    """
+    Update index_generator configuration for a group.
+
+    Args:
+        group_by: The group name
+        config: Index generator configuration
+
+    Returns:
+        Updated configuration
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the group
+        target_group = None
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        # Convert Pydantic model to dict
+        config_dict = config.model_dump(exclude_none=True)
+
+        # Convert nested models
+        if "page_config" in config_dict:
+            config_dict["page_config"] = {
+                k: v for k, v in config_dict["page_config"].items() if v is not None
+            }
+
+        if "filters" in config_dict:
+            config_dict["filters"] = [
+                {k: v for k, v in f.items() if v is not None}
+                for f in config_dict["filters"]
+            ]
+
+        if "display_fields" in config_dict:
+            config_dict["display_fields"] = [
+                {k: v for k, v in f.items() if v is not None}
+                for f in config_dict["display_fields"]
+            ]
+
+        if "views" in config_dict:
+            config_dict["views"] = [
+                {k: v for k, v in v.items() if v is not None}
+                for v in config_dict["views"]
+            ]
+
+        # Insert index_generator before widgets if widgets exists
+        if "widgets" in target_group:
+            # Reorder keys: everything before widgets, then index_generator, then widgets
+            new_group = {}
+            for key in target_group:
+                if key == "widgets":
+                    new_group["index_generator"] = config_dict
+                    new_group["widgets"] = target_group["widgets"]
+                elif key != "index_generator":
+                    new_group[key] = target_group[key]
+            # If widgets wasn't in the loop (shouldn't happen), add index_generator
+            if "index_generator" not in new_group:
+                new_group["index_generator"] = config_dict
+            target_group.clear()
+            target_group.update(new_group)
+        else:
+            target_group["index_generator"] = config_dict
+
+        _save_export_config(export_config)
+
+        return config_dict
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error updating index generator config: {str(e)}"
+        )
+
+
+# =============================================================================
+# Index Generator Field Suggestions
+# =============================================================================
+
+
+class SuggestedDisplayField(BaseModel):
+    """Suggested display field configuration."""
+
+    name: str
+    source: str
+    type: str  # text, select, boolean, json_array
+    label: str
+    searchable: bool = False
+    cardinality: Optional[int] = None  # Number of distinct values
+    sample_values: Optional[List[str]] = None  # Sample of values
+    suggested_as_filter: bool = False
+    format: Optional[str] = None
+    dynamic_options: bool = False
+    priority: str = "high"  # high, low - indicates importance for index display
+
+
+class SuggestedFilter(BaseModel):
+    """Suggested filter configuration."""
+
+    field: str
+    source: str
+    label: str
+    type: str
+    values: List[Any]
+    operator: str = "in"
+
+
+class IndexFieldSuggestions(BaseModel):
+    """Response with suggested fields for index generator."""
+
+    display_fields: List[SuggestedDisplayField]
+    filters: List[SuggestedFilter]
+    total_entities: int
+
+
+def _extract_json_paths(
+    data: Dict[str, Any], prefix: str = "", max_depth: int = 4
+) -> List[tuple]:
+    """
+    Extract all JSON paths from a nested dictionary.
+    Returns list of (path, value) tuples.
+    """
+    paths = []
+    if max_depth <= 0:
+        return paths
+
+    for key, value in data.items():
+        current_path = f"{prefix}.{key}" if prefix else key
+
+        if isinstance(value, dict):
+            # Check if it's a {value: X, label: Y} pattern (common in Niamoto)
+            if "value" in value:
+                paths.append((f"{current_path}.value", value.get("value")))
+            else:
+                # Recurse into nested dict
+                paths.extend(_extract_json_paths(value, current_path, max_depth - 1))
+        elif isinstance(value, list):
+            # For arrays, note the path but don't recurse
+            paths.append((current_path, value))
+        else:
+            paths.append((current_path, value))
+
+    return paths
+
+
+def _detect_field_type(values: List[Any]) -> str:
+    """Detect the field type based on sample values."""
+    if not values:
+        return "text"
+
+    # Filter out None values
+    non_null = [v for v in values if v is not None]
+    if not non_null:
+        return "text"
+
+    # Check for boolean
+    bool_values = {True, False, "true", "false", "True", "False", 1, 0}
+    if all(v in bool_values for v in non_null):
+        return "boolean"
+
+    # Check for arrays
+    if any(isinstance(v, list) for v in non_null):
+        return "json_array"
+
+    # Check for numeric
+    try:
+        for v in non_null[:10]:  # Check first 10
+            if isinstance(v, (int, float)):
+                continue
+            float(v)
+        return "number"
+    except (ValueError, TypeError):
+        pass
+
+    # Check cardinality for select vs text
+    unique = set(str(v) for v in non_null if v is not None)
+    if len(unique) <= 20 and len(non_null) > len(unique) * 2:
+        return "select"
+
+    return "text"
+
+
+def _generate_label(path: str) -> str:
+    """Generate a human-readable label from a JSON path."""
+    # Extract the meaningful part
+    parts = path.split(".")
+
+    # Common patterns to handle
+    if parts[-1] == "value":
+        parts = parts[:-1]
+
+    # Take the last meaningful part
+    name = parts[-1] if parts else path
+
+    # Convert to human readable
+    label = name.replace("_", " ").replace("-", " ")
+    return label.title()
+
+
+def _is_name_field(path: str) -> bool:
+    """Check if this is likely a name/title field."""
+    name_indicators = ["name", "title", "label", "full_name", "nom"]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in name_indicators)
+
+
+def _is_category_field(path: str) -> bool:
+    """Check if this is likely a category field."""
+    cat_indicators = [
+        "type",
+        "category",
+        "rank",
+        "status",
+        "class",
+        "kind",
+        "famille",
+        "family",
+        "genus",
+    ]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in cat_indicators)
+
+
+def _is_rank_field(path: str) -> bool:
+    """Check if this is likely a taxonomic rank field."""
+    rank_indicators = ["rank_name", "rank", "rang", "niveau"]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in rank_indicators)
+
+
+def _detect_terminal_ranks(values: List[str]) -> List[str]:
+    """
+    Detect terminal/leaf ranks from a list of rank values.
+
+    Works with multiple languages and naming conventions:
+    - French: Espèce, Sous-espèce, Variété, Forme
+    - English: Species, Subspecies, Variety, Form
+    - Latin abbreviations: sp., subsp., var., f.
+    - Numeric levels: higher numbers = more specific
+    """
+    # Known terminal rank patterns (case-insensitive)
+    terminal_patterns = [
+        # French
+        "espèce",
+        "espece",
+        "sous-espèce",
+        "sous-espece",
+        "variété",
+        "variete",
+        "forme",
+        "cultivar",
+        "sous-variété",
+        "sous-variete",
+        # English
+        "species",
+        "subspecies",
+        "variety",
+        "form",
+        "cultivar",
+        "subvariety",
+        # Latin/abbreviations
+        "sp.",
+        "sp",
+        "subsp.",
+        "subsp",
+        "var.",
+        "var",
+        "f.",
+        "cv.",
+        # Generic
+        "leaf",
+        "terminal",
+        "feuille",
+    ]
+
+    terminal_values = []
+    for val in values:
+        if val is None:
+            continue
+        lower_val = str(val).lower().strip()
+        # Check if value matches any terminal pattern
+        if any(
+            pattern in lower_val or lower_val == pattern
+            for pattern in terminal_patterns
+        ):
+            terminal_values.append(val)
+
+    return terminal_values
+
+
+def _detect_hierarchical_structure(df: Any) -> Dict[str, Any]:
+    """
+    Detect if a dataframe represents hierarchical data.
+
+    Returns info about the hierarchy:
+    - has_nested_set: bool (lft/rght columns)
+    - has_level: bool (level column)
+    - has_parent: bool (parent_id column)
+    - level_column: str or None
+    - max_level: int or None
+    """
+    columns = [c.lower() for c in df.columns]
+
+    result = {
+        "is_hierarchical": False,
+        "has_nested_set": False,
+        "has_level": False,
+        "has_parent": False,
+        "level_column": None,
+        "max_level": None,
+    }
+
+    # Check for nested set
+    if "lft" in columns and "rght" in columns:
+        result["has_nested_set"] = True
+        result["is_hierarchical"] = True
+
+    # Check for level column
+    level_names = ["level", "niveau", "depth", "profondeur"]
+    for col in df.columns:
+        if col.lower() in level_names:
+            result["has_level"] = True
+            result["level_column"] = col
+            result["is_hierarchical"] = True
+            try:
+                result["max_level"] = int(df[col].max())
+            except (ValueError, TypeError):
+                pass
+            break
+
+    # Check for parent reference
+    parent_names = ["parent_id", "parent", "id_parent"]
+    for col in df.columns:
+        if col.lower() in parent_names:
+            result["has_parent"] = True
+            result["is_hierarchical"] = True
+            break
+
+    return result
+
+
+def _extract_extra_data_fields(
+    source_df: Any,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Extract fields from extra_data column (API enrichment data).
+
+    These are high priority fields for index display.
+    Handles both dict and JSON string formats.
+    """
+    import json
+
+    schema = {}
+
+    if "extra_data" not in source_df.columns:
+        return schema
+
+    # Sample extra_data values
+    extra_data_values = source_df["extra_data"].dropna().tolist()
+    if not extra_data_values:
+        return schema
+
+    # Extract all keys from extra_data (including nested api_enrichment)
+    all_keys = set()
+    sample_values = {}
+
+    for data in extra_data_values[:50]:
+        # Parse JSON string if needed
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+        if not isinstance(data, dict):
+            continue
+
+        # Check for api_enrichment nested structure
+        if "api_enrichment" in data and isinstance(data["api_enrichment"], dict):
+            enrichment_data = data["api_enrichment"]
+            for key, value in enrichment_data.items():
+                full_key = f"api_enrichment.{key}"
+                all_keys.add(full_key)
+                if full_key not in sample_values:
+                    sample_values[full_key] = []
+                if value is not None and not isinstance(value, (dict, list)):
+                    sample_values[full_key].append(value)
+
+        # Also extract top-level keys (like enriched_at)
+        for key, value in data.items():
+            if key == "api_enrichment":
+                continue  # Already handled above
+            all_keys.add(key)
+            if key not in sample_values:
+                sample_values[key] = []
+            if value is not None and not isinstance(value, (dict, list)):
+                sample_values[key].append(value)
+
+    # Create schema entries for each key
+    for key in all_keys:
+        values = sample_values.get(key, [])
+        if values:
+            field_type = _detect_field_type(values)
+            unique_vals = list(set(str(v) for v in values if v is not None))[:10]
+            schema[f"extra_data.{key}"] = {
+                "type": field_type,
+                "sample_values": unique_vals,
+                "cardinality": len(set(str(v) for v in values if v is not None)),
+                "total_values": len(values),
+                "priority": "high",  # API enrichment data is high priority
+                "source": "extra_data",
+            }
+
+    return schema
+
+
+def _infer_schema_from_transform_config(
+    group_config: Dict[str, Any],
+    source_df: Any,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Infer the output schema from transform.yml configuration.
+
+    Analyzes transformer configurations to predict what columns and JSON
+    structures will be created during transformation.
+
+    Priority levels:
+    - "high": field_aggregator, class_object_field_aggregator, extra_data
+    - "medium": statistical_summary with simple stats
+    - "low": distributions, rankings, complex transformers
+
+    Handles both:
+    - Old format: transformers: [{name, plugin, params}, ...]
+    - New format: widgets_data: {widget_name: {plugin, params}, ...}
+
+    Returns:
+        Dict mapping JSON paths to their inferred properties
+    """
+    schema = {}
+
+    # First, extract extra_data fields (high priority)
+    extra_data_schema = _extract_extra_data_fields(source_df)
+    schema.update(extra_data_schema)
+
+    # Handle new widgets_data format
+    widgets_data = group_config.get("widgets_data", {})
+    transformers = []
+
+    if widgets_data:
+        # Convert widgets_data format to transformers format
+        for widget_name, widget_config in widgets_data.items():
+            if isinstance(widget_config, dict):
+                transformers.append(
+                    {
+                        "name": widget_name,
+                        "plugin": widget_config.get("plugin", ""),
+                        "params": widget_config.get("params", {}),
+                    }
+                )
+    else:
+        # Use old transformers format
+        transformers = group_config.get("transformers", [])
+
+    # High priority plugins (good for index display)
+    HIGH_PRIORITY_PLUGINS = {"field_aggregator", "class_object_field_aggregator"}
+
+    for transformer in transformers:
+        name = transformer.get("name", "")
+        plugin = transformer.get("plugin", "")
+        params = transformer.get("params", {})
+
+        # Determine priority based on plugin type
+        priority = "high" if plugin in HIGH_PRIORITY_PLUGINS else "low"
+
+        # Handle field_aggregator - creates {name}.{field}.value structure
+        if plugin in ["field_aggregator", "class_object_field_aggregator"]:
+            fields = params.get("fields", [])
+            for field_config in fields:
+                # Handle both old format (source=column) and new format (source=ref, field=column)
+                if "field" in field_config:
+                    # New format: {source: ref_name, field: column_name, target: output_name}
+                    source_col = field_config.get("field", "")
+                else:
+                    # Old format: {source: column_name, target: output_name}
+                    source_col = field_config.get("source", "")
+
+                target = field_config.get("target", source_col)
+                path = f"{name}.{target}.value"
+
+                # Handle nested field paths like "extra_data.enriched_at"
+                if "." in source_col:
+                    # For nested paths, try to extract from extra_data
+                    parts = source_col.split(".")
+                    if parts[0] == "extra_data" and len(parts) > 1:
+                        extra_key = parts[1]
+                        # Get values from extra_data
+                        values = []
+                        for _, row in source_df.iterrows():
+                            if isinstance(row.get("extra_data"), dict):
+                                val = row["extra_data"].get(extra_key)
+                                if val is not None:
+                                    values.append(val)
+                        if values:
+                            schema[path] = {
+                                "type": _detect_field_type(values),
+                                "sample_values": list(
+                                    set(str(v) for v in values if v is not None)
+                                )[:10],
+                                "cardinality": len(
+                                    set(str(v) for v in values if v is not None)
+                                ),
+                                "total_values": len(values),
+                                "source_column": source_col,
+                                "priority": priority,
+                            }
+                        else:
+                            schema[path] = {
+                                "type": "text",
+                                "sample_values": [],
+                                "cardinality": 0,
+                                "total_values": 0,
+                                "source_column": source_col,
+                                "priority": priority,
+                            }
+                    else:
+                        schema[path] = {
+                            "type": "text",
+                            "sample_values": [],
+                            "cardinality": 0,
+                            "total_values": 0,
+                            "source_column": source_col,
+                            "priority": priority,
+                        }
+                elif source_col in source_df.columns:
+                    # Try to get sample values from source column
+                    values = source_df[source_col].dropna().tolist()
+                    if values:
+                        schema[path] = {
+                            "type": _detect_field_type(values),
+                            "sample_values": list(
+                                set(str(v) for v in values if v is not None)
+                            )[:10],
+                            "cardinality": len(
+                                set(str(v) for v in values if v is not None)
+                            ),
+                            "total_values": len(values),
+                            "source_column": source_col,
+                            "priority": priority,
+                        }
+                else:
+                    # Column not in source, but still add the path
+                    schema[path] = {
+                        "type": "text",
+                        "sample_values": [],
+                        "cardinality": 0,
+                        "total_values": 0,
+                        "source_column": source_col,
+                        "priority": priority,
+                    }
+
+        # Handle statistical_summary - creates {name}.{stat} structure (medium priority)
+        elif plugin == "statistical_summary":
+            stats = params.get("stats", ["mean", "min", "max", "count"])
+            source_field = params.get("source_field", params.get("field", ""))
+            for stat in stats:
+                path = f"{name}.{stat}"
+                schema[path] = {
+                    "type": "number",
+                    "sample_values": [],
+                    "cardinality": 0,
+                    "total_values": 0,
+                    "source_column": source_field,
+                    "priority": "low",  # Stats are less useful for index display
+                }
+
+        # Handle distribution transformers - creates {name}.bins, {name}.counts (low priority)
+        elif plugin in [
+            "binned_distribution",
+            "dbh_distribution",
+            "elevation_distribution",
+            "categorical_distribution",
+        ]:
+            schema[f"{name}.bins"] = {
+                "type": "json_array",
+                "sample_values": [],
+                "cardinality": 0,
+                "total_values": 0,
+                "priority": "low",
+            }
+            schema[f"{name}.counts"] = {
+                "type": "json_array",
+                "sample_values": [],
+                "cardinality": 0,
+                "total_values": 0,
+                "priority": "low",
+            }
+
+        # Skip other complex transformers for suggestions (they're not useful for index)
+        # Users can still add them manually if needed
+
+    return schema
+
+
+@router.get("/export/{group_by}/index-generator/suggestions")
+async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
+    """
+    Analyze transformed data and suggest display fields and filters.
+
+    This endpoint:
+    1. First tries to load the transformed stats table (if transform was already run)
+    2. If not available, infers the schema from transform.yml configuration
+    3. Uses source data to detect field types and sample values
+    4. Suggests fields for display and filtering based on cardinality
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        Suggested display_fields and filters
+    """
+    try:
+        import pandas as pd
+        from niamoto.common.database import Database
+        from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
+        from niamoto.core.imports.registry import EntityRegistry
+        from sqlalchemy import text
+
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail="Database not found")
+
+        # Load transform config
+        transform_config = []
+        transform_path = get_working_directory() / "config" / "transform.yml"
+        if transform_path.exists():
+            with open(transform_path, "r", encoding="utf-8") as f:
+                transform_config = yaml.safe_load(f) or []
+
+        # Find the group config
+        group_config = None
+        for group in transform_config:
+            if group.get("group_by") == group_by:
+                group_config = group
+                break
+
+        if not group_config:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in transform.yml"
+            )
+
+        # Get source entity name from transform config
+        source_entity = group_config.get("source", group_by)
+
+        # Find source table from EntityRegistry
+        source_table = None
+        db = Database(str(db_path))
+        try:
+            if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                registry = EntityRegistry(db)
+                for entity in registry.list_entities():
+                    if entity.name == source_entity:
+                        source_table = entity.table_name
+                        break
+        finally:
+            db.close_db_session()
+
+        # Fallback to common patterns
+        if not source_table:
+            db = Database(str(db_path))
+            try:
+                source_table = resolve_entity_table(db, source_entity)
+            finally:
+                db.close_db_session()
+
+        if not source_table:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not find source table for '{source_entity}'",
+            )
+
+        # Check if transformed stats table exists
+        stats_table = f"{group_by}_stats"
+        transformed_table_exists = False
+
+        db = Database(str(db_path))
+        try:
+            transformed_table_exists = db.has_table(stats_table)
+        finally:
+            db.close_db_session()
+
+        field_analysis = {}
+        total_count = 0
+
+        if transformed_table_exists:
+            # Use the actual transformed data
+            db = Database(str(db_path))
+            try:
+                quoted_stats_table = quote_identifier(db, stats_table)
+                df = pd.read_sql(
+                    text(f"SELECT * FROM {quoted_stats_table} LIMIT 100"), db.engine
+                )
+                total_count = pd.read_sql(
+                    text(f"SELECT COUNT(*) as cnt FROM {quoted_stats_table}"),
+                    db.engine,
+                ).iloc[0]["cnt"]
+
+                # Analyze each column
+                for col in df.columns:
+                    if col.startswith("_") or col in ["created_at", "updated_at"]:
+                        continue
+
+                    values = df[col].dropna().tolist()
+                    if not values:
+                        continue
+
+                    sample_value = values[0] if values else None
+
+                    if isinstance(sample_value, dict):
+                        # Extract paths from JSON column
+                        all_paths = []
+                        for row_value in values[:20]:
+                            if isinstance(row_value, dict):
+                                paths = _extract_json_paths(row_value, col)
+                                all_paths.extend(paths)
+
+                        # Group by path and collect values
+                        path_values = {}
+                        for path, value in all_paths:
+                            if path not in path_values:
+                                path_values[path] = []
+                            if value is not None and not isinstance(
+                                value, (dict, list)
+                            ):
+                                path_values[path].append(value)
+
+                        for path, vals in path_values.items():
+                            if len(vals) < 3:
+                                continue
+                            field_type = _detect_field_type(vals)
+                            unique_vals = list(
+                                set(str(v) for v in vals if v is not None)
+                            )[:10]
+                            field_analysis[path] = {
+                                "type": field_type,
+                                "cardinality": len(set(str(v) for v in vals)),
+                                "sample_values": unique_vals,
+                                "total_values": len(vals),
+                            }
+                    else:
+                        field_type = _detect_field_type(values)
+                        unique_vals = list(
+                            set(str(v) for v in values if v is not None)
+                        )[:10]
+                        field_analysis[col] = {
+                            "type": field_type,
+                            "cardinality": len(set(str(v) for v in values)),
+                            "sample_values": unique_vals,
+                            "total_values": len(values),
+                        }
+            finally:
+                db.close_db_session()
+        else:
+            # Infer schema from transform.yml using source data
+            db = Database(str(db_path))
+            try:
+                quoted_source_table = quote_identifier(db, source_table)
+                source_df = pd.read_sql(
+                    text(f"SELECT * FROM {quoted_source_table} LIMIT 100"),
+                    db.engine,
+                )
+                total_count = pd.read_sql(
+                    text(f"SELECT COUNT(*) as cnt FROM {quoted_source_table}"),
+                    db.engine,
+                ).iloc[0]["cnt"]
+
+                # Infer schema from transform config
+                field_analysis = _infer_schema_from_transform_config(
+                    group_config, source_df
+                )
+
+            finally:
+                db.close_db_session()
+
+        if not field_analysis:
+            return IndexFieldSuggestions(
+                display_fields=[], filters=[], total_entities=int(total_count)
+            )
+
+        # Detect hierarchical structure for smart filtering
+        hierarchy_info = {"is_hierarchical": False}
+        db = Database(str(db_path))
+        try:
+            quoted_source_table = quote_identifier(db, source_table)
+            check_df = pd.read_sql(
+                text(f"SELECT * FROM {quoted_source_table} LIMIT 10"), db.engine
+            )
+            hierarchy_info = _detect_hierarchical_structure(check_df)
+        except Exception:
+            pass
+        finally:
+            db.close_db_session()
+
+        # Generate suggestions
+        display_fields = []
+        filters = []
+
+        # Track if we found a rank field with terminal values for hierarchical entities
+        rank_filter_added = False
+
+        # Sort fields by relevance: priority first, then name fields, then category fields
+        sorted_fields = sorted(
+            field_analysis.items(),
+            key=lambda x: (
+                # Priority: high priority first
+                0 if x[1].get("priority", "low") == "high" else 1,
+                # Then name fields
+                0 if _is_name_field(x[0]) else 1,
+                # Then category fields
+                0 if _is_category_field(x[0]) else 1,
+                # Then by cardinality for select types
+                x[1]["cardinality"] if x[1]["type"] == "select" else 1000,
+            ),
+        )
+
+        for path, info in sorted_fields:
+            priority = info.get("priority", "low")
+
+            # For initial suggestions, only include high priority fields
+            # Low priority fields are skipped (user can add manually)
+            if priority == "low":
+                continue
+
+            # Skip if cardinality is too high for meaningful display
+            if info["type"] == "text" and info["cardinality"] > 50:
+                if not _is_name_field(path):
+                    continue
+
+            # Skip json_array types (not useful for index display)
+            if info["type"] == "json_array":
+                continue
+
+            # Create display field suggestion
+            is_searchable = _is_name_field(path)
+            is_filter_candidate = (
+                info["type"] in ["select", "boolean"]
+                and info["cardinality"] <= 20
+                and info["cardinality"] >= 2
+            )
+
+            # Determine format
+            format_hint = None
+            if info["type"] == "select":
+                format_hint = "map"
+            elif info["type"] == "boolean":
+                format_hint = "badge"
+
+            field_name = (
+                path.split(".")[-2] if path.endswith(".value") else path.split(".")[-1]
+            )
+
+            display_field = SuggestedDisplayField(
+                name=field_name,
+                source=path,
+                type=info["type"],
+                label=_generate_label(path),
+                searchable=is_searchable,
+                cardinality=info["cardinality"],
+                sample_values=info["sample_values"],
+                suggested_as_filter=is_filter_candidate,
+                format=format_hint,
+                dynamic_options=is_filter_candidate and info["cardinality"] > 5,
+                priority=priority,
+            )
+            display_fields.append(display_field)
+
+            # Create filter suggestion if appropriate (only for high priority fields)
+            if is_filter_candidate:
+                filter_values = info["sample_values"][:20]  # Limit filter values
+
+                # For hierarchical entities, check if this is a rank field
+                # and pre-select terminal ranks (species, subspecies, etc.)
+                is_rank = _is_rank_field(path)
+                if (
+                    hierarchy_info["is_hierarchical"]
+                    and is_rank
+                    and not rank_filter_added
+                ):
+                    # For rank fields, fetch ALL distinct values from source table
+                    # because sample might not include terminal ranks
+                    all_rank_values = filter_values  # Default to sample
+                    try:
+                        # Extract the column name from path (e.g., "widget.rank_name.value" -> "rank_name")
+                        rank_col = (
+                            path.split(".")[-2]
+                            if path.endswith(".value")
+                            else path.split(".")[-1]
+                        )
+                        db = Database(str(db_path))
+                        try:
+                            distinct_df = pd.read_sql(
+                                f"SELECT DISTINCT {rank_col} FROM {source_table} WHERE {rank_col} IS NOT NULL",
+                                db.engine,
+                            )
+                            all_rank_values = distinct_df[rank_col].tolist()
+                        finally:
+                            db.close_db_session()
+                    except Exception:
+                        pass  # Fall back to sample values
+
+                    terminal_values = _detect_terminal_ranks(all_rank_values)
+                    if terminal_values:
+                        # Add rank filter with terminal values pre-selected
+                        filters.insert(
+                            0,  # Insert at beginning (priority filter)
+                            SuggestedFilter(
+                                field=path,
+                                source=path,
+                                label=_generate_label(path) + " (terminaux)",
+                                type=info["type"],
+                                values=terminal_values,  # Only terminal ranks
+                                operator="in",
+                            ),
+                        )
+                        rank_filter_added = True
+                        continue  # Don't add the regular filter
+
+                filters.append(
+                    SuggestedFilter(
+                        field=path,
+                        source=path,
+                        label=_generate_label(path),
+                        type=info["type"],
+                        values=filter_values,
+                        operator="in",
+                    )
+                )
+
+        # Deduplicate fields by name, preferring transformation sources over extra_data
+        deduplicated_fields = []
+        seen_names: Dict[str, int] = {}  # name -> index in deduplicated_fields
+
+        for field in display_fields:
+            field_name = field.name
+            is_extra_data_source = field.source.startswith("extra_data.")
+
+            if field_name in seen_names:
+                # We have a duplicate name
+                existing_idx = seen_names[field_name]
+                existing_field = deduplicated_fields[existing_idx]
+                existing_is_extra_data = existing_field.source.startswith("extra_data.")
+
+                # Prefer transformation source over extra_data
+                if existing_is_extra_data and not is_extra_data_source:
+                    # Replace the extra_data version with the transformation version
+                    deduplicated_fields[existing_idx] = field
+                # else: keep the existing one (either it's from transformation, or both are extra_data)
+            else:
+                seen_names[field_name] = len(deduplicated_fields)
+                deduplicated_fields.append(field)
+
+        # Also deduplicate filters by field name
+        deduplicated_filters = []
+        seen_filter_names: set = set()
+
+        for flt in filters:
+            filter_name = (
+                flt.field.split(".")[-2]
+                if flt.field.endswith(".value")
+                else flt.field.split(".")[-1]
+            )
+            is_extra_data_source = flt.source.startswith("extra_data.")
+
+            if filter_name not in seen_filter_names:
+                seen_filter_names.add(filter_name)
+                deduplicated_filters.append(flt)
+            elif not is_extra_data_source:
+                # Replace extra_data filter with transformation filter
+                for i, existing_flt in enumerate(deduplicated_filters):
+                    existing_name = (
+                        existing_flt.field.split(".")[-2]
+                        if existing_flt.field.endswith(".value")
+                        else existing_flt.field.split(".")[-1]
+                    )
+                    if existing_name == filter_name and existing_flt.source.startswith(
+                        "extra_data."
+                    ):
+                        deduplicated_filters[i] = flt
+                        break
+
+        return IndexFieldSuggestions(
+            display_fields=deduplicated_fields[
+                :15
+            ],  # Limit to top 15 high priority fields
+            filters=deduplicated_filters[:5],  # Limit to top 5 filters
+            total_entities=int(total_count),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing data: {str(e)}")
+
+
+@router.post("/scaffold")
+async def scaffold_configs_endpoint() -> Dict[str, Any]:
+    """Scaffold les configs transform.yml et export.yml à partir de import.yml.
+
+    Crée des groupes minimaux pour chaque référence absente.
+    Idempotent : les groupes existants ne sont pas modifiés.
+    Utile après ajout d'une nouvelle référence dans import.yml.
+    """
+    from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    try:
+        changed, message = scaffold_configs(work_dir)
+        return {
+            "success": True,
+            "changed": changed,
+            "message": message,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Scaffold error: {str(e)}",
+        )

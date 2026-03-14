@@ -14,6 +14,9 @@ from niamoto.core.imports.ml_detector import (
     HAS_SKLEARN,
 )
 
+# Fixed seed for reproducible ML tests across Python versions
+np.random.seed(42)
+
 
 class TestMLColumnDetector:
     """Test the ML column detector."""

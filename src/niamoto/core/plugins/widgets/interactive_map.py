@@ -1,3 +1,4 @@
+import html as html_module
 import json
 import logging
 from typing import Any, List, Optional, Set
@@ -10,9 +11,10 @@ from pydantic import Field, ConfigDict
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
-    get_plotly_dependencies,
+    get_plotly_map_dependencies,
     render_plotly_figure,
     get_plotly_config,
+    get_map_tile_fallback_script,
 )
 
 
@@ -99,7 +101,7 @@ class InteractiveMapParams(BasePluginParams):
     )
     map_style: str = Field(
         default="carto-positron",
-        description="Map base style",
+        description="Map base style (ignored if custom_tiles_url is set)",
         json_schema_extra={
             "ui:widget": "select",
             "ui:options": [
@@ -148,8 +150,23 @@ class InteractiveMapParams(BasePluginParams):
     )
     color_continuous_scale: Optional[str] = Field(
         default=None,
-        description="Plotly color scale name (e.g., 'Viridis', 'Plasma')",
-        json_schema_extra={"ui:widget": "text"},
+        description="Color palette for markers. Use 'Hot', 'YlOrRd', 'Turbo' for dark backgrounds.",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "Viridis", "label": "Viridis (default)"},
+                {"value": "Plasma", "label": "Plasma"},
+                {"value": "Turbo", "label": "Turbo (multicolor, good for dark bg)"},
+                {"value": "Hot", "label": "Hot (red/yellow, good for dark bg)"},
+                {"value": "YlOrRd", "label": "Yellow-Orange-Red (good for dark bg)"},
+                {"value": "Inferno", "label": "Inferno"},
+                {"value": "Magma", "label": "Magma"},
+                {"value": "Cividis", "label": "Cividis (colorblind-friendly)"},
+                {"value": "Blues", "label": "Blues"},
+                {"value": "Greens", "label": "Greens"},
+                {"value": "Reds", "label": "Reds"},
+            ],
+        },
     )
     color_discrete_map: Optional[Any] = Field(
         default=None,
@@ -207,6 +224,16 @@ class InteractiveMapParams(BasePluginParams):
         description="Mapbox access token for satellite and other premium map styles. Get one free at https://account.mapbox.com/",
         json_schema_extra={"ui:widget": "text"},
     )
+    custom_tiles_url: Optional[str] = Field(
+        default=None,
+        description="Custom XYZ tiles URL (e.g., https://tiles.example.com/{z}/{x}/{y}.png). Overrides map_style when set.",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    custom_tiles_attribution: str = Field(
+        default="",
+        description="Attribution text for custom tiles provider",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
 
 @register("interactive_map", PluginType.WIDGET)
@@ -215,10 +242,18 @@ class InteractiveMapWidget(WidgetPlugin):
 
     param_schema = InteractiveMapParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {
+            "type": "str",
+            "features": "list",
+        },  # GeoJSON FeatureCollection from geospatial_extractor
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
         # Get Plotly from centralized dependency
-        deps = get_plotly_dependencies()
+        deps = get_plotly_map_dependencies()
         # Add topojson-client; it is ~7 kB minified and cached.
         deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
         return deps
@@ -234,6 +269,38 @@ class InteractiveMapWidget(WidgetPlugin):
         """
         # Simply return the style as-is, Plotly will handle it
         return style
+
+    def _build_map_layout_config(self, params: InteractiveMapParams) -> dict:
+        """Build map layout configuration with support for custom tiles.
+
+        Args:
+            params: Widget parameters
+
+        Returns:
+            Dict with map layout configuration to pass to fig.update_layout()
+        """
+        layout_config = {}
+
+        if params.custom_tiles_url:
+            # Use white-bg as base style and add custom raster tiles layer
+            layout_config["map_style"] = "white-bg"
+            layout_config["map_layers"] = [
+                {
+                    "sourcetype": "raster",
+                    "source": [params.custom_tiles_url],
+                    "below": "traces",
+                }
+            ]
+        else:
+            layout_config["map_style"] = self._get_map_style(
+                params.map_style if params.map_style else "carto-positron"
+            )
+
+        # Add Mapbox token if provided (for premium styles)
+        if params.mapbox_access_token:
+            layout_config["map_accesstoken"] = params.mapbox_access_token
+
+        return layout_config
 
     def _parse_geojson_points(self, geojson_data: dict) -> Optional[pd.DataFrame]:
         """Parses a GeoJSON FeatureCollection of Points or MultiPoints into a DataFrame."""
@@ -416,7 +483,9 @@ class InteractiveMapWidget(WidgetPlugin):
         # Create the HTML with embedded TopoJSON and JavaScript conversion
         html_content = f"""
         <div id="{map_id}" style="width: 100%; height: 500px; position: relative;">
-            <div id="{map_id}_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+            <div id="{
+            map_id
+        }_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
                 <div style="display: flex; flex-direction: column; align-items: center;">
                     <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #2d5016; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                     <p style="margin-top: 10px; color: #666;">Chargement de la carte...</p>
@@ -448,12 +517,16 @@ class InteractiveMapWidget(WidgetPlugin):
                 }}
                 initializeMap{map_id}.retryCount++;
 
-                if (initializeMap{map_id}.retryCount < 50) {{ // Max 5 seconds (50 * 100ms)
+                if (initializeMap{
+            map_id
+        }.retryCount < 50) {{ // Max 5 seconds (50 * 100ms)
                     setTimeout(initializeMap{map_id}, 100);
                     return;
                 }} else {{
                     console.error('TopoJSON library failed to load after 5 seconds');
-                    document.getElementById('{map_id}_loader').innerHTML = '<p style="color: red;">Erreur: Impossible de charger la bibliothèque TopoJSON</p>';
+                    document.getElementById('{
+            map_id
+        }_loader').innerHTML = '<p style="color: red;">Erreur: Impossible de charger la bibliothèque TopoJSON</p>';
                     return;
                 }}
             }}
@@ -682,12 +755,35 @@ class InteractiveMapWidget(WidgetPlugin):
             }}
 
             // Create layout
+            const mapConfig = {{
+                center: bounds ? bounds.center : {{lat: {center_lat}, lon: {
+            center_lon
+        }}},
+                zoom: zoom
+            }};
+
+            // Handle custom tiles or predefined style
+            {
+            ""
+            if not params.custom_tiles_url
+            else f'''
+            mapConfig.style = "white-bg";
+            mapConfig.layers = [{{
+                sourcetype: "raster",
+                source: ["{params.custom_tiles_url}"],
+                below: "traces"
+            }}];
+            '''
+        }{
+            ""
+            if params.custom_tiles_url
+            else f'''
+            mapConfig.style = "{params.map_style or "carto-positron"}";
+            '''
+        }
+
             const layout = {{
-                map: {{
-                    style: "{params.map_style or "carto-positron"}",
-                    center: bounds ? bounds.center : {{lat: {center_lat}, lon: {center_lon}}},
-                    zoom: zoom
-                }},
+                map: mapConfig,
                 margin: {{r: 0, t: 0, l: 0, b: 0}},
                 height: 500,
                 showlegend: true,
@@ -735,9 +831,10 @@ class InteractiveMapWidget(WidgetPlugin):
         """
 
         attribution_class = " hide-attribution" if not params.show_attribution else ""
+        tile_fallback = get_map_tile_fallback_script(map_id)
 
         return f"""<div class="map-widget{attribution_class}">
-            <div class="map-container">{html_content}</div>
+            <div class="map-container">{html_content}{tile_fallback}</div>
         </div>"""
 
     def _calculate_zoom_from_bounds(
@@ -961,7 +1058,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 logger.error(
                     f"DataFrame missing required coordinate columns ('{latitude_field}', '{longitude_field}') for scatter_map."
                 )
-                return f"<p class='error'>Data Error: Missing coordinate columns ('{latitude_field}', '{longitude_field}').</p>"
+                return f"<p class='error'>Data Error: Missing coordinate columns ('{html_module.escape(str(latitude_field))}', '{html_module.escape(str(longitude_field))}').</p>"
             # Add required columns if they exist (even if check skipped for dummy df)
             if latitude_field in df_plot.columns:
                 required_cols.add(latitude_field)
@@ -1008,7 +1105,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 logger.error(
                     f"Missing required columns for InteractiveMapWidget ({params.map_type or map_mode}): {missing_cols}"
                 )
-                return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
+                return f"<p class='error'>Configuration Error: Missing columns {html_module.escape(str(missing_cols))}.</p>"
 
         # Calculate center and zoom from data only for scatter plots with valid data
         calculated_zoom = params.zoom  # Default to params zoom
@@ -1171,24 +1268,19 @@ class InteractiveMapWidget(WidgetPlugin):
                         % str(e)
                     )
             if fig:
-                # Update layout with map style
+                # Update layout with map style (or custom tiles)
                 layout_update = {
                     "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
                     "annotations": [],  # Remove any annotations including attribution
-                    "map_style": self._get_map_style(
-                        params.map_style if params.map_style else "carto-positron"
-                    ),
                 }
-
-                # Add Mapbox token if provided
-                if params.mapbox_access_token:
-                    layout_update["map_accesstoken"] = params.mapbox_access_token
+                # Add map style configuration (handles custom tiles if configured)
+                layout_update.update(self._build_map_layout_config(params))
 
                 fig.update_layout(**layout_update)
                 # Use centralized render function
                 custom_config = get_plotly_config()
                 custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
-                html_content = render_plotly_figure(fig, custom_config)
+                html_content = render_plotly_figure(fig, custom_config, is_map=True)
                 attribution_class = (
                     " hide-attribution" if not params.show_attribution else ""
                 )
@@ -1648,19 +1740,14 @@ class InteractiveMapWidget(WidgetPlugin):
 
             # Build layout update parameters
             layout_update = {
-                "map_style": self._get_map_style(
-                    params.map_style if params.map_style else "carto-positron"
-                ),
                 "map_zoom": zoom_level,
                 "map_center": {"lat": center_lat, "lon": center_lon},
                 "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
                 "height": 500,
                 "annotations": [],  # Remove any annotations including attribution
             }
-
-            # Add Mapbox token if provided
-            if params.mapbox_access_token:
-                layout_update["map_accesstoken"] = params.mapbox_access_token
+            # Add map style configuration (handles custom tiles if configured)
+            layout_update.update(self._build_map_layout_config(params))
 
             fig.update_layout(**layout_update)
             logger.debug("Layout updated successfully")
@@ -1672,7 +1759,7 @@ class InteractiveMapWidget(WidgetPlugin):
             # Use centralized render function
             custom_config = get_plotly_config()
             custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
-            map_html = render_plotly_figure(fig, custom_config)
+            map_html = render_plotly_figure(fig, custom_config, is_map=True)
             attribution_class = (
                 " hide-attribution" if not params.show_attribution else ""
             )

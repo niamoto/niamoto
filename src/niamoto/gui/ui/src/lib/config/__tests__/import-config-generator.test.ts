@@ -52,8 +52,9 @@ describe('generateImportYAML', () => {
     expect(yaml).toContain('schema:')
     expect(yaml).toContain('id_field: id')
     expect(yaml).toContain('fields:')
-    expect(yaml).toContain('taxon_id: taxon')
-    expect(yaml).toContain('location: location')
+    expect(yaml).toContain('name: taxon_id')
+    expect(yaml).toContain('name: location')
+    expect(yaml).toContain('type: string')
   })
 
   it('generates valid YAML for hierarchical reference', () => {
@@ -95,12 +96,11 @@ describe('generateImportYAML', () => {
     expect(yaml).toContain('taxonomy:')
     expect(yaml).toContain('kind: hierarchical')
     expect(yaml).toContain('hierarchy:')
-    expect(yaml).toContain('strategy: adjacency_list')
+    expect(yaml).toContain('type: adjacency_list')
     expect(yaml).toContain('levels:')
     expect(yaml).toContain('- family')
     expect(yaml).toContain('- genus')
     expect(yaml).toContain('- species')
-    expect(yaml).toContain('incomplete_rows: skip')
   })
 
   it('generates valid YAML for spatial reference', () => {
@@ -157,7 +157,7 @@ describe('generateImportYAML', () => {
           id: 'tax-1',
           name: 'taxonomy',
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv', path: 'imports/taxonomy.csv' },
           schema: { id_field: 'id', fields: [] },
           links: []
@@ -301,7 +301,7 @@ describe('generateImportYAML', () => {
           id: 'plots-1',
           name: 'plots',
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []
@@ -333,7 +333,7 @@ describe('generateImportYAML', () => {
 
     // Check types
     expect(yaml).toContain('kind: hierarchical')
-    expect(yaml).toContain('kind: flat')
+    expect(yaml).toContain('kind: generic')
   })
 
   it('handles derived connector', () => {
@@ -481,7 +481,7 @@ describe('generateExampleYAML', () => {
     expect(yaml).toContain('taxonomy:')
     expect(yaml).toContain('kind: hierarchical')
     expect(yaml).toContain('hierarchy:')
-    expect(yaml).toContain('strategy: adjacency_list')
+    expect(yaml).toContain('type: adjacency_list')
     expect(yaml).toContain('levels:')
   })
 
@@ -495,12 +495,12 @@ describe('generateExampleYAML', () => {
     expect(yaml).toContain('sources:')
   })
 
-  it('generates example for flat reference', () => {
-    const yaml = generateExampleYAML('reference', 'flat')
+  it('generates example for generic reference', () => {
+    const yaml = generateExampleYAML('reference', 'generic')
 
     expect(yaml).toContain('references:')
     expect(yaml).toContain('plots:')
-    expect(yaml).toContain('kind: flat')
+    expect(yaml).toContain('kind: generic')
   })
 })
 

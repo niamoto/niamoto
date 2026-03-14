@@ -255,8 +255,9 @@ class TestGeospatialExtractorGetData:
         mock_read_sql.assert_called_once()
         query, engine = mock_read_sql.call_args[0][:2]
         params = mock_read_sql.call_args.kwargs.get("params")
-        assert "FROM db_table" in query
-        assert "WHERE id = :id" in query
+        query_text = query.text if hasattr(query, "text") else query
+        assert "FROM db_table" in query_text
+        assert "WHERE id = :id" in query_text
         assert params == {"id": 5}
         assert isinstance(result, pd.DataFrame)
 
@@ -320,9 +321,10 @@ class TestGeospatialExtractorGetData:
         # Verify: SQL query was called correctly (no WHERE clause)
         mock_read_sql.assert_called_once()
         query = mock_read_sql.call_args[0][0]
+        query_text = query.text if hasattr(query, "text") else query
         params = mock_read_sql.call_args.kwargs.get("params")
-        assert "FROM db_table" in query
-        assert "WHERE" not in query  # No filter when id_value is None
+        assert "FROM db_table" in query_text
+        assert "WHERE" not in query_text  # No filter when id_value is None
         assert params is None
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["id", "value"]

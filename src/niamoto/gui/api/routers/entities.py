@@ -83,10 +83,15 @@ async def get_available_entities(
         EntityListResponse with entities grouped by kind
     """
     try:
-        # Get config to access EntityRegistry
-        config = Config()
+        # Get config to access EntityRegistry using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
 
-        with open_database(config.database_path, read_only=True) as db:
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
+
+        with open_database(config.database_path) as db:
             registry = EntityRegistry(db)
             all_entities = registry.list_entities()
 
@@ -150,7 +155,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.session() as session:
                 if limit is not None:
                     query = text(f"""
@@ -219,7 +224,7 @@ async def get_entity_detail(group_by: str, entity_id: str):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.session() as session:
                 columns_query = text(f"PRAGMA table_info({group_by})")
                 columns_result = session.execute(columns_query)
@@ -411,7 +416,7 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
         if not db_path or not db_path.exists():
             return HTMLResponse(content="<p class='error'>Database not found</p>")
 
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             plugin_instance = plugin_class(db=db)
 
             widget_params = widget_config.get("params", {})
@@ -440,11 +445,12 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
 
             cdn_dependencies = set()
             for dep in dependencies:
-                if "plotly" in dep.lower():
-                    cdn_dependencies.add("https://cdn.plot.ly/plotly-3.0.0.min.js")
+                if dep.startswith("/assets/"):
+                    # Remap exported-site paths to API paths
+                    cdn_dependencies.add(f"/api/site{dep}")
                 elif "topojson" in dep.lower():
                     cdn_dependencies.add(
-                        "https://cdn.jsdelivr.net/npm/topojson@3.0.0/dist/topojson.min.js"
+                        "/api/site/assets/js/vendor/topojson/3.1.0_topojson.js"
                     )
                 else:
                     cdn_dependencies.add(dep)

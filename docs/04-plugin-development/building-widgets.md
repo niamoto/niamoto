@@ -135,6 +135,60 @@ def render(self, data, config):
     """
 ```
 
+## Preview et Thumbnails
+
+Les widgets sont prévisualisés dans la GUI via le système de preview unifié
+(voir `docs/06-gui/preview-architecture.md`). Le moteur de preview rend chaque
+widget dans une iframe `srcDoc` avec deux modes :
+
+### Modes de rendu
+
+| Mode | Usage | Plotly config |
+|------|-------|---------------|
+| `thumbnail` | Grilles, miniatures (120×90px) | `staticPlot: true`, marges réduites, légende masquée |
+| `full` | Panneaux détail, éditeur | Interactif complet (hover, zoom, modebar) |
+
+Le mode est passé automatiquement par le frontend — le widget n'a rien à faire
+de spécial. Pour les widgets Plotly, le moteur ajuste la figure via `plotly_utils.py`.
+
+### Sécurité HTML
+
+Toute donnée interpolée dans le HTML doit être échappée via `html.escape()`.
+Les iframes preview utilisent `sandbox="allow-scripts"` (sans `allow-same-origin`),
+mais l'échappement reste obligatoire comme défense en profondeur.
+
+```python
+import html
+
+# Données venant de la DB → toujours échapper
+display_value = html.escape(str(value))
+
+# Messages d'erreur → échapper l'exception
+return f"<p class='error'>Erreur : {html.escape(str(e))}</p>"
+
+# Attributs HTML → utiliser quote=True
+title_attr = html.escape(description, quote=True)
+```
+
+**Ne jamais interpoler sans échapper :**
+- Valeurs issues de `get_nested_value(data, key)`
+- Noms de colonnes, de champs, d'entités
+- Messages d'exception (`str(e)`)
+
+### Bundle Plotly
+
+Le moteur injecte automatiquement le bon bundle Plotly selon le type de widget :
+
+- **Charts** (bar, pie, scatter, heatmap, table, indicator) → `plotly-niamoto-core.min.js` (1.3 MB)
+- **Cartes** (scattermap, choropleth_map) → `plotly-niamoto-maps.min.js` (2.2 MB)
+- **Widgets non-Plotly** (info_grid, navigation, table_view) → aucun bundle
+
+Pour les widgets Plotly, utiliser `render_plotly_figure()` de `plotly_utils.py` qui
+gère la sérialisation JSON et l'adaptation `staticPlot` / `autosize` selon le mode.
+
+Pour les cartes, passer `is_map=True` à `render_plotly_figure()` pour empêcher
+le mode preview de forcer des dimensions fixes (les cartes doivent rester responsives).
+
 ## Best Practices
 
 ### 1. Responsive Design

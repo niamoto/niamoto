@@ -1,0 +1,743 @@
+"""
+API routes for layout management.
+
+Provides endpoints for:
+- Getting widget layout for a group
+- Updating widget layout (order, colspan, title)
+- Previewing individual widgets
+"""
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import yaml
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+
+from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.services.preview_utils import (
+    error_html,
+    wrap_html_response as _wrap_html_response,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/layout", tags=["layout"])
+
+
+# =============================================================================
+# MODELS
+# =============================================================================
+
+
+class WidgetLayoutInfo(BaseModel):
+    """Layout information for a single widget."""
+
+    index: int = Field(..., description="Original index in export.yml")
+    plugin: str = Field(..., description="Widget plugin name")
+    title: str = Field(..., description="Widget title")
+    description: Optional[str] = Field(None, description="Widget description")
+    data_source: str = Field(..., description="Data source key")
+    colspan: int = Field(default=1, ge=1, le=2, description="Column span (1 or 2)")
+    order: int = Field(..., description="Display order")
+    is_navigation: bool = Field(
+        default=False, description="Is this a navigation widget"
+    )
+
+
+class NavigationWidgetInfo(BaseModel):
+    """Information about the navigation widget."""
+
+    plugin: str = Field(default="hierarchical_nav_widget")
+    title: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    is_hierarchical: bool = Field(default=False)
+
+
+class LayoutResponse(BaseModel):
+    """Response for layout endpoint."""
+
+    group_by: str
+    widgets: List[WidgetLayoutInfo]
+    navigation_widget: Optional[NavigationWidgetInfo] = None
+    total_widgets: int
+
+
+class WidgetLayoutUpdate(BaseModel):
+    """Update for a single widget layout."""
+
+    index: int = Field(..., description="Original widget index")
+    title: Optional[str] = Field(None, description="New title (if changed)")
+    description: Optional[str] = Field(None, description="New description")
+    colspan: Optional[int] = Field(None, ge=1, le=2, description="New colspan")
+    order: int = Field(..., description="New display order")
+
+
+class LayoutUpdateRequest(BaseModel):
+    """Request to update layout."""
+
+    widgets: List[WidgetLayoutUpdate] = Field(..., description="Widget layout updates")
+
+
+class LayoutUpdateResponse(BaseModel):
+    """Response after updating layout."""
+
+    success: bool
+    message: str
+    widgets_updated: int
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _load_export_config(work_dir: Path) -> Dict[str, Any]:
+    """Load and parse export.yml configuration."""
+    export_path = work_dir / "config" / "export.yml"
+    if not export_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="export.yml not found. Please configure your exports first.",
+        )
+
+    with open(export_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def _save_export_config(work_dir: Path, config: Dict[str, Any]) -> None:
+    """Save export.yml configuration."""
+    export_path = work_dir / "config" / "export.yml"
+
+    with open(export_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            config,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            width=120,
+        )
+
+
+def _find_group_config(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find group configuration in export.yml."""
+    exports = export_config.get("exports", [])
+
+    if not isinstance(exports, list):
+        return None
+
+    for export in exports:
+        if not isinstance(export, dict):
+            continue
+
+        groups = export.get("groups", [])
+        if not isinstance(groups, list):
+            continue
+
+        for group in groups:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
+
+    return None
+
+
+def _get_group_and_export_index(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[tuple]:
+    """Get group config along with its export and group indices."""
+    exports = export_config.get("exports", [])
+
+    if not isinstance(exports, list):
+        return None
+
+    for export_idx, export in enumerate(exports):
+        if not isinstance(export, dict):
+            continue
+
+        groups = export.get("groups", [])
+        if not isinstance(groups, list):
+            continue
+
+        for group_idx, group in enumerate(groups):
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return (export_idx, group_idx, group)
+
+    return None
+
+
+def _extract_widget_layout(widget: Dict[str, Any], index: int) -> WidgetLayoutInfo:
+    """Extract layout information from a widget config."""
+    plugin = widget.get("plugin", "unknown")
+    is_navigation = plugin == "hierarchical_nav_widget"
+
+    # Get layout info (or use defaults)
+    layout = widget.get("layout", {})
+
+    return WidgetLayoutInfo(
+        index=index,
+        plugin=plugin,
+        title=widget.get("title", f"Widget {index}"),
+        description=widget.get("description"),
+        data_source=widget.get("data_source", ""),
+        colspan=layout.get("colspan", 1),
+        order=layout.get("order", index),
+        is_navigation=is_navigation,
+    )
+
+
+def _extract_navigation_widget(
+    widgets: List[Dict[str, Any]],
+) -> Optional[NavigationWidgetInfo]:
+    """Extract navigation widget info if present."""
+    for widget in widgets:
+        if widget.get("plugin") == "hierarchical_nav_widget":
+            params = widget.get("params", {})
+            is_hierarchical = bool(params.get("lft_field") and params.get("rght_field"))
+            return NavigationWidgetInfo(
+                plugin="hierarchical_nav_widget",
+                title=widget.get("title", "Navigation"),
+                params=params,
+                is_hierarchical=is_hierarchical,
+            )
+    return None
+
+
+# =============================================================================
+# ENDPOINTS
+# =============================================================================
+
+
+@router.get("/{group_by}", response_model=LayoutResponse)
+async def get_layout(group_by: str):
+    """
+    Get the widget layout for a group.
+
+    Returns all widgets with their layout information (order, colspan)
+    and identifies the navigation widget if present.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
+
+    try:
+        export_config = _load_export_config(work_dir)
+        group_config = _find_group_config(export_config, group_by)
+
+        if not group_config:
+            # Dégradation gracieuse : retourner une structure vide
+            # au lieu d'un 404 quand le groupe n'existe pas encore
+            return LayoutResponse(
+                group_by=group_by,
+                widgets=[],
+                navigation_widget=None,
+                total_widgets=0,
+            )
+
+        widgets = group_config.get("widgets", [])
+
+        # Extract widget layouts
+        widget_layouts = []
+        for idx, widget in enumerate(widgets):
+            if isinstance(widget, dict):
+                widget_layouts.append(_extract_widget_layout(widget, idx))
+
+        # Sort by order
+        widget_layouts.sort(key=lambda w: w.order)
+
+        # Extract navigation widget
+        navigation_widget = _extract_navigation_widget(widgets)
+
+        return LayoutResponse(
+            group_by=group_by,
+            widgets=widget_layouts,
+            navigation_widget=navigation_widget,
+            total_widgets=len(widget_layouts),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error getting layout for group '%s': %s", group_by, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{group_by}", response_model=LayoutUpdateResponse)
+async def update_layout(group_by: str, request: LayoutUpdateRequest):
+    """
+    Update the widget layout for a group.
+
+    Updates order, colspan, and optionally title/description for widgets.
+    Changes are saved back to export.yml.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
+
+    try:
+        export_config = _load_export_config(work_dir)
+        result = _get_group_and_export_index(export_config, group_by)
+
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Group '{group_by}' has no export configuration yet. Import data first or run scaffold.",
+            )
+
+        export_idx, group_idx, group_config = result
+        widgets = group_config.get("widgets", [])
+
+        # Apply updates
+        widgets_updated = 0
+        for update in request.widgets:
+            if 0 <= update.index < len(widgets):
+                widget = widgets[update.index]
+
+                # Update title if provided
+                if update.title is not None:
+                    widget["title"] = update.title
+
+                # Update description if provided
+                if update.description is not None:
+                    widget["description"] = update.description
+
+                # Update or create layout section
+                if "layout" not in widget:
+                    widget["layout"] = {}
+
+                widget["layout"]["order"] = update.order
+
+                if update.colspan is not None:
+                    widget["layout"]["colspan"] = update.colspan
+
+                widgets_updated += 1
+
+        # Reorder widgets array to match the order property
+        # This ensures consistency between LayoutEditor and ConfiguredWidgetsList
+        widgets.sort(key=lambda w: w.get("layout", {}).get("order", 999))
+
+        # Save updated config
+        export_config["exports"][export_idx]["groups"][group_idx]["widgets"] = widgets
+        _save_export_config(work_dir, export_config)
+
+        return LayoutUpdateResponse(
+            success=True,
+            message=f"Layout updated for group '{group_by}'",
+            widgets_updated=widgets_updated,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error updating layout for group '%s': %s", group_by, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{group_by}/preview/{widget_index}", response_class=HTMLResponse)
+async def preview_widget(
+    group_by: str,
+    widget_index: int,
+    entity_id: Optional[str] = Query(
+        default=None, description="Entity ID for preview (optional)"
+    ),
+):
+    """
+    Generate a live preview of a specific widget.
+
+    Renders the widget using sample data from the database.
+    """
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html("Working directory not configured")),
+            status_code=500,
+        )
+
+    work_dir = Path(work_dir)
+
+    try:
+        result = await run_in_threadpool(
+            _preview_widget_sync, work_dir, group_by, widget_index, entity_id
+        )
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error previewing widget: %s", e)
+        return HTMLResponse(
+            content=_wrap_html_response(error_html(str(e))),
+            status_code=500,
+        )
+
+
+def _preview_widget_sync(
+    work_dir: Path,
+    group_by: str,
+    widget_index: int,
+    entity_id: Optional[str],
+) -> HTMLResponse:
+    """Logique synchrone de preview widget, exécutée dans un threadpool."""
+    export_config = _load_export_config(work_dir)
+    group_config = _find_group_config(export_config, group_by)
+
+    if not group_config:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html(f"Group '{group_by}' not found")),
+            status_code=404,
+        )
+
+    widgets = group_config.get("widgets", [])
+
+    if widget_index < 0 or widget_index >= len(widgets):
+        return HTMLResponse(
+            content=_wrap_html_response(
+                error_html(f"Widget index {widget_index} out of range")
+            ),
+            status_code=404,
+        )
+
+    widget_config = widgets[widget_index]
+    plugin_name = widget_config.get("plugin", "")
+    data_source = widget_config.get("data_source", "")
+    params = widget_config.get("params", {})
+
+    # Résoudre le template_id pour le moteur de preview
+    # Navigation widget : utiliser le format convention reconnu par le engine
+    if plugin_name == "hierarchical_nav_widget":
+        referential = params.get("referential_data", group_by)
+        template_id = f"{referential}_hierarchical_nav_widget"
+    else:
+        template_id = data_source
+
+    # Déléguer au moteur de preview unifié
+    from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+    from niamoto.gui.api.services.preview_engine.models import PreviewRequest
+
+    engine = get_preview_engine()
+    if engine is None:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html("Projet Niamoto non configuré")),
+            status_code=500,
+        )
+
+    req = PreviewRequest(
+        template_id=template_id,
+        group_by=group_by,
+        entity_id=entity_id,
+        mode="full",
+    )
+    result = engine.render(req)
+    return HTMLResponse(
+        content=result.html,
+        headers={
+            "ETag": f'"{result.etag}"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@router.get("/{group_by}/groups")
+async def list_available_groups():
+    """
+    List all available groups in export.yml.
+
+    Returns a list of group names that can be configured.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
+
+    try:
+        export_config = _load_export_config(work_dir)
+        exports = export_config.get("exports", [])
+
+        groups = []
+        if isinstance(exports, list):
+            for export in exports:
+                if isinstance(export, dict):
+                    export_groups = export.get("groups", [])
+                    if isinstance(export_groups, list):
+                        for group in export_groups:
+                            if isinstance(group, dict):
+                                group_by = group.get("group_by")
+                                if group_by:
+                                    widget_count = len(group.get("widgets", []))
+                                    groups.append(
+                                        {
+                                            "name": group_by,
+                                            "widget_count": widget_count,
+                                        }
+                                    )
+
+        return {"groups": groups, "total": len(groups)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error listing groups: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class RepresentativeEntity(BaseModel):
+    """A representative entity for preview."""
+
+    id: str = Field(..., description="Entity identifier (value)")
+    name: str = Field(..., description="Display name")
+    count: int = Field(..., description="Number of occurrences")
+
+
+class RepresentativesResponse(BaseModel):
+    """Response for representatives endpoint."""
+
+    group_by: str
+    default_entity: Optional[RepresentativeEntity] = None
+    entities: List[RepresentativeEntity]
+    total: int
+
+
+@router.get("/{group_by}/representatives", response_model=RepresentativesResponse)
+async def get_representatives(
+    group_by: str, limit: int = Query(default=20, ge=1, le=100)
+):
+    """
+    Get representative entities for preview selection.
+
+    For hierarchical references (like taxons), returns top entities from each
+    hierarchy level (family, genus, species, etc.) to allow testing previews
+    at different granularities.
+    """
+    import pandas as pd
+    from niamoto.common.database import Database
+    from niamoto.common.table_resolver import (
+        quote_identifier,
+        resolve_dataset_table,
+        resolve_reference_table,
+    )
+    from niamoto.gui.api.context import get_database_path
+    from sqlalchemy import text
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    db = Database(str(db_path))
+
+    try:
+        # Resolve reference table from logical group name
+        entity_table = resolve_reference_table(db, group_by)
+
+        if not entity_table:
+            return RepresentativesResponse(
+                group_by=group_by,
+                entities=[],
+                total=0,
+            )
+        quoted_entity_table = quote_identifier(db, entity_table)
+
+        # Check if we have occurrences to count
+        occurrences_table = resolve_dataset_table(db, "occurrences")
+        has_occurrences = occurrences_table is not None
+
+        entities = []
+
+        # TODO: GENERICITY — cette branche hardcode les colonnes taxon
+        # (rank_name, rank_value, full_name, id_taxonref, taxons_id) et les
+        # valeurs de rang ("family", "genus"). A généraliser via EntityRegistry
+        # et la configuration d'import pour supporter n'importe quelle
+        # hiérarchie taxonomique ou référentiel hiérarchique.
+
+        # Colonnes spécifiques au référentiel taxon (à terme, lire depuis
+        # le schéma d'import ou EntityRegistry)
+        _TAXON_RANK_COL = "rank_name"
+        _TAXON_RANK_VALUE_COL = "rank_value"
+        _TAXON_NAME_COL = "full_name"
+        _TAXON_LEVEL_COL = "level"
+        _TAXON_FK_COL = "taxons_id"
+        _TAXON_OCC_FK_COL = "id_taxonref"
+        # Rangs joignables par colonne homonyme dans les occurrences
+        _TAXON_COLUMN_JOIN_RANKS = ("family", "genus")
+
+        # Détection de la présence de colonnes hiérarchiques pour décider
+        # de la stratégie de requête (au lieu de tester group_by == "taxons")
+        has_hierarchy = False
+        if has_occurrences:
+            try:
+                check_cols = pd.read_sql(
+                    text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+                )
+                entity_columns = check_cols.columns.tolist()
+                has_hierarchy = (
+                    _TAXON_RANK_COL in entity_columns
+                    and _TAXON_LEVEL_COL in entity_columns
+                    and _TAXON_NAME_COL in entity_columns
+                )
+            except Exception:
+                pass
+
+        # Build query based on group_by type
+        if has_hierarchy and has_occurrences:
+            # Référentiel hiérarchique avec rangs (ex : taxons)
+            # Récupère les entités les plus représentées par niveau de rang
+
+            # Récupérer les rangs distincts
+            ranks_query = text(f"""
+                SELECT DISTINCT {quote_identifier(db, _TAXON_RANK_COL)},
+                       {quote_identifier(db, _TAXON_LEVEL_COL)}
+                FROM {quoted_entity_table}
+                WHERE {quote_identifier(db, _TAXON_RANK_COL)} IS NOT NULL
+                ORDER BY {quote_identifier(db, _TAXON_LEVEL_COL)}
+            """)
+            ranks_result = pd.read_sql(ranks_query, db.engine)
+            ranks = ranks_result[_TAXON_RANK_COL].tolist()
+
+            # Distribuer la limite entre les rangs
+            per_rank_limit = max(2, limit // max(len(ranks), 1))
+
+            quoted_name_col = quote_identifier(db, _TAXON_NAME_COL)
+            quoted_rank_col = quote_identifier(db, _TAXON_RANK_COL)
+
+            for rank in ranks:
+                # Pour les rangs qui ont une colonne homonyme dans les
+                # occurrences (family, genus), joindre via rank_value
+                if rank in _TAXON_COLUMN_JOIN_RANKS:
+                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
+                    quoted_rank = quote_identifier(db, rank)
+                    quoted_rank_value = quote_identifier(db, _TAXON_RANK_VALUE_COL)
+                    query = f"""
+                        SELECT
+                            e.id as id,
+                            e.{quoted_name_col} as name,
+                            e.{quoted_rank_col} as rank,
+                            COUNT(o.id) as count
+                        FROM {quoted_entity_table} e
+                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_rank} = e.{quoted_rank_value}
+                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
+                          AND e.{quoted_rank_col} = '{rank}'
+                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
+                        HAVING count > 0
+                        ORDER BY count DESC
+                        LIMIT {per_rank_limit}
+                    """
+                else:
+                    # Pour les rangs terminaux (espèce, sous-espèce),
+                    # joindre via la clé étrangère taxons_id -> id_taxonref
+                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
+                    quoted_fk = quote_identifier(db, _TAXON_FK_COL)
+                    quoted_occ_fk = quote_identifier(db, _TAXON_OCC_FK_COL)
+                    query = f"""
+                        SELECT
+                            e.id as id,
+                            e.{quoted_name_col} as name,
+                            e.{quoted_rank_col} as rank,
+                            COUNT(o.id) as count
+                        FROM {quoted_entity_table} e
+                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_occ_fk} = e.{quoted_fk}
+                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
+                          AND e.{quoted_rank_col} = '{rank}'
+                          AND e.{quoted_fk} IS NOT NULL
+                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
+                        HAVING count > 0
+                        ORDER BY count DESC
+                        LIMIT {per_rank_limit}
+                    """
+
+                result = pd.read_sql(query, db.engine)
+
+                for _, row in result.iterrows():
+                    # Inclure le rang dans le nom affiché pour plus de clarté
+                    display_name = f"[{row['rank'].capitalize()}] {row['name']}"
+                    entities.append(
+                        RepresentativeEntity(
+                            id=str(row["id"]),
+                            name=display_name,
+                            count=int(row["count"]),
+                        )
+                    )
+
+        else:
+            # Generic approach for non-hierarchical references (plots, shapes, etc.)
+            # Read import.yml to get schema info
+            import_path = work_dir / "config" / "import.yml"
+            ref_config = {}
+            if import_path.exists():
+                try:
+                    with open(import_path, "r", encoding="utf-8") as f:
+                        import_config = yaml.safe_load(f) or {}
+                    references = (
+                        import_config.get("entities", {}).get("references", {}) or {}
+                    )
+                    ref_config = references.get(group_by, {})
+                except Exception:
+                    pass
+
+            # Get schema info
+            schema = ref_config.get("schema", {})
+            id_field = schema.get("id_field", "id")
+
+            # Get entity columns to detect name field
+            columns_df = pd.read_sql(
+                text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+            )
+            columns = columns_df.columns.tolist()
+
+            # Detect name field
+            name_candidates = ["full_name", "name", "plot", "label", "title"]
+            name_field = next((c for c in name_candidates if c in columns), None)
+            if not name_field:
+                name_field = next((c for c in columns if "name" in c.lower()), id_field)
+
+            # Build query
+            quoted_id_field = quote_identifier(db, id_field)
+            quoted_name_field = quote_identifier(db, name_field)
+            query = text(f"""
+                SELECT
+                    {quoted_id_field} as id,
+                    COALESCE({quoted_name_field}, CAST({quoted_id_field} AS VARCHAR)) as name
+                FROM {quoted_entity_table}
+                ORDER BY {quoted_name_field}
+                LIMIT :limit
+            """)
+            safe_limit = max(1, int(limit))
+            result = pd.read_sql(query, db.engine, params={"limit": safe_limit})
+            for _, row in result.iterrows():
+                entities.append(
+                    RepresentativeEntity(
+                        id=str(row["id"]),
+                        name=str(row["name"]),
+                        count=0,  # Pre-aggregated data, not from occurrences
+                    )
+                )
+
+        default_entity = entities[0] if entities else None
+
+        return RepresentativesResponse(
+            group_by=group_by,
+            default_entity=default_entity,
+            entities=entities,
+            total=len(entities),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error getting representatives for '%s': %s", group_by, e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close_db_session()
