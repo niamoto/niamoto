@@ -96,33 +96,59 @@ class DatasetProfile:
 class DataProfiler:
     """Analyzes datasets to detect structure and semantics."""
 
-    # Simple patterns for Phase 1 - will be enhanced in Phase 2
     TAXONOMY_PATTERNS = {
         "family": ["family", "famille", "fam"],
         "genus": ["genus", "genre", "gen"],
         "species": ["species", "espece", "esp", "sp"],
-        "rank": ["rank", "rang", "rank_name", "level"],
+        "rank": ["rank", "rang", "rank_name", "level", "taxonrank"],
         "scientific_name": [
             "taxaname",
             "scientific_name",
             "nom_scientifique",
             "taxonref",
+            "scientificname",
+            "acceptednameusage",
+            "verbatimscientificname",
         ],
-        "taxon_id": ["id_taxonref", "taxon_id", "id_taxon"],
+        "taxon_id": ["id_taxonref", "taxon_id", "id_taxon", "taxonkey"],
+        "kingdom": ["kingdom"],
+        "phylum": ["phylum"],
+        "class": ["class"],
+        "order": ["order"],
+        "specific_epithet": ["specificepithet"],
     }
 
     SPATIAL_PATTERNS = {
         "geometry": ["geometry", "geom", "shape", "polygon", "geo_pt"],
-        "latitude": ["lat", "latitude", "y", "lat_y"],
-        "longitude": ["lon", "longitude", "long", "x", "lon_x"],
+        "latitude": [
+            "lat",
+            "latitude",
+            "lat_y",
+            "decimallatitude",
+            "verbatimlatitude",
+        ],
+        "longitude": [
+            "lon",
+            "longitude",
+            "long",
+            "lon_x",
+            "decimallongitude",
+            "verbitimlongitude",
+        ],
         "coordinates": ["coordinates", "coords", "xy", "location"],
         "plot": ["plot", "site", "parcelle", "plot_name"],
         "locality": ["locality", "localite", "lieu", "place"],
+        "coordinate_uncertainty": ["coordinateuncertaintyinmeters"],
+    }
+
+    TEMPORAL_PATTERNS = {
+        "date": ["eventdate", "dateidentified", "date", "year"],
     }
 
     IDENTIFIER_PATTERNS = {
         "id": ["id", "identifier", "code"],
         "reference": ["_id", "_code", "_num"],
+        "gbif_id": ["gbifid", "occurrenceid", "catalognumber", "basisofrecord"],
     }
 
     def __init__(self, ml_detector: Optional[MLColumnDetector] = None):
@@ -351,7 +377,18 @@ class DataProfiler:
                     else:
                         return f"location.{spatial_type}", 0.7
 
+        # Check temporal patterns
+        for temporal_type, patterns in self.TEMPORAL_PATTERNS.items():
+            for pattern in patterns:
+                if pattern in col_lower:
+                    return f"temporal.{temporal_type}", 0.7
+
         # Check identifier patterns
+        for id_type, patterns in self.IDENTIFIER_PATTERNS.items():
+            for pattern in patterns:
+                if col_lower == pattern or col_lower.endswith(pattern):
+                    return "identifier", 0.7
+
         if col_lower.startswith("id") or col_lower.endswith("_id"):
             # Check if it's likely a foreign key
             if "taxon" in col_lower or "taxonref" in col_lower:

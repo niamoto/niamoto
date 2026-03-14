@@ -198,12 +198,12 @@ class TestWidgetGeneratorCharacterization:
         suggestions = generator.generate_for_columns([profile])
         assert len(suggestions) >= 1, "Categorical should produce suggestions"
 
-    def test_binary_column_current_labels(self, generator):
-        """Document the current (NC-specific) label behavior for binary columns."""
-        labels = generator._guess_binary_labels("substrat_um")
-        # Current behavior: "um" substring match → UM/NUM
-        assert labels == ("UM", "NUM"), (
-            f"Current labels for 'substrat_um': {labels} (expected UM/NUM as baseline)"
+    def test_binary_column_labels_from_data(self, generator):
+        """Labels are now derived from data values, not hardcoded NC patterns."""
+        labels = generator._guess_binary_labels("substrat_um", values={"UM", "NUM"})
+        # Post Phase 2.3: labels come from data values
+        assert labels == ("NUM", "UM"), (
+            f"Labels for 'substrat_um' with values: {labels}"
         )
 
     def test_high_cardinality_column_behavior(self, generator, make_profile):

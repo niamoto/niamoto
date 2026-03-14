@@ -538,8 +538,11 @@ class WidgetGenerator:
         self, profile: EnrichedColumnProfile, source_table: str
     ) -> Dict[str, Any]:
         """Generate binary_counter config."""
-        # Try to guess labels from column name
-        true_label, false_label = self._guess_binary_labels(profile.name)
+        # Derive labels from actual data values when available
+        unique_values = set(profile.sample_values) if profile.sample_values else None
+        true_label, false_label = self._guess_binary_labels(
+            profile.name, values=unique_values
+        )
 
         return {
             "source": source_table,
@@ -644,22 +647,25 @@ class WidgetGenerator:
 
         return ""
 
-    def _guess_binary_labels(self, column_name: str) -> Tuple[str, str]:
-        """Guess labels for binary columns."""
-        name_lower = column_name.lower()
+    def _guess_binary_labels(
+        self, column_name: str, values: Optional[set] = None
+    ) -> Tuple[str, str]:
+        """Derive labels for binary columns from actual data values.
 
-        # Common patterns
-        if "um" in name_lower or "ultramafique" in name_lower:
-            return ("UM", "NUM")
-        if "endemic" in name_lower or "endemique" in name_lower:
-            return ("Endémique", "Non endémique")
-        if "protected" in name_lower or "protege" in name_lower:
-            return ("Protégé", "Non protégé")
-        if "native" in name_lower:
-            return ("Natif", "Introduit")
+        Args:
+            column_name: Column name (used as fallback context only)
+            values: Actual unique values from the column data
 
-        # Default
-        return ("Oui", "Non")
+        Returns:
+            Tuple of (true_label, false_label) derived from data
+        """
+        # If we have actual values, derive labels from data
+        if values and len(values) == 2:
+            sorted_vals = sorted(str(v) for v in values)
+            return (sorted_vals[0], sorted_vals[1])
+
+        # Default for unknown binary columns
+        return ("True", "False")
 
     def _generate_labels(
         self, profile: EnrichedColumnProfile, transformer_name: str, widget_name: str
@@ -670,37 +676,37 @@ class WidgetGenerator:
         # Labels based on transformer (determines data processing)
         transformer_labels = {
             "binned_distribution": (
-                f"Distribution de {col_name}",
-                f"Histogramme de la distribution de {profile.name}",
+                f"{col_name} distribution",
+                f"Histogram of {profile.name} distribution",
             ),
             "statistical_summary": (
-                f"Statistiques de {col_name}",
-                f"Valeurs statistiques de {profile.name}",
+                f"{col_name} statistics",
+                f"Statistical values for {profile.name}",
             ),
             "categorical_distribution": (
-                f"Répartition par {col_name}",
-                f"Distribution catégorielle de {profile.name}",
+                f"{col_name} breakdown",
+                f"Categorical distribution of {profile.name}",
             ),
             "top_ranking": (
                 f"Top {col_name}",
-                f"Classement des valeurs les plus fréquentes de {profile.name}",
+                f"Most frequent values of {profile.name}",
             ),
             "binary_counter": (
-                f"Distribution {col_name}",
-                f"Répartition binaire de {profile.name}",
+                f"{col_name} distribution",
+                f"Binary distribution of {profile.name}",
             ),
             "geospatial_extractor": (
-                f"Carte {col_name}",
-                f"Visualisation géographique de {profile.name}",
+                f"{col_name} map",
+                f"Geographic visualization of {profile.name}",
             ),
             "time_series_analysis": (
-                f"Évolution temporelle {col_name}",
-                f"Analyse temporelle de {profile.name}",
+                f"{col_name} over time",
+                f"Temporal analysis of {profile.name}",
             ),
         }
 
         return transformer_labels.get(
-            transformer_name, (col_name, f"Widget {widget_name} pour {profile.name}")
+            transformer_name, (col_name, f"{widget_name} widget for {profile.name}")
         )
 
     def _calculate_confidence(

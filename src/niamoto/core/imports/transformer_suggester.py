@@ -50,8 +50,8 @@ class TransformerSuggester:
             "statistical_summary",
         ],
         DataCategory.NUMERIC_DISCRETE: [
-            "categorical_distribution",
-            "top_ranking",
+            "binned_distribution",
+            "statistical_summary",
         ],
         DataCategory.CATEGORICAL: [
             "categorical_distribution",
