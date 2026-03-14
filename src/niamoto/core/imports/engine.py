@@ -594,8 +594,9 @@ class GenericImporter:
         logger.info(f"Analyzing dataset '{entity_name}' for transformer suggestions...")
 
         # 1. Profile with DataProfiler — reuse already-loaded DataFrame
+        # Pass total_count=len(df) since the full DataFrame is already in memory
         profiler = DataProfiler(ml_detector=None)
-        dataset_profile = profiler.profile_dataframe(df, csv_path)
+        dataset_profile = profiler.profile_dataframe(df, csv_path, total_count=len(df))
 
         # 2. Enrich each column with DataAnalyzer
         enriched_profiles = []

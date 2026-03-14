@@ -154,6 +154,55 @@ class TestTsvTxtSupport:
 # ── Phase 1.3: Encoding fallback ──────────────────────────────────────────
 
 
+# ── Phase 1.4: Sampling ────────────────────────────────────────────────────
+
+
+class TestProfilingSampling:
+    """Verify profiling uses sampling for large files."""
+
+    def test_profile_samples_large_csv(self, tmp_path):
+        """Profiling a CSV > PROFILING_SAMPLE_SIZE should sample."""
+        csv_path = tmp_path / "large.csv"
+        n_rows = 60_000
+        df = pd.DataFrame(
+            {
+                "x": range(n_rows),
+                "y": [float(i) for i in range(n_rows)],
+            }
+        )
+        df.to_csv(csv_path, index=False)
+
+        profiler = DataProfiler(ml_detector=None)
+        profile = profiler.profile(csv_path)
+
+        # record_count should be the sample size, not the full file
+        # (since profile() loads via _load_data which samples)
+        assert profile.record_count <= profiler.PROFILING_SAMPLE_SIZE
+        assert profile.record_count > 0
+
+    def test_profile_dataframe_preserves_total_count(self, tmp_path):
+        """profile_dataframe with total_count preserves the real count."""
+        csv_path = tmp_path / "test.csv"
+        sample_df = pd.DataFrame({"x": range(100)})
+        sample_df.to_csv(csv_path, index=False)
+
+        profiler = DataProfiler(ml_detector=None)
+        profile = profiler.profile_dataframe(sample_df, csv_path, total_count=5_000_000)
+
+        assert profile.record_count == 5_000_000
+
+    def test_small_csv_not_truncated(self, tmp_path):
+        """CSV smaller than PROFILING_SAMPLE_SIZE should load fully."""
+        csv_path = tmp_path / "small.csv"
+        df = pd.DataFrame({"x": range(100)})
+        df.to_csv(csv_path, index=False)
+
+        profiler = DataProfiler(ml_detector=None)
+        profile = profiler.profile(csv_path)
+
+        assert profile.record_count == 100
+
+
 class TestEncodingFallback:
     """Verify profiler handles non-UTF-8 encodings."""
 
