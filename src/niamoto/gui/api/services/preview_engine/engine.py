@@ -96,6 +96,42 @@ from niamoto.gui.api.services.preview_utils import (  # noqa: E402
 )
 
 
+def _get_column_profile(column: str, data_source: str, db: Database) -> Any:
+    """Look up the stored semantic profile for a column.
+
+    Returns an EnrichedColumnProfile or None if not found.
+    """
+    from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
+    from niamoto.core.imports.registry import EntityKind, EntityRegistry
+
+    registry = EntityRegistry(db)
+
+    entity_meta = None
+    for kind in (EntityKind.DATASET, EntityKind.REFERENCE):
+        for ent in registry.list_entities(kind=kind):
+            if ent.name == data_source:
+                entity_meta = ent
+                break
+        if entity_meta:
+            break
+
+    if not entity_meta:
+        return None
+
+    col_data = next(
+        (
+            c
+            for c in entity_meta.config.get("semantic_profile", {}).get("columns", [])
+            if c.get("name") == column
+        ),
+        None,
+    )
+    if not col_data:
+        return None
+
+    return EnrichedColumnProfile.from_stored_dict(col_data)
+
+
 def _build_transformer_config(
     column: str,
     transformer: str,
@@ -107,56 +143,26 @@ def _build_transformer_config(
     Uses WidgetGenerator to produce the same config as the suggestion flow,
     so every transformer gets its required params automatically.
     """
-    fallback_config: dict[str, Any] = {"source": data_source, "field": column}
+    fallback: dict[str, Any] = {"source": data_source, "field": column}
 
     if not db:
-        return fallback_config
+        return fallback
 
     try:
-        from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
-        from niamoto.core.imports.registry import EntityKind, EntityRegistry
         from niamoto.core.imports.widget_generator import WidgetGenerator
 
-        registry = EntityRegistry(db)
+        profile = _get_column_profile(column, data_source, db)
+        if not profile:
+            return fallback
 
-        # Find the entity that owns this column (dataset or reference)
-        entity_meta = None
-        for kind in (EntityKind.DATASET, EntityKind.REFERENCE):
-            for ent in registry.list_entities(kind=kind):
-                if ent.name == data_source:
-                    entity_meta = ent
-                    break
-            if entity_meta:
-                break
-
-        if not entity_meta:
-            return fallback_config
-
-        col_data = next(
-            (
-                c
-                for c in entity_meta.config.get("semantic_profile", {}).get(
-                    "columns", []
-                )
-                if c.get("name") == column
-            ),
-            None,
-        )
-        if not col_data:
-            return fallback_config
-
-        profile = EnrichedColumnProfile.from_stored_dict(col_data)
-
-        generator = WidgetGenerator()
-        transformer_config = generator._generate_transformer_config(
+        config = WidgetGenerator()._generate_transformer_config(
             profile, transformer, data_source
         )
-
-        return transformer_config or fallback_config
+        return config or fallback
 
     except Exception as exc:
-        logger.debug("Could not build configs from semantic profile: %s", exc)
-        return fallback_config
+        logger.debug("Could not build transformer config: %s", exc)
+        return fallback
 
 
 def _build_widget_params_for_preview(
@@ -166,60 +172,30 @@ def _build_widget_params_for_preview(
     data_source: str,
     db: Database | None,
 ) -> dict[str, Any]:
-    """Build safe widget params for preview by intersecting WidgetGenerator
-    output with the widget's declared param_schema fields.
+    """Build safe widget params by intersecting WidgetGenerator output
+    with the widget's declared param_schema fields.
 
-    This avoids passing field-mapping keys (like ``max_field``) that are not
-    recognised by certain widgets while still providing required keys like
-    ``x_axis``/``y_axis`` for bar_plot.
+    Only keeps fields the widget actually declares (e.g. x_axis, y_axis for
+    bar_plot) and discards field-mapping keys unknown to the widget.
     """
+    if not db:
+        return {}
+
     try:
-        from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
-        from niamoto.core.imports.registry import EntityKind, EntityRegistry
         from niamoto.core.imports.widget_generator import WidgetGenerator
 
-        # Get widget param_schema to know which fields are accepted
         widget_class = PluginRegistry.get_plugin(widget, PluginType.WIDGET)
         widget_inst = widget_class(db=None)
         if not (hasattr(widget_inst, "param_schema") and widget_inst.param_schema):
             return {}
-        accepted_fields = set(widget_inst.param_schema.model_fields.keys())
+        accepted = set(widget_inst.param_schema.model_fields.keys())
 
-        if not db:
+        profile = _get_column_profile(column, data_source, db)
+        if not profile:
             return {}
 
-        registry = EntityRegistry(db)
-        entity_meta = None
-        for kind in (EntityKind.DATASET, EntityKind.REFERENCE):
-            for ent in registry.list_entities(kind=kind):
-                if ent.name == data_source:
-                    entity_meta = ent
-                    break
-            if entity_meta:
-                break
-        if not entity_meta:
-            return {}
-
-        col_data = next(
-            (
-                c
-                for c in entity_meta.config.get("semantic_profile", {}).get(
-                    "columns", []
-                )
-                if c.get("name") == column
-            ),
-            None,
-        )
-        if not col_data:
-            return {}
-
-        profile = EnrichedColumnProfile.from_stored_dict(col_data)
-
-        generator = WidgetGenerator()
-        raw = generator._generate_widget_config(profile, transformer, widget)
-
-        # Only keep fields the widget actually declares
-        return {k: v for k, v in raw.items() if k in accepted_fields}
+        raw = WidgetGenerator()._generate_widget_config(profile, transformer, widget)
+        return {k: v for k, v in raw.items() if k in accepted}
 
     except Exception:
         return {}
