@@ -599,6 +599,7 @@ class GenericImporter:
 
         # 2. Enrich each column with DataAnalyzer
         enriched_profiles = []
+        column_diagnostics = {}
         for col_profile in dataset_profile.columns:
             if col_profile.name in df.columns:
                 try:
@@ -606,10 +607,17 @@ class GenericImporter:
                         col_profile, df[col_profile.name]
                     )
                     enriched_profiles.append(enriched)
+                    column_diagnostics[col_profile.name] = {
+                        "status": "analyzed",
+                    }
                 except Exception as e:
                     logger.warning(
                         f"Failed to enrich profile for column '{col_profile.name}': {e}"
                     )
+                    column_diagnostics[col_profile.name] = {
+                        "status": "error",
+                        "reason": f"enrichment_failed: {e}",
+                    }
                     continue
 
         # 3. Generate transformer suggestions
@@ -617,9 +625,30 @@ class GenericImporter:
             enriched_profiles, entity_name
         )
 
+        # Update diagnostics with suggestion counts
+        for col_name in column_diagnostics:
+            if column_diagnostics[col_name]["status"] == "analyzed":
+                suggestion_count = len(suggestions.get(col_name, []))
+                column_diagnostics[col_name]["suggestions"] = suggestion_count
+
+        # Determine profiling status
+        error_count = sum(
+            1 for d in column_diagnostics.values() if d["status"] == "error"
+        )
+        total_cols = len(column_diagnostics)
+        if error_count == 0:
+            profiling_status = "complete"
+        elif error_count < total_cols:
+            profiling_status = "partial"
+        else:
+            profiling_status = "failed"
+
         # 4. Build semantic profile structure
         semantic_profile = {
+            "schema_version": 2,
+            "profiling_status": profiling_status,
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "column_diagnostics": column_diagnostics,
             "columns": [
                 {
                     "name": ep.name,
