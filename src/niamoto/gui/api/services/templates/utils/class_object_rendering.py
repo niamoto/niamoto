@@ -584,36 +584,10 @@ def _render_widget_for_class_object(
                     "_is_numeric": is_numeric,
                 }
 
-        # class_object_field_aggregator outputs a dict keyed by target fields:
-        # {"elevation_max": {"value": 1234, "units": "m"}}.
-        # radial_gauge expects a flat structure with a direct numeric value.
-        if (
-            extractor == "class_object_field_aggregator"
-            and widget_name == "radial_gauge"
-            and isinstance(render_data, dict)
-            and "value" not in render_data
-        ):
-            scalar_value: Any = None
-            scalar_units: str | None = None
+        # Adapt transformer output to widget format (shared logic)
+        from niamoto.gui.api.services.preview_utils import preprocess_data_for_widget
 
-            counts = render_data.get("counts")
-            if isinstance(counts, list) and counts:
-                scalar_value = counts[0]
-            else:
-                for field_payload in render_data.values():
-                    if isinstance(field_payload, dict):
-                        candidate = field_payload.get("value")
-                        if candidate is not None:
-                            scalar_value = candidate
-                            units = field_payload.get("units")
-                            if isinstance(units, str) and units:
-                                scalar_units = units
-                            break
-
-            if scalar_value is not None:
-                render_data = {"value": scalar_value}
-                if scalar_units:
-                    render_data["units"] = scalar_units
+        render_data = preprocess_data_for_widget(render_data, extractor, widget_name)
 
         # Build widget params based on extractor type
         widget_params = _build_widget_params_for_class_object(

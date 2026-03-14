@@ -126,6 +126,70 @@ def wrap_html_response(
 
 
 # ---------------------------------------------------------------------------
+# Transformer → Widget data adaptation
+# ---------------------------------------------------------------------------
+
+
+def preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any:
+    """Adapt transformer output to the format expected by a widget.
+
+    This is the single place for all transformer→widget format conversions.
+    Called after transformer execution and before widget rendering.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    # binned_distribution → donut_chart: convert bin edges to labels
+    if transformer == "binned_distribution" and widget == "donut_chart":
+        bins = data.get("bins", [])
+        counts = data.get("counts", [])
+        if len(bins) == len(counts) + 1:
+            labels = [f"{int(bins[i])}-{int(bins[i + 1])}" for i in range(len(counts))]
+            result: dict[str, Any] = {"labels": labels, "counts": counts}
+            percentages = data.get("percentages", [])
+            if percentages and len(percentages) == len(labels):
+                result["percentages"] = percentages
+            return result
+
+    # field_aggregator / class_object_field_aggregator → radial_gauge:
+    # flatten nested payload to a simple {value, unit} dict.
+    if (
+        transformer in ("field_aggregator", "class_object_field_aggregator")
+        and widget == "radial_gauge"
+    ):
+        if "value" in data:
+            return data
+
+        # Try counts list first (class_object scalars)
+        counts = data.get("counts")
+        if isinstance(counts, list) and counts:
+            return {"value": counts[0]}
+
+        # Scan nested field payloads
+        scalar_value: Any = None
+        scalar_unit: str | None = None
+        for field_payload in data.values():
+            if not isinstance(field_payload, dict):
+                continue
+            candidate = field_payload.get("value")
+            if candidate is None:
+                continue
+            scalar_value = candidate
+            units = field_payload.get("units") or field_payload.get("unit")
+            if isinstance(units, str) and units:
+                scalar_unit = units
+            break
+
+        if scalar_value is not None:
+            flattened: dict[str, Any] = {"value": scalar_value}
+            if scalar_unit:
+                flattened["unit"] = scalar_unit
+            return flattened
+
+    return data
+
+
+# ---------------------------------------------------------------------------
 # Transformer execution
 # ---------------------------------------------------------------------------
 

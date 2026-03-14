@@ -342,11 +342,7 @@ async def get_reference_suggestions(
         db_path = get_database_path()
         if db_path:
             from niamoto.core.imports.registry import EntityRegistry, EntityKind
-            from niamoto.core.imports.data_analyzer import (
-                DataCategory,
-                FieldPurpose,
-                EnrichedColumnProfile,
-            )
+            from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
 
             db = Database(str(db_path))
             try:
@@ -371,46 +367,8 @@ async def get_reference_suggestions(
                         if columns:
                             # Convert stored profiles to EnrichedColumnProfile objects
                             for col_data in columns:
-                                # Parse data_category enum
-                                cat_str = col_data.get("data_category", "categorical")
-                                try:
-                                    data_cat = DataCategory(cat_str)
-                                except ValueError:
-                                    data_cat = DataCategory.CATEGORICAL
-
-                                # Parse field_purpose enum
-                                purpose_str = col_data.get("field_purpose", "metadata")
-                                try:
-                                    field_purpose = FieldPurpose(purpose_str)
-                                except ValueError:
-                                    field_purpose = FieldPurpose.METADATA
-
-                                # Parse value_range
-                                value_range = col_data.get("value_range")
-                                if (
-                                    value_range
-                                    and isinstance(value_range, list)
-                                    and len(value_range) == 2
-                                ):
-                                    value_range = tuple(value_range)
-                                else:
-                                    value_range = None
-
-                                profile = EnrichedColumnProfile(
-                                    name=col_data.get("name", "unknown"),
-                                    dtype=col_data.get("dtype", "object"),
-                                    semantic_type=col_data.get("semantic_type"),
-                                    unique_ratio=col_data.get("unique_ratio", 0.0),
-                                    null_ratio=col_data.get("null_ratio", 0.0),
-                                    sample_values=col_data.get("suggested_labels")
-                                    or [],
-                                    confidence=col_data.get("confidence", 0.5),
-                                    data_category=data_cat,
-                                    field_purpose=field_purpose,
-                                    suggested_bins=col_data.get("suggested_bins"),
-                                    suggested_labels=col_data.get("suggested_labels"),
-                                    cardinality=col_data.get("cardinality", 0),
-                                    value_range=value_range,
+                                profile = EnrichedColumnProfile.from_stored_dict(
+                                    col_data
                                 )
                                 enriched_profiles.append(profile)
 
