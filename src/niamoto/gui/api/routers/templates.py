@@ -2011,8 +2011,8 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
         .duration-200 {{ transition-duration: 200ms; }}
         .rotate-90 {{ transform: rotate(90deg); }}
         [class*="bg-primary/10"] {{ background-color: rgba(59, 130, 246, 0.1); }}
-        .hover\:bg-gray-100:hover {{ background-color: #f3f4f6; }}
-        .hover\:text-primary:hover {{ color: #3b82f6; }}
+        .hover\\:bg-gray-100:hover {{ background-color: #f3f4f6; }}
+        .hover\\:text-primary:hover {{ color: #3b82f6; }}
 
         /* Font Awesome chevron — remplacement par CSS pur */
         .fas.fa-chevron-right::before {{
