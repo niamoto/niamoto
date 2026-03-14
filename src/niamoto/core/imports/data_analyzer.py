@@ -117,21 +117,20 @@ class DataAnalyzer:
         Returns:
             EnrichedColumnProfile with all metadata
         """
+        # Pre-compute common stats once to avoid redundant column scans
+        clean = series.dropna()
+        cardinality = clean.nunique() if not clean.empty else 0
+
         # Detect data category
         data_category = self._detect_data_category(col_profile, series)
 
         # Detect field purpose
         field_purpose = self._detect_field_purpose(col_profile, series)
 
-        # Calculate cardinality
-        cardinality = series.nunique()
-
-        # Get value range for numeric data
+        # Get value range for numeric data (reuse pre-computed clean series)
         value_range = None
-        if pd.api.types.is_numeric_dtype(series):
-            clean = series.dropna()
-            if not clean.empty:
-                value_range = (float(clean.min()), float(clean.max()))
+        if pd.api.types.is_numeric_dtype(series) and not clean.empty:
+            value_range = (float(clean.min()), float(clean.max()))
 
         # Suggest bins if numeric continuous
         suggested_bins = None

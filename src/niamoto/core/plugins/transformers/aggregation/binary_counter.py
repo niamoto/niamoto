@@ -90,13 +90,12 @@ class BinaryCounter(TransformerPlugin):
 
     config_model = BinaryCounterConfig
 
-    # Output structure for pattern matching (dynamic keys based on labels)
-    # Structure example: {"um": int, "num": int, "um_percent": float, "num_percent": float}
+    # Output structure for pattern matching (generic keys — actual labels are dynamic)
     output_structure = {
-        "um": "int",
-        "num": "int",
-        "um_percent": "float",
-        "num_percent": "float",
+        "true_count": "int",
+        "false_count": "int",
+        "true_percent": "float",
+        "false_percent": "float",
     }
 
     def __init__(self, db, registry=None):

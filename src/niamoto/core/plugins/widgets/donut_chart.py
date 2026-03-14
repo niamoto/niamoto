@@ -153,11 +153,11 @@ class DonutChartWidget(WidgetPlugin):
     # Pattern matching: Declare compatible input data structures
     compatible_structures = [
         {
-            "um": "int",
-            "num": "int",
-            "um_percent": "float",
-            "num_percent": "float",
-        },  # binary_counter
+            "true_count": "int",
+            "false_count": "int",
+            "true_percent": "float",
+            "false_percent": "float",
+        },  # binary_counter (generic keys)
         {"categories": "list", "values": "list"},  # Generic category/value data
         {"labels": "list", "percentages": "list"},  # Generic label/percentage data
     ]
