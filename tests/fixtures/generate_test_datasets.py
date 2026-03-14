@@ -200,9 +200,169 @@ def generate_adversarial():
     print(f"Generated {path} (100 rows, latin-1 encoded)")
 
 
+# ── Extended corpus (Phase 4+) ────────────────────────────────────────────
+
+
+def generate_checklist():
+    """Dataset 5: Taxonomic checklist (narrow schema, no coordinates)."""
+    path = OUTPUT_DIR / "checklist.csv"
+    kingdoms = ["Plantae", "Animalia", "Fungi"]
+    phyla = {
+        "Plantae": "Tracheophyta",
+        "Animalia": "Chordata",
+        "Fungi": "Basidiomycota",
+    }
+    families = [
+        "Araucariaceae",
+        "Podocarpaceae",
+        "Nothofagaceae",
+        "Cupressaceae",
+        "Myrtaceae",
+        "Proteaceae",
+        "Lauraceae",
+        "Sapindaceae",
+    ]
+    genera = [
+        "Araucaria",
+        "Podocarpus",
+        "Nothofagus",
+        "Callitris",
+        "Syzygium",
+        "Stenocarpus",
+        "Cryptocarya",
+        "Cupaniopsis",
+    ]
+    rows = []
+    for i in range(200):
+        kingdom = kingdoms[i % len(kingdoms)]
+        rows.append(
+            {
+                "taxonID": f"TAX-{i:05d}",
+                "scientificName": f"{genera[i % len(genera)]} sp{i}",
+                "kingdom": kingdom,
+                "phylum": phyla[kingdom],
+                "class": "Magnoliopsida" if kingdom == "Plantae" else "Mammalia",
+                "order": f"Order_{i % 10}",
+                "family": families[i % len(families)],
+            }
+        )
+
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Generated {path} ({len(rows)} rows)")
+
+
+def generate_custom_forest():
+    """Dataset 6: French-language custom forest inventory (non-DwC names)."""
+    path = OUTPUT_DIR / "custom_forest.csv"
+    especes = ["Araucaria", "Podocarpus", "Nothofagus", "Agathis", "Callitris"]
+    rows = []
+    for i in range(150):
+        rows.append(
+            {
+                "parcelle": f"P{(i // 10) + 1:02d}",
+                "espece": random.choice(especes),
+                "diam": round(random.uniform(5, 80), 1),
+                "haut": round(random.uniform(2, 25), 1),
+                "substrat": random.choice(["UM", "non-UM"]),
+                "endemisme": random.choice(["endemique", "non-endemique"]),
+            }
+        )
+
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Generated {path} ({len(rows)} rows)")
+
+
+def generate_geojson_inventory():
+    """Dataset 7: GeoJSON with polygon geometries and attributes."""
+    import json
+
+    path = OUTPUT_DIR / "inventory.geojson"
+    features = []
+    for i in range(50):
+        lat = -22.0 + random.uniform(-0.5, 0.5)
+        lon = 166.5 + random.uniform(-0.5, 0.5)
+        # Simple square polygon
+        d = 0.01
+        coords = [
+            [lon - d, lat - d],
+            [lon + d, lat - d],
+            [lon + d, lat + d],
+            [lon - d, lat + d],
+            [lon - d, lat - d],
+        ]
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [coords]},
+                "properties": {
+                    "plot_id": f"PLOT-{i:03d}",
+                    "species_count": random.randint(5, 50),
+                    "dominant_species": random.choice(
+                        ["Araucaria", "Podocarpus", "Nothofagus"]
+                    ),
+                    "area_ha": round(random.uniform(0.5, 10.0), 2),
+                },
+            }
+        )
+
+    geojson = {"type": "FeatureCollection", "features": features}
+    with open(path, "w") as f:
+        json.dump(geojson, f)
+
+    print(f"Generated {path} ({len(features)} features)")
+
+
+def generate_xlsx_mixed():
+    """Dataset 8: Excel file with mixed types."""
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("openpyxl") is None:
+            raise ImportError("openpyxl not found")
+    except ImportError:
+        print("SKIP: openpyxl not installed, skipping XLSX fixture")
+        return
+
+    path = OUTPUT_DIR / "mixed_types.xlsx"
+    import pandas as pd
+
+    data = {
+        "id": list(range(1, 81)),
+        "name": [f"Sample_{i}" for i in range(80)],
+        "value_str": [
+            str(random.uniform(0, 100)) if random.random() > 0.2 else "N/A"
+            for _ in range(80)
+        ],
+        "date_mixed": [
+            random.choice(["2024-01-15", "15/01/2024", "Jan 2024", "", None])
+            for _ in range(80)
+        ],
+        "numeric": [
+            random.uniform(0, 100) if random.random() > 0.1 else None for _ in range(80)
+        ],
+        "category": [random.choice(["A", "B", "C", None]) for _ in range(80)],
+    }
+    df = pd.DataFrame(data)
+    df.to_excel(path, index=False)
+
+    print(f"Generated {path} ({len(df)} rows)")
+
+
 if __name__ == "__main__":
     generate_gbif_terrestrial()
     generate_gbif_marine()
     generate_minimal()
     generate_adversarial()
+    generate_checklist()
+    generate_custom_forest()
+    generate_geojson_inventory()
+    generate_xlsx_mixed()
     print("\nAll fixtures generated!")

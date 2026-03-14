@@ -46,6 +46,15 @@ def run_full_pipeline(file_path: Path):
             df = pd.read_csv(file_path, nrows=1000)
         except UnicodeDecodeError:
             df = pd.read_csv(file_path, nrows=1000, encoding="latin-1")
+    elif suffix in (".geojson", ".json"):
+        try:
+            import geopandas as gpd
+
+            df = gpd.read_file(file_path)
+        except ImportError:
+            df = pd.read_json(file_path)
+    elif suffix in (".xlsx", ".xls"):
+        df = pd.read_excel(file_path)
     else:
         df = pd.read_csv(file_path, nrows=1000)
 
@@ -91,6 +100,27 @@ DATASETS_MVP = {
     },
 }
 
+# Extended datasets (Phase 4+)
+DATASETS_EXTENDED = {
+    "checklist": {
+        "path": FIXTURES / "checklist.csv",
+        "expect_taxonomy": True,
+        "expect_spatial": False,
+        "expect_min_suggestions": 1,
+    },
+    "custom_forest": {
+        "path": FIXTURES / "custom_forest.csv",
+        "expect_min_suggestions": 2,
+    },
+    "geojson_inventory": {
+        "path": FIXTURES / "inventory.geojson",
+        "expect_min_suggestions": 1,
+    },
+}
+
+# Combine all datasets
+DATASETS_ALL = {**DATASETS_MVP, **DATASETS_EXTENDED}
+
 
 # ── Tests ──────────────────────────────────────────────────────────────────
 
@@ -98,7 +128,7 @@ DATASETS_MVP = {
 class TestPipelineDoesNotCrash:
     """Each dataset: profiling + suggestions without error."""
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_no_crash(self, name, spec):
         profile, enriched, suggestions = run_full_pipeline(spec["path"])
         assert profile is not None
@@ -109,7 +139,7 @@ class TestPipelineDoesNotCrash:
 class TestPipelineSemanticDetection:
     """Verify taxonomy and spatial columns are detected when expected."""
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_taxonomy_detection(self, name, spec):
         if not spec.get("expect_taxonomy"):
             pytest.skip("No taxonomy expected")
@@ -125,7 +155,7 @@ class TestPipelineSemanticDetection:
             f"Types: {[(c.name, c.semantic_type) for c in profile.columns]}"
         )
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_spatial_detection(self, name, spec):
         if not spec.get("expect_spatial"):
             pytest.skip("No spatial expected")
@@ -145,7 +175,7 @@ class TestPipelineSemanticDetection:
 class TestPipelineSuggestionQuality:
     """Verify suggestion count and column rejection."""
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_minimum_suggestions(self, name, spec):
         min_sug = spec.get("expect_min_suggestions", 0)
         if min_sug == 0:
@@ -156,7 +186,7 @@ class TestPipelineSuggestionQuality:
             f"{name}: {len(suggestions)} suggestions, expected >= {min_sug}"
         )
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_rejected_columns(self, name, spec):
         reject = spec.get("reject_columns", [])
         if not reject:
@@ -169,7 +199,7 @@ class TestPipelineSuggestionQuality:
                 f"{name}: ID column '{col}' should not produce suggestions"
             )
 
-    @pytest.mark.parametrize("name,spec", DATASETS_MVP.items())
+    @pytest.mark.parametrize("name,spec", DATASETS_ALL.items())
     def test_confidence_reasonable(self, name, spec):
         if spec.get("expect_no_crash"):
             pytest.skip("Adversarial — confidence not guaranteed")
