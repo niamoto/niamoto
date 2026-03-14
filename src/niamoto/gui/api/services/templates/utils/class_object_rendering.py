@@ -387,8 +387,8 @@ def _build_widget_params_for_class_object(
 
             # Get class_object name for x-axis label
             class_object_name = data.get("class_object", "").upper()
-            x_label = class_object_name if class_object_name else "Classe"
-            y_label = "%" if is_percentage else "Effectif"
+            x_label = class_object_name if class_object_name else "Class"
+            y_label = "%" if is_percentage else "Count"
 
             return {
                 "x_axis": "tops",  # bins on x-axis

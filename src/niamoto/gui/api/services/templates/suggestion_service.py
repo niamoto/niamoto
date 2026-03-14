@@ -688,16 +688,20 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
             all_id = f"{reference_name}_{geom_col}_all_map"
 
             if geom_type == "point":
-                single_name = f"Position {ref_label}"
-                single_desc = f"Carte affichant la position de l'entité {reference_name} sélectionnée"
-                all_name = f"Carte de tous les {ref_label}"
-                all_desc = f"Carte affichant la position de toutes les entités {reference_name}"
+                single_name = f"{ref_label} location"
+                single_desc = (
+                    f"Map showing the position of the selected {reference_name} entity"
+                )
+                all_name = f"All {ref_label} map"
+                all_desc = f"Map showing all {reference_name} entity positions"
                 icon_single = "MapPin"
             else:
-                single_name = f"Polygone {ref_label}"
-                single_desc = f"Carte affichant le polygone de l'entité {reference_name} sélectionnée"
-                all_name = f"Carte de tous les {ref_label}"
-                all_desc = f"Carte affichant tous les polygones {reference_name}"
+                single_name = f"{ref_label} polygon"
+                single_desc = (
+                    f"Map showing the polygon of the selected {reference_name} entity"
+                )
+                all_name = f"All {ref_label} map"
+                all_desc = f"Map showing all {reference_name} polygons"
                 icon_single = "Hexagon"
 
             # Single entity map

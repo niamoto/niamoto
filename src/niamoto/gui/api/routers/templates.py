@@ -232,7 +232,7 @@ def _is_csv_source_for_group(
             if src.get("name") != source_name:
                 continue
             data_path = str(src.get("data", "")).strip().lower()
-            if data_path.endswith(".csv"):
+            if any(data_path.endswith(ext) for ext in (".csv", ".tsv", ".txt")):
                 return True
 
     return False
@@ -1240,16 +1240,18 @@ async def get_widget_suggestions(
         # Find CSV source
         csv_source = None
         sources = group_config.get("sources", [])
+        tabular_extensions = (".csv", ".tsv", ".txt")
         for src in sources:
             data_path = src.get("data", "")
-            if data_path.endswith(".csv"):
+            if any(data_path.endswith(ext) for ext in tabular_extensions):
                 if source_name is None or src.get("name") == source_name:
                     csv_source = src
                     break
 
         if not csv_source:
             raise HTTPException(
-                status_code=404, detail=f"No CSV source found for group '{group_by}'"
+                status_code=404,
+                detail=f"No tabular source found for group '{group_by}'",
             )
 
         csv_path = work_dir / csv_source["data"]

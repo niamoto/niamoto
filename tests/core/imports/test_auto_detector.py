@@ -169,7 +169,8 @@ class TestDiscoverFiles:
             (data_dir / "data.json").write_text("{}")
             (data_dir / "data.geojson").write_text("{}")
             (data_dir / "data.xlsx").write_text("excel")
-            (data_dir / "data.txt").write_text("text")  # Not supported
+            (data_dir / "data.txt").write_text("text")  # Now supported (GBIF downloads)
+            (data_dir / "data.log").write_text("log")  # Not supported
 
             files = auto_detector._discover_files(data_dir)
 
@@ -177,7 +178,8 @@ class TestDiscoverFiles:
             assert any("data.json" in str(f) for f in files)
             assert any("data.geojson" in str(f) for f in files)
             assert any("data.xlsx" in str(f) for f in files)
-            assert not any("data.txt" in str(f) for f in files)
+            assert any("data.txt" in str(f) for f in files)
+            assert not any("data.log" in str(f) for f in files)
 
     def test_discover_files_sorted(self, auto_detector):
         """Test that files are returned sorted."""

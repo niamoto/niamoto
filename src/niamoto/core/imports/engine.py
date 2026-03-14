@@ -504,15 +504,41 @@ class GenericImporter:
 
     @staticmethod
     def _read_csv(path: Path, nrows: Optional[int] = None) -> pd.DataFrame:
-        """Read CSV/TSV using pandas with fallback separator handling.
+        """Read CSV/TSV using pandas with fallback separator and encoding handling.
+
+        Tries UTF-8 first, falls back to latin-1 on UnicodeDecodeError.
+        Tries comma separator first, falls back to semicolon with decimal comma.
 
         Args:
-            path: Path to CSV file
+            path: Path to CSV/TSV file
             nrows: Optional limit on number of rows to read (for metadata sampling)
         """
+        import csv as csv_module
+
+        # Sniff delimiter from first 8KB
+        sep = ","
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                sample = f.read(8192)
+                dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                sep = dialect.delimiter
+        except Exception:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    if "\t" in first_line:
+                        sep = "\t"
+            except Exception:
+                pass
 
         try:
-            return pd.read_csv(path, encoding="utf-8", nrows=nrows, low_memory=False)
+            return pd.read_csv(
+                path, sep=sep, encoding="utf-8", nrows=nrows, low_memory=False
+            )
+        except UnicodeDecodeError:
+            return pd.read_csv(
+                path, sep=sep, encoding="latin-1", nrows=nrows, low_memory=False
+            )
         except (pd.errors.EmptyDataError, pd.errors.ParserError):
             return pd.read_csv(
                 path,

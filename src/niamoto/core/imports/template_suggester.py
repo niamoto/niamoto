@@ -275,7 +275,7 @@ class TemplateSuggester:
             },
             {
                 "type": "map",
-                "name": "Carte de distribution",
+                "name": "Distribution map",
                 "category": "map",
                 "data_types": ["geographic"],
                 "plugin": "geospatial_extractor",

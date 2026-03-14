@@ -79,13 +79,13 @@ def generate_widget_title(widget_id: str, plugin: str, params: Dict[str, Any]) -
         count = params.get("count", 10)
         return f"Top {count} - {title}"
     elif plugin == "binned_distribution":
-        return f"Distribution - {title}"
+        return f"{title} distribution"
     elif plugin == "categorical_distribution":
-        return f"Répartition - {title}"
+        return f"{title} breakdown"
     elif plugin == "binary_counter":
         return f"{title}"
     elif plugin == "geospatial_extractor":
-        return "Distribution géographique"
+        return "Geographic distribution"
     elif plugin == "hierarchical_nav_widget":
         ref = params.get("referential_data", "")
         return f"Navigation - {ref.title()}"
