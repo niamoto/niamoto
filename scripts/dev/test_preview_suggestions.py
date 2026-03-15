@@ -74,7 +74,7 @@ def classify_html(html):
 def build_inline_body(suggestion, group_by):
     """Build POST inline body from a suggestion."""
     widget_plugin = suggestion.get("widget_plugin")
-    widget_config = suggestion.get("widget_config")
+    widget_config = suggestion.get("widget_params")
     plugin = suggestion.get("plugin")  # transformer plugin
     config = suggestion.get("config", {})  # transformer params
 

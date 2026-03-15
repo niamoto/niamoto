@@ -315,7 +315,7 @@ class TemplateSuggester:
                 entry["export_override"] = {
                     "plugin": suggestion.widget_plugin,
                     "title": suggestion.name,
-                    "params": suggestion.widget_config or {},
+                    "params": suggestion.widget_params or {},
                 }
             widgets_data[suggestion.template_id] = entry
 
