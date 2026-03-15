@@ -63,74 +63,74 @@ Toutes les previews (suggestions ET configurés) passent par `TransformerService
 
 ### Phase 1 : Extractions (safe, aucune régression)
 
-- [ ] **`EnrichedColumnProfile.from_stored_dict(col_data)`** — classmethod dans `data_analyzer.py`
+- [x] **`EnrichedColumnProfile.from_stored_dict(col_data)`** — classmethod dans `data_analyzer.py`
   - Remplace les 4 blocs identiques de reconstruction (~30 lignes chacun)
   - Fichiers touchés : `engine.py`, `templates.py:get_reference_suggestions`
 
-- [ ] **`_preprocess_data_for_widget` → `preview_utils.py`**
+- [x] **`_preprocess_data_for_widget` → `preview_utils.py`**
   - Extraire depuis `engine.py` vers le module utilitaire partagé
   - Supprimer le doublon dans `class_object_rendering.py`
 
-- [ ] **Fusionner `_render_occurrence` et `_render_entity_source`**
+- [x] **Fusionner `_render_occurrence` et `_render_entity_source`**
   - En une seule méthode `_render_dynamic_preview(template_id, column, transformer, widget, data_source, group_by, entity_id, export_params, db, warnings)`
   - La seule différence est le fallback sans group_config (SQL direct vs load_sample_data)
 
 ### Phase 2 : Pipeline unique (fix principal)
 
-- [ ] **`_render_dynamic_preview` utilise toujours `transform_single_widget`**
+- [x] **`_render_dynamic_preview` utilise toujours `transform_single_widget`**
   - Récupérer le `group_config` réel via `_load_group_config(group_by)`
   - Construire un `widgets_data` synthétique avec la config de `_build_transformer_config()`
   - Appeler `svc.transform_single_widget(temp_group_config, template_id, gid)`
   - Fallback : si pas de `group_config` (premier init, pas de transform.yml), construire un `group_config` synthétique complet à partir de `import.yml` (les `sources` sont dans import.yml via les relations dataset→reference)
 
-- [ ] **Widget params : lire depuis `param_schema` defaults**
+- [x] **Widget params : lire depuis `param_schema` defaults**
   - Ne plus utiliser `_build_widget_params_for_preview` (qui reconstruit un profil pour appeler WidgetGenerator)
   - Utiliser directement les defaults du `param_schema` du widget plugin
   - Seul override : `export_params` depuis export.yml (quand ils existent)
 
 ### Phase 3 : Suppression du legacy
 
-- [ ] **Supprimer les endpoints preview dans `templates.py`**
+- [x] **Supprimer les endpoints preview dans `templates.py`**
   - `preview_template` (GET), `preview_inline` (POST)
   - `_preview_configured_widget`, `_preview_navigation_widget`, `_preview_general_info_widget`, `_preview_entity_map`
   - `_build_dynamic_template_info` (la config hardcodée par transformer)
   - `_compute_preview_etag`, `_preview_cache`, `invalidate_preview_cache`
   - Garder un shim `POST /api/templates/preview` → redirige vers `POST /api/preview` avec traduction de schema
 
-- [ ] **Supprimer `PreviewService` (classe)**
+- [x] **Supprimer `PreviewService` (classe)**
   - Ses méthodes sont des wrappers vers `preview_utils.py`
   - Mettre à jour les imports restants
 
-- [ ] **Mettre à jour le frontend**
+- [x] **Mettre à jour le frontend**
   - `AddWidgetModal.tsx` : migrer de `/api/templates/preview` vers `/api/preview` POST
   - Vérifier `usePreviewFrame.ts` : déjà sur `/api/preview`, OK
 
 ### Phase 4 : Cache simplifié
 
-- [ ] **Un seul mécanisme ETag** : celui de `PreviewEngine` (fingerprint pré-calculé)
+- [x] **Un seul mécanisme ETag** : celui de `PreviewEngine` (fingerprint pré-calculé)
   - Supprimer `_compute_preview_etag` de templates.py
   - Supprimer TTLCache de templates.py
 
-- [ ] **Inventaire complet des triggers d'invalidation**
+- [x] **Inventaire complet des triggers d'invalidation**
   - Import de données → `engine.invalidate()` ✅ (déjà fait dans imports.py)
   - Save config (transform.yml, export.yml) → `engine.invalidate()` ✅ (déjà fait)
   - Changement de projet → `reset_preview_engine()` ✅ (déjà fait)
   - Ajout/suppression de plugin → à ajouter si nécessaire
 
-- [ ] **Documenter le contrat de cache**
+- [x] **Documenter le contrat de cache**
   - ETag = `md5(template_id:group_by:source:entity_id:data_fingerprint)`
   - `data_fingerprint` = `md5(db_mtime + config_mtimes)`
   - Invalidation = recalcul du fingerprint via `engine.invalidate()`
 
 ## Acceptance Criteria
 
-- [ ] Toutes les previews de suggestions produisent le même résultat que le widget une fois configuré
-- [ ] Aucun endpoint preview dans `templates.py` (sauf shim de redirection)
-- [ ] `PreviewService` class supprimée
-- [ ] `EnrichedColumnProfile.from_stored_dict()` utilisé partout
-- [ ] `_preprocess_data_for_widget` dans un seul fichier
-- [ ] Un seul mécanisme de cache ETag
-- [ ] Tests de non-régression : comparer la sortie transformer pour 5+ template_ids entre l'ancien et le nouveau chemin
+- [x] Toutes les previews de suggestions produisent le même résultat que le widget une fois configuré
+- [x] Aucun endpoint preview dans `templates.py` (sauf shim de redirection)
+- [x] `PreviewService` class supprimée
+- [x] `EnrichedColumnProfile.from_stored_dict()` utilisé partout
+- [x] `_preprocess_data_for_widget` dans un seul fichier
+- [x] Un seul mécanisme de cache ETag
+- [x] Tests de non-régression : comparer la sortie transformer pour 5+ template_ids entre l'ancien et le nouveau chemin
 
 ## Risques
 

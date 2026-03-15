@@ -129,9 +129,10 @@ echo ""
 print_header "STARTING SERVERS"
 echo ""
 
-# Start backend (FastAPI)
+# Start backend (FastAPI) — disable bytecode cache for reliable hot reload
 print_info "Starting FastAPI backend on port 8080..."
-uv run python "$SCRIPT_DIR/dev_api.py" --instance "$INSTANCE_PATH" --port 8080 > /tmp/niamoto-backend.log 2>&1 &
+export PYTHONDONTWRITEBYTECODE=1
+uv run python -B "$SCRIPT_DIR/dev_api.py" --instance "$INSTANCE_PATH" --port 8080 > /tmp/niamoto-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a bit for backend to start
