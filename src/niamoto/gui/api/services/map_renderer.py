@@ -274,7 +274,7 @@ class MapRenderer:
             if (!document.querySelector('.tile-offline-notice')) {{
                 const notice = document.createElement('div');
                 notice.className = 'tile-offline-notice';
-                notice.textContent = 'Fond de carte indisponible hors connexion';
+                notice.textContent = 'Map tiles unavailable offline';
                 document.getElementById('map').appendChild(notice);
             }}
         }});

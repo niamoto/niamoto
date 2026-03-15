@@ -194,7 +194,7 @@ class HierarchicalNavWidget(WidgetPlugin):
             <div id="{container_id}"
                  class="hierarchical-nav-tree"
                  role="tree"
-                 aria-label="Navigation hiérarchique">
+                 aria-label="Hierarchical navigation">
                 <!-- Tree will be populated by JavaScript -->
             </div>
         ''')

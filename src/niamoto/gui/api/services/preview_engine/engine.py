@@ -1160,11 +1160,11 @@ document.addEventListener('DOMContentLoaded', function() {{
                 mode = "all"
                 prefix = template_id[:-8]
             else:
-                return self._error_html(f"Format entity map invalide: {template_id}")
+                return self._error_html(f"Invalid entity map format: {template_id}")
 
             parts = prefix.split("_")
             if len(parts) < 2:
-                return self._error_html(f"Impossible de parser: {template_id}")
+                return self._error_html(f"Cannot parse template_id: {template_id}")
 
             reference = parts[0]
             geom_col = "_".join(parts[1:])
@@ -1321,7 +1321,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         # Parse the dynamic template_id
         parsed = parse_dynamic_template_id(template_id)
         if not parsed:
-            return self._error_html(f"Format de template_id invalide: '{template_id}'")
+            return self._error_html(f"Invalid template_id format: '{template_id}'")
 
         # Check if the source is in transform.yml
         effective_source = source
