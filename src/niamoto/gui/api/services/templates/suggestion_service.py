@@ -862,7 +862,7 @@ def get_class_object_suggestions(reference_name: str) -> List[Dict[str, Any]]:
         return all_suggestions
 
     except Exception as e:
-        logger.warning(f"Error loading class_object suggestions: {e}")
+        logger.warning("Error loading class_object suggestions: %s", e, exc_info=True)
         return []
 
 
