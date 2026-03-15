@@ -49,6 +49,8 @@ def prepare_data(records: list[dict]) -> tuple:
         name = _normalize(r["column_name"])
         if not name:
             continue
+        # Split compound names for better char_wb boundary detection
+        name = name.replace("_", " ")
         names.append(name)
         concepts.append(r["concept"])
         roles.append(r["role"])
