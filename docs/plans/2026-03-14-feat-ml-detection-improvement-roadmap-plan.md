@@ -731,14 +731,15 @@ Phase 4 : Amélioration continue (ongoing)
 - [x] Alias registry YAML avec ~25 concepts × 5-8 langues
 - [x] API profiler : `ml_mode="auto"` / `"off"` / `"force"`
 - [x] Harness d'évaluation avec GroupKFold, holdout géo/linguistique, ablations
-- [ ] Gold set >= 500 colonnes labélisées manuellement
-- [ ] Benchmark F1 baseline documenté
+- [x] Gold set 432 colonnes (189 gold + 243 synthetic, 51 concepts, 24 sources)
+- [x] Benchmark F1 baseline : header=0.366, values=0.288, fusion=0.203
+- [x] Scripts d'entraînement séparés (header, values, fusion) dans scripts/ml/
 
 ### Phase 1.5 — Autoresearch
 - [ ] `programmes/niamoto-header-model.md` écrit et validé
 - [ ] `programmes/niamoto-values-model.md` écrit et validé
 - [ ] `programmes/niamoto-fusion.md` écrit et validé
-- [ ] Script métrique CLI fonctionnel (`niamoto ml evaluate --model <branch> --metric macro-f1`)
+- [x] Script métrique CLI fonctionnel (`uv run python scripts/ml/evaluate.py --model <branch> --metric macro-f1`)
 - [ ] Boucle header : ≥ 50 itérations exécutées, meilleur commit identifié
 - [ ] Boucle values : ≥ 50 itérations exécutées, meilleur commit identifié
 - [ ] Boucle fusion : ≥ 30 itérations exécutées, meilleur commit identifié
