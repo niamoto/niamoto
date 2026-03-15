@@ -51,6 +51,8 @@ def prepare_data(records: list[dict]) -> tuple:
             continue
         # Split compound names for better char_wb boundary detection
         name = name.replace("_", " ")
+        # Triple the name to reinforce short-text signal
+        name = f"{name} {name} {name}"
         names.append(name)
         concepts.append(r["concept"])
         roles.append(r["role"])
