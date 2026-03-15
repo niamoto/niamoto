@@ -509,8 +509,11 @@ class TestFieldAggregator:
         """Test _get_field_value uses registry to resolve table name."""
         from types import SimpleNamespace
 
-        # Mock registry to return entity info
-        mock_entity = SimpleNamespace(table_name="resolved_table")
+        # Mock registry to return entity info with config containing id_field
+        mock_entity = SimpleNamespace(
+            table_name="resolved_table",
+            config={"schema": {"id_field": "id"}},
+        )
         mocker.patch.object(self.plugin.registry, "get", return_value=mock_entity)
 
         # Mock _get_field_from_table
@@ -520,7 +523,7 @@ class TestFieldAggregator:
 
         assert result == "value"
         self.plugin._get_field_from_table.assert_called_once_with(
-            "resolved_table", "field", 123
+            "resolved_table", "field", 123, "id"
         )
 
     def test_get_field_value_fallback_to_source(self, mocker):

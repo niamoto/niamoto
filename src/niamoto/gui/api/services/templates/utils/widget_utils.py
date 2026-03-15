@@ -21,7 +21,17 @@ CLASS_OBJECT_EXTRACTORS = {
     "series_extractor",
     "binary_aggregator",
     "categories_extractor",
-    "class_object_field_aggregator",
+    "field_aggregator",
+}
+
+# Well-known widget names used as fallback when PluginRegistry is not loaded
+_WELL_KNOWN_WIDGETS = {
+    "bar_plot",
+    "donut_chart",
+    "radial_gauge",
+    "interactive_map",
+    "info_grid",
+    "hierarchical_nav_widget",
 }
 
 
@@ -266,27 +276,30 @@ def _get_widget_names() -> list[str]:
     """Get widget plugin names from PluginRegistry, sorted longest-first for greedy matching."""
     global _widget_names
     if _widget_names is not None:
-        return _widget_names
+        if _WELL_KNOWN_WIDGETS <= set(_widget_names):
+            return _widget_names
+        _widget_names = None
     try:
         from niamoto.core.plugins import PluginRegistry, PluginType
 
-        names = sorted(
-            PluginRegistry.get_plugins_by_type(PluginType.WIDGET).keys(),
-            key=len,
-            reverse=True,
-        )
-        if names:  # Only cache non-empty — registry may not be loaded yet
-            _widget_names = names
-        return names
+        names = set(PluginRegistry.get_plugins_by_type(PluginType.WIDGET).keys())
+        names |= _WELL_KNOWN_WIDGETS
+        result = sorted(names, key=len, reverse=True)
+        if len(result) > len(_WELL_KNOWN_WIDGETS):
+            _widget_names = result
+        return result
     except Exception:
-        return []
+        return sorted(_WELL_KNOWN_WIDGETS, key=len, reverse=True)
 
 
 def _get_transformer_names() -> list[str]:
     """Get transformer plugin names + class_object extractors, sorted longest-first."""
     global _transformer_names
     if _transformer_names is not None:
-        return _transformer_names
+        # Ensure cached value still contains all extractors (guard against stale cache)
+        if CLASS_OBJECT_EXTRACTORS <= set(_transformer_names):
+            return _transformer_names
+        _transformer_names = None
     try:
         from niamoto.core.plugins import PluginRegistry, PluginType
 
@@ -299,7 +312,7 @@ def _get_transformer_names() -> list[str]:
             _transformer_names = result
         return result
     except Exception:
-        return []
+        return sorted(CLASS_OBJECT_EXTRACTORS, key=len, reverse=True)
 
 
 def parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:

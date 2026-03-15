@@ -118,7 +118,18 @@ def _pick_identifier_column(
 def _pick_name_column(columns: List[str], id_field: str, entity_name: str) -> str:
     """Pick a likely display name column."""
     lowered = {c.lower(): c for c in columns}
-    candidates = ["full_name", "name", "label", "title", entity_name]
+    candidates = [
+        "full_name",
+        "name",
+        "label",
+        "title",
+        entity_name,
+        "plot",
+        "plot_code",
+        "code",
+        "site",
+        "station",
+    ]
     for candidate in candidates:
         resolved = lowered.get(candidate.lower())
         if resolved:

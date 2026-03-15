@@ -1001,11 +1001,66 @@ document.addEventListener('DOMContentLoaded', function() {{
             items: list[dict[str, Any]] = []
             for field_cfg in field_configs:
                 field_name = field_cfg.get("field", "")
-                label = field_cfg.get("label", field_name.replace("_", " ").title())
+                target = field_cfg.get("target", field_name)
+                label = field_cfg.get("label", target.replace("_", " ").title())
                 units = field_cfg.get("units", "")
 
-                value = row.get(field_name)
-                if pd.isna(value):
+                # Handle count transformations separately
+                if field_cfg.get("transformation") == "count":
+                    source = field_cfg.get("source", "")
+                    count_table = None
+                    for prefix in (
+                        f"dataset_{source}",
+                        source,
+                        f"entity_{source}",
+                    ):
+                        if db.has_table(prefix):
+                            count_table = prefix
+                            break
+                    if count_table:
+                        try:
+                            qt = preparer.quote(count_table)
+                            qf = preparer.quote(field_name)
+                            qid = preparer.quote(id_field)
+                            count_q = text(
+                                f"SELECT COUNT({qf}) FROM {qt} WHERE {qid} = :eid"
+                            )
+                            cnt = pd.read_sql(
+                                count_q, db.engine, params={"eid": str(entity_id or "")}
+                            )
+                            value = int(cnt.iloc[0, 0]) if not cnt.empty else 0
+                        except Exception:
+                            value = None
+                    else:
+                        value = None
+                elif "." in field_name:
+                    # JSON path (e.g. extra_data.holdridge)
+                    parts = field_name.split(".", 1)
+                    container = row.get(parts[0])
+                    if container is not None and not (
+                        isinstance(container, float) and pd.isna(container)
+                    ):
+                        if isinstance(container, str):
+                            try:
+                                import json as _json
+
+                                container = _json.loads(container)
+                            except Exception:
+                                container = None
+                        value = (
+                            container.get(parts[1])
+                            if isinstance(container, dict)
+                            else None
+                        )
+                    else:
+                        value = None
+                elif field_name in row.index:
+                    value = row.get(field_name)
+                else:
+                    # Field not in this table — skip silently
+                    value = None
+
+                if value is not None and pd.isna(value):
                     value = None
                 elif hasattr(value, "item"):
                     value = value.item()

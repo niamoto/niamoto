@@ -105,11 +105,13 @@ class DirectAttribute(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
-    def _get_field_from_table(self, source: str, field: str, id_value: int) -> Any:
+    def _get_field_from_table(
+        self, source: str, field: str, id_value: int, id_column: str = "id"
+    ) -> Any:
         """Get a field value from any entity."""
         try:
             query = f"""
-                SELECT {field} FROM {source} WHERE id = :id_value
+                SELECT {field} FROM {source} WHERE {id_column} = :id_value
             """
             # Use fetch_one which properly handles connection lifecycle
             row = self.db.fetch_one(query, {"id_value": id_value})
@@ -124,8 +126,12 @@ class DirectAttribute(TransformerPlugin):
             # Resolve source table name from registry
             entity_info = self.registry.get(source)
             table_name = entity_info.table_name if entity_info else source
+            id_column = "id"
+            if entity_info:
+                cfg = getattr(entity_info, "config", None) or {}
+                id_column = cfg.get("schema", {}).get("id_field") or "id"
 
-            return self._get_field_from_table(table_name, field, id_value)
+            return self._get_field_from_table(table_name, field, id_value, id_column)
 
         except Exception as e:
             raise ValueError(f"Error getting field {field} from {source}") from e
