@@ -31,8 +31,6 @@ import {
   Loader2,
   RefreshCw,
   Upload,
-  FileText,
-  Languages,
   Package,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { usePublishStore, selectIsDeploying, selectHasSuccessfulBuild, type DeployPlatform } from '@/stores/publishStore'
 import { useNetworkStatus } from '@/hooks/useNetworkStatus'
-import { usePipelineStatus, type StageStatus } from '@/hooks/usePipelineStatus'
+import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -288,7 +288,7 @@ export default function PublishDeploy() {
   }, [currentDeploy?.logs.length])
 
   // Check if publication is stale
-  const publicationStage = pipelineData?.stages?.find((s: StageStatus) => s.name === 'publication')
+  const publicationStage = pipelineData?.publication
   const isStale = publicationStage?.status === 'stale'
 
   // The active platform in the dialog (either editing or adding new)
