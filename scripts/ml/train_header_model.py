@@ -53,10 +53,16 @@ def prepare_data(records: list[dict]) -> tuple:
         name = name.replace("_", " ")
         # Add dtype-based prefix for extra signal
         dtype = r.get("values_stats", {}).get("dtype", "")
-        if dtype in ("float64", "int64", "float32", "int32"):
-            name = f"num {name}"
+        if dtype in ("float64", "float32"):
+            name = f"float {name}"
+        elif dtype in ("int64", "int32"):
+            name = f"int {name}"
         elif dtype == "object":
             name = f"str {name}"
+        elif dtype == "bool":
+            name = f"bool {name}"
+        elif "datetime" in dtype:
+            name = f"date {name}"
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
