@@ -51,6 +51,12 @@ def prepare_data(records: list[dict]) -> tuple:
             continue
         # Split compound names for better char_wb boundary detection
         name = name.replace("_", " ")
+        # Add dtype-based prefix for extra signal
+        dtype = r.get("values_stats", {}).get("dtype", "")
+        if dtype in ("float64", "int64", "float32", "int32"):
+            name = f"num {name}"
+        elif dtype == "object":
+            name = f"str {name}"
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
