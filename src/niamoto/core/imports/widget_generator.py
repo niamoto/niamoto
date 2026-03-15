@@ -672,7 +672,15 @@ class WidgetGenerator:
         """
         # If we have actual values, derive labels from data
         if values and len(values) == 2:
-            sorted_vals = sorted(str(v) for v in values)
+            str_vals = [str(v) for v in values]
+            # Preserve semantic order: truthy value first
+            truthy = {"true", "1", "yes", "oui", "t", "y"}
+            if str_vals[1].lower() in truthy and str_vals[0].lower() not in truthy:
+                return (str_vals[1], str_vals[0])
+            if str_vals[0].lower() in truthy:
+                return (str_vals[0], str_vals[1])
+            # No clear boolean semantics — alphabetical
+            sorted_vals = sorted(str_vals)
             return (sorted_vals[0], sorted_vals[1])
 
         # Default for unknown binary columns

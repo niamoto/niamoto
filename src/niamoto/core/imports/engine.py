@@ -536,6 +536,14 @@ class GenericImporter:
                 path, sep=sep, encoding="utf-8", nrows=nrows, low_memory=False
             )
         except UnicodeDecodeError:
+            # Re-detect delimiter with latin-1 encoding (UTF-8 sniff may have failed)
+            try:
+                with open(path, "r", encoding="latin-1") as f:
+                    sample = f.read(8192)
+                    dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                    sep = dialect.delimiter
+            except Exception:
+                pass
             return pd.read_csv(
                 path, sep=sep, encoding="latin-1", nrows=nrows, low_memory=False
             )

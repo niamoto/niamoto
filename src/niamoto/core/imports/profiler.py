@@ -148,7 +148,7 @@ class DataProfiler:
     IDENTIFIER_PATTERNS = {
         "id": ["id", "identifier", "code"],
         "reference": ["_id", "_code", "_num"],
-        "gbif_id": ["gbifid", "occurrenceid", "catalognumber", "basisofrecord"],
+        "gbif_id": ["gbifid", "occurrenceid", "catalognumber"],
     }
 
     def __init__(self, ml_detector: Optional[MLColumnDetector] = None):

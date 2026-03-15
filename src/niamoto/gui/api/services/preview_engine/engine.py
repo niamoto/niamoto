@@ -683,7 +683,9 @@ class PreviewEngine:
                 )
             else:
                 # Use TransformerService for real pipeline when possible
-                preview_group = self._resolve_preview_group_context(group_by, None, db)
+                preview_group = self._resolve_preview_group_context(
+                    group_by, request.entity_id, db
+                )
                 if preview_group:
                     svc, group_config, gid = preview_group
                     temp_config = self._build_preview_group_config(

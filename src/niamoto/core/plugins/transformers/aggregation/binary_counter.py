@@ -90,7 +90,8 @@ class BinaryCounter(TransformerPlugin):
 
     config_model = BinaryCounterConfig
 
-    # Output structure for pattern matching (generic keys — actual labels are dynamic)
+    # Output structure for SmartMatcher pattern matching.
+    # At runtime, actual keys are derived from params.true_label / params.false_label.
     output_structure = {
         "true_count": "int",
         "false_count": "int",
