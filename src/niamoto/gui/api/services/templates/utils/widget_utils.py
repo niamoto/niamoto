@@ -22,6 +22,10 @@ CLASS_OBJECT_EXTRACTORS = {
     "binary_aggregator",
     "categories_extractor",
     "field_aggregator",
+    "series_ratio_aggregator",
+    "categories_mapper",
+    "series_matrix_extractor",
+    "series_by_axis_extractor",
 }
 
 # Well-known widget names used as fallback when PluginRegistry is not loaded
@@ -32,6 +36,8 @@ _WELL_KNOWN_WIDGETS = {
     "interactive_map",
     "info_grid",
     "hierarchical_nav_widget",
+    "concentric_rings",
+    "stacked_area_plot",
 }
 
 

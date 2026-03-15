@@ -59,6 +59,7 @@ from niamoto.gui.api.services.templates.utils.config_loader import (
     load_import_config,
 )
 from niamoto.gui.api.services.templates.utils.data_loader import (
+    load_class_object_csv_dataframe,
     load_class_object_data_for_preview,
     load_sample_data,
 )
@@ -1447,6 +1448,20 @@ document.addEventListener('DOMContentLoaded', function() {{
             logger.exception("Configured widget preview error: %s", e)
             return self._error_html(str(e))
 
+    # Transformers that ALWAYS need the raw CSV DataFrame.
+    _RAW_DF_TRANSFORMERS = {
+        "class_object_series_ratio_aggregator",
+        "class_object_categories_mapper",
+        "class_object_series_matrix_extractor",
+        "class_object_series_by_axis_extractor",
+    }
+
+    # Widgets that need the real (nested) transformer output instead of
+    # the flat {tops, counts} emulation.
+    _WIDGETS_NEEDING_REAL_PLUGIN = {
+        "concentric_rings",
+    }
+
     def _render_configured_class_object(
         self,
         db: Database | None,
@@ -1459,22 +1474,24 @@ document.addEventListener('DOMContentLoaded', function() {{
         warnings: list[str],
     ) -> str:
         """Render a configured widget based on class_object (CSV)."""
-        class_objects = _extract_class_objects_from_params(transformer_params)
-        if not class_objects:
-            return self._info_html("No class objects configured")
 
-        co_data = {}
-        for co_name in class_objects:
-            data = load_class_object_data_for_preview(self._work_dir, co_name, group_by)
-            if data:
-                co_data[co_name] = data
-
-        if not co_data:
-            return self._info_html(f"Data not found for: {', '.join(class_objects)}")
-
-        result = _execute_configured_transformer(
-            transformer_plugin, transformer_params, co_data, group_by
+        use_real_plugin = (
+            transformer_plugin in self._RAW_DF_TRANSFORMERS
+            or widget_plugin in self._WIDGETS_NEEDING_REAL_PLUGIN
         )
+
+        if use_real_plugin:
+            result = self._transform_with_real_plugin(
+                db, transformer_plugin, transformer_params, group_by
+            )
+        else:
+            result = self._transform_with_emulation(
+                transformer_plugin, transformer_params, group_by
+            )
+
+        if isinstance(result, str):
+            # Error HTML returned by helper
+            return result
         if not result:
             return self._info_html("Transformer returned no data")
 
@@ -1496,6 +1513,28 @@ document.addEventListener('DOMContentLoaded', function() {{
         if widget_params:
             merged_params.update(widget_params)
 
+        # Remap data field names when transformer output (tops/counts) doesn't
+        # match widget expected field names from export.yml.
+        # Widgets reference fields via x_axis/y_axis (bar_plot) or
+        # labels_field/values_field (donut_chart).  The real pipeline stores
+        # {tops, counts} in JSON and the browser JS handles it; the Python
+        # preview renderer needs exact field name matches.
+        if isinstance(result, dict) and "tops" in result and "counts" in result:
+            # bar_plot fields
+            x_field = merged_params.get("x_axis", "tops")
+            y_field = merged_params.get("y_axis", "counts")
+            if x_field != "tops" and x_field not in result:
+                result[x_field] = result["tops"]
+            if y_field != "counts" and y_field not in result:
+                result[y_field] = result["counts"]
+            # donut_chart fields
+            labels_field = merged_params.get("labels_field")
+            values_field = merged_params.get("values_field")
+            if labels_field and labels_field != "tops" and labels_field not in result:
+                result[labels_field] = result["tops"]
+            if values_field and values_field != "counts" and values_field not in result:
+                result[values_field] = result["counts"]
+
         return _render_widget_for_configured(
             db,
             widget_plugin,
@@ -1503,6 +1542,67 @@ document.addEventListener('DOMContentLoaded', function() {{
             transformer_plugin,
             widget_title,
             merged_params,
+        )
+
+    def _transform_with_real_plugin(
+        self,
+        db: Database | None,
+        transformer_plugin: str,
+        transformer_params: dict[str, Any],
+        group_by: str,
+    ) -> dict[str, Any] | str:
+        """Load raw CSV and call the real transformer plugin.
+
+        Returns transformer result dict, or an info/error HTML string.
+        """
+        source_name = transformer_params.get("source")
+        raw_df = load_class_object_csv_dataframe(
+            self._work_dir, group_by, source_name=source_name
+        )
+        if raw_df is None or raw_df.empty:
+            return self._info_html(f"CSV data not found for group '{group_by}'")
+
+        try:
+            plugin_class = PluginRegistry.get_plugin(
+                transformer_plugin, PluginType.TRANSFORMER
+            )
+            plugin_instance = plugin_class(db=db)
+            config = {"plugin": transformer_plugin, "params": transformer_params}
+            return plugin_instance.transform(raw_df, config)
+        except (DataTransformError, DataLoadError) as e:
+            logger.warning(
+                "Real plugin transform failed for %s: %s", transformer_plugin, e
+            )
+            return self._info_html(f"Transform error: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error in real plugin %s", transformer_plugin)
+            return self._error_html(str(e))
+
+    def _transform_with_emulation(
+        self,
+        transformer_plugin: str,
+        transformer_params: dict[str, Any],
+        group_by: str,
+    ) -> dict[str, Any] | str | None:
+        """Use the pre-aggregated {tops, counts} emulation path.
+
+        Returns transformer result dict, info HTML string, or None.
+        """
+        class_objects = _extract_class_objects_from_params(transformer_params)
+        if not class_objects:
+            return self._info_html("No class objects configured")
+
+        co_data = {}
+        for co_name in class_objects:
+            data = load_class_object_data_for_preview(self._work_dir, co_name, group_by)
+            if data:
+                co_data[co_name] = data
+
+        if not co_data:
+            return self._info_html(f"Data not found for: {', '.join(class_objects)}")
+
+        return _execute_configured_transformer(
+            transformer_plugin, transformer_params, co_data, group_by
         )
 
     # ------------------------------------------------------------------
