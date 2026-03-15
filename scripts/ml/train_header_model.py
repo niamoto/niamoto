@@ -80,6 +80,7 @@ def build_pipeline(
                     C=C,
                     max_iter=1000,
                     solver="lbfgs",
+                    class_weight="balanced",
                     random_state=42,
                 ),
             ),
