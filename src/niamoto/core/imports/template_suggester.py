@@ -307,9 +307,16 @@ class TemplateSuggester:
         widgets_data = {}
 
         for suggestion in selected_suggestions:
-            widgets_data[suggestion.template_id] = {
+            entry: Dict[str, Any] = {
                 "plugin": suggestion.plugin,
                 "params": suggestion.config,
             }
+            if suggestion.widget_plugin:
+                entry["export_override"] = {
+                    "plugin": suggestion.widget_plugin,
+                    "title": suggestion.name,
+                    "params": suggestion.widget_config or {},
+                }
+            widgets_data[suggestion.template_id] = entry
 
         return widgets_data

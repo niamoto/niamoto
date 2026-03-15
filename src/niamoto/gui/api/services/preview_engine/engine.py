@@ -918,7 +918,7 @@ class PreviewEngine:
 </style>
 <div class="preview-content">
     <div style="margin-bottom:16px">
-        <input type="text" id="{search_id}" class="search-input" placeholder="Rechercher...">
+        <input type="text" id="{search_id}" class="search-input" placeholder="Search...">
     </div>
     <div id="{container_id}" class="hierarchical-nav-tree" role="tree"></div>
 </div>

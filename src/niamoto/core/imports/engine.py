@@ -679,6 +679,10 @@ class GenericImporter:
             "columns": [
                 {
                     "name": ep.name,
+                    "dtype": ep.dtype,
+                    "semantic_type": ep.semantic_type,
+                    "unique_ratio": ep.unique_ratio,
+                    "confidence": ep.confidence,
                     "data_category": ep.data_category.value,
                     "field_purpose": ep.field_purpose.value,
                     "cardinality": ep.cardinality,

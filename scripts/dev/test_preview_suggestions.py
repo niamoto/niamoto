@@ -60,15 +60,15 @@ def classify_html(html):
     if "plotly-graph-div" in body or "Plotly.newPlot" in body:
         return "OK", "Plotly chart"
 
-    # Check for widget content
-    if "widget" in body.lower() or "<div" in body:
+    # Check for widget content (specific class markers, not bare <div>)
+    if "widget" in body.lower() or 'class="widget' in body or 'id="widget' in body:
         return "OK", "Widget HTML"
 
     # Check for navigation
     if "nav" in body.lower() or "tree" in body.lower():
         return "OK", "Navigation"
 
-    return "OK", "Contenu HTML"
+    return "UNKNOWN", "Unrecognized HTML"
 
 
 def build_inline_body(suggestion, group_by):
@@ -171,6 +171,7 @@ def main():
             "EMPTY": "✗",
             "FAIL": "✗",
             "SKIP": "-",
+            "UNKNOWN": "?",
         }
         post_sym = symbols.get(post_class, "?")
         get_sym = symbols.get(get_class, "?")

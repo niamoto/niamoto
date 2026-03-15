@@ -221,7 +221,7 @@ export function groupSuggestionsByField(
       return {
         field,
         displayName,
-        source: sorted[0].source === 'class_object' ? 'class_object' : 'auto',
+        source: sorted[0].source,
         suggestions: sorted,
         primarySuggestion: sorted[0],
         selectedCount: sorted.filter((s) => selectedIds.has(s.template_id)).length,
