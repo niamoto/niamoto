@@ -96,33 +96,59 @@ class DatasetProfile:
 class DataProfiler:
     """Analyzes datasets to detect structure and semantics."""
 
-    # Simple patterns for Phase 1 - will be enhanced in Phase 2
     TAXONOMY_PATTERNS = {
         "family": ["family", "famille", "fam"],
         "genus": ["genus", "genre", "gen"],
         "species": ["species", "espece", "esp", "sp"],
-        "rank": ["rank", "rang", "rank_name", "level"],
+        "rank": ["rank", "rang", "rank_name", "level", "taxonrank"],
         "scientific_name": [
             "taxaname",
             "scientific_name",
             "nom_scientifique",
             "taxonref",
+            "scientificname",
+            "acceptednameusage",
+            "verbatimscientificname",
         ],
-        "taxon_id": ["id_taxonref", "taxon_id", "id_taxon"],
+        "taxon_id": ["id_taxonref", "taxon_id", "id_taxon", "taxonkey"],
+        "kingdom": ["kingdom"],
+        "phylum": ["phylum"],
+        "class": ["class"],
+        "order": ["order"],
+        "specific_epithet": ["specificepithet"],
     }
 
     SPATIAL_PATTERNS = {
         "geometry": ["geometry", "geom", "shape", "polygon", "geo_pt"],
-        "latitude": ["lat", "latitude", "y", "lat_y"],
-        "longitude": ["lon", "longitude", "long", "x", "lon_x"],
+        "latitude": [
+            "lat",
+            "latitude",
+            "lat_y",
+            "decimallatitude",
+            "verbatimlatitude",
+        ],
+        "longitude": [
+            "lon",
+            "longitude",
+            "long",
+            "lon_x",
+            "decimallongitude",
+            "verbitimlongitude",
+        ],
         "coordinates": ["coordinates", "coords", "xy", "location"],
         "plot": ["plot", "site", "parcelle", "plot_name"],
         "locality": ["locality", "localite", "lieu", "place"],
+        "coordinate_uncertainty": ["coordinateuncertaintyinmeters"],
+    }
+
+    TEMPORAL_PATTERNS = {
+        "date": ["eventdate", "dateidentified", "date", "year"],
     }
 
     IDENTIFIER_PATTERNS = {
         "id": ["id", "identifier", "code"],
         "reference": ["_id", "_code", "_num"],
+        "gbif_id": ["gbifid", "occurrenceid", "catalognumber"],
     }
 
     def __init__(self, ml_detector: Optional[MLColumnDetector] = None):
@@ -143,25 +169,52 @@ class DataProfiler:
             except Exception as e:
                 logger.debug(f"Could not load default ML detector: {e}")
 
+    # Maximum rows to load for profiling (statistical accuracy ±0.5% at 99% confidence)
+    PROFILING_SAMPLE_SIZE = 50_000
+
     def profile(self, file_path: Path) -> DatasetProfile:
-        """Generate complete profile of a dataset."""
-        # Load data
+        """Generate complete profile of a dataset by loading from file.
+
+        For large files, loads only a sample (PROFILING_SAMPLE_SIZE rows).
+        The full row count is preserved as total_count.
+        """
+        # Load data (may be sampled for large files)
         data = self._load_data(file_path)
 
         if data is None:
             raise ValueError(f"Could not load data from {file_path}")
 
+        # total_count = actual rows loaded (no sampling in _load_data for non-CSV)
+        # For the standalone profile() path, total_count = len(data)
+        return self.profile_dataframe(data, file_path)
+
+    def profile_dataframe(
+        self,
+        df: pd.DataFrame,
+        file_path: Path,
+        total_count: Optional[int] = None,
+    ) -> DatasetProfile:
+        """Generate complete profile from an already-loaded DataFrame.
+
+        Avoids redundant file I/O when the DataFrame is already in memory.
+
+        Args:
+            df: DataFrame to profile
+            file_path: Original file path (for name suggestion and metadata)
+            total_count: Actual row count if df is a sample (e.g. from DuckDB COUNT).
+                        If None, uses len(df).
+        """
         # Store file path in data attributes for detection
-        data.attrs["file_path"] = file_path
+        df.attrs["file_path"] = file_path
 
         # Profile columns
         columns = []
-        for col_name in data.columns:
-            col_profile = self._profile_column(data[col_name], col_name)
+        for col_name in df.columns:
+            col_profile = self._profile_column(df[col_name], col_name)
             columns.append(col_profile)
 
         # Detect dataset type based on column profiles
-        dataset_type = self._detect_dataset_type(columns, data)
+        dataset_type = self._detect_dataset_type(columns, df)
 
         # Suggest entity name
         suggested_name = self._suggest_entity_name(file_path, dataset_type)
@@ -174,12 +227,12 @@ class DataProfiler:
 
         # Check for geometry if geopandas
         geometry_type = None
-        if hasattr(data, "geometry"):
-            geometry_type = self._detect_geometry_type(data)
+        if hasattr(df, "geometry"):
+            geometry_type = self._detect_geometry_type(df)
 
         return DatasetProfile(
             file_path=file_path,
-            record_count=len(data),
+            record_count=total_count if total_count is not None else len(df),
             columns=columns,
             detected_type=dataset_type,
             suggested_name=suggested_name,
@@ -189,26 +242,62 @@ class DataProfiler:
         )
 
     def _load_data(self, file_path: Path) -> Optional[pd.DataFrame]:
-        """Load data from various file formats."""
+        """Load data from various file formats.
+
+        Supports CSV, TSV, TXT (with delimiter sniffing), GeoJSON, SHP, GPKG, XLSX.
+        Falls back to latin-1 encoding on UnicodeDecodeError.
+        """
         file_str = str(file_path)
+        suffix = file_path.suffix.lower()
 
         try:
-            if file_path.suffix.lower() == ".csv":
-                return pd.read_csv(file_str, low_memory=False)
-            elif file_path.suffix.lower() in [".geojson", ".json"]:
+            if suffix in (".csv", ".tsv", ".txt"):
+                return self._load_csv_like(file_str, nrows=self.PROFILING_SAMPLE_SIZE)
+            elif suffix in (".geojson", ".json"):
                 if HAS_GEOPANDAS:
                     return gpd.read_file(file_str)
                 else:
                     return pd.read_json(file_str)
-            elif file_path.suffix.lower() in [".shp", ".gpkg"]:
+            elif suffix in (".shp", ".gpkg"):
                 if HAS_GEOPANDAS:
                     return gpd.read_file(file_str)
-            elif file_path.suffix.lower() in [".xlsx", ".xls"]:
+            elif suffix in (".xlsx", ".xls"):
                 return pd.read_excel(file_str)
         except Exception as e:
-            print(f"Error loading {file_path}: {e}")
+            logger.warning(f"Error loading {file_path}: {e}")
 
         return None
+
+    def _load_csv_like(
+        self, file_path: str, nrows: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Load CSV/TSV/TXT with delimiter sniffing and encoding fallback."""
+        import csv as csv_module
+
+        # Sniff delimiter from first 8KB
+        sep = ","
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                sample = f.read(8192)
+                dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                sep = dialect.delimiter
+        except Exception:
+            # If sniffing fails, try tab (common for GBIF), then comma
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    if "\t" in first_line:
+                        sep = "\t"
+            except Exception:
+                pass
+
+        # Try UTF-8 first, fallback to latin-1
+        try:
+            return pd.read_csv(file_path, sep=sep, low_memory=False, nrows=nrows)
+        except UnicodeDecodeError:
+            return pd.read_csv(
+                file_path, sep=sep, low_memory=False, encoding="latin-1", nrows=nrows
+            )
 
     def _profile_column(self, series: pd.Series, col_name: str) -> ColumnProfile:
         """Profile a single column."""
@@ -301,7 +390,18 @@ class DataProfiler:
                     else:
                         return f"location.{spatial_type}", 0.7
 
+        # Check temporal patterns
+        for temporal_type, patterns in self.TEMPORAL_PATTERNS.items():
+            for pattern in patterns:
+                if pattern in col_lower:
+                    return f"temporal.{temporal_type}", 0.7
+
         # Check identifier patterns
+        for id_type, patterns in self.IDENTIFIER_PATTERNS.items():
+            for pattern in patterns:
+                if col_lower == pattern or col_lower.endswith(pattern):
+                    return "identifier", 0.7
+
         if col_lower.startswith("id") or col_lower.endswith("_id"):
             # Check if it's likely a foreign key
             if "taxon" in col_lower or "taxonref" in col_lower:

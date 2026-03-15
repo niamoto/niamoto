@@ -504,15 +504,49 @@ class GenericImporter:
 
     @staticmethod
     def _read_csv(path: Path, nrows: Optional[int] = None) -> pd.DataFrame:
-        """Read CSV/TSV using pandas with fallback separator handling.
+        """Read CSV/TSV using pandas with fallback separator and encoding handling.
+
+        Tries UTF-8 first, falls back to latin-1 on UnicodeDecodeError.
+        Tries comma separator first, falls back to semicolon with decimal comma.
 
         Args:
-            path: Path to CSV file
+            path: Path to CSV/TSV file
             nrows: Optional limit on number of rows to read (for metadata sampling)
         """
+        import csv as csv_module
+
+        # Sniff delimiter from first 8KB
+        sep = ","
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                sample = f.read(8192)
+                dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                sep = dialect.delimiter
+        except Exception:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    if "\t" in first_line:
+                        sep = "\t"
+            except Exception:
+                pass
 
         try:
-            return pd.read_csv(path, encoding="utf-8", nrows=nrows, low_memory=False)
+            return pd.read_csv(
+                path, sep=sep, encoding="utf-8", nrows=nrows, low_memory=False
+            )
+        except UnicodeDecodeError:
+            # Re-detect delimiter with latin-1 encoding (UTF-8 sniff may have failed)
+            try:
+                with open(path, "r", encoding="latin-1") as f:
+                    sample = f.read(8192)
+                    dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                    sep = dialect.delimiter
+            except Exception:
+                pass
+            return pd.read_csv(
+                path, sep=sep, encoding="latin-1", nrows=nrows, low_memory=False
+            )
         except (pd.errors.EmptyDataError, pd.errors.ParserError):
             return pd.read_csv(
                 path,
@@ -593,12 +627,14 @@ class GenericImporter:
 
         logger.info(f"Analyzing dataset '{entity_name}' for transformer suggestions...")
 
-        # 1. Profile with DataProfiler (existing component)
+        # 1. Profile with DataProfiler — reuse already-loaded DataFrame
+        # Pass total_count=len(df) since the full DataFrame is already in memory
         profiler = DataProfiler(ml_detector=None)
-        dataset_profile = profiler.profile(csv_path)
+        dataset_profile = profiler.profile_dataframe(df, csv_path, total_count=len(df))
 
         # 2. Enrich each column with DataAnalyzer
         enriched_profiles = []
+        column_diagnostics = {}
         for col_profile in dataset_profile.columns:
             if col_profile.name in df.columns:
                 try:
@@ -606,10 +642,17 @@ class GenericImporter:
                         col_profile, df[col_profile.name]
                     )
                     enriched_profiles.append(enriched)
+                    column_diagnostics[col_profile.name] = {
+                        "status": "analyzed",
+                    }
                 except Exception as e:
                     logger.warning(
                         f"Failed to enrich profile for column '{col_profile.name}': {e}"
                     )
+                    column_diagnostics[col_profile.name] = {
+                        "status": "error",
+                        "reason": f"enrichment_failed: {e}",
+                    }
                     continue
 
         # 3. Generate transformer suggestions
@@ -617,12 +660,37 @@ class GenericImporter:
             enriched_profiles, entity_name
         )
 
+        # Update diagnostics with suggestion counts
+        for col_name in column_diagnostics:
+            if column_diagnostics[col_name]["status"] == "analyzed":
+                suggestion_count = len(suggestions.get(col_name, []))
+                column_diagnostics[col_name]["suggestions"] = suggestion_count
+
+        # Determine profiling status
+        error_count = sum(
+            1 for d in column_diagnostics.values() if d["status"] == "error"
+        )
+        total_cols = len(column_diagnostics)
+        if error_count == 0:
+            profiling_status = "complete"
+        elif error_count < total_cols:
+            profiling_status = "partial"
+        else:
+            profiling_status = "failed"
+
         # 4. Build semantic profile structure
         semantic_profile = {
+            "schema_version": 2,
+            "profiling_status": profiling_status,
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "column_diagnostics": column_diagnostics,
             "columns": [
                 {
                     "name": ep.name,
+                    "dtype": ep.dtype,
+                    "semantic_type": ep.semantic_type,
+                    "unique_ratio": ep.unique_ratio,
+                    "confidence": ep.confidence,
                     "data_category": ep.data_category.value,
                     "field_purpose": ep.field_purpose.value,
                     "cardinality": ep.cardinality,

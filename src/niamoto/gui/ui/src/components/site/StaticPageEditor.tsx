@@ -248,7 +248,7 @@ export function StaticPageEditor({
                       <div className="flex items-center gap-1 rounded-full bg-primary/10 pl-3 pr-1 py-1 text-sm">
                         <Navigation className="h-3 w-3 text-primary" />
                         <span className="text-primary">{t('navigation.mainMenu')}</span>
-                        {onUpdateNavigation && (
+                        {onUpdateNavigation != null && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -259,7 +259,7 @@ export function StaticPageEditor({
                           </Button>
                         )}
                       </div>
-                    ) : onUpdateNavigation && (
+                    ) : onUpdateNavigation != null && (
                       <Button
                         variant="outline"
                         size="sm"

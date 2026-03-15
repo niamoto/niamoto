@@ -235,7 +235,7 @@ class MultiFieldPatternDetector:
 
         return MultiFieldPattern(
             pattern_type=MultiFieldPatternType.PHENOLOGY,
-            name="Phénologie",
+            name="Phenology",
             description=f"Distribution temporelle de {', '.join(s.name for s in states)} par {temporal.name}",
             fields=[temporal.name] + [s.name for s in states],
             field_roles={
@@ -265,8 +265,8 @@ class MultiFieldPatternDetector:
             },
             widget_plugin="bar_plot",
             widget_params={
-                "title": "Phénologie",
-                "description": f"Distribution temporelle par {temporal.name}",
+                "title": "Phenology",
+                "description": f"Temporal distribution by {temporal.name}",
                 "transform": "monthly_data",
                 "transform_params": {
                     "data_field": "month_data",
@@ -279,9 +279,9 @@ class MultiFieldPatternDetector:
                 "barmode": "group",
                 "orientation": "v",
                 "labels": {
-                    "x_axis": "Mois",
-                    "y_axis": "Fréquence",
-                    "color_field": "État",
+                    "x_axis": "Month",
+                    "y_axis": "Frequency",
+                    "color_field": "State",
                 },
                 "color_discrete_map": color_map,
             },
@@ -314,8 +314,8 @@ class MultiFieldPatternDetector:
 
         return MultiFieldPattern(
             pattern_type=MultiFieldPatternType.ALLOMETRY,
-            name="Relation allométrique",
-            description=f"Relation entre {x_field.name} et {y_field.name}",
+            name="Allometric relationship",
+            description=f"Relationship between {x_field.name} and {y_field.name}",
             fields=[x_field.name, y_field.name],
             field_roles={
                 x_field.name: "x_axis",
@@ -330,8 +330,8 @@ class MultiFieldPatternDetector:
             },
             widget_plugin="scatter_plot",
             widget_params={
-                "title": f"Relation {x_field.name} - {y_field.name}",
-                "description": "Relation allométrique",
+                "title": f"{x_field.name} vs {y_field.name}",
+                "description": "Allometric relationship",
                 "x_axis": x_field.name,
                 "y_axis": y_field.name,
                 "labels": {
@@ -457,8 +457,8 @@ class MultiFieldPatternDetector:
 
         return MultiFieldPattern(
             pattern_type=MultiFieldPatternType.TEMPORAL_SERIES,
-            name="Série temporelle",
-            description=f"Évolution de {', '.join(m.name for m in measurements)} dans le temps",
+            name="Time series",
+            description=f"Evolution of {', '.join(m.name for m in measurements)} over time",
             fields=[temporal.name] + [m.name for m in measurements],
             field_roles={
                 temporal.name: "time_axis",
@@ -473,7 +473,7 @@ class MultiFieldPatternDetector:
             },
             widget_plugin="bar_plot",
             widget_params={
-                "title": "Évolution temporelle",
+                "title": "Temporal evolution",
                 "x_axis": temporal.name,
                 "y_axis": "value",
                 "barmode": "group",
@@ -591,8 +591,8 @@ class MultiFieldPatternDetector:
         if temporal and len(states) >= 2:
             return {
                 "group_name": "phenology",
-                "display_name": "Phénologie",
-                "description": "Ces champs pourraient former un widget de phénologie",
+                "display_name": "Phenology",
+                "description": "These fields could form a phenology widget",
                 "fields": [temporal.name] + [s.name for s in states],
                 "pattern_type": MultiFieldPatternType.PHENOLOGY,
             }

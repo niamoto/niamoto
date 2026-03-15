@@ -37,6 +37,8 @@ interface SelectedTemplate {
   template_id: string
   plugin: string
   config: Record<string, unknown>
+  widget_plugin?: string
+  widget_params?: Record<string, unknown> | null
 }
 
 interface UseGenerateConfigReturn {
@@ -113,7 +115,7 @@ export function useSuggestions(
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['suggestions', groupBy, entity],
     queryFn: ({ signal }) => fetchSuggestions(groupBy, entity, signal),
-    staleTime: 60_000,
+    staleTime: 5_000,
   })
 
   return {

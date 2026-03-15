@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { GripVertical, Plus } from 'lucide-react'
 import {
   ResizableHandle,
@@ -71,6 +72,7 @@ export function ContentTab({ reference }: ContentTabProps) {
   } = useWidgetConfig(reference.name)
 
   // Fetch suggestions for the modal
+  const queryClient = useQueryClient()
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
     'occurrences'
@@ -142,11 +144,12 @@ export function ContentTab({ reference }: ContentTabProps) {
     return await reorderWidgets(widgetIds)
   }, [reorderWidgets])
 
-  // Handle open add modal with specific tab
+  // Handle open add modal with specific tab — invalidate cache to force fresh fetch
   const handleOpenAddModal = useCallback((tab: 'suggestions' | 'combined' | 'custom') => {
     setAddModalTab(tab)
     setAddModalOpen(true)
-  }, [])
+    queryClient.invalidateQueries({ queryKey: ['suggestions', reference.name] })
+  }, [queryClient, reference.name])
 
   // Handle widget added from modal
   const handleWidgetAdded = useCallback(() => {

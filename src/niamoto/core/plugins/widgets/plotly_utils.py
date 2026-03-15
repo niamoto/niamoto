@@ -127,7 +127,7 @@ def get_map_tile_fallback_script(div_id: str) -> str:
                     notice.style.cssText = 'position:absolute;bottom:4px;left:4px;' +
                         'background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;' +
                         'border-radius:3px;font-size:11px;z-index:100;pointer-events:none;';
-                    notice.textContent = 'Fond de carte indisponible hors connexion';
+                    notice.textContent = 'Map tiles unavailable offline';
                     var container = gd.closest('.map-container') || gd.parentElement;
                     if (container) {{
                         container.style.position = 'relative';

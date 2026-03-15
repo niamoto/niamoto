@@ -131,6 +131,12 @@ class ScatterPlotWidget(WidgetPlugin):
 
     param_schema = ScatterPlotParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {"columns": ["x_field", "y_field"]},  # scatter_analysis output
+        {"_type": "dataframe", "columns": ["x_field", "y_field"]},
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
         return get_plotly_dependencies()

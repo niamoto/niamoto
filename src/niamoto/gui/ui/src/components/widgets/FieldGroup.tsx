@@ -11,7 +11,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { WidgetOptionCard } from './WidgetOptionCard'
-import type { FieldGroup as FieldGroupType, TemplateSuggestion } from './types'
+import { SOURCE_INFO, type FieldGroup as FieldGroupType, type TemplateSuggestion } from './types'
 
 interface FieldGroupProps {
   group: FieldGroupType
@@ -99,7 +99,7 @@ export const FieldGroup = memo(function FieldGroup({
                   : 'border-data-source-primary/50 bg-data-source-primary/10 text-data-source-primary'
               )}
             >
-              {group.source === 'class_object' ? 'CSV' : 'Occurrences'}
+              {SOURCE_INFO[group.source]?.label ?? group.source}
             </Badge>
 
           </div>

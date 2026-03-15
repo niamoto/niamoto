@@ -49,6 +49,8 @@ duckdb==1.4.2
     #   duckdb-engine
 duckdb-engine==0.17.0
     # via niamoto (pyproject.toml)
+et-xmlfile==2.0.0
+    # via openpyxl
 fastapi==0.121.2
     # via niamoto (pyproject.toml)
 fiona==1.10.1
@@ -113,6 +115,8 @@ numpy==2.2.3
     #   scipy
     #   shapely
     #   topojson
+openpyxl==3.1.5
+    # via niamoto (pyproject.toml)
 packaging==24.2
     # via
     #   duckdb-engine

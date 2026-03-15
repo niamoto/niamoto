@@ -121,7 +121,9 @@ class FieldAggregator(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
-    def _get_field_from_table(self, table: str, field: str, id_value: int) -> Any:
+    def _get_field_from_table(
+        self, table: str, field: str, id_value: int, id_column: str = "id"
+    ) -> Any:
         """Get a field value from any table.
 
         Support for JSON fields using dot notation: field.json_key
@@ -132,7 +134,7 @@ class FieldAggregator(TransformerPlugin):
             if "." in field:
                 json_field, json_key = field.split(".", 1)
                 query = f"""
-                    SELECT {json_field} FROM {table} WHERE id = :id_value
+                    SELECT {json_field} FROM {table} WHERE {id_column} = :id_value
                 """
                 # Use fetch_one which properly handles connection lifecycle
                 row = self.db.fetch_one(query, {"id_value": id_value})
@@ -160,7 +162,7 @@ class FieldAggregator(TransformerPlugin):
             else:
                 # Regular field access
                 query = f"""
-                    SELECT {field} FROM {table} WHERE id = :id_value
+                    SELECT {field} FROM {table} WHERE {id_column} = :id_value
                 """
                 # Use fetch_one which properly handles connection lifecycle
                 row = self.db.fetch_one(query, {"id_value": id_value})
@@ -174,9 +176,10 @@ class FieldAggregator(TransformerPlugin):
             # Try to resolve the source table name from registry
             entity_info = self.registry.get(source)
             if entity_info:
-                # Source exists in registry, use its table name
+                cfg = getattr(entity_info, "config", None) or {}
+                id_column = cfg.get("schema", {}).get("id_field") or "id"
                 return self._get_field_from_table(
-                    entity_info.table_name, field, id_value
+                    entity_info.table_name, field, id_value, id_column
                 )
 
             # Fallback: try using source as direct table name

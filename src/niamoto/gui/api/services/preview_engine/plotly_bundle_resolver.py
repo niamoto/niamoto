@@ -33,6 +33,11 @@ _BUNDLE_PATHS: dict[BundleTier, str] = {
     "maps": "/api/site/assets/js/vendor/plotly/plotly-niamoto-maps.min.js",
 }
 
+# Extra scripts required alongside map bundles (topojson for client-side conversion).
+_MAP_EXTRA_SCRIPTS: list[str] = [
+    "/api/site/assets/js/vendor/topojson/3.1.0_topojson.js",
+]
+
 
 def resolve_bundle(
     widget_plugin: str | None = None,
@@ -65,13 +70,21 @@ def resolve_bundle(
 
 
 def get_plotly_script_tag(bundle: BundleTier) -> str:
-    """Return the ``<script>`` tag for *bundle*, or ``""`` for ``"none"``."""
+    """Return the ``<script>`` tag(s) for *bundle*, or ``""`` for ``"none"``.
+
+    For the ``"maps"`` bundle this also loads the TopoJSON client library
+    required for client-side TopoJSON → GeoJSON conversion.
+    """
     path = _BUNDLE_PATHS.get(bundle)
     if not path:
         return ""
     # Polyfill `global` — le bundle custom esbuild référence `global`
     # qui n'existe pas dans les navigateurs (seulement Node.js).
-    return (
-        "    <script>var global = globalThis;</script>\n"
-        f'    <script src="{path}"></script>'
-    )
+    parts = [
+        "    <script>var global = globalThis;</script>",
+        f'    <script src="{path}"></script>',
+    ]
+    if bundle == "maps":
+        for extra in _MAP_EXTRA_SCRIPTS:
+            parts.append(f'    <script src="{extra}"></script>')
+    return "\n".join(parts)
