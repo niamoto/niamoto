@@ -158,7 +158,7 @@ def generate_navigation_suggestion(reference_name: str) -> Optional[Dict[str, An
 
         from niamoto.common.database import Database
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             import_config = _load_import_config()
             ref_config = _get_reference_config(reference_name, import_config)
@@ -233,31 +233,29 @@ def generate_navigation_suggestion(reference_name: str) -> Optional[Dict[str, An
         )
 
 
-def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, Any]]:
+def generate_general_info_suggestion(
+    reference_name: str, db: Any = None
+) -> Optional[Dict[str, Any]]:
     """Generate a general_info widget suggestion for a reference.
 
     Dynamically analyzes columns to find the most useful fields for a summary card.
-    Uses heuristics based on column characteristics rather than hardcoded names.
-
-    Selection criteria:
-    - Excludes: IDs, hierarchy fields (lft/rght/level/parent), timestamps
-    - Prioritizes: Low cardinality (categories), non-null values, text fields
-    - Detects: JSON fields in extra_data, occurrence counts
 
     Args:
         reference_name: Name of the reference (e.g., 'taxons', 'plots', 'shapes')
+        db: Optional Database instance to reuse (avoids DuckDB connection conflicts)
 
     Returns:
         Dict in TemplateSuggestion format, or None if no useful fields found
     """
     try:
-        db_path = get_database_path()
-        if not db_path:
-            return None
+        own_db = db is None
+        if own_db:
+            db_path = get_database_path()
+            if not db_path:
+                return None
+            from niamoto.common.database import Database
 
-        from niamoto.common.database import Database
-
-        db = Database(str(db_path))
+            db = Database(str(db_path), read_only=True)
         try:
             import_config = _load_import_config()
             ref_config = _get_reference_config(reference_name, import_config)
@@ -475,6 +473,15 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
             # Generate labels
             ref_label = reference_name.replace("_", " ").title()
 
+            # Build info_grid items from field configs
+            info_items = []
+            for fc in field_configs:
+                label = fc["target"].replace("_", " ").title()
+                item = {"label": label, "source": fc["target"]}
+                if fc.get("transformation") == "count":
+                    item["format"] = "number"
+                info_items.append(item)
+
             return {
                 "template_id": f"general_info_{reference_name}_field_aggregator_info_grid",
                 "name": "Informations générales",
@@ -484,7 +491,7 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
                 "widget_plugin": "info_grid",
                 "category": "info",
                 "icon": "Info",
-                "confidence": 0.85,  # Slightly lower - user should review fields
+                "confidence": 0.85,
                 "source": "auto",
                 "source_name": reference_name,
                 "matched_column": reference_name,
@@ -499,12 +506,13 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
                         "fields": field_configs,
                     },
                 },
-                "widget_config": {},
+                "widget_params": {"items": info_items},
                 "alternatives": [],
             }
 
         finally:
-            db.close_db_session()
+            if own_db:
+                db.close_db_session()
 
     except Exception as e:
         logger.warning(f"Error generating general_info suggestion: {e}")
@@ -537,7 +545,7 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
     if not db_path:
         return suggestions
 
-    db = Database(str(db_path))
+    db = Database(str(db_path), read_only=True)
 
     try:
         import_config = _load_import_config()
@@ -850,11 +858,9 @@ def get_class_object_suggestions(reference_name: str) -> List[Dict[str, Any]]:
 def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]:
     """Generate widget suggestions based on columns in the reference entity table.
 
-    This function analyzes columns in entity_{reference_name} (e.g., entity_plots)
-    and suggests appropriate widgets for numeric, categorical, and boolean fields.
-
-    The source for these suggestions is the reference itself (e.g., 'plots'),
-    allowing widgets to display reference-level data like 'holdridge', 'rainfall'.
+    Analyzes columns in entity_{reference_name} (e.g., entity_plots) via the
+    standard DataProfiler → DataAnalyzer → WidgetGenerator pipeline, ensuring
+    consistent suggestions with the same config format as occurrence-based ones.
 
     Args:
         reference_name: Name of the reference (e.g., 'plots', 'shapes')
@@ -862,15 +868,19 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
     Returns:
         List of widget suggestions in dict format
     """
-    from niamoto.common.database import Database
+    from pathlib import Path
 
-    suggestions = []
+    from niamoto.common.database import Database
+    from niamoto.core.imports.data_analyzer import DataAnalyzer
+    from niamoto.core.imports.profiler import DataProfiler
+    from niamoto.core.imports.template_suggester import TemplateSuggester
+    from niamoto.core.imports.widget_generator import WidgetGenerator
 
     db_path = get_database_path()
     if not db_path:
-        return suggestions
+        return []
 
-    db = Database(str(db_path))
+    db = Database(str(db_path), read_only=True)
 
     try:
         registry = _get_entity_registry(db)
@@ -878,86 +888,83 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
             db, reference_name, registry=registry, kind="reference"
         )
         if not entity_table:
-            return suggestions
+            return []
 
         quoted_entity_table = quote_identifier(db, entity_table)
-        # Get sample data to analyze column types
         sample_df = pd.read_sql(
             text(f"SELECT * FROM {quoted_entity_table} LIMIT 100"),
             db.engine,
         )
 
         if sample_df.empty:
-            return suggestions
+            return []
 
-        # Columns to exclude from suggestions
-        excluded_patterns = [
-            "id",
-            "lft",
-            "rght",
-            "level",
-            "parent_id",
-            "location",
-            "geo_pt",
-            "extra_data",
-            "geometry",
-            "created",
-            "updated",
+        # Use standard pipeline: profile → enrich → generate
+        profiler = DataProfiler()
+        dataset_profile = profiler.profile_dataframe(sample_df, Path(entity_table))
+
+        analyzer = DataAnalyzer()
+        enriched_profiles = []
+        for col_profile in dataset_profile.columns:
+            # Skip technical columns
+            col_lower = col_profile.name.lower()
+            skip_exact = {
+                "id",
+                "lft",
+                "rght",
+                "level",
+                "parent_id",
+                "location",
+                "geo_pt",
+                "extra_data",
+                "geometry",
+            }
+            if col_lower in skip_exact:
+                continue
+            if col_lower.endswith(("_id", "_geom", "_ref", "_key")):
+                continue
+            if col_lower.startswith("id_"):
+                continue
+            # Substring filtering for technical columns (created_at, geometry_wkt, etc.)
+            skip_substrings = ("created", "updated", "geometry", "geom", "_wkt")
+            if any(sub in col_lower for sub in skip_substrings):
+                continue
+            # Skip columns with too many nulls
+            if col_profile.null_count is not None and col_profile.total_count:
+                null_ratio = col_profile.null_count / col_profile.total_count
+                if null_ratio > 0.9:
+                    continue
+
+            if col_profile.name in sample_df.columns:
+                enriched = analyzer.enrich_profile(
+                    col_profile, sample_df[col_profile.name]
+                )
+                enriched_profiles.append(enriched)
+
+        if not enriched_profiles:
+            return []
+
+        # Generate suggestions via WidgetGenerator (same as occurrence-based)
+        generator = WidgetGenerator()
+        widget_suggestions = generator.generate_for_columns(
+            enriched_profiles, source_table=reference_name
+        )
+
+        # Convert to TemplateSuggestion format via TemplateSuggester
+        suggester = TemplateSuggester()
+        template_suggestions = [
+            suggester._convert_widget_suggestion(ws) for ws in widget_suggestions
         ]
 
-        # Analyze each column
-        for col in sample_df.columns:
-            # Skip excluded columns
-            if any(ex in col.lower() for ex in excluded_patterns):
-                continue
+        # Mark as reference source and convert to dicts
+        result = []
+        for ts in template_suggestions:
+            d = ts.to_dict()
+            d["source"] = "reference"
+            d["source_name"] = reference_name
+            result.append(d)
 
-            col_data = sample_df[col].dropna()
-            if col_data.empty:
-                continue
-
-            # Determine column type and generate appropriate suggestions
-            dtype = sample_df[col].dtype
-            unique_count = col_data.nunique()
-            null_ratio = sample_df[col].isna().sum() / len(sample_df)
-
-            # Skip columns with too many nulls
-            if null_ratio > 0.9:
-                continue
-
-            # Determine data category
-            if pd.api.types.is_numeric_dtype(dtype):
-                if unique_count == 2:
-                    # Boolean-like (0/1 or similar)
-                    category = "boolean"
-                elif pd.api.types.is_float_dtype(dtype) or unique_count > 10:
-                    # Continuous numeric
-                    category = "numeric_continuous"
-                else:
-                    # Discrete numeric (few unique values)
-                    category = "numeric_discrete"
-            elif pd.api.types.is_bool_dtype(dtype):
-                category = "boolean"
-            else:
-                # String/categorical
-                if unique_count <= 20:
-                    category = "categorical"
-                else:
-                    category = "categorical_high_card"
-
-            # Generate suggestions based on category
-            col_suggestions = _generate_suggestions_for_column(
-                col_name=col,
-                category=category,
-                reference_name=reference_name,
-                unique_count=unique_count,
-                null_ratio=null_ratio,
-                sample_values=col_data.head(10).tolist()
-                if category in ("categorical", "boolean")
-                else None,
-            )
-            suggestions.extend(col_suggestions)
-
-        return suggestions
+        return result
 
     except Exception as e:
         logger.warning(
@@ -966,334 +973,3 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
         return []
     finally:
         db.close_db_session()
-
-
-def _generate_suggestions_for_column(
-    col_name: str,
-    category: str,
-    reference_name: str,
-    unique_count: int,
-    null_ratio: float,
-    sample_values: Optional[List] = None,
-) -> List[Dict[str, Any]]:
-    """Generate widget suggestions for a single column based on its data category.
-
-    The output format matches TemplateSuggestionResponse model:
-    - template_id, name, description, plugin, category, icon
-    - confidence, source, source_name, is_recommended
-    - config (contains transformer and widget configs)
-
-    Args:
-        col_name: Column name
-        category: Data category (numeric_continuous, categorical, boolean, etc.)
-        reference_name: Reference name for source
-        unique_count: Number of unique values
-        null_ratio: Ratio of null values
-        sample_values: Sample values for categorical columns
-
-    Returns:
-        List of suggestion dicts matching TemplateSuggestionResponse
-    """
-    suggestions = []
-    base_confidence = 0.70 - (null_ratio * 0.2)  # Penalize high null ratio
-
-    # Format column name for display
-    display_name = col_name.replace("_", " ").title()
-
-    # Icon mapping for widget types
-    icons = {
-        "gauge": "Activity",
-        "chart": "BarChart3",
-        "donut": "PieChart",
-        "map": "Map",
-    }
-
-    if category == "numeric_continuous":
-        # Statistical summary (radial gauge)
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_statistical_summary_radial_gauge",
-                "name": f"{display_name} - Statistics",
-                "description": f"Statistical summary of {display_name} (mean, min, max)",
-                "plugin": "statistical_summary",
-                "category": "gauge",
-                "icon": icons["gauge"],
-                "confidence": base_confidence,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": "Numeric continuous field suitable for statistical summary",
-                "is_recommended": True,
-                "config": {
-                    "transformer": {
-                        "plugin": "statistical_summary",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "stats": ["max", "mean", "min"],
-                        },
-                    },
-                    "widget": {
-                        "plugin": "radial_gauge",
-                        "params": {
-                            "stat_to_display": "mean",
-                            "show_range": True,
-                            "auto_range": True,
-                        },
-                    },
-                },
-                "alternatives": [f"{col_name}_binned_distribution_bar_plot"],
-            }
-        )
-
-        # Binned distribution (bar plot)
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_binned_distribution_bar_plot",
-                "name": f"{display_name} - Distribution",
-                "description": f"Distribution of {display_name} values",
-                "plugin": "binned_distribution",
-                "category": "chart",
-                "icon": icons["chart"],
-                "confidence": base_confidence - 0.05,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": "Numeric field suitable for histogram",
-                "is_recommended": False,
-                "config": {
-                    "transformer": {
-                        "plugin": "binned_distribution",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "bins": "auto",
-                            "include_percentages": True,
-                        },
-                    },
-                    "widget": {
-                        "plugin": "bar_plot",
-                        "params": {
-                            "orientation": "v",
-                            "x_axis": "labels",
-                            "y_axis": "counts",
-                            "gradient_color": "#10b981",
-                            "gradient_mode": "luminance",
-                            "show_legend": False,
-                        },
-                    },
-                },
-                "alternatives": [f"{col_name}_statistical_summary_radial_gauge"],
-            }
-        )
-
-    elif category == "numeric_discrete":
-        # For discrete numeric with few values, treat as categorical
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_categorical_distribution_bar_plot",
-                "name": f"{display_name} - Distribution",
-                "description": f"Distribution of {display_name} categories",
-                "plugin": "categorical_distribution",
-                "category": "chart",
-                "icon": icons["chart"],
-                "confidence": base_confidence,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": f"Discrete numeric field with {unique_count} unique values",
-                "is_recommended": True,
-                "config": {
-                    "transformer": {
-                        "plugin": "categorical_distribution",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "include_percentages": True,
-                        },
-                    },
-                    "widget": {
-                        "plugin": "bar_plot",
-                        "params": {
-                            "orientation": "v",
-                            "x_axis": "labels",
-                            "y_axis": "counts",
-                            "gradient_color": "#10b981",
-                            "gradient_mode": "luminance",
-                            "show_legend": False,
-                        },
-                    },
-                },
-                "alternatives": [],
-            }
-        )
-
-    elif category == "categorical":
-        # Categorical distribution
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_categorical_distribution_bar_plot",
-                "name": f"{display_name} - Distribution",
-                "description": f"Distribution of {display_name} categories",
-                "plugin": "categorical_distribution",
-                "category": "chart",
-                "icon": icons["chart"],
-                "confidence": base_confidence,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": f"Categorical field with {unique_count} categories",
-                "is_recommended": True,
-                "config": {
-                    "transformer": {
-                        "plugin": "categorical_distribution",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "categories": sample_values[:10] if sample_values else None,
-                            "include_percentages": True,
-                        },
-                    },
-                    "widget": {
-                        "plugin": "bar_plot",
-                        "params": {
-                            "orientation": "h" if unique_count > 5 else "v",
-                            "x_axis": "counts" if unique_count > 5 else "labels",
-                            "y_axis": "labels" if unique_count > 5 else "counts",
-                            "auto_color": True,
-                        },
-                    },
-                },
-                "alternatives": [f"{col_name}_categorical_distribution_donut_chart"]
-                if unique_count <= 6
-                else [],
-            }
-        )
-
-        # Donut chart alternative for small cardinality
-        if unique_count <= 6:
-            suggestions.append(
-                {
-                    "template_id": f"{col_name}_categorical_distribution_donut_chart",
-                    "name": f"{display_name} - Donut",
-                    "description": f"Proportions of {display_name}",
-                    "plugin": "categorical_distribution",
-                    "category": "donut",
-                    "icon": icons["donut"],
-                    "confidence": base_confidence - 0.05,
-                    "source": "reference",
-                    "source_name": reference_name,
-                    "matched_column": col_name,
-                    "match_reason": f"Low cardinality ({unique_count}) suitable for donut chart",
-                    "is_recommended": False,
-                    "config": {
-                        "transformer": {
-                            "plugin": "categorical_distribution",
-                            "params": {
-                                "source": reference_name,
-                                "field": col_name,
-                                "include_percentages": True,
-                            },
-                        },
-                        "widget": {
-                            "plugin": "donut_chart",
-                            "params": {
-                                "labels_field": "labels",
-                                "values_field": "counts",
-                            },
-                        },
-                    },
-                    "alternatives": [f"{col_name}_categorical_distribution_bar_plot"],
-                }
-            )
-
-    elif category == "categorical_high_card":
-        # Top ranking for high cardinality
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_top_ranking_bar_plot",
-                "name": f"Top 10 - {display_name}",
-                "description": f"Top 10 most frequent {display_name}",
-                "plugin": "top_ranking",
-                "category": "chart",
-                "icon": icons["chart"],
-                "confidence": base_confidence,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": f"High cardinality ({unique_count}) - showing top 10",
-                "is_recommended": True,
-                "config": {
-                    "transformer": {
-                        "plugin": "top_ranking",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "count": 10,
-                            "mode": "direct",
-                        },
-                    },
-                    "widget": {
-                        "plugin": "bar_plot",
-                        "params": {
-                            "orientation": "h",
-                            "x_axis": "counts",
-                            "y_axis": "tops",
-                            "sort_order": "ascending",
-                            "auto_color": True,
-                        },
-                    },
-                },
-                "alternatives": [],
-            }
-        )
-
-    elif category == "boolean":
-        # Binary counter (donut)
-        true_label = "Yes"
-        false_label = "No"
-
-        # Try to infer labels from column name
-        if "in_" in col_name.lower() or col_name.lower().startswith("is_"):
-            name_part = col_name.replace("in_", "").replace("is_", "").upper()
-            true_label = name_part
-            false_label = f"Non-{name_part}"
-
-        suggestions.append(
-            {
-                "template_id": f"{col_name}_binary_counter_donut_chart",
-                "name": f"{display_name}",
-                "description": f"Distribution of {display_name}",
-                "plugin": "binary_counter",
-                "category": "donut",
-                "icon": icons["donut"],
-                "confidence": base_confidence,
-                "source": "reference",
-                "source_name": reference_name,
-                "matched_column": col_name,
-                "match_reason": "Boolean field suitable for binary distribution",
-                "is_recommended": True,
-                "config": {
-                    "transformer": {
-                        "plugin": "binary_counter",
-                        "params": {
-                            "source": reference_name,
-                            "field": col_name,
-                            "true_label": true_label,
-                            "false_label": false_label,
-                            "include_percentages": True,
-                        },
-                    },
-                    "widget": {
-                        "plugin": "donut_chart",
-                        "params": {
-                            "labels_field": "labels",
-                            "values_field": "counts",
-                        },
-                    },
-                },
-                "alternatives": [],
-            }
-        )
-
-    return suggestions

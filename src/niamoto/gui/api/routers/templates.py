@@ -152,7 +152,7 @@ async def get_reference_suggestions(
             from niamoto.core.imports.registry import EntityRegistry, EntityKind
             from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
 
-            db = Database(str(db_path))
+            db = Database(str(db_path), read_only=True)
             try:
                 registry = EntityRegistry(db)
 
@@ -316,6 +316,16 @@ async def generate_transform_config(request: GenerateConfigRequest):
             "plugin": template.plugin,
             "params": params,
         }
+
+        # Use explicit widget_plugin/widget_params from suggestion if available,
+        # otherwise fall back to export_override from combined config structure
+        if not export_override and template.widget_plugin:
+            export_override = {
+                "plugin": template.widget_plugin,
+                "title": cfg.get("title") if isinstance(cfg, dict) else None,
+                "params": template.widget_params,
+            }
+
         if export_override:
             widget_data["export_override"] = export_override
 

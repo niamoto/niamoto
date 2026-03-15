@@ -277,7 +277,7 @@ class TestScatterPlotActivation:
             suggested_bins=None,
             suggested_labels=None,
         )
-        config = gen._generate_widget_config(
+        config = gen._generate_widget_params(
             profile, "scatter_analysis", "scatter_plot"
         )
         assert config, "scatter_analysis→scatter_plot should produce config"

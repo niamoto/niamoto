@@ -19,16 +19,18 @@ export interface TemplateSuggestion {
   template_id: string
   name: string
   description: string
-  plugin: string
+  plugin: string  // transformer plugin
+  widget_plugin?: string  // widget plugin (enables inline preview)
   category: WidgetCategory
   icon: string
   confidence: number
-  source: 'auto' | 'template' | 'generic' | 'class_object'
+  source: 'auto' | 'template' | 'generic' | 'class_object' | 'entity' | 'reference'
   source_name: string  // Actual source dataset name (from import.yml)
   matched_column: string | null
   match_reason: string | null
   is_recommended: boolean
-  config: Record<string, unknown>
+  config: Record<string, unknown>  // transformer params
+  widget_params?: Record<string, unknown>  // widget params (x_axis, y_axis, etc.)
   alternatives: string[]  // Alternative template IDs
 }
 
@@ -73,6 +75,8 @@ export const SOURCE_INFO: Record<string, { label: string; description: string }>
   template: { label: 'Template', description: 'Recommended business template' },
   generic: { label: 'Generic', description: 'Suggestion based on data type' },
   class_object: { label: 'Pre-computed CSV', description: 'Pre-computed imported data' },
+  entity: { label: 'Entity', description: 'Entity-level data from reference table' },
+  reference: { label: 'Reference', description: 'Reference table field analysis' },
 }
 
 // Plugin descriptions for user-friendly display
@@ -177,7 +181,7 @@ export function getPluginDescription(plugin: string): string {
 export interface FieldGroup {
   field: string
   displayName: string
-  source: 'auto' | 'class_object'
+  source: TemplateSuggestion['source']
   suggestions: TemplateSuggestion[]
   primarySuggestion: TemplateSuggestion
   selectedCount: number

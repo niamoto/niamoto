@@ -105,6 +105,12 @@ interface WidgetPreviewProps {
   className?: string
   width?: number
   height?: number
+  // When provided, uses inline POST preview (same pipeline as configured widgets)
+  transformerPlugin?: string
+  transformerConfig?: Record<string, unknown>
+  widgetPlugin?: string
+  widgetParams?: Record<string, unknown> | null
+  widgetTitle?: string
 }
 
 
@@ -116,6 +122,45 @@ function isHeavyMapSuggestion(
   return category === 'map' && plugin === 'entity_map_extractor' && templateId.endsWith('_all_map')
 }
 
+/**
+ * Build a PreviewDescriptor from inline plugin config or template_id fallback.
+ * Shared by WidgetPreview, LargePreview, and CombinedPreview.
+ */
+function buildInlineDescriptor(opts: {
+  mode: PreviewDescriptor['mode']
+  groupBy?: string
+  templateId?: string
+  source?: string
+  transformerPlugin?: string
+  transformerConfig?: Record<string, unknown>
+  widgetPlugin?: string
+  widgetParams?: Record<string, unknown> | null
+  widgetTitle?: string
+}): PreviewDescriptor {
+  const { mode, groupBy, templateId, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle } = opts
+  // Use inline POST when we have the full config (avoids config reconstruction on server)
+  if (transformerPlugin && transformerConfig && widgetPlugin) {
+    return {
+      groupBy,
+      mode,
+      inline: {
+        transformer_plugin: transformerPlugin,
+        transformer_params: transformerConfig,
+        widget_plugin: widgetPlugin,
+        widget_params: widgetParams ?? null,
+        widget_title: widgetTitle || templateId || '',
+      },
+    }
+  }
+  // Fallback to GET by template_id (navigation, general_info, entity_map, etc.)
+  return {
+    templateId,
+    groupBy,
+    source: source && source !== 'occurrences' ? source : undefined,
+    mode,
+  }
+}
+
 const WidgetPreview = memo(function WidgetPreview({
   templateId,
   groupBy,
@@ -124,13 +169,15 @@ const WidgetPreview = memo(function WidgetPreview({
   className,
   width = 200,
   height = 96,
+  transformerPlugin,
+  transformerConfig,
+  widgetPlugin,
+  widgetParams,
+  widgetTitle,
 }: WidgetPreviewProps) {
-  const descriptor: PreviewDescriptor = useMemo(() => ({
-    templateId,
-    groupBy,
-    source: source && source !== 'occurrences' ? source : undefined,
-    mode: 'thumbnail' as const,
-  }), [templateId, groupBy, source])
+  const descriptor: PreviewDescriptor = useMemo(() =>
+    buildInlineDescriptor({ mode: 'thumbnail', groupBy, templateId, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle }),
+  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetTitle])
 
   return (
     <div
@@ -154,6 +201,11 @@ interface LargePreviewProps {
   groupBy?: string
   source?: string
   disablePreview?: boolean
+  transformerPlugin?: string
+  transformerConfig?: Record<string, unknown>
+  widgetPlugin?: string
+  widgetParams?: Record<string, unknown> | null
+  widgetTitle?: string
 }
 
 // Large preview dimensions
@@ -165,15 +217,17 @@ function LargePreview({
   groupBy,
   source,
   disablePreview = false,
+  transformerPlugin,
+  transformerConfig,
+  widgetPlugin,
+  widgetParams,
+  widgetTitle,
 }: LargePreviewProps) {
   const queryClient = useQueryClient()
 
-  const descriptor: PreviewDescriptor = useMemo(() => ({
-    templateId,
-    groupBy,
-    source: source && source !== 'occurrences' ? source : undefined,
-    mode: 'full' as const,
-  }), [templateId, groupBy, source])
+  const descriptor: PreviewDescriptor = useMemo(() =>
+    buildInlineDescriptor({ mode: 'full', groupBy, templateId, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle }),
+  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetTitle])
 
   const handleRefresh = useCallback(() => {
     invalidateAllPreviews(queryClient)
@@ -224,19 +278,17 @@ function CombinedPreview({ suggestion, groupBy }: CombinedPreviewProps) {
   const queryClient = useQueryClient()
 
   const descriptor: PreviewDescriptor = useMemo(() => {
-    const transformerConfig = suggestion.transformer_config as Record<string, unknown>
-    const widgetConfig = suggestion.widget_config as Record<string, unknown>
-    return {
+    const tConfig = suggestion.transformer_config as Record<string, unknown>
+    const wConfig = suggestion.widget_config as Record<string, unknown>
+    return buildInlineDescriptor({
+      mode: 'full',
       groupBy,
-      mode: 'full' as const,
-      inline: {
-        transformer_plugin: transformerConfig.plugin as string,
-        transformer_params: (transformerConfig.params ?? {}) as Record<string, unknown>,
-        widget_plugin: widgetConfig.plugin as string,
-        widget_params: (widgetConfig.params ?? null) as Record<string, unknown> | null,
-        widget_title: suggestion.name,
-      },
-    }
+      transformerPlugin: tConfig.plugin as string,
+      transformerConfig: (tConfig.params ?? {}) as Record<string, unknown>,
+      widgetPlugin: wConfig.plugin as string,
+      widgetParams: (wConfig.params ?? null) as Record<string, unknown> | null,
+      widgetTitle: suggestion.name,
+    })
   }, [suggestion, groupBy])
 
   const handleRefresh = useCallback(() => {
@@ -774,12 +826,16 @@ export function AddWidgetModal({
             ...processedFields,
             title: title || suggestion.name,
           },
+          widget_plugin: suggestion.widget_plugin,
+          widget_params: suggestion.widget_params,
         }
       })
       .filter(Boolean) as Array<{
       template_id: string
       plugin: string
       config: Record<string, unknown>
+      widget_plugin?: string
+      widget_params?: Record<string, unknown>
     }>
 
     const result = await generateConfig(templates, reference.name, reference.kind)
@@ -1110,6 +1166,11 @@ export function AddWidgetModal({
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
                                               source={suggestion.source_name}
+                                              transformerPlugin={suggestion.widget_plugin ? suggestion.plugin : undefined}
+                                              transformerConfig={suggestion.widget_plugin ? suggestion.config as Record<string, unknown> : undefined}
+                                              widgetPlugin={suggestion.widget_plugin}
+                                              widgetParams={suggestion.widget_params}
+                                              widgetTitle={suggestion.name}
                                               disablePreview={isHeavyMapSuggestion(
                                                 suggestion.template_id,
                                                 suggestion.plugin,
@@ -1207,6 +1268,11 @@ export function AddWidgetModal({
                           templateId={previewSuggestion.template_id}
                           groupBy={reference.name}
                           source={previewSuggestion.source_name}
+                          transformerPlugin={previewSuggestion.widget_plugin ? previewSuggestion.plugin : undefined}
+                          transformerConfig={previewSuggestion.widget_plugin ? previewSuggestion.config as Record<string, unknown> : undefined}
+                          widgetPlugin={previewSuggestion.widget_plugin}
+                          widgetParams={previewSuggestion.widget_params}
+                          widgetTitle={previewSuggestion.name}
                           disablePreview={isHeavyMapPreview}
                         />
 

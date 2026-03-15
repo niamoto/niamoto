@@ -9,7 +9,7 @@ full PreviewService class.
 import html
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import pandas as pd
 
@@ -130,6 +130,63 @@ def wrap_html_response(
 # ---------------------------------------------------------------------------
 
 
+def _adapt_bins_to_donut(data: dict[str, Any]) -> dict[str, Any]:
+    """Convert binned_distribution output to donut_chart format."""
+    bins = data.get("bins", [])
+    counts = data.get("counts", [])
+    if len(bins) == len(counts) + 1:
+        labels = [f"{int(bins[i])}-{int(bins[i + 1])}" for i in range(len(counts))]
+        result: dict[str, Any] = {"labels": labels, "counts": counts}
+        percentages = data.get("percentages", [])
+        if percentages and len(percentages) == len(labels):
+            result["percentages"] = percentages
+        return result
+    return data
+
+
+def _adapt_aggregator_to_gauge(data: dict[str, Any]) -> dict[str, Any]:
+    """Flatten field_aggregator output for radial_gauge."""
+    if "value" in data:
+        return data
+
+    # Try counts list first (class_object scalars)
+    counts = data.get("counts")
+    if isinstance(counts, list) and counts:
+        return {"value": counts[0]}
+
+    # Scan nested field payloads
+    scalar_value: Any = None
+    scalar_unit: str | None = None
+    for field_payload in data.values():
+        if not isinstance(field_payload, dict):
+            continue
+        candidate = field_payload.get("value")
+        if candidate is None:
+            continue
+        scalar_value = candidate
+        units = field_payload.get("units") or field_payload.get("unit")
+        if isinstance(units, str) and units:
+            scalar_unit = units
+        break
+
+    if scalar_value is not None:
+        flattened: dict[str, Any] = {"value": scalar_value}
+        if scalar_unit:
+            flattened["unit"] = scalar_unit
+        return flattened
+
+    return data
+
+
+_PREPROCESSING_ADAPTERS: dict[
+    tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]
+] = {
+    ("binned_distribution", "donut_chart"): _adapt_bins_to_donut,
+    ("field_aggregator", "radial_gauge"): _adapt_aggregator_to_gauge,
+    ("class_object_field_aggregator", "radial_gauge"): _adapt_aggregator_to_gauge,
+}
+
+
 def preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any:
     """Adapt transformer output to the format expected by a widget.
 
@@ -139,68 +196,8 @@ def preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any:
     if not isinstance(data, dict):
         return data
 
-    # binned_distribution → donut_chart: convert bin edges to labels
-    if transformer == "binned_distribution" and widget == "donut_chart":
-        bins = data.get("bins", [])
-        counts = data.get("counts", [])
-        if len(bins) == len(counts) + 1:
-            labels = [f"{int(bins[i])}-{int(bins[i + 1])}" for i in range(len(counts))]
-            result: dict[str, Any] = {"labels": labels, "counts": counts}
-            percentages = data.get("percentages", [])
-            if percentages and len(percentages) == len(labels):
-                result["percentages"] = percentages
-            return result
-
-    # statistical_summary → radial_gauge: extract the stat to display as value.
-    # statistical_summary returns {min, mean, max, units, max_value}.
-    # radial_gauge needs {value, unit, max_value, min, max}.
-    if transformer == "statistical_summary" and widget == "radial_gauge":
-        stat = data.get("mean", data.get("max"))
-        if stat is not None:
-            return {
-                "value": stat,
-                "unit": data.get("units", ""),
-                "max_value": data.get("max_value", data.get("max")),
-                "min": data.get("min"),
-                "max": data.get("max"),
-            }
-
-    # field_aggregator / class_object_field_aggregator → radial_gauge:
-    # flatten nested payload to a simple {value, unit} dict.
-    if (
-        transformer in ("field_aggregator", "class_object_field_aggregator")
-        and widget == "radial_gauge"
-    ):
-        if "value" in data:
-            return data
-
-        # Try counts list first (class_object scalars)
-        counts = data.get("counts")
-        if isinstance(counts, list) and counts:
-            return {"value": counts[0]}
-
-        # Scan nested field payloads
-        scalar_value: Any = None
-        scalar_unit: str | None = None
-        for field_payload in data.values():
-            if not isinstance(field_payload, dict):
-                continue
-            candidate = field_payload.get("value")
-            if candidate is None:
-                continue
-            scalar_value = candidate
-            units = field_payload.get("units") or field_payload.get("unit")
-            if isinstance(units, str) and units:
-                scalar_unit = units
-            break
-
-        if scalar_value is not None:
-            flattened: dict[str, Any] = {"value": scalar_value}
-            if scalar_unit:
-                flattened["unit"] = scalar_unit
-            return flattened
-
-    return data
+    adapter = _PREPROCESSING_ADAPTERS.get((transformer, widget))
+    return adapter(data) if adapter else data
 
 
 # ---------------------------------------------------------------------------

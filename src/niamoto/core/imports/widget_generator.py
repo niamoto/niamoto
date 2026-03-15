@@ -47,21 +47,11 @@ class WidgetSuggestion:
     column: str  # Source column name
     confidence: float
     transformer_config: Dict[str, Any]  # Config for transformer
-    widget_config: Dict[str, Any]  # Config for widget
+    widget_params: Dict[str, Any]  # Params for widget rendering (x_axis, y_axis, etc.)
     source_name: str  # Source dataset name (from import.yml)
     is_primary: bool = True  # Primary suggestion for this column
     alternatives: List[str] = field(default_factory=list)  # Alternative widget IDs
     match_score: float = 1.0  # SmartMatcher compatibility score
-
-    @property
-    def plugin(self) -> str:
-        """Backward compatibility: returns transformer plugin."""
-        return self.transformer_plugin
-
-    @property
-    def config(self) -> Dict[str, Any]:
-        """Backward compatibility: returns transformer config."""
-        return self.transformer_config
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to API response format."""
@@ -80,7 +70,7 @@ class WidgetSuggestion:
             "match_reason": f"Colonne '{self.column}' de type {self.widget_type}",
             "is_recommended": self.is_primary,
             "transformer_config": self.transformer_config,
-            "widget_config": self.widget_config,
+            "widget_params": self.widget_params,
             "config": self.transformer_config,  # backward compat
             "alternatives": self.alternatives,
             "match_score": self.match_score,
@@ -113,7 +103,7 @@ class WidgetGenerator:
         DataCategory.NUMERIC_DISCRETE: ["binned_distribution", "statistical_summary"],
         # Both categorical types get both transformers - user can choose
         DataCategory.CATEGORICAL: ["categorical_distribution", "top_ranking"],
-        DataCategory.CATEGORICAL_HIGH_CARD: ["top_ranking", "categorical_distribution"],
+        DataCategory.CATEGORICAL_HIGH_CARD: ["top_ranking"],
         DataCategory.BOOLEAN: ["binary_counter"],
         DataCategory.GEOGRAPHIC: ["geospatial_extractor"],
         DataCategory.TEMPORAL: ["time_series_analysis"],
@@ -148,6 +138,46 @@ class WidgetGenerator:
 
     # Default fallback for unknown widgets
     DEFAULT_WIDGET_INFO = {"type": "chart", "category": "chart", "icon": "BarChart3"}
+
+    # Declarative widget config map: (transformer_name, widget_name) → config dict.
+    # Maps transformer output fields to widget input fields.
+    WIDGET_CONFIG_MAP: Dict[Tuple[str, str], Dict[str, Any]] = {
+        ("binned_distribution", "bar_plot"): {
+            "x_axis": "bin",
+            "y_axis": "count",
+            "field_mapping": {"bins": "bin", "counts": "count"},
+            "transform": "bins_to_df",
+        },
+        ("categorical_distribution", "bar_plot"): {
+            "x_axis": "category_label",
+            "y_axis": "value",
+            "transform": "category_with_labels",
+        },
+        ("statistical_summary", "radial_gauge"): {
+            "value_field": "mean",
+            "max_field": "max_value",
+        },
+        ("binary_counter", "donut_chart"): {
+            "labels_field": "labels",
+            "values_field": "counts",
+        },
+        ("binned_distribution", "donut_chart"): {
+            "labels_field": "labels",
+            "values_field": "counts",
+        },
+        ("categorical_distribution", "donut_chart"): {
+            "labels_field": "labels",
+            "values_field": "counts",
+        },
+        ("geospatial_extractor", "interactive_map"): {
+            "geojson_field": "features",
+        },
+        ("top_ranking", "bar_plot"): {
+            "x_axis": "counts",
+            "y_axis": "tops",
+            "orientation": "h",
+        },
+    }
 
     def __init__(self):
         """Initialize the widget generator with SmartMatcher."""
@@ -204,13 +234,23 @@ class WidgetGenerator:
         if profile.data_category is None:
             return []
 
+        # Reclassify high-cardinality categoricals: categorical_distribution
+        # and donut_chart are useless when there are too many distinct values.
+        effective_category = profile.data_category
+        if (
+            effective_category == DataCategory.CATEGORICAL
+            and profile.cardinality is not None
+            and profile.cardinality > 30
+        ):
+            effective_category = DataCategory.CATEGORICAL_HIGH_CARD
+
         # Get transformers suitable for this data category
-        transformer_names = self.TRANSFORMERS_BY_CATEGORY.get(profile.data_category, [])
+        transformer_names = self.TRANSFORMERS_BY_CATEGORY.get(effective_category, [])
         if not transformer_names:
             return []
 
         suggestions = []
-        primary_transformer = self.PRIMARY_TRANSFORMER.get(profile.data_category)
+        primary_transformer = self.PRIMARY_TRANSFORMER.get(effective_category)
 
         # For each compatible transformer, find compatible widgets via SmartMatcher
         for transformer_name in transformer_names:
@@ -321,7 +361,7 @@ class WidgetGenerator:
             return None
 
         # Generate widget config (field mappings, etc.)
-        widget_config = self._generate_widget_config(
+        widget_params = self._generate_widget_params(
             profile, transformer_name, widget_name
         )
 
@@ -350,7 +390,7 @@ class WidgetGenerator:
             column=profile.name,
             confidence=confidence,
             transformer_config=transformer_config,
-            widget_config=widget_config,
+            widget_params=widget_params,
             source_name=source_table,
             is_primary=is_primary,
             match_score=match_score,
@@ -388,7 +428,7 @@ class WidgetGenerator:
             "field": profile.name,
         }
 
-    def _generate_widget_config(
+    def _generate_widget_params(
         self,
         profile: EnrichedColumnProfile,
         transformer_name: str,
@@ -398,56 +438,18 @@ class WidgetGenerator:
         Generate widget config with field mappings.
 
         This maps the transformer output fields to the widget input fields.
+        Uses WIDGET_CONFIG_MAP for standard pairs, with a special case for
+        scatter_analysis which needs the column name from the profile.
         """
-        # Common widget configs based on transformer→widget pair
-        if transformer_name == "binned_distribution" and widget_name == "bar_plot":
-            return {
-                "x_axis": "bin",
-                "y_axis": "count",
-                "field_mapping": {"bins": "bin", "counts": "count"},
-                "transform": "bins_to_df",
-            }
-        elif (
-            transformer_name == "categorical_distribution" and widget_name == "bar_plot"
-        ):
-            return {
-                "x_axis": "category_label",
-                "y_axis": "value",
-                "transform": "category_with_labels",
-            }
-        elif (
-            transformer_name == "statistical_summary" and widget_name == "radial_gauge"
-        ):
-            return {
-                "value_field": "value",
-                "max_field": "max_value",
-            }
-        elif transformer_name == "binary_counter" and widget_name == "donut_chart":
-            return {
-                "labels_field": "labels",
-                "values_field": "counts",
-            }
-        elif (
-            transformer_name == "geospatial_extractor"
-            and widget_name == "interactive_map"
-        ):
-            return {
-                "geojson_field": "features",
-            }
-        elif transformer_name == "top_ranking" and widget_name == "bar_plot":
-            return {
-                "x_axis": "label",
-                "y_axis": "count",
-                "orientation": "h",
-            }
-        elif transformer_name == "scatter_analysis" and widget_name == "scatter_plot":
+        # Special case: scatter_analysis uses profile.name for x_axis
+        if transformer_name == "scatter_analysis" and widget_name == "scatter_plot":
             return {
                 "x_axis": profile.name if profile else "x",
                 "y_axis": "y",
             }
 
-        # Default empty config for unknown combinations
-        return {}
+        # Declarative lookup for all other pairs
+        return dict(self.WIDGET_CONFIG_MAP.get((transformer_name, widget_name), {}))
 
     def _config_time_series(
         self, profile: EnrichedColumnProfile, source_table: str
@@ -808,8 +810,8 @@ class WidgetGenerator:
         id_field = fields.get("id_field", "id")
         name_field = fields.get("name_field", "name")
 
-        # Build widget config based on hierarchy type
-        widget_config: Dict[str, Any] = {
+        # Build widget params based on hierarchy type
+        nav_params: Dict[str, Any] = {
             "referential_data": reference_name,
             "id_field": id_field,
             "name_field": name_field,
@@ -820,12 +822,12 @@ class WidgetGenerator:
         # Add hierarchy-specific fields if available
         if is_hierarchical:
             if fields.get("has_nested_set"):
-                widget_config["lft_field"] = fields.get("lft_field", "lft")
-                widget_config["rght_field"] = fields.get("rght_field", "rght")
+                nav_params["lft_field"] = fields.get("lft_field", "lft")
+                nav_params["rght_field"] = fields.get("rght_field", "rght")
             if fields.get("has_level"):
-                widget_config["level_field"] = fields.get("level_field", "level")
+                nav_params["level_field"] = fields.get("level_field", "level")
             if fields.get("has_parent"):
-                widget_config["parent_id_field"] = fields.get(
+                nav_params["parent_id_field"] = fields.get(
                     "parent_id_field", "parent_id"
                 )
 
@@ -853,6 +855,6 @@ class WidgetGenerator:
             "matched_column": reference_name,  # The reference itself
             "match_reason": f"Widget de navigation pour la référence '{reference_name}'",
             "is_recommended": True,
-            "config": widget_config,
+            "config": nav_params,
             "alternatives": [],
         }

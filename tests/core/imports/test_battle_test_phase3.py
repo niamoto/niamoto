@@ -219,13 +219,13 @@ class TestConfigContract:
     def test_known_pair_produces_nonempty_config(self, gen, transformer, widget):
         """Each known transformer→widget pair must produce a non-empty config."""
         profile = make_profile(name="test_col")
-        config = gen._generate_widget_config(profile, transformer, widget)
+        config = gen._generate_widget_params(profile, transformer, widget)
         assert config, f"{transformer}→{widget} returned empty config {config}"
 
     def test_unknown_pair_returns_empty(self, gen):
         """Unknown pair returns {} (documented behavior)."""
         profile = make_profile(name="test_col")
-        config = gen._generate_widget_config(profile, "unknown_t", "unknown_w")
+        config = gen._generate_widget_params(profile, "unknown_t", "unknown_w")
         assert config == {}
 
 

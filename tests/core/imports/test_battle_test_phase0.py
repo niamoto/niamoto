@@ -226,19 +226,19 @@ class TestWidgetGeneratorCharacterization:
         # This baseline helps us verify Phase 2.5 (skip identifiers)
         assert isinstance(suggestions, list)
 
-    def test_generate_widget_config_known_pair(self, generator, make_profile):
+    def test_generate_widget_params_known_pair(self, generator, make_profile):
         """Known transformer→widget pair produces non-empty config."""
         profile = make_profile(name="test")
-        config = generator._generate_widget_config(
+        config = generator._generate_widget_params(
             profile, "binned_distribution", "bar_plot"
         )
         assert config, "binned_distribution→bar_plot should produce config"
         assert "x_axis" in config
 
-    def test_generate_widget_config_unknown_pair(self, generator, make_profile):
+    def test_generate_widget_params_unknown_pair(self, generator, make_profile):
         """Unknown transformer→widget pair returns empty dict."""
         profile = make_profile(name="test")
-        config = generator._generate_widget_config(
+        config = generator._generate_widget_params(
             profile, "unknown_transformer", "unknown_widget"
         )
         assert config == {}, "Unknown pair should return {}"

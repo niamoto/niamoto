@@ -103,13 +103,20 @@ def main():
     print(f"\n   API: http://{args.host}:{args.port}/api")
     print(f"   Docs: http://{args.host}:{args.port}/api/docs\n")
 
+    reload_opts = {}
+    if not args.no_reload:
+        reload_opts = {
+            "reload": True,
+            "reload_dirs": [str(repo_root / "src")],
+            "reload_delay": 0.5,
+        }
+
     uvicorn.run(
         "niamoto.gui.api.app:app",
         host=args.host,
         port=args.port,
-        reload=not args.no_reload,
-        reload_dirs=[str(repo_root / "src")],
         log_level="info",
+        **reload_opts,
     )
 
 

@@ -257,6 +257,51 @@ def find_widget_for_transformer(transformer_name: str) -> Optional[str]:
         return None
 
 
+# Cache for plugin names (they don't change at runtime)
+_widget_names: list[str] | None = None
+_transformer_names: list[str] | None = None
+
+
+def _get_widget_names() -> list[str]:
+    """Get widget plugin names from PluginRegistry, sorted longest-first for greedy matching."""
+    global _widget_names
+    if _widget_names is not None:
+        return _widget_names
+    try:
+        from niamoto.core.plugins import PluginRegistry, PluginType
+
+        names = sorted(
+            PluginRegistry.get_plugins_by_type(PluginType.WIDGET).keys(),
+            key=len,
+            reverse=True,
+        )
+        if names:  # Only cache non-empty — registry may not be loaded yet
+            _widget_names = names
+        return names
+    except Exception:
+        return []
+
+
+def _get_transformer_names() -> list[str]:
+    """Get transformer plugin names + class_object extractors, sorted longest-first."""
+    global _transformer_names
+    if _transformer_names is not None:
+        return _transformer_names
+    try:
+        from niamoto.core.plugins import PluginRegistry, PluginType
+
+        names = set(PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER).keys())
+        names |= CLASS_OBJECT_EXTRACTORS
+        result = sorted(names, key=len, reverse=True)
+        if len(result) > len(
+            CLASS_OBJECT_EXTRACTORS
+        ):  # Has real plugins, not just extractors
+            _transformer_names = result
+        return result
+    except Exception:
+        return []
+
+
 def parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
     """Parse a dynamic template ID into column, transformer, and widget.
 
@@ -269,31 +314,8 @@ def parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
 
     Returns dict with 'column', 'transformer', 'widget' or None if not parseable.
     """
-    # Known widget names (from PluginRegistry)
-    widget_names = [
-        "bar_plot",
-        "donut_chart",
-        "interactive_map",
-        "radial_gauge",
-        "info_grid",
-    ]
-
-    # Known transformer names (real transformers + class_object extractors)
-    transformer_names = [
-        # Real transformer plugins
-        "binned_distribution",
-        "categorical_distribution",
-        "statistical_summary",
-        "top_ranking",
-        "binary_counter",
-        "field_aggregator",
-        "geospatial_extractor",
-        "time_series_analysis",
-        # Class_object extractors (for pre-calculated CSV data)
-        "series_extractor",
-        "binary_aggregator",
-        "categories_extractor",
-    ]
+    widget_names = _get_widget_names()
+    transformer_names = _get_transformer_names()
 
     # Try to match widget from the end
     matched_widget = None
