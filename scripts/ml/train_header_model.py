@@ -64,7 +64,7 @@ def prepare_data(records: list[dict]) -> tuple:
 def build_pipeline(
     ngram_range: tuple = (2, 5),
     max_features: int = 5000,
-    C: float = 120.0,
+    C: float = 130.0,
 ) -> Pipeline:
     """Build TF-IDF + LogisticRegression pipeline."""
     return Pipeline(
