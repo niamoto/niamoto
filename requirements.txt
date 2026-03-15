@@ -158,6 +158,8 @@ pyyaml==6.0.3
     # via
     #   niamoto (pyproject.toml)
     #   uvicorn
+rapidfuzz==3.14.3
+    # via niamoto (pyproject.toml)
 rasterio==1.4.3
     # via niamoto (pyproject.toml)
 requests==2.32.5
@@ -199,6 +201,8 @@ typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.1
     # via pandas
+unidecode==1.4.0
+    # via niamoto (pyproject.toml)
 urllib3==2.3.0
     # via requests
 uvicorn==0.38.0
