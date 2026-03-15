@@ -265,15 +265,16 @@ class MapRenderer:
         const map = L.map('map').setView([{config.center_lat}, {config.center_lon}], {config.zoom});
 
         // Tenter de charger les tuiles OSM, avec fallback fond blanc si offline
-        const tileLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '&copy; OpenStreetMap contributors'
+        const tileLayer = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}.png', {{
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; OpenStreetMap contributors',
+            maxZoom: 19
         }});
         tileLayer.on('tileerror', function() {{
             // Premiere erreur de tuile : afficher un avis
             if (!document.querySelector('.tile-offline-notice')) {{
                 const notice = document.createElement('div');
                 notice.className = 'tile-offline-notice';
-                notice.textContent = 'Fond de carte indisponible hors connexion';
+                notice.textContent = 'Map tiles unavailable offline';
                 document.getElementById('map').appendChild(notice);
             }}
         }});

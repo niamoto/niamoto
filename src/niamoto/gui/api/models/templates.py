@@ -34,7 +34,7 @@ class TemplateSuggestionResponse(BaseModel):
     template_id: str
     name: str
     description: str
-    plugin: str
+    plugin: str  # transformer plugin
     category: str
     icon: str
     confidence: float
@@ -43,7 +43,11 @@ class TemplateSuggestionResponse(BaseModel):
     matched_column: Optional[str] = None
     match_reason: Optional[str] = None
     is_recommended: bool
-    config: Dict[str, Any]
+    config: Dict[str, Any]  # transformer params
+    widget_plugin: Optional[str] = None  # widget plugin (enables inline preview)
+    widget_params: Optional[Dict[str, Any]] = (
+        None  # widget params (x_axis, y_axis, etc.)
+    )
     alternatives: List[str] = []  # Alternative template IDs
 
 
@@ -75,6 +79,8 @@ class SelectedTemplate(BaseModel):
     template_id: str
     plugin: str  # Transformer plugin name
     config: Dict[str, Any] = {}
+    widget_plugin: Optional[str] = None  # Widget plugin (from suggestion)
+    widget_params: Optional[Dict[str, Any]] = None  # Widget params (from suggestion)
 
 
 class GenerateConfigRequest(BaseModel):

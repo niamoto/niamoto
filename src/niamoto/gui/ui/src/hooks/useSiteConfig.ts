@@ -48,6 +48,12 @@ export interface NavigationItem {
   children?: NavigationItem[]
 }
 
+export interface ExternalLink {
+  name: string
+  url: string
+  type?: string | null
+}
+
 export interface FooterLink {
   text: LocalizedString
   url: string

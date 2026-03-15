@@ -199,7 +199,7 @@ def _get_reference_entity_info(
         return None
 
     try:
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         entity_table = resolve_reference_table(db, reference_name)
 
         if not entity_table:

@@ -305,3 +305,109 @@ def load_class_object_data_for_preview(
     except Exception as e:
         logger.warning(f"Error loading class_object data: {e}")
         return None
+
+
+def load_class_object_csv_dataframe(
+    work_dir: Path,
+    reference_name: str,
+    source_name: Optional[str] = None,
+) -> Optional[pd.DataFrame]:
+    """Load the raw CSV DataFrame for a group's class_object source.
+
+    Unlike load_class_object_data_for_preview which aggregates into {tops, counts},
+    this returns a single-entity DataFrame with columns
+    [class_object, class_name, class_value] needed by complex transformers
+    (series_ratio_aggregator, categories_mapper, etc.).
+
+    The CSV contains data for ALL entities.  Real transformers expect one
+    entity at a time, so we pick the entity with the most rows as a
+    representative preview.
+
+    Args:
+        work_dir: Working directory path
+        reference_name: Name of the reference group (e.g., 'shapes')
+        source_name: Optional source name to match against sources[].name
+                     (e.g., 'shape_stats'). Falls back to first CSV if unmatched.
+
+    Returns:
+        Raw pd.DataFrame for one representative entity, or None.
+    """
+    transform_path = work_dir / "config" / "transform.yml"
+
+    if not transform_path.exists():
+        return None
+
+    try:
+        with open(transform_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        # Find group config matching reference_name
+        all_group_configs: List[Dict[str, Any]] = []
+
+        if isinstance(config, list):
+            all_group_configs = [g for g in config if isinstance(g, dict)]
+        elif isinstance(config, dict):
+            groups = config.get("groups", {})
+            if isinstance(groups, list):
+                all_group_configs = [g for g in groups if isinstance(g, dict)]
+            elif isinstance(groups, dict):
+                for name, group_config in groups.items():
+                    if isinstance(group_config, dict):
+                        all_group_configs.append({**group_config, "group_by": name})
+
+        # Search for matching group
+        for group_config in all_group_configs:
+            if group_config.get("group_by") != reference_name:
+                continue
+
+            sources = group_config.get("sources", [])
+            csv_sources = [
+                s
+                for s in sources
+                if isinstance(s, dict) and s.get("data", "").endswith(".csv")
+            ]
+
+            # Prefer source matching source_name if provided
+            if source_name:
+                matched = [s for s in csv_sources if s.get("name") == source_name]
+                if matched:
+                    csv_sources = matched + [s for s in csv_sources if s not in matched]
+
+            for source in csv_sources:
+                data_path = source.get("data", "")
+                csv_path = work_dir / data_path
+                if not csv_path.exists():
+                    continue
+
+                # Auto-detect delimiter
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    delimiter = (
+                        ";" if first_line.count(";") > first_line.count(",") else ","
+                    )
+
+                df = pd.read_csv(csv_path, delimiter=delimiter)
+
+                if "class_object" not in df.columns:
+                    continue
+
+                # Normalize class_value to numeric
+                if "class_value" in df.columns:
+                    df["class_value"] = pd.to_numeric(
+                        df["class_value"], errors="coerce"
+                    )
+
+                # Filter to a single representative entity.
+                # Pick the entity with the most data rows for richer preview.
+                if "id" in df.columns and df["id"].nunique() > 1:
+                    entity_counts = df.groupby("id").size()
+                    best_id = entity_counts.idxmax()
+                    df = df[df["id"] == best_id].copy()
+
+                return df
+
+        return None
+
+    except Exception as e:
+        logger.warning(f"Error loading class_object CSV: {e}")
+        return None

@@ -1,10 +1,10 @@
-"""Moteur de preview unifié pour les widgets Niamoto.
+"""Unified preview engine for Niamoto widgets.
 
-Pipeline synchrone : resolve -> load -> transform -> render -> wrap.
-Appelé depuis les endpoints via `await run_in_threadpool(engine.render, req)`.
+Synchronous pipeline: resolve -> load -> transform -> render -> wrap.
+Called from endpoints via `await run_in_threadpool(engine.render, req)`.
 
-Utilise les mêmes utilitaires que templates.py pour la résolution,
-le chargement de données, la transformation et le rendu.
+Uses the same utilities as templates.py for resolution,
+data loading, transformation, and rendering.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from niamoto.core.services.transformer import TransformerService
@@ -59,12 +59,17 @@ from niamoto.gui.api.services.templates.utils.config_loader import (
     load_import_config,
 )
 from niamoto.gui.api.services.templates.utils.data_loader import (
+    load_class_object_csv_dataframe,
     load_class_object_data_for_preview,
     load_sample_data,
 )
 from niamoto.gui.api.services.templates.utils.entity_finder import (
     find_entity_by_id,
     find_representative_entity,
+)
+from niamoto.gui.api.services.templates.suggestion_service import (
+    _pick_identifier_column,
+    _pick_name_column,
 )
 from niamoto.gui.api.services.templates.utils.widget_utils import (
     find_widget_group,
@@ -82,61 +87,109 @@ _transformer_svc: "TransformerService | None" = None
 _transformer_svc_lock = threading.Lock()
 
 
-# ---------------------------------------------------------------------------
-# Adaptateur de format transformer → widget
-# ---------------------------------------------------------------------------
-# Reproduit la logique de templates.py:_preprocess_data_for_widget pour
-# les combinaisons transformer/widget dont le format de sortie ne correspond
-# pas directement aux attentes du widget.
+# Re-export from preview_utils for backward compatibility within engine
+from niamoto.gui.api.services.preview_utils import (  # noqa: E402
+    preprocess_data_for_widget as _preprocess_data_for_widget,
+)
 
 
-def _preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any:
-    """Adapte la sortie d'un transformer au format attendu par le widget."""
-    if not isinstance(data, dict):
-        return data
+def _get_column_profile(column: str, data_source: str, db: Database) -> Any:
+    """Look up the stored semantic profile for a column.
 
-    # binned_distribution → donut_chart : convertir les bin edges en labels
-    if transformer == "binned_distribution" and widget == "donut_chart":
-        bins = data.get("bins", [])
-        counts = data.get("counts", [])
-        if len(bins) == len(counts) + 1:
-            labels = [f"{int(bins[i])}-{int(bins[i + 1])}" for i in range(len(counts))]
-            result: dict[str, Any] = {"labels": labels, "counts": counts}
-            percentages = data.get("percentages", [])
-            if percentages and len(percentages) == len(labels):
-                result["percentages"] = percentages
-            return result
+    Returns an EnrichedColumnProfile or None if not found.
+    """
+    from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
+    from niamoto.core.imports.registry import EntityKind, EntityRegistry
 
-    # field_aggregator → radial_gauge : aplatir le payload imbriqué
-    if transformer == "field_aggregator" and widget == "radial_gauge":
-        if "value" in data:
-            return data
-        scalar_value: Any = None
-        scalar_unit: str | None = None
-        for field_payload in data.values():
-            if not isinstance(field_payload, dict):
-                continue
-            candidate = field_payload.get("value")
-            if candidate is None:
-                continue
-            scalar_value = candidate
-            units = field_payload.get("units") or field_payload.get("unit")
-            if isinstance(units, str) and units:
-                scalar_unit = units
+    registry = EntityRegistry(db)
+
+    entity_meta = None
+    for kind in (EntityKind.DATASET, EntityKind.REFERENCE):
+        for ent in registry.list_entities(kind=kind):
+            if ent.name == data_source:
+                entity_meta = ent
+                break
+        if entity_meta:
             break
-        if scalar_value is not None:
-            flattened: dict[str, Any] = {"value": scalar_value}
-            if scalar_unit:
-                flattened["unit"] = scalar_unit
-            return flattened
 
-    return data
+    if not entity_meta:
+        return None
+
+    col_data = next(
+        (
+            c
+            for c in entity_meta.config.get("semantic_profile", {}).get("columns", [])
+            if c.get("name") == column
+        ),
+        None,
+    )
+    if not col_data:
+        return None
+
+    return EnrichedColumnProfile.from_stored_dict(col_data)
+
+
+def _build_transformer_config(
+    column: str,
+    transformer: str,
+    data_source: str,
+    db: Database | None,
+) -> dict[str, Any]:
+    """Build a complete transformer config from semantic profiles.
+
+    Uses WidgetGenerator to produce the same config as the suggestion flow,
+    so every transformer gets its required params automatically.
+    """
+    fallback: dict[str, Any] = {"source": data_source, "field": column}
+
+    if not db:
+        return fallback
+
+    try:
+        from niamoto.core.imports.widget_generator import WidgetGenerator
+
+        profile = _get_column_profile(column, data_source, db)
+        if not profile:
+            return fallback
+
+        config = WidgetGenerator()._generate_transformer_config(
+            profile, transformer, data_source
+        )
+        return config or fallback
+
+    except Exception as exc:
+        logger.debug("Could not build transformer config: %s", exc)
+        return fallback
+
+
+def _build_widget_params_for_preview(
+    column: str,
+    transformer: str,
+    widget: str,
+    data_source: str,
+    db: Database | None,
+) -> dict[str, Any]:
+    """Build widget params for GET preview (fallback path).
+
+    Returns the full widget config (x_axis, y_axis, transform, field_mapping, etc.)
+    generated by WidgetGenerator for the given transformer→widget pair.
+    """
+    try:
+        from niamoto.core.imports.widget_generator import WidgetGenerator
+
+        # Profile is optional — _generate_widget_params only uses it for scatter_plot
+        profile = _get_column_profile(column, data_source, db) if db else None
+
+        return WidgetGenerator()._generate_widget_params(profile, transformer, widget)
+
+    except Exception:
+        return {}
 
 
 class PreviewEngine:
-    """Moteur de preview unifié -- un seul pipeline pour tous les types de widgets.
+    """Unified preview engine -- a single pipeline for all widget types.
 
-    Le moteur est synchrone (I/O fichiers + DB). Les endpoints l'appellent
+    The engine is synchronous (file I/O + DB). Endpoints call it
     via ``await run_in_threadpool(engine.render, req)``.
     """
 
@@ -145,6 +198,40 @@ class PreviewEngine:
         self._config_dir = config_dir
         self._work_dir = Path(config_dir).parent
         self._data_fingerprint: str = self._compute_data_fingerprint()
+        # Caches -- cleared on invalidate()
+        self._db: Database | None = None
+        self._rich_entity_cache: dict[str, Any] = {}
+        self._group_ids_cache: dict[str, list[Any]] = {}
+
+        # Dispatch table for special widget types.
+        # Each entry: (matcher, widget_plugin, handler)
+        # Adding a new special widget = one entry here + one handler method.
+        self._special_renderers: list[
+            tuple[
+                Callable[[str], bool],
+                str,
+                Callable[[str, "PreviewRequest", Database, list[str]], str],
+            ]
+        ] = [
+            (
+                lambda tid: tid.endswith("_hierarchical_nav_widget"),
+                "hierarchical_nav_widget",
+                self._handle_navigation,
+            ),
+            (
+                lambda tid: (
+                    tid.startswith("general_info_")
+                    and tid.endswith("_field_aggregator_info_grid")
+                ),
+                "info_grid",
+                self._handle_general_info,
+            ),
+            (
+                lambda tid: tid.endswith(("_entity_map", "_all_map")),
+                "interactive_map",
+                self._handle_entity_map,
+            ),
+        ]
 
     # ------------------------------------------------------------------
     # TransformerService (lazy, cached, shared across requests)
@@ -173,11 +260,11 @@ class PreviewEngine:
             return svc
 
     # ------------------------------------------------------------------
-    # API publique
+    # Public API
     # ------------------------------------------------------------------
 
     def render(self, request: PreviewRequest) -> PreviewResult:
-        """Point d'entrée unique -- résout, charge, transforme, rend, emballe."""
+        """Single entry point -- resolve, load, transform, render, wrap."""
         warnings: list[str] = []
         template_id = request.template_id
 
@@ -186,7 +273,7 @@ class PreviewEngine:
             # Ensure plugins are loaded (cascade: system + user + project)
             self._get_transformer_service(db)
 
-            # --- Inline (POST) : transformer + widget explicites ---
+            # --- Inline (POST): explicit transformer + widget ---
             if request.inline:
                 widget_plugin = request.inline.get("widget_plugin", "")
                 widget_html = self._render_inline(request, db, warnings)
@@ -197,52 +284,20 @@ class PreviewEngine:
             if not template_id:
                 return self._error_result(request, "template_id requis", warnings)
 
-            # --- Branche 1 : Navigation widget ---
-            if template_id.endswith("_hierarchical_nav_widget"):
-                reference = template_id.replace("_hierarchical_nav_widget", "")
-                widget_html = self._render_navigation(reference, db, warnings)
-                return self._build_result(
-                    request,
-                    widget_html,
-                    warnings,
-                    widget_plugin="hierarchical_nav_widget",
-                )
+            # --- Special widget types (dispatch table) ---
+            for matcher, wp, handler in self._special_renderers:
+                if matcher(template_id):
+                    widget_html = handler(template_id, request, db, warnings)
+                    return self._build_result(
+                        request, widget_html, warnings, widget_plugin=wp
+                    )
 
-            # --- Branche 2 : General info widget ---
-            if template_id.startswith("general_info_") and template_id.endswith(
-                "_field_aggregator_info_grid"
-            ):
-                reference = template_id.replace("general_info_", "").replace(
-                    "_field_aggregator_info_grid", ""
-                )
-                widget_html = self._render_general_info(
-                    reference, request.entity_id, db, warnings
-                )
-                return self._build_result(
-                    request,
-                    widget_html,
-                    warnings,
-                    widget_plugin="info_grid",
-                )
-
-            # --- Branche 3 : Entity map ---
-            if template_id.endswith("_entity_map") or template_id.endswith("_all_map"):
-                widget_html = self._render_entity_map(
-                    template_id, request.entity_id, db, warnings
-                )
-                return self._build_result(
-                    request,
-                    widget_html,
-                    warnings,
-                    widget_plugin="interactive_map",
-                )
-
-            # --- Branche 4-7 : Configured / Dynamic / Class object / Occurrence ---
+            # --- Standard: Configured / Dynamic / Class object / Occurrence ---
             widget_html = self._render_standard(request, db, warnings)
-            # Extraire le plugin widget pour la résolution du bundle Plotly
+            # Extract widget plugin for Plotly bundle resolution
             parsed = parse_dynamic_template_id(template_id)
             wp = parsed["widget"] if parsed else None
-            # Fallback : configured widget (template_id simple comme "distribution_map")
+            # Fallback: configured widget (simple template_id like "distribution_map")
             if not wp:
                 grp = request.group_by or find_widget_group(template_id)
                 if grp:
@@ -251,17 +306,54 @@ class PreviewEngine:
                         wp = cfg.get("widget_plugin")
             return self._build_result(request, widget_html, warnings, widget_plugin=wp)
         finally:
-            if db:
-                db.close_db_session()
+            pass  # DB instance is shared and reused across requests
+
+    # ------------------------------------------------------------------
+    # Special widget handlers (used by dispatch table)
+    # ------------------------------------------------------------------
+
+    def _handle_navigation(
+        self,
+        template_id: str,
+        request: PreviewRequest,
+        db: Database,
+        warnings: list[str],
+    ) -> str:
+        reference = template_id.removesuffix("_hierarchical_nav_widget")
+        return self._render_navigation(reference, db, warnings)
+
+    def _handle_general_info(
+        self,
+        template_id: str,
+        request: PreviewRequest,
+        db: Database,
+        warnings: list[str],
+    ) -> str:
+        reference = template_id.removeprefix("general_info_").removesuffix(
+            "_field_aggregator_info_grid"
+        )
+        return self._render_general_info(reference, request.entity_id, db, warnings)
+
+    def _handle_entity_map(
+        self,
+        template_id: str,
+        request: PreviewRequest,
+        db: Database,
+        warnings: list[str],
+    ) -> str:
+        return self._render_entity_map(template_id, request.entity_id, db, warnings)
 
     def invalidate(self) -> None:
-        """Recalcule le fingerprint -- appelé après import ou save config."""
+        """Recompute fingerprint -- called after import or config save."""
         global _transformer_svc
         _transformer_svc = None
         self._data_fingerprint = self._compute_data_fingerprint()
+        self._db = None
+        self._rich_entity_cache.clear()
+        self._group_ids_cache.clear()
 
     # ------------------------------------------------------------------
-    # Helpers partagés
+    # Shared helpers
     # ------------------------------------------------------------------
 
     def _load_group_config(
@@ -287,22 +379,17 @@ class PreviewEngine:
 
     @staticmethod
     def _resolve_entity_id(entity_id: str | None, group_ids: list[Any]) -> Any:
-        """Resolve entity_id against available group IDs.
+        """Resolve an explicit entity_id against available group IDs.
 
-        Checks exact match first, then tries numeric conversion for
-        backward compatibility.  When *entity_id* is ``None`` (no
-        preference), falls back to the first available ID.  When an
-        explicit *entity_id* is provided but not found, returns
-        ``None`` so the caller can surface a proper error.
+        Checks exact match first, then tries numeric conversion.
+        Returns ``None`` when the ID is not found.
         """
         if entity_id is None:
-            return group_ids[0]
+            return group_ids[0] if group_ids else None
 
-        # Exact match (preserves type: str, int, UUID, …)
         if entity_id in group_ids:
             return entity_id
 
-        # Numeric fallback — group_ids are often ints from DB
         try:
             numeric = int(entity_id)
             if numeric in group_ids:
@@ -310,11 +397,169 @@ class PreviewEngine:
         except (ValueError, TypeError):
             pass
 
-        # Explicit ID not found — let caller decide (error / fallback)
         return None
 
+    def _find_rich_entity_id(
+        self,
+        db: Database,
+        group_by: str,
+        group_ids: list[Any],
+    ) -> Any:
+        """Pick a data-rich entity for preview (cached per group_by).
+
+        For hierarchical references (nested set), picks the family with
+        the most descendants. Falls back to group_ids[0].
+        """
+        if group_by in self._rich_entity_cache:
+            cached = self._rich_entity_cache[group_by]
+            if cached in set(group_ids):
+                return cached
+
+        gid = self._query_rich_entity(db, group_by, group_ids)
+        self._rich_entity_cache[group_by] = gid
+        return gid
+
+    def _query_rich_entity(
+        self, db: Database, group_by: str, group_ids: list[Any]
+    ) -> Any:
+        """Pick the entity with the most data for preview.
+
+        Strategy:
+        1. Hierarchical (nested set): largest lft/rght span (family level)
+        2. Flat: entity with most occurrences via transform.yml relation
+        3. Fallback: group_ids[0]
+        """
+        try:
+            ref_table = resolve_reference_table(db, group_by)
+            if not ref_table or not db.has_table(ref_table):
+                return group_ids[0]
+
+            quoted_table = quote_identifier(db, ref_table)
+            group_ids_set = set(group_ids)
+
+            columns = set(db.get_table_columns(ref_table))
+
+            # Detect ID column (may not be "id")
+            id_col = _pick_identifier_column(list(columns))
+            q_id = quote_identifier(db, id_col)
+
+            # Strategy 1: hierarchical (nested set)
+            if {"lft", "rght"} <= columns:
+                query = text(f"""
+                    SELECT {q_id}
+                    FROM {quoted_table}
+                    WHERE (rght - lft) > 3
+                    ORDER BY (rght - lft) DESC
+                    LIMIT 5
+                """)
+                with db.engine.connect() as conn:
+                    for row in conn.execute(query):
+                        eid = row[0]
+                        if eid in group_ids_set:
+                            return eid
+                        # Try numeric coercion for mixed-type sets
+                        try:
+                            if int(eid) in group_ids_set:
+                                return int(eid)
+                        except (ValueError, TypeError):
+                            pass
+
+            # Strategy 2: flat — pick entity with most occurrences
+            group_config = self._load_group_config(group_by)
+            if group_config:
+                sources = group_config.get("sources", [])
+                if sources:
+                    relation = sources[0].get("relation", {})
+                    rel_key = relation.get("key")
+                    src_table = sources[0].get("data")
+                    if rel_key and src_table:
+                        from niamoto.common.table_resolver import (
+                            resolve_dataset_table,
+                        )
+
+                        occ_table = resolve_dataset_table(db, src_table)
+                        if occ_table and db.has_table(occ_table):
+                            q_occ = quote_identifier(db, occ_table)
+                            q_key = quote_identifier(db, rel_key)
+                            query = text(f"""
+                                SELECT {q_key}, COUNT(*) as cnt
+                                FROM {q_occ}
+                                WHERE {q_key} IS NOT NULL
+                                GROUP BY {q_key}
+                                ORDER BY cnt DESC
+                                LIMIT 5
+                            """)
+                            with db.engine.connect() as conn:
+                                for row in conn.execute(query):
+                                    eid = row[0]
+                                    if eid in group_ids_set:
+                                        return eid
+                                    try:
+                                        numeric = int(eid)
+                                        if numeric in group_ids_set:
+                                            return numeric
+                                    except (ValueError, TypeError):
+                                        pass
+
+            return group_ids[0]
+
+        except Exception:
+            return group_ids[0]
+
+    @staticmethod
+    def _build_preview_group_config(
+        group_config: dict[str, Any],
+        widget_id: str,
+        transformer_plugin: str,
+        transformer_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a temporary transform-style config for suggestion previews."""
+        return {
+            "group_by": group_config["group_by"],
+            "sources": group_config.get("sources", []),
+            "widgets_data": {
+                widget_id: {
+                    "plugin": transformer_plugin,
+                    "params": transformer_config,
+                }
+            },
+        }
+
+    def _resolve_preview_group_context(
+        self,
+        group_by: str | None,
+        entity_id: str | None,
+        db: Database,
+    ) -> tuple["TransformerService", dict[str, Any], Any] | None:
+        """Resolve the real transform group and target entity for preview."""
+        if not group_by:
+            return None
+
+        svc = self._get_transformer_service(db)
+        group_config = self._load_group_config(group_by, svc)
+        if not group_config:
+            return None
+
+        if group_by in self._group_ids_cache:
+            group_ids = self._group_ids_cache[group_by]
+        else:
+            group_ids = svc._get_group_ids(group_config)
+            self._group_ids_cache[group_by] = group_ids
+        if not group_ids:
+            raise DataLoadError("No entities available")
+
+        if entity_id is not None:
+            gid = self._resolve_entity_id(entity_id, group_ids)
+            if gid is None:
+                raise DataLoadError(f"Entity '{entity_id}' not found in {group_by}")
+        else:
+            # Pick a data-rich entity (family level for hierarchical refs)
+            gid = self._find_rich_entity_id(db, group_by, group_ids)
+
+        return svc, group_config, gid
+
     # ------------------------------------------------------------------
-    # Construction du résultat
+    # Result construction
     # ------------------------------------------------------------------
 
     def _build_result(
@@ -355,7 +600,7 @@ class PreviewEngine:
     # ------------------------------------------------------------------
 
     def _compute_data_fingerprint(self) -> str:
-        """Empreinte mtime(DB) + mtime(configs). Zéro I/O entre invalidate()."""
+        """Fingerprint from mtime(DB) + mtime(configs). Zero I/O between invalidate()."""
         parts: list[str] = []
         if os.path.exists(self._db_path):
             parts.append(str(os.path.getmtime(self._db_path)))
@@ -382,7 +627,7 @@ class PreviewEngine:
         mode: PreviewMode = "full",
         bundle: str = "core",
     ) -> str:
-        """Document HTML complet pour injection dans un iframe via srcDoc."""
+        """Complete HTML document for injection into an iframe via srcDoc."""
         return wrap_html_response(
             content,
             title="Preview",
@@ -391,17 +636,17 @@ class PreviewEngine:
         )
 
     # ------------------------------------------------------------------
-    # Découverte de colonnes via DESCRIBE
+    # Column discovery via DESCRIBE
     # ------------------------------------------------------------------
 
     def _get_column_names(self, db: Database, quoted_table: str) -> list[str]:
-        """Découvrir les colonnes d'une table via DESCRIBE (plus efficace que SELECT * LIMIT 0)."""
+        """Discover table columns via DESCRIBE (more efficient than SELECT * LIMIT 0)."""
         with db.engine.connect() as conn:
             result = conn.execute(text(f"DESCRIBE {quoted_table}"))
             return [row[0] for row in result.fetchall()]
 
     # ------------------------------------------------------------------
-    # Branche INLINE (POST)
+    # INLINE branch (POST)
     # ------------------------------------------------------------------
 
     def _render_inline(
@@ -412,10 +657,10 @@ class PreviewEngine:
     ) -> str:
         inline = request.inline
         if not inline:
-            return self._info_html("Configuration inline manquante")
+            return self._info_html("Missing inline configuration")
 
         if not db:
-            return self._info_html("Base de données non configurée")
+            return self._info_html("Database not configured")
 
         transformer_plugin = inline.get("transformer_plugin", "")
         transformer_params = inline.get("transformer_params", {})
@@ -425,7 +670,7 @@ class PreviewEngine:
         group_by = request.group_by or ""
 
         try:
-            # Charger les données selon le type de transformer
+            # Class object transformers use CSV data
             if transformer_plugin.startswith("class_object_"):
                 co_data = load_class_object_data_for_preview(
                     self._work_dir,
@@ -433,30 +678,51 @@ class PreviewEngine:
                     group_by,
                 )
                 if not co_data:
-                    return self._info_html("Données class_object non trouvées")
-                data = co_data
+                    return self._info_html("Class object data not found")
+                result = execute_transformer(
+                    db, transformer_plugin, transformer_params, co_data
+                )
             else:
-                import_config = load_import_config(self._work_dir)
-                hierarchy_info = get_hierarchy_info(import_config, group_by)
-                representative = find_representative_entity(db, hierarchy_info)
-                sample = load_sample_data(db, representative, transformer_params)
-                if sample.empty:
-                    return self._info_html("Pas de données disponibles")
-                data = sample
+                # Use TransformerService for real pipeline when possible
+                preview_group = self._resolve_preview_group_context(
+                    group_by, request.entity_id, db
+                )
+                if preview_group:
+                    svc, group_config, gid = preview_group
+                    temp_config = self._build_preview_group_config(
+                        group_config,
+                        widget_title,
+                        transformer_plugin,
+                        transformer_params,
+                    )
+                    result = svc.transform_single_widget(temp_config, widget_title, gid)
+                else:
+                    # Fallback: ad-hoc execution
+                    import_config = load_import_config(self._work_dir)
+                    hierarchy_info = get_hierarchy_info(import_config, group_by)
+                    representative = find_representative_entity(db, hierarchy_info)
+                    sample = load_sample_data(db, representative, transformer_params)
+                    if sample.empty:
+                        return self._info_html("No data available")
+                    result = execute_transformer(
+                        db, transformer_plugin, transformer_params, sample
+                    )
 
-            result = execute_transformer(
-                db, transformer_plugin, transformer_params, data
-            )
             if not result:
-                return self._info_html("Le transformer n'a pas retourné de données")
+                return self._info_html("Transformer returned no data")
+
+            # Adapt transformer output → widget format
+            result = _preprocess_data_for_widget(
+                result, transformer_plugin, widget_plugin
+            )
 
             return render_widget(db, widget_plugin, result, widget_params, widget_title)
         except Exception as e:
-            logger.exception("Erreur preview inline: %s", e)
+            logger.exception("Inline preview error: %s", e)
             return self._error_html(str(e))
 
     # ------------------------------------------------------------------
-    # Branche NAVIGATION
+    # NAVIGATION branch
     # ------------------------------------------------------------------
 
     def _render_navigation(
@@ -466,16 +732,16 @@ class PreviewEngine:
         warnings: list[str],
     ) -> str:
         if not db:
-            return self._info_html("Base de données non configurée")
+            return self._info_html("Database not configured")
 
         try:
             table_name = resolve_reference_table(db, reference_name)
             if not table_name:
-                return self._info_html(f"Table '{reference_name}' non trouvée")
+                return self._info_html(f"Table '{reference_name}' not found")
 
             quoted = quote_identifier(db, table_name)
 
-            # Colonnes (exclure géométries)
+            # Columns (exclude geometries)
             with db.engine.connect() as conn:
                 result = conn.execute(text(f"DESCRIBE {quoted}"))
                 col_info = result.fetchall()
@@ -494,28 +760,14 @@ class PreviewEngine:
             has_level = "level" in columns
             is_hierarchical = has_nested_set or (has_parent and has_level)
 
-            # Champ ID
-            singular = (
-                reference_name.rstrip("s")
-                if reference_name.endswith("s")
-                else reference_name
+            # ID / name field (shared utilities)
+            id_field = (
+                _pick_identifier_column(safe_columns, entity_name=reference_name)
+                or "id"
             )
-            id_candidates = [
-                f"id_{singular}",
-                f"{singular}_id",
-                f"id_{reference_name}",
-                f"{reference_name}_id",
-                "id",
-            ]
-            id_field = next((c for c in id_candidates if c in columns), None)
-            if not id_field:
-                id_field = next((c for c in columns if "id" in c.lower()), "id")
+            name_field = _pick_name_column(safe_columns, id_field, reference_name)
 
-            # Champ nom
-            name_candidates = ["full_name", "name", "plot", "label", "title"]
-            name_field = next((c for c in name_candidates if c in columns), id_field)
-
-            # Requête sample
+            # Sample query
             if is_hierarchical and has_nested_set:
                 query = text(
                     f"SELECT {safe_sql} FROM {quoted} "
@@ -532,11 +784,11 @@ class PreviewEngine:
 
             df = pd.read_sql(query, db.engine)
             if df.empty:
-                return self._info_html(f"Aucune donnée dans '{reference_name}'")
+                return self._info_html(f"No data in '{reference_name}'")
 
-            # Rendu inline avec CSS/JS (le plugin render() suppose un
-            # environnement externe avec les assets déjà chargés, ce qui
-            # n'est pas le cas en preview iframe).
+            # Inline rendering with CSS/JS (the plugin render() assumes an
+            # external environment with assets already loaded, which is
+            # not the case in a preview iframe).
             return self._render_navigation_inline(
                 df,
                 reference_name,
@@ -548,7 +800,7 @@ class PreviewEngine:
                 has_level,
             )
         except Exception as e:
-            logger.exception("Erreur preview navigation: %s", e)
+            logger.exception("Navigation preview error: %s", e)
             return self._error_html(str(e))
 
     def _render_navigation_inline(
@@ -562,11 +814,11 @@ class PreviewEngine:
         has_nested_set: bool,
         has_level: bool,
     ) -> str:
-        """Rendu navigation avec CSS/JS inlinés (autonome en preview iframe)."""
+        """Navigation rendering with inlined CSS/JS (self-contained in preview iframe)."""
         import json
 
-        # Charger les assets CSS/JS depuis publish/assets
-        # engine.py est dans gui/api/services/preview_engine/ → 5 niveaux pour niamoto/
+        # Load CSS/JS assets from publish/assets
+        # engine.py is in gui/api/services/preview_engine/ -- 5 levels up to niamoto/
         assets_path = (
             Path(__file__).parent.parent.parent.parent.parent / "publish" / "assets"
         )
@@ -603,7 +855,7 @@ class PreviewEngine:
         }
         safe_json = json.dumps(js_config, ensure_ascii=False).replace("</", "<\\/")
 
-        # CSS Tailwind utilities utilisées par niamoto_hierarchical_nav.js
+        # Tailwind CSS utilities used by niamoto_hierarchical_nav.js
         tailwind_shim = """
         .flex { display: flex; }
         .flex-1 { flex: 1 1 0%; }
@@ -667,7 +919,7 @@ class PreviewEngine:
 </style>
 <div class="preview-content">
     <div style="margin-bottom:16px">
-        <input type="text" id="{search_id}" class="search-input" placeholder="Rechercher...">
+        <input type="text" id="{search_id}" class="search-input" placeholder="Search...">
     </div>
     <div id="{container_id}" class="hierarchical-nav-tree" role="tree"></div>
 </div>
@@ -682,28 +934,8 @@ document.addEventListener('DOMContentLoaded', function() {{
 }});
 </script>"""
 
-    def _render_navigation_fallback(
-        self,
-        df: pd.DataFrame,
-        reference_name: str,
-        id_field: str,
-        name_field: str,
-        is_hierarchical: bool,
-    ) -> str:
-        """Fallback HTML simple si le plugin nav n'est pas disponible."""
-        items_html = ""
-        for _, row in df.head(20).iterrows():
-            label = html_module.escape(str(row.get(name_field, "")))
-            items_html += f"<li>{label}</li>\n"
-        title = html_module.escape(reference_name.title())
-        return f"""
-<div style="padding:8px;font-family:system-ui,sans-serif;font-size:13px;">
-  <h4 style="margin:0 0 8px">{title}</h4>
-  <ul style="margin:0;padding-left:16px;list-style:disc">{items_html}</ul>
-</div>"""
-
     # ------------------------------------------------------------------
-    # Branche GENERAL INFO
+    # GENERAL INFO branch
     # ------------------------------------------------------------------
 
     def _render_general_info(
@@ -714,20 +946,20 @@ document.addEventListener('DOMContentLoaded', function() {{
         warnings: list[str],
     ) -> str:
         if not db:
-            return self._info_html("Base de données non configurée")
+            return self._info_html("Database not configured")
 
         try:
             from niamoto.gui.api.services.templates.suggestion_service import (
                 generate_general_info_suggestion,
             )
 
-            suggestion = generate_general_info_suggestion(reference_name)
+            suggestion = generate_general_info_suggestion(reference_name, db=db)
             if not suggestion:
-                return self._info_html(f"Aucun champ détecté pour '{reference_name}'")
+                return self._info_html(f"No fields detected for '{reference_name}'")
 
             field_configs = suggestion["config"]["fields"]
 
-            # Trouver la table de référence
+            # Find the reference table
             ref_table = f"reference_{reference_name}"
             if not db.has_table(ref_table):
                 fallbacks = (
@@ -740,33 +972,16 @@ document.addEventListener('DOMContentLoaded', function() {{
                         ref_table = alt
                         break
                 else:
-                    return self._info_html(f"Table '{reference_name}' non trouvée")
+                    return self._info_html(f"Table '{reference_name}' not found")
 
             preparer = inspect(db.engine).dialect.identifier_preparer
             quoted_table = preparer.quote(ref_table)
             col_names = [c.lower() for c in self._get_column_names(db, quoted_table)]
 
-            # Détecter le champ ID
-            singular = (
-                reference_name.rstrip("s")
-                if reference_name.endswith("s")
-                else reference_name
-            )
-            id_candidates = [
-                "id",
-                f"id_{singular}",
-                f"{singular}_id",
-                f"id_{reference_name}",
-                f"{reference_name}_id",
-            ]
-            id_field = next((c for c in id_candidates if c in col_names), None)
-            if not id_field:
-                id_field = next(
-                    (c for c in col_names if c == "id" or c.endswith("_id")),
-                    "id",
-                )
+            # Detect ID field — prefer "id" (PK) over "{ref}_id" (FK)
+            id_field = _pick_identifier_column(col_names, preferred="id") or "id"
 
-            # Charger une entité sample
+            # Load a sample entity
             if entity_id:
                 query = text(
                     f"SELECT * FROM {quoted_table} "
@@ -781,19 +996,74 @@ document.addEventListener('DOMContentLoaded', function() {{
                 )
 
             if sample_df.empty:
-                return self._info_html(f"Aucune donnée dans '{reference_name}'")
+                return self._info_html(f"No data in '{reference_name}'")
 
             row = sample_df.iloc[0]
 
-            # Construire les données pour info_grid
+            # Build data for info_grid
             items: list[dict[str, Any]] = []
             for field_cfg in field_configs:
                 field_name = field_cfg.get("field", "")
-                label = field_cfg.get("label", field_name.replace("_", " ").title())
+                target = field_cfg.get("target", field_name)
+                label = field_cfg.get("label", target.replace("_", " ").title())
                 units = field_cfg.get("units", "")
 
-                value = row.get(field_name)
-                if pd.isna(value):
+                # Handle count transformations separately
+                if field_cfg.get("transformation") == "count":
+                    source = field_cfg.get("source", "")
+                    count_table = None
+                    for prefix in (
+                        f"dataset_{source}",
+                        source,
+                        f"entity_{source}",
+                    ):
+                        if db.has_table(prefix):
+                            count_table = prefix
+                            break
+                    if count_table:
+                        try:
+                            qt = preparer.quote(count_table)
+                            qf = preparer.quote(field_name)
+                            qid = preparer.quote(id_field)
+                            count_q = text(
+                                f"SELECT COUNT({qf}) FROM {qt} WHERE {qid} = :eid"
+                            )
+                            cnt = pd.read_sql(
+                                count_q, db.engine, params={"eid": str(entity_id or "")}
+                            )
+                            value = int(cnt.iloc[0, 0]) if not cnt.empty else 0
+                        except Exception:
+                            value = None
+                    else:
+                        value = None
+                elif "." in field_name:
+                    # JSON path (e.g. extra_data.holdridge)
+                    parts = field_name.split(".", 1)
+                    container = row.get(parts[0])
+                    if container is not None and not (
+                        isinstance(container, float) and pd.isna(container)
+                    ):
+                        if isinstance(container, str):
+                            try:
+                                import json as _json
+
+                                container = _json.loads(container)
+                            except Exception:
+                                container = None
+                        value = (
+                            container.get(parts[1])
+                            if isinstance(container, dict)
+                            else None
+                        )
+                    else:
+                        value = None
+                elif field_name in row.index:
+                    value = row.get(field_name)
+                else:
+                    # Field not in this table — skip silently
+                    value = None
+
+                if value is not None and pd.isna(value):
                     value = None
                 elif hasattr(value, "item"):
                     value = value.item()
@@ -806,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                     }
                 )
 
-            # Rendre via info_grid
+            # Render via info_grid
             try:
                 plugin_class = PluginRegistry.get_plugin("info_grid", PluginType.WIDGET)
                 plugin_instance = plugin_class(db=db)
@@ -822,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                     "items": items,
                     "grid_columns": 2,
                 }
-                # Valider via le schéma Pydantic du plugin
+                # Validate via the plugin's Pydantic schema
                 if (
                     hasattr(plugin_instance, "param_schema")
                     and plugin_instance.param_schema
@@ -834,11 +1104,11 @@ document.addEventListener('DOMContentLoaded', function() {{
                     validated = widget_params
                 return plugin_instance.render(widget_data, validated)
             except Exception as e:
-                logger.warning("Erreur rendu info_grid: %s", e)
+                logger.warning("Info grid render error: %s", e)
                 return self._render_general_info_fallback(items, reference_name)
 
         except Exception as e:
-            logger.exception("Erreur preview general_info: %s", e)
+            logger.exception("General info preview error: %s", e)
             return self._error_html(str(e))
 
     def _render_general_info_fallback(
@@ -861,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', function() {{
 </div>"""
 
     # ------------------------------------------------------------------
-    # Branche ENTITY MAP
+    # ENTITY MAP branch
     # ------------------------------------------------------------------
 
     def _render_entity_map(
@@ -871,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         db: Database | None,
         warnings: list[str],
     ) -> str:
-        """Rendu de carte entité via MapRenderer.render (classmethod)."""
+        """Entity map rendering via MapRenderer.render (classmethod)."""
         from niamoto.gui.api.services.map_renderer import (
             MapConfig,
             MapRenderer,
@@ -879,10 +1149,10 @@ document.addEventListener('DOMContentLoaded', function() {{
         )
 
         if not db:
-            return self._error_html("Base de données non trouvée")
+            return self._error_html("Database not found")
 
         try:
-            # Parser le template_id
+            # Parse the template_id
             if template_id.endswith("_entity_map"):
                 mode = "single"
                 prefix = template_id[:-11]
@@ -890,24 +1160,24 @@ document.addEventListener('DOMContentLoaded', function() {{
                 mode = "all"
                 prefix = template_id[:-8]
             else:
-                return self._error_html(f"Format entity map invalide: {template_id}")
+                return self._error_html(f"Invalid entity map format: {template_id}")
 
             parts = prefix.split("_")
             if len(parts) < 2:
-                return self._error_html(f"Impossible de parser: {template_id}")
+                return self._error_html(f"Cannot parse template_id: {template_id}")
 
             reference = parts[0]
             geom_col = "_".join(parts[1:])
 
             entity_table = resolve_reference_table(db, reference)
             if not entity_table:
-                return self._info_html(f"Table '{reference}' non trouvée")
+                return self._info_html(f"Table '{reference}' not found")
 
             preparer = inspect(db.engine).dialect.identifier_preparer
             quoted_table = preparer.quote(entity_table)
             col_names = self._get_column_names(db, quoted_table)
 
-            # Résoudre la colonne géométrique
+            # Resolve the geometry column
             actual_geom_col = None
             if geom_col in col_names:
                 actual_geom_col = geom_col
@@ -920,41 +1190,19 @@ document.addEventListener('DOMContentLoaded', function() {{
                         break
 
             if not actual_geom_col:
-                return self._info_html(f"Colonne géométrique '{geom_col}' non trouvée")
+                return self._info_html(f"Geometry column '{geom_col}' not found")
 
-            # Détecter les champs nom et id
-            name_candidates = [
-                "full_name",
-                "name",
-                "plot",
-                "label",
-                "title",
-                reference,
-            ]
-            name_field = next((c for c in name_candidates if c in col_names), None)
-            if not name_field:
-                name_field = next((c for c in col_names if "name" in c.lower()), "id")
-
-            singular = reference.rstrip("s") if reference.endswith("s") else reference
-            id_candidates = [
-                f"id_{singular}",
-                f"{singular}_id",
-                f"id_{reference}",
-                f"{reference}_id",
-                "id",
-            ]
-            id_field = next((c for c in id_candidates if c in col_names), None)
-            if not id_field:
-                id_field = next(
-                    (c for c in col_names if c.lower().startswith("id")),
-                    col_names[0] if col_names else "id",
-                )
+            # Detect name and id fields
+            id_field = _pick_identifier_column(col_names, entity_name=reference) or (
+                col_names[0] if col_names else "id"
+            )
+            name_field = _pick_name_column(col_names, id_field, reference)
 
             quoted_geom = preparer.quote(actual_geom_col)
             quoted_id = preparer.quote(id_field)
             quoted_name = preparer.quote(name_field)
 
-            # Construire la requête selon le mode
+            # Build query according to mode
             query_params: dict[str, Any] = {}
             if mode == "single":
                 if not entity_id:
@@ -990,9 +1238,9 @@ document.addEventListener('DOMContentLoaded', function() {{
 
             result = pd.read_sql(text(query), db.engine, params=query_params or None)
             if result.empty:
-                return self._info_html("Pas de données géographiques disponibles")
+                return self._info_html("No geographic data available")
 
-            # Convertir en GeoJSON
+            # Convert to GeoJSON
             features = []
             for _, row in result.iterrows():
                 geom_str = str(row["geom"])
@@ -1015,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                 )
 
             if not features:
-                return self._info_html("Pas de géométrie valide trouvée")
+                return self._info_html("No valid geometry found")
 
             geojson = {"type": "FeatureCollection", "features": features}
 
@@ -1039,11 +1287,11 @@ document.addEventListener('DOMContentLoaded', function() {{
             return MapRenderer.render(geojson, map_config, engine="plotly")
 
         except Exception as e:
-            logger.exception("Erreur preview entity_map: %s", e)
+            logger.exception("Entity map preview error: %s", e)
             return self._error_html(str(e))
 
     # ------------------------------------------------------------------
-    # Branche STANDARD (configured / dynamic / class_object / occurrence)
+    # STANDARD branch (configured / dynamic / class_object / occurrence)
     # ------------------------------------------------------------------
 
     def _render_standard(
@@ -1052,13 +1300,13 @@ document.addEventListener('DOMContentLoaded', function() {{
         db: Database | None,
         warnings: list[str],
     ) -> str:
-        """Gère les cas 4-7 : configured widget, dynamic, class_object, occurrence."""
+        """Handle cases 4-7: configured widget, dynamic, class_object, occurrence."""
         template_id = request.template_id
         group_by = request.group_by
         source = request.source
         entity_id = request.entity_id
 
-        # Tenter de charger un widget configuré (transform.yml)
+        # Try to load a configured widget (transform.yml)
         detected_group_by = group_by
         if not detected_group_by:
             detected_group_by = find_widget_group(template_id)
@@ -1070,12 +1318,12 @@ document.addEventListener('DOMContentLoaded', function() {{
                     configured, detected_group_by, entity_id, db, warnings
                 )
 
-        # Parser le template_id dynamique
+        # Parse the dynamic template_id
         parsed = parse_dynamic_template_id(template_id)
         if not parsed:
-            return self._error_html(f"Format de template_id invalide: '{template_id}'")
+            return self._error_html(f"Invalid template_id format: '{template_id}'")
 
-        # Vérifier si la source est dans transform.yml
+        # Check if the source is in transform.yml
         effective_source = source
         if not effective_source:
             cfg_group = group_by or find_widget_group(template_id)
@@ -1094,10 +1342,10 @@ document.addEventListener('DOMContentLoaded', function() {{
                             configured, cfg_group, entity_id, db, warnings
                         )
 
-        # Charger les params widget depuis export.yml
-        export_params = None
+        # Load widget params from export.yml
+        export_widget_params = None
         if group_by:
-            export_params = load_widget_params_from_export(template_id, group_by)
+            export_widget_params = load_widget_params_from_export(template_id, group_by)
 
         column = parsed["column"]
         transformer = parsed["transformer"]
@@ -1111,34 +1359,22 @@ document.addEventListener('DOMContentLoaded', function() {{
             )
 
         # --- Entity table (non-occurrence) ---
-        if data_source != "occurrences":
-            return self._render_entity_source(
-                data_source,
-                column,
-                transformer,
-                widget_plugin,
-                group_by,
-                entity_id,
-                export_params,
-                db,
-                warnings,
-            )
-
-        # --- Occurrence (standard) ---
-        return self._render_occurrence(
+        # --- Dynamic preview (occurrence or entity source) ---
+        return self._render_dynamic_preview(
+            template_id,
             column,
             transformer,
             widget_plugin,
             data_source,
             group_by,
             entity_id,
-            export_params,
+            export_widget_params,
             db,
             warnings,
         )
 
     # ------------------------------------------------------------------
-    # Sous-branche : Configured widget (transform.yml)
+    # Sub-branch: Configured widget (transform.yml)
     # ------------------------------------------------------------------
 
     def _render_configured_widget(
@@ -1156,14 +1392,14 @@ document.addEventListener('DOMContentLoaded', function() {{
         widget_title = configured["widget_title"]
         widget_id = configured.get("widget_id", "")
 
-        # Vérifier le plugin widget
+        # Verify the widget plugin
         try:
             PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
         except Exception:
-            return self._error_html(f"Plugin widget '{widget_plugin}' non trouvé")
+            return self._error_html(f"Widget plugin '{widget_plugin}' not found")
 
         if not db:
-            return self._info_html("Base de données non configurée")
+            return self._info_html("Database not configured")
 
         try:
             if transformer_plugin.startswith("class_object_"):
@@ -1184,35 +1420,47 @@ document.addEventListener('DOMContentLoaded', function() {{
 
             group_config = self._load_group_config(group_by, svc)
             if not group_config:
-                return self._info_html(f"Groupe '{group_by}' non trouvé")
+                return self._info_html(f"Group '{group_by}' not found")
 
             # Pick a representative group_id
             group_ids = svc._get_group_ids(group_config)
             if not group_ids:
-                return self._info_html("Pas d'entités disponibles")
+                return self._info_html("No entities available")
             gid = self._resolve_entity_id(entity_id, group_ids)
             if gid is None:
-                return self._info_html(
-                    f"Entité '{entity_id}' non trouvée dans {group_by}"
-                )
+                return self._info_html(f"Entity '{entity_id}' not found in {group_by}")
 
             result = svc.transform_single_widget(group_config, widget_id, gid)
 
-            # Adapter le format transformer → widget si nécessaire
+            # Adapt transformer output format to widget format if needed
             result = _preprocess_data_for_widget(
                 result, transformer_plugin, widget_plugin
             )
 
-            # Rendu widget
+            # Widget rendering
             return render_widget(db, widget_plugin, result, widget_params, widget_title)
 
         except (DataTransformError, DataLoadError) as e:
             # Data not available yet (e.g. CSV not generated, empty DB)
             logger.warning("Preview data unavailable for %s: %s", widget_id, e)
-            return self._info_html(f"Données non disponibles : {e}")
+            return self._info_html(f"Data not available : {e}")
         except Exception as e:
-            logger.exception("Erreur preview configured widget: %s", e)
+            logger.exception("Configured widget preview error: %s", e)
             return self._error_html(str(e))
+
+    # Transformers that ALWAYS need the raw CSV DataFrame.
+    _RAW_DF_TRANSFORMERS = {
+        "class_object_series_ratio_aggregator",
+        "class_object_categories_mapper",
+        "class_object_series_matrix_extractor",
+        "class_object_series_by_axis_extractor",
+    }
+
+    # Widgets that need the real (nested) transformer output instead of
+    # the flat {tops, counts} emulation.
+    _WIDGETS_NEEDING_REAL_PLUGIN = {
+        "concentric_rings",
+    }
 
     def _render_configured_class_object(
         self,
@@ -1225,32 +1473,31 @@ document.addEventListener('DOMContentLoaded', function() {{
         group_by: str,
         warnings: list[str],
     ) -> str:
-        """Rendu d'un widget configuré basé sur class_object (CSV)."""
-        class_objects = _extract_class_objects_from_params(transformer_params)
-        if not class_objects:
-            return self._info_html("Pas de class_objects configurés")
+        """Render a configured widget based on class_object (CSV)."""
 
-        co_data = {}
-        for co_name in class_objects:
-            data = load_class_object_data_for_preview(self._work_dir, co_name, group_by)
-            if data:
-                co_data[co_name] = data
+        use_real_plugin = (
+            transformer_plugin in self._RAW_DF_TRANSFORMERS
+            or widget_plugin in self._WIDGETS_NEEDING_REAL_PLUGIN
+        )
 
-        if not co_data:
-            return self._info_html(
-                f"Données non trouvées pour: {', '.join(class_objects)}"
+        if use_real_plugin:
+            result = self._transform_with_real_plugin(
+                db, transformer_plugin, transformer_params, group_by
+            )
+        else:
+            result = self._transform_with_emulation(
+                transformer_plugin, transformer_params, group_by
             )
 
-        result = _execute_configured_transformer(
-            transformer_plugin, transformer_params, co_data, group_by
-        )
+        if isinstance(result, str):
+            # Error HTML returned by helper
+            return result
         if not result:
-            return self._info_html("Le transformer n'a pas retourné de données")
+            return self._info_html("Transformer returned no data")
 
-        # Fusionner les params d'affichage du transform.yml avec les
-        # widget_params de l'export.yml — les champs comme x_axis, y_axis,
-        # orientation, sort_order, auto_color sont dans transformer_params
-        # mais doivent être transmis au widget.
+        # Merge display params from transform.yml with widget_params from
+        # export.yml -- fields like x_axis, y_axis, orientation, sort_order,
+        # auto_color are in transformer_params but must be passed to the widget.
         _WIDGET_DISPLAY_KEYS = {
             "x_axis",
             "y_axis",
@@ -1266,6 +1513,28 @@ document.addEventListener('DOMContentLoaded', function() {{
         if widget_params:
             merged_params.update(widget_params)
 
+        # Remap data field names when transformer output (tops/counts) doesn't
+        # match widget expected field names from export.yml.
+        # Widgets reference fields via x_axis/y_axis (bar_plot) or
+        # labels_field/values_field (donut_chart).  The real pipeline stores
+        # {tops, counts} in JSON and the browser JS handles it; the Python
+        # preview renderer needs exact field name matches.
+        if isinstance(result, dict) and "tops" in result and "counts" in result:
+            # bar_plot fields
+            x_field = merged_params.get("x_axis", "tops")
+            y_field = merged_params.get("y_axis", "counts")
+            if x_field != "tops" and x_field not in result:
+                result[x_field] = result["tops"]
+            if y_field != "counts" and y_field not in result:
+                result[y_field] = result["counts"]
+            # donut_chart fields
+            labels_field = merged_params.get("labels_field")
+            values_field = merged_params.get("values_field")
+            if labels_field and labels_field != "tops" and labels_field not in result:
+                result[labels_field] = result["tops"]
+            if values_field and values_field != "counts" and values_field not in result:
+                result[values_field] = result["counts"]
+
         return _render_widget_for_configured(
             db,
             widget_plugin,
@@ -1275,8 +1544,69 @@ document.addEventListener('DOMContentLoaded', function() {{
             merged_params,
         )
 
+    def _transform_with_real_plugin(
+        self,
+        db: Database | None,
+        transformer_plugin: str,
+        transformer_params: dict[str, Any],
+        group_by: str,
+    ) -> dict[str, Any] | str:
+        """Load raw CSV and call the real transformer plugin.
+
+        Returns transformer result dict, or an info/error HTML string.
+        """
+        source_name = transformer_params.get("source")
+        raw_df = load_class_object_csv_dataframe(
+            self._work_dir, group_by, source_name=source_name
+        )
+        if raw_df is None or raw_df.empty:
+            return self._info_html(f"CSV data not found for group '{group_by}'")
+
+        try:
+            plugin_class = PluginRegistry.get_plugin(
+                transformer_plugin, PluginType.TRANSFORMER
+            )
+            plugin_instance = plugin_class(db=db)
+            config = {"plugin": transformer_plugin, "params": transformer_params}
+            return plugin_instance.transform(raw_df, config)
+        except (DataTransformError, DataLoadError) as e:
+            logger.warning(
+                "Real plugin transform failed for %s: %s", transformer_plugin, e
+            )
+            return self._info_html(f"Transform error: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error in real plugin %s", transformer_plugin)
+            return self._error_html(str(e))
+
+    def _transform_with_emulation(
+        self,
+        transformer_plugin: str,
+        transformer_params: dict[str, Any],
+        group_by: str,
+    ) -> dict[str, Any] | str | None:
+        """Use the pre-aggregated {tops, counts} emulation path.
+
+        Returns transformer result dict, info HTML string, or None.
+        """
+        class_objects = _extract_class_objects_from_params(transformer_params)
+        if not class_objects:
+            return self._info_html("No class objects configured")
+
+        co_data = {}
+        for co_name in class_objects:
+            data = load_class_object_data_for_preview(self._work_dir, co_name, group_by)
+            if data:
+                co_data[co_name] = data
+
+        if not co_data:
+            return self._info_html(f"Data not found for: {', '.join(class_objects)}")
+
+        return _execute_configured_transformer(
+            transformer_plugin, transformer_params, co_data, group_by
+        )
+
     # ------------------------------------------------------------------
-    # Sous-branche : Class object (CSV, dynamic)
+    # Sub-branch: Class object (CSV, dynamic)
     # ------------------------------------------------------------------
 
     def _render_class_object(
@@ -1301,9 +1631,7 @@ document.addEventListener('DOMContentLoaded', function() {{
             self._work_dir, column, reference_name or ""
         )
         if not co_data:
-            return self._info_html(
-                f"Données '{column}' non trouvées dans les sources CSV"
-            )
+            return self._info_html(f"Data '{column}' not found in CSV sources")
 
         try:
             title = column.replace("_", " ").title()
@@ -1311,144 +1639,143 @@ document.addEventListener('DOMContentLoaded', function() {{
                 db, widget_plugin, co_data, transformer, title
             )
         except Exception as e:
-            logger.exception("Erreur preview class_object: %s", e)
+            logger.exception("Class object preview error: %s", e)
             return self._error_html(str(e))
 
     # ------------------------------------------------------------------
-    # Sous-branche : Entity source (non-occurrence)
+    # Sub-branch: Entity source (non-occurrence)
     # ------------------------------------------------------------------
 
-    def _render_entity_source(
+    def _render_dynamic_preview(
         self,
-        data_source: str,
-        column: str,
-        transformer_plugin: str,
-        widget_plugin: str,
-        group_by: str | None,
-        entity_id: str | None,
-        export_params: dict[str, Any] | None,
-        db: Database | None,
-        warnings: list[str],
-    ) -> str:
-        if not db:
-            return self._error_html("Base de données non trouvée")
-
-        try:
-            entity_table = resolve_entity_table(db, data_source, kind=None)
-            if not entity_table or not db.has_table(entity_table):
-                return self._info_html(f"Pas de table pour la source '{data_source}'")
-
-            preparer = inspect(db.engine).dialect.identifier_preparer
-            quoted_table = preparer.quote(entity_table)
-            entity_columns = set(self._get_column_names(db, quoted_table))
-
-            if column not in entity_columns:
-                return self._info_html(
-                    f"Champ '{column}' non trouvé dans {entity_table}"
-                )
-
-            quoted_field = preparer.quote(column)
-            sample_data = pd.read_sql(
-                text(
-                    f"SELECT {quoted_field} FROM {quoted_table} "
-                    f"WHERE {quoted_field} IS NOT NULL"
-                ),
-                db.engine,
-            )
-
-            if sample_data.empty:
-                return self._info_html(
-                    f"Pas de données pour '{column}' dans {entity_table}"
-                )
-
-            # Construire la config et exécuter le transformer
-            config = {
-                "source": data_source,
-                "field": column,
-            }
-
-            transform_input: Any = sample_data
-            if transformer_plugin == "field_aggregator":
-                transform_input = {data_source: sample_data}
-
-            result = execute_transformer(
-                db, transformer_plugin, config, transform_input
-            )
-
-            # Adapter le format transformer → widget si nécessaire
-            result = _preprocess_data_for_widget(
-                result, transformer_plugin, widget_plugin
-            )
-
-            title = column.replace("_", " ").title()
-            widget_html = render_widget(db, widget_plugin, result, export_params, title)
-            return widget_html
-
-        except Exception as e:
-            logger.exception("Erreur preview entity source: %s", e)
-            return self._error_html(str(e))
-
-    # ------------------------------------------------------------------
-    # Sous-branche : Occurrence (standard)
-    # ------------------------------------------------------------------
-
-    def _render_occurrence(
-        self,
+        template_id: str,
         column: str,
         transformer_plugin: str,
         widget_plugin: str,
         data_source: str,
         group_by: str | None,
         entity_id: str | None,
-        export_params: dict[str, Any] | None,
+        export_widget_params: dict[str, Any] | None,
         db: Database | None,
         warnings: list[str],
     ) -> str:
+        """Render a dynamic (not-yet-configured) widget preview.
+
+        Tries TransformerService.transform_single_widget() first (same pipeline
+        as configured widgets).  Falls back to ad-hoc execution only when no
+        group_config is available (e.g. first init without transform.yml).
+        """
         if not db:
-            return self._error_html("Base de données non trouvée")
+            return self._error_html("Database not found")
 
         try:
-            import_config = load_import_config(self._work_dir)
-            hierarchy_info = get_hierarchy_info(import_config, group_by)
+            transformer_config = _build_transformer_config(
+                column, transformer_plugin, data_source, db
+            )
 
-            if entity_id:
-                representative = find_entity_by_id(db, hierarchy_info, entity_id)
+            # --- Primary path: use TransformerService (same as configured) ---
+            preview_group = self._resolve_preview_group_context(group_by, entity_id, db)
+            if preview_group:
+                svc, group_config, gid = preview_group
+                temp_group_config = self._build_preview_group_config(
+                    group_config,
+                    template_id,
+                    transformer_plugin,
+                    transformer_config,
+                )
+                result = svc.transform_single_widget(
+                    temp_group_config, template_id, gid
+                )
+
+            # --- Fallback: ad-hoc execution (no group_config available) ---
+            elif data_source != "occurrences":
+                # Entity source fallback (non-occurrence table)
+                entity_table = resolve_entity_table(db, data_source, kind=None)
+                if not entity_table or not db.has_table(entity_table):
+                    return self._info_html(f"No table for source '{data_source}'")
+
+                preparer = inspect(db.engine).dialect.identifier_preparer
+                quoted_table = preparer.quote(entity_table)
+                entity_columns = set(self._get_column_names(db, quoted_table))
+
+                if column not in entity_columns:
+                    return self._info_html(
+                        f"Field '{column}' not found in {entity_table}"
+                    )
+
+                quoted_field = preparer.quote(column)
+                sample_data = pd.read_sql(
+                    text(
+                        f"SELECT {quoted_field} FROM {quoted_table} "
+                        f"WHERE {quoted_field} IS NOT NULL"
+                    ),
+                    db.engine,
+                )
+
+                if sample_data.empty:
+                    return self._info_html(f"No data for '{column}' in {entity_table}")
+
+                transform_input: Any = sample_data
+                if transformer_plugin == "field_aggregator":
+                    transform_input = {data_source: sample_data}
+
+                result = execute_transformer(
+                    db, transformer_plugin, transformer_config, transform_input
+                )
             else:
-                representative = find_representative_entity(db, hierarchy_info)
+                # Occurrence source fallback
+                import_config = load_import_config(self._work_dir)
+                hierarchy_info = get_hierarchy_info(import_config, group_by)
 
-            config = {
-                "source": data_source,
-                "field": column,
-            }
+                if entity_id:
+                    representative = find_entity_by_id(db, hierarchy_info, entity_id)
+                else:
+                    representative = find_representative_entity(db, hierarchy_info)
 
-            sample_data = load_sample_data(db, representative, config)
-            if sample_data.empty:
-                return self._info_html("Pas de données disponibles")
+                sample_data = load_sample_data(db, representative, transformer_config)
+                if sample_data.empty:
+                    return self._info_html("No data available")
 
-            result = execute_transformer(db, transformer_plugin, config, sample_data)
+                result = execute_transformer(
+                    db, transformer_plugin, transformer_config, sample_data
+                )
 
-            # Adapter le format transformer → widget si nécessaire
+            # Adapt transformer output → widget format
             result = _preprocess_data_for_widget(
                 result, transformer_plugin, widget_plugin
             )
 
-            title = column.replace("_", " ").title()
-            widget_html = render_widget(db, widget_plugin, result, export_params, title)
-            return widget_html
+            # Build widget display params for required fields (x_axis, y_axis)
+            widget_params = _build_widget_params_for_preview(
+                column, transformer_plugin, widget_plugin, data_source, db
+            )
+            if export_widget_params:
+                widget_params.update(export_widget_params)
 
+            title = column.replace("_", " ").title()
+            return render_widget(
+                db, widget_plugin, result, widget_params or None, title
+            )
+
+        except (DataTransformError, DataLoadError) as e:
+            logger.warning("Preview data unavailable for %s: %s", template_id, e)
+            return self._info_html(f"Data not available : {e}")
         except Exception as e:
-            logger.exception("Erreur preview occurrence: %s", e)
+            logger.exception("Dynamic preview error: %s", e)
             return self._error_html(str(e))
 
     # ------------------------------------------------------------------
-    # Utilitaires
+    # Utilities
     # ------------------------------------------------------------------
 
     def _open_db(self) -> Database | None:
-        """Ouvrir la base de données en lecture seule."""
+        """Return the shared DB instance (read-only, lazy)."""
+        if self._db is not None:
+            return self._db
         if not os.path.exists(self._db_path):
             return None
-        return Database(self._db_path)
+        self._db = Database(self._db_path, read_only=True)
+        return self._db
 
 
 # --------------------------------------------------------------------------
@@ -1460,9 +1787,9 @@ _engine_instance: PreviewEngine | None = None
 
 
 def get_preview_engine() -> PreviewEngine | None:
-    """Retourne l'instance partagée du moteur de preview.
+    """Return the shared preview engine instance.
 
-    Créée paresseusement à la première requête (double-checked locking).
+    Lazily created on the first request (double-checked locking).
     """
     global _engine_instance
     if _engine_instance is not None:
@@ -1488,7 +1815,7 @@ def get_preview_engine() -> PreviewEngine | None:
 
 
 def reset_preview_engine() -> None:
-    """Réinitialiser l'instance -- utile après changement de projet."""
+    """Reset the instance -- useful after switching projects."""
     global _engine_instance, _transformer_svc
     with _engine_lock:
         _engine_instance = None

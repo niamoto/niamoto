@@ -537,7 +537,7 @@ async def get_representatives(
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
 
-    db = Database(str(db_path))
+    db = Database(str(db_path), read_only=True)
 
     try:
         # Resolve reference table from logical group name

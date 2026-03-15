@@ -288,7 +288,7 @@ def _resolve_reference_table(reference_name: str) -> Optional[str]:
         return None
 
     try:
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             return _resolve_reference_table_from_db(db, reference_name)
         finally:
@@ -334,7 +334,7 @@ def _get_taxons_to_enrich(only_unenriched: bool = True) -> List[Dict[str, Any]]:
         from niamoto.common.database import Database
         import pandas as pd
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             quoted_table_name = quote_identifier(db, table_name)
             table_cols = pd.read_sql(
@@ -437,7 +437,7 @@ def _get_enrichment_stats() -> Dict[str, int]:
         from niamoto.common.database import Database
         import pandas as pd
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             quoted_table_name = quote_identifier(db, table_name)
             table_cols = pd.read_sql(
@@ -1067,7 +1067,7 @@ def _get_enrichment_stats_for_reference(reference_name: str) -> Dict[str, int]:
         from niamoto.common.database import Database
         import pandas as pd
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             quoted_table_name = quote_identifier(db, table_name)
             table_cols = pd.read_sql(
@@ -1399,7 +1399,7 @@ async def get_entities_for_reference(
         from niamoto.common.database import Database
         import pandas as pd
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             quoted_table_name = quote_identifier(db, table_name)
             table_cols = pd.read_sql(

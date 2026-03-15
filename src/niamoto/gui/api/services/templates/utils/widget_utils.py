@@ -21,7 +21,23 @@ CLASS_OBJECT_EXTRACTORS = {
     "series_extractor",
     "binary_aggregator",
     "categories_extractor",
-    "class_object_field_aggregator",
+    "field_aggregator",
+    "series_ratio_aggregator",
+    "categories_mapper",
+    "series_matrix_extractor",
+    "series_by_axis_extractor",
+}
+
+# Well-known widget names used as fallback when PluginRegistry is not loaded
+_WELL_KNOWN_WIDGETS = {
+    "bar_plot",
+    "donut_chart",
+    "radial_gauge",
+    "interactive_map",
+    "info_grid",
+    "hierarchical_nav_widget",
+    "concentric_rings",
+    "stacked_area_plot",
 }
 
 
@@ -79,13 +95,13 @@ def generate_widget_title(widget_id: str, plugin: str, params: Dict[str, Any]) -
         count = params.get("count", 10)
         return f"Top {count} - {title}"
     elif plugin == "binned_distribution":
-        return f"Distribution - {title}"
+        return f"{title} distribution"
     elif plugin == "categorical_distribution":
-        return f"Répartition - {title}"
+        return f"{title} breakdown"
     elif plugin == "binary_counter":
         return f"{title}"
     elif plugin == "geospatial_extractor":
-        return "Distribution géographique"
+        return "Geographic distribution"
     elif plugin == "hierarchical_nav_widget":
         ref = params.get("referential_data", "")
         return f"Navigation - {ref.title()}"
@@ -257,6 +273,54 @@ def find_widget_for_transformer(transformer_name: str) -> Optional[str]:
         return None
 
 
+# Cache for plugin names (they don't change at runtime)
+_widget_names: list[str] | None = None
+_transformer_names: list[str] | None = None
+
+
+def _get_widget_names() -> list[str]:
+    """Get widget plugin names from PluginRegistry, sorted longest-first for greedy matching."""
+    global _widget_names
+    if _widget_names is not None:
+        if _WELL_KNOWN_WIDGETS <= set(_widget_names):
+            return _widget_names
+        _widget_names = None
+    try:
+        from niamoto.core.plugins import PluginRegistry, PluginType
+
+        names = set(PluginRegistry.get_plugins_by_type(PluginType.WIDGET).keys())
+        names |= _WELL_KNOWN_WIDGETS
+        result = sorted(names, key=len, reverse=True)
+        if len(result) > len(_WELL_KNOWN_WIDGETS):
+            _widget_names = result
+        return result
+    except Exception:
+        return sorted(_WELL_KNOWN_WIDGETS, key=len, reverse=True)
+
+
+def _get_transformer_names() -> list[str]:
+    """Get transformer plugin names + class_object extractors, sorted longest-first."""
+    global _transformer_names
+    if _transformer_names is not None:
+        # Ensure cached value still contains all extractors (guard against stale cache)
+        if CLASS_OBJECT_EXTRACTORS <= set(_transformer_names):
+            return _transformer_names
+        _transformer_names = None
+    try:
+        from niamoto.core.plugins import PluginRegistry, PluginType
+
+        names = set(PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER).keys())
+        names |= CLASS_OBJECT_EXTRACTORS
+        result = sorted(names, key=len, reverse=True)
+        if len(result) > len(
+            CLASS_OBJECT_EXTRACTORS
+        ):  # Has real plugins, not just extractors
+            _transformer_names = result
+        return result
+    except Exception:
+        return sorted(CLASS_OBJECT_EXTRACTORS, key=len, reverse=True)
+
+
 def parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
     """Parse a dynamic template ID into column, transformer, and widget.
 
@@ -269,31 +333,8 @@ def parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
 
     Returns dict with 'column', 'transformer', 'widget' or None if not parseable.
     """
-    # Known widget names (from PluginRegistry)
-    widget_names = [
-        "bar_plot",
-        "donut_chart",
-        "interactive_map",
-        "radial_gauge",
-        "info_grid",
-    ]
-
-    # Known transformer names (real transformers + class_object extractors)
-    transformer_names = [
-        # Real transformer plugins
-        "binned_distribution",
-        "categorical_distribution",
-        "statistical_summary",
-        "top_ranking",
-        "binary_counter",
-        "field_aggregator",
-        "geospatial_extractor",
-        "time_series_analysis",
-        # Class_object extractors (for pre-calculated CSV data)
-        "series_extractor",
-        "binary_aggregator",
-        "categories_extractor",
-    ]
+    widget_names = _get_widget_names()
+    transformer_names = _get_transformer_names()
 
     # Try to match widget from the end
     matched_widget = None

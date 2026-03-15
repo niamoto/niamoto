@@ -121,6 +121,7 @@ dependencies = [
     # keyring - System keyring access for secure credential storage
     # Documentation: https://pypi.org/project/keyring/
     "keyring>=25.0.0",
+    "openpyxl>=3.1.5",
 ]
 
 [project.urls]

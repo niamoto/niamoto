@@ -488,7 +488,7 @@ class InteractiveMapWidget(WidgetPlugin):
         }_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
                 <div style="display: flex; flex-direction: column; align-items: center;">
                     <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #2d5016; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    <p style="margin-top: 10px; color: #666;">Chargement de la carte...</p>
+                    <p style="margin-top: 10px; color: #666;">Loading map...</p>
                 </div>
             </div>
             <style>
@@ -526,7 +526,7 @@ class InteractiveMapWidget(WidgetPlugin):
                     console.error('TopoJSON library failed to load after 5 seconds');
                     document.getElementById('{
             map_id
-        }_loader').innerHTML = '<p style="color: red;">Erreur: Impossible de charger la bibliothèque TopoJSON</p>';
+        }_loader').innerHTML = '<p style="color: red;">Error: Failed to load TopoJSON library</p>';
                     return;
                 }}
             }}

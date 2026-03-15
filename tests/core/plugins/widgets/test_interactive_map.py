@@ -607,9 +607,7 @@ class TestInteractiveMapWidgetMultiLayer(NiamotoTestCase):
             "topojson.feature", result
         )  # Should include TopoJSON functionality
         self.assertIn("Plotly.newPlot", result)  # Should include Plotly rendering
-        self.assertIn(
-            "Chargement de la carte", result
-        )  # Should include loading indicator
+        self.assertIn("Loading map...", result)  # Should include loading indicator
 
 
 class TestInteractiveMapParams(NiamotoTestCase):

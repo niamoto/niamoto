@@ -209,7 +209,7 @@ class ClassObjectWidgetSuggester:
 
                 # Add axis labels using class_object name (quick_edit fields)
                 transformer_config["x_label"] = co.name.upper()
-                transformer_config["y_label"] = "%" if is_percentage else "Effectif"
+                transformer_config["y_label"] = "%" if is_percentage else "Count"
 
                 return "bar_plot", transformer_config
             else:

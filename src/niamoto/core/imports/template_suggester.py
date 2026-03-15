@@ -31,7 +31,7 @@ class TemplateSuggestion:
     template_id: str
     name: str
     description: str
-    plugin: str
+    plugin: str  # transformer plugin
     category: str
     icon: str
     confidence: float
@@ -40,12 +40,16 @@ class TemplateSuggestion:
     matched_column: Optional[str] = None
     match_reason: Optional[str] = None
     is_recommended: bool = False
-    config: Dict[str, Any] = None
-    alternatives: List[str] = None
+    config: Optional[Dict[str, Any]] = None  # transformer params
+    widget_plugin: Optional[str] = None  # widget plugin name
+    widget_params: Optional[Dict[str, Any]] = (
+        None  # widget params (x_axis, y_axis, etc.)
+    )
+    alternatives: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API response."""
-        return {
+        result = {
             "template_id": self.template_id,
             "name": self.name,
             "description": self.description,
@@ -61,6 +65,11 @@ class TemplateSuggestion:
             "config": self.config or {},
             "alternatives": self.alternatives or [],
         }
+        if self.widget_plugin:
+            result["widget_plugin"] = self.widget_plugin
+        if self.widget_params:
+            result["widget_params"] = self.widget_params
+        return result
 
 
 class TemplateSuggester:
@@ -159,7 +168,7 @@ class TemplateSuggester:
             template_id=ws.id,
             name=ws.name,
             description=ws.description,
-            plugin=ws.plugin,
+            plugin=ws.transformer_plugin,
             category=ws.category,
             icon=ws.icon,
             confidence=ws.confidence,
@@ -168,7 +177,9 @@ class TemplateSuggester:
             matched_column=ws.column,
             match_reason=f"Colonne '{ws.column}' ({ws.widget_type})",
             is_recommended=ws.is_primary,
-            config=ws.config,
+            config=ws.transformer_config,
+            widget_plugin=ws.widget_plugin,
+            widget_params=ws.widget_params,
             alternatives=ws.alternatives,
         )
 
@@ -275,7 +286,7 @@ class TemplateSuggester:
             },
             {
                 "type": "map",
-                "name": "Carte de distribution",
+                "name": "Distribution map",
                 "category": "map",
                 "data_types": ["geographic"],
                 "plugin": "geospatial_extractor",
@@ -298,9 +309,16 @@ class TemplateSuggester:
         widgets_data = {}
 
         for suggestion in selected_suggestions:
-            widgets_data[suggestion.template_id] = {
+            entry: Dict[str, Any] = {
                 "plugin": suggestion.plugin,
                 "params": suggestion.config,
             }
+            if suggestion.widget_plugin:
+                entry["export_override"] = {
+                    "plugin": suggestion.widget_plugin,
+                    "title": suggestion.name,
+                    "params": suggestion.widget_params or {},
+                }
+            widgets_data[suggestion.template_id] = entry
 
         return widgets_data

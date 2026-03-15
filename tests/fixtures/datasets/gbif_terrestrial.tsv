@@ -1,0 +1,101 @@
+gbifID	occurrenceID	basisOfRecord	scientificName	kingdom	phylum	family	genus	specificEpithet	taxonRank	decimalLatitude	decimalLongitude	coordinateUncertaintyInMeters	eventDate	year	countryCode	elevation	remarks
+1000000	urn:catalog:MNHN:00000	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-21.860573	166.025011	100	2021-04-05	2020	NC	1166
+1000001	urn:catalog:MNHN:00001	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.909507	166.031783	10	2021-04-17	2024	NC		Collected near river
+1000002	urn:catalog:MNHN:00002	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.78398	166.701325	500	2021-08-19	2022	NC	63	Collected near river
+1000003	urn:catalog:MNHN:00003	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-21.801861	166.340251	50	2021-06-04	2020	NC	785	On ultramafic substrate
+1000004	urn:catalog:MNHN:00004	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.896274	166.807128	500	2024-02-13	2020	NC	790	Collected near river
+1000005	urn:catalog:MNHN:00005	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.795428	166.045824	50	2022-02-28	2021	NC	828	On ultramafic substrate
+1000006	urn:catalog:MNHN:00006	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.04659	166.83411	50	2022-06-07	2022	NC	196	Collected near river
+1000007	urn:catalog:MNHN:00007	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-21.96586	166.244811	500	2023-05-21	2024	NC		On ultramafic substrate
+1000008	urn:catalog:MNHN:00008	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.657148	166.776	50	2020-06-13	2022	NC		On ultramafic substrate
+1000009	urn:catalog:MNHN:00009	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-22.287373	166.499231	500	2021-05-05	2021	NC	1153	On ultramafic substrate
+1000010	urn:catalog:MNHN:00010	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-21.752986	166.428434		2023-06-08	2021	NC	236
+1000011	urn:catalog:MNHN:00011	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.638897	166.152841	50	2023-10-03	2023	NC	1008	On ultramafic substrate
+1000012	urn:catalog:MNHN:00012	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.528922	166.86078	10	2020-11-18	2022	NC	746
+1000013	urn:catalog:MNHN:00013	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-22.2065	166.158158	10	2022-09-25	2021	NC	267	On ultramafic substrate
+1000014	urn:catalog:MNHN:00014	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.658331	166.507663	50	2021-06-25	2021	NC	1136
+1000015	urn:catalog:MNHN:00015	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.901055	166.488606	10	2022-05-08	2020	NC
+1000016	urn:catalog:MNHN:00016	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.414347	166.48599	10	2024-03-05	2023	NC	388	On ultramafic substrate
+1000017	urn:catalog:MNHN:00017	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-21.972326	166.606594	50	2024-12-23	2021	NC	867	On ultramafic substrate
+1000018	urn:catalog:MNHN:00018	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-22.0619	166.517576	10	2021-04-03	2022	NC		Collected near river
+1000019	urn:catalog:MNHN:00019	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-21.91156	166.007191	10	2021-02-02	2022	NC		Collected near river
+1000020	urn:catalog:MNHN:00020	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.221523	166.485414		2021-12-19	2024	NC	1018
+1000021	urn:catalog:MNHN:00021	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-22.30959	166.096931	500	2022-07-14	2023	NC	160
+1000022	urn:catalog:MNHN:00022	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-22.439387	166.728214	10	2021-04-07	2024	NC	914	Collected near river
+1000023	urn:catalog:MNHN:00023	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-22.221455	166.249806	10	2023-09-04	2020	NC	1157
+1000024	urn:catalog:MNHN:00024	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.531004	166.926367	50	2021-07-16	2023	NC
+1000025	urn:catalog:MNHN:00025	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.597557	166.164637	10	2023-05-26	2023	NC
+1000026	urn:catalog:MNHN:00026	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.345203	166.296708	10	2024-12-18	2020	NC	167
+1000027	urn:catalog:MNHN:00027	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-21.915822	166.50285		2021-01-17	2020	NC	190
+1000028	urn:catalog:MNHN:00028	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.824787	166.235204	10	2024-04-19	2024	NC
+1000029	urn:catalog:MNHN:00029	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-22.080775	166.583672		2022-05-07	2022	NC
+1000030	urn:catalog:MNHN:00030	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.369122	166.645501	500	2022-02-01	2023	NC	254
+1000031	urn:catalog:MNHN:00031	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.962366	166.505885	50	2022-02-08	2022	NC
+1000032	urn:catalog:MNHN:00032	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.666255	166.70354		2024-01-22	2024	NC
+1000033	urn:catalog:MNHN:00033	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-21.56107	166.134291	10	2020-12-18	2021	NC		Collected near river
+1000034	urn:catalog:MNHN:00034	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.782388	166.203597	100	2024-08-09	2020	NC
+1000035	urn:catalog:MNHN:00035	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.670652	166.044087	100	2021-11-09	2021	NC	1179
+1000036	urn:catalog:MNHN:00036	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-21.939093	166.111874	50	2024-01-27	2022	NC	353
+1000037	urn:catalog:MNHN:00037	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-22.372554	166.308258	10	2022-04-22	2021	NC	774
+1000038	urn:catalog:MNHN:00038	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.526163	166.749478	50	2021-03-14	2020	NC		On ultramafic substrate
+1000039	urn:catalog:MNHN:00039	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-21.717614	166.411713	50	2022-03-26	2020	NC	129
+1000040	urn:catalog:MNHN:00040	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.277566	166.816587	500	2022-05-27	2021	NC		Collected near river
+1000041	urn:catalog:MNHN:00041	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-22.101534	166.278603	10	2022-06-21	2024	NC	1148	On ultramafic substrate
+1000042	urn:catalog:MNHN:00042	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.560763	166.115342	100	2021-10-09	2020	NC
+1000043	urn:catalog:MNHN:00043	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-22.154313	166.786428	500	2024-09-04	2023	NC	439	On ultramafic substrate
+1000044	urn:catalog:MNHN:00044	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-22.455613	166.436058		2024-11-24	2021	NC	193	On ultramafic substrate
+1000045	urn:catalog:MNHN:00045	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.876845	166.663387	10	2022-09-10	2023	NC	655	Collected near river
+1000046	urn:catalog:MNHN:00046	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.30816	166.664929	500	2021-10-19	2022	NC	50	On ultramafic substrate
+1000047	urn:catalog:MNHN:00047	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-22.213086	166.429888		2024-11-11	2023	NC	487
+1000048	urn:catalog:MNHN:00048	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.706265	166.959832	50	2020-05-17	2024	NC	531	On ultramafic substrate
+1000049	urn:catalog:MNHN:00049	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-22.275359	166.19913	10	2020-04-16	2024	NC	199
+1000050	urn:catalog:MNHN:00050	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.085559	166.629765	50	2023-08-13	2021	NC
+1000051	urn:catalog:MNHN:00051	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.60734	166.860441	10	2023-04-06	2024	NC	1191	Collected near river
+1000052	urn:catalog:MNHN:00052	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.58253	166.121359	50	2023-11-17	2024	NC	956
+1000053	urn:catalog:MNHN:00053	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-21.669431	166.547872	50	2023-08-09	2021	NC	617
+1000054	urn:catalog:MNHN:00054	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.873252	166.274597	10	2022-04-09	2022	NC	1156
+1000055	urn:catalog:MNHN:00055	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-22.361626	166.231261	50	2021-02-14	2023	NC	1004
+1000056	urn:catalog:MNHN:00056	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.437734	166.832891	500	2024-12-01	2024	NC	62	On ultramafic substrate
+1000057	urn:catalog:MNHN:00057	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-22.201387	166.389987	500	2024-12-24	2024	NC	501
+1000058	urn:catalog:MNHN:00058	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-22.280578	166.435836	10	2023-06-22	2023	NC	1007	Collected near river
+1000059	urn:catalog:MNHN:00059	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-21.519278	166.534124	500	2024-10-22	2020	NC
+1000060	urn:catalog:MNHN:00060	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.364301	166.461698	10	2022-07-11	2021	NC	741
+1000061	urn:catalog:MNHN:00061	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-22.221743	166.951204	500	2022-02-16	2020	NC	156	On ultramafic substrate
+1000062	urn:catalog:MNHN:00062	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-22.275778	166.068618	10	2020-04-07	2020	NC	538	Collected near river
+1000063	urn:catalog:MNHN:00063	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-22.026439	166.114389	50	2023-12-09	2022	NC
+1000064	urn:catalog:MNHN:00064	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.722208	166.163766	100	2020-10-01	2022	NC	818
+1000065	urn:catalog:MNHN:00065	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.558529	166.19833		2021-02-23	2022	NC	297
+1000066	urn:catalog:MNHN:00066	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.152796	166.428378	100	2020-09-21	2022	NC
+1000067	urn:catalog:MNHN:00067	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-21.677669	166.105539	100	2023-12-05	2023	NC		On ultramafic substrate
+1000068	urn:catalog:MNHN:00068	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.884088	166.919618	500	2023-07-27	2024	NC		Collected near river
+1000069	urn:catalog:MNHN:00069	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-21.669269	166.086663	500	2021-08-19	2024	NC	738
+1000070	urn:catalog:MNHN:00070	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.005693	166.325014	500	2021-06-26	2022	NC	615
+1000071	urn:catalog:MNHN:00071	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.983373	166.191056	50	2023-08-18	2021	NC	1055
+1000072	urn:catalog:MNHN:00072	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.707067	166.093053	50	2023-12-08	2022	NC	805
+1000073	urn:catalog:MNHN:00073	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-21.946527	166.343757		2022-06-23	2023	NC		On ultramafic substrate
+1000074	urn:catalog:MNHN:00074	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-22.269462	166.721284	100	2020-12-18	2021	NC
+1000075	urn:catalog:MNHN:00075	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-22.2235	166.589587		2024-05-04	2021	NC		On ultramafic substrate
+1000076	urn:catalog:MNHN:00076	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-22.320558	166.014148		2021-05-02	2020	NC	308
+1000077	urn:catalog:MNHN:00077	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-22.397412	166.012265	100	2023-08-15	2022	NC
+1000078	urn:catalog:MNHN:00078	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-22.247522	166.861723	10	2020-07-16	2020	NC	159	Collected near river
+1000079	urn:catalog:MNHN:00079	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-22.350802	166.56284	100	2020-04-04	2024	NC	512
+1000080	urn:catalog:MNHN:00080	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.049486	166.442721		2023-05-19	2024	NC
+1000081	urn:catalog:MNHN:00081	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.55241	166.207788	50	2022-11-03	2021	NC
+1000082	urn:catalog:MNHN:00082	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-22.343467	166.408518		2023-05-02	2021	NC		On ultramafic substrate
+1000083	urn:catalog:MNHN:00083	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-21.797012	166.454031	50	2022-11-19	2021	NC	1165	Collected near river
+1000084	urn:catalog:MNHN:00084	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-21.852365	166.908411	50	2020-01-06	2022	NC	641
+1000085	urn:catalog:MNHN:00085	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-22.375646	166.688678	500	2022-09-18	2023	NC	131
+1000086	urn:catalog:MNHN:00086	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-21.765466	166.603714	10	2020-04-22	2024	NC	92	On ultramafic substrate
+1000087	urn:catalog:MNHN:00087	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-21.923753	166.763109	50	2023-09-21	2023	NC	421
+1000088	urn:catalog:MNHN:00088	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-21.865215	166.491726	10	2023-06-14	2022	NC	264	Collected near river
+1000089	urn:catalog:MNHN:00089	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-22.170196	166.693674	100	2023-09-02	2023	NC		On ultramafic substrate
+1000090	urn:catalog:MNHN:00090	PRESERVED_SPECIMEN	Araucaria columnaris	Plantae	Tracheophyta	Araucariaceae	Araucaria	columnaris	SPECIES	-22.176726	166.970185	500	2024-01-22	2024	NC	161	Collected near river
+1000091	urn:catalog:MNHN:00091	HUMAN_OBSERVATION	Podocarpus novae-caledoniae	Plantae	Tracheophyta	Podocarpaceae	Podocarpus	novae-caledoniae	SPECIES	-21.981561	166.622634	500	2023-01-07	2022	NC	639
+1000092	urn:catalog:MNHN:00092	PRESERVED_SPECIMEN	Nothofagus aequilateralis	Plantae	Tracheophyta	Nothofagaceae	Nothofagus	aequilateralis	SPECIES	-21.619153	166.484712	10	2024-04-23	2021	NC	78
+1000093	urn:catalog:MNHN:00093	HUMAN_OBSERVATION	Agathis lanceolata	Plantae	Tracheophyta	Araucariaceae	Agathis	lanceolata	SPECIES	-22.406791	166.992257	10	2023-02-21	2021	NC	647	On ultramafic substrate
+1000094	urn:catalog:MNHN:00094	MACHINE_OBSERVATION	Dacrydium guillauminii	Plantae	Tracheophyta	Podocarpaceae	Dacrydium	guillauminii	SPECIES	-22.08451	166.4825	500	2021-08-18	2021	NC	1090	Collected near river
+1000095	urn:catalog:MNHN:00095	PRESERVED_SPECIMEN	Callitris sulcata	Plantae	Tracheophyta	Cupressaceae	Callitris	sulcata	SPECIES	-21.635973	166.276247	500	2022-09-09	2020	NC		On ultramafic substrate
+1000096	urn:catalog:MNHN:00096	HUMAN_OBSERVATION	Parasitaxus usta	Plantae	Tracheophyta	Podocarpaceae	Parasitaxus	usta	SPECIES	-21.662524	166.579923	500	2021-08-18	2023	NC	1180
+1000097	urn:catalog:MNHN:00097	PRESERVED_SPECIMEN	Retrophyllum comptonii	Plantae	Tracheophyta	Podocarpaceae	Retrophyllum	comptonii	SPECIES	-22.044655	166.321777	50	2021-10-13	2021	NC	891
+1000098	urn:catalog:MNHN:00098	HUMAN_OBSERVATION	Acmopyle pancheri	Plantae	Tracheophyta	Podocarpaceae	Acmopyle	pancheri	SPECIES	-22.181824	166.472976	500	2023-11-26	2021	NC	125	Collected near river
+1000099	urn:catalog:MNHN:00099	MACHINE_OBSERVATION	Falcatifolium taxoides	Plantae	Tracheophyta	Podocarpaceae	Falcatifolium	taxoides	SPECIES	-21.997709	166.59018	10	2023-02-17	2023	NC		Collected near river

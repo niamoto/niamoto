@@ -14,11 +14,14 @@ import type { PreviewDescriptor, PreviewState } from './types'
 
 // --- Constantes ---
 
-/** Données écologiques : stables entre imports explicites */
-const STALE_TIME = Infinity
+/** En dev, pas de cache pour voir les changements immédiatement */
+const IS_DEV = import.meta.env.DEV
 
-/** Garder en cache 5min après démontage du dernier observateur */
-const GC_TIME = 5 * 60_000
+/** Données écologiques : stables entre imports explicites */
+const STALE_TIME = IS_DEV ? 0 : Infinity
+
+/** Garder en cache 5min après démontage du dernier observateur (0 en dev) */
+const GC_TIME = IS_DEV ? 0 : 5 * 60_000
 
 /**
  * Limite les iframes Plotly en cours de rendu simultané.

@@ -145,7 +145,7 @@ class DivergingBarPlotWidget(WidgetPlugin):
         # Check if all y-axis values are zero or null (no meaningful data)
         y_values = df_plot[params.y_axis]
         if pd.isna(y_values).all() or (y_values == 0).all():
-            return "<p class='info'>Pas de données disponibles.</p>"
+            return "<p class='info'>No data available.</p>"
 
         if params.sort_values:
             try:

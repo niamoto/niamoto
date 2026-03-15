@@ -90,6 +90,8 @@ class AutoDetector:
         """Discover relevant data files in a directory."""
         supported_extensions = {
             ".csv",
+            ".tsv",
+            ".txt",
             ".geojson",
             ".json",
             ".shp",
