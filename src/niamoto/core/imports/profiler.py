@@ -3,6 +3,7 @@ Data profiler for automatic dataset analysis and semantic detection.
 This module analyzes data files to detect their structure and suggest entity types.
 """
 
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
@@ -26,6 +27,9 @@ except ImportError:
     logging.debug("ML detector not available, falling back to pattern-based detection")
 
 logger = logging.getLogger(__name__)
+
+# Valid ml_mode values
+ML_MODES = ("auto", "off", "force")
 
 
 @dataclass
@@ -151,23 +155,67 @@ class DataProfiler:
         "gbif_id": ["gbifid", "occurrenceid", "catalognumber"],
     }
 
-    def __init__(self, ml_detector: Optional[MLColumnDetector] = None):
+    def __init__(
+        self,
+        ml_mode: str = "auto",
+        *,
+        ml_detector: Optional["MLColumnDetector"] = None,
+    ):
         """Initialize the profiler.
 
         Args:
-            ml_detector: Optional ML detector instance for value-based detection.
-                        If not provided, will try to load default model.
+            ml_mode: ML detection mode.
+                "auto"  — load the default model if available, fall back to patterns.
+                "off"   — patterns only, no ML.
+                "force" — require a trained model; raise if unavailable.
+            ml_detector: **Deprecated.** Pass an explicit ML detector instance.
+                If provided, ml_mode is ignored and the detector is used as-is.
         """
-        self.ml_detector = ml_detector
+        # Legacy parameter support
+        if ml_detector is not None:
+            warnings.warn(
+                "DataProfiler(ml_detector=...) is deprecated. "
+                "Use DataProfiler(ml_mode='auto'|'off'|'force') instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.ml_detector = ml_detector
+            self.ml_mode = "auto"
+            return
 
-        # Try to load default ML detector if available and not provided
-        if self.ml_detector is None and HAS_ML_DETECTOR:
-            try:
-                self.ml_detector = MLColumnDetector.load_or_none()
-                if self.ml_detector:
-                    logger.info("Loaded ML detector for value-based column detection")
-            except Exception as e:
-                logger.debug(f"Could not load default ML detector: {e}")
+        if ml_mode not in ML_MODES:
+            raise ValueError(f"Invalid ml_mode={ml_mode!r}. Must be one of {ML_MODES}")
+
+        self.ml_mode = ml_mode
+        self.ml_detector: Optional[MLColumnDetector] = None
+
+        if ml_mode == "off":
+            return
+
+        if not HAS_ML_DETECTOR:
+            if ml_mode == "force":
+                raise RuntimeError(
+                    "ml_mode='force' requires scikit-learn and a trained model, "
+                    "but MLColumnDetector could not be imported."
+                )
+            return
+
+        try:
+            self.ml_detector = MLColumnDetector.load_or_none()
+            if self.ml_detector:
+                logger.info("Loaded ML detector for value-based column detection")
+            elif ml_mode == "force":
+                raise RuntimeError(
+                    "ml_mode='force' but no trained model found at default path."
+                )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            if ml_mode == "force":
+                raise RuntimeError(
+                    f"ml_mode='force' but model loading failed: {e}"
+                ) from e
+            logger.debug(f"Could not load default ML detector: {e}")
 
     # Maximum rows to load for profiling (statistical accuracy ±0.5% at 99% confidence)
     PROFILING_SAMPLE_SIZE = 50_000
