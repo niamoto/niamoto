@@ -37,6 +37,8 @@ interface SelectedTemplate {
   template_id: string
   plugin: string
   config: Record<string, unknown>
+  widget_plugin?: string
+  widget_params?: Record<string, unknown> | null
 }
 
 interface UseGenerateConfigReturn {
