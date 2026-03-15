@@ -941,10 +941,8 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
             if any(sub in col_lower for sub in skip_substrings):
                 continue
             # Skip columns with too many nulls
-            if col_profile.null_count is not None and col_profile.total_count:
-                null_ratio = col_profile.null_count / col_profile.total_count
-                if null_ratio > 0.9:
-                    continue
+            if col_profile.null_ratio is not None and col_profile.null_ratio > 0.9:
+                continue
 
             if col_profile.name in sample_df.columns:
                 enriched = analyzer.enrich_profile(
