@@ -114,7 +114,11 @@ def main():
         print(f"  {body[:200]}")
         sys.exit(1)
 
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        print(f"  ERREUR: réponse non-JSON: {body[:200]}")
+        sys.exit(1)
     suggestions = data.get("suggestions", [])
     print(f"  {len(suggestions)} suggestions trouvées\n")
 

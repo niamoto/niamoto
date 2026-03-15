@@ -40,10 +40,12 @@ class TemplateSuggestion:
     matched_column: Optional[str] = None
     match_reason: Optional[str] = None
     is_recommended: bool = False
-    config: Dict[str, Any] = None  # transformer params
+    config: Optional[Dict[str, Any]] = None  # transformer params
     widget_plugin: Optional[str] = None  # widget plugin name
-    widget_params: Dict[str, Any] = None  # widget params (x_axis, y_axis, etc.)
-    alternatives: List[str] = None
+    widget_params: Optional[Dict[str, Any]] = (
+        None  # widget params (x_axis, y_axis, etc.)
+    )
+    alternatives: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API response."""

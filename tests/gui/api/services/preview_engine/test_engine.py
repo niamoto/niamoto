@@ -27,23 +27,18 @@ def test_query_rich_entity_hierarchical_picks_largest_span():
             return_value="entity_taxons",
         ),
         patch.object(db, "has_table", return_value=True),
+        patch.object(
+            db, "get_table_columns", return_value=["id", "lft", "rght", "level"]
+        ),
         patch(
             "niamoto.gui.api.services.preview_engine.engine.quote_identifier",
             side_effect=lambda db, n: f'"{n}"',
         ),
     ):
-        # Mock DESCRIBE returning lft/rght columns
-        conn_mock = MagicMock()
-        describe_result = MagicMock()
-        describe_result.fetchall.return_value = [
-            ("id",),
-            ("lft",),
-            ("rght",),
-            ("level",),
-        ]
         # Span query returns IDs: 99 (not in group_ids), 42 (in group_ids)
+        conn_mock = MagicMock()
         span_rows = iter([(99,), (42,)])
-        conn_mock.execute = MagicMock(side_effect=[describe_result, span_rows])
+        conn_mock.execute = MagicMock(return_value=span_rows)
         db.engine.connect.return_value.__enter__ = MagicMock(return_value=conn_mock)
         db.engine.connect.return_value.__exit__ = MagicMock(return_value=False)
 

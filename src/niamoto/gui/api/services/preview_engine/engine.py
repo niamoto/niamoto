@@ -436,9 +436,7 @@ class PreviewEngine:
             quoted_table = quote_identifier(db, ref_table)
             group_ids_set = set(group_ids)
 
-            with db.engine.connect() as conn:
-                col_result = conn.execute(text(f"DESCRIBE {quoted_table}"))
-                columns = {row[0] for row in col_result.fetchall()}
+            columns = set(db.get_table_columns(ref_table))
 
             # Detect ID column (may not be "id")
             id_col = _pick_identifier_column(list(columns))
