@@ -136,6 +136,5 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/bin/niamoto*
 .gitnexus
-*.joblib
 data/gold_set.json
 data/silver/
