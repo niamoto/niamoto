@@ -20,7 +20,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import scipy.stats
-from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import classification_report, f1_score
 from sklearn.model_selection import GroupKFold
 
@@ -67,8 +66,13 @@ FEATURE_NAMES = [
     # Biological patterns (2)
     "binomial_score",
     "family_suffix",
-    # Numeric patterns (1)
+    # Numeric patterns (6)
     "mean_decimals",
+    "in_lat_range",
+    "in_lon_range",
+    "in_01_range",
+    "small_int_ratio",
+    "pct_starts_upper",
     # Meta (2)
     "is_numeric",
     "n_values",
@@ -166,9 +170,33 @@ def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
         except Exception:
             pass
 
+    # Range indicators
+    if is_numeric:
+        try:
+            num_series = pd.to_numeric(series, errors="coerce").dropna()
+            if len(num_series) > 0:
+                features[30] = float(((num_series >= -90) & (num_series <= 90)).mean())
+                features[31] = float(
+                    ((num_series >= -180) & (num_series <= 180)).mean()
+                )
+                features[32] = float(((num_series >= 0) & (num_series <= 1)).mean())
+                features[33] = float(
+                    (
+                        (num_series >= 0)
+                        & (num_series <= 100)
+                        & (num_series == num_series.astype(int))
+                    ).mean()
+                )
+        except Exception:
+            pass
+
+    # Text patterns
+    if len(str_vals) > 0:
+        features[34] = float(str_vals.str.match(r"^[A-Z]").sum() / len(str_vals))
+
     # Meta
-    features[30] = 1.0 if is_numeric else 0.0
-    features[31] = len(values_sample)
+    features[35] = 1.0 if is_numeric else 0.0
+    features[36] = len(values_sample)
 
     # Replace NaN/inf
     features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
@@ -190,27 +218,24 @@ def load_and_prepare(gold_path: Path) -> tuple:
             r.get("values_sample", []), r.get("values_stats", {})
         )
         X.append(feat)
-        y_concepts.append(r["concept"])
+        y_concepts.append(r["concept_coarse"])
         y_roles.append(r["role"])
         groups.append(r["source_dataset"])
 
     return np.array(X), y_concepts, y_roles, np.array(groups)
 
 
-def build_model(
-    max_iter: int = 200,
-    max_depth: int = 8,
-    learning_rate: float = 0.1,
-    min_samples_leaf: int = 5,
-) -> HistGradientBoostingClassifier:
-    """Build HistGradientBoosting classifier."""
-    return HistGradientBoostingClassifier(
-        max_iter=500,
-        max_depth=3,
-        learning_rate=0.01,
+def build_model(**kwargs):
+    """Build ExtraTrees classifier."""
+    from sklearn.ensemble import ExtraTreesClassifier
+
+    return ExtraTreesClassifier(
+        n_estimators=300,
+        max_depth=20,
         min_samples_leaf=1,
         random_state=42,
         class_weight="balanced",
+        n_jobs=-1,
     )
 
 

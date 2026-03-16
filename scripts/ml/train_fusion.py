@@ -125,6 +125,7 @@ def build_fusion_model(C: float = 1.0) -> LogisticRegression:
         max_iter=1000,
         solver="lbfgs",
         random_state=42,
+        class_weight="balanced",
     )
 
 
@@ -155,7 +156,7 @@ def main():
     header_model, value_model = load_branch_models(args.header_model, args.value_model)
 
     # Get all concepts
-    all_concepts = sorted(set(r["concept"] for r in records))
+    all_concepts = sorted(set(r["concept_coarse"] for r in records))
     logger.info(f"Loaded {len(records)} records, {len(all_concepts)} concepts")
 
     # Extract fusion features
@@ -166,7 +167,7 @@ def main():
     for r in records:
         feat = extract_fusion_features(r, header_model, value_model, all_concepts)
         X.append(feat)
-        y.append(r["concept"])
+        y.append(r["concept_coarse"])
         groups.append(r["source_dataset"])
 
     X = np.array(X)
