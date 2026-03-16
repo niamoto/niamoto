@@ -111,14 +111,14 @@ def evaluate_fusion(gold_path: Path, n_splits: int = 5) -> float:
     with open(gold_path) as f:
         records = json.load(f)
 
-    all_concepts = sorted(set(r["concept"] for r in records))
+    all_concepts = sorted(set(r["concept_coarse"] for r in records))
     X = np.array(
         [
             extract_fusion_features(r, header_model, value_model, all_concepts)
             for r in records
         ]
     )
-    y = np.array([r["concept"] for r in records])
+    y = np.array([r["concept_coarse"] for r in records])
     groups = np.array([r["source_dataset"] for r in records])
 
     unique = np.unique(groups)

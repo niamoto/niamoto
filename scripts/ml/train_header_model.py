@@ -80,7 +80,7 @@ def prepare_data(records: list[dict]) -> tuple:
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
-        concepts.append(r["concept"])
+        concepts.append(r["concept_coarse"])
         roles.append(r["role"])
         groups.append(r["source_dataset"])
 
