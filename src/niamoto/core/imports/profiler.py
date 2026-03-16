@@ -345,14 +345,11 @@ class DataProfiler:
         # ── 2. Value-based rules (high-precision fallback) ────────────
         col_lower = col_name.lower()
 
-        # Foreign key heuristics (id prefix/suffix not covered by alias registry)
+        # Foreign key heuristic: structural pattern (id prefix/suffix)
+        # Specific id types (taxon_id, plot_id) are handled by alias registry above.
+        # This catches generic patterns like id_n, idrb_n, etc.
         if col_lower.startswith("id") or col_lower.endswith("_id"):
-            if "taxon" in col_lower or "taxonref" in col_lower:
-                return "identifier.taxon", 0.8
-            elif "plot" in col_lower or "site" in col_lower:
-                return "identifier.plot", 0.8
-            else:
-                return "identifier.record", 0.7
+            return "identifier.record", 0.7
 
         # WKT geometry detection on values
         sample = series.dropna().head(5).astype(str)
