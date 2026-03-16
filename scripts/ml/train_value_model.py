@@ -226,12 +226,12 @@ def load_and_prepare(gold_path: Path) -> tuple:
 
 
 def build_model(**kwargs):
-    """Build ExtraTrees classifier."""
-    from sklearn.ensemble import ExtraTreesClassifier
+    """Build RandomForest classifier."""
+    from sklearn.ensemble import RandomForestClassifier
 
-    return ExtraTreesClassifier(
-        n_estimators=300,
-        max_depth=20,
+    return RandomForestClassifier(
+        n_estimators=500,
+        max_depth=None,
         min_samples_leaf=1,
         random_state=42,
         class_weight="balanced",
