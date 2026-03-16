@@ -226,16 +226,16 @@ def load_and_prepare(gold_path: Path) -> tuple:
 
 
 def build_model(**kwargs):
-    """Build RandomForest classifier."""
-    from sklearn.ensemble import RandomForestClassifier
+    """Build HistGradientBoosting classifier."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
 
-    return RandomForestClassifier(
-        n_estimators=500,
-        max_depth=None,
-        min_samples_leaf=1,
+    return HistGradientBoostingClassifier(
+        max_iter=500,
+        max_depth=6,
+        learning_rate=0.05,
+        min_samples_leaf=3,
         random_state=42,
         class_weight="balanced",
-        n_jobs=-1,
     )
 
 
