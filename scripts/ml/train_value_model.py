@@ -191,9 +191,9 @@ def build_model(
     """Build HistGradientBoosting classifier."""
     return HistGradientBoostingClassifier(
         max_iter=500,
-        max_depth=6,
-        learning_rate=0.05,
-        min_samples_leaf=3,
+        max_depth=3,
+        learning_rate=0.01,
+        min_samples_leaf=1,
         random_state=42,
         class_weight="balanced",
     )
