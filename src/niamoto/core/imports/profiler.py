@@ -47,8 +47,8 @@ class ColumnProfile:
     null_ratio: float = 0.0
     sample_values: List[Any] = field(default_factory=list)
     confidence: float = 0.0
-    # Rich semantic profile (Phase 3 — coexists with semantic_type for compat)
     semantic_profile: Optional[Any] = None  # ColumnSemanticProfile at runtime
+    anomalies: Optional[Dict[str, Any]] = None  # anomaly detection summary
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -63,6 +63,8 @@ class ColumnProfile:
         }
         if self.semantic_profile:
             result["semantic_profile"] = self.semantic_profile.to_dict()
+        if self.anomalies:
+            result["anomalies"] = self.anomalies
         return result
 
 
@@ -283,6 +285,14 @@ class DataProfiler:
             semantic_type, confidence
         )
 
+        # Run anomaly detection if concept is known
+        if semantic_type and len(non_null) > 0:
+            from niamoto.core.imports.ml.anomaly_rules import summarize_anomalies
+
+            anomaly_summary = summarize_anomalies(series, semantic_type)
+            if anomaly_summary:
+                profile.anomalies = anomaly_summary
+
         return profile
 
     def _build_semantic_profile(self, semantic_type: Optional[str], confidence: float):
@@ -348,15 +358,6 @@ class DataProfiler:
         sample = series.dropna().head(5).astype(str)
         if sample.str.contains("POINT|POLYGON|LINESTRING").any():
             return "geometry", 0.95
-
-        # Generic numeric measurement heuristic
-        if pd.api.types.is_numeric_dtype(series):
-            if any(
-                term in col_lower for term in ["dbh", "height", "elevation", "rainfall"]
-            ):
-                return "measurement", 0.8
-            elif any(term in col_lower for term in ["count", "nb_", "total_"]):
-                return "statistic", 0.7
 
         return None, 0.0
 
