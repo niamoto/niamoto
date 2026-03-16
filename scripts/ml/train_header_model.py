@@ -67,6 +67,12 @@ def prepare_data(records: list[dict]) -> tuple:
         null_ratio = r.get("values_stats", {}).get("null_ratio", 0)
         if null_ratio > 0.5:
             name = f"sparse {name}"
+        # Add mean length hint (short values = codes, long = text)
+        mean_len = r.get("values_stats", {}).get("mean_length", 0)
+        if mean_len and mean_len < 3:
+            name = f"short {name}"
+        elif mean_len and mean_len > 50:
+            name = f"long {name}"
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
