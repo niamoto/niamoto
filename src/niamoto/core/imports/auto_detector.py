@@ -336,8 +336,10 @@ class AutoDetector:
 
         # Check columns for references
         for col in profile.columns:
-            if col.semantic_type and col.semantic_type.startswith("reference."):
+            if col.semantic_type and col.semantic_type.startswith("identifier."):
                 ref_type = col.semantic_type.split(".")[-1]
+                if ref_type == "record":
+                    continue  # generic row IDs are not foreign keys
 
                 # Map to actual reference names
                 if ref_type == "taxon":

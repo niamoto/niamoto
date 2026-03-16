@@ -263,8 +263,6 @@ pyyaml==6.0.3
     #   myst-parser
     #   pre-commit
     #   uvicorn
-rapidfuzz==3.14.3
-    # via niamoto (pyproject.toml)
 rasterio==1.4.3
     # via niamoto (pyproject.toml)
 requests==2.32.5

@@ -21,19 +21,27 @@ except ImportError:
     HAS_GEOPANDAS = False
 
 from niamoto.core.imports.ml.alias_registry import AliasRegistry
+from niamoto.core.imports.ml.classifier import ColumnClassifier
 
 logger = logging.getLogger(__name__)
 
-# Shared AliasRegistry instance (loaded once, thread-safe read-only)
+# Singletons (loaded once, thread-safe read-only after init)
 _alias_registry: Optional[AliasRegistry] = None
+_classifier: Optional[ColumnClassifier] = None
 
 
 def _get_alias_registry() -> AliasRegistry:
-    """Return the module-level AliasRegistry singleton."""
     global _alias_registry
     if _alias_registry is None:
         _alias_registry = AliasRegistry()
     return _alias_registry
+
+
+def _get_classifier() -> ColumnClassifier:
+    global _classifier
+    if _classifier is None:
+        _classifier = ColumnClassifier()
+    return _classifier
 
 
 @dataclass
@@ -323,31 +331,25 @@ class DataProfiler:
         """Detect the semantic type of a column.
 
         Strategy:
-        1. AliasRegistry match on column name (exact + fuzzy).
-        2. Value-based high-precision rules (lat/lon range, WKT, foreign keys).
+        1. Alias registry exact match (O(1), no model loading)
+        2. ML classifier 3-branch (header + values + fusion)
+        3. Value rules (WKT geometry, FK pattern)
         """
-        # ── 1. Name-based: AliasRegistry ──────────────────────────────
+        # ── 1. Alias registry exact match (fast path) ─────────────────
         concept, score = self._alias_registry.match(col_name)
-        if concept and score > 0:
-            # Boost confidence for coordinate columns if values confirm
-            if concept == "location.latitude" and pd.api.types.is_numeric_dtype(series):
-                clean = series.dropna()
-                if len(clean) > 0 and -90 <= clean.min() and clean.max() <= 90:
-                    return concept, max(score, 0.9)
-            if concept == "location.longitude" and pd.api.types.is_numeric_dtype(
-                series
-            ):
-                clean = series.dropna()
-                if len(clean) > 0 and -180 <= clean.min() and clean.max() <= 180:
-                    return concept, max(score, 0.9)
+        if concept and score >= 1.0:
             return concept, score
 
-        # ── 2. Value-based rules (high-precision fallback) ────────────
+        # ── 2. ML classifier (header + values + fusion) ──────────────
+        classifier = _get_classifier()
+        ml_concept, ml_confidence = classifier.classify(col_name, series)
+        if ml_concept and ml_confidence >= 0.5:
+            return ml_concept, ml_confidence
+
+        # ── 3. Value rules ───────────────────────────────────────────
         col_lower = col_name.lower()
 
-        # Foreign key heuristic: structural pattern (id prefix/suffix)
-        # Specific id types (taxon_id, plot_id) are handled by alias registry above.
-        # This catches generic patterns like id_n, idrb_n, etc.
+        # Foreign key structural pattern (id prefix/suffix)
         if col_lower.startswith("id") or col_lower.endswith("_id"):
             return "identifier.record", 0.7
 
@@ -445,8 +447,10 @@ class DataProfiler:
         relationships = []
 
         for col in columns:
-            if col.semantic_type and col.semantic_type.startswith("reference."):
+            if col.semantic_type and col.semantic_type.startswith("identifier."):
                 ref_type = col.semantic_type.split(".")[1]
+                if ref_type == "record":
+                    continue  # generic row IDs are not foreign keys
                 relationships.append(
                     {
                         "field": col.name,

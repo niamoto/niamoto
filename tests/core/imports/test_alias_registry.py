@@ -1,4 +1,4 @@
-"""Tests for the column alias registry."""
+"""Tests for the column alias registry (exact match only)."""
 
 import pytest
 
@@ -35,7 +35,7 @@ class TestNormalize:
 
 
 class TestAliasRegistry:
-    """Test the alias registry loading and matching."""
+    """Test the alias registry exact matching."""
 
     @pytest.fixture
     def registry(self):
@@ -74,10 +74,11 @@ class TestAliasRegistry:
         assert concept == "measurement.diameter"
         assert score == 1.0
 
-    def test_fuzzy_match_typo(self, registry):
+    def test_no_match_typo(self, registry):
+        """Typos are NOT matched — handled by ML classifier instead."""
         concept, score = registry.match("diametr")
-        assert concept == "measurement.diameter"
-        assert score >= 0.8
+        assert concept is None
+        assert score == 0.0
 
     def test_no_match_random(self, registry):
         concept, score = registry.match("foobar_xyz")
@@ -86,18 +87,7 @@ class TestAliasRegistry:
 
     def test_no_match_anonymous(self, registry):
         concept, score = registry.match("X1")
-        assert concept is None or score < 0.8
-
-    def test_match_top_k(self, registry):
-        results = registry.match_top_k("lat", k=3)
-        assert len(results) <= 3
-        # latitude should be among top results
-        concepts = [c for c, _ in results]
-        assert "location.latitude" in concepts
-
-    def test_match_top_k_empty(self, registry):
-        results = registry.match_top_k("", k=3)
-        assert results == []
+        assert concept is None
 
     def test_concepts_list(self, registry):
         concepts = registry.concepts
@@ -107,7 +97,6 @@ class TestAliasRegistry:
         assert "event.date" in concepts
 
     def test_custom_yaml_path(self, tmp_path):
-        """Test loading a custom alias file."""
         custom = tmp_path / "aliases.yaml"
         custom.write_text("test.concept:\n  en: [test_col, my_test]\n")
         reg = AliasRegistry(alias_path=custom)
@@ -116,7 +105,6 @@ class TestAliasRegistry:
         assert score == 1.0
 
     def test_separator_handling(self, registry):
-        """Column names with different separators should match."""
         concept, score = registry.match("tree_height")
         assert concept == "measurement.height"
         assert score == 1.0
