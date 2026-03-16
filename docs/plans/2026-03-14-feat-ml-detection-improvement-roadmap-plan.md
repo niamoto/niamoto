@@ -731,27 +731,25 @@ Phase 4 : Amélioration continue (ongoing)
 - [x] Alias registry YAML avec ~25 concepts × 5-8 langues
 - [x] API profiler : `ml_mode="auto"` / `"off"` / `"force"`
 - [x] Harness d'évaluation avec GroupKFold, holdout géo/linguistique, ablations
-- [x] Gold set 432 colonnes (189 gold + 243 synthetic, 51 concepts, 24 sources)
-- [x] Benchmark F1 baseline : header=0.366, values=0.288, fusion=0.203
+- [x] Gold set : 432 → 2231 colonnes (1635 gold + 596 synthetic, 88 sources, 6 continents)
+- [x] Concept taxonomy : 111 → 61 concepts coarsened
+- [x] Benchmark F1 baseline : header=0.366, values=0.288
 - [x] Scripts d'entraînement séparés (header, values, fusion) dans scripts/ml/
 
 ### Phase 1.5 — Autoresearch
-- [x] `programmes/niamoto-header-model.md` écrit et validé
-- [x] `programmes/niamoto-values-model.md` écrit et validé
-- [x] `programmes/niamoto-fusion.md` écrit et validé
-- [x] Script métrique CLI fonctionnel (`uv run python scripts/ml/evaluate.py --model <branch> --metric macro-f1`)
-- [x] Boucle header : 60 itérations, 0.3658 → 0.5641 (+19.83 pts, 15 commits gardés)
-- [x] Boucle values : 7 itérations, 0.2877 → 0.3420 (+5.43 pts, 5 commits gardés)
-- [x] Boucle fusion : 10 itérations, 0.7130 → 0.7950 (+8.20 pts, 1 commit gardé)
-- [x] Gain ≥ 1 pt macro-F1 par rapport au baseline (header +19.83, values +5.43, fusion +8.20)
+- [x] Programmes écrits (header, values, fusion)
+- [x] Script métrique CLI fonctionnel
+- [x] Round 1 (432 cols) : header 0.37→0.56, values 0.29→0.34, fusion 0.71→0.80
+- [x] Enrichissement : +GBIF (19 datasets), +Zenodo (8), +IFN FR, +Dryad (3), +FIA US
+- [x] Round 2 (2231 cols, 61 concepts) : header=0.7745, values=0.3527, fusion=en cours
 
 ### Phase 2 — Modèles (validation + extension)
-- [ ] Header model validé (meilleur autoloop vs baseline)
-- [ ] Value model validé (RF vs HGBT — résultat autoloop)
-- [ ] Fusion calibrée validée (isotonic regression)
+- [x] Silver dataset >= 1500 colonnes (2231 total, 88 sources)
+- [ ] Header model validé (0.7745 — target 0.85)
+- [ ] Value model validé (0.3527 — target ?)
+- [ ] Fusion calibrée validée
 - [ ] macro-F1 concept >= 0.85 sur gold set
 - [ ] Coverage@0.70 >= 75%
-- [ ] Silver dataset >= 1500 colonnes (GBIF + IFN + OBIS)
 
 ### Phase 3 — Intégration
 - [ ] `ColumnSemanticProfile` (role + concept + affordances) remplace les types plats
