@@ -27,7 +27,7 @@ class TestProfileDataframe:
         )
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
 
         profile_from_file = profiler.profile(csv_path)
         profile_from_df = profiler.profile_dataframe(df, csv_path)
@@ -47,7 +47,7 @@ class TestProfileDataframe:
         df = pd.DataFrame({"x": [1, 2, 3]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile_dataframe(df, csv_path, total_count=1000000)
 
         assert profile.record_count == 1000000
@@ -58,7 +58,7 @@ class TestProfileDataframe:
         df = pd.DataFrame({"x": [1, 2, 3, 4, 5]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile_dataframe(df, csv_path)
 
         assert profile.record_count == 5
@@ -113,7 +113,7 @@ class TestTsvTxtSupport:
         )
         df.to_csv(tsv_path, sep="\t", index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(tsv_path)
 
         assert profile is not None
@@ -132,7 +132,7 @@ class TestTsvTxtSupport:
         )
         df.to_csv(txt_path, sep="\t", index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(txt_path)
 
         assert profile is not None
@@ -144,7 +144,7 @@ class TestTsvTxtSupport:
         df = pd.DataFrame({"x": [1, 2, 3]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         assert profile is not None
@@ -172,7 +172,7 @@ class TestProfilingSampling:
         )
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         # record_count should be the sample size, not the full file
@@ -186,7 +186,7 @@ class TestProfilingSampling:
         sample_df = pd.DataFrame({"x": range(100)})
         sample_df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile_dataframe(sample_df, csv_path, total_count=5_000_000)
 
         assert profile.record_count == 5_000_000
@@ -197,7 +197,7 @@ class TestProfilingSampling:
         df = pd.DataFrame({"x": range(100)})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         assert profile.record_count == 100
@@ -216,7 +216,7 @@ class TestEncodingFallback:
             f.write("Podocàrpus,Côte,8.5\n")
             f.write("Nöthofagus,Île,12.0\n")
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         assert profile is not None

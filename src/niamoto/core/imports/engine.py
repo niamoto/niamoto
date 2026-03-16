@@ -629,7 +629,7 @@ class GenericImporter:
 
         # 1. Profile with DataProfiler — reuse already-loaded DataFrame
         # Pass total_count=len(df) since the full DataFrame is already in memory
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         dataset_profile = profiler.profile_dataframe(df, csv_path, total_count=len(df))
 
         # 2. Enrich each column with DataAnalyzer
@@ -678,9 +678,38 @@ class GenericImporter:
         else:
             profiling_status = "failed"
 
+        # 3b. Affordance-based suggestions (complements category-based)
+        from niamoto.core.plugins.matching.affordance_matcher import AffordanceMatcher
+
+        affordance_matcher = AffordanceMatcher()
+        affordance_suggestions = {}
+        for col_profile in dataset_profile.columns:
+            if col_profile.semantic_profile:
+                aff_suggs = affordance_matcher.suggest_for_profile(
+                    col_profile.semantic_profile
+                )
+                if aff_suggs:
+                    affordance_suggestions[col_profile.name] = [
+                        {
+                            "transformer": s.transformer,
+                            "widget": s.widget,
+                            "score": s.score,
+                            "reason": s.reason,
+                        }
+                        for s in aff_suggs
+                    ]
+
+        # 3c. Dataset-level pattern detection
+        from niamoto.core.imports.ml.dataset_patterns import detect_dataset_patterns
+
+        all_profiles = [
+            cp.semantic_profile for cp in dataset_profile.columns if cp.semantic_profile
+        ]
+        dataset_patterns = detect_dataset_patterns(all_profiles)
+
         # 4. Build semantic profile structure
         semantic_profile = {
-            "schema_version": 2,
+            "schema_version": 3,
             "profiling_status": profiling_status,
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
             "column_diagnostics": column_diagnostics,
@@ -698,8 +727,20 @@ class GenericImporter:
                     "suggested_bins": ep.suggested_bins,
                     "suggested_labels": ep.suggested_labels,
                     "value_range": ep.value_range,
+                    **(
+                        {"semantic_profile": cp.semantic_profile.to_dict()}
+                        if cp.semantic_profile
+                        else {}
+                    ),
                 }
-                for ep in enriched_profiles
+                for ep, cp in zip(
+                    enriched_profiles,
+                    [
+                        c
+                        for c in dataset_profile.columns
+                        if c.name in {e.name for e in enriched_profiles}
+                    ],
+                )
             ],
             "transformer_suggestions": {
                 col_name: [
@@ -713,6 +754,16 @@ class GenericImporter:
                 ]
                 for col_name, suggestions_list in suggestions.items()
             },
+            "affordance_suggestions": affordance_suggestions,
+            "dataset_patterns": [
+                {
+                    "name": p.name,
+                    "description": p.description,
+                    "confidence": p.confidence,
+                    "suggestions": p.suggestions,
+                }
+                for p in dataset_patterns
+            ],
         }
 
         logger.info(
