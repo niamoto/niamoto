@@ -164,6 +164,7 @@ ROLE_AFFORDANCES: dict[str, set[str]] = {
     "environment": {"numeric_continuous", "histogrammable"},
     "statistic": {"numeric_discrete", "histogrammable"},
     "text": {"searchable"},
+    "geometry": {"mappable", "coordinate"},
     "other": set(),
 }
 

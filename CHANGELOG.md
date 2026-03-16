@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **ML Column Classification (Phase 1-3)**: Generic multi-model column detection system
+  - 3-branch classifier architecture: header (TF-IDF + LogReg), values (HistGradientBoosting), fusion (calibrated LogReg)
+  - Alias registry YAML with ~25 ecological concepts × 5-8 languages (EN/FR/ES/PT/DE/ID/DwC)
+  - `ColumnSemanticProfile` with role/concept/affordances ontology
+  - Affordance-based transformer→widget matching (8 transformers profiled)
+  - Dataset Pattern Detector: 6 patterns (occurrence, forest, spatial, checklist, trait, temporal)
+  - Anomaly rules: 12 domain validators (lat/lon, DBH, pH, altitude, depth, etc.)
+  - Evaluation harness with GroupKFold, geographic/linguistic holdouts, ablations
+  - Gold set: 2231 columns (1635 gold + 596 synthetic, 88 sources, 6 continents)
+  - Autoresearch optimization loops: header 0.37→0.56, values 0.29→0.35, fusion 0.97 macro-F1
+
+### Changed
+- **Profiler API**: explicit `ml_mode="auto"/"off"/"force"` replaces implicit `ml_detector=None`
+- **Serialization**: Joblib + SHA-256 integrity check (with pickle legacy fallback)
+- Replaced old `MLColumnDetector` (21 features, RF) with alias registry + 3-branch classifier
+- FK heuristic simplified, specific ID type detection delegated to alias registry
+
+### Removed
+- Old pattern matching code in profiler (superseded by alias registry)
+- Unsafe pickle deserialization without integrity checks
+
 ## [v0.7.0] - 2025-07-31
 
 ### Added
