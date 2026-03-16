@@ -1,167 +1,108 @@
-# ML Detection System Overview
+# Détection automatique des colonnes
 
-## Introduction
+## Ce que ça fait
 
-The Niamoto ML Detection system provides automatic field detection and mapping for imported data using machine learning techniques. This system analyzes data content to identify column types, semantic meaning, and suggest appropriate mappings.
+Tu importes un fichier CSV d'inventaire forestier dans Niamoto. Au lieu de configurer manuellement chaque colonne ("ça c'est un diamètre, ça c'est une espèce, ça c'est des coordonnées"), Niamoto **détecte automatiquement** le contenu et propose un dashboard complet : histogramme des diamètres, carte de distribution, répartition par famille.
 
-## Core Components
+Tu n'as plus qu'à ajuster si besoin.
 
-### 1. ML Detector (`ml_detector.py`)
-- **RandomForestClassifier** for column type detection
-- Statistical feature extraction
-- Semantic pattern recognition
-- Confidence scoring
+## Pourquoi c'est nécessaire
 
-### 2. Auto Detector (`auto_detector.py`)
-- Automatic configuration generation
-- Field mapping suggestions
-- Data profiling and analysis
-- Integration with import pipeline
+Chaque équipe nomme ses colonnes différemment :
 
-### 3. Bootstrap System (`bootstrap.py`)
-- Initial configuration setup
-- Template generation
-- Quick start for new projects
+| Ce que c'est | Guyane | France IFN | FIA (US) | Espagne | Anonyme |
+|-------------|--------|------------|----------|---------|---------|
+| Diamètre | `diam` | `C13` | `DIA` | `dap` | `X1` |
+| Hauteur | `haut` | `HTOT` | `HT` | `altura` | `col_2` |
+| Espèce | `espece` | `ESPAR` | `SPCD` | `especie` | `X5` |
+| Latitude | `lat` | `YL` | `LAT` | `latitud` | `col_3` |
 
-### 4. Profiler (`profiler.py`)
-- Data statistical analysis
-- Pattern detection
-- Quality assessment
-- Feature extraction for ML
+Sans détection automatique, chaque utilisateur doit configurer manuellement ses colonnes avant de pouvoir visualiser quoi que ce soit. C'est un frein à l'adoption.
 
-## Detection Capabilities
+## Comment ça marche
 
-### Supported Field Types
-- **Taxonomic**: species names, genus, family
-- **Geographic**: latitude, longitude, coordinates
-- **Temporal**: dates, timestamps, periods
-- **Identifiers**: IDs, codes, references
-- **Measurements**: numeric values with units
-- **Categories**: classifications, types, status
+Le système détecte le **rôle** de chaque colonne — c'est-à-dire ce qu'on peut en faire :
 
-### Detection Process
+| Rôle détecté | Ce que Niamoto propose |
+|-------------|----------------------|
+| Mesure numérique | Histogramme, résumé statistique, scatter plot |
+| Taxonomie | Répartition par famille/genre, sunburst |
+| Coordonnées géographiques | Carte interactive |
+| Données temporelles | Timeline, filtre par année |
+| Catégorie | Bar chart, donut chart |
+| Identifiant | Clé de jointure entre tables |
 
-```python
-# 1. Load and profile data
-profiler = DataProfiler()
-profile = profiler.analyze(dataframe)
+Pour y arriver, deux signaux complémentaires sont combinés :
 
-# 2. Extract features
-features = extract_features(profile)
+1. **Le nom de la colonne** — `diametre` et `diametro` partagent les mêmes séquences de lettres. Un modèle de n-grammes de caractères les rapproche naturellement, même entre langues proches.
 
-# 3. Predict field types
-detector = MLColumnDetector()
-predictions = detector.predict(features)
+2. **Les valeurs** — un diamètre a une distribution log-normale entre 5 et 300, des coordonnées sont entre -90 et 90, un nom d'espèce suit le format "Genre espece". Quand le nom de colonne est anonyme (`X1`), les valeurs prennent le relais.
 
-# 4. Generate configuration
-config = generate_config(predictions)
+Les deux sont fusionnés en une prédiction finale. L'utilisateur peut ensuite affiner chaque paire transformer/widget dans le GUI.
+
+## Les données d'entraînement
+
+Le modèle est entraîné sur **2231 colonnes labélisées** provenant de :
+
+- **88 jeux de données réels** : IFN France, FIA US, GBIF (Espagne, Norvège, Bénin, Tanzanie, Chine...), GUYADIV Guyane, inventaires Afrique/NC/Madagascar/Malaisie/Panama, Zenodo (BCI, FERP Californie, Heishiding Chine...)
+- **6 continents**, **8 langues** (EN, FR, ES, PT, DE, ID + headers anonymes)
+- **61 concepts** organisés en rôles : taxonomie, localisation, mesures, environnement, statistiques, temporel, catégories, identifiants
+
+Toute la détection tourne en local avec scikit-learn (~3 MB de dépendances). Pas besoin de réseau, pas de LLM.
+
+## Contribuer
+
+Pour améliorer la détection d'un type de colonne mal reconnu :
+
+1. **Ajouter des alias** dans `src/niamoto/core/imports/ml/column_aliases.yaml` — pas besoin de ML, juste un fichier YAML. Exemple : ajouter `"circonference"` comme alias de `measurement.diameter` en français.
+
+2. **Ajouter des données d'entraînement** dans `scripts/ml/build_gold_set.py` — labéliser les colonnes d'un nouveau dataset et le référencer dans la liste des sources.
+
+3. **Ré-entraîner** : `uv run python scripts/ml/train_header_model.py && uv run python scripts/ml/train_value_model.py`
+
+## Scores actuels
+
+| Modèle | Macro-F1 | Ce que ça veut dire |
+|--------|----------|-------------------|
+| Header (nom de colonne) | 0.77 | 77% des colonnes correctement classifiées par leur nom |
+| Values (valeurs statistiques) | 0.35 | 35% — les valeurs seules sont ambiguës (un diamètre et une hauteur se ressemblent numériquement) |
+| Fusion (header + values) | en évaluation | Combinaison des deux signaux |
+
+Le score du header est le plus important car dans la majorité des cas, les colonnes ont des noms informatifs. Le modèle sur les valeurs intervient quand le nom est anonyme ou ambigu.
+
+## Limites connues
+
+- Les colonnes très rares (< 5 exemples dans le gold set) sont regroupées sous des catégories génériques
+- La calibration de confiance n'est pas encore en place — le modèle ne sait pas encore dire "je suis sûr à 85%"
+- Le modèle sur les valeurs reste faible pour distinguer deux types de mesures entre eux (diamètre vs hauteur) — mais ce n'est pas bloquant car le rôle "mesure" suffit pour proposer un histogramme
+
+## Architecture technique
+
+```
+CSV importé
+     │
+     ├── Nom de colonne ──→ TF-IDF char n-grams ──→ LogisticRegression
+     │                                                      │
+     ├── Valeurs ──→ 37 features statistiques ──→ HistGradientBoosting
+     │                                                      │
+     └── Fusion ──→ LogReg calibrée sur les probas des 2 branches
+                           │
+                    Rôle détecté + confiance
+                           │
+                    Suggestion de paires transformer/widget
 ```
 
-## Key Features
+## Fichiers clés
 
-### Smart Detection
-- Analyzes content patterns, not just column names
-- Handles multiple languages and formats
-- Adapts to domain-specific data
-
-### Confidence Scoring
-- Provides confidence levels for predictions
-- Suggests manual review for low-confidence mappings
-- Learns from user corrections
-
-### Integration
-- Seamless integration with import pipeline
-- GUI support for visual configuration
-- CLI commands for automation
-
-## Architecture
-
-```
-┌─────────────────────┐
-│   Input Data (CSV)  │
-└──────────┬──────────┘
-           │
-    ┌──────▼──────┐
-    │   Profiler  │
-    └──────┬──────┘
-           │
-    ┌──────▼──────────┐
-    │ Feature Extract │
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │  ML Classifier  │
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │ Config Generator│
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │  import.yml     │
-    └─────────────────┘
-```
-
-## Usage Examples
-
-### CLI Usage
-```bash
-# Auto-detect and generate config
-niamoto detect data.csv --output import.yml
-
-# With custom model
-niamoto detect data.csv --model custom_model.pkl
-```
-
-### Python API
-```python
-from niamoto.core.imports.ml_detector import MLColumnDetector
-from niamoto.core.imports.auto_detector import AutoDetector
-
-# Initialize detector
-detector = MLColumnDetector()
-
-# Detect column types
-results = detector.detect_columns('data.csv')
-
-# Generate configuration
-auto_detector = AutoDetector()
-config = auto_detector.generate_config(results)
-```
-
-## Training Custom Models
-
-The system can be trained on domain-specific data:
-
-```python
-from niamoto.core.imports.ml_detector import train_detector
-
-# Prepare training data
-training_data = prepare_training_data()
-
-# Train model
-model = train_detector(training_data)
-
-# Save model
-model.save('custom_detector.pkl')
-```
-
-## Performance
-
-- **Accuracy**: 85-95% on standard ecological data
-- **Speed**: <1 second for typical CSV files
-- **Scalability**: Handles files up to 1GB efficiently
-
-## Future Enhancements
-
-- Deep learning models for complex patterns
-- Multi-language support expansion
-- Real-time learning from user feedback
-- Cloud-based model sharing
-
-## Related Documentation
-
-- [Implementation Details](implementation.md)
-- [Training Guide](training-guide.md)
-- [API Reference](detector-usage.md)
-- [Roadmap](roadmap.md)
+| Fichier | Rôle |
+|---------|------|
+| `src/niamoto/core/imports/ml/alias_registry.py` | Matching nom → concept via aliases multilingues |
+| `src/niamoto/core/imports/ml/column_aliases.yaml` | 25 concepts × 8 langues |
+| `src/niamoto/core/imports/ml/evaluation.py` | Harness d'évaluation (GroupKFold, holdouts) |
+| `src/niamoto/core/imports/ml/concept_taxonomy.py` | Fusion des 111 concepts fins → 61 concepts |
+| `src/niamoto/core/imports/profiler.py` | DataProfiler avec `ml_mode=auto/off/force` |
+| `scripts/ml/build_gold_set.py` | Construction du gold set (88 sources) |
+| `scripts/ml/train_header_model.py` | Entraînement branche header |
+| `scripts/ml/train_value_model.py` | Entraînement branche values |
+| `scripts/ml/evaluate.py` | CLI metric pour évaluation |
+| `data/gold_set.json` | 2231 colonnes labélisées |
