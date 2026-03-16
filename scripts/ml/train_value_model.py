@@ -231,7 +231,7 @@ def build_model(**kwargs):
 
     return HistGradientBoostingClassifier(
         max_iter=500,
-        max_depth=8,
+        max_depth=10,
         learning_rate=0.05,
         min_samples_leaf=3,
         random_state=42,
