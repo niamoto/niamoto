@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 ANOMALY_RULES: dict[str, dict] = {
     "location.latitude": {
-        "rule": lambda s: (s < -90) | (s > 90) | (s.abs() < 0.001),
-        "description": "Latitude must be between -90 and 90, non-zero",
+        "rule": lambda s: (s < -90) | (s > 90),
+        "description": "Latitude must be between -90 and 90",
     },
     "location.longitude": {
-        "rule": lambda s: (s < -180) | (s > 180) | (s.abs() < 0.001),
-        "description": "Longitude must be between -180 and 180, non-zero",
+        "rule": lambda s: (s < -180) | (s > 180),
+        "description": "Longitude must be between -180 and 180",
     },
     "measurement.diameter": {
         "rule": lambda s: (s < 0) | (s > 500),

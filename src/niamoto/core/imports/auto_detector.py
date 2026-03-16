@@ -268,7 +268,10 @@ class AutoDetector:
 
             # Find ID column
             for col in profile.columns:
-                if col.semantic_type == "taxonomy.taxon_id":
+                if col.semantic_type in (
+                    "taxonomy.taxon_id",
+                    "identifier.taxon",
+                ):
                     config["id_field"] = col.name
                     break
 

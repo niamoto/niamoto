@@ -9,6 +9,7 @@ The ML models handle fuzzy names, anonymous columns, and value-based detection.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +17,11 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+# Patterns for anonymous/auto-generated column names (X1, col_3, var_a, V1, Unnamed: 0…)
+_ANONYMOUS_RE = re.compile(
+    r"^(x|col|var|v|unnamed|field|column|f|c)\s*[_:\-]?\s*\d*$", re.IGNORECASE
+)
 
 
 def _get_resource_path(relative: str) -> Path:
@@ -108,9 +114,14 @@ class ColumnClassifier:
         # Get value probabilities
         value_proba = self._predict_values(series)
 
+        # Detect anonymous column names
+        is_anonymous = bool(_ANONYMOUS_RE.match(norm.strip())) if norm else False
+
         # If we have a fusion model, combine
         if self._fusion_model is not None and self._fusion_concepts is not None:
-            return self._predict_fusion(header_proba, value_proba, series)
+            return self._predict_fusion(
+                header_proba, value_proba, series, is_anonymous=is_anonymous
+            )
 
         # Fallback: use header model alone
         if header_proba is not None:
@@ -178,6 +189,8 @@ class ColumnClassifier:
         header_proba: Optional[np.ndarray],
         value_proba: Optional[np.ndarray],
         series: pd.Series,
+        *,
+        is_anonymous: bool = False,
     ) -> tuple[Optional[str], float]:
         """Combine header + value probabilities via fusion model."""
         n_concepts = len(self._fusion_concepts)
@@ -206,7 +219,7 @@ class ColumnClassifier:
             features.extend(np.zeros(n_concepts))
 
         # Meta features
-        features.append(0.0)  # is_anonymous (handled by caller)
+        features.append(1.0 if is_anonymous else 0.0)
         features.append(float(series.isnull().mean()))
         features.append(float(series.nunique() / max(len(series), 1)))
 
