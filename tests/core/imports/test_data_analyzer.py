@@ -194,7 +194,7 @@ class TestFieldPurpose:
         profile = ColumnProfile(
             name="id_taxonref",
             dtype="int64",
-            semantic_type="reference.taxon",
+            semantic_type="identifier.taxon",
             unique_ratio=0.15,
             null_ratio=0.0,
             sample_values=[12345, 12346, 12347],
