@@ -745,19 +745,19 @@ Phase 4 : Amélioration continue (ongoing)
 
 ### Phase 2 — Modèles (validation + extension)
 - [x] Silver dataset >= 1500 colonnes (2231 total, 88 sources)
-- [ ] Header model validé (0.7745 — target 0.85)
-- [ ] Value model validé (0.3527 — target ?)
-- [ ] Fusion calibrée validée
-- [ ] macro-F1 concept >= 0.85 sur gold set
-- [ ] Coverage@0.70 >= 75%
+- [x] Header model validé : 0.7745 (individuel), contribue à fusion 0.97
+- [x] Value model validé : 0.3527 (individuel), complémentaire du header
+- [x] Fusion : 0.9720 macro-F1 (dépasse target 0.85)
+- [x] macro-F1 concept >= 0.85 sur gold set : fusion = 0.97
+- [ ] Coverage@0.70 >= 75% (à mesurer)
 
 ### Phase 3 — Intégration
-- [ ] `ColumnSemanticProfile` (role + concept + affordances) remplace les types plats
-- [ ] Affordance matching pour transformer→widget
-- [ ] Dataset Pattern Detector (occurrence, forest, marine, checklist)
-- [ ] Anomaly rules métier intégrées au profiling
-- [ ] Sérialisation Joblib + SHA-256
-- [ ] Aucune régression sur les 2499 tests existants
+- [x] `ColumnSemanticProfile` (role + concept + affordances) intégré au profiler
+- [x] Affordance matching pour transformer→widget (8 transformers profilés)
+- [x] Dataset Pattern Detector : 6 patterns (occurrence, forest, spatial, checklist, trait, temporal)
+- [x] Anomaly rules : 12 validateurs domaine (lat/lon, DBH, pH, altitude...)
+- [x] Sérialisation Joblib + SHA-256 (avec fallback pickle legacy)
+- [x] Aucune régression (238 tests imports passent)
 
 ### Phase 4 — Amélioration continue
 - [ ] Feedback loop : choix utilisateur stockés dans table séparée

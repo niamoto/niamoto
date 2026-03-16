@@ -43,10 +43,12 @@ class ColumnProfile:
     null_ratio: float = 0.0
     sample_values: List[Any] = field(default_factory=list)
     confidence: float = 0.0
+    # Rich semantic profile (Phase 3 — coexists with semantic_type for compat)
+    semantic_profile: Optional[Any] = None  # ColumnSemanticProfile at runtime
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        result = {
             "name": self.name,
             "dtype": self.dtype,
             "semantic_type": self.semantic_type,
@@ -55,6 +57,9 @@ class ColumnProfile:
             "confidence": round(self.confidence, 2),
             "sample_values": self.sample_values[:5],  # Limit samples
         }
+        if self.semantic_profile:
+            result["semantic_profile"] = self.semantic_profile.to_dict()
+        return result
 
 
 @dataclass
@@ -362,12 +367,39 @@ class DataProfiler:
         if len(non_null) > 0:
             profile.sample_values = non_null.head(10).tolist()
 
-        # Detect semantic type
+        # Detect semantic type (legacy flat string)
         semantic_type, confidence = self._detect_semantic_type(col_name, series)
         profile.semantic_type = semantic_type
         profile.confidence = confidence
 
+        # Build rich semantic profile
+        profile.semantic_profile = self._build_semantic_profile(
+            semantic_type, confidence
+        )
+
         return profile
+
+    def _build_semantic_profile(self, semantic_type: Optional[str], confidence: float):
+        """Build a ColumnSemanticProfile from a flat semantic_type string."""
+        from niamoto.core.imports.ml.semantic_profile import (
+            ColumnSemanticProfile,
+            get_affordances,
+        )
+
+        if not semantic_type:
+            return ColumnSemanticProfile(role="other", confidence=confidence)
+
+        # Extract role from "taxonomy.species" → "taxonomy"
+        parts = semantic_type.split(".")
+        role = parts[0]
+        concept = semantic_type if len(parts) > 1 else None
+
+        return ColumnSemanticProfile(
+            role=role,
+            concept=concept,
+            affordances=get_affordances(concept, role),
+            confidence=confidence,
+        )
 
     def _detect_semantic_type(
         self, col_name: str, series: pd.Series
