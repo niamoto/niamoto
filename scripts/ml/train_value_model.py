@@ -67,6 +67,8 @@ FEATURE_NAMES = [
     # Biological patterns (2)
     "binomial_score",
     "family_suffix",
+    # Numeric patterns (1)
+    "mean_decimals",
     # Meta (2)
     "is_numeric",
     "n_values",
@@ -151,9 +153,22 @@ def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
             str_vals.str.match(r".*(?:aceae|idae|ales|ineae)$").sum() / n
         )
 
+    # Numeric patterns
+    if is_numeric:
+        try:
+            num_series = pd.to_numeric(series, errors="coerce").dropna()
+            if len(num_series) > 0:
+                str_nums = num_series.astype(str)
+                dec_counts = str_nums.str.extract(r"\.(\d+)$")[0].str.len()
+                features[29] = (
+                    float(dec_counts.mean()) if dec_counts.notna().any() else 0
+                )
+        except Exception:
+            pass
+
     # Meta
-    features[29] = 1.0 if is_numeric else 0.0
-    features[30] = len(values_sample)
+    features[30] = 1.0 if is_numeric else 0.0
+    features[31] = len(values_sample)
 
     # Replace NaN/inf
     features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
