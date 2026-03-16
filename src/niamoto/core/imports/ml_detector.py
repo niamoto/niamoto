@@ -1,6 +1,14 @@
 """
 ML-based column type detector using Random Forest.
 Detects column types based on statistical features rather than column names.
+
+.. deprecated::
+    This module is superseded by the new ML pipeline in ``niamoto.core.imports.ml``
+    (header TF-IDF + values HGBT + fusion LogReg, trained on 2231 columns, F1=0.97).
+    The ``DataProfiler`` now uses ``AliasRegistry`` for name-based detection and no
+    longer loads the old ``column_detector.pkl`` model.
+    This file is kept temporarily because some test fixtures still import it.
+    It will be removed in a future release.
 """
 
 import numpy as np

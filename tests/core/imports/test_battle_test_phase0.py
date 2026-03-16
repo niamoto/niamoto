@@ -63,30 +63,31 @@ class TestPluginRegistrySmoke:
 # ── Phase 0.2: Clarify ML detector behavior ───────────────────────────────
 
 
-class TestMLDetectorBehavior:
-    """Clarify how ml_detector=None behaves in DataProfiler."""
+class TestProfilerBehavior:
+    """Verify DataProfiler works with AliasRegistry-based detection."""
 
-    def test_profiler_with_ml_none_loads_default(self):
-        """DataProfiler(ml_detector=None) tries to load the default model."""
+    def test_profiler_default_constructor(self):
+        """DataProfiler() initializes without error."""
+        from niamoto.core.imports.profiler import DataProfiler
+
+        profiler = DataProfiler()
+        assert profiler is not None
+
+    def test_profiler_legacy_kwargs_accepted(self):
+        """Legacy ml_detector/ml_mode kwargs are silently accepted."""
         from niamoto.core.imports.profiler import DataProfiler
 
         profiler = DataProfiler(ml_detector=None)
-        # The profiler should either have loaded the model or gracefully have None
-        # This documents the ACTUAL behavior
-        if profiler.ml_detector is not None:
-            assert profiler.ml_detector.is_trained
-        # Either way, no crash
+        assert profiler is not None
 
-    def test_profiler_with_explicit_disable(self):
-        """DataProfiler(ml_detector=False) should disable ML."""
-        from niamoto.core.imports.profiler import DataProfiler
-
-        # Using False as a sentinel to explicitly disable
         profiler = DataProfiler(ml_detector=False)
-        assert profiler.ml_detector is False or profiler.ml_detector is None
+        assert profiler is not None
 
-    def test_profile_works_without_ml(self, tmp_path):
-        """Profiling a CSV works even without ML detector."""
+        profiler = DataProfiler(ml_mode="off")
+        assert profiler is not None
+
+    def test_profile_works(self, tmp_path):
+        """Profiling a CSV works with AliasRegistry detection."""
         from niamoto.core.imports.profiler import DataProfiler
 
         csv_path = tmp_path / "test.csv"
@@ -99,7 +100,7 @@ class TestMLDetectorBehavior:
         )
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         assert profile is not None
