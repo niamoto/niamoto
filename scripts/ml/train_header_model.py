@@ -63,6 +63,10 @@ def prepare_data(records: list[dict]) -> tuple:
             name = f"bool {name}"
         elif "datetime" in dtype:
             name = f"date {name}"
+        # Add null ratio hint
+        null_ratio = r.get("values_stats", {}).get("null_ratio", 0)
+        if null_ratio > 0.5:
+            name = f"sparse {name}"
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
