@@ -679,7 +679,7 @@ class GenericImporter:
             profiling_status = "failed"
 
         # 3b. Affordance-based suggestions (complements category-based)
-        from niamoto.core.plugins.matching.affordance_matcher import AffordanceMatcher
+        from niamoto.core.imports.ml.affordance_matcher import AffordanceMatcher
 
         affordance_matcher = AffordanceMatcher()
         affordance_suggestions = {}

@@ -78,7 +78,8 @@ def extract_fusion_features(
                     if c in header_classes:
                         aligned[i] = header_proba[header_classes.index(c)]
                 features.extend(aligned)
-            except Exception:
+            except Exception as e:
+                logger.debug("Feature extraction failed: %s", e)
                 features.extend(np.zeros(n_concepts))
         else:
             features.extend(np.zeros(n_concepts))
@@ -101,7 +102,7 @@ def extract_fusion_features(
                 if c in value_classes:
                     aligned[i] = value_proba[value_classes.index(c)]
             features.extend(aligned)
-        except Exception:
+        except Exception as e:  # noqa: F841
             features.extend(np.zeros(n_concepts))
     else:
         features.extend(np.zeros(n_concepts))

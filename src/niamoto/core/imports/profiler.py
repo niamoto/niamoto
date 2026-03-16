@@ -330,18 +330,6 @@ class DataProfiler:
                 clean = series.dropna()
                 if len(clean) > 0 and -180 <= clean.min() and clean.max() <= 180:
                     return concept, max(score, 0.9)
-            # Map event.date/event.year → temporal.date for backward compat
-            if concept.startswith("event."):
-                return f"temporal.{concept.split('.', 1)[1]}", score
-            # Map identifier.record → identifier for backward compat
-            if concept == "identifier.record":
-                return "identifier", score
-            # Map identifier.taxon → reference.taxon for backward compat
-            if concept == "identifier.taxon":
-                return "reference.taxon", score
-            # Map identifier.plot → reference.plot for backward compat
-            if concept == "identifier.plot":
-                return "reference.plot", score
             return concept, score
 
         # ── 2. Value-based rules (high-precision fallback) ────────────
@@ -350,11 +338,11 @@ class DataProfiler:
         # Foreign key heuristics (id prefix/suffix not covered by alias registry)
         if col_lower.startswith("id") or col_lower.endswith("_id"):
             if "taxon" in col_lower or "taxonref" in col_lower:
-                return "reference.taxon", 0.8
+                return "identifier.taxon", 0.8
             elif "plot" in col_lower or "site" in col_lower:
-                return "reference.plot", 0.8
+                return "identifier.plot", 0.8
             else:
-                return "identifier", 0.7
+                return "identifier.record", 0.7
 
         # WKT geometry detection on values
         sample = series.dropna().head(5).astype(str)

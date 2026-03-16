@@ -5,10 +5,10 @@ Maps column names to semantic concepts via exact match, fuzzy matching, and alia
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import yaml
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 from unidecode import unidecode
 
 logger = logging.getLogger(__name__)
@@ -24,35 +24,44 @@ class AliasRegistry:
     """Registry mapping column names to semantic concepts via aliases."""
 
     def __init__(self, alias_path: Optional[Path] = None):
-        self._aliases: dict[str, list[str]] = {}  # concept → [normalized aliases]
-        self._raw: dict = {}  # original YAML structure
+        self._raw: dict = {}
+        self._exact_index: dict[
+            str, str
+        ] = {}  # normalized_alias → concept (O(1) lookup)
+        self._all_aliases: list[str] = []  # flat list for extractOne
+        self._alias_to_concept: dict[
+            str, str
+        ] = {}  # alias → concept (for fuzzy result mapping)
         self._load(alias_path or _ALIAS_FILE)
 
     def _load(self, path: Path) -> None:
-        """Load and flatten the alias YAML into a normalized lookup."""
+        """Load and flatten the alias YAML into optimized lookup structures."""
         with open(path) as f:
             self._raw = yaml.safe_load(f) or {}
 
         for concept, langs in self._raw.items():
-            flat: list[str] = []
             for _lang, aliases in langs.items():
                 for alias in aliases:
-                    flat.append(_normalize(alias))
-            self._aliases[concept] = flat
+                    norm = _normalize(alias)
+                    if not norm:
+                        continue
+                    self._exact_index[norm] = concept
+                    if norm not in self._alias_to_concept:
+                        self._all_aliases.append(norm)
+                        self._alias_to_concept[norm] = concept
 
-        total = sum(len(v) for v in self._aliases.values())
         logger.debug(
             "Loaded alias registry: %d concepts, %d aliases",
-            len(self._aliases),
-            total,
+            len(self._raw),
+            len(self._all_aliases),
         )
 
     @property
     def concepts(self) -> list[str]:
         """List all registered concept names."""
-        return list(self._aliases.keys())
+        return list(self._raw.keys())
 
-    def match(self, column_name: str) -> Tuple[Optional[str], float]:
+    def match(self, column_name: str) -> tuple[Optional[str], float]:
         """
         Match a column name to a semantic concept.
 
@@ -64,28 +73,25 @@ class AliasRegistry:
         if not norm:
             return None, 0.0
 
-        # 1. Exact match (fastest path)
-        for concept, aliases in self._aliases.items():
-            if norm in aliases:
-                return concept, 1.0
+        # 1. Exact match via reverse index — O(1)
+        concept = self._exact_index.get(norm)
+        if concept:
+            return concept, 1.0
 
-        # 2. Fuzzy match (handles typos, slight variations)
-        best_concept: Optional[str] = None
-        best_score = 0.0
-
-        for concept, aliases in self._aliases.items():
-            for alias in aliases:
-                score = fuzz.ratio(norm, alias)
-                if score > best_score:
-                    best_score = score
-                    best_concept = concept
-
-        if best_score >= _FUZZY_THRESHOLD:
-            return best_concept, best_score / 100.0
+        # 2. Fuzzy match via rapidfuzz extractOne — C-optimized with early termination
+        result = process.extractOne(
+            norm,
+            self._all_aliases,
+            scorer=fuzz.ratio,
+            score_cutoff=_FUZZY_THRESHOLD,
+        )
+        if result:
+            matched_alias, score, _idx = result
+            return self._alias_to_concept[matched_alias], score / 100.0
 
         return None, 0.0
 
-    def match_top_k(self, column_name: str, k: int = 3) -> list[Tuple[str, float]]:
+    def match_top_k(self, column_name: str, k: int = 3) -> list[tuple[str, float]]:
         """
         Return top-k concept matches with scores.
 
@@ -96,23 +102,28 @@ class AliasRegistry:
         if not norm:
             return []
 
-        scores: list[Tuple[str, float]] = []
+        # Use extractOne for exact first
+        exact = self._exact_index.get(norm)
+        if exact:
+            return [(exact, 1.0)]
 
-        for concept, aliases in self._aliases.items():
-            # Best alias score for this concept
-            best = 0.0
-            for alias in aliases:
-                if norm == alias:
-                    best = 100.0
-                    break
-                s = fuzz.ratio(norm, alias)
-                if s > best:
-                    best = s
-            if best > 0:
-                scores.append((concept, best / 100.0))
+        # Fuzzy top-k via rapidfuzz.process.extract
+        results = process.extract(
+            norm,
+            self._all_aliases,
+            scorer=fuzz.ratio,
+            limit=k * 2,  # over-fetch to deduplicate by concept
+        )
 
-        scores.sort(key=lambda x: -x[1])
-        return scores[:k]
+        # Deduplicate by concept (keep best score per concept)
+        concept_scores: dict[str, float] = {}
+        for matched_alias, score, _idx in results:
+            concept = self._alias_to_concept[matched_alias]
+            if concept not in concept_scores or score > concept_scores[concept]:
+                concept_scores[concept] = score
+
+        ranked = sorted(concept_scores.items(), key=lambda x: -x[1])
+        return [(c, s / 100.0) for c, s in ranked[:k]]
 
 
 def _normalize(name: str) -> str:

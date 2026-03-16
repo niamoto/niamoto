@@ -100,8 +100,8 @@ def detect_anomalies(
                         rule_spec["description"],
                     )
                 return mask
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Anomaly rule failed for %s: %s", concept, e)
 
     # Fallback: IQR × 3 for numeric columns
     if pd.api.types.is_numeric_dtype(clean):

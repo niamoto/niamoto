@@ -118,9 +118,6 @@ CONCEPT_AFFORDANCES: dict[str, set[str]] = {
     # Time
     "event.date": {"temporal", "sortable", "filterable"},
     "event.year": {"temporal", "sortable", "filterable", "numeric_discrete"},
-    # Legacy profiler returns temporal.* instead of event.*
-    "temporal.date": {"temporal", "sortable", "filterable"},
-    "temporal.year": {"temporal", "sortable", "filterable", "numeric_discrete"},
     # Identifiers
     "identifier.record": {"join_key", "unique"},
     "identifier.plot": {"join_key", "filterable"},
@@ -161,7 +158,7 @@ ROLE_AFFORDANCES: dict[str, set[str]] = {
     "measurement": {"numeric_continuous", "histogrammable"},
     "location": {"filterable"},
     "taxonomy": {"categorical", "rankable"},
-    "time": {"temporal", "sortable"},
+    "event": {"temporal", "sortable"},
     "identifier": {"join_key"},
     "category": {"categorical", "filterable"},
     "environment": {"numeric_continuous", "histogrammable"},

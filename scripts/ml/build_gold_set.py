@@ -1952,7 +1952,7 @@ def build_gold_set() -> list[dict]:
     all_records.extend(synthetic)
 
     # Add coarsened concept to each record
-    from niamoto.core.imports.ml.concept_taxonomy import coarsen
+    from scripts.ml.concept_taxonomy import coarsen
 
     for r in all_records:
         r["concept_coarse"] = coarsen(r["concept"])

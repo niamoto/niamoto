@@ -165,7 +165,7 @@ class AutoDetector:
                             (
                                 col.name
                                 for col in profile.columns
-                                if col.semantic_type == "reference.taxon"
+                                if col.semantic_type == "identifier.taxon"
                             ),
                             "id_taxonref",
                         ),
@@ -276,7 +276,9 @@ class AutoDetector:
         elif profile.detected_type == "spatial":
             for col in profile.columns:
                 col_lower = col.name.lower()
-                if col.semantic_type == "identifier" or "id_" in col_lower:
+                if (
+                    col.semantic_type and col.semantic_type.startswith("identifier")
+                ) or "id_" in col_lower:
                     config["id_field"] = col.name
                     break
 

@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from niamoto.core.imports.ml.evaluation import (
+from scripts.ml.evaluation import (
     LabeledColumn,
     EvalMetrics,
     EvaluationHarness,

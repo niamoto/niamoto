@@ -91,7 +91,7 @@ class TestDarwinCorePatterns:
 
         col = profile.columns[0]
         assert col.semantic_type is not None
-        assert "temporal" in col.semantic_type
+        assert "event" in col.semantic_type
 
 
 # ── Phase 2.3: Fix "um" bug + labels from data ────────────────────────────

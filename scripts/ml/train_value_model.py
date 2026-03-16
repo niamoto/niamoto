@@ -112,8 +112,8 @@ def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
                 features[11] = float((num_series < 0).mean())
                 features[12] = float((num_series == num_series.astype(int)).mean())
                 features[13] = float((num_series == 0).mean())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Feature extraction failed: %s", e)
 
     # Uniqueness and distribution
     features[14] = stats.get("unique_ratio", 0)
@@ -167,8 +167,8 @@ def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
                 features[29] = (
                     float(dec_counts.mean()) if dec_counts.notna().any() else 0
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Feature extraction failed: %s", e)
 
     # Range indicators
     if is_numeric:
@@ -187,8 +187,8 @@ def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
                         & (num_series == num_series.astype(int))
                     ).mean()
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Feature extraction failed: %s", e)
 
     # Text patterns
     if len(str_vals) > 0:
