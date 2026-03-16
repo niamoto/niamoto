@@ -137,3 +137,6 @@ src-tauri/gen/
 src-tauri/bin/niamoto*
 .gitnexus
 *.joblib
+*.pkl
+data/gold_set.json
+data/silver/
