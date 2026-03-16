@@ -73,6 +73,10 @@ def prepare_data(records: list[dict]) -> tuple:
             name = f"short {name}"
         elif mean_len and mean_len > 50:
             name = f"long {name}"
+        # Add n count hint
+        n = r.get("values_stats", {}).get("n", 0)
+        if n and n < 100:
+            name = f"small {name}"
         # Triple the name to reinforce short-text signal
         name = f"{name} {name} {name}"
         names.append(name)
