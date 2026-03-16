@@ -404,10 +404,14 @@ class MLColumnDetector:
             return result
 
     def save_model(self, path: Path):
-        """Save trained model and scaler."""
+        """Save trained model and scaler with integrity check."""
         if not self.is_trained:
             logger.warning("Model not trained, nothing to save")
             return
+
+        import hashlib
+
+        import joblib
 
         model_data = {
             "model": self.model,
@@ -417,18 +421,41 @@ class MLColumnDetector:
         }
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            pickle.dump(model_data, f)
+        joblib.dump(model_data, path)
 
-        logger.info(f"Model saved to {path}")
+        # Write SHA-256 checksum alongside
+        sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        path.with_suffix(".sha256").write_text(sha)
+
+        logger.info(f"Model saved to {path} (sha256={sha[:12]}...)")
 
     def load_model(self, path: Path):
-        """Load trained model and scaler."""
+        """Load trained model and scaler with optional integrity check."""
+        import hashlib
+
+        import joblib
+
         if not Path(path).exists():
             raise FileNotFoundError(f"Model file not found: {path}")
 
-        with open(path, "rb") as f:
-            model_data = pickle.load(f)
+        # Verify SHA-256 if checksum file exists
+        sha_path = path.with_suffix(".sha256")
+        if sha_path.exists():
+            expected = sha_path.read_text().strip()
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual != expected:
+                raise ValueError(
+                    f"Model integrity check failed for {path}: "
+                    f"expected {expected[:12]}..., got {actual[:12]}..."
+                )
+
+        # Try joblib first, fall back to pickle for legacy models
+        try:
+            model_data = joblib.load(path)
+        except Exception:
+            with open(path, "rb") as f:
+                model_data = pickle.load(f)
+            logger.info("Loaded legacy pickle model (consider re-saving with joblib)")
 
         self.model = model_data["model"]
         self.scaler = model_data["scaler"]
