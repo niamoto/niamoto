@@ -7,6 +7,7 @@ Machine learning-based column detection and automatic configuration generation.
 - **[Overview](overview.md)** - Introduction to ML detection system
 - **[Branch Architecture](branch-architecture.md)** - Current branch architecture and product goal
 - **[Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)** - Why end-to-end autoresearch is too slow and how to pivot to a fusion-only surrogate loop
+- **Fusion Surrogate Runner** - `uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50`
 - **[Acquisition Plan](acquisition-plan.md)** - Concrete plan to acquire and integrate new benchmark data
 - **[Candidate Data Sources](candidate-data-sources.md)** - Shortlist of external datasets to strengthen the benchmark
 - **[Current State](current-state.md)** - Current implementation status
