@@ -155,11 +155,16 @@ def build_codex_prompt(
     iteration: int,
     baseline_fast: float,
     baseline_mid: float,
-    baseline_stack: float,
+    baseline_stack: float | None,
     allowed_paths: tuple[str, ...],
     cache_dir: Path,
 ) -> str:
     allowed = "\n".join(f"- {path}" for path in allowed_paths)
+    stack_line = (
+        f"- Baseline product-score-fast-fast: {baseline_stack:.4f}"
+        if baseline_stack is not None
+        else "- Baseline product-score-fast-fast: deferred until a candidate passes surrogate-mid"
+    )
     return f"""Tu travailles dans {ROOT}.
 
 Objectif: itération {iteration} d'autoresearch fusion-only pour la détection ML Niamoto.
@@ -168,7 +173,7 @@ Contexte:
 - Cache surrogate prêt: {cache_dir}
 - Baseline surrogate-fast: {baseline_fast:.4f}
 - Baseline surrogate-mid: {baseline_mid:.4f}
-- Baseline product-score-fast-fast: {baseline_stack:.4f}
+{stack_line}
 
 Périmètre autorisé:
 {allowed}
@@ -207,7 +212,7 @@ def run_iteration(
     iteration: int,
     baseline_fast: float,
     baseline_mid: float,
-    baseline_stack: float,
+    baseline_stack: float | None,
     cache_dir: Path,
     commit_winners: bool,
     allowed_paths: tuple[str, ...],
@@ -267,6 +272,13 @@ def run_iteration(
         result.status = "reject_mid"
         return result, baseline_fast, baseline_mid, baseline_stack
 
+    if baseline_stack is None:
+        baseline_stack = evaluate_metric(
+            "product-score-fast-fast",
+            model="all",
+            splits=2,
+        )
+
     stack_score = evaluate_metric(
         "product-score-fast-fast",
         model="all",
@@ -304,6 +316,15 @@ def main() -> None:
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument(
+        "--baseline-stack",
+        type=float,
+        default=None,
+        help=(
+            "Optional precomputed product-score-fast-fast baseline. "
+            "If omitted, compute it lazily only for candidates that pass surrogate-mid."
+        ),
+    )
+    parser.add_argument(
         "--commit-winners",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -325,11 +346,7 @@ def main() -> None:
         splits=3,
         cache_dir=args.cache_dir,
     )
-    baseline_stack = evaluate_metric(
-        "product-score-fast-fast",
-        model="all",
-        splits=2,
-    )
+    baseline_stack = args.baseline_stack
 
     run_id = _timestamp()
     log_path = args.log_dir / f"fusion-surrogate-{run_id}.jsonl"

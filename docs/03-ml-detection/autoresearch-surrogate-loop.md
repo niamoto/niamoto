@@ -253,8 +253,8 @@ uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50
 
 Comportement :
 
-- calcule les baselines `surrogate-fast`, `surrogate-mid`,
-  `product-score-fast-fast`
+- calcule les baselines `surrogate-fast`, `surrogate-mid`
+- diffère `product-score-fast-fast` jusqu'au premier candidat qui passe `surrogate-mid`
 - lance une itération `codex` par candidat
 - évalue lui-même les gates
 - revert les perdants
