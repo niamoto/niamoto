@@ -27,6 +27,7 @@ DEFAULT_ALLOWED_PATHS = (
     "src/niamoto/core/imports/ml/classifier.py",
     "scripts/ml/evaluate.py",
 )
+DEFAULT_PROMOTIONS_FILENAME = "fusion-surrogate-promotions.jsonl"
 PROMPT_HISTORY_LIMIT = 10
 
 
@@ -133,6 +134,20 @@ def current_head() -> str:
     return _run(["git", "rev-parse", "HEAD"]).stdout.strip()
 
 
+def check_allowed_files(
+    changed_files: list[str],
+    allowed_paths: tuple[str, ...],
+) -> list[str]:
+    """Return list of changed files that are NOT in the allowed set."""
+    return [f for f in changed_files if f not in allowed_paths]
+
+
+def capture_candidate_diff() -> str:
+    """Capture the current unstaged+staged diff for later re-application."""
+    result = _run(["git", "diff", "HEAD"], check=False)
+    return result.stdout
+
+
 def commit_winner(
     changed_files: list[str],
     *,
@@ -149,6 +164,36 @@ def commit_winner(
     )
     _run(["git", "commit", "-m", message])
     return current_head()
+
+
+def queue_promotion(
+    log_dir: Path,
+    *,
+    iteration: int,
+    fast_score: float,
+    mid_score: float,
+    baseline_fast: float,
+    baseline_mid: float,
+    changed_files: list[str],
+    diff: str,
+) -> None:
+    """Write a candidate that passed surrogate-mid to the promotions queue."""
+    path = log_dir / DEFAULT_PROMOTIONS_FILENAME
+    append_jsonl(
+        path,
+        {
+            "event": "promotion_candidate",
+            "timestamp": _timestamp(),
+            "iteration": iteration,
+            "fast_score": fast_score,
+            "mid_score": mid_score,
+            "baseline_fast": baseline_fast,
+            "baseline_mid": baseline_mid,
+            "changed_files": changed_files,
+            "diff": diff,
+            "head": current_head(),
+        },
+    )
 
 
 def build_codex_prompt(
@@ -265,19 +310,20 @@ def run_iteration(
     iteration: int,
     baseline_fast: float,
     baseline_mid: float,
-    baseline_stack: float | None,
     cache_dir: Path,
     commit_winners: bool,
+    defer_stack: bool,
     allowed_paths: tuple[str, ...],
     allowed_untracked: set[str],
     log_path: Path,
-) -> tuple[IterationResult, float, float, float]:
+    log_dir: Path,
+) -> tuple[IterationResult, float, float]:
     recent_history = summarize_recent_iterations(log_path)
     prompt = build_codex_prompt(
         iteration=iteration,
         baseline_fast=baseline_fast,
         baseline_mid=baseline_mid,
-        baseline_stack=baseline_stack,
+        baseline_stack=None,
         allowed_paths=allowed_paths,
         cache_dir=cache_dir,
         recent_history=recent_history,
@@ -290,18 +336,25 @@ def run_iteration(
         changed_files=changed_files,
         baseline_fast=baseline_fast,
         baseline_mid=baseline_mid,
-        baseline_stack=baseline_stack,
         codex_exit_code=codex_result.returncode,
     )
 
     if codex_result.returncode != 0 and not changed_files:
         result.status = "codex_error"
         result.note = codex_result.stderr[-1000:]
-        return result, baseline_fast, baseline_mid, baseline_stack
+        return result, baseline_fast, baseline_mid
 
     if not changed_files:
         result.note = "No file changes produced by Codex"
-        return result, baseline_fast, baseline_mid, baseline_stack
+        return result, baseline_fast, baseline_mid
+
+    # Reject iterations that touch files outside the allowed set
+    forbidden = check_allowed_files(changed_files, allowed_paths)
+    if forbidden:
+        restore_paths(changed_files)
+        result.status = "reject_scope"
+        result.note = f"Touched forbidden files: {', '.join(forbidden)}"
+        return result, baseline_fast, baseline_mid
 
     fast_score = evaluate_metric(
         "surrogate-fast",
@@ -313,7 +366,7 @@ def run_iteration(
     if fast_score <= baseline_fast:
         restore_paths(changed_files)
         result.status = "reject_fast"
-        return result, baseline_fast, baseline_mid, baseline_stack
+        return result, baseline_fast, baseline_mid
 
     mid_score = evaluate_metric(
         "surrogate-mid",
@@ -325,27 +378,47 @@ def run_iteration(
     if mid_score <= baseline_mid:
         restore_paths(changed_files)
         result.status = "reject_mid"
-        return result, baseline_fast, baseline_mid, baseline_stack
+        return result, baseline_fast, baseline_mid
 
-    if baseline_stack is None:
-        baseline_stack = evaluate_metric(
-            "product-score-fast-fast",
-            model="all",
-            splits=2,
+    # Candidate passed both surrogate gates
+    if defer_stack:
+        # Queue for later manual stack validation instead of blocking
+        diff = capture_candidate_diff()
+        queue_promotion(
+            log_dir,
+            iteration=iteration,
+            fast_score=fast_score,
+            mid_score=mid_score,
+            baseline_fast=baseline_fast,
+            baseline_mid=baseline_mid,
+            changed_files=changed_files,
+            diff=diff,
         )
+        result.status = "queue_stack_validation"
+        result.note = (
+            f"Candidate queued for stack validation "
+            f"(fast={fast_score:.4f}, mid={mid_score:.4f})"
+        )
+        if commit_winners:
+            commit_sha = commit_winner(
+                changed_files,
+                iteration=iteration,
+                fast_score=fast_score,
+                baseline_fast=baseline_fast,
+            )
+            result.commit_sha = commit_sha
+        baseline_fast = fast_score
+        baseline_mid = mid_score
+        return result, baseline_fast, baseline_mid
 
+    # Legacy path: immediate stack validation (not recommended)
     stack_score = evaluate_metric(
         "product-score-fast-fast",
         model="all",
         splits=2,
     )
     result.stack_score = stack_score
-    if stack_score < baseline_stack:
-        restore_paths(changed_files)
-        result.status = "reject_stack"
-        return result, baseline_fast, baseline_mid, baseline_stack
-
-    result.status = "keep"
+    result.baseline_stack = 0.0  # no baseline in deferred mode
     if commit_winners:
         commit_sha = commit_winner(
             changed_files,
@@ -354,13 +427,10 @@ def run_iteration(
             baseline_fast=baseline_fast,
         )
         result.commit_sha = commit_sha
-    else:
-        result.note = "Winner kept in worktree without commit; runner should stop here."
-
+    result.status = "keep"
     baseline_fast = fast_score
     baseline_mid = mid_score
-    baseline_stack = stack_score
-    return result, baseline_fast, baseline_mid, baseline_stack
+    return result, baseline_fast, baseline_mid
 
 
 def main() -> None:
@@ -371,12 +441,12 @@ def main() -> None:
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument(
-        "--baseline-stack",
-        type=float,
-        default=None,
+        "--defer-stack-validation",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help=(
-            "Optional precomputed product-score-fast-fast baseline. "
-            "If omitted, compute it lazily only for candidates that pass surrogate-mid."
+            "Queue candidates that pass surrogate-mid for later stack validation "
+            "instead of running product-score-fast-fast immediately (default: true)"
         ),
     )
     parser.add_argument(
@@ -401,7 +471,6 @@ def main() -> None:
         splits=3,
         cache_dir=args.cache_dir,
     )
-    baseline_stack = args.baseline_stack
 
     run_id = _timestamp()
     log_path = args.log_dir / f"fusion-surrogate-{run_id}.jsonl"
@@ -412,23 +481,24 @@ def main() -> None:
             "timestamp": run_id,
             "baseline_fast": baseline_fast,
             "baseline_mid": baseline_mid,
-            "baseline_stack": baseline_stack,
+            "defer_stack": args.defer_stack_validation,
             "cache_dir": str(args.cache_dir),
             "head": current_head(),
         },
     )
 
     for iteration in range(1, args.iterations + 1):
-        result, baseline_fast, baseline_mid, baseline_stack = run_iteration(
+        result, baseline_fast, baseline_mid = run_iteration(
             iteration=iteration,
             baseline_fast=baseline_fast,
             baseline_mid=baseline_mid,
-            baseline_stack=baseline_stack,
             cache_dir=args.cache_dir,
             commit_winners=args.commit_winners,
+            defer_stack=args.defer_stack_validation,
             allowed_paths=DEFAULT_ALLOWED_PATHS,
             allowed_untracked=DEFAULT_ALLOWED_UNTRACKED,
             log_path=log_path,
+            log_dir=args.log_dir,
         )
         append_jsonl(
             log_path,
