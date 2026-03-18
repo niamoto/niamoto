@@ -20,8 +20,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+# Add src and repo root to path so the script works both as
+# `python scripts/ml/build_gold_set.py` and `python -m scripts.ml.build_gold_set`.
+ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -263,6 +266,44 @@ ADVERSARIAL_LABELS = {
     "null_col2": ("other", "other"),
     "mixed_types": ("other", "other"),
     "spaces": ("text.notes", "text"),
+}
+
+# ForestScan Paracou census (French Guiana, Guyafor/ForestScan)
+FORESTSCAN_PARACOU_LABELS = {
+    "Forest": ("location.locality", "location"),
+    "Plot": ("identifier.plot", "identifier"),
+    "PlotArea": ("measurement.area", "measurement"),
+    "GeolPlot": ("location.locality", "location"),
+    "SubPlot": ("identifier.plot", "identifier"),
+    "TreeFieldNum": ("identifier.record", "identifier"),
+    "idTree": ("identifier.record", "identifier"),
+    "Xfield": ("location.x_coord", "location"),
+    "Yfield": ("location.y_coord", "location"),
+    "Xutm": ("location.x_coord", "location"),
+    "Yutm": ("location.y_coord", "location"),
+    "Lat": ("location.latitude", "location"),
+    "Lon": ("location.longitude", "location"),
+    "Family": ("taxonomy.family", "taxonomy"),
+    "Genus": ("taxonomy.genus", "taxonomy"),
+    "Species": ("taxonomy.species", "taxonomy"),
+    "Author": ("text.authority", "text"),
+    "Botanist": ("text.observer", "text"),
+    "IdentYear": ("event.year", "time"),
+    "FamilyFilled": ("taxonomy.family", "taxonomy"),
+    "GenusFilled": ("taxonomy.genus", "taxonomy"),
+    "SpeciesFilled": ("taxonomy.species", "taxonomy"),
+    "AuthorFilled": ("text.authority", "text"),
+    "BotaSource": ("text.source", "text"),
+    "BotaCertainty": ("category.quality", "category"),
+    "VernName": ("taxonomy.vernacular_name", "taxonomy"),
+    "CensusYear": ("event.year", "time"),
+    "CensusDate": ("event.date", "time"),
+    "CensusDateCertainty": ("category.quality", "category"),
+    "CodeAlive": ("category.status", "category"),
+    "Circ": ("measurement.circumference", "measurement"),
+    "CircCorr": ("measurement.circumference", "measurement"),
+    "POM": ("measurement.height", "measurement"),
+    "POMCertainty": ("category.quality", "category"),
 }
 
 # ── Silver sources ───────────────────────────────────────────────
@@ -643,48 +684,52 @@ GBIF_DWC_LABELS = {
 
 # ── Data source definitions ──────────────────────────────────────
 
-ROOT = Path(__file__).parent.parent.parent  # niamoto/
-NIAMOTO_DATA = ROOT.parent / "niamoto-data"
-
 SOURCES = [
     {
         "name": "guyadiv_trees",
-        "path": NIAMOTO_DATA / "Datas/Guyane/dataverse_files/GUYADIV_trees_v1.csv",
+        "path": ROOT / "data/silver/guyane/GUYADIV_trees_v1.csv",
         "labels": GUYADIV_TREES_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "guyadiv_plots",
-        "path": NIAMOTO_DATA / "Datas/Guyane/dataverse_files/GUYADIV_plots_v1.csv",
+        "path": ROOT / "data/silver/guyane/GUYADIV_plots_v1.csv",
         "labels": GUYADIV_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
+        "name": "forestscan_paracou_census",
+        "path": ROOT / "data/silver/guyane/paracou/FGPlotsCensusData2023.csv",
+        "labels": FORESTSCAN_PARACOU_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
         "name": "afrique_occ",
-        "path": NIAMOTO_DATA / "Datas/Afrique/imports/occurrences.csv",
+        "path": ROOT / "data/silver/afrique/occurrences.csv",
         "labels": AFRIQUE_OCC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "afrique_plots",
-        "path": NIAMOTO_DATA / "Datas/Afrique/imports/plots.csv",
+        "path": ROOT / "data/silver/afrique/plots.csv",
         "labels": AFRIQUE_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "nc_occ",
-        "path": ROOT / "test-instance/niamoto-gb/imports/occurrences.csv",
+        "path": ROOT / "data/silver/nc_niamoto/occurrences.csv",
         "labels": NC_OCC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "nc_plots",
-        "path": ROOT / "test-instance/niamoto-gb/imports/plots.csv",
+        "path": ROOT / "data/silver/nc_niamoto/plots.csv",
         "labels": NC_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1132,6 +1177,49 @@ SOURCES = [
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
+    },
+    {
+        "name": "gbif_targeted_new_caledonia",
+        "path": ROOT / "data/silver/gbif_targeted/new_caledonia/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
+        "name": "gbif_targeted_guyane",
+        "path": ROOT / "data/silver/gbif_targeted/guyane/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
+        "name": "gbif_targeted_gabon",
+        "path": ROOT / "data/silver/gbif_targeted/gabon/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
+        "name": "gbif_targeted_cameroon",
+        "path": ROOT / "data/silver/gbif_targeted/cameroon/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
+        "name": "gbif_targeted_institutional_gabon",
+        "path": ROOT / "data/silver/gbif_targeted_institutional/gabon/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
+    },
+    {
+        "name": "gbif_targeted_institutional_cameroon",
+        "path": ROOT
+        / "data/silver/gbif_targeted_institutional/cameroon/occurrences.csv",
+        "labels": GBIF_DWC_LABELS,
+        "language": "en",
+        "sample_rows": 1000,
     },
     # ── Zenodo datasets (unique schemas) ──
     {

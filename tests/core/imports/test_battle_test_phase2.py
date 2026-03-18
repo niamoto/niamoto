@@ -30,7 +30,7 @@ class TestDarwinCorePatterns:
         )
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         col = profile.columns[0]
@@ -45,7 +45,7 @@ class TestDarwinCorePatterns:
         df = pd.DataFrame({"decimalLatitude": [-22.1, -22.2, -22.3]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         col = profile.columns[0]
@@ -60,7 +60,7 @@ class TestDarwinCorePatterns:
         df = pd.DataFrame({"decimalLongitude": [166.4, 166.5, 166.6]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         col = profile.columns[0]
@@ -73,7 +73,7 @@ class TestDarwinCorePatterns:
         df = pd.DataFrame({"kingdom": ["Plantae", "Animalia", "Fungi"]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         col = profile.columns[0]
@@ -86,7 +86,7 @@ class TestDarwinCorePatterns:
         df = pd.DataFrame({"eventDate": ["2024-01-15", "2024-02-20", "2024-03-10"]})
         df.to_csv(csv_path, index=False)
 
-        profiler = DataProfiler(ml_detector=None)
+        profiler = DataProfiler()
         profile = profiler.profile(csv_path)
 
         col = profile.columns[0]

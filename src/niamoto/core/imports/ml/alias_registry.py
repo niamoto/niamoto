@@ -30,27 +30,57 @@ class AliasRegistry:
         self._load(alias_path or _ALIAS_FILE)
 
     def _load(self, path: Path) -> None:
-        """Load and flatten the alias YAML into a reverse index."""
+        """Load and flatten the alias YAML into a reverse index.
+
+        Two-pass loading: first collect all concepts per normalized alias,
+        then only index aliases that map to exactly one concept. Ambiguous
+        aliases (same normalized form → multiple concepts) are excluded and
+        left for the ML classifier to resolve.
+        """
         with open(path) as f:
             self._raw = yaml.safe_load(f) or {}
 
+        # First pass: collect all concepts for each normalized alias
+        alias_to_concepts: dict[str, set[str]] = {}
         for concept, langs in self._raw.items():
             for _lang, aliases in langs.items():
                 for alias in aliases:
                     norm = _normalize(alias)
                     if norm:
-                        self._exact_index[norm] = concept
+                        alias_to_concepts.setdefault(norm, set()).add(concept)
+
+        # Second pass: only index unambiguous aliases
+        self._ambiguous: dict[str, frozenset[str]] = {}
+        for norm, concepts in alias_to_concepts.items():
+            if len(concepts) == 1:
+                self._exact_index[norm] = next(iter(concepts))
+            else:
+                self._ambiguous[norm] = frozenset(concepts)
+                logger.warning(
+                    "Ambiguous alias '%s' maps to %d concepts (%s) — "
+                    "excluded from exact matching, deferred to ML",
+                    norm,
+                    len(concepts),
+                    ", ".join(sorted(concepts)),
+                )
 
         logger.debug(
-            "Loaded alias registry: %d concepts, %d aliases",
+            "Loaded alias registry: %d concepts, %d unambiguous aliases, "
+            "%d ambiguous aliases excluded",
             len(self._raw),
             len(self._exact_index),
+            len(self._ambiguous),
         )
 
     @property
     def concepts(self) -> list[str]:
         """List all registered concept names."""
         return list(self._raw.keys())
+
+    @property
+    def ambiguous(self) -> dict[str, frozenset[str]]:
+        """Aliases excluded from exact match due to multi-concept mapping."""
+        return dict(self._ambiguous)
 
     def match(self, column_name: str) -> tuple[Optional[str], float]:
         """Exact match a column name to a semantic concept.
