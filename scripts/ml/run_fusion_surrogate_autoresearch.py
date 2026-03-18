@@ -27,6 +27,7 @@ DEFAULT_ALLOWED_PATHS = (
     "src/niamoto/core/imports/ml/classifier.py",
     "scripts/ml/evaluate.py",
 )
+PROMPT_HISTORY_LIMIT = 10
 
 
 @dataclass
@@ -158,6 +159,7 @@ def build_codex_prompt(
     baseline_stack: float | None,
     allowed_paths: tuple[str, ...],
     cache_dir: Path,
+    recent_history: str,
 ) -> str:
     allowed = "\n".join(f"- {path}" for path in allowed_paths)
     stack_line = (
@@ -175,6 +177,9 @@ Contexte:
 - Baseline surrogate-mid: {baseline_mid:.4f}
 {stack_line}
 
+Historique recent a prendre en compte:
+{recent_history}
+
 Périmètre autorisé:
 {allowed}
 
@@ -185,12 +190,17 @@ Contraintes:
 - n'effectue aucun commit
 - si tu n'as pas de candidat simple et crédible, ne modifie rien
 - stoppe-toi juste après avoir appliqué le candidat éventuel
+- ne propose pas un simple changement de regularisation globale (`C`, `solver`, `penalty`, `class_weight`, seuil global)
+- ne repropose pas une variante équivalente a un score reject_fast deja observe dans l'historique
+- ne fais pas une micro-variation d'une feature de desaccord deja tentee sans nouvelle hypothese explicite
+- si ton idee n'est pas clairement differente des echecs recents, retourne sans changer de fichier
 
 Axes recommandés:
-- marges header/value
-- désaccord asymétrique
-- coded headers
-- interactions de confiance locales
+- une nouvelle famille de features de fusion, pas juste un coefficient
+- interactions basees sur top2/top3, entropy, confidence gap, ou calibration locale
+- signaux ciblant des cas ou header et values sont tous deux faibles
+- signaux ciblant coded headers sans ajouter de simple threshold global
+- si possible, touche d'abord `train_fusion.py`; ne modifie `classifier.py` que si la feature runtime correspondante est necessaire
 """
 
 
@@ -207,6 +217,49 @@ def append_jsonl(path: Path, payload: dict) -> None:
         handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
 
 
+def summarize_recent_iterations(
+    log_path: Path, *, limit: int = PROMPT_HISTORY_LIMIT
+) -> str:
+    if not log_path.exists():
+        return "Aucun historique récent."
+
+    recent_events: list[dict] = []
+    with log_path.open() as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            payload = json.loads(line)
+            if payload.get("event") != "iteration":
+                continue
+            recent_events.append(payload)
+
+    if not recent_events:
+        return "Aucun historique récent."
+
+    recent_events = recent_events[-limit:]
+    lines = []
+    seen_reject_scores: set[str] = set()
+    for payload in recent_events:
+        status = payload["status"]
+        iteration = payload["iteration"]
+        fast_score = payload.get("fast_score")
+        if fast_score is not None and status == "reject_fast":
+            seen_reject_scores.add(f"{fast_score:.4f}")
+        score_part = (
+            f", fast={fast_score:.4f}" if isinstance(fast_score, (int, float)) else ""
+        )
+        note_part = f", note={payload['note']}" if payload.get("note") else ""
+        lines.append(f"- iter {iteration}: {status}{score_part}{note_part}")
+
+    repeated_scores = ", ".join(sorted(seen_reject_scores))
+    if repeated_scores:
+        lines.append(
+            f"- scores reject_fast deja observes a ne pas reproduire: {repeated_scores}"
+        )
+    return "\n".join(lines)
+
+
 def run_iteration(
     *,
     iteration: int,
@@ -219,6 +272,7 @@ def run_iteration(
     allowed_untracked: set[str],
     log_path: Path,
 ) -> tuple[IterationResult, float, float, float]:
+    recent_history = summarize_recent_iterations(log_path)
     prompt = build_codex_prompt(
         iteration=iteration,
         baseline_fast=baseline_fast,
@@ -226,6 +280,7 @@ def run_iteration(
         baseline_stack=baseline_stack,
         allowed_paths=allowed_paths,
         cache_dir=cache_dir,
+        recent_history=recent_history,
     )
     codex_result = run_codex_iteration(prompt)
     changed_files = current_changed_files(allowed_untracked)
