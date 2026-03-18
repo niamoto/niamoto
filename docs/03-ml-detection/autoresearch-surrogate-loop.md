@@ -245,6 +245,22 @@ uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-mid
 4. faire tourner `autoresearch` uniquement sur ces métriques
 5. ne promouvoir en validation stack complète que les meilleurs candidats
 
+Runner local ajouté :
+
+```bash
+uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50
+```
+
+Comportement :
+
+- calcule les baselines `surrogate-fast`, `surrogate-mid`,
+  `product-score-fast-fast`
+- lance une itération `codex` par candidat
+- évalue lui-même les gates
+- revert les perdants
+- committe automatiquement les gagnants pour garder un worktree propre
+- écrit un journal JSONL sous `.autoresearch/`
+
 ## Premières mesures
 
 Sur le gold set courant :
