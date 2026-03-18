@@ -9,7 +9,12 @@ from scripts.ml.evaluation import (
     EvalMetrics,
     EvaluationHarness,
     HarnessResults,
+    NiamotoOfflineScore,
     compute_metrics,
+    compute_niamoto_offline_score,
+    compute_pair_consistency,
+    compute_dataset_outcome,
+    compute_high_confidence_error_rate,
     _compute_ece,
 )
 
@@ -281,3 +286,108 @@ class TestHarnessResults:
         mean = r.kfold_mean
         assert mean.macro_f1_concept == 0.0
         assert mean.n_samples == 0
+
+
+class TestNiamotoOfflineScore:
+    def test_perfect_score(self):
+        columns = [
+            _make_column("species", "taxonomy.species", source="ds_a"),
+            _make_column("family", "taxonomy.family", source="ds_a"),
+            _make_column("lat", "location.latitude", source="ds_b"),
+            _make_column("lon", "location.longitude", source="ds_b"),
+            _make_column(
+                "X1",
+                "measurement.diameter",
+                source="ds_c",
+                is_anonymous=True,
+            ),
+        ]
+        y_pred = [c.concept for c in columns]
+        confs = [0.9] * len(columns)
+
+        score = compute_niamoto_offline_score(columns, y_pred, confs)
+        assert isinstance(score, NiamotoOfflineScore)
+        assert score.final_score == pytest.approx(100.0)
+        assert score.role_macro_f1 == 1.0
+        assert score.critical_concept_macro_f1 == 1.0
+        assert score.anonymous_role_macro_f1 == 1.0
+        assert score.pair_consistency == 1.0
+        assert score.confidence_quality == 1.0
+        assert score.dataset_outcome == 1.0
+
+    def test_high_confidence_errors_are_penalized(self):
+        columns = [
+            _make_column("lat", "location.latitude", source="ds_a"),
+            _make_column("lon", "location.longitude", source="ds_a"),
+        ]
+        y_pred = ["location.latitude", "measurement.diameter"]
+        confs = [0.9, 0.95]
+
+        rate = compute_high_confidence_error_rate(
+            [c.concept for c in columns], y_pred, confs
+        )
+        assert rate == pytest.approx(0.5)
+
+        score = compute_niamoto_offline_score(columns, y_pred, confs)
+        assert score.confidence_quality == pytest.approx(0.5)
+        assert score.final_score < 100.0
+
+    def test_pair_consistency_partial_and_wrong(self):
+        columns = [
+            _make_column("lat", "location.latitude", source="ds_geo"),
+            _make_column("lon", "location.longitude", source="ds_geo"),
+            _make_column("species", "taxonomy.species", source="ds_tax"),
+            _make_column("family", "taxonomy.family", source="ds_tax"),
+        ]
+
+        partial = compute_pair_consistency(
+            columns,
+            [
+                "location.latitude",
+                "measurement.diameter",
+                "taxonomy.species",
+                "taxonomy.family",
+            ],
+        )
+        assert partial == pytest.approx(0.75)
+
+        wrong = compute_pair_consistency(
+            columns,
+            [
+                "location.latitude",
+                "measurement.diameter",
+                "taxonomy.genus",
+                "taxonomy.order",
+            ],
+        )
+        assert wrong == pytest.approx(0.25)
+
+    def test_dataset_outcome_handles_missing_critical_keys(self):
+        columns = [
+            _make_column("country", "location.country", source="ds_loc"),
+            _make_column("locality", "location.locality", source="ds_loc"),
+        ]
+        outcome = compute_dataset_outcome(
+            columns,
+            ["location.country", "location.locality"],
+        )
+        assert outcome is not None
+        assert 0.0 <= outcome <= 1.0
+
+    def test_summary_includes_main_fields(self):
+        score = NiamotoOfflineScore(
+            final_score=72.5,
+            role_macro_f1=0.81,
+            critical_concept_macro_f1=0.68,
+            anonymous_role_macro_f1=0.55,
+            pair_consistency=0.79,
+            confidence_quality=0.92,
+            dataset_outcome=0.74,
+            high_confidence_error_rate=0.08,
+            n_samples=120,
+            n_datasets=12,
+        )
+        summary = score.summary()
+        assert "NiamotoOfflineScore=72.500" in summary
+        assert "role=0.810" in summary
+        assert "datasets=12" in summary

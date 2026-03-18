@@ -28,7 +28,7 @@ def run_full_pipeline(file_path: Path):
 
     Returns (profile, enriched_profiles, widget_suggestions).
     """
-    profiler = DataProfiler(ml_detector=None)
+    profiler = DataProfiler()
     analyzer = DataAnalyzer()
     generator = WidgetGenerator()
 

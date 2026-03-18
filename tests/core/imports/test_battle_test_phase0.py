@@ -73,19 +73,6 @@ class TestProfilerBehavior:
         profiler = DataProfiler()
         assert profiler is not None
 
-    def test_profiler_legacy_kwargs_accepted(self):
-        """Legacy ml_detector/ml_mode kwargs are silently accepted."""
-        from niamoto.core.imports.profiler import DataProfiler
-
-        profiler = DataProfiler(ml_detector=None)
-        assert profiler is not None
-
-        profiler = DataProfiler(ml_detector=False)
-        assert profiler is not None
-
-        profiler = DataProfiler(ml_mode="off")
-        assert profiler is not None
-
     def test_profile_works(self, tmp_path):
         """Profiling a CSV works with AliasRegistry detection."""
         from niamoto.core.imports.profiler import DataProfiler

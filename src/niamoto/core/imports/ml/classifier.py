@@ -16,6 +16,15 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from niamoto.core.imports.ml.header_features import build_header_text_from_series
+from niamoto.core.imports.ml.fusion_features import (
+    branch_confidence_stats,
+    dampen_code_like_false_counts,
+    is_code_like_header,
+    top_concept_flags,
+)
+from niamoto.core.imports.ml.value_features import extract_value_features_from_series
+
 logger = logging.getLogger(__name__)
 
 # Patterns for anonymous/auto-generated column names (X1, col_3, var_a, V1, Unnamed: 0…)
@@ -25,14 +34,24 @@ _ANONYMOUS_RE = re.compile(
 
 
 def _get_resource_path(relative: str) -> Path:
-    """Get path to a bundled resource (works in source and frozen modes)."""
+    """Get path to a bundled resource.
+
+    Resolution order:
+    1. bundle.py (PyInstaller frozen → sys._MEIPASS, source → project root)
+    2. Package-relative (pip install → niamoto/ package directory)
+    """
     try:
         from niamoto.common.bundle import get_resource_path
 
-        return get_resource_path(relative)
+        path = get_resource_path(relative)
+        if path.exists():
+            return path
     except Exception:
-        # Fallback: relative to project root
-        return Path(__file__).parent.parent.parent.parent.parent / relative
+        pass
+
+    # Fallback: package-relative (pip install with models in niamoto/models/)
+    # From niamoto/core/imports/ml/classifier.py → parents[3] = niamoto/
+    return Path(__file__).resolve().parents[3] / relative
 
 
 class ColumnClassifier:
@@ -120,7 +139,12 @@ class ColumnClassifier:
         # If we have a fusion model, combine
         if self._fusion_model is not None and self._fusion_concepts is not None:
             return self._predict_fusion(
-                header_proba, value_proba, series, is_anonymous=is_anonymous
+                header_proba,
+                value_proba,
+                series,
+                norm_name=norm,
+                raw_name=col_name,
+                is_anonymous=is_anonymous,
             )
 
         # Fallback: use header model alone
@@ -139,34 +163,7 @@ class ColumnClassifier:
             return None
 
         try:
-            # Enrich name with metadata (same as training preprocessing)
-            name = norm_name.replace("_", " ")
-
-            dtype = str(series.dtype)
-            if dtype in ("float64", "float32"):
-                name = f"float {name}"
-            elif dtype in ("int64", "int32"):
-                name = f"int {name}"
-            elif dtype == "object":
-                name = f"str {name}"
-
-            clean = series.dropna()
-            null_ratio = series.isnull().mean()
-            if null_ratio > 0.5:
-                name = f"sparse {name}"
-
-            if len(clean) > 0 and dtype == "object":
-                mean_len = clean.astype(str).str.len().mean()
-                if mean_len < 3:
-                    name = f"short {name}"
-                elif mean_len > 50:
-                    name = f"long {name}"
-
-            if len(clean) < 100:
-                name = f"small {name}"
-
-            name = f"{name} {name} {name}"
-
+            name = build_header_text_from_series(norm_name, series)
             return self._header_model.predict_proba([name])[0]
         except Exception as e:
             logger.debug("Header prediction failed: %s", e)
@@ -190,38 +187,76 @@ class ColumnClassifier:
         value_proba: Optional[np.ndarray],
         series: pd.Series,
         *,
+        norm_name: str,
+        raw_name: str,
         is_anonymous: bool = False,
     ) -> tuple[Optional[str], float]:
         """Combine header + value probabilities via fusion model."""
         n_concepts = len(self._fusion_concepts)
         features = []
+        aligned_header = np.zeros(n_concepts)
+        aligned_value = np.zeros(n_concepts)
 
         # Align header probabilities to fusion concept space
         if header_proba is not None:
-            aligned = np.zeros(n_concepts)
             header_classes = list(self._header_model.classes_)
             for i, c in enumerate(self._fusion_concepts):
                 if c in header_classes:
-                    aligned[i] = header_proba[header_classes.index(c)]
-            features.extend(aligned)
-        else:
-            features.extend(np.zeros(n_concepts))
-
-        # Align value probabilities
+                    aligned_header[i] = header_proba[header_classes.index(c)]
         if value_proba is not None:
-            aligned = np.zeros(n_concepts)
             value_classes = list(self._value_model.classes_)
             for i, c in enumerate(self._fusion_concepts):
                 if c in value_classes:
-                    aligned[i] = value_proba[value_classes.index(c)]
-            features.extend(aligned)
-        else:
-            features.extend(np.zeros(n_concepts))
+                    aligned_value[i] = value_proba[value_classes.index(c)]
+        aligned_header, aligned_value = dampen_code_like_false_counts(
+            aligned_header,
+            aligned_value,
+            self._fusion_concepts,
+            raw_name=raw_name,
+            norm_name=norm_name,
+        )
+        features.extend(aligned_header)
+        features.extend(aligned_value)
 
         # Meta features
-        features.append(1.0 if is_anonymous else 0.0)
+        header_max, header_margin, header_entropy = branch_confidence_stats(
+            aligned_header
+        )
+        value_max, value_margin, value_entropy = branch_confidence_stats(aligned_value)
+        agree, value_stat_count, header_stat_count = top_concept_flags(
+            aligned_header, aligned_value, self._fusion_concepts
+        )
+        anonymous = 1.0 if is_anonymous else 0.0
+        code_like_header = is_code_like_header(raw_name, norm_name)
+        header_missing = 1.0 if header_max <= 0.0 else 0.0
+        value_missing = 1.0 if value_max <= 0.0 else 0.0
+        value_when_header_weak = value_max * (1.0 - header_max)
+        value_margin_when_header_weak = value_margin * (1.0 - header_margin)
+        anonymous_value_max = anonymous * value_max
+        anonymous_value_margin = anonymous * value_margin
+        confidence_product = header_max * value_max
+        agreement_strength = agree * min(header_max, value_max)
+        features.append(anonymous)
         features.append(float(series.isnull().mean()))
         features.append(float(series.nunique() / max(len(series), 1)))
+        features.append(header_max)
+        features.append(value_max)
+        features.append(header_margin)
+        features.append(value_margin)
+        features.append(header_entropy)
+        features.append(value_entropy)
+        features.append(agree)
+        features.append(value_stat_count)
+        features.append(header_stat_count)
+        features.append(code_like_header)
+        features.append(header_missing)
+        features.append(value_missing)
+        features.append(value_when_header_weak)
+        features.append(value_margin_when_header_weak)
+        features.append(anonymous_value_max)
+        features.append(anonymous_value_margin)
+        features.append(confidence_product)
+        features.append(agreement_strength)
 
         try:
             X = np.array(features, dtype=float).reshape(1, -1)
@@ -236,102 +271,5 @@ class ColumnClassifier:
 
 
 def _extract_value_features(series: pd.Series) -> np.ndarray:
-    """Extract the same 37 features used by the trained value model."""
-    import scipy.stats
-
-    features = np.zeros(37)
-    clean = series.dropna()
-    if len(clean) == 0:
-        return features
-
-    is_numeric = pd.api.types.is_numeric_dtype(clean)
-    str_vals = clean.astype(str)
-
-    # Numeric stats (14)
-    if is_numeric:
-        try:
-            features[0] = float(clean.mean())
-            features[1] = float(clean.std()) if len(clean) > 1 else 0
-            features[2] = float(clean.min())
-            features[3] = float(clean.max())
-            features[4] = float(clean.skew()) if len(clean) > 2 else 0
-            features[5] = float(clean.kurtosis()) if len(clean) > 3 else 0
-            features[6] = float(clean.quantile(0.25))
-            features[7] = float(clean.median())
-            features[8] = float(clean.quantile(0.75))
-            features[9] = float(clean.max() - clean.min())
-            features[10] = float(clean.std() / clean.mean()) if clean.mean() != 0 else 0
-            features[11] = float((clean < 0).mean())
-            features[12] = float((clean == clean.astype(int)).mean())
-            features[13] = float((clean == 0).mean())
-        except Exception:
-            pass
-
-    # Uniqueness + distribution (3)
-    features[14] = float(series.nunique() / max(len(series), 1))
-    features[15] = float(series.isnull().mean())
-    vc = clean.value_counts(normalize=True)
-    features[16] = float(scipy.stats.entropy(vc)) if len(vc) > 1 else 0
-
-    # Character features (6)
-    if len(str_vals) > 0:
-        lengths = str_vals.str.len()
-        features[17] = float(lengths.mean())
-        features[18] = float(lengths.std()) if len(lengths) > 1 else 0
-        total = max(lengths.sum(), 1)
-        features[19] = float(str_vals.str.count(r"\d").sum() / total)
-        features[20] = float(str_vals.str.count(r"[a-zA-Z]").sum() / total)
-        features[21] = float(str_vals.str.count(r"\s").sum() / total)
-        features[22] = float(str_vals.str.split().str.len().mean())
-
-    # Regex patterns (4)
-    if len(str_vals) > 0:
-        n = len(str_vals)
-        features[23] = float(str_vals.str.match(r"^\d{4}-\d{2}-\d{2}").sum() / n)
-        features[24] = float(str_vals.str.match(r"^-?\d{1,3}\.\d{4,}$").sum() / n)
-        features[25] = float(
-            str_vals.str.lower()
-            .isin(["true", "false", "yes", "no", "0", "1", "oui", "non"])
-            .sum()
-            / n
-        )
-        features[26] = float(str_vals.str.match(r"^[0-9a-f]{8}-[0-9a-f]{4}").sum() / n)
-
-    # Biological patterns (2)
-    if len(str_vals) > 0:
-        n = len(str_vals)
-        features[27] = float(str_vals.str.match(r"^[A-Z][a-z]+ [a-z]+").sum() / n)
-        features[28] = float(
-            str_vals.str.match(r".*(?:aceae|idae|ales|ineae)$").sum() / n
-        )
-
-    # Numeric patterns (1) - mean decimals
-    if is_numeric:
-        try:
-            str_nums = clean.astype(str)
-            dec_counts = str_nums.str.extract(r"\.(\d+)$")[0].str.len()
-            features[29] = float(dec_counts.mean()) if dec_counts.notna().any() else 0
-        except Exception:
-            pass
-
-    # Range indicators (5)
-    if is_numeric:
-        try:
-            features[30] = float(((clean >= -90) & (clean <= 90)).mean())
-            features[31] = float(((clean >= -180) & (clean <= 180)).mean())
-            features[32] = float(((clean >= 0) & (clean <= 1)).mean())
-            features[33] = float(
-                ((clean >= 0) & (clean <= 100) & (clean == clean.astype(int))).mean()
-            )
-        except Exception:
-            pass
-
-    # Text pattern (1)
-    if len(str_vals) > 0:
-        features[34] = float(str_vals.str.match(r"^[A-Z]").sum() / len(str_vals))
-
-    # Meta (2)
-    features[35] = 1.0 if is_numeric else 0.0
-    features[36] = len(clean)
-
-    return np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
+    """Extract the same value features used by the trained value model."""
+    return extract_value_features_from_series(series)

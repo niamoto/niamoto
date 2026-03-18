@@ -24,11 +24,39 @@ from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from niamoto.core.imports.ml.alias_registry import _normalize
+from niamoto.core.imports.ml.fusion_features import (
+    branch_confidence_stats,
+    dampen_code_like_false_counts,
+    is_code_like_header,
+    top_concept_flags,
+)
+from niamoto.core.imports.ml.header_features import build_header_text_from_stats
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent.parent.parent
+FUSION_META_FEATURE_NAMES = (
+    "is_anonymous",
+    "null_ratio",
+    "unique_ratio",
+    "code_like_header",
+)
+
+
+def _align_branch_probabilities(
+    proba: np.ndarray,
+    branch_classes: list[str],
+    all_concepts: list[str],
+) -> np.ndarray:
+    """Align branch probability vectors to the shared concept ordering."""
+    aligned = np.zeros((len(proba), len(all_concepts)), dtype=float)
+    class_to_idx = {name: idx for idx, name in enumerate(branch_classes)}
+    for concept_idx, concept in enumerate(all_concepts):
+        branch_idx = class_to_idx.get(concept)
+        if branch_idx is not None:
+            aligned[:, concept_idx] = proba[:, branch_idx]
+    return aligned
 
 
 def load_branch_models(
@@ -55,38 +83,33 @@ def load_branch_models(
     return header_model, value_model
 
 
-def extract_fusion_features(
+def extract_fusion_branch_probabilities(
     record: dict,
     header_model,
     value_model,
     all_concepts: list[str],
-) -> np.ndarray:
-    """Extract fusion input: header proba + value proba + meta features."""
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract aligned branch probabilities after deterministic damping."""
     n_concepts = len(all_concepts)
-    features = []
+    aligned_header = np.zeros(n_concepts)
+    aligned_value = np.zeros(n_concepts)
 
     # Header branch probabilities
     if header_model is not None and not record.get("is_anonymous", False):
         name = _normalize(record["column_name"])
         if name:
             try:
-                header_proba = header_model.predict_proba([name])[0]
+                header_text = build_header_text_from_stats(
+                    name, record.get("values_stats", {})
+                )
+                header_proba = header_model.predict_proba([header_text])[0]
                 header_classes = list(header_model.classes_)
                 # Align to all_concepts
-                aligned = np.zeros(n_concepts)
                 for i, c in enumerate(all_concepts):
                     if c in header_classes:
-                        aligned[i] = header_proba[header_classes.index(c)]
-                features.extend(aligned)
+                        aligned_header[i] = header_proba[header_classes.index(c)]
             except Exception as e:
                 logger.debug("Feature extraction failed: %s", e)
-                features.extend(np.zeros(n_concepts))
-        else:
-            features.extend(np.zeros(n_concepts))
-    else:
-        features.extend(np.zeros(n_concepts))
-
-    # Value branch probabilities
     if value_model is not None:
         try:
             from scripts.ml.train_value_model import extract_value_features
@@ -97,22 +120,191 @@ def extract_fusion_features(
             )
             value_proba = value_model.predict_proba(feat_vec.reshape(1, -1))[0]
             value_classes = list(value_model.classes_)
-            aligned = np.zeros(n_concepts)
             for i, c in enumerate(all_concepts):
                 if c in value_classes:
-                    aligned[i] = value_proba[value_classes.index(c)]
-            features.extend(aligned)
+                    aligned_value[i] = value_proba[value_classes.index(c)]
         except Exception as e:  # noqa: F841
-            features.extend(np.zeros(n_concepts))
-    else:
-        features.extend(np.zeros(n_concepts))
+            pass
+
+    norm_name = _normalize(record["column_name"])
+    aligned_header, aligned_value = dampen_code_like_false_counts(
+        aligned_header,
+        aligned_value,
+        all_concepts,
+        raw_name=record["column_name"],
+        norm_name=norm_name,
+    )
+
+    return aligned_header, aligned_value
+
+
+def extract_fusion_branch_probabilities_batch(
+    records: list[dict],
+    header_model,
+    value_model,
+    all_concepts: list[str],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Batch version of branch probability extraction for faster cache builds."""
+    n_records = len(records)
+    n_concepts = len(all_concepts)
+    aligned_header = np.zeros((n_records, n_concepts), dtype=float)
+    aligned_value = np.zeros((n_records, n_concepts), dtype=float)
+
+    if header_model is not None and records:
+        header_indices = []
+        header_texts = []
+        for idx, record in enumerate(records):
+            if record.get("is_anonymous", False):
+                continue
+            name = _normalize(record["column_name"])
+            if not name:
+                continue
+            header_indices.append(idx)
+            header_texts.append(
+                build_header_text_from_stats(name, record.get("values_stats", {}))
+            )
+        if header_texts:
+            try:
+                header_proba = header_model.predict_proba(header_texts)
+                aligned = _align_branch_probabilities(
+                    header_proba,
+                    list(header_model.classes_),
+                    all_concepts,
+                )
+                aligned_header[header_indices] = aligned
+            except Exception as e:
+                logger.debug("Batch header feature extraction failed: %s", e)
+
+    if value_model is not None and records:
+        try:
+            from scripts.ml.train_value_model import extract_value_features
+
+            value_features = np.array(
+                [
+                    extract_value_features(
+                        record.get("values_sample", []),
+                        record.get("values_stats", {}),
+                    )
+                    for record in records
+                ],
+                dtype=float,
+            )
+            value_proba = value_model.predict_proba(value_features)
+            aligned_value = _align_branch_probabilities(
+                value_proba,
+                list(value_model.classes_),
+                all_concepts,
+            )
+        except Exception as e:
+            logger.debug("Batch value feature extraction failed: %s", e)
+
+    for idx, record in enumerate(records):
+        norm_name = _normalize(record["column_name"])
+        damped_header, damped_value = dampen_code_like_false_counts(
+            aligned_header[idx],
+            aligned_value[idx],
+            all_concepts,
+            raw_name=record["column_name"],
+            norm_name=norm_name,
+        )
+        aligned_header[idx] = damped_header
+        aligned_value[idx] = damped_value
+
+    return aligned_header, aligned_value
+
+
+def extract_fusion_metadata(record: dict) -> np.ndarray:
+    """Extract the compact metadata needed to compose fusion features."""
+    norm_name = _normalize(record["column_name"])
+    return np.array(
+        [
+            1.0 if record.get("is_anonymous", False) else 0.0,
+            float(record.get("values_stats", {}).get("null_ratio", 0.0)),
+            float(record.get("values_stats", {}).get("unique_ratio", 0.0)),
+            float(is_code_like_header(record["column_name"], norm_name)),
+        ],
+        dtype=float,
+    )
+
+
+def extract_fusion_metadata_batch(records: list[dict]) -> np.ndarray:
+    """Batch extraction of the compact metadata needed for fusion features."""
+    if not records:
+        return np.zeros((0, len(FUSION_META_FEATURE_NAMES)), dtype=float)
+    return np.array(
+        [extract_fusion_metadata(record) for record in records], dtype=float
+    )
+
+
+def compose_fusion_features(
+    aligned_header: np.ndarray,
+    aligned_value: np.ndarray,
+    metadata: np.ndarray,
+    all_concepts: list[str],
+) -> np.ndarray:
+    """Compose the final fusion vector from cached branch outputs + metadata."""
+    features = []
+    is_anonymous, null_ratio, unique_ratio, code_like_header = metadata.tolist()
+
+    features.extend(aligned_header)
+    features.extend(aligned_value)
 
     # Meta features
-    features.append(1.0 if record.get("is_anonymous", False) else 0.0)
-    features.append(record.get("values_stats", {}).get("null_ratio", 0))
-    features.append(record.get("values_stats", {}).get("unique_ratio", 0))
+    header_max, header_margin, header_entropy = branch_confidence_stats(aligned_header)
+    value_max, value_margin, value_entropy = branch_confidence_stats(aligned_value)
+    agree, value_stat_count, header_stat_count = top_concept_flags(
+        aligned_header, aligned_value, all_concepts
+    )
+    header_missing = 1.0 if header_max <= 0.0 else 0.0
+    value_missing = 1.0 if value_max <= 0.0 else 0.0
+    value_when_header_weak = value_max * (1.0 - header_max)
+    value_margin_when_header_weak = value_margin * (1.0 - header_margin)
+    anonymous_value_max = is_anonymous * value_max
+    anonymous_value_margin = is_anonymous * value_margin
+    confidence_product = header_max * value_max
+    agreement_strength = agree * min(header_max, value_max)
+    features.append(is_anonymous)
+    features.append(null_ratio)
+    features.append(unique_ratio)
+    features.append(header_max)
+    features.append(value_max)
+    features.append(header_margin)
+    features.append(value_margin)
+    features.append(header_entropy)
+    features.append(value_entropy)
+    features.append(agree)
+    features.append(value_stat_count)
+    features.append(header_stat_count)
+    features.append(code_like_header)
+    features.append(header_missing)
+    features.append(value_missing)
+    features.append(value_when_header_weak)
+    features.append(value_margin_when_header_weak)
+    features.append(anonymous_value_max)
+    features.append(anonymous_value_margin)
+    features.append(confidence_product)
+    features.append(agreement_strength)
 
     return np.array(features, dtype=float)
+
+
+def extract_fusion_features(
+    record: dict,
+    header_model,
+    value_model,
+    all_concepts: list[str],
+) -> np.ndarray:
+    """Extract fusion input: header proba + value proba + meta features."""
+    aligned_header, aligned_value = extract_fusion_branch_probabilities(
+        record,
+        header_model,
+        value_model,
+        all_concepts,
+    )
+    metadata = extract_fusion_metadata(record)
+    return compose_fusion_features(
+        aligned_header, aligned_value, metadata, all_concepts
+    )
 
 
 def build_fusion_model(C: float = 1.0) -> LogisticRegression:
@@ -176,19 +368,64 @@ def main():
     groups = np.array(groups)
     logger.info(f"Feature matrix shape: {X.shape}")
 
-    # GroupKFold evaluation
-    logger.info("\n=== GroupKFold Evaluation ===")
+    # GroupKFold evaluation (leak-free: re-train branches per fold)
+    logger.info("\n=== GroupKFold Evaluation (leak-free) ===")
     unique_groups = np.unique(groups)
     n_splits = min(5, len(unique_groups))
 
     if n_splits >= 2:
+        from scripts.ml.train_header_model import build_pipeline, prepare_data
+        from scripts.ml.train_value_model import (
+            build_model as build_value_model,
+            extract_value_features,
+        )
+
         kfold = GroupKFold(n_splits=n_splits)
         f1_scores = []
 
-        for fold, (train_idx, test_idx) in enumerate(kfold.split(X, groups=groups)):
+        for fold, (train_idx, test_idx) in enumerate(kfold.split(y, groups=groups)):
+            train_recs = [records[i] for i in train_idx]
+            test_recs = [records[i] for i in test_idx]
+
+            # Re-train header model on training fold
+            header_recs = [r for r in train_recs if not r.get("is_anonymous")]
+            names, concepts_h, _, _ = prepare_data(header_recs)
+            if len(names) > 0:
+                fold_header = build_pipeline()
+                fold_header.fit(names, concepts_h)
+            else:
+                fold_header = None
+
+            # Re-train value model on training fold
+            X_val = np.array(
+                [
+                    extract_value_features(
+                        r.get("values_sample", []), r.get("values_stats", {})
+                    )
+                    for r in train_recs
+                ]
+            )
+            val_concepts = [r["concept_coarse"] for r in train_recs]
+            fold_value = build_value_model()
+            fold_value.fit(X_val, val_concepts)
+
+            # Extract features with fold-specific branch models
+            X_train_fold = np.array(
+                [
+                    extract_fusion_features(r, fold_header, fold_value, all_concepts)
+                    for r in train_recs
+                ]
+            )
+            X_test_fold = np.array(
+                [
+                    extract_fusion_features(r, fold_header, fold_value, all_concepts)
+                    for r in test_recs
+                ]
+            )
+
             model = build_fusion_model()
-            model.fit(X[train_idx], y[train_idx])
-            preds = model.predict(X[test_idx])
+            model.fit(X_train_fold, y[train_idx])
+            preds = model.predict(X_test_fold)
             f1 = f1_score(y[test_idx], preds, average="macro", zero_division=0)
             f1_scores.append(f1)
             logger.info(f"  Fold {fold}: macro-F1 = {f1:.3f}")

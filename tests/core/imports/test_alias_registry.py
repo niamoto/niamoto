@@ -118,3 +118,53 @@ class TestAliasRegistry:
         concept, score = registry.match("spesies")
         assert concept == "taxonomy.species"
         assert score == 1.0
+
+    # ── Ambiguous alias handling ──────────────────────────────────
+
+    def test_ambiguous_hoehe_no_match(self, registry):
+        """'hoehe' maps to both elevation and height — must NOT match."""
+        concept, score = registry.match("hoehe")
+        assert concept is None
+        assert score == 0.0
+
+    def test_ambiguous_numero_no_match(self, registry):
+        """'numero' maps to both identifier and count — must NOT match."""
+        concept, score = registry.match("numero")
+        assert concept is None
+        assert score == 0.0
+
+    def test_ambiguous_property_exposes_collisions(self, registry):
+        ambiguous = registry.ambiguous
+        assert "hoehe" in ambiguous
+        assert "location.elevation" in ambiguous["hoehe"]
+        assert "measurement.height" in ambiguous["hoehe"]
+        assert "numero" in ambiguous
+        assert "identifier.record" in ambiguous["numero"]
+        assert "statistic.count" in ambiguous["numero"]
+
+    def test_unambiguous_siblings_still_match(self, registry):
+        """Other aliases of colliding concepts must still resolve."""
+        concept, _ = registry.match("altitude")
+        assert concept == "location.elevation"
+        concept, _ = registry.match("baumhoehe")
+        assert concept == "measurement.height"
+        concept, _ = registry.match("identifiant")
+        assert concept == "identifier.record"
+        concept, _ = registry.match("abundance")
+        assert concept == "statistic.count"
+
+    def test_custom_yaml_ambiguous(self, tmp_path):
+        """Collisions in custom YAML are detected and excluded."""
+        custom = tmp_path / "aliases.yaml"
+        custom.write_text(
+            "concept.a:\n  en: [shared, only_a]\nconcept.b:\n  en: [shared, only_b]\n"
+        )
+        reg = AliasRegistry(alias_path=custom)
+        # Ambiguous: no match
+        concept, score = reg.match("shared")
+        assert concept is None
+        assert score == 0.0
+        # Unambiguous: still works
+        concept, score = reg.match("only_a")
+        assert concept == "concept.a"
+        assert score == 1.0

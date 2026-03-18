@@ -5,7 +5,12 @@ Machine learning-based column detection and automatic configuration generation.
 ## 📚 Documents in this Section
 
 - **[Overview](overview.md)** - Introduction to ML detection system
+- **[Branch Architecture](branch-architecture.md)** - Current branch architecture and product goal
+- **[Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)** - Why end-to-end autoresearch is too slow and how to pivot to a fusion-only surrogate loop
+- **[Acquisition Plan](acquisition-plan.md)** - Concrete plan to acquire and integrate new benchmark data
+- **[Candidate Data Sources](candidate-data-sources.md)** - Shortlist of external datasets to strengthen the benchmark
 - **[Current State](current-state.md)** - Current implementation status
+- **[Experiment Log](experiments/2026-03-17-ml-detection-iteration-log.md)** - Dated journal of current ML iterations
 - **[Training Guide](training-guide.md)** - Train custom detection models
 - **[Implementation](implementation.md)** - Technical implementation details
 - **[Detector Usage](detector-usage.md)** - Using the ML detector

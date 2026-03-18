@@ -2,101 +2,119 @@
 
 ## Objectif
 
-Maximiser le **macro-F1** du modèle values (features statistiques + classifier)
-qui classifie les colonnes en concepts sémantiques à partir de leurs valeurs.
+Optimiser la branche `values` en boucle rapide. Cette branche est surtout critique
+pour les colonnes anonymes, les concepts détectables par pattern et les cas où le
+header est pauvre ou ambigu.
 
-**Baseline actuel : 0.2877**
+La métrique locale à maximiser est le **macro-F1** du modèle values. La validation
+finale reste la qualité de la stack complète via `niamoto-score`.
 
-## Fichier à modifier
+## Périmètre autorisé
 
-`scripts/ml/train_value_model.py` — les fonctions `extract_value_features()`,
-`build_model()`, et éventuellement `FEATURE_NAMES`.
+Tu peux modifier uniquement :
 
-**Ne pas modifier** : `load_and_prepare()`, `evaluate_kfold()`, le format de sortie.
+- `scripts/ml/train_value_model.py`
 
-## Commande d'évaluation
+Tu ne dois pas modifier :
+
+- `scripts/ml/evaluate.py`
+- `scripts/ml/evaluation.py`
+- `scripts/ml/train_fusion.py`
+- `src/niamoto/core/imports/ml/classifier.py`
+- `src/niamoto/core/imports/ml/alias_registry.py`
+
+## Commandes d'évaluation
+
+Boucle rapide :
 
 ```bash
-uv run python scripts/ml/evaluate.py --model values --metric macro-f1
+uv run python -m scripts.ml.evaluate --model values --metric macro-f1 --splits 5
 ```
 
-Sortie = un nombre décimal sur stdout. C'est la métrique à maximiser.
+Validation stack après une amélioration locale :
+
+```bash
+uv run python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3
+```
+
+La sortie stdout est un nombre décimal unique. Les diagnostics détaillés sont écrits
+sur stderr.
+
+## Règle de décision
+
+- Garde une variante si le score `values` monte de façon nette.
+- Donne la priorité aux variantes qui améliorent les cas anonymes.
+- Rejette une variante si elle détériore le `niamoto-score` global.
+- Rejette une variante si elle augmente les faux positifs confiants.
 
 ## Axes d'exploration
 
-### 1. Choix du classifier (priorité haute)
+### 1. Choix du classifier
 
 Comparer :
-- `HistGradientBoostingClassifier` (actuel) — bon pour > 1000 samples
-- `RandomForestClassifier` — potentiellement meilleur avec ~400 samples
-- `ExtraTreesClassifier` — plus de variance, potentiellement meilleur en petit dataset
-- `GradientBoostingClassifier` — version classique, parfois meilleure en petit dataset
 
-Pour chaque, grid sur les hyperparamètres :
-- `n_estimators` / `max_iter` : 50, 100, 200, 500
-- `max_depth` : 4, 6, 8, 12, None
-- `min_samples_leaf` : 1, 3, 5, 10
-- `learning_rate` (HGBT/GBT) : 0.01, 0.05, 0.1, 0.2
+- `HistGradientBoostingClassifier`
+- `RandomForestClassifier`
+- `ExtraTreesClassifier`
+- `GradientBoostingClassifier`
 
-### 2. class_weight (priorité haute)
+Hyperparamètres à tester :
 
-- Essayer `class_weight="balanced"` pour gérer le déséquilibre des classes
-- Pour HGBT : `class_weight` n'est pas supporté nativement, utiliser
-  `sample_weight` via `compute_sample_weight("balanced", y)`
+- `n_estimators` / `max_iter` : `50`, `100`, `200`, `500`
+- `max_depth` : `4`, `6`, `8`, `12`, `None`
+- `min_samples_leaf` : `1`, `3`, `5`, `10`
+- `learning_rate` : `0.01`, `0.05`, `0.1`, `0.2`
 
-### 3. Feature engineering (priorité moyenne)
+### 2. Gestion du déséquilibre
 
-Ajouter des features dans `extract_value_features()` :
+- `class_weight="balanced"` si disponible
+- `sample_weight` calculé pour les modèles qui n'acceptent pas `class_weight`
 
-**Features de distribution** :
-- Modes (nombre de pics dans l'histogramme)
-- Coefficient de Gini
-- Rapport Q3/Q1 (dispersion relative)
-- Test de normalité (Shapiro p-value, si < 50 samples)
+### 3. Feature engineering à forte valeur produit
 
-**Features de pattern** :
-- Proportion de valeurs dans [0, 1] (indicateur de ratio/proportion)
-- Proportion de valeurs entières positives petites (< 100, indicateur de count)
-- Proportion dans [-90, 90] (indicateur latitude)
-- Proportion dans [-180, 180] (indicateur longitude)
-- Nombre de décimales moyen (2 dec = mesure, 6 dec = coordonnée)
+Priorité aux features qui aident les concepts structurels et les colonnes anonymes :
 
-**Features textuelles améliorées** :
-- Proportion de valeurs commençant par une majuscule
-- Proportion de valeurs avec exactement 2 mots (binomial)
-- Proportion de chaînes de longueur fixe (indicateur de code/ID)
-- Entropie par caractère (distingue texte libre vs catégoriel)
+- proportion dans `[-90, 90]` et `[-180, 180]`
+- nombre moyen de décimales
+- proportion de petites valeurs entières positives
+- proportion dans `[0, 1]`
+- longueur fixe des chaînes
+- entropie caractère
+- proportion de binomiaux textuels
+- proportion de valeurs commençant par majuscule
 
-### 4. Feature selection (priorité moyenne)
+### 4. Distribution et robustesse
 
-- Tester la suppression de groupes de features (ablation par groupe)
-  pour identifier les features qui nuisent
-- `SelectKBest(mutual_info_classif, k=...)` avec k = 15, 20, 25
-- Feature importance du RF/HGBT pour identifier les features inutiles
+- nombre de modes
+- coefficient de Gini
+- rapport `Q3 / Q1`
+- normalité simple si cela reste robuste
+- ablations par groupe de features
 
-### 5. Normalisation (priorité basse)
+### 5. Sélection et simplification
 
-- Tester `StandardScaler` sur les features numériques
-- Tester `QuantileTransformer` pour gérer les distributions skewed
-- Le HGBT ne devrait pas en avoir besoin (tree-based), mais RF pourrait bénéficier
+- suppression de features qui nuisent
+- `SelectKBest(mutual_info_classif, k=...)`
+- lecture des importances pour supprimer le bruit
 
 ## Contraintes
 
-- Features extraites en < 50ms par colonne (on a ~50 valeurs par sample)
-- Le modèle doit exposer `predict_proba()` (nécessaire pour la fusion)
-- Pas de dépendances nouvelles (scikit-learn + scipy uniquement)
-- FEATURE_NAMES doit rester synchronisé avec la taille du vecteur de features
+- extraction rapide des features
+- `FEATURE_NAMES` doit rester aligné avec le vecteur
+- le modèle final doit exposer `predict_proba()`
+- pas de nouvelle dépendance
+- éviter les features fragiles ou sur-ajustées au synthétique
 
-## Stratégie de recherche
+## Priorité produit
 
-1. D'abord comparer RF vs HGBT vs ExtraTrees avec params par défaut
-2. Grid sur le meilleur classifier (max_depth, n_estimators, class_weight)
-3. Ajouter les features de pattern (coordonnées, décimales, etc.)
-4. Feature selection / ablation
-5. Combiner les meilleurs réglages
+Quand deux variantes sont proches en `macro-f1`, préfère celle qui :
+
+- améliore les colonnes anonymes
+- améliore les coordonnées, dates et identifiants
+- réduit les erreurs confiantes
 
 ## Format du commit
 
-```
-autoresearch(values): macro-F1 0.XXXX → 0.YYYY (+Z.Z pts)
+```text
+autoresearch(values): macro-F1 0.XXXX -> 0.YYYY (+Z.Z pts)
 ```

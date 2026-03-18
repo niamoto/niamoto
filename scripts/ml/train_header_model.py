@@ -26,6 +26,7 @@ from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from niamoto.core.imports.ml.alias_registry import _normalize
+from niamoto.core.imports.ml.header_features import build_header_text_from_stats
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -49,36 +50,7 @@ def prepare_data(records: list[dict]) -> tuple:
         name = _normalize(r["column_name"])
         if not name:
             continue
-        # Split compound names for better char_wb boundary detection
-        name = name.replace("_", " ")
-        # Add dtype-based prefix for extra signal
-        dtype = r.get("values_stats", {}).get("dtype", "")
-        if dtype in ("float64", "float32"):
-            name = f"float {name}"
-        elif dtype in ("int64", "int32"):
-            name = f"int {name}"
-        elif dtype == "object":
-            name = f"str {name}"
-        elif dtype == "bool":
-            name = f"bool {name}"
-        elif "datetime" in dtype:
-            name = f"date {name}"
-        # Add null ratio hint
-        null_ratio = r.get("values_stats", {}).get("null_ratio", 0)
-        if null_ratio > 0.5:
-            name = f"sparse {name}"
-        # Add mean length hint (short values = codes, long = text)
-        mean_len = r.get("values_stats", {}).get("mean_length", 0)
-        if mean_len and mean_len < 3:
-            name = f"short {name}"
-        elif mean_len and mean_len > 50:
-            name = f"long {name}"
-        # Add n count hint
-        n = r.get("values_stats", {}).get("n", 0)
-        if n and n < 100:
-            name = f"small {name}"
-        # Triple the name to reinforce short-text signal
-        name = f"{name} {name} {name}"
+        name = build_header_text_from_stats(name, r.get("values_stats", {}))
         names.append(name)
         concepts.append(r["concept_coarse"])
         roles.append(r["role"])

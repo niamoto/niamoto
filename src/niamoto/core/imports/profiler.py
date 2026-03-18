@@ -123,19 +123,8 @@ class DataProfiler:
     and value-based high-precision rules for coordinates, WKT, and dates.
     """
 
-    def __init__(self, **kwargs):
-        """Initialize the profiler.
-
-        Accepts (and ignores) legacy keyword arguments ``ml_mode`` and
-        ``ml_detector`` for backward compatibility. All semantic detection
-        now goes through ``AliasRegistry`` + value-based rules.
-        """
-        # Silently accept legacy kwargs for backward compat (no-op)
-        if "ml_detector" in kwargs or "ml_mode" in kwargs:
-            logger.debug(
-                "ml_mode/ml_detector parameters are ignored — "
-                "detection uses AliasRegistry"
-            )
+    def __init__(self):
+        """Initialize the profiler."""
         self._alias_registry = _get_alias_registry()
 
     # Maximum rows to load for profiling (statistical accuracy ±0.5% at 99% confidence)
@@ -343,7 +332,7 @@ class DataProfiler:
         # ── 2. ML classifier (header + values + fusion) ──────────────
         classifier = _get_classifier()
         ml_concept, ml_confidence = classifier.classify(col_name, series)
-        if ml_concept and ml_confidence >= 0.5:
+        if ml_concept and ml_confidence >= 0.3:
             return ml_concept, ml_confidence
 
         # ── 3. Value rules ───────────────────────────────────────────

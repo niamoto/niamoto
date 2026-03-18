@@ -2,83 +2,114 @@
 
 ## Objectif
 
-Maximiser le **macro-F1** du modèle header (TF-IDF char n-grams + LogisticRegression)
-qui classifie les noms de colonnes en concepts sémantiques.
+Optimiser la branche `header` en boucle rapide, sans perdre de vue la qualité de la
+stack complète.
 
-**Baseline actuel : 0.3658**
+La métrique locale à maximiser est le **macro-F1** du modèle header. Cette métrique
+sert au tri rapide des variantes. La décision finale reste produit : une amélioration
+header ne vaut que si elle ne dégrade pas le score global de détection.
 
-## Fichier à modifier
+## Périmètre autorisé
 
-`scripts/ml/train_header_model.py` — uniquement la fonction `build_pipeline()` et
-la fonction `prepare_data()` (preprocessing des noms).
+Tu peux modifier uniquement :
 
-**Ne pas modifier** : `evaluate_kfold()`, `load_gold_set()`, le format de sortie.
+- `scripts/ml/train_header_model.py`
+- `src/niamoto/core/imports/ml/header_features.py`
 
-## Commande d'évaluation
+Tu ne dois pas modifier :
+
+- `scripts/ml/evaluate.py`
+- `scripts/ml/evaluation.py`
+- `scripts/ml/train_fusion.py`
+- `src/niamoto/core/imports/ml/alias_registry.py`
+- `src/niamoto/core/imports/profiler.py`
+
+## Commandes d'évaluation
+
+Boucle rapide :
 
 ```bash
-uv run python scripts/ml/evaluate.py --model header --metric macro-f1
+uv run python -m scripts.ml.evaluate --model header --metric macro-f1 --splits 5
 ```
 
-Sortie = un nombre décimal sur stdout (ex: `0.4523`). C'est la métrique à maximiser.
+Validation stack après une amélioration locale :
+
+```bash
+uv run python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3
+```
+
+La sortie stdout est un nombre décimal unique. Les détails de diagnostic partent sur
+stderr.
+
+## Règle de décision
+
+- Garde une variante si le score `header` monte de façon nette.
+- Rejette-la si le `niamoto-score` global baisse.
+- Rejette-la si elle dégrade visiblement les cas anonymes ou augmente les erreurs
+  confiantes de la stack.
+
+En pratique :
+
+- recherche locale : `macro-f1 header`
+- arbitre final : `niamoto-score` sur la stack complète
 
 ## Axes d'exploration
 
-### 1. Hyperparamètres TF-IDF (priorité haute)
+### 1. Hyperparamètres TF-IDF
 
-- `ngram_range` : essayer (2,4), (2,5), (3,6), (2,6), (4,6)
-- `analyzer` : essayer "char" vs "char_wb" (le _wb ajoute des espaces virtuels aux bords)
-- `max_features` : essayer 2000, 3000, 5000, 8000, 10000, None
-- `sublinear_tf` : True vs False
-- `min_df` : 1, 2, 3
-- `max_df` : 0.9, 0.95, 1.0
+- `ngram_range` : essayer `(2,4)`, `(2,5)`, `(3,6)`, `(2,6)`, `(4,6)`
+- `analyzer` : comparer `"char"` et `"char_wb"`
+- `max_features` : essayer `2000`, `3000`, `5000`, `8000`, `10000`, `None`
+- `sublinear_tf` : `True` / `False`
+- `min_df` : `1`, `2`, `3`
+- `max_df` : `0.9`, `0.95`, `1.0`
 
-### 2. Classifier (priorité haute)
+### 2. Logistic Regression
 
-- `C` (régularisation) : essayer 0.01, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0
-- `solver` : "lbfgs", "saga"
-- `penalty` : "l2" (défaut), essayer "l1" avec solver="saga"
-- `class_weight` : None, "balanced"
+- `C` : essayer `0.01`, `0.1`, `0.5`, `1.0`, `5.0`, `10.0`, `50.0`
+- `solver` : `"lbfgs"`, `"saga"`
+- `penalty` : `"l2"` par défaut, tester `"l1"` avec `"saga"`
+- `class_weight` : `None`, `"balanced"`
 
-### 3. Preprocessing des noms (priorité moyenne)
+### 3. Preprocessing partagé des headers
 
-Dans `prepare_data()` ou `_normalize()` :
-- Ajouter un prefix du type de données si disponible (ex: "num_dbh", "str_species")
-- Essayer de splitter les noms composés : "stem_diameter" → "stem diameter"
-  pour que le TF-IDF capture mieux les mots
-- Essayer de doubler le nom (répétition) pour renforcer le signal court
-- Tester l'ajout de suffixes dérivés des alias connus
+Le preprocessing runtime/train/fusion doit rester strictement cohérent.
 
-### 4. Feature engineering sur le nom (priorité moyenne)
+À tester dans `header_features.py` :
 
-- Ajouter des features binaires (contient "id", contient un chiffre, longueur du nom)
-  et les combiner avec le TF-IDF via `FeatureUnion`
-- Ajouter le score d'alias registry comme feature supplémentaire
+- enrichissement par type de donnée
+- normalisation des booléens et dates
+- hints de longueur cohérents sur tous les dtypes
+- split des noms composés : `stem_diameter -> stem diameter`
+- duplication légère du signal pour les noms très courts
 
-### 5. Classifier alternatif (priorité basse)
+### 4. Features légères autour du nom
 
-- Remplacer LogReg par `SGDClassifier(loss='modified_huber')` pour des probas calibrées
-- Essayer `LinearSVC` + `CalibratedClassifierCV`
-- Essayer `RidgeClassifier` (plus rapide, pas de probas natives)
+- présence de chiffres
+- présence de tokens indicateurs (`id`, `lat`, `lon`, `date`, `year`)
+- longueur normalisée du header
+- préfixes/suffixes utiles si cela reste sérialisable et simple
+
+### 5. Alternatives prudentes
+
+- `SGDClassifier(loss="modified_huber")`
+- `LinearSVC` + calibration
+- `RidgeClassifier`
+
+À n'essayer qu'après avoir épuisé les variantes simples de TF-IDF + LogReg.
 
 ## Contraintes
 
-- Le pipeline doit rester un `sklearn.pipeline.Pipeline` sérialisable avec joblib
-- Temps d'entraînement < 10 secondes (on a ~400 samples, ça doit rester rapide)
-- Pas de dépendances nouvelles (utiliser scikit-learn, rapidfuzz, unidecode uniquement)
-- Le modèle final doit exposer `predict_proba()` (nécessaire pour la fusion)
-
-## Stratégie de recherche
-
-1. Commencer par le grid sur `C` et `ngram_range` (fort impact, rapide)
-2. Tester `class_weight="balanced"` (les classes sont très déséquilibrées)
-3. Explorer le preprocessing (split des noms composés)
-4. Itérer sur les combinaisons gagnantes
-5. Terminer par les alternatives de classifier
+- le pipeline doit rester sérialisable avec joblib
+- le modèle doit exposer `predict_proba()`
+- pas de nouvelle dépendance
+- temps d'entraînement court
+- pas de divergence entre preprocessing d'entraînement et d'inférence
 
 ## Format du commit
 
-Si une itération améliore le score :
-```
-autoresearch(header): macro-F1 0.XXXX → 0.YYYY (+Z.Z pts)
+Si une itération est retenue :
+
+```text
+autoresearch(header): macro-F1 0.XXXX -> 0.YYYY (+Z.Z pts)
 ```

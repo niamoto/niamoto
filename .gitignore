@@ -138,3 +138,6 @@ src-tauri/bin/niamoto*
 .gitnexus
 data/gold_set.json
 data/silver/
+data/cache/
+data/.DS_Store
+data/**/.DS_Store
