@@ -258,6 +258,47 @@ class ColumnClassifier:
         features.append(confidence_product)
         features.append(agreement_strength)
 
+        # --- Cross-rank reciprocity features ---
+        h_arr = np.asarray(aligned_header, dtype=float)
+        v_arr = np.asarray(aligned_value, dtype=float)
+        n_c = len(h_arr)
+        h_active = float(h_arr.sum()) > 0
+        v_active = float(v_arr.sum()) > 0
+
+        h_order = np.argsort(-h_arr)
+        v_order = np.argsort(-v_arr)
+
+        if h_active and v_active:
+            v_ranks = np.argsort(np.argsort(-v_arr))
+            header_top1_value_rank = float(v_ranks[h_order[0]]) / max(n_c - 1, 1)
+        else:
+            header_top1_value_rank = 1.0
+
+        if v_active and h_active:
+            h_ranks = np.argsort(np.argsort(-h_arr))
+            value_top1_header_rank = float(h_ranks[v_order[0]]) / max(n_c - 1, 1)
+        else:
+            value_top1_header_rank = 1.0
+
+        h_top1 = int(h_order[0]) if h_active else -1
+        v_top1 = int(v_order[0]) if v_active else -1
+        h_top2 = int(h_order[1]) if h_active and n_c > 1 else -1
+        v_top2 = int(v_order[1]) if v_active and n_c > 1 else -1
+        top2_cross_match = (
+            1.0
+            if (
+                (h_top2 >= 0 and h_top2 == v_top1) or (v_top2 >= 0 and v_top2 == h_top1)
+            )
+            else 0.0
+        )
+
+        both_weak = 1.0 if header_max < 0.3 and value_max < 0.3 else 0.0
+
+        features.append(header_top1_value_rank)
+        features.append(value_top1_header_rank)
+        features.append(top2_cross_match)
+        features.append(both_weak)
+
         try:
             X = np.array(features, dtype=float).reshape(1, -1)
             proba = self._fusion_model.predict_proba(X)[0]
