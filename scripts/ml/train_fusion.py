@@ -285,6 +285,50 @@ def compose_fusion_features(
     features.append(confidence_product)
     features.append(agreement_strength)
 
+    # --- Cross-rank reciprocity features ---
+    # Measure how deeply the two branches disagree beyond simple top-1 match.
+    h_arr = np.asarray(aligned_header, dtype=float)
+    v_arr = np.asarray(aligned_value, dtype=float)
+    n_c = len(h_arr)
+    h_active = float(h_arr.sum()) > 0
+    v_active = float(v_arr.sum()) > 0
+
+    h_order = np.argsort(-h_arr)  # descending
+    v_order = np.argsort(-v_arr)
+
+    # Rank of header's top-1 concept in the value distribution (0=also top-1, 1=last)
+    if h_active and v_active:
+        v_ranks = np.argsort(np.argsort(-v_arr))  # rank position per concept
+        header_top1_value_rank = float(v_ranks[h_order[0]]) / max(n_c - 1, 1)
+    else:
+        header_top1_value_rank = 1.0
+
+    # Rank of value's top-1 concept in the header distribution
+    if v_active and h_active:
+        h_ranks = np.argsort(np.argsort(-h_arr))
+        value_top1_header_rank = float(h_ranks[v_order[0]]) / max(n_c - 1, 1)
+    else:
+        value_top1_header_rank = 1.0
+
+    # Top-2 cross match: does either branch's #2 match the other's #1?
+    h_top1 = int(h_order[0]) if h_active else -1
+    v_top1 = int(v_order[0]) if v_active else -1
+    h_top2 = int(h_order[1]) if h_active and n_c > 1 else -1
+    v_top2 = int(v_order[1]) if v_active and n_c > 1 else -1
+    top2_cross_match = (
+        1.0
+        if ((h_top2 >= 0 and h_top2 == v_top1) or (v_top2 >= 0 and v_top2 == h_top1))
+        else 0.0
+    )
+
+    # Both branches weak: explicit signal for low-confidence cases
+    both_weak = 1.0 if header_max < 0.3 and value_max < 0.3 else 0.0
+
+    features.append(header_top1_value_rank)
+    features.append(value_top1_header_rank)
+    features.append(top2_cross_match)
+    features.append(both_weak)
+
     return np.array(features, dtype=float)
 
 

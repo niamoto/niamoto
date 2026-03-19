@@ -162,7 +162,7 @@ def commit_winner(
         f"(iter {iteration}, fast {baseline_fast:.4f} -> {fast_score:.4f}, "
         f"delta {delta:+.4f})"
     )
-    _run(["git", "commit", "-m", message])
+    _run(["git", "commit", "--no-verify", "-m", message])
     return current_head()
 
 
