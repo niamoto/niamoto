@@ -102,7 +102,33 @@ def current_changed_files(allowed_untracked: set[str]) -> list[str]:
 def restore_paths(paths: list[str]) -> None:
     if not paths:
         return
-    _run(["git", "restore", "--staged", "--worktree", "--source=HEAD", "--", *paths])
+    # Split tracked (restorable from HEAD) and untracked (must be deleted)
+    tracked = []
+    untracked = []
+    untracked_set = {
+        line[3:]
+        for line in _run(["git", "status", "--short"], check=False).stdout.splitlines()
+        if line.startswith("?? ")
+    }
+    for p in paths:
+        if p in untracked_set:
+            untracked.append(p)
+        else:
+            tracked.append(p)
+    if tracked:
+        _run(
+            [
+                "git",
+                "restore",
+                "--staged",
+                "--worktree",
+                "--source=HEAD",
+                "--",
+                *tracked,
+            ]
+        )
+    for p in untracked:
+        (ROOT / p).unlink(missing_ok=True)
 
 
 def evaluate_metric(
