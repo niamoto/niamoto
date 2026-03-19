@@ -251,7 +251,7 @@ Axes recommandés:
 
 def run_codex_iteration(prompt: str) -> subprocess.CompletedProcess[str]:
     return _run(
-        ["codex", "exec", "--json", "--full-auto", prompt],
+        ["claude", "-p", "--dangerously-skip-permissions", prompt],
         check=False,
     )
 
