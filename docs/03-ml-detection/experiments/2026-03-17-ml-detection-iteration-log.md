@@ -868,3 +868,90 @@ real = 1.31s
 - le prochain enjeu n'est plus la faisabilité du pivot, mais la stratégie de
   promotion des candidats gagnants vers `product-score-fast-fast`, puis
   `product-score`, puis `niamoto-score`.
+
+## Entrée du 2026-03-19 — corrections runner et premier gain autoresearch
+
+### Corrections du runner surrogate
+
+Trois problèmes identifiés et corrigés dans
+`scripts/ml/run_fusion_surrogate_autoresearch.py` :
+
+1. **Validation stack trop coûteuse** — Quand un candidat passait
+   `surrogate-mid`, le runner lançait `product-score-fast-fast` (bloquant
+   pendant des heures). Correction : `--defer-stack-validation` (défaut true),
+   les candidats passants vont dans `.autoresearch/fusion-surrogate-promotions.jsonl`.
+
+2. **Fichiers hors périmètre** — L'iter 11 du run Codex avait touché le log
+   d'expérimentations. Correction : statut `reject_scope`, rejet immédiat si
+   des fichiers hors `DEFAULT_ALLOWED_PATHS` sont touchés.
+
+3. **Pre-commit hooks bloquants** — Le commit automatique échouait car
+   `ruff-format` reformatait les fichiers stagés. Correction : `--no-verify`
+   pour les commits automatiques du runner.
+
+4. **restore_paths crashait sur fichiers untracked** — `git restore --source=HEAD`
+   échoue sur les fichiers qui n'existent pas dans HEAD. Correction : séparer
+   tracked (restore) et untracked (unlink).
+
+### Remplacement Codex → Claude
+
+Après épuisement des crédits Codex, le moteur a été remplacé par
+`claude -p --dangerously-skip-permissions`.
+
+### Run Codex (2026-03-18) — 150 itérations
+
+- `141` `codex_error` (symlinks cassés `~/.codex/skills/`)
+- `9` itérations utiles : `7` reject_fast, `2` reject_mid
+- meilleur fast : `55.8177` (baseline `55.6326`)
+- meilleur mid : `58.9922` (baseline `59.2746`)
+- `0` promotion
+
+### Premier gain Claude — cross-rank reciprocity
+
+L'itération 2 du premier run Claude a produit un candidat gagnant
+(fast `55.6326 → 56.5524`, delta `+0.9198`). Le candidat a aussi amélioré
+mid (`59.2746 → 60.1680`, delta `+0.8934`).
+
+4 nouvelles features de fusion ajoutées :
+
+1. `header_top1_value_rank` — position du concept #1 header dans le classement
+   values (0 = aussi #1, 1 = dernier)
+2. `value_top1_header_rank` — l'inverse
+3. `top2_cross_match` — le #2 d'une branche correspond au #1 de l'autre
+4. `both_weak` — les deux branches sont faibles (max proba < 0.3)
+
+Fichiers modifiés : `train_fusion.py` et `classifier.py`.
+
+### Nouvelles baselines après gain
+
+```text
+surrogate-fast = 56.5524 (était 55.6326, +0.92)
+surrogate-mid  = 60.1680 (était 59.2746, +0.89)
+```
+
+### Run Claude post-gain — 50 itérations (2026-03-19)
+
+- `50` itérations complétées
+- `50` reject_fast
+- meilleur fast : `56.1821` (baseline `56.5524`)
+- `0` promotion
+
+### Lecture
+
+Le gain cross-rank reciprocity semble être un **plateau** pour le périmètre
+actuel de recherche. 50 itérations supplémentaires n'ont pas réussi à battre
+la nouvelle baseline.
+
+Hypothèses pour débloquer :
+
+- élargir `DEFAULT_ALLOWED_PATHS` (ajouter `fusion_features.py`)
+- enrichir le prompt avec des hypothèses plus ciblées
+- relancer un run stack complète sur header ou values
+- reconstruire le cache surrogate après un gain header/values
+
+### Décision
+
+- conserver le gain cross-rank reciprocity comme nouvelle baseline fusion
+- ne pas relancer autoresearch fusion immédiatement
+- passer à l'évaluation end-to-end par instance (niamoto-subset) pour mesurer
+  l'impact réel du ML sur les suggestions de widgets
