@@ -189,6 +189,14 @@ measurement.cover:
   es: [cobertura, porcentaje_cobertura]
   pt: [cobertura, percentual_cobertura]
 
+measurement.trait:
+  en: [shannon, pielou, simpson, bark_thickness, leaf_ldmc, leaf_thickness, leaf_dry_matter_content, nmass_percent, lma, species_level]
+  fr: [shannon, pielou, simpson, epaisseur_ecorce]
+
+measurement.canopy:
+  en: [crown_area, crown_diameter, crown_radius]
+  fr: [surface_couronne]
+
 # ─── Environmental ─────────────────────────────────────────────
 
 environment.temperature:
@@ -204,6 +212,15 @@ environment.precipitation:
   es: [precipitacion, lluvia, pluviometria]
   pt: [precipitacao, chuva]
   de: [niederschlag, regen]
+
+environment.topography:
+  en: [slope, aspect, slope_deg, slope_pct, exposition]
+  fr: [pente, exposition, aspect]
+  es: [pendiente, exposicion, aspecto]
+
+environment.geology:
+  en: [lithology, geology, soil_type, substrate, bedrock]
+  fr: [lithologie, geologie, type_sol, substrat]
 
 environment.salinity:
   en: [salinity, sal, psu]
@@ -243,7 +260,7 @@ identifier.record:
   fr: [id, identifiant, numero]  # "numero" also in statistic.count — ambiguous, deferred to ML
   es: [id, identificador, numero]
   pt: [id, identificador, numero]
-  dwc: [occurrenceid, catalognumber, gbifid]
+  dwc: [occurrenceid, gbifid]
 
 identifier.taxon:
   en: [taxon_id, species_id, taxon_key]
@@ -253,10 +270,19 @@ identifier.taxon:
   dwc: [taxonid, taxonkey, acceptednameusageid]
 
 identifier.plot:
-  en: [plot_id, site_id, station_id, quadrat_id, transect_id, subp]
+  en: [plot_id, site_id, station_id, quadrat_id, transect_id, subp, plotcode]
   fr: [id_parcelle, id_site, id_station, id_transect, idp]
   es: [id_parcela, id_sitio, id_estacion]
   pt: [id_parcela, id_local, id_estacao]
+
+identifier.collection:
+  en: [catalog_number, collection_code, specimen_id, voucher, accession_number]
+  fr: [numero_catalogue, code_collection, numero_specimen]
+  dwc: [catalognumber, collectioncode]
+
+identifier.institution:
+  en: [institution_code, institution_id, museum_code, herbarium_code]
+  dwc: [institutioncode]
 
 # ─── Abundance / Count ─────────────────────────────────────────
 
@@ -282,9 +308,54 @@ category.endemism:
   es: [endemismo, estado_endemismo, origen]
   pt: [endemismo, estado_endemismo, origem]
 
+category.ecology:
+  en: [phenology, pheno, life_stage, reproductive_condition, succession_guild, bioclimatic_group]
+  fr: [phenologie, pheno, stade_vie, guilde_succession]
+  dwc: [lifestage, reproductivecondition]
+
+category.status:
+  en: [status, tree_status, occurrence_status, vitality, determination_status]
+  fr: [statut, etat, vitalite]
+  dwc: [occurrencestatus, taxonomicstatus]
+
+category.vegetation:
+  en: [strata, stratum, holdridge, life_zone]
+  fr: [strate, holdridge, zone_vie]
+
+category.basis:
+  dwc: [basisofrecord]
+
+category.method:
+  en: [sampling_protocol, survey_method, sampling_method]
+  fr: [protocole_echantillonnage, methode_releve]
+  dwc: [samplingprotocol]
+
 category.habitat:
   en: [habitat, vegetation_type, ecosystem, biome, land_cover, forest_type]
   fr: [habitat, type_vegetation, ecosysteme, biome, couverture_sol, type_foret]
   es: [habitat, tipo_vegetacion, ecosistema, bioma, cobertura_suelo]
   pt: [habitat, tipo_vegetacao, ecossistema, bioma]
   dwc: [habitat]
+
+# ─── Location (extended) ──────────────────────────────────────
+
+location.admin_area:
+  en: [state, province, county, region, district, department]
+  fr: [province, departement, region, commune, canton]
+  es: [provincia, departamento, region, distrito]
+  pt: [provincia, departamento, regiao, distrito]
+  dwc: [stateprovince, county]
+
+location.continent:
+  en: [continent]
+  fr: [continent]
+  dwc: [continent]
+
+# ─── Text / Observer ──────────────────────────────────────────
+
+text.observer:
+  en: [recorded_by, identified_by, observer, collector, determiner, botanist]
+  fr: [observateur, collecteur, determinateur, botaniste]
+  es: [observador, colector, determinador]
+  pt: [observador, coletor, determinador]
+  dwc: [recordedby, identifiedby]
