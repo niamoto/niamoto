@@ -432,36 +432,39 @@ details[open] summary { margin-bottom: 8px; }
 <section id="errors">
 <div class="container">
   <h2><span class="num">06</span>Error Patterns</h2>
-  <p class="section-desc">Five systematic error patterns identified through instance evaluation and cross-dataset analysis.</p>
+  <p class="section-desc">Error patterns identified during instance evaluation. Status updated after alias expansion, gold set enrichment, and retraining (2026-03-20).</p>
 
-  <div class="error-pattern">
-    <span class="pattern-id">ERROR-01</span>
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-01</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
     <h4>Over-prediction of <code>measurement.diameter</code></h4>
-    <p>The model predicts diameter for booleans (flower, fruit), diversity indices (shannon, pielou, simpson), taxonomic counts (gymnospermae), canopy, and height columns. <strong>Cause:</strong> diameter is overrepresented in the gold set, and the values branch associates continuous numeric distributions too easily with diameter.</p>
+    <p><strong>Fixed:</strong> diversity indices (shannon, pielou, simpson) and holdridge now matched by alias. <code>basal_area &rarr; diameter</code> merge bug in concept_taxonomy.py corrected to <code>&rarr; biomass</code>.</p>
+    <p><strong>Remaining:</strong> booleans (flower, fruit, in_um) and taxonomic counts (gymnospermae, monocotyledonae, dicotyledonae) still predicted as diameter. The values branch still has insufficient signal to distinguish boolean/count distributions from continuous measurements.</p>
   </div>
 
-  <div class="error-pattern">
-    <span class="pattern-id">ERROR-02</span>
-    <h4><code>measurement.trait</code> unrecognized</h4>
-    <p>0% detection on niamoto-nc for leaf_sla, leaf_ldmc, bark_thickness. Confirmed across multiple datasets. The concept is severely under-represented in the gold set with only 3 training examples. These plant functional traits are critical for ecological research but the model has insufficient signal to learn them.</p>
+  <div class="error-pattern" style="border-left:3px solid var(--green);">
+    <span class="pattern-id">ERROR-02</span> <span class="badge" style="background:var(--green-light);color:var(--green);">Fixed</span>
+    <h4><code>measurement.trait</code> unrecognized &rarr; now 67%</h4>
+    <p>Alias registry covers shannon, pielou, simpson, bark_thickness, leaf_ldmc, leaf_thickness. Gold set enriched with 8 trait examples from niamoto-nc. Detection: 0/12 &rarr; <strong>8/12 (67%)</strong>.</p>
   </div>
 
-  <div class="error-pattern">
-    <span class="pattern-id">ERROR-03</span>
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-03</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
     <h4><code>category.*</code> poorly detected</h4>
-    <p>Columns like holdridge, strata, in_forest are systematically misclassified as <code>other</code> or produce false positives. Boolean-like columns are treated as numeric by the values branch, losing categorical signal. The category role has high internal diversity (habitat, status, soil, vegetation, method...) making it hard for the model to learn a unified pattern.</p>
+    <p><strong>Fixed:</strong> holdridge &rarr; <code>category.vegetation</code> via alias. strata &rarr; <code>category.vegetation</code> via alias. phenology, pheno &rarr; <code>category.ecology</code> via alias. Gold set enriched with bioclimate, phenology, stratum examples.</p>
+    <p><strong>Remaining:</strong> booleans (in_forest, in_um, flower, fruit) still misclassified. The values branch treats True/False and 0/1 as numeric, not categorical.</p>
   </div>
 
-  <div class="error-pattern">
-    <span class="pattern-id">ERROR-04</span>
+  <div class="error-pattern" style="border-left:3px solid var(--green);">
+    <span class="pattern-id">ERROR-04</span> <span class="badge" style="background:var(--green-light);color:var(--green);">Resolved (annotation issue)</span>
     <h4><code>taxonomy.name</code> &rarr; <code>taxonomy.species</code> confusion</h4>
-    <p>16 occurrences across 7 datasets. The model over-specializes towards <code>taxonomy.species</code> for any column containing binomial names (Genus species format). Vernacular names and common names are systematically confused with scientific names due to similar textual patterns in header n-grams.</p>
+    <p>Verified against actual data: columns like <code>scientificName</code>, <code>taxaname</code>, <code>taxonref</code> contain binomial species names. The model was <strong>correct</strong> &mdash; annotations were fixed from <code>taxonomy.name</code> to <code>taxonomy.species</code>. Residual: 0/8 columns still annotated as <code>taxonomy.name</code> (generic names, infraspecific epithets) remain undetected.</p>
   </div>
 
-  <div class="error-pattern">
-    <span class="pattern-id">ERROR-05</span>
-    <h4>GBIF Darwin Core systematic errors</h4>
-    <p>9 columns consistently wrong across 3 GBIF exports: <code>scientificName</code>, <code>acceptedScientificName</code>, <code>catalogNumber</code>, <code>acceptedTaxonKey</code>, <code>speciesKey</code>, <code>genericName</code>, <code>infraspecificEpithet</code>, <code>taxonomicStatus</code>, <code>scientificNameAuthorship</code>. These are well-defined Darwin Core terms that should be perfectly handled by the alias system but fall through to ML due to compound naming conventions.</p>
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-05</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4>GBIF Darwin Core systematic errors &rarr; 9 &rarr; 5 remaining</h4>
+    <p><strong>Fixed by alias:</strong> <code>catalogNumber</code> &rarr; identifier.collection, <code>basisOfRecord</code> &rarr; category.basis, <code>occurrenceStatus</code> &rarr; category.status, <code>taxonomicStatus</code> &rarr; category.status. GBIF concept accuracy: 76% &rarr; <strong>88-90%</strong>.</p>
+    <p><strong>Remaining (5):</strong> <code>acceptedTaxonKey</code>, <code>speciesKey</code> (numeric keys &rarr; need identifier.taxon alias for compound names), <code>genericName</code>, <code>infraspecificEpithet</code>, <code>scientificNameAuthorship</code>.</p>
   </div>
 </div>
 </section>
