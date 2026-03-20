@@ -53,7 +53,7 @@ CONCEPT_MERGE = {
     "location.ecoregion": "location.admin_area",
     # ── measurement: merge rare subtypes ──
     "measurement.circumference": "measurement.diameter",
-    "measurement.basal_area": "measurement.diameter",
+    "measurement.basal_area": "measurement.biomass",
     "measurement.crown": "measurement.canopy",
     "measurement.crown_ratio": "measurement.canopy",
     "measurement.length": "measurement.dimension",
