@@ -92,6 +92,21 @@ table.data-table .num { font-family: var(--mono); text-align: right; }
 .badge.inventory { background: var(--purple-light); color: var(--purple); }
 .badge.synthetic { background: var(--gray-100); color: var(--gray-500); }
 
+/* Info tooltips */
+.info-tip { cursor: help; color: var(--gray-400); font-size: 14px; position: relative; display: inline-block; vertical-align: middle; margin-left: 2px; }
+.info-tip:hover { color: var(--blue); }
+.info-tip[title] { position: relative; }
+.info-tip[title]:hover::after {
+  content: attr(title); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--gray-800); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 400;
+  line-height: 1.5; white-space: normal; width: 280px; z-index: 200; text-transform: none; letter-spacing: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: none;
+}
+.info-tip[title]:hover::before {
+  content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--gray-800); z-index: 200;
+}
+
 /* Filters */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .filter-btn { padding: 6px 14px; border-radius: 99px; border: 1px solid var(--gray-300); background: #fff; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
@@ -183,19 +198,19 @@ details[open] summary { margin-bottom: 8px; }
   <h1>Automatic CSV Column Detection via Machine Learning</h1>
   <p class="subtitle">Niamoto — Generic Ecological Data Platform</p>
   <div class="stats-grid">
-    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.04</div><div class="label">ProductScore</div></div>
-    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">NiamotoOfflineScore</div></div>
-    <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns</div></div>
-    <div class="stat-card green"><div class="value">94+</div><div class="label">Sources</div></div>
-    <div class="stat-card"><div class="value">5</div><div class="label">Continents</div></div>
-    <div class="stat-card purple"><div class="value">8</div><div class="label">Languages</div></div>
-    <div class="stat-card"><div class="value">61</div><div class="label">Concepts</div></div>
+    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.04</div><div class="label">ProductScore <span class="info-tip" title="Weighted composite score across 6 data families (tropical, traits, GBIF core/extended, field, anonymous). Primary optimization metric for the fusion model.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">NiamotoOfflineScore <span class="info-tip" title="Global score with all holdout families and languages. Measures end-to-end offline reliability without any LLM dependency.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the gold set (training data). Each entry has a column name, value statistics, and a verified semantic concept label.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">94+</div><div class="label">Sources <span class="info-tip" title="Distinct CSV files used to build the gold set: forest inventories (GUYADIV, IFN, FIA, Paracou), GBIF exports, synthetic fixtures, and instance data (niamoto-nc, niamoto-gb, Afrique).">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">5</div><div class="label">Continents <span class="info-tip" title="Training data spans Africa, South America, North America, Europe, and Oceania. Ensures the model generalizes across tropical and temperate ecosystems.">&#9432;</span></div></div>
+    <div class="stat-card purple"><div class="value">8</div><div class="label">Languages <span class="info-tip" title="Column names in English, French, Spanish, Portuguese, German, Indonesian, Darwin Core standard (DwC), and FIA codes. The header model uses character n-grams to handle cross-language variations.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">61</div><div class="label">Concepts <span class="info-tip" title="Distinct semantic concepts after coarsening (e.g. taxonomy.species, measurement.diameter, location.elevation). Fine-grained concepts (~116) are merged via concept_taxonomy.py for better ML performance.">&#9432;</span></div></div>
   </div>
   <div class="stats-grid" style="margin-top:16px;">
-    <div class="stat-card green"><div class="value">0.7467</div><div class="label">Header F1</div></div>
-    <div class="stat-card orange"><div class="value">0.3935</div><div class="label">Values F1</div></div>
-    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6876</div><div class="label">Fusion F1 (leak-free CV)</div></div>
-    <div class="stat-card green"><div class="value">87.8%</div><div class="label">Instance Role Accuracy</div></div>
+    <div class="stat-card green"><div class="value">0.7467</div><div class="label">Header F1 <span class="info-tip" title="Macro-F1 of the header branch alone (TF-IDF char n-grams + L1 LogisticRegression). Classifies columns by name only, ignoring values. Strong on standard names (dbh, species, latitude), weak on opaque codes.">&#9432;</span></div></div>
+    <div class="stat-card orange"><div class="value">0.3935</div><div class="label">Values F1 <span class="info-tip" title="Macro-F1 of the values branch alone (37 statistical features + HistGradientBoosting). Classifies columns by value distribution only. Essential for anonymous headers (X1, col_3). Lower score reflects the harder task.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6876</div><div class="label">Fusion F1 <span class="info-tip" title="Leak-free macro-F1 (GroupKFold by dataset). The fusion model combines header and values probabilities with cross-rank reciprocity features. This is the real generalization score.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">87.8%</div><div class="label">Instance Role Accuracy <span class="info-tip" title="Role-level accuracy on 418 real-world columns across 7 datasets (3 production instances, 3 GBIF exports, 7 silver files). Measures if the broad category (taxonomy, measurement, location, etc.) is correct.">&#9432;</span></div></div>
   </div>
 </div>
 </section>
