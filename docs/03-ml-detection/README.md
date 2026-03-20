@@ -8,6 +8,7 @@ Machine learning-based column detection and automatic configuration generation f
 
 - **[Overview](overview.md)** — What ML detection does, how it works, training data, scores, and how to contribute
 - **[Branch Architecture](branch-architecture.md)** — Architecture of the 3-branch hybrid pipeline (alias + header + values + fusion), product goals, evaluation metrics, and autoresearch role
+- **[Training & Evaluation Guide](training-guide.md)** — Complete workflow: gold set → training → alias → evaluation → improvement cycle
 
 ### Integration & Status
 
@@ -35,8 +36,9 @@ Machine learning-based column detection and automatic configuration generation f
 ## Quick Start
 
 1. Read the **[Overview](overview.md)** to understand what the system does
-2. See **[Branch Architecture](branch-architecture.md)** for the technical design
-3. Check **[ML Integration Status](2026-03-19-ml-integration-status.md)** for current app integration
+2. See **[Training & Evaluation Guide](training-guide.md)** for the complete workflow
+3. See **[Branch Architecture](branch-architecture.md)** for the technical design
+4. Check **[ML Integration Status](2026-03-19-ml-integration-status.md)** for current app integration
 
 ## Related Documentation
 
