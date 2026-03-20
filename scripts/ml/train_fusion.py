@@ -351,6 +351,27 @@ def extract_fusion_features(
     )
 
 
+def extract_fusion_features_batch(
+    records: list[dict],
+    header_model,
+    value_model,
+    all_concepts: list[str],
+) -> np.ndarray:
+    """Batch extraction of fusion features — same result as record-by-record but much faster."""
+    aligned_header, aligned_value = extract_fusion_branch_probabilities_batch(
+        records, header_model, value_model, all_concepts
+    )
+    metadata = extract_fusion_metadata_batch(records)
+    features = []
+    for i in range(len(records)):
+        features.append(
+            compose_fusion_features(
+                aligned_header[i], aligned_value[i], metadata[i], all_concepts
+            )
+        )
+    return np.array(features)
+
+
 def build_fusion_model(C: float = 1.0) -> LogisticRegression:
     """Build LogReg for fusion.
 
@@ -396,20 +417,11 @@ def main():
     all_concepts = sorted(set(r["concept_coarse"] for r in records))
     logger.info(f"Loaded {len(records)} records, {len(all_concepts)} concepts")
 
-    # Extract fusion features
+    # Extract fusion features (batched for speed)
     logger.info("Extracting fusion features...")
-    X = []
-    y = []
-    groups = []
-    for r in records:
-        feat = extract_fusion_features(r, header_model, value_model, all_concepts)
-        X.append(feat)
-        y.append(r["concept_coarse"])
-        groups.append(r["source_dataset"])
-
-    X = np.array(X)
-    y = np.array(y)
-    groups = np.array(groups)
+    X = extract_fusion_features_batch(records, header_model, value_model, all_concepts)
+    y = np.array([r["concept_coarse"] for r in records])
+    groups = np.array([r["source_dataset"] for r in records])
     logger.info(f"Feature matrix shape: {X.shape}")
 
     # GroupKFold evaluation (leak-free: re-train branches per fold)
@@ -453,18 +465,12 @@ def main():
             fold_value = build_value_model()
             fold_value.fit(X_val, val_concepts)
 
-            # Extract features with fold-specific branch models
-            X_train_fold = np.array(
-                [
-                    extract_fusion_features(r, fold_header, fold_value, all_concepts)
-                    for r in train_recs
-                ]
+            # Extract features with fold-specific branch models (batched)
+            X_train_fold = extract_fusion_features_batch(
+                train_recs, fold_header, fold_value, all_concepts
             )
-            X_test_fold = np.array(
-                [
-                    extract_fusion_features(r, fold_header, fold_value, all_concepts)
-                    for r in test_recs
-                ]
+            X_test_fold = extract_fusion_features_batch(
+                test_recs, fold_header, fold_value, all_concepts
             )
 
             model = build_fusion_model()
