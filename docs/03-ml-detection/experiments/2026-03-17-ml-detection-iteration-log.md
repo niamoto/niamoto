@@ -955,3 +955,87 @@ Hypothèses pour débloquer :
 - ne pas relancer autoresearch fusion immédiatement
 - passer à l'évaluation end-to-end par instance (niamoto-subset) pour mesurer
   l'impact réel du ML sur les suggestions de widgets
+
+## Entrée du 2026-03-20 — réentraînement, validation ProductScore, optimisation batch
+
+### Réentraînement des 3 modèles
+
+Les modèles `.joblib` dans `models/` étaient toujours les anciens — l'autoresearch
+modifiait le code des features de fusion mais n'entraînait pas les modèles. Les
+scores surrogate étaient un proxy local, pas le vrai score produit.
+
+Réentraînement complet exécuté :
+
+- header : macro-F1 = 0.7614
+- values : macro-F1 = 0.3783
+- fusion : mean macro-F1 = 0.6899 (leak-free CV, 5 folds)
+
+Durée totale : ~5h (goulot = extraction record par record dans le leak-free CV).
+
+### Validation ProductScore — gain confirmé
+
+```text
+ProductScore = 80.0372 (baseline 79.2454, delta +0.79)
+```
+
+Détail par bucket :
+
+| Bucket | Avant | Après | Delta |
+|--------|-------|-------|-------|
+| tropical_field | 63.95 | 64.88 | +0.93 |
+| research_traits | 71.37 | 70.98 | -0.39 |
+| gbif_core_standard | 96.32 | 95.87 | -0.46 |
+| gbif_extended | 87.03 | 89.75 | +2.72 |
+| en_field | 75.92 | 78.53 | +2.61 |
+| anonymous | 100.0 | 100.0 | = |
+
+Gains notables : `en_field` +2.61, `gbif_extended` +2.72, `tropical_field` +0.93.
+
+Régression : `fr` -4.07 (holdout, pas dans le ProductScore).
+
+### Optimisation batch de l'entraînement fusion
+
+Le goulot de l'entraînement était `extract_fusion_features()` appelée record
+par record (~15 000 appels séquentiels pour le leak-free CV).
+
+La version batch `extract_fusion_branch_probabilities_batch()` existait déjà
+pour le cache surrogate. Elle a été câblée dans `train_fusion.py` pour
+remplacer les 3 boucles record par record.
+
+Résultat :
+
+- scores strictement identiques (même macro-F1 par fold au centième)
+- temps : **5h → 15 min** (~20x plus rapide)
+- zéro perte de qualité
+
+### Évaluation par instance — niamoto-subset
+
+Un script `scripts/ml/evaluate_instance.py` a été créé pour comparer la
+détection ML avec l'`import.yml` validé d'une instance réelle.
+
+Résultats sur `niamoto-subset` (29 colonnes, 9 évaluées via ground truth) :
+
+| Mode | Role correct | Concept correct |
+|------|-------------|-----------------|
+| Alias seul | 4/9 (44%) | 4/9 (44%) |
+| ML (modèles réentraînés) | 6/9 (67%) | 5/9 (56%) |
+
+Gains ML par rapport aux alias seuls :
+
+- `id_plot` : non détecté → `identifier.plot` (rôle correct)
+- `geo_pt` : non détecté → `location.coordinate` (rôle + concept corrects, 0.93)
+
+Erreurs restantes :
+
+- `infra` → `measurement.diameter` (faux, confiance faible 0.32)
+- `plot_name` → `location.locality` (alias impose à confiance 1.0)
+- `location` → pas trouvé (champ schema, pas colonne CSV)
+
+### Décisions de cette session
+
+- ProductScore 80.04 validé comme nouvelle baseline
+- modèles réentraînés commités
+- batch optimization commitée (entraînement 20x plus rapide)
+- évaluation par instance opérationnelle sur niamoto-subset
+- prochaine étape : câbler le ML dans l'auto-config (plan documenté dans
+  `docs/03-ml-detection/2026-03-19-ml-integration-status.md`)
