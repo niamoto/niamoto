@@ -92,7 +92,7 @@ Horizontal bar chart showing the 6 ProductScore components with weights:
 
 ### 06 — Instance Evaluation
 
-**Entirely new section** with data from `experiments/2026-03-20-instance-eval-niamoto-subset.md`.
+**Entirely new section** with data from `experiments/2026-03-20-multi-instance-eval-and-improvement.md`.
 
 **6a — Summary by tier**
 
@@ -166,7 +166,7 @@ Keep the bibliography. Translate section headers to English.
 
 All data for the dashboard comes from:
 - `experiments/2026-03-17-ml-detection-iteration-log.md` — score evolution, holdouts, autoresearch iterations
-- `experiments/2026-03-20-instance-eval-niamoto-subset.md` — instance evaluation results
+- `experiments/2026-03-20-multi-instance-eval-and-improvement.md` — instance evaluation results
 - `scripts/ml/build_gold_set.py` — source list and column counts
 - `overview.md` / `branch-architecture.md` — architecture description
 

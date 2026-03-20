@@ -86,7 +86,7 @@ New horizontal bar chart with the 6 weighted components:
 
 ### Step 6: New "Instance Evaluation" section (06)
 
-Entirely new section with data from `experiments/2026-03-20-instance-eval-niamoto-subset.md`.
+Entirely new section with data from `experiments/2026-03-20-multi-instance-eval-and-improvement.md`.
 
 **6a — Summary table** (Plotly horizontal bar or HTML table):
 
@@ -184,7 +184,7 @@ Translate section headers to English. Keep the bibliography as-is.
 
 - Brainstorm: `docs/brainstorms/2026-03-20-ml-dashboard-rewrite-brainstorm.md`
 - Current dashboard: `docs/03-ml-detection/ml-detection-dashboard.html`
-- Instance evaluation data: `docs/03-ml-detection/experiments/2026-03-20-instance-eval-niamoto-subset.md`
+- Instance evaluation data: `docs/03-ml-detection/experiments/2026-03-20-multi-instance-eval-and-improvement.md`
 - Iteration log: `docs/03-ml-detection/experiments/2026-03-17-ml-detection-iteration-log.md`
 - Architecture: `docs/03-ml-detection/branch-architecture.md`
 - Overview: `docs/03-ml-detection/overview.md`
