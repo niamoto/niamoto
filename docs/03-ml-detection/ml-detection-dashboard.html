@@ -170,6 +170,7 @@ details[open] summary { margin-bottom: 8px; }
   <a href="#instance-eval">Instances</a>
   <a href="#errors">Error Patterns</a>
   <a href="#training">Training</a>
+  <a href="#workflow">Workflow</a>
   <a href="#methodology">Methodology</a>
   <a href="#alternatives">Alternatives</a>
   <a href="#references">References</a>
@@ -221,13 +222,13 @@ details[open] summary { margin-bottom: 8px; }
         <h4>2. HEADER</h4>
         <div class="algo">TF-IDF char n-grams + L1 LogReg</div>
         <div>Analyzes the column name</div>
-        <div class="score" style="color:var(--green)">F1 = 0.7614</div>
+        <div class="score" style="color:var(--green)">F1 = 0.7467</div>
       </div>
       <div class="pipeline-box" onclick="showDetail('values')">
         <h4>3. VALUES</h4>
         <div class="algo">37 features + HistGradientBoosting</div>
         <div>Statistically analyzes values</div>
-        <div class="score" style="color:var(--orange)">F1 = 0.3783</div>
+        <div class="score" style="color:var(--orange)">F1 = 0.3935</div>
       </div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
@@ -236,7 +237,7 @@ details[open] summary { margin-bottom: 8px; }
       <h4>4. FUSION</h4>
       <div class="algo">LogReg + meta-features (disagreement, confidence, coded headers, cross-rank)</div>
       <div>Combines probabilities, corrects inter-branch biases</div>
-      <div class="score" style="color:var(--blue)">F1 = 0.6899</div>
+      <div class="score" style="color:var(--blue)">F1 = 0.6876</div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
 
@@ -528,10 +529,116 @@ details[open] summary { margin-bottom: 8px; }
 </div>
 </section>
 
-<!-- 08 Methodology -->
+<!-- 08 Training & Improvement Workflow -->
+<section id="workflow">
+<div class="container">
+  <h2><span class="num">08</span>Training &amp; Improvement Workflow</h2>
+  <p class="section-desc">End-to-end pipeline from raw data to evaluation. Each box is an independent step with its own script. Full guide: <code>docs/03-ml-detection/training-guide.md</code></p>
+
+  <div class="pipeline">
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="border-color:var(--gray-400);min-width:160px;">
+        <h4>DATA SOURCES</h4>
+        <div class="algo">data/silver/</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">CSV files from inventories, GBIF, traits, etc.</div>
+      </div>
+      <div class="pipeline-arrow" style="align-self:center;">&plus;</div>
+      <div class="pipeline-box" style="border-color:var(--gray-400);min-width:160px;">
+        <h4>LABEL MAPPINGS</h4>
+        <div class="algo">build_gold_set.py</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Column &rarr; concept mappings per dataset</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--orange);background:var(--orange-light);">
+      <h4>GOLD SET</h4>
+      <div class="algo">uv run python -m scripts.ml.build_gold_set</div>
+      <div style="font-size:13px;margin-top:4px;">2 525 labeled columns &times; 60+ concepts &times; value statistics</div>
+      <div class="score" style="color:var(--orange);">data/gold_set.json</div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN HEADER</h4>
+        <div class="algo">TF-IDF + LogReg</div>
+        <div class="score" style="color:var(--green);">F1 = 0.7467</div>
+      </div>
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN VALUES</h4>
+        <div class="algo">37 features + HGBT</div>
+        <div class="score" style="color:var(--orange);">F1 = 0.3935</div>
+      </div>
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN FUSION</h4>
+        <div class="algo">LogReg + cross-rank</div>
+        <div class="score" style="color:var(--blue);">F1 = 0.6876</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="border-color:var(--green);background:var(--green-light);min-width:200px;">
+        <h4>ALIAS REGISTRY</h4>
+        <div class="algo">column_aliases.yaml</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">25+ concepts &times; 8 languages<br>No retraining needed</div>
+      </div>
+      <div class="pipeline-arrow" style="align-self:center;">&plus;</div>
+      <div class="pipeline-box" style="min-width:200px;">
+        <h4>3 MODELS</h4>
+        <div class="algo">models/*.joblib</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">header (2.6 MB) + values (40 MB)<br>+ fusion (80 KB)</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--blue);background:var(--blue-light);">
+      <h4>EVALUATION SUITE</h4>
+      <div class="algo">uv run python -m scripts.ml.eval.run_eval_suite</div>
+      <div style="font-size:13px;margin-top:4px;">7 datasets &times; 418 columns &times; verified annotations</div>
+      <div class="score" style="color:var(--blue);">77.5% concept accuracy</div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--purple);background:var(--purple-light);">
+      <h4>DIAGNOSIS &amp; ITERATE</h4>
+      <div style="font-size:13px;margin-top:4px;">
+        Concept absent &rarr; add to gold set &amp; retrain<br>
+        Column name univoque &rarr; add alias (no retrain)<br>
+        Bad merge in taxonomy &rarr; fix concept_taxonomy.py<br>
+        Wrong annotation &rarr; fix eval annotations
+      </div>
+    </div>
+  </div>
+
+  <h3>8a — Session Improvement Timeline (2026-03-20)</h3>
+  <div class="chart-container">
+    <div id="improvement-chart" style="height:350px;"></div>
+  </div>
+
+  <details>
+    <summary>Detail: Improvement steps</summary>
+    <div style="padding:12px;">
+      <table class="data-table">
+        <thead><tr><th>Step</th><th>Action</th><th class="num">Concept%</th><th class="num">Delta</th></tr></thead>
+        <tbody>
+          <tr><td>V1</td><td>Initial annotations (418 cols, 7 datasets)</td><td class="num">66.5%</td><td class="num">—</td></tr>
+          <tr><td>V2</td><td>Fix annotations: taxonomy.name &rarr; species, plot_name context</td><td class="num">71.1%</td><td class="num">+4.6</td></tr>
+          <tr><td>V3</td><td>Verify annotations against actual values</td><td class="num">71.3%</td><td class="num">+0.2</td></tr>
+          <tr><td>V4</td><td>Expand alias registry (+13 concepts)</td><td class="num">76.6%</td><td class="num">+5.3</td></tr>
+          <tr style="background:var(--green-light);"><td><strong>V5</strong></td><td><strong>Enrich gold set (niamoto-nc) + retrain + fix basal_area merge</strong></td><td class="num"><strong>77.5%</strong></td><td class="num"><strong>+0.9</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- 09 Methodology -->
 <section id="methodology">
 <div class="container">
-  <h2><span class="num">08</span>Methodology Justification</h2>
+  <h2><span class="num">09</span>Methodology Justification</h2>
   <p class="section-desc">Each technical choice is justified by academic literature. Bracket numbers refer to the References section.</p>
 
   <div class="justification">
@@ -616,7 +723,7 @@ details[open] summary { margin-bottom: 8px; }
 <!-- 09 Alternatives -->
 <section id="alternatives">
 <div class="container">
-  <h2><span class="num">09</span>Credible Alternatives</h2>
+  <h2><span class="num">10</span>Credible Alternatives</h2>
   <p class="section-desc">Comparison with published approaches in the literature. Our pipeline occupies a justified trade-off between the complexity of deep learning methods and the brittleness of manual rules.</p>
 
   <div style="overflow-x:auto;">
@@ -728,7 +835,7 @@ details[open] summary { margin-bottom: 8px; }
 <!-- 10 References -->
 <section id="references">
 <div class="container">
-  <h2><span class="num">10</span>Bibliography</h2>
+  <h2><span class="num">11</span>Bibliography</h2>
 
   <div class="ref-category">Column type detection</div>
   <ol class="ref-list">
@@ -1338,6 +1445,37 @@ function renderAlternatives() {
   }, {responsive: true});
 }
 
+// Improvement timeline
+function renderImprovement() {
+  const steps = [
+    {step:'V1\nInitial',concept:66.5},
+    {step:'V2\nFix annotations',concept:71.1},
+    {step:'V3\nVerify values',concept:71.3},
+    {step:'V4\nAlias +13',concept:76.6},
+    {step:'V5\nRetrain',concept:77.5},
+  ];
+  Plotly.newPlot('improvement-chart', [{
+    type:'bar',
+    x: steps.map(s => s.step),
+    y: steps.map(s => s.concept),
+    marker:{color: steps.map((s,i) => i === steps.length-1 ? '#059669' : '#2563eb')},
+    text: steps.map(s => s.concept + '%'),
+    textposition:'outside',
+    textfont:{family:'JetBrains Mono',size:14}
+  }], {
+    title:{text:'Session improvement: concept accuracy progression', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Concept %', range:[0,95]},
+    xaxis:{tickfont:{size:11}},
+    margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12},
+    shapes:[{type:'line',x0:-0.5,x1:4.5,y0:66.5,y1:66.5,line:{color:'#dc2626',width:1,dash:'dot'}},
+            {type:'line',x0:-0.5,x1:4.5,y0:77.5,y1:77.5,line:{color:'#059669',width:1,dash:'dot'}}],
+    annotations:[
+      {x:0,y:66.5,text:'Start: 66.5%',showarrow:false,font:{size:10,color:'#dc2626'},yshift:-12},
+      {x:4,y:77.5,text:'Final: 77.5%',showarrow:false,font:{size:10,color:'#059669'},yshift:12}
+    ]
+  }, {responsive:true});
+}
+
 // ========== SOURCE TABLE ==========
 
 function renderSourceTable(filter) {
@@ -1398,6 +1536,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderForestSubsplit();
   renderInstanceEval();
   renderProgress();
+  renderImprovement();
   renderAlternatives();
   renderSourceTable('all');
   renderConceptTable();
