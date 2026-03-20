@@ -7,7 +7,7 @@ Complete guide to configuring Niamoto for your needs.
 - **[Configuration Guide](configuration-guide.md)** - Comprehensive configuration reference
 - **[YAML Strategies](yaml-strategies.md)** - Simplifying YAML configurations
 - **[Templates Hierarchy](templates-hierarchy.md)** - Hierarchical template system
-- **[Auto-Config Roadmap](../03-ml-detection/auto-config-roadmap.md)** - Automatic configuration generation
+- **[ML Branch Architecture](../03-ml-detection/branch-architecture.md)** - ML detection architecture and auto-configuration
 
 ## 🔧 Configuration Files
 

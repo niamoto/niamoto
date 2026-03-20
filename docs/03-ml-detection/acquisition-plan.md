@@ -1,48 +1,48 @@
-# Plan d'Acquisition de Données pour le Benchmark ML Detection
+# Data Acquisition Plan for the ML Detection Benchmark
 
-## Objet
+## Purpose
 
-Ce document traduit la shortlist de sources candidates en plan d'acquisition
-concret :
+This document translates the candidate source shortlist into a concrete
+acquisition plan:
 
-- quoi intégrer d'abord ;
-- où stocker les données ;
-- comment les brancher au gold set ;
-- quels tags de benchmark leur associer ;
-- quels critères utiliser pour décider si une source vaut l'effort.
+- what to integrate first;
+- where to store the data;
+- how to connect it to the gold set;
+- which benchmark tags to assign;
+- which criteria to use when deciding whether a source is worth the effort.
 
-Le principe est simple :
+The principle is simple:
 
-- on ne cherche pas le volume maximal ;
-- on cherche le meilleur **ROI benchmark** pour la cible produit réelle.
+- we are not looking for maximum volume;
+- we are looking for the best **benchmark ROI** for the real product target.
 
-## Cible produit retenue
+## Retained Product Target
 
-Les priorités déclarées à ce stade sont :
+The declared priorities at this stage are:
 
-1. jeux de données du type :
-   - Nouvelle-Calédonie
-   - Gabon / Cameroun
+1. datasets of the type:
+   - New Caledonia
+   - Gabon / Cameroon
    - Guyane
-   - datasets des instances réellement testées
-   - jeux pas nécessairement très standardisés
-2. GBIF comme seconde grande priorité
+   - datasets from actually tested instances
+   - datasets that are not necessarily highly standardised
+2. GBIF as the second major priority
 
-Conséquence :
+Consequence:
 
-- `forest_inventory` doit rester un garde-fou utile ;
-- mais il ne doit pas piloter seul la roadmap d'acquisition.
+- `forest_inventory` must remain a useful guardrail;
+- but it must not drive the acquisition roadmap alone.
 
-## Structure cible recommandée
+## Recommended Target Structure
 
-La structure actuelle de `data/silver` contient surtout :
+The current `data/silver` structure contains mainly:
 
 - `ifn_france/`
 - `finland_sweden/`
 - `pasoh/`
-- des fichiers plats à la racine
+- flat files at the root
 
-Pour les nouvelles sources, je recommande une structure plus explicite :
+For new sources, I recommend a more explicit structure:
 
 ```text
 data/silver/
@@ -63,72 +63,72 @@ data/silver/
     cameroon/
 ```
 
-Objectif :
+Goal:
 
-- rendre la provenance lisible ;
-- simplifier les tags benchmark ;
-- éviter une racine `data/silver/` trop plate.
+- make provenance readable;
+- simplify benchmark tags;
+- avoid a `data/silver/` root that is too flat.
 
-## Lot 1 — acquisition prioritaire
+## Batch 1 — Priority Acquisition
 
-## 1. Datasets des instances réellement testées
+## 1. Datasets from Actually Tested Instances
 
-### Pourquoi
+### Why
 
-- valeur benchmark maximale ;
-- meilleure proximité avec le produit ;
-- vrais headers, vraies anomalies, vraies attentes.
+- maximum benchmark value;
+- closest proximity to the product;
+- real headers, real anomalies, real expectations.
 
-### Stockage recommandé
+### Recommended Storage
 
 ```text
 data/silver/instances/<instance_name>/
 ```
 
-### Tags benchmark recommandés
+### Recommended Benchmark Tags
 
 - `instance_real`
 - `priority_main`
 - `schema_style=field`
-- `region=<region réelle si connue>`
+- `region=<actual region if known>`
 
-### Intégration build_gold_set
+### build_gold_set Integration
 
-Ajouter chaque dataset comme source explicite dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py)
-avec :
+Add each dataset as an explicit source in
+[scripts/ml/build_gold_set.py](scripts/ml/build_gold_set.py)
+with:
 
 - `name`
 - `path`
 - `labels`
 - `language`
 - `sample_rows`
-- et si possible un bloc de métadonnées de benchmark dans le futur
+- and if possible a block of benchmark metadata in the future
 
-### Critère de succès
+### Success Criterion
 
-Après intégration :
+After integration:
 
-- on doit pouvoir mesurer `instance_real` séparément ;
-- ce bucket doit devenir un composant central du benchmark principal.
+- we must be able to measure `instance_real` separately;
+- this bucket must become a central component of the main benchmark.
 
-## 2. Guyane tropicale ouverte
+## 2. Open Tropical Guyane
 
-### Sources visées
+### Target Sources
 
 - Paracou
 - Guyafor / Trinité
 - Guyafor / Trésor
 
-### Pourquoi
+### Why
 
-- très proche du besoin tropical terrain ;
-- bonne chance d'obtenir des colonnes de placettes, arbres, taxonomie, mesures,
-  environnement ;
-- utile pour enrichir `tropical_field` avec des données mieux alignées au
-  produit.
+- very close to tropical field needs;
+- good chance of obtaining plot, tree, taxonomy, measurement, and environment
+  columns;
+- useful for enriching `tropical_field` with data better aligned to the
+  product.
 
-### Stockage recommandé
+### Recommended Storage
 
 ```text
 data/silver/guyane/paracou/
@@ -136,69 +136,69 @@ data/silver/guyane/trinite/
 data/silver/guyane/tresor/
 ```
 
-### Tags benchmark recommandés
+### Recommended Benchmark Tags
 
 - `tropical_field`
 - `plot_inventory`
 - `guyane`
 - `priority_main`
 
-### Critère de succès
+### Success Criterion
 
-- créer un sous-benchmark `guyane`
-- mesurer séparément ses résultats dans les runs d'évaluation
+- create a `guyane` sub-benchmark
+- measure its results separately in evaluation runs
 
-### État actuel vérifié
+### Verified Current State
 
-Vérification Dataverse effectuée :
+Dataverse verification performed:
 
-- `Paracou / ForestScan` : CSV principal publiquement accessible
-- `Trinité` : CSV principal restreint, accès sur demande
-- `Trésor` : CSV principal restreint, accès sur demande
-- `Tibourou` : CSV principal restreint, accès sur demande
-- `Montagne Tortue` : CSV principal restreint, accès sur demande
+- `Paracou / ForestScan`: main CSV publicly accessible
+- `Trinité`: main CSV restricted, access on request
+- `Trésor`: main CSV restricted, access on request
+- `Tibourou`: main CSV restricted, access on request
+- `Montagne Tortue`: main CSV restricted, access on request
 
-Conséquence opérationnelle :
+Operational consequence:
 
-- le premier lot intégrable immédiatement est `Paracou / ForestScan`
-- les autres jeux Guyane restent dans la file d'acquisition avec statut
+- the first batch immediately integrable is `Paracou / ForestScan`
+- other Guyane datasets remain in the acquisition queue with status
   `waiting_access`
 
-### Avancement du lot 1
+### Batch 1 Progress
 
-Déjà fait :
+Already done:
 
-- récupération locale de `FGPlotsCensusData2023.csv`
-- récupération des fichiers de description Guyafor disponibles
-- intégration de `forestscan_paracou_census` dans le gold set
+- local retrieval of `FGPlotsCensusData2023.csv`
+- retrieval of available Guyafor description files
+- integration of `forestscan_paracou_census` into the gold set
 
-Résultat :
+Result:
 
-- `34` colonnes gold ajoutées
-- gold set total : `2265` colonnes
+- `34` gold columns added
+- total gold set: `2265` columns
 
-Statut recommandé :
+Recommended status:
 
-- `Paracou / ForestScan` : `done`
-- `Trinité / Trésor / Tibourou / Montagne Tortue` : `waiting_access`
+- `Paracou / ForestScan`: `done`
+- `Trinité / Trésor / Tibourou / Montagne Tortue`: `waiting_access`
 
-## 3. GBIF ciblé par région
+## 3. Targeted GBIF by Region
 
-### Régions à prendre d'abord
+### Regions to Take First
 
-- Nouvelle-Calédonie
-- Guyane française
+- New Caledonia
+- French Guyane
 - Gabon
-- Cameroun
+- Cameroon
 
-### Pourquoi
+### Why
 
-- GBIF reste une priorité produit ;
-- mais il faut le cibler géographiquement plutôt que prendre un corpus global
-  aveugle ;
-- cela permet de construire un benchmark GBIF proche des zones d'intérêt.
+- GBIF remains a product priority;
+- but it must be targeted geographically rather than taking a blind global
+  corpus;
+- this allows building a GBIF benchmark close to the areas of interest.
 
-### Stockage recommandé
+### Recommended Storage
 
 ```text
 data/silver/gbif_targeted/new_caledonia/
@@ -207,7 +207,7 @@ data/silver/gbif_targeted/gabon/
 data/silver/gbif_targeted/cameroon/
 ```
 
-### Tags benchmark recommandés
+### Recommended Benchmark Tags
 
 - `gbif`
 - `gbif_core_standard`
@@ -215,146 +215,145 @@ data/silver/gbif_targeted/cameroon/
 - `priority_main`
 - `region=<...>`
 
-### Critère de succès
+### Success Criterion
 
-Après intégration :
+After integration:
 
-- distinguer `gbif_core_standard` et `gbif_extended` ;
-- suivre en priorité le GBIF des régions cibles plutôt qu'un GBIF mondial trop
-  facile.
+- distinguish `gbif_core_standard` and `gbif_extended`;
+- prioritise tracking GBIF from target regions rather than a too-easy global
+  GBIF.
 
-### État actuel vérifié
+### Verified Current State
 
-Deux sous-lots GBIF ciblés existent maintenant :
+Two targeted GBIF sub-batches now exist:
 
 1. `gbif_targeted/`
-   - lot régional général
-   - `5000` occurrences `Plantae` par région
-   - régions intégrées :
+   - general regional batch
+   - `5000` `Plantae` occurrences per region
+   - integrated regions:
      - `new_caledonia`
      - `guyane`
      - `gabon`
      - `cameroon`
 
 2. `gbif_targeted_institutional/`
-   - lot filtré institutionnel
-   - conservé à ce stade pour :
+   - institutional filtered batch
+   - retained at this stage for:
      - `gabon`
      - `cameroon`
-   - filtre :
+   - filter:
      - `PRESERVED_SPECIMEN`, `MATERIAL_SAMPLE`, `OCCURRENCE`
-     - présence de champs institutionnels
-     - exclusion des grands jeux observationnels
+     - presence of institutional fields
+     - exclusion of large observational datasets
 
-### Avancement
+### Progress
 
-Déjà fait :
+Already done:
 
-- script de récupération
-  [fetch_gbif_targeted.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/data/fetch_gbif_targeted.py)
-- récupération du lot régional général `NC/GF/GA/CM`
-- récupération du lot institutionnel `GA/CM`
-- intégration des 6 nouvelles sources GBIF ciblées dans le gold set
+- retrieval script
+  [scripts/data/fetch_gbif_targeted.py](scripts/data/fetch_gbif_targeted.py)
+- retrieval of general regional batch `NC/GF/GA/CM`
+- retrieval of institutional batch `GA/CM`
+- integration of the 6 new targeted GBIF sources into the gold set
 
-Apport observé dans le gold set :
+Observed contribution to the gold set:
 
-- lot régional général :
-  - `new_caledonia` : `41`
-  - `guyane` : `38`
-  - `gabon` : `37`
-  - `cameroon` : `39`
-- lot institutionnel :
-  - `gabon` : `36`
-  - `cameroon` : `36`
+- general regional batch:
+  - `new_caledonia`: `41`
+  - `guyane`: `38`
+  - `gabon`: `37`
+  - `cameroon`: `39`
+- institutional batch:
+  - `gabon`: `36`
+  - `cameroon`: `36`
 
-### Statut recommandé
+### Recommended Status
 
-- `gbif_targeted/new_caledonia` : `done`
-- `gbif_targeted/guyane` : `done`
-- `gbif_targeted/gabon` : `done`
-- `gbif_targeted/cameroon` : `done`
-- `gbif_targeted_institutional/gabon` : `done`
-- `gbif_targeted_institutional/cameroon` : `done`
-- `gbif_targeted_institutional/new_caledonia` : `deferred`
-- `gbif_targeted_institutional/guyane` : `deferred`
+- `gbif_targeted/new_caledonia`: `done`
+- `gbif_targeted/guyane`: `done`
+- `gbif_targeted/gabon`: `done`
+- `gbif_targeted/cameroon`: `done`
+- `gbif_targeted_institutional/gabon`: `done`
+- `gbif_targeted_institutional/cameroon`: `done`
+- `gbif_targeted_institutional/new_caledonia`: `deferred`
+- `gbif_targeted_institutional/guyane`: `deferred`
 
-## 4. Afrique tropicale élargie
+## 4. Extended Tropical Africa
 
-### Sources visées
+### Target Sources
 
 - RAINBIO
-- ForestPlots Lopé si accès possible
+- ForestPlots Lopé if access is possible
 
-### Pourquoi
+### Why
 
-- apporte une couverture Afrique tropicale directement utile ;
-- complète Gabon/Cameroun même si tout n'est pas du plot inventory pur ;
-- très utile pour taxonomie, localité, habitat et champs semi-structurés.
+- provides directly useful tropical Africa coverage;
+- complements Gabon/Cameroon even if not all of it is pure plot inventory;
+- very useful for taxonomy, locality, habitat, and semi-structured fields.
 
-### Stockage recommandé
+### Recommended Storage
 
 ```text
 data/silver/africa_tropical/rainbio/
 data/silver/africa_tropical/lope/
 ```
 
-### Tags benchmark recommandés
+### Recommended Benchmark Tags
 
 - `africa_tropical`
-- `tropical_field` ou `occurrence` selon le jeu
+- `tropical_field` or `occurrence` depending on the dataset
 - `priority_main`
 
-## Lot 2 — après stabilisation du lot 1
+## Batch 2 — After Batch 1 Is Stabilised
 
 ## 5. ForestGEO
 
-- utile pour élargir les inventaires forestiers
-- à intégrer après les priorités régionales
-- tags :
+- useful for broadening forest inventories
+- to integrate after regional priorities
+- tags:
   - `plot_inventory`
   - `forest_network`
   - `priority_secondary`
 
 ## 6. sPlotOpen
 
-- utile pour la diversité de placettes végétation
-- plutôt benchmark d'élargissement
-- tags :
+- useful for vegetation plot diversity
+- more of an expansion benchmark
+- tags:
   - `vegetation_plot`
   - `priority_secondary`
 
 ## 7. SEOSAW
 
-- utile si besoin woodland / savanna
-- tags :
+- useful if woodland / savanna coverage is needed
+- tags:
   - `africa_tropical`
   - `savanna_plot`
   - `priority_secondary`
 
-## Lot 3 — seulement si besoin explicite
+## Batch 3 — Only If Explicitly Needed
 
 ## 8. TRY
 
-- utile surtout pour les traits ;
-- plus pertinent pour enrichir l'ontologie ou les affordances que pour la
-  détection brute.
+- mainly useful for traits;
+- more relevant for enriching the ontology or affordances than for raw
+  detection.
 
 ## 9. OBIS
 
-- à intégrer seulement si la partie marine/littorale devient importante ;
-- potentiellement utile pour Nouvelle-Calédonie marine.
+- to integrate only if the marine/coastal component becomes important;
+- potentially useful for marine New Caledonia.
 
 ## 10. AusPlots
 
-- bon benchmark de robustesse ;
-- pas prioritaire au regard de la cible produit actuelle.
+- good robustness benchmark;
+- not a priority given the current product target.
 
-## Intégration dans build_gold_set.py
+## Integration into build_gold_set.py
 
-## Format minimal recommandé par source
+## Recommended Minimal Format per Source
 
-Chaque nouvelle source devrait être ajoutée dans la liste des sources avec au
-minimum :
+Each new source should be added to the source list with at minimum:
 
 ```python
 {
@@ -366,17 +365,17 @@ minimum :
 }
 ```
 
-## Métadonnées à prévoir
+## Metadata to Prepare
 
-Le script actuel ne structure pas encore ces tags explicitement, mais je
-recommande de préparer l'extension vers :
+The current script does not yet structure these tags explicitly, but I
+recommend preparing the extension towards:
 
 - `region`
 - `source_family`
 - `schema_style`
 - `priority_tier`
 
-Exemple conceptuel :
+Conceptual example:
 
 ```python
 {
@@ -394,81 +393,81 @@ Exemple conceptuel :
 }
 ```
 
-Même si `benchmark_tags` n'est pas encore consommé directement, prévoir cette
-forme simplifiera l'évolution du protocole d'évaluation.
+Even if `benchmark_tags` is not yet directly consumed, preparing this
+structure will simplify the evolution of the evaluation protocol.
 
-## Pipeline recommandé d'intégration
+## Recommended Integration Pipeline
 
-Pour chaque nouvelle source :
+For each new source:
 
-1. télécharger / normaliser dans `data/silver/...`
-2. inspecter les colonnes et choisir un sous-ensemble annotable
-3. écrire les `LABELS`
-4. ajouter l'entrée dans `build_gold_set.py`
-5. régénérer le gold set
-6. vérifier son effet sur :
+1. download / normalise into `data/silver/...`
+2. inspect columns and choose an annotable subset
+3. write the `LABELS`
+4. add the entry to `build_gold_set.py`
+5. regenerate the gold set
+6. verify its effect on:
    - `primary`
    - `tropical_field`
    - `gbif_core_standard`
    - `gbif_extended`
    - `instance_real`
 
-## Ce qu'il ne faut pas faire
+## What Not to Do
 
-- ajouter massivement du GBIF global non ciblé sans distinguer `core` et
+- massively add non-targeted global GBIF without distinguishing `core` and
   `extended`
-- intégrer des datasets éloignés du produit avant les données d'instances
-- laisser les nouvelles sources diluer le benchmark principal
-- intégrer une source simplement parce qu'elle est grande
+- integrate datasets distant from the product before instance data
+- let new sources dilute the main benchmark
+- integrate a source simply because it is large
 
-## Critères de sélection avant intégration
+## Selection Criteria Before Integration
 
-Une source vaut l'effort si au moins deux critères sont vrais :
+A source is worth the effort if at least two criteria are true:
 
-- proche d'une zone ou d'un usage prioritaire ;
-- headers non triviaux ;
-- valeurs réalistes et exploitables ;
-- variation utile par rapport au gold set existant ;
-- probabilité forte d'améliorer la robustesse sur la cible produit.
+- close to a priority area or use case;
+- non-trivial headers;
+- realistic and exploitable values;
+- useful variation compared to the existing gold set;
+- strong probability of improving robustness on the product target.
 
-## Ordre d'exécution recommandé
+## Recommended Execution Order
 
 ### Sprint 1
 
-1. datasets d'instances réelles
+1. real instance datasets
 2. Paracou
 3. Trinité
 4. Trésor
 
 ### Sprint 2
 
-1. GBIF ciblé Nouvelle-Calédonie
-2. GBIF ciblé Guyane
-3. GBIF ciblé Gabon
-4. GBIF ciblé Cameroun
+1. targeted GBIF New Caledonia
+2. targeted GBIF Guyane
+3. targeted GBIF Gabon
+4. targeted GBIF Cameroon
 
 ### Sprint 3
 
 1. RAINBIO
-2. ForestPlots Lopé si accès possible
-3. ForestGEO ou sPlotOpen selon disponibilité
+2. ForestPlots Lopé if access is possible
+3. ForestGEO or sPlotOpen depending on availability
 
-## Critère de succès global
+## Global Success Criterion
 
-À l'issue du lot 1, le benchmark doit pouvoir répondre clairement à :
+At the end of batch 1, the benchmark must be able to clearly answer:
 
-- est-on bon sur les datasets réels des instances ?
-- est-on bon sur les jeux tropicaux de terrain ?
-- est-on bon sur le GBIF ciblé des régions importantes ?
-- les régressions sur `forest_inventory` restent-elles contenues ?
+- are we performing well on real instance datasets?
+- are we performing well on tropical field datasets?
+- are we performing well on targeted GBIF from the important regions?
+- do regressions on `forest_inventory` remain contained?
 
-## Décision recommandée
+## Recommended Decision
 
-Si on veut avancer efficacement :
+If we want to move forward efficiently:
 
-1. intégrer d'abord les données d'instances réelles
-2. enrichir ensuite Guyane
-3. construire un sous-benchmark GBIF ciblé
-4. élargir ensuite à l'Afrique tropicale
+1. integrate real instance data first
+2. then enrich Guyane
+3. build a targeted GBIF sub-benchmark
+4. then expand to tropical Africa
 
-Le reste vient après.
+The rest comes after.

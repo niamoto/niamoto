@@ -1,108 +1,120 @@
-# Détection automatique des colonnes
+# Automatic column detection
 
-## Ce que ça fait
+## What it does
 
-Tu importes un fichier CSV d'inventaire forestier dans Niamoto. Au lieu de configurer manuellement chaque colonne ("ça c'est un diamètre, ça c'est une espèce, ça c'est des coordonnées"), Niamoto **détecte automatiquement** le contenu et propose un dashboard complet : histogramme des diamètres, carte de distribution, répartition par famille.
+You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column ("this is a diameter, this is a species, this is coordinates"), Niamoto **automatically detects** the content and proposes a complete dashboard: diameter histogram, distribution map, breakdown by family.
 
-Tu n'as plus qu'à ajuster si besoin.
+You only need to adjust if necessary.
 
-## Pourquoi c'est nécessaire
+## Why it is necessary
 
-Chaque équipe nomme ses colonnes différemment :
+Every team names its columns differently:
 
-| Ce que c'est | Guyane | France IFN | FIA (US) | Espagne | Anonyme |
-|-------------|--------|------------|----------|---------|---------|
-| Diamètre | `diam` | `C13` | `DIA` | `dap` | `X1` |
-| Hauteur | `haut` | `HTOT` | `HT` | `altura` | `col_2` |
-| Espèce | `espece` | `ESPAR` | `SPCD` | `especie` | `X5` |
+| What it is | French Guiana | France IFN | FIA (US) | Spain | Anonymous |
+|------------|---------------|------------|----------|-------|-----------|
+| Diameter | `diam` | `C13` | `DIA` | `dap` | `X1` |
+| Height | `haut` | `HTOT` | `HT` | `altura` | `col_2` |
+| Species | `espece` | `ESPAR` | `SPCD` | `especie` | `X5` |
 | Latitude | `lat` | `YL` | `LAT` | `latitud` | `col_3` |
 
-Sans détection automatique, chaque utilisateur doit configurer manuellement ses colonnes avant de pouvoir visualiser quoi que ce soit. C'est un frein à l'adoption.
+Without automatic detection, every user must manually configure their columns before being able to visualise anything. This is a barrier to adoption.
 
-## Comment ça marche
+## How it works
 
-Le système détecte le **rôle** de chaque colonne — c'est-à-dire ce qu'on peut en faire :
+The system detects the **role** of each column — that is, what can be done with it:
 
-| Rôle détecté | Ce que Niamoto propose |
-|-------------|----------------------|
-| Mesure numérique | Histogramme, résumé statistique, scatter plot |
-| Taxonomie | Répartition par famille/genre, sunburst |
-| Coordonnées géographiques | Carte interactive |
-| Données temporelles | Timeline, filtre par année |
-| Catégorie | Bar chart, donut chart |
-| Identifiant | Clé de jointure entre tables |
+| Detected role | What Niamoto proposes |
+|--------------|----------------------|
+| Numeric measurement | Histogram, statistical summary, scatter plot |
+| Taxonomy | Breakdown by family/genus, sunburst |
+| Geographic coordinates | Interactive map |
+| Temporal data | Timeline, year filter |
+| Category | Bar chart, donut chart |
+| Identifier | Join key between tables |
 
-Pour y arriver, deux signaux complémentaires sont combinés :
+Two complementary signals are combined to achieve this:
 
-1. **Le nom de la colonne** — `diametre` et `diametro` partagent les mêmes séquences de lettres. Un modèle de n-grammes de caractères les rapproche naturellement, même entre langues proches.
+1. **The column name** — `diametre` and `diametro` share the same letter sequences. A character n-gram model naturally groups them together, even across related languages.
 
-2. **Les valeurs** — un diamètre a une distribution log-normale entre 5 et 300, des coordonnées sont entre -90 et 90, un nom d'espèce suit le format "Genre espece". Quand le nom de colonne est anonyme (`X1`), les valeurs prennent le relais.
+2. **The values** — a diameter follows a log-normal distribution between 5 and 300, coordinates lie between -90 and 90, a species name follows the "Genus species" format. When the column name is anonymous (`X1`), the values take over.
 
-Les deux sont fusionnés en une prédiction finale. L'utilisateur peut ensuite affiner chaque paire transformer/widget dans le GUI.
+Both are fused into a final prediction. The user can then refine each transformer/widget pair in the GUI.
 
-## Les données d'entraînement
+## Training data
 
-Le modèle est entraîné sur **2231 colonnes labélisées** provenant de :
+The model is trained on **2,231 labelled columns** from:
 
-- **88 jeux de données réels** : IFN France, FIA US, GBIF (Espagne, Norvège, Bénin, Tanzanie, Chine...), GUYADIV Guyane, inventaires Afrique/NC/Madagascar/Malaisie/Panama, Zenodo (BCI, FERP Californie, Heishiding Chine...)
-- **6 continents**, **8 langues** (EN, FR, ES, PT, DE, ID + headers anonymes)
-- **61 concepts** organisés en rôles : taxonomie, localisation, mesures, environnement, statistiques, temporel, catégories, identifiants
+- **88 real datasets**: IFN France, FIA US, GBIF (Spain, Norway, Benin, Tanzania, China...), GUYADIV French Guiana, inventories from Africa/New Caledonia/Madagascar/Malaysia/Panama, Zenodo (BCI, FERP California, Heishiding China...)
+- **6 continents**, **8 languages** (EN, FR, ES, PT, DE, ID + anonymous headers)
+- **61 concepts** organised into roles: taxonomy, location, measurements, environment, statistics, temporal, categories, identifiers
 
-Toute la détection tourne en local avec scikit-learn (~3 MB de dépendances). Pas besoin de réseau, pas de LLM.
+All detection runs locally with scikit-learn (~3 MB of dependencies). No network required, no LLM.
 
-## Contribuer
+## Contributing
 
-Pour améliorer la détection d'un type de colonne mal reconnu :
+To improve detection for a poorly recognised column type:
 
-1. **Ajouter des alias** dans `src/niamoto/core/imports/ml/column_aliases.yaml` — pas besoin de ML, juste un fichier YAML. Exemple : ajouter `"circonference"` comme alias de `measurement.diameter` en français.
+1. **Add aliases** in `src/niamoto/core/imports/ml/column_aliases.yaml` — no ML needed, just a YAML file. Example: add `"circonference"` as an alias for `measurement.diameter` in French.
 
-2. **Ajouter des données d'entraînement** dans `scripts/ml/build_gold_set.py` — labéliser les colonnes d'un nouveau dataset et le référencer dans la liste des sources.
+2. **Add training data** in `scripts/ml/build_gold_set.py` — label the columns from a new dataset and reference it in the source list.
 
-3. **Ré-entraîner** : `uv run python scripts/ml/train_header_model.py && uv run python scripts/ml/train_value_model.py`
+3. **Retrain**: `uv run python scripts/ml/train_header_model.py && uv run python scripts/ml/train_value_model.py`
 
-## Scores actuels
+## Current scores
 
-| Modèle | Macro-F1 | Ce que ça veut dire |
-|--------|----------|-------------------|
-| Header (nom de colonne) | 0.77 | 77% des colonnes correctement classifiées par leur nom |
-| Values (valeurs statistiques) | 0.35 | 35% — les valeurs seules sont ambiguës (un diamètre et une hauteur se ressemblent numériquement) |
-| Fusion (header + values) | en évaluation | Combinaison des deux signaux |
+| Model | Macro-F1 | What this means |
+|-------|----------|-----------------|
+| Header (column name) | 0.77 | 77% of columns correctly classified by their name |
+| Values (statistical values) | 0.35 | 35% — values alone are ambiguous (a diameter and a height look similar numerically) |
+| Fusion (header + values) | ProductScore 80.04 / NiamotoOfflineScore 78.6 | Combined signal from both branches |
 
-Le score du header est le plus important car dans la majorité des cas, les colonnes ont des noms informatifs. Le modèle sur les valeurs intervient quand le nom est anonyme ou ambigu.
+The header score is the most important because in the majority of cases columns have informative names. The values model kicks in when the name is anonymous or ambiguous.
 
-## Limites connues
+## Known limitations
 
-- Les colonnes très rares (< 5 exemples dans le gold set) sont regroupées sous des catégories génériques
-- La calibration de confiance n'est pas encore en place — le modèle ne sait pas encore dire "je suis sûr à 85%"
-- Le modèle sur les valeurs reste faible pour distinguer deux types de mesures entre eux (diamètre vs hauteur) — mais ce n'est pas bloquant car le rôle "mesure" suffit pour proposer un histogramme
+- Very rare columns (< 5 examples in the gold set) are grouped under generic categories
+- Confidence calibration is not yet in place — the model cannot yet say "I am 85% confident"
+- The values model remains weak at distinguishing two measurement types from each other (diameter vs height) — but this is not blocking since the "measurement" role is sufficient to suggest a histogram
 
-## Architecture technique
+## Technical architecture
 
 ```
-CSV importé
+Imported CSV
      │
-     ├── Nom de colonne ──→ TF-IDF char n-grams ──→ LogisticRegression
-     │                                                      │
-     ├── Valeurs ──→ 37 features statistiques ──→ HistGradientBoosting
-     │                                                      │
-     └── Fusion ──→ LogReg calibrée sur les probas des 2 branches
-                           │
-                    Rôle détecté + confiance
-                           │
-                    Suggestion de paires transformer/widget
+     ├── Column name ──→ TF-IDF char n-grams ──→ LogisticRegression
+     │                                                   │
+     ├── Values ──→ 37 statistical features ──→ HistGradientBoosting
+     │                                                   │
+     └── Fusion ──→ LogReg calibrated on probabilities from both branches
+                          │
+                   Detected role + confidence
+                          │
+                   Suggested transformer/widget pairs
 ```
 
-## Fichiers clés
+## Academic References
 
-| Fichier | Rôle |
-|---------|------|
-| `src/niamoto/core/imports/ml/alias_registry.py` | Matching nom → concept via aliases multilingues |
-| `src/niamoto/core/imports/ml/column_aliases.yaml` | 25 concepts × 8 langues |
-| `src/niamoto/core/imports/ml/evaluation.py` | Harness d'évaluation (GroupKFold, holdouts) |
-| `src/niamoto/core/imports/ml/concept_taxonomy.py` | Fusion des 111 concepts fins → 61 concepts |
-| `src/niamoto/core/imports/profiler.py` | DataProfiler avec `ml_mode=auto/off/force` |
-| `scripts/ml/build_gold_set.py` | Construction du gold set (88 sources) |
-| `scripts/ml/train_header_model.py` | Entraînement branche header |
-| `scripts/ml/train_value_model.py` | Entraînement branche values |
-| `scripts/ml/evaluate.py` | CLI metric pour évaluation |
-| `data/gold_set.json` | 2231 colonnes labélisées |
+| Project | Year | Approach | Features | Performance | Ecological Relevance | Status |
+|---------|------|----------|----------|-------------|---------------------|--------|
+| **Sherlock** | 2019 | Deep NN | 1,588 | F1: 0.89 | Low (generic types) | Abandoned |
+| **Sato** | 2020 | Hybrid DL + Topic | 1,588+ | F1: 0.92 | Low | Inactive |
+| **Pythagoras** | 2024 | GNN | Graph-based | F1: 0.94 | Medium (numeric) | Active |
+| **GAIT** | 2024 | GNN variants | Multi-graph | F1: 0.93 | Medium | Active |
+| **GitTables** | 2023 | Dataset | N/A | Benchmark | High (diverse) | Active |
+
+Niamoto's approach differs from these academic systems: it uses a lightweight hybrid pipeline (TF-IDF + HistGradientBoosting + Fusion) optimized for ecological data, running fully offline with scikit-learn (~3 MB).
+
+## Key files
+
+| File | Purpose |
+|------|---------|
+| `src/niamoto/core/imports/ml/alias_registry.py` | Name → concept matching via multilingual aliases |
+| `src/niamoto/core/imports/ml/column_aliases.yaml` | 25 concepts × 8 languages |
+| `src/niamoto/core/imports/ml/evaluation.py` | Evaluation harness (GroupKFold, holdouts) |
+| `src/niamoto/core/imports/ml/concept_taxonomy.py` | Fusion of 111 fine concepts → 61 concepts |
+| `src/niamoto/core/imports/profiler.py` | DataProfiler with `ml_mode=auto/off/force` |
+| `scripts/ml/build_gold_set.py` | Gold set construction (88 sources) |
+| `scripts/ml/train_header_model.py` | Header branch training |
+| `scripts/ml/train_value_model.py` | Values branch training |
+| `scripts/ml/evaluate.py` | CLI metric for evaluation |
+| `data/gold_set.json` | 2,231 labelled columns |

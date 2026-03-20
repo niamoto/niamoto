@@ -1,156 +1,148 @@
 # Autoresearch Surrogate Loop
 
-## Objet
+## Purpose
 
-Ce document formalise le pivot suivant :
+This document formalises the following pivot:
 
-- arrêter de faire tourner `autoresearch` directement sur une métrique
-  end-to-end trop coûteuse ;
-- recentrer la boucle autonome sur une **surrogate loop fusion-only** ;
-- réserver les métriques stack complètes à la validation différée des meilleurs
-  candidats.
+- stop running `autoresearch` directly against an end-to-end metric that is
+  too costly;
+- refocus the autonomous loop on a **fusion-only surrogate loop**;
+- reserve full-stack metrics for deferred validation of the best candidates.
 
-## Problème constaté
+## Observed Problem
 
-Le pattern `autoresearch` n'a d'intérêt que s'il peut enchaîner beaucoup
-d'itérations de façon autonome.
+The `autoresearch` pattern is only worthwhile if it can chain many iterations
+autonomously.
 
-Sur cette branche, même les variantes récentes de métriques rapides restent trop
-chères :
+On this branch, even recent variants of fast metrics remain too expensive:
 
-- `product-score` : trop lent pour une boucle autonome ;
-- `product-score-mid` : encore trop coûteux pour une exploration large ;
-- `product-score-fast-fast` : plus court, mais encore trop long pour viser
-  50+ runs par session.
+- `product-score`: too slow for an autonomous loop;
+- `product-score-mid`: still too costly for broad exploration;
+- `product-score-fast-fast`: shorter, but still too long to target
+  50+ runs per session.
 
-Le vrai problème n'est donc pas seulement la métrique. C'est la **granularité de
-la recherche** :
+The real problem is therefore not just the metric. It is the **granularity of
+the search**:
 
-- on réentraîne toute la stack pour un changement souvent local ;
-- on paie un coût complet pour une modification qui concerne seulement la
-  fusion ;
-- la boucle autonome dépense son budget en certification au lieu de chercher.
+- we retrain the entire stack for a change that is often local;
+- we pay a full cost for a modification that only concerns the fusion;
+- the autonomous loop spends its budget on certification instead of exploring.
 
-## Décision
+## Decision
 
-Le prochain mode `autoresearch` ne doit plus être :
+The next `autoresearch` mode must no longer be:
 
-- `stack complète -> métrique complète -> garde-fous complets`
+- `full stack -> full metric -> full guardrails`
 
-à chaque itération.
+at every iteration.
 
-Il doit devenir :
+It must become:
 
-- `surrogate locale très bon marché -> beaucoup d'itérations`
-- puis `validation différée` sur les meilleurs candidats seulement.
+- `very cheap local surrogate -> many iterations`
+- then `deferred validation` on the best candidates only.
 
-## Principe de la boucle fusion-only
+## Principle of the Fusion-Only Loop
 
-La fusion est aujourd'hui le meilleur point d'entrée pour une surrogate loop,
-parce que :
+Fusion is currently the best entry point for a surrogate loop, because:
 
-- son périmètre est borné ;
-- ses changements sont souvent locaux ;
-- elle consomme des signaux déjà produits par `header` et `values` ;
-- elle peut être réentraînée beaucoup plus vite si on met les bons caches en
-  place.
+- its scope is bounded;
+- its changes are often local;
+- it consumes signals already produced by `header` and `values`;
+- it can be retrained much faster if the right caches are put in place.
 
-L'idée est de figer, pour un benchmark donné :
+The idea is to freeze, for a given benchmark:
 
-- les splits ;
-- les sorties de la branche `header` ;
-- les sorties de la branche `values` ;
-- les labels cibles ;
-- les features de fusion de base.
+- the splits;
+- the outputs of the `header` branch;
+- the outputs of the `values` branch;
+- the target labels;
+- the base fusion features.
 
-Ensuite, la boucle `autoresearch` ne réentraîne plus que le modèle de fusion,
-ou une petite variante de ses features, sans refaire la stack complète à chaque
-run.
+Then the `autoresearch` loop only retrains the fusion model, or a small
+variant of its features, without redoing the full stack on every run.
 
-## Ce que la surrogate loop doit optimiser
+## What the Surrogate Loop Must Optimise
 
-La métrique locale ne doit pas prétendre remplacer la vérité produit. Elle doit
-être :
+The local metric must not pretend to replace product truth. It must be:
 
-- rapide ;
-- stable ;
-- sensible aux vrais gains de fusion ;
-- suffisamment corrélée à la validation stack pour servir de filtre.
+- fast;
+- stable;
+- sensitive to genuine fusion gains;
+- sufficiently correlated with stack validation to serve as a filter.
 
-Dans ce mode, on optimise un **FusionSurrogateScore** calculé à partir de folds
-préparés à l'avance.
+In this mode, we optimise a **FusionSurrogateScore** computed from
+pre-prepared folds.
 
-Ce score doit surtout récompenser :
+This score should mainly reward:
 
-- la bonne combinaison `header/values` ;
-- la robustesse sur les colonnes anonymes ;
-- la qualité sur `en_field` ;
-- la qualité sur `tropical_field` et `research_traits` si ces exemples sont
-  présents dans le cache ;
-- la réduction des faux positifs `statistic.count` sur les colonnes codées.
+- the right `header/values` combination;
+- robustness on anonymous columns;
+- quality on `en_field`;
+- quality on `tropical_field` and `research_traits` if these examples are
+  present in the cache;
+- reduction of `statistic.count` false positives on coded columns.
 
-## Caches à produire
+## Caches to Produce
 
-La clé de vitesse est ici.
+Speed depends on this.
 
-Pour chaque fold figé, on veut stocker :
+For each frozen fold, we want to store:
 
 - `train_records`
 - `test_records`
-- probabilités `header` alignées sur tous les concepts
-- probabilités `values` alignées sur tous les concepts
-- méta-features de base de fusion
-- labels cibles
-- métadonnées de bucket :
+- `header` probabilities aligned on all concepts
+- `values` probabilities aligned on all concepts
+- base fusion meta-features
+- target labels
+- bucket metadata:
   - `tropical_field`
   - `research_traits`
   - `en_field`
   - `gbif_core_standard`
   - `anonymous`
 
-Format recommandé :
+Recommended format:
 
 - `data/cache/ml/fusion_surrogate/<cache_version>/fold_*.npz`
-- plus un `manifest.json` décrivant :
-  - hash du gold set
-  - liste des concepts
-  - protocole
-  - version des features
+- plus a `manifest.json` describing:
+  - gold set hash
+  - concept list
+  - protocol
+  - feature version
 
-## Deux niveaux de surrogate
+## Two Surrogate Levels
 
-### 1. Surrogate ultra-rapide
+### 1. Ultra-Fast Surrogate
 
-But :
+Goal:
 
-- explorer beaucoup ;
-- rejeter vite ;
-- accepter qu'elle soit un peu approximative.
+- explore broadly;
+- reject quickly;
+- accept that it is slightly approximate.
 
-Contenu recommandé :
+Recommended content:
 
-- quelques folds fixes ;
-- buckets critiques seulement ;
-- réentraînement fusion uniquement ;
-- pas de rerun header/value.
+- a few fixed folds;
+- critical buckets only;
+- fusion-only retraining;
+- no header/values rerun.
 
-### 2. Surrogate de promotion
+### 2. Promotion Surrogate
 
-But :
+Goal:
 
-- confirmer les meilleurs candidats ;
-- vérifier qu'un gain local fusion ne part pas dans une direction trompeuse.
+- confirm the best candidates;
+- verify that a local fusion gain is not heading in a misleading direction.
 
-Contenu recommandé :
+Recommended content:
 
-- même cache, mais plus de folds ou plus de buckets ;
-- toujours sans réentraîner toute la stack ;
-- coût plus élevé que l'ultra-rapide, mais encore bien inférieur au
-  `product-score` complet.
+- same cache, but more folds or more buckets;
+- still without retraining the entire stack;
+- higher cost than ultra-fast, but still well below the full `product-score`.
 
-## Chaîne de validation recommandée
+## Recommended Validation Chain
 
-La nouvelle chaîne doit devenir :
+The new chain should become:
 
 1. `fusion-surrogate-fast`
 2. `fusion-surrogate-mid`
@@ -159,126 +151,127 @@ La nouvelle chaîne doit devenir :
 5. `product-score`
 6. `niamoto-score`
 
-Interprétation :
+Interpretation:
 
-- les deux premiers niveaux servent à l'exploration autonome ;
-- les niveaux 3 à 6 servent à la promotion des vrais gagnants.
+- the first two levels serve autonomous exploration;
+- levels 3 to 6 serve promotion of genuine winners.
 
-## Règle d'acceptation recommandée
+## Recommended Acceptance Rule
 
-Un candidat peut être :
+A candidate can be:
 
 - `candidate`
-  - bat `fusion-surrogate-fast`
+  - beats `fusion-surrogate-fast`
 - `provisional`
-  - bat `fusion-surrogate-mid`
+  - beats `fusion-surrogate-mid`
 - `promotable`
-  - bat `product-score-fast-fast`
+  - beats `product-score-fast-fast`
 - `validated`
-  - bat `product-score-mid`
+  - beats `product-score-mid`
 - `certified`
-  - bat `product-score`
-  - ne casse pas `niamoto-score`
+  - beats `product-score`
+  - does not break `niamoto-score`
 
-Le point important :
+The important point:
 
-- la boucle autonome ne doit pas attendre `certified` pour continuer à vivre ;
-- elle doit surtout produire une file de candidats prometteurs.
+- the autonomous loop must not wait for `certified` before continuing to
+  run;
+- it should primarily produce a queue of promising candidates.
 
-## Périmètre initial recommandé
+## Recommended Initial Scope
 
-Premier chantier conseillé :
+First recommended work:
 
-- boucle `fusion-only`
+- `fusion-only` loop
 
-Fichiers concernés :
+Relevant files:
 
 - `scripts/ml/train_fusion.py`
 - `src/niamoto/core/imports/ml/classifier.py`
-- futur script de cache surrogate
+- future surrogate cache script
 
-À ne pas mettre dans la première boucle :
+Not to include in the first loop:
 
 - alias registry
-- règles de profiler
+- profiler rules
 - gold set
 - dashboard
-- docs produit
+- product docs
 
-## Non-objectifs
+## Non-Goals
 
-Ce pivot ne cherche pas à :
+This pivot does not seek to:
 
-- remplacer la validation produit réelle ;
-- masquer les régressions globales ;
-- supprimer le `product-score` ou le `niamoto-score`.
+- replace real product validation;
+- hide global regressions;
+- remove `product-score` or `niamoto-score`.
 
-Il cherche à :
+It seeks to:
 
-- rendre `autoresearch` enfin praticable ;
-- redonner de la cadence à l'exploration ;
-- séparer clairement exploration et certification.
+- make `autoresearch` finally practical;
+- restore cadence to exploration;
+- clearly separate exploration from certification.
 
-## État courant
+## Current State
 
-Les briques minimales sont maintenant en place :
+The minimal building blocks are now in place:
 
-1. construire le cache `fusion_surrogate`
-   via :
+1. build the `fusion_surrogate` cache
+   via:
 
 ```bash
 uv run python -m scripts.ml.build_fusion_surrogate_cache --gold-set data/gold_set.json --splits 3
 ```
 
-2. exposer une commande type :
+2. expose a command such as:
 
 ```bash
 uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-fast
 ```
 
-3. exposer aussi :
+3. also expose:
 
 ```bash
 uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-mid
 ```
 
-4. faire tourner `autoresearch` uniquement sur ces métriques
-5. ne promouvoir en validation stack complète que les meilleurs candidats
+4. run `autoresearch` only on these metrics
+5. promote only the best candidates to full stack validation
 
-Runner local ajouté :
+Local runner added:
 
 ```bash
 uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50
 ```
 
-Comportement :
+Behaviour:
 
-- calcule les baselines `surrogate-fast`, `surrogate-mid`
-- diffère `product-score-fast-fast` jusqu'au premier candidat qui passe `surrogate-mid`
-- lance une itération `codex` par candidat
-- évalue lui-même les gates
-- revert les perdants
-- committe automatiquement les gagnants pour garder un worktree propre
-- écrit un journal JSONL sous `.autoresearch/`
+- computes `surrogate-fast`, `surrogate-mid` baselines
+- defers `product-score-fast-fast` until the first candidate that passes `surrogate-mid`
+- launches one `codex` iteration per candidate
+- evaluates gates itself
+- reverts losers
+- automatically commits winners to keep a clean worktree
+- writes a JSONL log under `.autoresearch/`
 
-## Premières mesures
+## First Measurements
 
-Sur le gold set courant :
+On the current gold set:
 
-- build du cache `fusion_surrogate` (`splits=3`) :
-  - environ `490s` (`~8m10s`)
-- `surrogate-fast` sur cache chaud :
-  - environ `1.66s`
-- `surrogate-mid` sur cache chaud :
-  - environ `1.31s`
+- `fusion_surrogate` cache build (`splits=3`):
+  - approximately `490s` (`~8m10s`)
+- `surrogate-fast` on warm cache:
+  - approximately `1.66s`
+- `surrogate-mid` on warm cache:
+  - approximately `1.31s`
 
-Lecture :
+Reading:
 
-- le build initial reste un coût one-shot notable ;
-- en revanche, les runs fusion-only sont enfin suffisamment rapides pour
-  supporter une vraie boucle `autoresearch`.
+- the initial build remains a notable one-shot cost;
+- however, fusion-only runs are now fast enough to support a real
+  `autoresearch` loop.
 
-## Décision de référence
+## Reference Decision
 
-Tant que cette surrogate loop n'existe pas, `autoresearch` stack complet reste
-structurellement trop lent pour délivrer sa vraie valeur.
+As long as this surrogate loop does not exist, full-stack `autoresearch`
+remains structurally too slow to deliver its real value.

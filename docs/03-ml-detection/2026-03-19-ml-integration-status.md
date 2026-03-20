@@ -1,38 +1,38 @@
-# Point complet — ML Detection × Application Niamoto
+# Full Status Report — ML Detection × Niamoto Application
 
-## Contexte
+## Context
 
-La branche `feat/ml-detection-improvement` a construit un pipeline ML complet
-(alias → header → values → fusion → semantic_profile → affordances). Ce document
-fait le point sur ce qui marche, ce qui est intégré à l'app, et ce qui reste à
-connecter.
+The `feat/ml-detection-improvement` branch built a complete ML pipeline
+(alias → header → values → fusion → semantic_profile → affordances). This document
+reviews what works, what is integrated into the app, and what still needs to be
+connected.
 
 ---
 
-## 1. État des modèles ML
+## 1. ML Model Status
 
-### Modèles entraînés et livrés
+### Trained and Delivered Models
 
-| Modèle | Fichier | Taille | Technique |
-|--------|---------|--------|-----------|
+| Model | File | Size | Technique |
+|-------|------|------|-----------|
 | Header | `models/header_model.joblib` | 2.6 MB | TF-IDF char n-grams + LogReg |
 | Values | `models/value_model.joblib` | 38 MB | HistGradientBoosting (38 features) |
-| Fusion | `models/fusion_model.joblib` | 50 KB | LogReg sur probas alignées + méta-features |
+| Fusion | `models/fusion_model.joblib` | 50 KB | LogReg on aligned probas + meta-features |
 
-Les 3 modèles sont **bundlés dans le package** via `pyproject.toml` et chargés
-lazily au runtime par `ColumnClassifier`.
+All 3 models are **bundled in the package** via `pyproject.toml` and loaded
+lazily at runtime by `ColumnClassifier`.
 
-### Gold set
+### Gold Set
 
-- **2492 colonnes** (1896 gold + 596 synthetic)
-- **61 concepts**, **10 rôles**, **7 langues**
-- Sources : Guyane (Paracou), GBIF ciblé (NC/GF/GA/CM), GBIF institutionnel
-  (GA/CM), inventaires forestiers, données synthétiques
+- **2492 columns** (1896 gold + 596 synthetic)
+- **61 concepts**, **10 roles**, **7 languages**
+- Sources: Guyane (Paracou), targeted GBIF (NC/GF/GA/CM), institutional GBIF
+  (GA/CM), forest inventories, synthetic data
 
-### Scores actuels
+### Current Scores
 
-| Métrique | Score |
-|----------|-------|
+| Metric | Score |
+|--------|-------|
 | **NiamotoOfflineScore** | 78.6 |
 | **ProductScore** | 79.2 |
 | GBIF core standard | 96.3 |
@@ -42,173 +42,173 @@ lazily au runtime par `ColumnClassifier`.
 | en_field | 75.9 |
 | forest_inventory | 41.8 |
 
-**Verdict modèles** : bons sur GBIF standard et colonnes anonymes, moyens sur
-le terrain tropical et les headers codés métier.
+**Model verdict**: strong on GBIF standard and anonymous columns, average on
+tropical field data and business-coded headers.
 
 ---
 
-## 2. Intégration dans l'application — ce qui MARCHE
+## 2. Integration in the Application — What WORKS
 
-### Pipeline d'import (end-to-end fonctionnel)
+### Import Pipeline (end-to-end functional)
 
 ```
 Upload CSV → POST /api/smart-config/auto-configure
-  → ColumnDetector (règles + heuristiques)
-  → Détection hiérarchie / relations FK
-  → Génération import.yml
-  → Review/édition par l'utilisateur
+  → ColumnDetector (rules + heuristics)
+  → Hierarchy / FK relation detection
+  → import.yml generation
+  → Review/edit by user
   → POST /api/imports/execute/all
   → DataProfiler → ColumnClassifier (ML 3 branches)
-  → Semantic profiles stockés dans EntityRegistry
-  → Suggestions de transformers disponibles
+  → Semantic profiles stored in EntityRegistry
+  → Transformer suggestions available
 ```
 
-### Composants GUI fonctionnels
+### Functional GUI Components
 
-- **ImportWizard** : wizard 6 phases (upload → config → review → import → done)
-- **FileUploadZone** : drag-drop CSV/GPKG/TIF/ZIP
-- **AutoConfigDisplay** : affiche datasets/références/liens détectés
-- **YamlPreview** : revue YAML avant import
-- **ImportProgress** : suivi asynchrone avec polling
+- **ImportWizard**: 6-phase wizard (upload → config → review → import → done)
+- **FileUploadZone**: drag-and-drop CSV/GPKG/TIF/ZIP
+- **AutoConfigDisplay**: shows detected datasets/references/links
+- **YamlPreview**: YAML review before import
+- **ImportProgress**: async tracking with polling
 
-### API endpoints actifs
+### Active API Endpoints
 
-| Endpoint | Rôle | ML ? |
-|----------|------|------|
-| `POST /api/smart-config/auto-configure` | Auto-config complète | Heuristiques |
-| `POST /api/smart-config/analyze-file` | Analyse colonnes | Heuristiques |
-| `POST /api/smart-config/detect-hierarchy` | Hiérarchie taxo | Heuristiques |
-| `POST /api/imports/execute/all` | Import complet | **ML (profiler)** |
-| `GET /api/transformer-suggestions/{entity}` | Suggestions widgets | Via profils sémantiques |
+| Endpoint | Role | ML? |
+|----------|------|-----|
+| `POST /api/smart-config/auto-configure` | Full auto-config | Heuristics |
+| `POST /api/smart-config/analyze-file` | Column analysis | Heuristics |
+| `POST /api/smart-config/detect-hierarchy` | Taxo hierarchy | Heuristics |
+| `POST /api/imports/execute/all` | Full import | **ML (profiler)** |
+| `GET /api/transformer-suggestions/{entity}` | Widget suggestions | Via semantic profiles |
 
-### Semantic profiles & affordances
+### Semantic Profiles & Affordances
 
-- `semantic_profile.py` : role + concept + affordances par colonne
-- `affordance_matcher.py` : matching transformer→widget
-- Profils stockés dans `EntityRegistry` après import
-- Suggestions de transformers récupérables via API
+- `semantic_profile.py`: role + concept + affordances per column
+- `affordance_matcher.py`: transformer→widget matching
+- Profiles stored in `EntityRegistry` after import
+- Transformer suggestions retrievable via API
 
 ---
 
-## 3. Le GAP — ce qui N'EST PAS connecté
+## 3. The GAP — What Is NOT Connected
 
-### Le ML ne tourne PAS pendant l'auto-config
+### ML Does NOT Run During Auto-Config
 
-C'est le point central :
+This is the central issue:
 
-- **Pendant l'upload/auto-config** : `ColumnDetector` utilise des **règles
-  heuristiques** (patterns regex, FK par nom), PAS le classifier ML
-- **Pendant l'import** : `DataProfiler` utilise le **classifier ML complet**
+- **During upload/auto-config**: `ColumnDetector` uses **heuristic rules**
+  (regex patterns, FK by name), NOT the ML classifier
+- **During import**: `DataProfiler` uses the **full ML classifier**
   (alias → header → values → fusion)
-- L'utilisateur voit le résultat des heuristiques, pas du ML
+- The user sees heuristic results, not ML results
 
-Conséquence : la qualité de l'auto-config dépend des heuristiques, pas des
-modèles ML entraînés.
+Consequence: auto-config quality depends on heuristics, not on the trained
+ML models.
 
-### Scores de confiance ML invisibles
+### ML Confidence Scores Are Invisible
 
-- Le classifier produit un score de confiance (0-1) par colonne
-- Ce score n'est **jamais montré à l'utilisateur** dans le GUI
-- L'utilisateur ne sait pas si la détection est sûre ou incertaine
+- The classifier produces a confidence score (0-1) per column
+- This score is **never shown to the user** in the GUI
+- The user does not know whether detection is reliable or uncertain
 
-### Semantic profiles invisibles pendant l'import
+### Semantic Profiles Invisible During Import
 
-- Les profils sont générés et stockés mais **pas affichés**
-- Pas d'endpoint pour récupérer les profils intermédiaires
-- L'utilisateur ne voit pas les affordances détectées
+- Profiles are generated and stored but **not displayed**
+- No endpoint to retrieve intermediate profiles
+- The user does not see detected affordances
 
-### Suggestions de widgets pas connectées au GUI
+### Widget Suggestions Not Connected to the GUI
 
-- `class_object_suggester.py` existe mais **pas câblé à l'UI**
-- L'endpoint `transformer-suggestions` fonctionne mais n'est **pas appelé**
-  automatiquement après l'import
+- `class_object_suggester.py` exists but is **not wired to the UI**
+- The `transformer-suggestions` endpoint works but is **not called**
+  automatically after import
 
 ---
 
-## 4. Deux systèmes de détection parallèles
+## 4. Two Parallel Detection Systems
 
-| Composant | Quand | Technique | Fichier |
-|-----------|-------|-----------|---------|
-| `ColumnDetector` | Auto-config (avant import) | Règles/heuristiques | `column_detector.py` |
+| Component | When | Technique | File |
+|-----------|------|-----------|------|
+| `ColumnDetector` | Auto-config (before import) | Rules/heuristics | `column_detector.py` |
 | `ColumnClassifier` | Import (profiling) | ML 3 branches | `classifier.py` |
 
-C'est la source de confusion : le travail ML de la branche améliore
-`ColumnClassifier`, mais l'utilisateur voit d'abord `ColumnDetector`.
+This is the source of confusion: the ML work on this branch improves
+`ColumnClassifier`, but the user first sees `ColumnDetector`.
 
 ---
 
-## 5. Options pour combler le gap
+## 5. Options to Close the Gap
 
-### Option A — Brancher le ML dans l'auto-config
+### Option A — Wire ML into Auto-Config
 
-- Remplacer ou compléter `ColumnDetector` par `ColumnClassifier` dans
+- Replace or complement `ColumnDetector` with `ColumnClassifier` in
   `smart_config.py`
-- L'utilisateur verrait le ML dès l'upload
-- Risque : le ML est plus lent que les heuristiques (chargement modèles)
+- The user would see ML results as soon as they upload
+- Risk: ML is slower than heuristics (model loading)
 
-### Option B — Montrer les résultats ML après import
+### Option B — Show ML Results After Import
 
-- Ajouter un endpoint `/api/semantic-profiles/{entity}`
-- Afficher les profils sémantiques + confiance dans l'UI post-import
-- Moins disruptif, permet de valider visuellement la qualité ML
+- Add an endpoint `/api/semantic-profiles/{entity}`
+- Display semantic profiles + confidence in the post-import UI
+- Less disruptive, allows visual validation of ML quality
 
-### Option C — Fusionner les deux détecteurs
+### Option C — Merge the Two Detectors
 
-- `ColumnDetector` devient un wrapper qui appelle d'abord `AliasRegistry`,
-  puis `ColumnClassifier`, puis les règles de fallback
-- Un seul chemin de détection pour toute l'app
-- Plus cohérent mais plus gros chantier
+- `ColumnDetector` becomes a wrapper that first calls `AliasRegistry`,
+  then `ColumnClassifier`, then fallback rules
+- A single detection path for the entire app
+- More coherent but a larger undertaking
 
-### Option D — Figer et merger la branche telle quelle
+### Option D — Freeze and Merge the Branch As-Is
 
-- Le ML tourne pendant l'import, c'est déjà utile
-- Les heuristiques de l'auto-config marchent pour les cas simples
-- On connecte le ML au GUI dans une prochaine itération
+- ML runs during import, which is already useful
+- Auto-config heuristics work for simple cases
+- Connect ML to the GUI in a future iteration
 
 ---
 
-## 6. Recommandation retenue
+## 6. Retained Recommendation
 
-### Phase 1 — Merger la branche telle quelle
+### Phase 1 — Merge the Branch As-Is
 
-Le ML tourne pendant l'import, les modèles sont livrés, les tests passent.
-Merger maintenant pour arrêter d'accumuler de la dette d'intégration.
+ML runs during import, models are delivered, tests pass.
+Merge now to stop accumulating integration debt.
 
-Prérequis avant merge :
-- [ ] Vérifier que les tests passent sur main
-- [ ] Nettoyer les fichiers obsolètes (`current-state.md` de décembre 2024)
-- [ ] S'assurer que les modèles .joblib sont dans le bon état
-- [ ] Rebase propre ou squash merge
+Prerequisites before merge:
+- [ ] Verify tests pass on main
+- [ ] Clean up obsolete files (`current-state.md` from December 2024)
+- [ ] Ensure .joblib models are in the correct state
+- [ ] Clean rebase or squash merge
 
-### Phase 2 — Câbler le ML dans ColumnDetector
+### Phase 2 — Wire ML into ColumnDetector
 
-Faire de `ColumnClassifier` le moteur de détection sémantique unique :
+Make `ColumnClassifier` the single semantic detection engine:
 
-- `ColumnDetector` garde : analyse FK, détection hiérarchie, inference
-  dataset vs reference
-- `ColumnDetector` délègue à `ColumnClassifier` : classification sémantique
-  de colonne (type, concept, confiance)
-- `smart_config.py` expose les scores ML dans la réponse auto-configure
-- Le GUI affiche la confiance par colonne dans `AutoConfigDisplay`
+- `ColumnDetector` keeps: FK analysis, hierarchy detection, dataset vs
+  reference inference
+- `ColumnDetector` delegates to `ColumnClassifier`: semantic column
+  classification (type, concept, confidence)
+- `smart_config.py` exposes ML scores in the auto-configure response
+- GUI displays per-column confidence in `AutoConfigDisplay`
 
-Fichiers à modifier :
-- `src/niamoto/core/utils/column_detector.py` — appeler ColumnClassifier
-- `src/niamoto/gui/api/routers/smart_config.py` — retourner les scores ML
-- `gui/ui/src/components/sources/AutoConfigDisplay.tsx` — afficher confiance
+Files to modify:
+- `src/niamoto/core/utils/column_detector.py` — call ColumnClassifier
+- `src/niamoto/gui/api/routers/smart_config.py` — return ML scores
+- `gui/ui/src/components/sources/AutoConfigDisplay.tsx` — display confidence
 
-### Phase 3 — Exposer les semantic profiles dans l'UI
+### Phase 3 — Expose Semantic Profiles in the UI
 
 - Endpoint `GET /api/semantic-profiles/{entity_name}`
-- Afficher affordances et suggestions post-import
-- Câbler `class_object_suggester` au GUI
+- Display affordances and suggestions post-import
+- Wire `class_object_suggester` to the GUI
 
 ---
 
-## 7. Résumé
+## 7. Summary
 
-Le pipeline ML est **construit, entraîné et intégré au profiling d'import**,
-mais l'utilisateur ne le voit pas encore pendant l'auto-config — il voit les
-heuristiques de `ColumnDetector`, pas les modèles ML.
+The ML pipeline is **built, trained, and integrated into import profiling**,
+but the user does not yet see it during auto-config — they see the
+`ColumnDetector` heuristics, not the ML models.
 
-La solution propre : merger d'abord, puis unifier les détecteurs pour que tout
-le travail autoresearch bénéficie directement à l'UX.
+The clean solution: merge first, then unify the detectors so that all the
+autoresearch work directly benefits the UX.
