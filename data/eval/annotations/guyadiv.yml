@@ -1,0 +1,68 @@
+# Ground truth annotations for GUYADIV (Guyane Française).
+# 61 columns: 29 trees + 32 plots.
+# Data: data/silver/guyane/
+
+GUYADIV_trees_v1.csv:
+  tree_label: identifier.record
+  plot_label: identifier.plot
+  subpl_label: identifier.plot
+  subpl_type: category.plot_type
+  subpl_width: measurement.area
+  subpl_length: measurement.area
+  subpl_x_orig: location.coordinate
+  subpl_y_orig: location.coordinate
+  x: location.coordinate
+  y: location.coordinate
+  rank: taxonomy.rank
+  det_uncertain: category.status
+  taxon: taxonomy.name
+  auth_sp: text.metadata
+  auth_inf_sp: taxonomy.name
+  species: taxonomy.species
+  family: taxonomy.family
+  det_by: text.observer
+  date_det: event.date
+  vouchers: identifier.collection
+  date1: event.date
+  dbh1: measurement.diameter
+  dbh_other1: measurement.diameter
+  pheno1: category.ecology
+  date2: event.date
+  dbh2: measurement.diameter
+  dbh_other2: measurement.diameter
+  pheno2: category.ecology
+  dead2: category.status
+
+GUYADIV_plots_v1.csv:
+  plot_label: identifier.plot
+  site: location.locality
+  elevation: location.elevation
+  long_dd: location.longitude
+  lat_dd: location.latitude
+  X_UTM: location.coordinate
+  Y_UTM: location.coordinate
+  type: category.plot_type
+  dim: measurement.area
+  area: measurement.area
+  no_subpl: statistic.count
+  date1: event.date
+  authors1: text.observer
+  date2: event.date
+  authors2: text.observer
+  comments: text.description
+  dbh10_inv1: statistic.count
+  sp_dbh10_inv1: statistic.count
+  fam_dbh10_inv1: statistic.count
+  indet_dbh10_inv1: statistic.count
+  dbh10_inv2: statistic.count
+  sp_dbh10_inv2: statistic.count
+  fam_dbh10_inv2: statistic.count
+  indet_dbh10_inv2: statistic.count
+  dbh2_10_inv1: statistic.count
+  sp_dbh2_10_inv1: statistic.count
+  fam_dbh2_10_inv1: statistic.count
+  indet_dbh2_10_inv1: statistic.count
+  dbh2-10_inv2: statistic.count
+  sp_dbh2_10_inv2: statistic.count
+  fam_dbh2_10_inv2: statistic.count
+  indet_dbh2_10_inv2: statistic.count

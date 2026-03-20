@@ -1,0 +1,66 @@
+# GBIF Darwin Core annotations — reusable for any standard GBIF export.
+# Covers ~50 strategic columns for portal generation.
+# Auto-detected via presence of gbifID or (decimalLatitude + scientificName).
+# Non-annotated metadata/system columns are skipped during evaluation.
+
+_gbif_core:
+  # ── Identifiers ──
+  gbifID: identifier.record
+  occurrenceID: identifier.record
+  catalogNumber: identifier.collection
+  collectionCode: identifier.collection
+  institutionCode: identifier.institution
+  acceptedTaxonKey: identifier.taxon
+  taxonKey: identifier.taxon
+  speciesKey: identifier.taxon
+  key: identifier.record
+
+  # ── Taxonomy ──
+  scientificName: taxonomy.species
+  acceptedScientificName: taxonomy.species
+  kingdom: taxonomy.kingdom
+  phylum: taxonomy.phylum
+  class: taxonomy.class
+  order: taxonomy.order
+  family: taxonomy.family
+  genus: taxonomy.genus
+  species: taxonomy.species
+  genericName: taxonomy.genus
+  specificEpithet: taxonomy.species
+  infraspecificEpithet: taxonomy.name
+  taxonRank: taxonomy.rank
+  taxonomicStatus: category.status
+  scientificNameAuthorship: text.metadata
+  vernacularName: taxonomy.vernacular_name
+
+  # ── Location ──
+  decimalLatitude: location.latitude
+  decimalLongitude: location.longitude
+  coordinateUncertaintyInMeters: measurement.uncertainty
+  country: location.country
+  countryCode: location.country
+  stateProvince: location.admin_area
+  county: location.admin_area
+  locality: location.locality
+  verbatimLocality: location.locality
+  continent: location.continent
+  elevation: location.elevation
+
+  # ── Event ──
+  eventDate: event.date
+  verbatimEventDate: event.date
+  year: event.year
+  month: event.date
+  day: event.date
+
+  # ── Observation ──
+  basisOfRecord: category.basis
+  recordedBy: text.observer
+  identifiedBy: text.observer
+  individualCount: statistic.count
+  sex: category.ecology
+  lifeStage: category.ecology
+  reproductiveCondition: category.ecology
+  habitat: category.habitat
+  occurrenceStatus: category.status
+  samplingProtocol: category.method
