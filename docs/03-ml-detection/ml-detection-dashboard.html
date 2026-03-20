@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Niamoto — ML Column Detection: Scientific Dashboard</title>
+<title>Niamoto — ML Semantic Column Detection: Dashboard</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -195,15 +195,13 @@ details[open] summary { margin-bottom: 8px; }
 <!-- Hero -->
 <section id="hero" class="hero">
 <div class="container">
-  <h1>Automatic CSV Column Detection via Machine Learning</h1>
+  <h1>Automatic Semantic Column Detection via Machine Learning</h1>
   <p class="subtitle">Niamoto — Generic Ecological Data Platform</p>
   <div class="stats-grid">
     <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.04</div><div class="label">ProductScore <span class="info-tip" title="Weighted composite score across 6 data families (tropical, traits, GBIF core/extended, field, anonymous). Primary optimization metric for the fusion model.">&#9432;</span></div></div>
-    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">NiamotoOfflineScore <span class="info-tip" title="Global score with all holdout families and languages. Measures end-to-end offline reliability without any LLM dependency.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">GlobalScore <span class="info-tip" title="Complete score with all holdout families and languages. Measures end-to-end reliability across every data type and language in the gold set.">&#9432;</span></div></div>
     <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the gold set (training data). Each entry has a column name, value statistics, and a verified semantic concept label.">&#9432;</span></div></div>
-    <div class="stat-card green"><div class="value">94+</div><div class="label">Sources <span class="info-tip" title="Distinct CSV files used to build the gold set: forest inventories (GUYADIV, IFN, FIA, Paracou), GBIF exports, synthetic fixtures, and instance data (niamoto-nc, niamoto-gb, Afrique).">&#9432;</span></div></div>
-    <div class="stat-card"><div class="value">5</div><div class="label">Continents <span class="info-tip" title="Training data spans Africa, South America, North America, Europe, and Oceania. Ensures the model generalizes across tropical and temperate ecosystems.">&#9432;</span></div></div>
-    <div class="stat-card purple"><div class="value">8</div><div class="label">Languages <span class="info-tip" title="Column names in English, French, Spanish, Portuguese, German, Indonesian, Darwin Core standard (DwC), and FIA codes. The header model uses character n-grams to handle cross-language variations.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">94+</div><div class="label">Sources <span class="info-tip" title="Distinct data files used to build the gold set: forest inventories (GUYADIV, IFN, FIA, Paracou), GBIF exports, synthetic fixtures, and instance data (niamoto-nc, niamoto-gb, Afrique).">&#9432;</span></div></div>
     <div class="stat-card"><div class="value">61</div><div class="label">Concepts <span class="info-tip" title="Distinct semantic concepts after coarsening (e.g. taxonomy.species, measurement.diameter, location.elevation). Fine-grained concepts (~116) are merged via concept_taxonomy.py for better ML performance.">&#9432;</span></div></div>
   </div>
   <div class="stats-grid" style="margin-top:16px;">
@@ -222,7 +220,7 @@ details[open] summary { margin-bottom: 8px; }
   <p class="section-desc">Hybrid 5-layer pipeline: exact aliases &rarr; header classification &rarr; values classification &rarr; fusion &rarr; semantic product projection. The goal is not academic perfection on fine-grained concepts, but correct auto-configuration of an import.</p>
 
   <div class="pipeline">
-    <div style="text-align:center; color:var(--gray-500); font-size:14px; font-weight:500;">Unknown CSV Column</div>
+    <div style="text-align:center; color:var(--gray-500); font-size:14px; font-weight:500;">Unknown Column</div>
     <div class="pipeline-arrow">&darr;</div>
 
     <div class="pipeline-box" onclick="showDetail('alias')" style="width:100%;max-width:400px;border-color:var(--green);background:var(--green-light);">
@@ -381,7 +379,7 @@ details[open] summary { margin-bottom: 8px; }
 <section id="evaluation">
 <div class="container">
   <h2><span class="num">04</span>Evaluation Results</h2>
-  <p class="section-desc">The primary metric is the <strong>ProductScore</strong>, a weighted composite of family-specific holdout scores. Secondary: NiamotoOfflineScore (78.6) for overall offline reliability. The holdouts test generalization by language, data family, and structural diagnostics.</p>
+  <p class="section-desc">The primary metric is the <strong>ProductScore</strong>, a weighted composite of family-specific holdout scores. Secondary: GlobalScore (78.6) for complete holdout reliability. The holdouts test generalization by language, data family, and structural diagnostics.</p>
 
   <h3>4a — ProductScore Breakdown</h3>
   <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;">Weighted composite score across 6 strategically chosen data families. Each family represents a distinct usage scenario for Niamoto.</p>
