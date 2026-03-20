@@ -26,10 +26,6 @@ Machine learning-based column detection and automatic configuration generation f
 
 - **[Experiment Logs](experiments/)** — Session logs and evaluation results (iteration logs, instance evaluation, session handoffs)
 
-### Archive
-
-- **[Archive](archive/)** — Obsolete documentation from the December 2024 era (Random Forest system). See `archive/README.md` for context.
-
 ## Technical Stack
 
 - **scikit-learn**: TF-IDF, LogisticRegression, HistGradientBoosting
