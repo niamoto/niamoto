@@ -1,28 +1,62 @@
-# Évaluation par instance — niamoto-subset (2026-03-20)
+# Évaluation multi-instance ML (2026-03-20)
 
 ## Objet
 
-Première évaluation complète du ML sur une instance réelle finalisée.
-Mesure la qualité de détection sur **toutes les colonnes** (57), pas seulement
-les colonnes structurelles de l'import.yml.
+Évaluation complète du ML sur plusieurs datasets réels :
+- **Tier 1** : 3 instances de production (niamoto-nc, niamoto-gb, GUYADIV)
+- **Tier 1b** : exports GBIF Darwin Core (NC, Gabon, institutionnel)
+- **Tier 2** : 7+ fichiers silver représentatifs
 
 ## Méthode
 
-- Ground truth manuelle : `test-instance/niamoto-subset/config/column_annotations.yml`
-- 29 colonnes `occurrences.csv` + 28 colonnes `plots.csv` = 57 colonnes
-- Script : `scripts/ml/evaluate_instance.py --compare`
-- Modèles utilisés : header (0.7614), values (0.3783), fusion (0.6899)
-  avec features cross-rank reciprocity
+- Ground truth manuelle centralisée : `data/eval/annotations/`
+- Script : `scripts/ml/eval/run_eval_suite.py`
+- Évaluateur : `scripts/ml/eval/evaluate_instance.py`
+- Modèles : header (0.7614), values (0.3783), fusion (0.6899) + cross-rank reciprocity
+- Détection auto du séparateur CSV (virgule, tab, point-virgule)
+- Lecture limitée à 500 lignes par fichier
 
-## Résultats globaux
+## Structure d'évaluation
 
-| Mode | Role correct | Concept correct |
-|------|-------------|-----------------|
-| **Alias seul** | 15/57 (26%) | 14/57 (25%) |
-| **ML** | 35/57 (61%) | 26/57 (46%) |
-| **Delta** | **+35 pts** | **+21 pts** |
+```
+data/eval/
+  annotations/
+    niamoto-nc.yml          # 57 cols (29 occ + 28 plots)
+    niamoto-gb.yml          # 27 cols (19 occ + 8 plots)
+    guyadiv.yml             # 61 cols (29 trees + 32 plots)
+    gbif_darwin_core.yml    # ~50 cols DwC réutilisables
+    silver.yml              # ~136 cols sur 9 fichiers
+  results/                  # JSON horodatés
+```
 
-## Résultats par fichier
+## Résultats par dataset
+
+### Tier 1 — Instances de production
+
+| Instance | Colonnes | Role% | Concept% |
+|----------|----------|-------|----------|
+| niamoto-nc | 57 | 61.4% | 45.6% |
+| niamoto-gb | 27 | 88.9% | 66.7% |
+| guyadiv | 61 | 85.2% | 63.9% |
+
+### Tier 1b — GBIF Darwin Core
+
+| Source | Colonnes annotées | Role% | Concept% |
+|--------|-------------------|-------|----------|
+| GBIF NC régional | 51 | 84.3% | 76.5% |
+| GBIF Gabon régional | 45 | 86.7% | 77.8% |
+| GBIF Gabon institutionnel | 41 | 82.9% | 75.6% |
+
+### Tier 2 — Silver représentatif
+
+| Dataset | Colonnes | Role% | Concept% |
+|---------|----------|-------|----------|
+| silver (agrégé) | 136 | 86.0% | 66.2% |
+
+Fichiers inclus : Berenty (Madagascar), BCI allométrie, Catalonia IEFC,
+IFN France, Finland/Sweden, Afrique occ+plots, FIA Florida.
+
+## Résultats détaillés — niamoto-nc
 
 ### occurrences.csv (29 colonnes)
 
@@ -30,15 +64,6 @@ les colonnes structurelles de l'import.yml.
 |------|------|---------|
 | Alias seul | 11/29 (38%) | 11/29 (38%) |
 | ML | 16/29 (55%) | 14/29 (48%) |
-
-### plots.csv (28 colonnes)
-
-| Mode | Role | Concept |
-|------|------|---------|
-| Alias seul | 4/28 (14%) | 3/28 (11%) |
-| ML | 19/28 (68%) | 12/28 (43%) |
-
-## Détail ML — occurrences.csv
 
 | Colonne | Attendu | Détecté | Conf | R | C |
 |---------|---------|---------|------|---|---|
@@ -72,7 +97,12 @@ les colonnes structurelles de l'import.yml.
 | in_um | category.status | measurement.diameter | 0.77 | ✗ | ✗ |
 | geo_pt | location.coordinate | location.coordinate | 0.93 | ✓ | ✓ |
 
-## Détail ML — plots.csv
+### plots.csv (28 colonnes)
+
+| Mode | Role | Concept |
+|------|------|---------|
+| Alias seul | 4/28 (14%) | 3/28 (11%) |
+| ML | 19/28 (68%) | 12/28 (43%) |
 
 | Colonne | Attendu | Détecté | Conf | R | C |
 |---------|---------|---------|------|---|---|
@@ -105,99 +135,100 @@ les colonnes structurelles de l'import.yml.
 | understorey | measurement.canopy | statistic.count | 0.94 | ✗ | ✗ |
 | geo_pt | location.coordinate | location.coordinate | 0.93 | ✓ | ✓ |
 
-## Patterns d'erreurs identifiés
+## Patterns d'erreurs cross-dataset
 
 ### 1. Sur-prédiction `measurement.diameter`
 
-Le modèle prédit `measurement.diameter` pour de nombreuses colonnes qui ne sont
-pas des diamètres. C'est le biais le plus fréquent.
+Le biais le plus fréquent. Le modèle prédit `measurement.diameter` pour de
+nombreuses colonnes qui ne sont pas des diamètres.
 
-Colonnes affectées :
-- `flower`, `fruit` → booléens (category.ecology)
-- `in_um` → booléen (category.status)
-- `infra` → texte taxonomique (taxonomy.name)
-- `shannon`, `pielou`, `simpson` → indices de diversité (measurement.trait)
-- `h_mean` → hauteur moyenne (measurement.height)
-- `gymnospermae`, `monocotyledonae`, `dicotyledonae` → comptages (statistic.count)
-- `canopy` → strate (measurement.canopy)
+Colonnes affectées (multi-dataset) :
+- Booléens : `flower`, `fruit`, `in_um` → category.ecology/status
+- Indices diversité : `shannon`, `pielou`, `simpson` → measurement.trait
+- Comptages taxonomiques : `gymnospermae`, `monocotyledonae`, `dicotyledonae`
+- Strate : `canopy` → measurement.canopy
+- Hauteur : `h_mean` → measurement.height
 
-Hypothèse : le modèle `values` voit des distributions numériques et les associe
-trop facilement à `measurement.diameter` qui est surreprésenté dans le gold set.
+Hypothèse : `measurement.diameter` surreprésenté dans le gold set, le modèle
+values associe trop facilement les distributions numériques continues à ce concept.
 
 ### 2. Concept `measurement.trait` non reconnu
 
-Aucune colonne `measurement.trait` n'est correctement détectée :
-- `bark_thickness`, `leaf_ldmc`, `leaf_sla`, `leaf_thickness` → `other`
-- `species_level`, `shannon`, `pielou`, `simpson` → `other` ou `measurement.diameter`
-
-Hypothèse : les noms composés (`leaf_ldmc`, `leaf_sla`) ne sont pas dans les
-patterns connus du header, et les valeurs ne distinguent pas un trait d'une
-autre mesure continue.
+Aucune colonne `measurement.trait` correctement détectée sur niamoto-nc.
+Problème confirmé cross-dataset (silver, GUYADIV).
 
 ### 3. Concept `category.*` mal détecté
 
-Les colonnes catégorielles sont rarement reconnues :
+Les colonnes catégorielles métier ne sont pas couvertes :
 - `holdridge`, `strata`, `in_forest` → `other` ou faux positif
-- `flower`, `fruit` → `measurement.diameter` (booléens traités comme numériques)
+- Booléens traités comme numériques
 
-Hypothèse : les catégories à vocabulaire métier ne sont pas couvertes par le
-gold set. Les booléens sont ambigus pour le modèle values.
+### 4. GBIF : bonne performance sur le noyau Darwin Core (75-78%)
 
-### 4. Confusion `statistic.count` ↔ `measurement.diameter`
+Résultats très cohérents sur 3 exports GBIF (NC 76.5%, Gabon 77.8%,
+institutionnel 75.6%). Les colonnes standard DwC (family, genus, species,
+decimalLatitude, country, eventDate, etc.) sont bien reconnues.
 
-Sur les colonnes de comptage de plots :
-- `total_stems`, `living_stems`, `pteridophytes`, `emergent` → correct
-- `gymnospermae`, `monocotyledonae`, `dicotyledonae` → `measurement.diameter`
+9 colonnes DwC systématiquement fausses sur les 3 exports :
+- `scientificName`, `acceptedScientificName` → taxonomy.species au lieu de .name
+- `catalogNumber` → identifier.record au lieu de .collection
+- `acceptedTaxonKey`, `speciesKey` → non détectés
+- `genericName`, `infraspecificEpithet`, `taxonomicStatus`, `scientificNameAuthorship`
 
-Hypothèse : les noms taxonomiques latins ne sont pas reconnus comme des
-comptages. Le modèle header les associe plutôt à de la taxonomie ou de la mesure.
+### 5. Confusion `taxonomy.name` → `taxonomy.species` (16x, 7 datasets)
 
-### 5. `measurement.canopy` non reconnu
-
-- `canopy` → `measurement.diameter`
-- `undercanopy`, `understorey` → `statistic.count`
-
-Hypothèse : `measurement.canopy` est un concept rare dans le gold set. Les
-noms `undercanopy`/`understorey` ne matchent pas les patterns connus.
+Erreur la plus fréquente cross-dataset. Le modèle a tendance à spécialiser
+vers `taxonomy.species` les colonnes qui contiennent des noms scientifiques
+complets (genre + espèce). Concerne aussi bien les GBIF que les instances
+de production.
 
 ## Pistes d'amélioration
 
 ### Court terme (alias + gold set)
 
-1. Ajouter des alias pour les noms de traits courants (`leaf_sla`, `leaf_ldmc`,
-   `bark_thickness`)
-2. Enrichir le gold set avec des colonnes catégorielles métier (`holdridge`,
-   `strata`, `in_forest`, `in_um`)
-3. Ajouter des exemples de colonnes booléennes écologiques (`flower`, `fruit`)
-4. Ajouter des comptages taxonomiques (`gymnospermae`, `monocotyledonae`, etc.)
+1. Alias pour traits courants (`leaf_sla`, `leaf_ldmc`, `bark_thickness`)
+2. Enrichir gold set avec catégoriels métier (`holdridge`, `strata`, `in_forest`)
+3. Exemples booléens écologiques (`flower`, `fruit`)
+4. Comptages taxonomiques (`gymnospermae`, `monocotyledonae`)
 
 ### Moyen terme (modèle)
 
-1. Réduire le biais `measurement.diameter` dans le modèle values — probablement
-   via une meilleure représentation des distributions de comptages vs mesures
-   continues
-2. Améliorer la détection de booléens (0/1, true/false) comme catégoriels
-3. Ajouter `measurement.trait` comme concept mieux représenté dans les données
-   d'entraînement
+1. Réduire biais `measurement.diameter` dans le modèle values
+2. Meilleure détection booléens (0/1) comme catégoriels
+3. Concept `measurement.trait` mieux représenté
 
 ### Long terme (pipeline)
 
-1. Tester avec les données de `niamoto-gb` une fois la config validée
-2. Intégrer les annotations d'instance comme nouvelles données d'entraînement
-3. Automatiser le re-benchmark après chaque amélioration
+1. Intégrer annotations d'instance comme données d'entraînement
+2. Automatiser re-benchmark après chaque amélioration
+3. Cibler 70%+ concept sur Tier 1, 85%+ sur GBIF DwC core
+
+## Résultats agrégés
+
+```
+418 colonnes évaluées — 82.3% role, 66.5% concept
+Temps total : 1307s (~22 min)
+Résultats JSON : data/eval/results/20260320_111351.json
+```
 
 ## Commandes de reproduction
 
 ```bash
-# Évaluation complète avec comparaison alias vs ML
-uv run python -m scripts.ml.evaluate_instance \
-    --instance test-instance/niamoto-subset --compare
+# Suite complète
+uv run python -m scripts.ml.eval.run_eval_suite
 
-# ML seul
-uv run python -m scripts.ml.evaluate_instance \
-    --instance test-instance/niamoto-subset
+# Instance unique
+uv run python -m scripts.ml.eval.evaluate_instance \
+    --annotations data/eval/annotations/niamoto-nc.yml \
+    --data-dir test-instance/niamoto-nc/imports --compare
 
-# Alias seul
-uv run python -m scripts.ml.evaluate_instance \
-    --instance test-instance/niamoto-subset --no-ml
+# GBIF spécifique
+uv run python -m scripts.ml.eval.evaluate_instance \
+    --annotations data/eval/annotations/gbif_darwin_core.yml \
+    --csv data/silver/gbif_targeted/new_caledonia/occurrences.csv
+
+# Silver
+uv run python -m scripts.ml.eval.evaluate_instance \
+    --annotations data/eval/annotations/silver.yml \
+    --data-dir data/silver
 ```
