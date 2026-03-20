@@ -184,17 +184,17 @@ details[open] summary { margin-bottom: 8px; }
   <div class="stats-grid">
     <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.04</div><div class="label">ProductScore</div></div>
     <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">NiamotoOfflineScore</div></div>
-    <div class="stat-card"><div class="value">2 492</div><div class="label">Labeled Columns</div></div>
+    <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns</div></div>
     <div class="stat-card green"><div class="value">94+</div><div class="label">Sources</div></div>
     <div class="stat-card"><div class="value">5</div><div class="label">Continents</div></div>
     <div class="stat-card purple"><div class="value">8</div><div class="label">Languages</div></div>
     <div class="stat-card"><div class="value">61</div><div class="label">Concepts</div></div>
   </div>
   <div class="stats-grid" style="margin-top:16px;">
-    <div class="stat-card green"><div class="value">0.7614</div><div class="label">Header F1</div></div>
-    <div class="stat-card orange"><div class="value">0.3783</div><div class="label">Values F1</div></div>
-    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6899</div><div class="label">Fusion F1 (leak-free CV)</div></div>
-    <div class="stat-card green"><div class="value">82.3%</div><div class="label">Instance Role Accuracy</div></div>
+    <div class="stat-card green"><div class="value">0.7467</div><div class="label">Header F1</div></div>
+    <div class="stat-card orange"><div class="value">0.3935</div><div class="label">Values F1</div></div>
+    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6876</div><div class="label">Fusion F1 (leak-free CV)</div></div>
+    <div class="stat-card green"><div class="value">87.8%</div><div class="label">Instance Role Accuracy</div></div>
   </div>
 </div>
 </section>
@@ -401,14 +401,14 @@ details[open] summary { margin-bottom: 8px; }
 <section id="instance-eval">
 <div class="container">
   <h2><span class="num">05</span>Instance Evaluation</h2>
-  <p class="section-desc">Real-world evaluation on actual Niamoto instances and GBIF exports. 418 columns evaluated — <strong>82.3% role accuracy</strong>, <strong>66.5% concept accuracy</strong>.</p>
+  <p class="section-desc">Real-world evaluation on actual Niamoto instances and GBIF exports. 418 columns evaluated — <strong>87.8% role accuracy</strong>, <strong>77.5% concept accuracy</strong>. Includes alias registry (13 new concepts) and retrained models on enriched gold set.</p>
 
   <div class="chart-container">
     <div id="instance-chart" style="height:400px;"></div>
   </div>
 
   <div style="text-align:center; padding:12px; background:var(--blue-light); border-radius:8px; margin:16px 0; font-family:var(--mono); font-size:14px; color:var(--blue-dark);">
-    418 columns evaluated — 82.3% role, 66.5% concept
+    418 columns evaluated — 87.8% role, 77.5% concept
   </div>
 
   <details>
@@ -957,6 +957,7 @@ const HEADER_PROGRESS = [
   {score:0.5640,label:"+0.49"},
   {score:0.5641,label:"+0.01"},
   {score:0.7614,label:"Round 2 (2492 cols)"},
+  {score:0.7467,label:"Round 3 (2525 cols, +NC full)"},
 ];
 
 const VALUES_PROGRESS = [
@@ -1221,13 +1222,13 @@ function renderForestSubsplit() {
 // Instance evaluation
 function renderInstanceEval() {
   const instances = [
-    {name:'niamoto-nc',tier:'Tier 1',cols:57,role:61.4,concept:45.6},
-    {name:'niamoto-gb',tier:'Tier 1',cols:27,role:88.9,concept:66.7},
-    {name:'guyadiv',tier:'Tier 1',cols:61,role:85.2,concept:63.9},
-    {name:'GBIF NC',tier:'Tier 1b',cols:51,role:84.3,concept:76.5},
-    {name:'GBIF Gabon',tier:'Tier 1b',cols:45,role:86.7,concept:77.8},
-    {name:'GBIF inst.',tier:'Tier 1b',cols:41,role:82.9,concept:75.6},
-    {name:'Silver',tier:'Tier 2',cols:136,role:86.0,concept:66.2},
+    {name:'niamoto-nc',tier:'Tier 1',cols:57,role:94.7,concept:87.7},
+    {name:'niamoto-gb',tier:'Tier 1',cols:27,role:77.8,concept:66.7},
+    {name:'guyadiv',tier:'Tier 1',cols:61,role:86.9,concept:65.6},
+    {name:'GBIF NC',tier:'Tier 1b',cols:51,role:96.1,concept:90.2},
+    {name:'GBIF Gabon',tier:'Tier 1b',cols:45,role:91.1,concept:88.9},
+    {name:'GBIF inst.',tier:'Tier 1b',cols:41,role:92.7,concept:87.8},
+    {name:'Silver',tier:'Tier 2',cols:136,role:81.6,concept:69.1},
   ];
 
   Plotly.newPlot('instance-chart', [
@@ -1252,12 +1253,12 @@ function renderInstanceEval() {
     margin:{l:60,r:20,t:40,b:100}, font:{family:'Inter',size:12},
     legend:{x:0.01,y:0.99},
     shapes:[
-      {type:'line',x0:-0.5,x1:6.5,y0:82.3,y1:82.3,line:{color:'#2563eb',width:1.5,dash:'dot'}},
-      {type:'line',x0:-0.5,x1:6.5,y0:66.5,y1:66.5,line:{color:'#d97706',width:1.5,dash:'dot'}}
+      {type:'line',x0:-0.5,x1:6.5,y0:87.8,y1:87.8,line:{color:'#2563eb',width:1.5,dash:'dot'}},
+      {type:'line',x0:-0.5,x1:6.5,y0:77.5,y1:77.5,line:{color:'#d97706',width:1.5,dash:'dot'}}
     ],
     annotations:[
-      {x:6,y:82.3,text:'Avg role: 82.3%',showarrow:false,font:{size:10,color:'#2563eb'},yshift:10},
-      {x:6,y:66.5,text:'Avg concept: 66.5%',showarrow:false,font:{size:10,color:'#d97706'},yshift:-12}
+      {x:6,y:87.8,text:'Avg role: 87.8%',showarrow:false,font:{size:10,color:'#2563eb'},yshift:10},
+      {x:6,y:77.5,text:'Avg concept: 77.5%',showarrow:false,font:{size:10,color:'#d97706'},yshift:-12}
     ]
   }, {responsive:true});
 }
@@ -1302,7 +1303,7 @@ function renderProgress() {
 // Alternatives scatter
 function renderAlternatives() {
   const alt = [
-    {name:'Niamoto (current)',data:2492,f1:0.8004,size:15,color:'#2563eb',offline:true},
+    {name:'Niamoto (current)',data:2525,f1:0.8004,size:15,color:'#2563eb',offline:true},
     {name:'Sherlock',data:686765,f1:0.89,size:10,color:'#dc2626',offline:true},
     {name:'Sato',data:686765,f1:0.93,size:10,color:'#d97706',offline:true},
     {name:'DoDuo',data:50000,f1:0.90,size:10,color:'#7c3aed',offline:false},
@@ -1328,7 +1329,7 @@ function renderAlternatives() {
     xaxis: {title: 'Labeled columns required', type: 'log', range: [-0.5, 6.5]},
     yaxis: {title: 'Reported score', range: [0.2, 1.0]},
     margin: {l:60,r:20,t:40,b:50}, font: {family:'Inter', size:12},
-    annotations: [{x: Math.log10(2492), y: 0.8004, text: 'Our position', showarrow: true,
+    annotations: [{x: Math.log10(2525), y: 0.8004, text: 'Our position', showarrow: true,
       arrowhead: 2, ax: 60, ay: -30, font: {size: 12, color: '#2563eb', family: 'Inter'}}],
     shapes: [{type:'rect',x0:Math.log10(1),x1:Math.log10(5000),y0:0.2,y1:1.0,
       fillcolor:'rgba(37,99,235,0.05)',line:{width:0}},
