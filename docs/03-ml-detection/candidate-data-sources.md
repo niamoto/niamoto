@@ -1,373 +1,369 @@
-# Sources de Données Candidates pour Renforcer le Benchmark ML
+# Candidate Data Sources for Strengthening the ML Benchmark
 
-## Objet
+## Purpose
 
-Ce document liste des sources de données susceptibles de renforcer le benchmark
-et le jeu d'entraînement de la détection ML de Niamoto.
+This document lists data sources that could strengthen the benchmark and
+training set for Niamoto's ML detection.
 
-L'objectif n'est pas d'accumuler des données "au hasard". L'objectif est
-d'élargir le benchmark avec des données qui ressemblent aux cas que Niamoto doit
-réellement bien servir :
+The goal is not to accumulate data "at random". The goal is to broaden the
+benchmark with data that resembles the cases Niamoto must actually serve well:
 
-- inventaires et relevés tropicaux ou subtropicaux ;
-- jeux de données semi-standard ou non standardisés ;
-- exports tabulaires écologiques réels ;
-- jeux de données GBIF, en particulier dans leur noyau standard et leurs
-  extensions utiles ;
-- données des instances réellement testées.
+- tropical or subtropical inventories and surveys;
+- semi-standard or non-standardised datasets;
+- real ecological tabular exports;
+- GBIF datasets, particularly in their standard core and useful extensions;
+- data from actually tested instances.
 
-## Ce qu'on cherche en priorité
+## What We Are Looking for First
 
-Les sources les plus utiles pour la détection ML sont celles qui apportent :
+The most useful sources for ML detection are those that provide:
 
-- de **vrais headers terrain** ;
-- des colonnes **non triviales** ;
-- des formats **tabulaires** (CSV, TSV, DWC-A, exports de portails) ;
-- des vocabulaires **métier** ou **locaux** ;
-- des valeurs réalistes ;
-- une diversité de conventions sans tomber dans des schémas trop exotiques ou
-  trop éloignés du produit.
+- **real field headers**;
+- **non-trivial** columns;
+- **tabular** formats (CSV, TSV, DWC-A, portal exports);
+- **business** or **local** vocabularies;
+- realistic values;
+- a diversity of conventions without falling into schemas that are too exotic
+  or too distant from the product.
 
-En revanche, les jeux dérivés purement cartographiques, les rasters, ou les
-produits déjà fortement agrégés sont généralement de faible valeur pour le
-benchmark de détection de colonnes.
+On the other hand, purely cartographic derived datasets, rasters, or products
+that are already heavily aggregated are generally of low value for the column
+detection benchmark.
 
-## Stratégie de sélection
+## Selection Strategy
 
-Je recommande de classer les sources en trois groupes :
+I recommend classifying sources into three groups:
 
-### Priorité A — Très proches de la cible produit
+### Priority A — Very Close to the Product Target
 
-À intégrer en premier :
+To integrate first:
 
-- jeux tropicaux forestiers réels ;
-- relevés de Guyane, Gabon, Cameroun, Nouvelle-Calédonie si disponibles ;
-- données d'instances réellement testées ;
-- exports GBIF ciblés par région et par style.
+- real tropical forest datasets;
+- surveys from Guyane, Gabon, Cameroon, New Caledonia if available;
+- data from actually tested instances;
+- GBIF exports targeted by region and style.
 
-### Priorité B — Voisins très utiles
+### Priority B — Very Useful Neighbours
 
-À intégrer ensuite :
+To integrate next:
 
-- grands réseaux forestiers tropicaux ;
-- réseaux de placettes végétation ;
-- bases africaines et pan-tropicales avec données d'occurrence ou de placettes.
+- large tropical forest networks;
+- vegetation plot networks;
+- African and pan-tropical databases with occurrence or plot data.
 
-### Priorité C — Élargissement contrôlé
+### Priority C — Controlled Expansion
 
-Utiles pour la robustesse, mais secondaires :
+Useful for robustness, but secondary:
 
-- jeux de traits végétaux ;
-- marine / littoral si cela devient un besoin réel ;
-- régions plus éloignées écologiquement mais encore compatibles avec le produit.
+- plant trait datasets;
+- marine / coastal if it becomes a real need;
+- regions that are ecologically more distant but still compatible with the
+  product.
 
-## Shortlist recommandée
+## Recommended Shortlist
 
-## 1. Données locales et d'instances réelles
+## 1. Local and Real Instance Data
 
-### 1. Jeux de données des instances testées actuellement
+### 1. Datasets from Currently Tested Instances
 
-- **Type** : exports tabulaires réels, potentiellement non standardisés
-- **Accès** : interne
-- **Valeur ML** : maximale
-- **Pourquoi** : ce sont les cas les plus proches du produit, avec les vraies
-  conventions de colonnes, les vrais problèmes de qualité, et les vraies
-  attentes utilisateur
-- **Priorité** : A+
+- **Type**: real tabular exports, potentially non-standardised
+- **Access**: internal
+- **ML Value**: maximum
+- **Why**: these are the cases closest to the product, with real column
+  conventions, real quality issues, and real user expectations
+- **Priority**: A+
 
-Recommandation :
+Recommendation:
 
-- les intégrer explicitement dans le gold set quand c'est possible ;
-- les tagger comme sous-benchmark principal ;
-- suivre séparément les résultats par instance.
+- integrate them explicitly into the gold set where possible;
+- tag them as the main sub-benchmark;
+- track results separately per instance.
 
-## 2. Guyane / Amazonie française
+## 2. Guyane / French Amazonia
 
 ### 2. Paracou / ForestScan (CIRAD Dataverse)
 
-- **Région** : Guyane française
-- **Type** : tree census data, structure forestière, placettes tropicales
-- **Accès** : open data via Dataverse
-- **Format attendu** : CSV + métadonnées
-- **Pourquoi** : très proche des besoins terrain tropicaux ; excellent candidat
-  pour enrichir la partie tropicale non standard du benchmark
-- **Priorité** : A
-- **Sources** :
+- **Region**: French Guyane
+- **Type**: tree census data, forest structure, tropical plots
+- **Access**: open data via Dataverse
+- **Expected format**: CSV + metadata
+- **Why**: very close to tropical field needs; excellent candidate for
+  enriching the non-standard tropical part of the benchmark
+- **Priority**: A
+- **Sources**:
   - [Paracou Dataverse](https://dataverse.cirad.fr/dataverse/paracou)
   - [ForestScan data paper (ESSD 2026)](https://essd.copernicus.org/articles/18/1243/2026/essd-18-1243-2026.html)
 
 ### 3. Guyafor network — Trinité
 
-- **Région** : Guyane française
-- **Type** : forest censuses
-- **Accès** : métadonnées et description publiques ; CSV census principal
-  restreint, accès sur demande
-- **Pourquoi** : utile pour varier les conventions de placettes et les variables
-  tropicales tout en restant dans un écosystème proche de Paracou
-- **Priorité** : A
-- **Source** :
+- **Region**: French Guyane
+- **Type**: forest censuses
+- **Access**: public metadata and description; main census CSV restricted,
+  access on request
+- **Why**: useful for varying plot conventions and tropical variables while
+  staying in an ecosystem close to Paracou
+- **Priority**: A
+- **Source**:
   - [Guyafor / Trinite Forest Censuses](https://dataverse.cirad.fr/dataverse/guyafor)
 
 ### 4. Guyafor network — Trésor
 
-- **Région** : Guyane française
-- **Type** : tree census in permanent forest plots
-- **Accès** : métadonnées et description publiques ; CSV census principal
-  restreint, accès sur demande
-- **Pourquoi** : complète Paracou/Trinité avec un autre contexte forestier
-  tropical de Guyane
-- **Priorité** : A
-- **Source** :
+- **Region**: French Guyane
+- **Type**: tree census in permanent forest plots
+- **Access**: public metadata and description; main census CSV restricted,
+  access on request
+- **Why**: complements Paracou/Trinité with another tropical Guyane forest
+  context
+- **Priority**: A
+- **Source**:
   - [Tresor Forest Censuses (Guyafor)](https://dataverse.cirad.fr/dataverse/ecofog)
 
-## 3. Afrique centrale et tropicale
+## 3. Central and Tropical Africa
 
 ### 5. ForestPlots.net — Lopé, Gabon
 
-- **Région** : Gabon
-- **Type** : tree census tropical forest plots
-- **Accès** : accès encadré, demande/collaboration
-- **Pourquoi** : très proche de la cible produit ; utile pour des colonnes de
-  parcelles, arbres, biomasse, diamètre, mortalité, etc.
-- **Priorité** : A
-- **Sources** :
+- **Region**: Gabon
+- **Type**: tree census tropical forest plots
+- **Access**: supervised access, request/collaboration
+- **Why**: very close to the product target; useful for plot, tree, biomass,
+  diameter, mortality columns, etc.
+- **Priority**: A
+- **Sources**:
   - [ForestPlots.net - Working with data](https://forestplots.net/en/join-forestplots/working-with-data)
-  - [ForestScan data paper (section Lopé)](https://essd.copernicus.org/articles/18/1243/2026/essd-18-1243-2026.html)
+  - [ForestScan data paper (Lopé section)](https://essd.copernicus.org/articles/18/1243/2026/essd-18-1243-2026.html)
 
 ### 6. RAINBIO
 
-- **Région** : Afrique tropicale, incluant Gabon/Cameroun
-- **Type** : occurrences de plantes vasculaires tropicales
-- **Accès** : base publiée ; accès documenté publiquement
-- **Pourquoi** : excellent candidat pour renforcer la couverture Afrique
-  tropicale, en particulier si l'on veut enrichir taxonomie, localité, habitat
-  et champs associés
-- **Priorité** : A
-- **Sources** :
+- **Region**: Tropical Africa, including Gabon/Cameroon
+- **Type**: vascular plant occurrences in tropical Africa
+- **Access**: published database; publicly documented access
+- **Why**: excellent candidate for strengthening tropical Africa coverage,
+  particularly for enriching taxonomy, locality, habitat, and associated
+  fields
+- **Priority**: A
+- **Sources**:
   - [RAINBIO data paper via GBIF](https://www.gbif.org/en/data-use/83286)
   - [RAINBIO official site](https://gdauby.github.io/rainbio/)
 
 ### 7. SEOSAW plot network
 
-- **Région** : Afrique subsaharienne
-- **Type** : tree and stem measurements in woodland / savanna plots
-- **Accès** : accès sur demande ; échantillon disponible
-- **Pourquoi** : utile si vous voulez élargir au-delà de la forêt dense
-  tropicale tout en restant sur des données de terrain végétation/boisement
-- **Priorité** : B
-- **Source** :
+- **Region**: Sub-Saharan Africa
+- **Type**: tree and stem measurements in woodland / savanna plots
+- **Access**: access on request; sample available
+- **Why**: useful if you want to expand beyond dense tropical forest while
+  staying on vegetation/woodland field data
+- **Priority**: B
+- **Source**:
   - [SEOSAW data access](https://seosaw.github.io/data)
 
-## 4. GBIF ciblé par région et par style
+## 4. GBIF Targeted by Region and Style
 
 ### 8. GBIF regional occurrence downloads
 
-- **Région** : Nouvelle-Calédonie, Guyane, Gabon, Cameroun, puis autres régions
-- **Type** : occurrences standardisées Darwin Core
-- **Accès** : via portal + API + snapshots
-- **Pourquoi** : GBIF reste une priorité produit, mais il faut le traiter comme
-  plusieurs sous-corpus :
-  - noyau standard (`gbif_core_standard`)
-  - colonnes étendues (`gbif_extended`)
-  - sélections régionales prioritaires
-- **Priorité** : A
-- **Sources** :
+- **Region**: New Caledonia, Guyane, Gabon, Cameroon, then other regions
+- **Type**: Darwin Core standardised occurrences
+- **Access**: via portal + API + snapshots
+- **Why**: GBIF remains a product priority, but it must be treated as
+  several sub-corpora:
+  - standard core (`gbif_core_standard`)
+  - extended columns (`gbif_extended`)
+  - priority regional selections
+- **Priority**: A
+- **Sources**:
   - [GBIF API Downloads](https://techdocs.gbif.org/en/data-use/api-downloads)
   - [GBIF download formats](https://techdocs.gbif.org/en/data-use/download-formats)
   - [GBIF open data on AWS](https://registry.opendata.aws/gbif/)
 
-État actuel :
+Current state:
 
-- un premier lot `gbif_targeted/` a été récupéré sur `NC`, `GF`, `GA`, `CM`
-- ce lot est utile mais reste très observationnel
-- il ne doit pas être confondu avec un GBIF institutionnel
+- a first `gbif_targeted/` batch was retrieved for `NC`, `GF`, `GA`, `CM`
+- this batch is useful but remains highly observational
+- it must not be confused with institutional GBIF
 
-### 9. GBIF — Nouvelle-Calédonie ciblée
+### 9. GBIF — Targeted New Caledonia
 
-- **Région** : Nouvelle-Calédonie
-- **Type** : occurrences GBIF régionales
-- **Accès** : via requêtes GBIF ciblées
-- **Pourquoi** : permet d'ajouter une masse de données standardisées proches de
-  la priorité géographique, même si cela ne remplace pas les jeux terrain non
-  standard
-- **Priorité** : A
-- **Source indicatrice** :
+- **Region**: New Caledonia
+- **Type**: regional GBIF occurrences
+- **Access**: via targeted GBIF queries
+- **Why**: allows adding a mass of standardised data close to the geographic
+  priority, even if it does not replace non-standard field datasets
+- **Priority**: A
+- **Indicative source**:
   - [GBIF country report New Caledonia](https://analytics-files.gbif.org/country/NC/GBIF_CountryReport_NC.pdf)
 
-### 10. GBIF — Territoires français ultramarins
+### 10. GBIF — French Overseas Territories
 
-- **Région** : Guyane française, Nouvelle-Calédonie, autres outre-mer
-- **Type** : occurrence downloads multi-pays/territoires
-- **Accès** : via requêtes de téléchargement GBIF
-- **Pourquoi** : utile pour construire des sous-corpus ciblés par territoire et
-  tester la robustesse du pipeline sur des zones d'intérêt
-- **Priorité** : B
-- **Exemple de téléchargement GBIF** :
+- **Region**: French Guyane, New Caledonia, other overseas territories
+- **Type**: multi-country/territory occurrence downloads
+- **Access**: via GBIF download queries
+- **Why**: useful for building targeted sub-corpora by territory and testing
+  pipeline robustness on areas of interest
+- **Priority**: B
+- **GBIF download example**:
   - [Example occurrence download with French overseas territories](https://www.gbif.org/occurrence/download/0025173-250802193616735)
 
-### 10bis. GBIF ciblé institutionnel
+### 10bis. Institutional Targeted GBIF
 
-- **Région** : en priorité Gabon et Cameroun à ce stade
-- **Type** : occurrences GBIF plus proches des collections et herbaria
-- **Accès** : via API publique + filtrage local
-- **Pourquoi** : complète le lot régional général avec un signal plus proche des
-  exports institutionnels réels
-- **Filtre recommandé** :
+- **Region**: Gabon and Cameroon as a priority at this stage
+- **Type**: GBIF occurrences closer to collections and herbaria
+- **Access**: via public API + local filtering
+- **Why**: complements the general regional batch with a signal closer to
+  real institutional exports
+- **Recommended filter**:
   - `basisOfRecord in {PRESERVED_SPECIMEN, MATERIAL_SAMPLE, OCCURRENCE}`
-  - présence d'au moins un champ institutionnel (`institutionCode`,
+  - presence of at least one institutional field (`institutionCode`,
     `collectionCode`, `institutionID`, `collectionKey`)
-  - exclusion des grands jeux observationnels (`iNaturalist`, `observation.org`,
+  - exclusion of large observational datasets (`iNaturalist`, `observation.org`,
     `Pl@ntNet`, etc.)
-- **État actuel** :
-  - `gabon` : bon rendement
-  - `cameroon` : bon rendement
-  - `new_caledonia` : très faible rendement dans les premiers résultats
-  - `guyane` : très faible rendement dans les premiers résultats
+- **Current state**:
+  - `gabon`: good yield
+  - `cameroon`: good yield
+  - `new_caledonia`: very low yield in first results
+  - `guyane`: very low yield in first results
 
-## 5. Réseaux forestiers et végétation plus larges
+## 5. Broader Forest and Vegetation Networks
 
 ### 11. ForestGEO Data Portal
 
-- **Région** : réseau mondial de placettes forestières
-- **Type** : forest plots, inventaires standardisés
-- **Accès** : request portal ; données parfois publiques, parfois sur approbation
-- **Pourquoi** : très forte valeur si l'on veut enrichir le benchmark avec des
-  inventaires forestiers comparables entre régions
-- **Priorité** : B
-- **Source** :
+- **Region**: global network of forest plots
+- **Type**: forest plots, standardised inventories
+- **Access**: request portal; data sometimes public, sometimes on approval
+- **Why**: very high value for enriching the benchmark with comparable
+  forest inventories across regions
+- **Priority**: B
+- **Source**:
   - [ForestGEO Data Portal](https://ctfs.si.edu/datarequest/)
 
 ### 12. sPlotOpen
 
-- **Région** : global
-- **Type** : vegetation plots, co-occurrence species, métadonnées de placettes
-- **Accès** : open access
-- **Pourquoi** : bonne source pour élargir le benchmark en placettes végétation
-  et métadonnées environnementales, utile si Niamoto veut servir autre chose que
-  des occurrences brutes
-- **Priorité** : B
-- **Source** :
+- **Region**: global
+- **Type**: vegetation plots, species co-occurrence, plot metadata
+- **Access**: open access
+- **Why**: good source for broadening the benchmark with vegetation plots and
+  environmental metadata, useful if Niamoto needs to serve more than raw
+  occurrences
+- **Priority**: B
+- **Source**:
   - [sPlotOpen](https://www.idiv.de/research/projects/splot/splotopen-splot/)
 
 ### 13. AusPlots / TERN
 
-- **Région** : Australie
-- **Type** : vegetation plots / rangelands / survey protocols
-- **Accès** : open data / portail TERN selon jeux
-- **Pourquoi** : moins proche des régions prioritaires, mais très utile pour
-  tester des relevés végétation structurés hors tropiques humides
-- **Priorité** : C
-- **Source** :
+- **Region**: Australia
+- **Type**: vegetation plots / rangelands / survey protocols
+- **Access**: open data / TERN portal depending on dataset
+- **Why**: less close to priority regions, but very useful for testing
+  structured vegetation surveys outside humid tropics
+- **Priority**: C
+- **Source**:
   - [TERN / AusPlots context](https://www.tern.org.au/auscribe-ausplots-field-survey-app/)
 
-## 6. Données de traits et enrichissement sémantique
+## 6. Trait Data and Semantic Enrichment
 
 ### 14. TRY Plant Trait Database
 
-- **Région** : global
-- **Type** : plant traits
-- **Accès** : portail dédié, aujourd'hui très ouvert sur une grande partie des
-  données
-- **Pourquoi** : moins utile pour le benchmark de détection brute de colonnes
-  que pour enrichir les concepts et les affordances autour des traits
-- **Priorité** : B/C
-- **Sources** :
+- **Region**: global
+- **Type**: plant traits
+- **Access**: dedicated portal, now very open on a large portion of data
+- **Why**: less useful for the raw column detection benchmark than for
+  enriching concepts and affordances around traits
+- **Priority**: B/C
+- **Sources**:
   - [TRY Home](https://www.try-db.org/TryWeb/Home.php)
   - [TRY data portal](https://www.try-db.org/TryWeb/Database.php)
   - [TRY access / openness](https://www.try-db.org/TryWeb/About.php)
 
-## 7. Marine / littoral si besoin futur
+## 7. Marine / Coastal if Future Need
 
 ### 15. OBIS
 
-- **Région** : global, incluant Nouvelle-Calédonie
-- **Type** : occurrences marines, parfois eDNA, extensions eMoF
-- **Accès** : open access, exports complets et API
-- **Pourquoi** : pertinent si le produit doit aussi bien gérer le littoral, le
-  lagonaire, ou des jeux marins / récifaux de Nouvelle-Calédonie
-- **Priorité** : B/C selon besoin
-- **Sources** :
+- **Region**: global, including New Caledonia
+- **Type**: marine occurrences, sometimes eDNA, eMoF extensions
+- **Access**: open access, full exports and API
+- **Why**: relevant if the product must also handle coastal, lagoon, or
+  marine/reef datasets from New Caledonia
+- **Priority**: B/C depending on need
+- **Sources**:
   - [OBIS data access](https://obis.org/data/access)
   - [OBIS manual / downloads](https://manual.obis.org/access)
   - [New Caledonia eDNA example dataset](https://obis.org/dataset/33926ad1-6fb9-4299-ad94-1ce5c23773d3)
 
-## Recommandation de priorisation
+## Prioritisation Recommendation
 
-## Lot 1 — à faire en premier
+## Batch 1 — To Do First
 
-- données des instances réellement testées
+- data from actually tested instances
 - Paracou / Guyafor (Guyane)
 - Trinité / Trésor (Guyane)
-- GBIF ciblé Nouvelle-Calédonie / Guyane / Gabon / Cameroun
-- ForestPlots Lopé (si accès possible)
+- targeted GBIF New Caledonia / Guyane / Gabon / Cameroon
+- ForestPlots Lopé (if access is possible)
 - RAINBIO
 
-## Lot 2 — à faire juste après
+## Batch 2 — To Do Right After
 
-- split régional GBIF `core_standard` / `extended`
+- regional GBIF split `core_standard` / `extended`
 - ForestGEO
 - SEOSAW
 - sPlotOpen
 
-## Lot 3 — à intégrer seulement si utile
+## Batch 3 — To Integrate Only If Useful
 
 - TRY
 - OBIS
 - AusPlots
 
-## Comment les utiliser dans le benchmark
+## How to Use Them in the Benchmark
 
-Je recommande de ne pas tout mélanger dans un seul score.
+I recommend not mixing everything into a single score.
 
-### Benchmark principal
+### Main Benchmark
 
-Doit refléter la cible produit :
+Must reflect the product target:
 
-- jeux des instances testées
-- données tropicales proches de l'usage
-- Guyane / Afrique tropicale / Nouvelle-Calédonie
-- GBIF ciblé
+- tested instance datasets
+- tropical data close to actual usage
+- Guyane / Tropical Africa / New Caledonia
+- targeted GBIF
 
-### Garde-fous
+### Guardrails
 
-À surveiller sans leur donner tout le poids du score principal :
+To monitor without giving them the full weight of the main score:
 
-- inventaires forestiers très codés
-- sous-benchs rares ou petits
-- régions éloignées du coeur produit
+- heavily coded forest inventories
+- rare or small sub-benchmarks
+- regions distant from the product core
 
 ### Diagnostics
 
-À utiliser pour comprendre, pas pour décider seuls :
+To use for understanding, not for deciding alone:
 
-- jeux très standardisés
-- petits splits homogènes
-- corpus très spécialisés
+- highly standardised datasets
+- small homogeneous splits
+- highly specialised corpora
 
-## Critères de sélection avant intégration
+## Selection Criteria Before Integration
 
-Avant d'intégrer une nouvelle source, vérifier :
+Before integrating a new source, verify:
 
-- le format est-il tabulaire et exploitable rapidement ?
-- les headers apportent-ils une vraie variation ?
-- les valeurs sont-elles réalistes et suffisamment propres ?
-- la licence permet-elle l'usage dans le benchmark local ?
-- le jeu est-il proche de la cible produit ou seulement "intéressant" ?
+- is the format tabular and quickly exploitable?
+- do the headers bring genuine variation?
+- are the values realistic and sufficiently clean?
+- does the licence allow use in the local benchmark?
+- is the dataset close to the product target or merely "interesting"?
 
-## Décision recommandée
+## Recommended Decision
 
-Si on veut être efficace, il faut commencer par des sources qui changent
-réellement la qualité du benchmark sur la cible produit.
+If we want to be efficient, we must start with sources that genuinely change
+the benchmark quality on the product target.
 
-Ma recommandation nette :
+My clear recommendation:
 
-1. **Formaliser les datasets d'instances réelles**
-2. **Ajouter Guyane tropicale ouverte (Paracou / Guyafor)**
-3. **Ajouter Afrique tropicale proche de l'usage (RAINBIO + ForestPlots si possible)**
-4. **Construire des téléchargements GBIF ciblés par région**
-5. **Élargir seulement ensuite**
+1. **Formalise real instance datasets**
+2. **Add open tropical Guyane (Paracou / Guyafor)**
+3. **Add tropical Africa close to usage (RAINBIO + ForestPlots if possible)**
+4. **Build targeted GBIF downloads by region**
+5. **Expand only after that**
 
-## Références
+## References
 
 - [Paracou Dataverse](https://dataverse.cirad.fr/dataverse/paracou)
 - [ForestScan ESSD 2026](https://essd.copernicus.org/articles/18/1243/2026/essd-18-1243-2026.html)

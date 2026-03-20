@@ -1,50 +1,49 @@
 # ML Detection & Auto-Configuration
 
-Machine learning-based column detection and automatic configuration generation.
+Machine learning-based column detection and automatic configuration generation for ecological datasets.
 
-## 📚 Documents in this Section
+## Documentation
 
-- **[Overview](overview.md)** - Introduction to ML detection system
-- **[Branch Architecture](branch-architecture.md)** - Current branch architecture and product goal
-- **[Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)** - Why end-to-end autoresearch is too slow and how to pivot to a fusion-only surrogate loop
-- **Fusion Surrogate Runner** - `uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50`
-- **[Acquisition Plan](acquisition-plan.md)** - Concrete plan to acquire and integrate new benchmark data
-- **[Candidate Data Sources](candidate-data-sources.md)** - Shortlist of external datasets to strengthen the benchmark
-- **[Current State](current-state.md)** - Current implementation status
-- **[Experiment Log](experiments/2026-03-17-ml-detection-iteration-log.md)** - Dated journal of current ML iterations
-- **[Training Guide](training-guide.md)** - Train custom detection models
-- **[Implementation](implementation.md)** - Technical implementation details
-- **[Detector Usage](detector-usage.md)** - Using the ML detector
-- **[Synthetic Data](synthetic-data.md)** - Generate training data
-- **[Semantic Detection](semantic-detection.md)** - Semantic type analysis
-- **[Auto Configuration](auto-config-roadmap.md)** - Automatic config generation
-- **[Roadmap](roadmap.md)** - Future development plans
+### Core
 
-## 🤖 Key Features
+- **[Overview](overview.md)** — What ML detection does, how it works, training data, scores, and how to contribute
+- **[Branch Architecture](branch-architecture.md)** — Architecture of the 3-branch hybrid pipeline (alias + header + values + fusion), product goals, evaluation metrics, and autoresearch role
 
-- **Automatic Column Detection**: Identifies data types and semantic meaning
-- **Smart Mapping**: Suggests column mappings based on content
-- **Configuration Generation**: Creates import configs automatically
-- **Custom Training**: Train models on your specific data patterns
+### Integration & Status
 
-## 🚀 Quick Start
+- **[ML Integration Status](2026-03-19-ml-integration-status.md)** — Current state of ML integration in the app: what works, the gap between `ColumnDetector` (heuristics) and `ColumnClassifier` (ML), and the recommended merge strategy
 
-1. **Basic Usage**: Start with [Detector Usage](detector-usage.md)
-2. **Understanding**: Read the [Overview](overview.md)
-3. **Training**: Follow the [Training Guide](training-guide.md)
-4. **Advanced**: Explore [Implementation](implementation.md)
+### Autoresearch
 
-## 🔬 Technical Stack
+- **[Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)** — Why full-stack autoresearch is too slow, and the pivot to a fusion-only surrogate loop with two validation levels
 
-- **scikit-learn**: Classification models
-- **pandas**: Data profiling
-- **Custom features**: Statistical and semantic analysis
+### Data Acquisition
 
-## 📖 Related Documentation
+- **[Acquisition Plan](acquisition-plan.md)** — Concrete plan: which datasets to acquire first, storage structure, benchmark tags, and progress tracking
+- **[Candidate Data Sources](candidate-data-sources.md)** — Shortlist of 15 candidate datasets with priorities, access conditions, and selection criteria
 
-- [Data Pipeline](../02-data-pipeline/README.md) - Integration with import process
-- [Configuration](../08-configuration/README.md) - Configuration strategies
-- [API Reference](../05-api-reference/README.md) - ML API documentation
+### Experiments
 
----
-*Status: Active development - see [Current State](current-state.md) and [Roadmap](roadmap.md)*
+- **[Experiment Logs](experiments/)** — Session logs and evaluation results (iteration logs, instance evaluation, session handoffs)
+
+### Archive
+
+- **[Archive](archive/)** — Obsolete documentation from the December 2024 era (Random Forest system). See `archive/README.md` for context.
+
+## Technical Stack
+
+- **scikit-learn**: TF-IDF, LogisticRegression, HistGradientBoosting
+- **DuckDB**: Data profiling and feature extraction
+- **Fully offline**: ~3 MB models, no LLM dependency
+
+## Quick Start
+
+1. Read the **[Overview](overview.md)** to understand what the system does
+2. See **[Branch Architecture](branch-architecture.md)** for the technical design
+3. Check **[ML Integration Status](2026-03-19-ml-integration-status.md)** for current app integration
+
+## Related Documentation
+
+- [Data Pipeline](../02-data-pipeline/README.md) — Integration with import process
+- [Configuration](../08-configuration/README.md) — Configuration strategies
+- [API Reference](../05-api-reference/README.md) — ML API documentation

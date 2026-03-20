@@ -1,161 +1,157 @@
-# Architecture de la Branche ML Detection
+# ML Detection Branch Architecture
 
-## Objet
+## Purpose
 
-Ce document décrit ce que la branche `feat/ml-detection-improvement` cherche à
-obtenir, l'architecture adoptée, et la manière dont `autoresearch` doit être
-utilisé dans Niamoto.
+This document describes what the `feat/ml-detection-improvement` branch aims to
+achieve, the architecture adopted, and how `autoresearch` should be used in
+Niamoto.
 
-Le sujet n'est plus seulement "détecter un type de colonne". Le but est de
-produire une détection suffisamment bonne pour auto-configurer un import,
-construire un `semantic_profile`, et proposer des affordances et suggestions
-utiles sans dépendre d'un LLM.
+The subject is no longer just "detect a column type". The goal is to produce
+detection good enough to auto-configure an import, build a `semantic_profile`,
+and propose useful affordances and suggestions without relying on an LLM.
 
-## Objectif produit
+## Product Objective
 
-L'objectif produit n'est pas la perfection académique sur le concept fin. Le
-système doit surtout :
+The product objective is not academic perfection on fine-grained concepts. The
+system must primarily:
 
-- reconnaître le bon **rôle** d'une colonne ;
-- reconnaître quelques **concepts critiques** qui changent le comportement
-  produit ;
-- bien se comporter sur des datasets nouveaux, multilingues et partiellement
-  anonymes ;
-- éviter les faux positifs à haute confiance ;
-- alimenter un `semantic_profile` exploitable pour les suggestions
-  transformer/widget.
+- recognise the correct **role** of a column;
+- recognise a few **critical concepts** that change product behaviour;
+- perform well on new, multilingual, and partially anonymous datasets;
+- avoid high-confidence false positives;
+- feed a usable `semantic_profile` for transformer/widget suggestions.
 
-En pratique, une confusion `measurement.height` vs `measurement.diameter` est
-moins grave qu'une confusion `identifier.plot` vs `statistic.count`.
+In practice, a confusion between `measurement.height` and `measurement.diameter`
+is less serious than a confusion between `identifier.plot` and `statistic.count`.
 
-## Architecture adoptée
+## Adopted Architecture
 
-La branche a convergé vers un pipeline hybride local, compact et explicable :
+The branch has converged on a local, compact, and explainable hybrid pipeline:
 
-1. **Alias exacts**
-2. **Branche header**
-3. **Branche values**
+1. **Exact aliases**
+2. **Header branch**
+3. **Values branch**
 4. **Fusion**
-5. **Projection sémantique produit**
+5. **Product semantic projection**
 
-### 1. Alias exacts
+### 1. Exact Aliases
 
-Les alias fournissent un fast-path haute précision pour les noms de colonnes
-connus. Ils restent essentiels, mais doivent être conservateurs :
+Aliases provide a high-precision fast path for known column names. They remain
+essential, but must stay conservative:
 
-- un alias ambigu doit être désactivé ;
-- un alias exact ne doit pas bypasser le classifieur si cela crée des faux
-  positifs à confiance 1.0.
+- an ambiguous alias should be disabled;
+- an exact alias must not bypass the classifier if doing so creates false
+  positives at confidence 1.0.
 
-Références :
+References:
 
-- [alias_registry.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/alias_registry.py)
-- [column_aliases.yaml](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/column_aliases.yaml)
+- [alias_registry.py](src/niamoto/core/imports/ml/alias_registry.py)
+- [column_aliases.yaml](src/niamoto/core/imports/ml/column_aliases.yaml)
 
-### 2. Branche header
+### 2. Header Branch
 
-La branche `header` classe le nom de colonne à partir d'un texte enrichi
-normalisé. C'est la branche la plus performante quand le header est informatif.
+The `header` branch classifies the column name from a normalised enriched text.
+It is the best-performing branch when the header is informative.
 
-Technologie :
+Technology:
 
 - TF-IDF char n-grams
 - Logistic Regression
 
-Références :
+References:
 
-- [train_header_model.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/train_header_model.py)
-- [header_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/header_features.py)
+- [train_header_model.py](scripts/ml/train_header_model.py)
+- [header_features.py](src/niamoto/core/imports/ml/header_features.py)
 
-### 3. Branche values
+### 3. Values Branch
 
-La branche `values` apprend à partir de statistiques et de patterns extraits des
-valeurs :
+The `values` branch learns from statistics and patterns extracted from the
+values:
 
-- distributions numériques ;
-- regex simples ;
-- binaires, dates, coordonnées ;
-- signaux de colonnes codées/catégorielles.
+- numerical distributions;
+- simple regexes;
+- booleans, dates, coordinates;
+- signals from encoded/categorical columns.
 
-Elle est moins précise seule que `header`, mais elle est décisive pour :
+It is less accurate alone than `header`, but it is decisive for:
 
-- les headers anonymes ;
-- les cas ambigus ;
-- certains concepts fortement détectables par pattern.
+- anonymous headers;
+- ambiguous cases;
+- certain concepts that are strongly detectable by pattern.
 
-Références :
+References:
 
-- [train_value_model.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/train_value_model.py)
-- [value_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/value_features.py)
+- [train_value_model.py](scripts/ml/train_value_model.py)
+- [value_features.py](src/niamoto/core/imports/ml/value_features.py)
 
 ### 4. Fusion
 
-La fusion combine les deux branches dans un espace commun de concepts. Elle ne
-doit pas être une simple moyenne implicite :
+Fusion combines the two branches in a shared concept space. It must not be a
+simple implicit average:
 
-- elle reçoit les probabilités alignées des deux branches ;
-- elle utilise des méta-features de confiance et de désaccord ;
-- elle peut intégrer des garde-fous ciblés sur des erreurs fréquentes.
+- it receives the aligned probabilities from both branches;
+- it uses confidence and disagreement meta-features;
+- it can integrate targeted guardrails for frequent errors.
 
-La fusion est la bonne couche pour corriger les cas où une branche devient trop
-dominante sur un domaine particulier.
+Fusion is the right layer for correcting cases where one branch becomes too
+dominant on a particular domain.
 
-Références :
+References:
 
-- [train_fusion.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/train_fusion.py)
-- [fusion_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/fusion_features.py)
+- [train_fusion.py](scripts/ml/train_fusion.py)
+- [fusion_features.py](src/niamoto/core/imports/ml/fusion_features.py)
 
-### 5. Projection sémantique produit
+### 5. Product Semantic Projection
 
-La vraie sortie produit n'est pas juste un concept brut. La branche actuelle
-projette la détection vers :
+The real product output is not just a raw concept. The current branch projects
+detection towards:
 
-- un `role`
-- un `concept`
-- des affordances et suggestions
+- a `role`
+- a `concept`
+- affordances and suggestions
 
-Cette couche est ce qui aligne la détection avec le produit Niamoto.
+This layer is what aligns detection with the Niamoto product.
 
-Références :
+References:
 
-- [semantic_profile.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/semantic_profile.py)
-- [affordance_matcher.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/affordance_matcher.py)
-- [profiler.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/profiler.py)
+- [semantic_profile.py](src/niamoto/core/imports/ml/semantic_profile.py)
+- [affordance_matcher.py](src/niamoto/core/imports/ml/affordance_matcher.py)
+- [profiler.py](src/niamoto/core/imports/profiler.py)
 
-## Pourquoi ce choix d'architecture
+## Why This Architecture
 
-Cette architecture est adaptée aux contraintes réelles du projet :
+This architecture is suited to the real constraints of the project:
 
-- peu de données annotées au regard du nombre de concepts ;
-- grande hétérogénéité de jeux de données ;
-- multi-langues ;
-- besoin d'explicabilité ;
-- exécution locale ;
-- coût d'entraînement court ;
-- valeur produit plus proche du bon rôle et de la bonne suggestion que du
-  concept fin parfait.
+- limited annotated data relative to the number of concepts;
+- high heterogeneity of datasets;
+- multilingual;
+- need for explainability;
+- local execution;
+- short training cost;
+- product value closer to the correct role and correct suggestion than to the
+  perfect fine-grained concept.
 
-Une approche end-to-end plus "grosse" serait plus fragile ici qu'un système
-hybride compact avec règles ciblées.
+A larger end-to-end approach would be more fragile here than a compact hybrid
+system with targeted rules.
 
-## Ce qu'on essaie vraiment d'améliorer
+## What We Are Really Trying to Improve
 
-La branche ne cherche pas à maximiser un simple score de classification. Elle
-cherche à améliorer :
+The branch does not aim to maximise a simple classification score. It aims to
+improve:
 
-- le taux d'auto-configuration correcte ;
-- la robustesse sur datasets nouveaux ;
-- la gestion des colonnes anonymes ;
-- la qualité des suggestions en sortie ;
-- la capacité à s'abstenir ou à rester prudente sur les cas durs.
+- the correct auto-configuration rate;
+- robustness on new datasets;
+- handling of anonymous columns;
+- the quality of output suggestions;
+- the ability to abstain or remain cautious on hard cases.
 
-## Vérité d'évaluation retenue
+## Retained Evaluation Ground Truth
 
-La métrique finale visée par la branche est le `NiamotoOfflineScore`, calculé
-dans [evaluation.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/evaluation.py)
-et exposé par [evaluate.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/evaluate.py).
+The final metric targeted by the branch is the `NiamotoOfflineScore`, computed
+in [evaluation.py](scripts/ml/evaluation.py)
+and exposed by [evaluate.py](scripts/ml/evaluate.py).
 
-Le score combine :
+The score combines:
 
 - `role_macro_f1`
 - `critical_concept_macro_f1`
@@ -164,67 +160,67 @@ Le score combine :
 - `confidence_quality`
 - `dataset_outcome`
 
-Les holdouts importants sont :
+The important holdouts are:
 
-- langues : `fr`, `es`, `de`, `zh`
-- familles : `dwc_gbif`, `forest_inventory`, `tropical_field`,
+- languages: `fr`, `es`, `de`, `zh`
+- families: `dwc_gbif`, `forest_inventory`, `tropical_field`,
   `research_traits`
-- colonnes anonymes
+- anonymous columns
 
-## Rôle d'autoresearch
+## Role of Autoresearch
 
-`autoresearch` ne doit pas décider de l'architecture. Il doit optimiser
-localement un système déjà bien cadré.
+`autoresearch` must not decide the architecture. It must locally optimise an
+already well-framed system.
 
-Rôle attendu :
+Expected role:
 
-- proposer des variantes bornées ;
-- évaluer rapidement ;
-- garder les améliorations ;
-- rejeter les régressions ;
-- accélérer le tuning.
+- propose bounded variants;
+- evaluate quickly;
+- keep improvements;
+- reject regressions;
+- accelerate tuning.
 
-Ce qu'il ne doit pas faire :
+What it must not do:
 
-- changer la vérité produit ;
-- optimiser un score proxy au détriment des garde-fous ;
-- introduire des règles agressives non validées ;
-- dégrader silencieusement un holdout difficile pour gagner ailleurs.
+- change the product ground truth;
+- optimise a proxy score at the expense of guardrails;
+- introduce unvalidated aggressive rules;
+- silently degrade a hard holdout to gain elsewhere.
 
-## Programmes autoresearch recommandés
+## Recommended Autoresearch Programmes
 
-Trois niveaux de boucle sont utiles :
+Three loop levels are useful:
 
-- [niamoto-header-model.md](/Users/julienbarbe/Dev/clients/niamoto/programmes/niamoto-header-model.md)
-- [niamoto-values-model.md](/Users/julienbarbe/Dev/clients/niamoto/programmes/niamoto-values-model.md)
-- [niamoto-fusion.md](/Users/julienbarbe/Dev/clients/niamoto/programmes/niamoto-fusion.md)
+- [niamoto-header-model.md](programmes/niamoto-header-model.md)
+- [niamoto-values-model.md](programmes/niamoto-values-model.md)
+- [niamoto-fusion.md](programmes/niamoto-fusion.md)
 
-Le programme `fusion` joue désormais le rôle de programme de **stack complète**.
+The `fusion` programme now plays the role of the **full-stack** programme.
 
-## Garde-fous actuels
+## Current Guardrails
 
-Les résultats observés sur la branche indiquent que certains domaines doivent
-être traités comme garde-fous explicites :
+Results observed on the branch indicate that certain domains must be treated as
+explicit guardrails:
 
 - `forest_inventory`
 - `tropical_field`
 - `fr`
 
-Le plus gros risque constaté à ce stade est la sur-prédiction de concepts
-inadaptés comme `statistic.count` sur des colonnes codées métier.
+The largest risk identified at this stage is over-prediction of ill-suited
+concepts such as `statistic.count` on business-coded columns.
 
-## Direction recommandée
+## Recommended Direction
 
-La bonne direction n'est pas "plus de modèle". La bonne direction est :
+The right direction is not "more model". The right direction is:
 
-- meilleure cohérence train/runtime ;
-- meilleure évaluation ;
-- meilleure fusion ;
-- règles prudentes ciblées ;
-- meilleur usage du contexte dataset-level.
+- better train/runtime consistency;
+- better evaluation;
+- better fusion;
+- cautious targeted rules;
+- better use of dataset-level context.
 
-La partie la plus prometteuse de la branche reste l'alignement :
+The most promising part of the branch remains the alignment:
 
-`détection -> semantic_profile -> affordances -> suggestions`
+`detection -> semantic_profile -> affordances -> suggestions`
 
-et non pas la seule optimisation d'un classifieur isolé.
+and not merely the optimisation of an isolated classifier.
