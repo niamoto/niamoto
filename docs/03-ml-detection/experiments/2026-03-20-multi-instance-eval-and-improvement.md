@@ -8,13 +8,13 @@ diagnostic gold set et ré-entraînement.
 
 ## Infrastructure
 
-- Ground truth centralisé : `data/eval/annotations/` (5 fichiers, 418 colonnes)
-- Scripts : `scripts/ml/eval/evaluate_instance.py` et `run_eval_suite.py`
+- Ground truth centralisé : `ml/data/eval/annotations/` (5 fichiers, 418 colonnes)
+- Scripts : `ml/scripts/eval/evaluate_instance.py` et `run_eval_suite.py`
 - Détection auto du séparateur CSV (virgule, tab, point-virgule)
-- Résultats JSON horodatés dans `data/eval/results/`
+- Résultats JSON horodatés dans `ml/data/eval/results/`
 
 ```
-data/eval/
+ml/data/eval/
   annotations/
     niamoto-nc.yml          # 57 cols (29 occ + 28 plots)
     niamoto-gb.yml          # 27 cols (19 occ + 8 plots)
@@ -200,21 +200,21 @@ Colonnes systématiquement fausses (3 datasets) : `acceptedTaxonKey`,
 
 ```bash
 # Suite complète
-uv run python -m scripts.ml.eval.run_eval_suite
+uv run python -m ml.scripts.eval.run_eval_suite
 
 # Instance unique
-uv run python -m scripts.ml.eval.evaluate_instance \
-    --annotations data/eval/annotations/niamoto-nc.yml \
+uv run python -m ml.scripts.eval.evaluate_instance \
+    --annotations ml/data/eval/annotations/niamoto-nc.yml \
     --data-dir test-instance/niamoto-nc/imports --compare
 
 # GBIF spécifique
-uv run python -m scripts.ml.eval.evaluate_instance \
-    --annotations data/eval/annotations/gbif_darwin_core.yml \
-    --csv data/silver/gbif_targeted/new_caledonia/occurrences.csv
+uv run python -m ml.scripts.eval.evaluate_instance \
+    --annotations ml/data/eval/annotations/gbif_darwin_core.yml \
+    --csv ml/data/silver/gbif_targeted/new_caledonia/occurrences.csv
 
 # Rebuild gold set + retrain
-uv run python -m scripts.ml.build_gold_set
-uv run python scripts/ml/train_header_model.py
-uv run python scripts/ml/train_value_model.py
-uv run python scripts/ml/train_fusion.py
+uv run python -m ml.scripts.data.build_gold_set
+uv run python -m ml.scripts.train.train_header_model
+uv run python -m ml.scripts.train.train_value_model
+uv run python -m ml.scripts.train.train_fusion
 ```

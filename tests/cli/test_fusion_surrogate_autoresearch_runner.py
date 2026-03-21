@@ -1,4 +1,4 @@
-from scripts.ml.run_fusion_surrogate_autoresearch import (
+from ml.scripts.research.run_fusion_surrogate_autoresearch import (
     DEFAULT_ALLOWED_PATHS,
     build_codex_prompt,
     summarize_recent_iterations,

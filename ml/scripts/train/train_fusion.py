@@ -6,8 +6,8 @@ Combines header and value model probability outputs into a single
 calibrated prediction. Uses isotonic regression for calibration.
 
 Usage:
-    uv run python scripts/ml/train_fusion.py
-    uv run python scripts/ml/train_fusion.py --gold-set data/gold_set.json
+    uv run python -m ml.scripts.train.train_fusion
+    uv run python -m ml.scripts.train.train_fusion --gold-set ml/data/gold_set.json
 """
 
 import argparse
@@ -22,7 +22,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
 from sklearn.model_selection import GroupKFold
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from niamoto.core.imports.ml.alias_registry import _normalize
 from niamoto.core.imports.ml.fusion_features import (
     branch_confidence_stats,
@@ -35,7 +35,8 @@ from niamoto.core.imports.ml.header_features import build_header_text_from_stats
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 FUSION_META_FEATURE_NAMES = (
     "is_anonymous",
     "null_ratio",
@@ -112,7 +113,7 @@ def extract_fusion_branch_probabilities(
                 logger.debug("Feature extraction failed: %s", e)
     if value_model is not None:
         try:
-            from scripts.ml.train_value_model import extract_value_features
+            from ml.scripts.train.train_value_model import extract_value_features
 
             feat_vec = extract_value_features(
                 record.get("values_sample", []),
@@ -177,7 +178,7 @@ def extract_fusion_branch_probabilities_batch(
 
     if value_model is not None and records:
         try:
-            from scripts.ml.train_value_model import extract_value_features
+            from ml.scripts.train.train_value_model import extract_value_features
 
             value_features = np.array(
                 [
@@ -421,16 +422,20 @@ def build_fusion_model(C: float = 1.0) -> LogisticRegression:
 def main():
     parser = argparse.ArgumentParser(description="Train fusion model")
     parser.add_argument(
-        "--gold-set", type=Path, default=ROOT / "data" / "gold_set.json"
+        "--gold-set", type=Path, default=ML_ROOT / "data" / "gold_set.json"
     )
     parser.add_argument(
-        "--header-model", type=Path, default=ROOT / "models" / "header_model.joblib"
+        "--header-model",
+        type=Path,
+        default=ML_ROOT / "models" / "header_model.joblib",
     )
     parser.add_argument(
-        "--value-model", type=Path, default=ROOT / "models" / "value_model.joblib"
+        "--value-model",
+        type=Path,
+        default=ML_ROOT / "models" / "value_model.joblib",
     )
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "models" / "fusion_model.joblib"
+        "--output", type=Path, default=ML_ROOT / "models" / "fusion_model.joblib"
     )
     parser.add_argument("--eval-only", action="store_true")
     args = parser.parse_args()
@@ -461,8 +466,8 @@ def main():
     n_splits = min(5, len(unique_groups))
 
     if n_splits >= 2:
-        from scripts.ml.train_header_model import build_pipeline, prepare_data
-        from scripts.ml.train_value_model import (
+        from ml.scripts.train.train_header_model import build_pipeline, prepare_data
+        from ml.scripts.train.train_value_model import (
             build_model as build_value_model,
             extract_value_features,
         )

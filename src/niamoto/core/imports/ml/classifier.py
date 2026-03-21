@@ -33,25 +33,30 @@ _ANONYMOUS_RE = re.compile(
 )
 
 
-def _get_resource_path(relative: str) -> Path:
+def _get_resource_path(*relatives: str) -> Path:
     """Get path to a bundled resource.
 
     Resolution order:
     1. bundle.py (PyInstaller frozen → sys._MEIPASS, source → project root)
     2. Package-relative (pip install → niamoto/ package directory)
     """
-    try:
-        from niamoto.common.bundle import get_resource_path
+    for relative in relatives:
+        try:
+            from niamoto.common.bundle import get_resource_path
 
-        path = get_resource_path(relative)
+            path = get_resource_path(relative)
+            if path.exists():
+                return path
+        except Exception:
+            pass
+
+    package_root = Path(__file__).resolve().parents[3]
+    for relative in relatives:
+        path = package_root / relative
         if path.exists():
             return path
-    except Exception:
-        pass
 
-    # Fallback: package-relative (pip install with models in niamoto/models/)
-    # From niamoto/core/imports/ml/classifier.py → parents[3] = niamoto/
-    return Path(__file__).resolve().parents[3] / relative
+    return package_root / relatives[0]
 
 
 class ColumnClassifier:
@@ -78,9 +83,18 @@ class ColumnClassifier:
         try:
             import joblib
 
-            header_path = _get_resource_path("models/header_model.joblib")
-            value_path = _get_resource_path("models/value_model.joblib")
-            fusion_path = _get_resource_path("models/fusion_model.joblib")
+            header_path = _get_resource_path(
+                "ml/models/header_model.joblib",
+                "models/header_model.joblib",
+            )
+            value_path = _get_resource_path(
+                "ml/models/value_model.joblib",
+                "models/value_model.joblib",
+            )
+            fusion_path = _get_resource_path(
+                "ml/models/fusion_model.joblib",
+                "models/fusion_model.joblib",
+            )
 
             if header_path.exists():
                 self._header_model = joblib.load(header_path)

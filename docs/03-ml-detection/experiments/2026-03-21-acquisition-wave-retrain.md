@@ -11,7 +11,7 @@ gold set puis réentraînement des trois branches (`header`, `values`,
 
 ### Intégrées au gold set
 
-- `TAXREF v18` (`data/silver/taxref/TAXREFv18.txt`)
+- `TAXREF v18` (`ml/data/silver/taxref/TAXREFv18.txt`)
 - `ETS Occurrence_ext.csv`
 - `ETS Taxon_ext.csv`
 - `ETS Measurement_or_Fact_ext.csv`
@@ -56,11 +56,11 @@ Apports visibles par source :
 ## Commandes exécutées
 
 ```bash
-uv run python -m scripts.ml.build_gold_set
-uv run python scripts/ml/train_header_model.py
-uv run python scripts/ml/train_value_model.py
-uv run python -m scripts.ml.train_fusion
-uv run python -m scripts.ml.eval.run_eval_suite
+uv run python -m ml.scripts.data.build_gold_set
+uv run python -m ml.scripts.train.train_header_model
+uv run python -m ml.scripts.train.train_value_model
+uv run python -m ml.scripts.train.train_fusion
+uv run python -m ml.scripts.eval.run_eval_suite
 ```
 
 ## Résultats de training
@@ -81,7 +81,7 @@ terminé et les modèles sont sauvegardés, mais un réglage ultérieur de
 ## Résultats d'évaluation
 
 Fichier de sortie :
-`data/eval/results/20260321_194036.json`
+`ml/data/eval/results/20260321_194036.json`
 
 ### Benchmarks historiques recalculés après retrain
 

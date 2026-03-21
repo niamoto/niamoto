@@ -7,7 +7,7 @@ from niamoto.core.imports.ml.fusion_features import (
     is_code_like_header,
     top_concept_flags,
 )
-from scripts.ml.train_fusion import (
+from ml.scripts.train.train_fusion import (
     extract_fusion_branch_probabilities,
     extract_fusion_branch_probabilities_batch,
     extract_fusion_metadata,

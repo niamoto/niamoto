@@ -186,7 +186,7 @@ First recommended work:
 
 Relevant files:
 
-- `scripts/ml/train_fusion.py`
+- `ml/scripts/train/train_fusion.py`
 - `src/niamoto/core/imports/ml/classifier.py`
 - future surrogate cache script
 
@@ -220,19 +220,19 @@ The minimal building blocks are now in place:
    via:
 
 ```bash
-uv run python -m scripts.ml.build_fusion_surrogate_cache --gold-set data/gold_set.json --splits 3
+uv run python -m ml.scripts.research.build_fusion_surrogate_cache --gold-set ml/data/gold_set.json --splits 3
 ```
 
 2. expose a command such as:
 
 ```bash
-uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-fast
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric surrogate-fast
 ```
 
 3. also expose:
 
 ```bash
-uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-mid
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric surrogate-mid
 ```
 
 4. run `autoresearch` only on these metrics
@@ -241,7 +241,7 @@ uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-mid
 Local runner added:
 
 ```bash
-uv run python -m scripts.ml.run_fusion_surrogate_autoresearch --iterations 50
+uv run python -m ml.scripts.research.run_fusion_surrogate_autoresearch --iterations 50
 ```
 
 Behaviour:

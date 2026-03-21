@@ -15,9 +15,9 @@ connected.
 
 | Model | File | Size | Technique |
 |-------|------|------|-----------|
-| Header | `models/header_model.joblib` | 2.6 MB | TF-IDF char n-grams + LogReg |
-| Values | `models/value_model.joblib` | 38 MB | HistGradientBoosting (38 features) |
-| Fusion | `models/fusion_model.joblib` | 50 KB | LogReg on aligned probas + meta-features |
+| Header | `ml/models/header_model.joblib` | 2.6 MB | TF-IDF char n-grams + LogReg |
+| Values | `ml/models/value_model.joblib` | 38 MB | HistGradientBoosting (38 features) |
+| Fusion | `ml/models/fusion_model.joblib` | 50 KB | LogReg on aligned probas + meta-features |
 
 All 3 models are **bundled in the package** via `pyproject.toml` and loaded
 lazily at runtime by `ColumnClassifier`.

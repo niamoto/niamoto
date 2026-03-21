@@ -19,7 +19,7 @@ Le holdout anonymous ne testait rien d'utile :
 
 ### Nouvelle fonction `_build_anonymous_holdout()`
 
-Dans `scripts/ml/build_gold_set.py` :
+Dans `ml/scripts/data/build_gold_set.py` :
 - Échantillonnage stratifié des colonnes réelles par `concept_coarse`
 - Plancher de 2 entrées par concept, seed fixe 42
 - Noms aléatoires tirés d'un pool de ~300 noms génériques (`col_N`, `X_N`, `V_N`, `var_x`, `field_N`)
@@ -89,21 +89,21 @@ les buckets. Fix : exclusion explicite des `is_anonymous` de `real_records` et
 
 | Fichier | Action |
 |---------|--------|
-| `scripts/ml/build_gold_set.py` | `_build_anonymous_holdout()`, suppression HEADER_VARIANTS["anonymous"] |
-| `scripts/ml/evaluate.py` | Métrique values-only, `return_models` param, exclusion `is_anonymous` de `real_records` |
-| `data/gold_set.json` | Régénéré (2561 entrées) |
+| `ml/scripts/data/build_gold_set.py` | `_build_anonymous_holdout()`, suppression HEADER_VARIANTS["anonymous"] |
+| `ml/scripts/eval/evaluate.py` | Métrique values-only, `return_models` param, exclusion `is_anonymous` de `real_records` |
+| `ml/data/gold_set.json` | Régénéré (2561 entrées) |
 
 ## Commandes de reproduction
 
 ```bash
 # Rebuild gold set
-uv run python -m scripts.ml.build_gold_set
+uv run python -m ml.scripts.data.build_gold_set
 
 # Vérifier distribution
 uv run python3 -c "
 import json
 from collections import Counter
-with open('data/gold_set.json') as f:
+with open('ml/data/gold_set.json') as f:
     gold = json.load(f)
 anon = [e for e in gold if e.get('is_anonymous')]
 print(f'Anonymous: {len(anon)} across {len(Counter(e[\"concept_coarse\"] for e in anon))} concepts')
@@ -112,5 +112,5 @@ for c, n in Counter(e['concept_coarse'] for e in anon).most_common():
 "
 
 # Évaluation complète
-uv run python -m scripts.ml.evaluate --model all --metric product-score
+uv run python -m ml.scripts.eval.evaluate --model all --metric product-score
 ```

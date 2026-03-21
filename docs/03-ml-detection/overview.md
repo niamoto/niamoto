@@ -56,9 +56,9 @@ To improve detection for a poorly recognised column type:
 
 1. **Add aliases** in `src/niamoto/core/imports/ml/column_aliases.yaml` — no ML needed, just a YAML file. Example: add `"circonference"` as an alias for `measurement.diameter` in French.
 
-2. **Add training data** in `scripts/ml/build_gold_set.py` — label the columns from a new dataset and reference it in the source list.
+2. **Add training data** in `ml/scripts/data/build_gold_set.py` — label the columns from a new dataset and reference it in the source list.
 
-3. **Retrain**: `uv run python scripts/ml/train_header_model.py && uv run python scripts/ml/train_value_model.py`
+3. **Retrain**: `uv run python -m ml.scripts.train.train_header_model && uv run python -m ml.scripts.train.train_value_model`
 
 ## Current scores
 
@@ -110,11 +110,11 @@ Niamoto's approach differs from these academic systems: it uses a lightweight hy
 |------|---------|
 | `src/niamoto/core/imports/ml/alias_registry.py` | Name → concept matching via multilingual aliases |
 | `src/niamoto/core/imports/ml/column_aliases.yaml` | 25 concepts × 8 languages |
-| `src/niamoto/core/imports/ml/evaluation.py` | Evaluation harness (GroupKFold, holdouts) |
-| `src/niamoto/core/imports/ml/concept_taxonomy.py` | Fusion of 111 fine concepts → 61 concepts |
+| `ml/scripts/eval/evaluation.py` | Evaluation harness (GroupKFold, holdouts) |
+| `ml/scripts/data/concept_taxonomy.py` | Fusion of 111 fine concepts → 61 concepts |
 | `src/niamoto/core/imports/profiler.py` | DataProfiler with `ml_mode=auto/off/force` |
-| `scripts/ml/build_gold_set.py` | Gold set construction (88 sources) |
-| `scripts/ml/train_header_model.py` | Header branch training |
-| `scripts/ml/train_value_model.py` | Values branch training |
-| `scripts/ml/evaluate.py` | CLI metric for evaluation |
-| `data/gold_set.json` | 2,231 labelled columns |
+| `ml/scripts/data/build_gold_set.py` | Gold set construction (88 sources) |
+| `ml/scripts/train/train_header_model.py` | Header branch training |
+| `ml/scripts/train/train_value_model.py` | Values branch training |
+| `ml/scripts/eval/evaluate.py` | CLI metric for evaluation |
+| `ml/data/gold_set.json` | 2,231 labelled columns |

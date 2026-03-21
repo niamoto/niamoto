@@ -153,7 +153,7 @@ Changements :
 
 - création de [value_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/value_features.py)
 - réutilisation depuis :
-  - [train_value_model.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/train_value_model.py)
+  - [train_value_model.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/train/train_value_model.py)
   - [classifier.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/classifier.py)
 
 Nouveaux signaux ajoutés :
@@ -365,7 +365,7 @@ Objectif :
 - mieux séparer anglais standard et anglais métier ;
 - éviter de surinterpréter des splits faciles comme `zh`.
 
-Changements ajoutés au reporting de [evaluate.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/evaluate.py) :
+Changements ajoutés au reporting de [evaluate.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/eval/evaluate.py) :
 
 - `diagnostic_lang[zh]` comme diagnostic secondaire et non plus holdout
   stratégique
@@ -394,19 +394,19 @@ Décision associée :
 Validation complète avec progression :
 
 ```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress
 ```
 
 Boucle silencieuse compatible autoresearch :
 
 ```bash
-.venv/bin/python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3 --quiet
+.venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --quiet
 ```
 
 Run recommandée après évolution du benchmark :
 
 ```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress
 ```
 
 ## Lot Guyane 1 — acquisition et intégration
@@ -434,7 +434,7 @@ Résultat vérifié :
 
 ### Fichiers récupérés
 
-Sous `data/silver/guyane/` :
+Sous `ml/data/silver/guyane/` :
 
 - `paracou/FGPlotsCensusData2023.csv`
 - `paracou/FGPlotsDescription.csv`
@@ -466,7 +466,7 @@ Choix fait :
 Changements réalisés :
 
 - ajout d'un bloc `FORESTSCAN_PARACOU_LABELS` dans
-  [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py)
+  [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py)
 - ajout de la source `forestscan_paracou_census` dans `SOURCES`
 - régénération du gold set
 
@@ -479,15 +479,15 @@ Résultat :
 ### Correction d'outillage connexe
 
 Défaut corrigé dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py) :
+[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
 
-- `uv run python scripts/ml/build_gold_set.py` cassait sur
+- `uv run python -m ml.scripts.data.build_gold_set` cassait sur
   `ModuleNotFoundError: scripts`
 - le script ajoute maintenant à la fois `src/` et la racine du repo au
   `sys.path`
 - les deux modes fonctionnent désormais :
-  - `uv run python scripts/ml/build_gold_set.py`
-  - `uv run python -m scripts.ml.build_gold_set`
+  - `uv run python -m ml.scripts.data.build_gold_set`
+  - `uv run python -m ml.scripts.data.build_gold_set`
 
 ### Décision
 
@@ -511,7 +511,7 @@ Un premier lot GBIF régional a été récupéré via l'API publique
 - règne : `Plantae`
 - volume cible : `5000` occurrences par région
 
-Sorties créées sous `data/silver/gbif_targeted/` :
+Sorties créées sous `ml/data/silver/gbif_targeted/` :
 
 - `new_caledonia/occurrences.csv`
 - `guyane/occurrences.csv`
@@ -539,7 +539,7 @@ Conclusion :
 ### Intégration gold set
 
 Les sources suivantes ont été ajoutées dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py) :
+[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
 
 - `gbif_targeted_new_caledonia`
 - `gbif_targeted_guyane`
@@ -600,7 +600,7 @@ Le lot complet retenu à ce stade est :
 - `gabon`
 - `cameroon`
 
-Sorties créées sous `data/silver/gbif_targeted_institutional/` :
+Sorties créées sous `ml/data/silver/gbif_targeted_institutional/` :
 
 - `gabon/occurrences.csv`
 - `cameroon/occurrences.csv`
@@ -619,7 +619,7 @@ Qualité observée :
 ### Intégration gold set
 
 Les sources suivantes ont été ajoutées dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py) :
+[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
 
 - `gbif_targeted_institutional_gabon`
 - `gbif_targeted_institutional_cameroon`
@@ -633,7 +633,7 @@ Apport observé :
 
 Après intégration du lot GBIF général puis du lot institutionnel `GA/CM` :
 
-- `data/gold_set.json` passe à `2492` colonnes
+- `ml/data/gold_set.json` passe à `2492` colonnes
 - dont `1896` gold et `596` synthetic
 
 Décision retenue :
@@ -647,7 +647,7 @@ Décision retenue :
 ## Entrée du 2026-03-18 — run sur gold set enrichi
 
 Avant cette run, les copies de référence locales ont été internalisées dans
-`data/silver/` et [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/scripts/ml/build_gold_set.py)
+`ml/data/silver/` et [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py)
 a été réaligné pour ne plus dépendre de copies hors repo pour :
 
 - `guyadiv_trees`
@@ -874,7 +874,7 @@ real = 1.31s
 ### Corrections du runner surrogate
 
 Trois problèmes identifiés et corrigés dans
-`scripts/ml/run_fusion_surrogate_autoresearch.py` :
+`ml/scripts/research/run_fusion_surrogate_autoresearch.py` :
 
 1. **Validation stack trop coûteuse** — Quand un candidat passait
    `surrogate-mid`, le runner lançait `product-score-fast-fast` (bloquant
@@ -960,7 +960,7 @@ Hypothèses pour débloquer :
 
 ### Réentraînement des 3 modèles
 
-Les modèles `.joblib` dans `models/` étaient toujours les anciens — l'autoresearch
+Les modèles `.joblib` dans `ml/models/` étaient toujours les anciens — l'autoresearch
 modifiait le code des features de fusion mais n'entraînait pas les modèles. Les
 scores surrogate étaient un proxy local, pas le vrai score produit.
 
@@ -1010,7 +1010,7 @@ Résultat :
 
 ### Évaluation par instance — niamoto-subset
 
-Un script `scripts/ml/evaluate_instance.py` a été créé pour comparer la
+Un script `ml/scripts/eval/evaluate_instance.py` a été créé pour comparer la
 détection ML avec l'`import.yml` validé d'une instance réelle.
 
 Résultats sur `niamoto-subset` (29 colonnes, 9 évaluées via ground truth) :

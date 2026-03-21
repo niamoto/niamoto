@@ -45,43 +45,43 @@ Tu ne dois pas modifier :
 Préparer le cache surrogate une fois :
 
 ```bash
-uv run python -m scripts.ml.build_fusion_surrogate_cache --gold-set data/gold_set.json --splits 3
+uv run python -m ml.scripts.research.build_fusion_surrogate_cache --gold-set ml/data/gold_set.json --splits 3
 ```
 
 Boucle rapide fusion-only :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-fast --splits 3
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric surrogate-fast --splits 3
 ```
 
 Validation surrogate plus stricte :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model fusion --metric surrogate-mid --splits 3
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric surrogate-mid --splits 3
 ```
 
 Validation stack courte :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model all --metric product-score-fast-fast --splits 2
+uv run python -m ml.scripts.eval.evaluate --model all --metric product-score-fast-fast --splits 2
 ```
 
 Diagnostic complémentaire si nécessaire :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model fusion --metric macro-f1 --splits 5
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric macro-f1 --splits 5
 ```
 
 Validation globale secondaire :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model all --metric product-score --splits 3
+uv run python -m ml.scripts.eval.evaluate --model all --metric product-score --splits 3
 ```
 
 Validation globale finale :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3
+uv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3
 ```
 
 La sortie stdout est un score unique. Les sous-métriques et holdouts sont affichés

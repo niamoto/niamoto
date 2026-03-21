@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from scripts.ml.evaluation import (
+from ml.scripts.eval.evaluation import (
     LabeledColumn,
     EvalMetrics,
     EvaluationHarness,

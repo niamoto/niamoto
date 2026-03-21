@@ -35,7 +35,7 @@ Consequence:
 
 ## Recommended Target Structure
 
-The current `data/silver` structure contains mainly:
+The current `ml/data/silver` structure contains mainly:
 
 - `ifn_france/`
 - `finland_sweden/`
@@ -45,7 +45,7 @@ The current `data/silver` structure contains mainly:
 For new sources, I recommend a more explicit structure:
 
 ```text
-data/silver/
+ml/data/silver/
   instances/
     <instance_name>/
   guyane/
@@ -67,7 +67,7 @@ Goal:
 
 - make provenance readable;
 - simplify benchmark tags;
-- avoid a `data/silver/` root that is too flat.
+- avoid a `ml/data/silver/` root that is too flat.
 
 ## Batch 1 — Priority Acquisition
 
@@ -82,7 +82,7 @@ Goal:
 ### Recommended Storage
 
 ```text
-data/silver/instances/<instance_name>/
+ml/data/silver/instances/<instance_name>/
 ```
 
 ### Recommended Benchmark Tags
@@ -95,7 +95,7 @@ data/silver/instances/<instance_name>/
 ### build_gold_set Integration
 
 Add each dataset as an explicit source in
-[scripts/ml/build_gold_set.py](scripts/ml/build_gold_set.py)
+[ml/scripts/data/build_gold_set.py](../../ml/scripts/data/build_gold_set.py)
 with:
 
 - `name`
@@ -131,9 +131,9 @@ After integration:
 ### Recommended Storage
 
 ```text
-data/silver/guyane/paracou/
-data/silver/guyane/trinite/
-data/silver/guyane/tresor/
+ml/data/silver/guyane/paracou/
+ml/data/silver/guyane/trinite/
+ml/data/silver/guyane/tresor/
 ```
 
 ### Recommended Benchmark Tags
@@ -201,10 +201,10 @@ Recommended status:
 ### Recommended Storage
 
 ```text
-data/silver/gbif_targeted/new_caledonia/
-data/silver/gbif_targeted/guyane/
-data/silver/gbif_targeted/gabon/
-data/silver/gbif_targeted/cameroon/
+ml/data/silver/gbif_targeted/new_caledonia/
+ml/data/silver/gbif_targeted/guyane/
+ml/data/silver/gbif_targeted/gabon/
+ml/data/silver/gbif_targeted/cameroon/
 ```
 
 ### Recommended Benchmark Tags
@@ -294,8 +294,8 @@ Observed contribution to the gold set:
 ### Recommended Storage
 
 ```text
-data/silver/africa_tropical/rainbio/
-data/silver/africa_tropical/lope/
+ml/data/silver/africa_tropical/rainbio/
+ml/data/silver/africa_tropical/lope/
 ```
 
 ### Recommended Benchmark Tags
@@ -358,7 +358,7 @@ Each new source should be added to the source list with at minimum:
 ```python
 {
     "name": "...",
-    "path": ROOT / "data/silver/...",
+    "path": ML_ROOT / "data/silver/...",
     "labels": ...,
     "language": "...",
     "sample_rows": ...,
@@ -380,7 +380,7 @@ Conceptual example:
 ```python
 {
     "name": "paracou_trees",
-    "path": ROOT / "data/silver/guyane/paracou/trees.csv",
+    "path": ML_ROOT / "data/silver/guyane/paracou/trees.csv",
     "labels": PARACOU_TREE_LABELS,
     "language": "fr",
     "sample_rows": 1000,
@@ -400,7 +400,7 @@ structure will simplify the evolution of the evaluation protocol.
 
 For each new source:
 
-1. download / normalise into `data/silver/...`
+1. download / normalise into `ml/data/silver/...`
 2. inspect columns and choose an annotable subset
 3. write the `LABELS`
 4. add the entry to `build_gold_set.py`
