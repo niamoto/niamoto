@@ -70,6 +70,22 @@ p { margin-bottom: 12px; }
 .pipeline-detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .pipeline-detail td { padding: 6px 12px; border-bottom: 1px solid var(--gray-100); }
 .pipeline-detail td:first-child { font-family: var(--mono); font-weight: 500; color: var(--gray-600); white-space: nowrap; width: 200px; }
+.flow-explainer { margin-top: 24px; padding: 24px; background: linear-gradient(180deg, #ffffff 0%, var(--gray-50) 100%); border: 1px solid var(--gray-200); border-radius: 16px; }
+.flow-explainer h3 { margin-top: 0; }
+.flow-lead { font-size: 14px; color: var(--gray-600); margin-bottom: 18px; }
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }
+.flow-step { position: relative; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; min-height: 160px; }
+.flow-step .step-num { display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--blue); background: var(--blue-light); padding: 3px 8px; border-radius: 999px; margin-bottom: 10px; }
+.flow-step h4 { font-size: 14px; margin-bottom: 8px; color: var(--gray-900); }
+.flow-step p { font-size: 13px; color: var(--gray-600); margin-bottom: 8px; }
+.flow-step code { font-family: var(--mono); font-size: 12px; }
+.flow-arrow { text-align: center; color: var(--gray-400); font-size: 18px; margin: -2px 0; }
+.flow-note { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; margin-top: 16px; }
+.flow-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 18px; }
+.flow-card h4 { margin-top: 0; margin-bottom: 10px; font-size: 14px; }
+.flow-card ul { padding-left: 18px; margin: 0; color: var(--gray-600); font-size: 13px; }
+.flow-card li { margin-bottom: 6px; }
+@media (max-width: 768px) { .flow-note { grid-template-columns: 1fr; } }
 
 /* Charts */
 .chart-container { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; margin: 16px 0; }
@@ -198,17 +214,23 @@ details[open] summary { margin-bottom: 8px; }
   <h1>Automatic Semantic Column Detection via Machine Learning</h1>
   <p class="subtitle">Niamoto — Generic Ecological Data Platform</p>
   <div class="stats-grid">
-    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">81.82</div><div class="label">ProductScore <span class="info-tip" title="Weighted composite score across 6 data families (tropical, traits, GBIF core/extended, field, anonymous). Primary optimization metric for the fusion model.">&#9432;</span></div></div>
-    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">80.79</div><div class="label">GlobalScore <span class="info-tip" title="Complete score with all holdout families and languages. Measures end-to-end reliability across every data type and language in the gold set.">&#9432;</span></div></div>
-    <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the gold set (training data). Each entry has a column name, value statistics, and a verified semantic concept label.">&#9432;</span></div></div>
-    <div class="stat-card green"><div class="value">94+</div><div class="label">Sources <span class="info-tip" title="Distinct data files used to build the gold set: forest inventories (GUYADIV, IFN, FIA, Paracou), GBIF exports, synthetic fixtures, and instance data (niamoto-nc, niamoto-gb, Afrique).">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.84</div><div class="label">ProductScore <span class="info-tip" title="Historical holdout benchmark recalculated after the 2026-03-21 retrain. Weighted composite across tropical_field, research_traits, GBIF core/extended, en_field, and anonymous.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">82.76</div><div class="label">GlobalScore <span class="info-tip" title="Historical NiamotoOfflineScore recalculated after the 2026-03-21 retrain on the full gold-set protocol.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">84.7%</div><div class="label">EvalSuite Concept <span class="info-tip" title="Latest end-to-end concept accuracy from the 2026-03-21 retrain on 9 evaluation datasets (478 columns), including frozen acceptance benchmarks.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">90.4%</div><div class="label">EvalSuite Role <span class="info-tip" title="Latest end-to-end role accuracy from the 2026-03-21 retrain on 9 evaluation datasets (478 columns).">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">2 540</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the rebuilt gold set after the TAXREF v18, ETS, and sPlotOpen acquisition wave.">&#9432;</span></div></div>
     <div class="stat-card"><div class="value">61</div><div class="label">Concepts <span class="info-tip" title="Distinct semantic concepts after coarsening (e.g. taxonomy.species, measurement.diameter, location.elevation). Fine-grained concepts (~116) are merged via concept_taxonomy.py for better ML performance.">&#9432;</span></div></div>
   </div>
   <div class="stats-grid" style="margin-top:16px;">
-    <div class="stat-card green"><div class="value">0.7467</div><div class="label">Header F1 <span class="info-tip" title="Macro-F1 of the header branch alone (TF-IDF char n-grams + L1 LogisticRegression). Classifies columns by name only, ignoring values. Strong on standard names (dbh, species, latitude), weak on opaque codes.">&#9432;</span></div></div>
-    <div class="stat-card orange"><div class="value">0.3935</div><div class="label">Values F1 <span class="info-tip" title="Macro-F1 of the values branch alone (37 statistical features + HistGradientBoosting). Classifies columns by value distribution only. Essential for anonymous headers (X1, col_3). Lower score reflects the harder task.">&#9432;</span></div></div>
-    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6876</div><div class="label">Fusion F1 <span class="info-tip" title="Leak-free macro-F1 (GroupKFold by dataset). The fusion model combines header and values probabilities with cross-rank reciprocity features. This is the real generalization score.">&#9432;</span></div></div>
-    <div class="stat-card green"><div class="value">87.8%</div><div class="label">Instance Role Accuracy <span class="info-tip" title="Role-level accuracy on 418 real-world columns across 7 datasets (3 production instances, 3 GBIF exports, 7 silver files). Measures if the broad category (taxonomy, measurement, location, etc.) is correct.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">0.7530</div><div class="label">Header F1 <span class="info-tip" title="Macro-F1 of the header branch alone on the 2026-03-21 retrain. This remains the strongest branch of the pipeline.">&#9432;</span></div></div>
+    <div class="stat-card orange"><div class="value">0.3780</div><div class="label">Values F1 <span class="info-tip" title="Macro-F1 of the values branch alone on the 2026-03-21 retrain. Useful as support, but still the weakest generalization layer.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6388</div><div class="label">Fusion F1 <span class="info-tip" title="Leak-free macro-F1 (GroupKFold by dataset) on the 2026-03-21 retrain. Better than values alone, still below header-only.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">80.0%</div><div class="label">Frozen Acceptance <span class="info-tip" title="Weighted concept accuracy on the frozen acceptance benchmark (acceptance-niamoto-gb + acceptance-fia-or): 60 columns total, 80.0% concept accuracy.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">9</div><div class="label">Eval Datasets <span class="info-tip" title="Datasets included in the latest evaluation suite: 7 product/proxy datasets plus 2 frozen acceptance benchmarks.">&#9432;</span></div></div>
+  </div>
+  <div class="info-box" style="margin-top:20px;">
+    <h3>Latest retrain snapshot — 2026-03-21 19:40</h3>
+    <p>After the acquisition wave (`TAXREF v18`, `ETS`, `sPlotOpen`) and full retrain, the dashboard now shows both benchmark families: historical holdouts (`ProductScore 80.84`, `GlobalScore 82.76`) and product evaluation (`EvalSuite 84.7% concept`, `90.4% role`). Product datasets are strong (`niamoto-nc 91.2%`, `niamoto-gb 100%`, `guyadiv 83.6%`), while the frozen coded-inventory benchmark `acceptance-fia-or` remains the main weakness at <strong>63.6% concept</strong>.</p>
   </div>
 </div>
 </section>
@@ -235,13 +257,13 @@ details[open] summary { margin-bottom: 8px; }
         <h4>2. HEADER</h4>
         <div class="algo">TF-IDF char n-grams + L1 LogReg</div>
         <div>Analyzes the column name</div>
-        <div class="score" style="color:var(--green)">F1 = 0.7467</div>
+        <div class="score" style="color:var(--green)">F1 = 0.7530</div>
       </div>
       <div class="pipeline-box" onclick="showDetail('values')">
         <h4>3. VALUES</h4>
         <div class="algo">37 features + HistGradientBoosting</div>
         <div>Statistically analyzes values</div>
-        <div class="score" style="color:var(--orange)">F1 = 0.3935</div>
+        <div class="score" style="color:var(--orange)">F1 = 0.3780</div>
       </div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
@@ -250,7 +272,7 @@ details[open] summary { margin-bottom: 8px; }
       <h4>4. FUSION</h4>
       <div class="algo">LogReg + meta-features (disagreement, confidence, coded headers, cross-rank)</div>
       <div>Combines probabilities, corrects inter-branch biases</div>
-      <div class="score" style="color:var(--blue)">F1 = 0.6876</div>
+      <div class="score" style="color:var(--blue)">F1 = 0.6388</div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
 
@@ -306,7 +328,70 @@ details[open] summary { margin-bottom: 8px; }
         <tr><td>Targeted damping</td><td>If code-like header + a branch pushes <code>statistic.count</code> &rarr; damped confidence before fusion</td></tr>
         <tr><td>Classifier</td><td><code>LogisticRegression(C=1.0, solver="lbfgs", class_weight="balanced")</code></td></tr>
       </table>
-      <p style="margin-top:12px;font-size:13px;color:var(--gray-500)">Cross-rank reciprocity features capture how well the two branches agree across their top predictions. Impact: ProductScore +0.79.</p>
+      <p style="margin-top:12px;font-size:13px;color:var(--gray-500)">Cross-rank reciprocity features capture how well the two branches agree across their top predictions. They were a strong gain in the previous optimization cycle; after the 2026-03-21 retrain the current baseline is ProductScore 80.84.</p>
+    </div>
+  </div>
+
+  <div class="flow-explainer">
+    <h3>How <code>column_aliases</code> fits into the ML system</h3>
+    <p class="flow-lead">The YAML alias file is not a separate heuristic living next to the model. It is the first stage of the same semantic detection pipeline. If a header is known exactly, Niamoto resolves it immediately. If not, it falls through to ML.</p>
+
+    <div class="flow-grid">
+      <div class="flow-step">
+        <div class="step-num">01</div>
+        <h4>CSV Upload</h4>
+        <p>The user uploads a CSV such as <code>occurrences.csv</code> or <code>plots.csv</code>.</p>
+        <p>Niamoto reads column names plus a sample of values.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">02</div>
+        <h4>Alias Registry</h4>
+        <p><code>column_aliases.yaml</code> is loaded into an exact-match registry.</p>
+        <p>If a header like <code>ddlat</code> or <code>tax_fam</code> is known, prediction returns immediately with high confidence.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">03</div>
+        <h4>ML Classifier</h4>
+        <p>If no exact alias matches, the column goes to the ML stack:</p>
+        <p><code>header model</code> + <code>values model</code> + <code>fusion</code>.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">04</div>
+        <h4>Fallback Rules</h4>
+        <p>Only after aliases and ML do a few structural rules apply.</p>
+        <p>Example: WKT values like <code>POINT(...)</code> can still be recognized as geometry.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">05</div>
+        <h4>Product Output</h4>
+        <p>The final semantic type drives auto-config, affordances, widgets, and import suggestions.</p>
+        <p>This is what the user sees in <code>smart_config</code> and profiling.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">06</div>
+        <h4>Training And Evaluation Loop</h4>
+        <p>The same concepts are used to build <code>data/gold_set.json</code> and to evaluate frozen acceptance benchmarks.</p>
+        <p>So aliases affect both runtime precision and the quality of the training/evaluation loop.</p>
+      </div>
+    </div>
+
+    <div class="flow-note">
+      <div class="flow-card">
+        <h4>Why we edited aliases before touching the model</h4>
+        <ul>
+          <li>If a header is stable and known, exact aliases are more reliable than asking ML to rediscover it every time.</li>
+          <li>This is especially true for semi-standardized exports like <code>tax_fam</code>, <code>ddlon</code>, or <code>nbe_stem</code>.</li>
+          <li>Improving aliases is therefore an improvement to the pipeline itself, not a workaround outside it.</li>
+        </ul>
+      </div>
+      <div class="flow-card">
+        <h4>When aliases are not enough</h4>
+        <ul>
+          <li>If the header is unknown, coded, noisy, or ambiguous, the ML classifier must generalize from patterns and values.</li>
+          <li>If train and eval labels contradict each other, both aliases and ML become unreliable.</li>
+          <li>This is why benchmark hygiene and label alignment had to be fixed before adding more data.</li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>
@@ -379,7 +464,7 @@ details[open] summary { margin-bottom: 8px; }
 <section id="evaluation">
 <div class="container">
   <h2><span class="num">04</span>Evaluation Results</h2>
-  <p class="section-desc">The primary metric is the <strong>ProductScore</strong>, a weighted composite of family-specific holdout scores. Secondary: GlobalScore (80.79) for complete holdout reliability. The holdouts test generalization by language, data family, and structural diagnostics.</p>
+  <p class="section-desc">Latest eval suite snapshot after the 2026-03-21 acquisition retrain: <strong>90.4% role</strong>, <strong>84.7% concept</strong> on 9 datasets / 478 columns. The holdout charts below remain useful as historical diagnostics from the previous benchmark-hygiene phase.</p>
 
   <h3>4a — ProductScore Breakdown</h3>
   <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;">Weighted composite score across 6 strategically chosen data families. Each family represents a distinct usage scenario for Niamoto.</p>
@@ -415,18 +500,18 @@ details[open] summary { margin-bottom: 8px; }
 <section id="instance-eval">
 <div class="container">
   <h2><span class="num">05</span>Instance Evaluation</h2>
-  <p class="section-desc">Real-world evaluation on actual Niamoto instances and GBIF exports. 418 columns evaluated — <strong>87.8% role accuracy</strong>, <strong>77.5% concept accuracy</strong>. Includes alias registry (13 new concepts) and retrained models on enriched gold set.</p>
+  <p class="section-desc">Latest real-world evaluation on actual Niamoto instances and GBIF exports after the acquisition retrain. 418 columns evaluated — <strong>90.9% role accuracy</strong>, <strong>85.4% concept accuracy</strong>. This excludes the two frozen acceptance datasets.</p>
 
   <div class="chart-container">
     <div id="instance-chart" style="height:400px;"></div>
   </div>
 
   <div style="text-align:center; padding:12px; background:var(--blue-light); border-radius:8px; margin:16px 0; font-family:var(--mono); font-size:14px; color:var(--blue-dark);">
-    418 columns evaluated — 87.8% role, 77.5% concept
+    418 columns evaluated — 90.9% role, 85.4% concept
   </div>
 
   <details>
-    <summary>Detail: niamoto-nc — Alias-only vs ML</summary>
+    <summary>Historical detail: niamoto-nc — Alias-only vs ML (pre-acquisition snapshot)</summary>
     <div style="padding:12px;">
       <table class="data-table">
         <thead><tr><th>Method</th><th>Role correct</th><th>Role %</th><th>Concept correct</th><th>Concept %</th></tr></thead>
@@ -435,7 +520,7 @@ details[open] summary { margin-bottom: 8px; }
           <tr style="background:var(--green-light);"><td><strong>ML pipeline</strong></td><td class="num">16/29</td><td class="num">55%</td><td class="num">14/29</td><td class="num">48%</td></tr>
         </tbody>
       </table>
-      <p style="font-size:13px;color:var(--gray-500);margin-top:8px;">On the 29 non-alias columns of niamoto-nc, ML adds +17pp role and +10pp concept over alias-only baseline. The remaining errors are mostly on opaque field-specific codes (leaf_sla, bark_thickness) and category columns (holdridge, strata).</p>
+      <p style="font-size:13px;color:var(--gray-500);margin-top:8px;">This table is kept as a historical baseline from the pre-acquisition phase. It illustrates why aliases alone were insufficient on opaque niamoto-nc headers before the 2026-03-21 retrain.</p>
     </div>
   </details>
 </div>
@@ -445,7 +530,7 @@ details[open] summary { margin-bottom: 8px; }
 <section id="errors">
 <div class="container">
   <h2><span class="num">06</span>Error Patterns</h2>
-  <p class="section-desc">Error patterns identified during instance evaluation. Status updated after alias expansion, gold set enrichment, and retraining (2026-03-20).</p>
+  <p class="section-desc">Error patterns updated after the acquisition wave retrain and full eval suite run on 2026-03-21.</p>
 
   <div class="error-pattern" style="border-left:3px solid var(--orange);">
     <span class="pattern-id">ERROR-01</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
@@ -468,9 +553,10 @@ details[open] summary { margin-bottom: 8px; }
   </div>
 
   <div class="error-pattern" style="border-left:3px solid var(--green);">
-    <span class="pattern-id">ERROR-04</span> <span class="badge" style="background:var(--green-light);color:var(--green);">Resolved (annotation issue)</span>
-    <h4><code>taxonomy.name</code> &rarr; <code>taxonomy.species</code> confusion</h4>
-    <p>Verified against actual data: columns like <code>scientificName</code>, <code>taxaname</code>, <code>taxonref</code> contain binomial species names. The model was <strong>correct</strong> &mdash; annotations were fixed from <code>taxonomy.name</code> to <code>taxonomy.species</code>. Residual: 0/8 columns still annotated as <code>taxonomy.name</code> (generic names, infraspecific epithets) remain undetected.</p>
+    <span class="pattern-id">ERROR-04</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4><code>taxonomy.name</code> remains weak on non-binomial GBIF columns</h4>
+    <p><strong>Fixed:</strong> binomial species-name columns were real annotation issues and were aligned to <code>taxonomy.species</code>.</p>
+    <p><strong>Remaining:</strong> truly non-binomial fields such as <code>genericName</code>, <code>infraspecificEpithet</code>, and <code>scientificNameAuthorship</code> are still systematically missed on GBIF exports. In the latest eval suite, <code>taxonomy.name</code> is still <strong>0/3</strong>.</p>
   </div>
 
   <div class="error-pattern" style="border-left:3px solid var(--orange);">
@@ -478,6 +564,13 @@ details[open] summary { margin-bottom: 8px; }
     <h4>GBIF Darwin Core systematic errors &rarr; 9 &rarr; 5 remaining</h4>
     <p><strong>Fixed by alias:</strong> <code>catalogNumber</code> &rarr; identifier.collection, <code>basisOfRecord</code> &rarr; category.basis, <code>occurrenceStatus</code> &rarr; category.status, <code>taxonomicStatus</code> &rarr; category.status. GBIF concept accuracy: 76% &rarr; <strong>88-90%</strong>.</p>
     <p><strong>Remaining (5):</strong> <code>acceptedTaxonKey</code>, <code>speciesKey</code> (numeric keys &rarr; need identifier.taxon alias for compound names), <code>genericName</code>, <code>infraspecificEpithet</code>, <code>scientificNameAuthorship</code>.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--red);">
+    <span class="pattern-id">ERROR-06</span> <span class="badge" style="background:var(--red-light);color:var(--red);">Open</span>
+    <h4>Coded inventory generalization remains weak on frozen FIA benchmark</h4>
+    <p><strong>Current state:</strong> <code>acceptance-fia-or</code> reaches only <strong>63.6%</strong> concept accuracy after retrain, while <code>acceptance-niamoto-gb</code> is at 100%.</p>
+    <p><strong>Main misses:</strong> <code>SPCD</code>, <code>CR</code>, <code>VOLCFNET</code>, <code>VOLBFNET</code>, plus repeated confusions on <code>measurement.biomass</code>, <code>identifier.taxon</code>, and missing <code>category.habitat</code>. This is still the clearest gap between product-focused learning and out-of-train coded inventories.</p>
   </div>
 </div>
 </section>
@@ -570,7 +663,7 @@ details[open] summary { margin-bottom: 8px; }
     <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--orange);background:var(--orange-light);">
       <h4>GOLD SET</h4>
       <div class="algo">uv run python -m scripts.ml.build_gold_set</div>
-      <div style="font-size:13px;margin-top:4px;">2 525 labeled columns &times; 60+ concepts &times; value statistics</div>
+      <div style="font-size:13px;margin-top:4px;">2 540 labeled columns &times; 61 concepts &times; value statistics</div>
       <div class="score" style="color:var(--orange);">data/gold_set.json</div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
@@ -579,17 +672,17 @@ details[open] summary { margin-bottom: 8px; }
       <div class="pipeline-box" style="min-width:180px;">
         <h4>TRAIN HEADER</h4>
         <div class="algo">TF-IDF + LogReg</div>
-        <div class="score" style="color:var(--green);">F1 = 0.7467</div>
+        <div class="score" style="color:var(--green);">F1 = 0.7530</div>
       </div>
       <div class="pipeline-box" style="min-width:180px;">
         <h4>TRAIN VALUES</h4>
         <div class="algo">37 features + HGBT</div>
-        <div class="score" style="color:var(--orange);">F1 = 0.3935</div>
+        <div class="score" style="color:var(--orange);">F1 = 0.3780</div>
       </div>
       <div class="pipeline-box" style="min-width:180px;">
         <h4>TRAIN FUSION</h4>
         <div class="algo">LogReg + cross-rank</div>
-        <div class="score" style="color:var(--blue);">F1 = 0.6876</div>
+        <div class="score" style="color:var(--blue);">F1 = 0.6388</div>
       </div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
@@ -612,8 +705,8 @@ details[open] summary { margin-bottom: 8px; }
     <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--blue);background:var(--blue-light);">
       <h4>EVALUATION SUITE</h4>
       <div class="algo">uv run python -m scripts.ml.eval.run_eval_suite</div>
-      <div style="font-size:13px;margin-top:4px;">7 datasets &times; 418 columns &times; verified annotations</div>
-      <div class="score" style="color:var(--blue);">77.5% concept accuracy</div>
+      <div style="font-size:13px;margin-top:4px;">9 datasets &times; 478 columns &times; verified annotations</div>
+      <div class="score" style="color:var(--blue);">84.7% concept accuracy</div>
     </div>
     <div class="pipeline-arrow">&darr;</div>
 
@@ -628,7 +721,7 @@ details[open] summary { margin-bottom: 8px; }
     </div>
   </div>
 
-  <h3>8a — Session Improvement Timeline (2026-03-20)</h3>
+  <h3>8a — Session Improvement Timeline (2026-03-20 → 2026-03-21)</h3>
   <div class="chart-container">
     <div id="improvement-chart" style="height:350px;"></div>
   </div>
@@ -644,6 +737,7 @@ details[open] summary { margin-bottom: 8px; }
           <tr><td>V3</td><td>Verify annotations against actual values</td><td class="num">71.3%</td><td class="num">+0.2</td></tr>
           <tr><td>V4</td><td>Expand alias registry (+13 concepts)</td><td class="num">76.6%</td><td class="num">+5.3</td></tr>
           <tr style="background:var(--green-light);"><td><strong>V5</strong></td><td><strong>Enrich gold set (niamoto-nc) + retrain + fix basal_area merge</strong></td><td class="num"><strong>77.5%</strong></td><td class="num"><strong>+0.9</strong></td></tr>
+          <tr style="background:var(--blue-light);"><td><strong>V6</strong></td><td><strong>Acquire TAXREF v18 + ETS + sPlotOpen, rebuild gold set, full retrain</strong></td><td class="num"><strong>85.4%</strong></td><td class="num"><strong>+7.9</strong></td></tr>
         </tbody>
       </table>
     </div>
@@ -758,9 +852,9 @@ details[open] summary { margin-bottom: 8px; }
     <tbody>
       <tr class="current">
         <td><strong>TF-IDF + LR + HistGBT (Niamoto)</strong></td>
-        <td>2.5k+ columns</td>
+        <td>2.54k columns</td>
         <td>Yes (scikit-learn)</td>
-        <td>81.82 (ProductScore)</td>
+        <td>0.639 CV / 84.7% eval</td>
         <td>Low</td>
         <td><span class="status done">Implemented</span></td>
         <td>This work</td>
@@ -887,7 +981,7 @@ details[open] summary { margin-bottom: 8px; }
 
 <!-- Footer -->
 <div style="text-align:center; padding:32px; color:var(--gray-400); font-size:12px; border-top:1px solid var(--gray-100);">
-  Niamoto — Generic Ecological Data Platform &middot; Generated 2026-03-20 &middot; Branch <code>feat/ml-detection-improvement</code>
+  Niamoto — Generic Ecological Data Platform &middot; Updated 2026-03-21 &middot; Branch <code>feat/ml-detection-improvement</code>
 </div>
 
 <script>
@@ -1244,12 +1338,12 @@ function renderRoles() {
 // ProductScore breakdown
 function renderProductScore() {
   const components = [
-    {name:'anonymous', score:100.0, weight:'10%', color:'#059669'},
-    {name:'gbif_core_standard', score:96.02, weight:'20%', color:'#059669'},
-    {name:'gbif_extended', score:88.18, weight:'10%', color:'#059669'},
-    {name:'en_field', score:78.46, weight:'15%', color:'#d97706'},
-    {name:'research_traits', score:75.49, weight:'15%', color:'#d97706'},
-    {name:'tropical_field', score:69.01, weight:'30%', color:'#d97706'},
+    {name:'gbif_core_standard', score:98.511, weight:'20%', color:'#059669'},
+    {name:'gbif_extended', score:91.018, weight:'10%', color:'#059669'},
+    {name:'en_field', score:82.672, weight:'15%', color:'#059669'},
+    {name:'tropical_field', score:75.093, weight:'30%', color:'#d97706'},
+    {name:'research_traits', score:71.621, weight:'15%', color:'#d97706'},
+    {name:'anonymous', score:63.634, weight:'10%', color:'#dc2626'},
   ];
 
   Plotly.newPlot('product-score-chart', [{
@@ -1260,12 +1354,12 @@ function renderProductScore() {
     text: components.map(c => c.score.toFixed(2)), textposition:'outside',
     hovertemplate: '<b>%{y}</b>: %{x:.2f}<extra></extra>'
   }], {
-    title:{text:'ProductScore 81.82 — Breakdown by data family (weight)', font:{size:14,family:'Inter'}},
+    title:{text:'ProductScore 80.84 — Breakdown by data family (weight)', font:{size:14,family:'Inter'}},
     xaxis:{title:'Score', range:[0,115]},
     yaxis:{autorange:'reversed'},
     margin:{l:220,r:60,t:40,b:40}, font:{family:'Inter',size:12},
-    shapes:[{type:'line',x0:81.82,x1:81.82,y0:-0.5,y1:5.5,line:{color:'#2563eb',width:2,dash:'dot'}}],
-    annotations:[{x:81.82,y:5.5,text:'ProductScore: 81.82',showarrow:false,font:{size:11,color:'#2563eb'},yshift:15}]
+    shapes:[{type:'line',x0:80.839,x1:80.839,y0:-0.5,y1:5.5,line:{color:'#2563eb',width:2,dash:'dot'}}],
+    annotations:[{x:80.839,y:5.5,text:'ProductScore: 80.84',showarrow:false,font:{size:11,color:'#2563eb'},yshift:15}]
   }, {responsive:true});
 }
 
@@ -1346,13 +1440,13 @@ function renderForestSubsplit() {
 // Instance evaluation
 function renderInstanceEval() {
   const instances = [
-    {name:'niamoto-nc',tier:'Tier 1',cols:57,role:94.7,concept:87.7},
-    {name:'niamoto-gb',tier:'Tier 1',cols:27,role:77.8,concept:66.7},
-    {name:'guyadiv',tier:'Tier 1',cols:61,role:86.9,concept:65.6},
+    {name:'niamoto-nc',tier:'Tier 1',cols:57,role:96.5,concept:91.2},
+    {name:'niamoto-gb',tier:'Tier 1',cols:27,role:100.0,concept:100.0},
+    {name:'guyadiv',tier:'Tier 1',cols:61,role:83.6,concept:83.6},
     {name:'GBIF NC',tier:'Tier 1b',cols:51,role:96.1,concept:90.2},
     {name:'GBIF Gabon',tier:'Tier 1b',cols:45,role:91.1,concept:88.9},
-    {name:'GBIF inst.',tier:'Tier 1b',cols:41,role:92.7,concept:87.8},
-    {name:'Silver',tier:'Tier 2',cols:136,role:81.6,concept:69.1},
+    {name:'GBIF inst.',tier:'Tier 1b',cols:41,role:90.2,concept:87.8},
+    {name:'Silver',tier:'Tier 2',cols:136,role:89.0,concept:77.2},
   ];
 
   Plotly.newPlot('instance-chart', [
@@ -1377,12 +1471,12 @@ function renderInstanceEval() {
     margin:{l:60,r:20,t:40,b:100}, font:{family:'Inter',size:12},
     legend:{x:0.01,y:0.99},
     shapes:[
-      {type:'line',x0:-0.5,x1:6.5,y0:87.8,y1:87.8,line:{color:'#2563eb',width:1.5,dash:'dot'}},
-      {type:'line',x0:-0.5,x1:6.5,y0:77.5,y1:77.5,line:{color:'#d97706',width:1.5,dash:'dot'}}
+      {type:'line',x0:-0.5,x1:6.5,y0:90.9,y1:90.9,line:{color:'#2563eb',width:1.5,dash:'dot'}},
+      {type:'line',x0:-0.5,x1:6.5,y0:85.4,y1:85.4,line:{color:'#d97706',width:1.5,dash:'dot'}}
     ],
     annotations:[
-      {x:6,y:87.8,text:'Avg role: 87.8%',showarrow:false,font:{size:10,color:'#2563eb'},yshift:10},
-      {x:6,y:77.5,text:'Avg concept: 77.5%',showarrow:false,font:{size:10,color:'#d97706'},yshift:-12}
+      {x:6,y:90.9,text:'Avg role: 90.9%',showarrow:false,font:{size:10,color:'#2563eb'},yshift:10},
+      {x:6,y:85.4,text:'Avg concept: 85.4%',showarrow:false,font:{size:10,color:'#d97706'},yshift:-12}
     ]
   }, {responsive:true});
 }
@@ -1470,6 +1564,7 @@ function renderImprovement() {
     {step:'V3\nVerify values',concept:71.3},
     {step:'V4\nAlias +13',concept:76.6},
     {step:'V5\nRetrain',concept:77.5},
+    {step:'V6\nAcquire + retrain',concept:85.4},
   ];
   Plotly.newPlot('improvement-chart', [{
     type:'bar',
@@ -1484,11 +1579,11 @@ function renderImprovement() {
     yaxis:{title:'Concept %', range:[0,95]},
     xaxis:{tickfont:{size:11}},
     margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12},
-    shapes:[{type:'line',x0:-0.5,x1:4.5,y0:66.5,y1:66.5,line:{color:'#dc2626',width:1,dash:'dot'}},
-            {type:'line',x0:-0.5,x1:4.5,y0:77.5,y1:77.5,line:{color:'#059669',width:1,dash:'dot'}}],
+    shapes:[{type:'line',x0:-0.5,x1:5.5,y0:66.5,y1:66.5,line:{color:'#dc2626',width:1,dash:'dot'}},
+            {type:'line',x0:-0.5,x1:5.5,y0:85.4,y1:85.4,line:{color:'#059669',width:1,dash:'dot'}}],
     annotations:[
       {x:0,y:66.5,text:'Start: 66.5%',showarrow:false,font:{size:10,color:'#dc2626'},yshift:-12},
-      {x:4,y:77.5,text:'Final: 77.5%',showarrow:false,font:{size:10,color:'#059669'},yshift:12}
+      {x:5,y:85.4,text:'Final: 85.4%',showarrow:false,font:{size:10,color:'#059669'},yshift:12}
     ]
   }, {responsive:true});
 }

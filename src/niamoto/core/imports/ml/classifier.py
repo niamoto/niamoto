@@ -299,6 +299,34 @@ class ColumnClassifier:
         features.append(top2_cross_match)
         features.append(both_weak)
 
+        # --- Distributional shape features ---
+        if h_active and v_active:
+            h_dist = h_arr / h_arr.sum()
+            v_dist = v_arr / v_arr.sum()
+            m_dist = 0.5 * (h_dist + v_dist)
+            _eps = 1e-12
+            kl_hm = float(np.sum(h_dist * np.log2((h_dist + _eps) / (m_dist + _eps))))
+            kl_vm = float(np.sum(v_dist * np.log2((v_dist + _eps) / (m_dist + _eps))))
+            js_divergence = float(np.clip(0.5 * (kl_hm + kl_vm), 0.0, 1.0))
+        else:
+            js_divergence = 1.0
+
+        k = min(3, n_c)
+        if h_active and v_active and k > 0:
+            h_top3_set = set(h_order[:k].tolist())
+            v_top3_set = set(v_order[:k].tolist())
+            top3_overlap = len(h_top3_set & v_top3_set) / k
+        else:
+            top3_overlap = 0.0
+
+        h_top3_mass = float(np.sort(h_arr)[-k:].sum()) if h_active and k > 0 else 0.0
+        v_top3_mass = float(np.sort(v_arr)[-k:].sum()) if v_active and k > 0 else 0.0
+        concentration_gap = abs(h_top3_mass - v_top3_mass)
+
+        features.append(js_divergence)
+        features.append(top3_overlap)
+        features.append(concentration_gap)
+
         try:
             X = np.array(features, dtype=float).reshape(1, -1)
             proba = self._fusion_model.predict_proba(X)[0]

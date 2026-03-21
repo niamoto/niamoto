@@ -11,8 +11,8 @@ occurrences.csv:
   family: taxonomy.family
   genus: taxonomy.genus
   species: taxonomy.species
-  infra: taxonomy.name
-  id_rank: category.status
+  infra: taxonomy.rank
+  id_rank: taxonomy.rank
   dbh: measurement.diameter
   height: measurement.height
   strata: category.vegetation

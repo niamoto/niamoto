@@ -119,6 +119,103 @@ class TestAliasRegistry:
         assert concept == "taxonomy.species"
         assert score == 1.0
 
+    def test_gabon_safe_aliases_match(self, registry):
+        samples = {
+            "tax_fam": "taxonomy.family",
+            "tax_gen": "taxonomy.genus",
+            "tax_esp": "taxonomy.species",
+            "tax_sp_level": "taxonomy.species",
+            "tax_infra_level": "taxonomy.species",
+            "tax_infra_level_auth": "taxonomy.species",
+            "ddlat": "location.latitude",
+            "ddlon": "location.longitude",
+            "geo_pt": "location.coordinate",
+            "locality_name": "location.locality",
+            "idtax_individual_f": "identifier.taxon",
+            "id_table_liste_plots_n": "identifier.plot",
+            "nbe_stem": "statistic.count",
+            "nbe_plots": "statistic.count",
+            "light_observations": "category.ecology",
+            "taxa_level_phenology": "category.ecology",
+            "taxa_level_wood_density_mean": "measurement.wood_density",
+        }
+
+        for column, expected in samples.items():
+            concept, score = registry.match(column)
+            assert concept == expected
+            assert score == 1.0
+
+    def test_sinp_phase_1a_aliases_match(self, registry):
+        samples = {
+            "idSINPOccTax": "identifier.record",
+            "cdNom": "identifier.taxon",
+            "nomCite": "taxonomy.species",
+            "nomVern": "taxonomy.vernacular_name",
+            "codeCommune": "location.admin_area",
+            "altitudeMin": "location.elevation",
+            "profondeurMin": "location.depth",
+            "denombrementMin": "statistic.count",
+            "obsTechnique": "category.method",
+            "codeHabitat": "category.habitat",
+        }
+
+        for column, expected in samples.items():
+            concept, score = registry.match(column)
+            assert concept == expected
+            assert score == 1.0
+
+    def test_ets_phase_2a_aliases_match(self, registry):
+        samples = {
+            "traitID": "measurement.trait",
+            "traitName": "measurement.trait",
+            "StdValue": "measurement.trait",
+            "traitUnit": "measurement.dimension",
+            "measurementResolution": "measurement.quality",
+            "Replicates": "statistic.count",
+            "statisticalMethod": "category.method",
+            "morphotype": "category.ecology",
+        }
+
+        for column, expected in samples.items():
+            concept, score = registry.match(column)
+            assert concept == expected
+            assert score == 1.0
+
+    def test_ets_extension_aliases_match(self, registry):
+        samples = {
+            "scientificNameGBIF": "taxonomy.species",
+            "verbatimTaxonRank": "taxonomy.rank",
+            "TPLID": "identifier.taxon",
+            "basisOfRecord": "category.basis",
+            "measurementDeterminedBy": "text.observer",
+            "references": "text.reference",
+        }
+
+        for column, expected in samples.items():
+            concept, score = registry.match(column)
+            assert concept == expected
+            assert score == 1.0
+
+    def test_splot_aliases_match(self, registry):
+        samples = {
+            "PlotObservationID": "identifier.plot",
+            "Relative_cover": "measurement.cover",
+            "Species_richness": "statistic.count",
+            "Abundance_scale": "category.method",
+            "Naturalness": "category.ecology",
+            "Dataset": "text.source",
+            "Date_of_recording": "event.date",
+            "Releve_author": "text.observer",
+            "Biblioreference": "text.reference",
+            "GUID": "identifier.record",
+            "Project": "text.metadata",
+        }
+
+        for column, expected in samples.items():
+            concept, score = registry.match(column)
+            assert concept == expected
+            assert score == 1.0
+
     # ── Ambiguous alias handling ──────────────────────────────────
 
     def test_ambiguous_hoehe_no_match(self, registry):

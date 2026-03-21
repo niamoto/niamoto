@@ -12,7 +12,6 @@ Extracts labeled columns from known data sources:
 Output: data/gold_set.json — list of LabeledColumn records.
 """
 
-import copy
 import json
 import logging
 import sys
@@ -29,6 +28,12 @@ sys.path.insert(0, str(ROOT))
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+EXCLUDED_FROM_TRAINING_SOURCES = {
+    # Frozen acceptance benchmark: coded inventory stress test
+    "fia_or_tree",
+    "fia_or_plot",
+}
 
 # ── Label mappings (column_name → concept) ────────────────────────
 
@@ -106,11 +111,11 @@ AFRIQUE_OCC_LABELS = {
     "tax_fam": ("taxonomy.family", "taxonomy"),
     "tax_gen": ("taxonomy.genus", "taxonomy"),
     "tax_esp": ("taxonomy.species", "taxonomy"),
-    "tax_sp_level": ("taxonomy.rank", "taxonomy"),
+    "tax_sp_level": ("taxonomy.species", "taxonomy"),
     "tax_rank01": ("taxonomy.rank", "taxonomy"),
-    "tax_infra_level": ("taxonomy.rank", "taxonomy"),
-    "tax_infra_level_auth": ("text.authority", "text"),
-    "plot_name": ("identifier.plot", "identifier"),
+    "tax_infra_level": ("taxonomy.species", "taxonomy"),
+    "tax_infra_level_auth": ("taxonomy.species", "taxonomy"),
+    "plot_name": ("location.locality", "location"),
     "idtax_individual_f": ("identifier.taxon", "identifier"),
     "id_n": ("identifier.record", "identifier"),
     "id_table_liste_plots_n": ("identifier.plot", "identifier"),
@@ -122,14 +127,14 @@ AFRIQUE_OCC_LABELS = {
     "locality_name": ("location.locality", "location"),
     "ddlat": ("location.latitude", "location"),
     "ddlon": ("location.longitude", "location"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
     "taxa_phenology": ("category.phenology", "category"),
-    "light_observations": ("category.light", "category"),
+    "light_observations": ("category.ecology", "category"),
     "taxa_bioclimatic_group": ("category.bioclimate", "category"),
     "taxa_bioclimatic_subgroup": ("category.bioclimate", "category"),
     "taxa_succession_guild": ("category.succession", "category"),
-    "taxa_level_wood_density_mean": ("text.source", "text"),
-    "taxa_level_phenology": ("text.source", "text"),
+    "taxa_level_wood_density_mean": ("measurement.wood_density", "measurement"),
+    "taxa_level_phenology": ("category.ecology", "category"),
     "childdatabase": ("text.source", "text"),
     "data_src": ("text.source", "text"),
     "level_det": ("category.quality", "category"),
@@ -138,7 +143,7 @@ AFRIQUE_OCC_LABELS = {
 # Afrique plots
 AFRIQUE_PLOTS_LABELS = {
     "id_liste_plots": ("identifier.plot", "identifier"),
-    "plot_name": ("identifier.plot", "identifier"),
+    "plot_name": ("location.locality", "location"),
     "locality_name": ("location.locality", "location"),
     "country": ("location.country", "location"),
     "ddlat": ("location.latitude", "location"),
@@ -155,7 +160,7 @@ AFRIQUE_PLOTS_LABELS = {
     "prop_det": ("statistic.ratio", "statistic"),
     "prop_det_genus": ("statistic.ratio", "statistic"),
     "prop_det_fam": ("statistic.ratio", "statistic"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
 }
 
 # Niamoto NC occurrences (Nouvelle-Calédonie — full instance)
@@ -188,7 +193,7 @@ NC_FULL_OCC_LABELS = {
     "province": ("location.admin_area", "location"),
     "in_forest": ("category.ecology", "category"),
     "in_um": ("category.status", "category"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
 }
 
 # Niamoto NC plots (Nouvelle-Calédonie — full instance)
@@ -220,7 +225,7 @@ NC_FULL_PLOTS_LABELS = {
     "canopy": ("statistic.count", "statistic"),
     "undercanopy": ("statistic.count", "statistic"),
     "understorey": ("statistic.count", "statistic"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
 }
 
 # NC occurrences (niamoto-gb / Gabon)
@@ -228,22 +233,22 @@ NC_OCC_LABELS = {
     "tax_fam": ("taxonomy.family", "taxonomy"),
     "tax_gen": ("taxonomy.genus", "taxonomy"),
     "tax_esp": ("taxonomy.species", "taxonomy"),
-    "tax_sp_level": ("taxonomy.rank", "taxonomy"),
-    "tax_infra_level": ("taxonomy.rank", "taxonomy"),
-    "tax_infra_level_auth": ("text.authority", "text"),
+    "tax_sp_level": ("taxonomy.species", "taxonomy"),
+    "tax_infra_level": ("taxonomy.species", "taxonomy"),
+    "tax_infra_level_auth": ("taxonomy.species", "taxonomy"),
     "plot_name": ("identifier.plot", "identifier"),
     "idtax_individual_f": ("identifier.taxon", "identifier"),
     "id_n": ("identifier.record", "identifier"),
     "id_table_liste_plots_n": ("identifier.plot", "identifier"),
     "stem_diameter": ("measurement.diameter", "measurement"),
-    "light_observations": ("category.light", "category"),
-    "taxa_level_wood_density_mean": ("text.source", "text"),
-    "taxa_level_phenology": ("text.source", "text"),
+    "light_observations": ("category.ecology", "category"),
+    "taxa_level_wood_density_mean": ("measurement.wood_density", "measurement"),
+    "taxa_level_phenology": ("category.ecology", "category"),
     "elev": ("location.elevation", "location"),
     "ddlat": ("location.latitude", "location"),
     "ddlon": ("location.longitude", "location"),
     "locality_name": ("location.locality", "location"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
 }
 
 # NC plots
@@ -255,7 +260,7 @@ NC_PLOTS_LABELS = {
     "nbe_stem": ("statistic.count", "statistic"),
     "nbe_plots": ("statistic.count", "statistic"),
     "id_loc": ("identifier.plot", "identifier"),
-    "geo_pt": ("location.geometry", "geometry"),
+    "geo_pt": ("location.coordinate", "location"),
 }
 
 # GBIF marine fixture (DwC)
@@ -370,6 +375,179 @@ FORESTSCAN_PARACOU_LABELS = {
     "CircCorr": ("measurement.circumference", "measurement"),
     "POM": ("measurement.height", "measurement"),
     "POMCertainty": ("category.quality", "category"),
+}
+
+# TAXREF v18 — French taxonomic backbone
+TAXREF_V18_LABELS = {
+    "REGNE": ("taxonomy.kingdom", "taxonomy"),
+    "PHYLUM": ("taxonomy.phylum", "taxonomy"),
+    "CLASSE": ("taxonomy.class", "taxonomy"),
+    "ORDRE": ("taxonomy.order", "taxonomy"),
+    "FAMILLE": ("taxonomy.family", "taxonomy"),
+    "CD_NOM": ("identifier.taxon", "identifier"),
+    "CD_TAXSUP": ("identifier.taxon", "identifier"),
+    "CD_SUP": ("identifier.taxon", "identifier"),
+    "CD_REF": ("identifier.taxon", "identifier"),
+    "RANG": ("taxonomy.rank", "taxonomy"),
+    "LB_NOM": ("taxonomy.species", "taxonomy"),
+    "LB_AUTEUR": ("text.authority", "text"),
+    "NOM_COMPLET": ("taxonomy.species", "taxonomy"),
+    "NOM_VALIDE": ("taxonomy.species", "taxonomy"),
+    "NOM_VERN": ("taxonomy.vernacular_name", "taxonomy"),
+    "NOM_VERN_ENG": ("taxonomy.vernacular_name", "taxonomy"),
+    "HABITAT": ("category.habitat", "category"),
+}
+
+# ETS occurrence extension
+ETS_OCCURRENCE_EXT_LABELS = {
+    "occurrenceID": ("identifier.record", "identifier"),
+    "identificationID": ("identifier.record", "identifier"),
+    "recordNumber": ("identifier.record", "identifier"),
+    "institutionCode": ("identifier.institution", "identifier"),
+    "verbatimLatitude": ("location.latitude", "location"),
+    "verbatimLongitude": ("location.longitude", "location"),
+    "verbatimElevation": ("location.elevation", "location"),
+    "verbatimCountry": ("location.country", "location"),
+    "country": ("location.country", "location"),
+}
+
+# ETS taxon extension
+ETS_TAXON_EXT_LABELS = {
+    "taxonID": ("identifier.taxon", "identifier"),
+    "verbatimScientificName": ("taxonomy.species", "taxonomy"),
+    "scientificNameGBIF": ("taxonomy.species", "taxonomy"),
+    "scientificNameTPL": ("taxonomy.species", "taxonomy"),
+    "scientificNameWCVP": ("taxonomy.species", "taxonomy"),
+    "kingdom": ("taxonomy.kingdom", "taxonomy"),
+    "phylum": ("taxonomy.phylum", "taxonomy"),
+    "class": ("taxonomy.class", "taxonomy"),
+    "order": ("taxonomy.order", "taxonomy"),
+    "family": ("taxonomy.family", "taxonomy"),
+    "genus": ("taxonomy.genus", "taxonomy"),
+    "originalNameUsage": ("taxonomy.species", "taxonomy"),
+    "morphotype": ("category.ecology", "category"),
+    "verbatimTaxonRank": ("taxonomy.rank", "taxonomy"),
+    "GBIFID": ("identifier.taxon", "identifier"),
+    "TPLID": ("identifier.taxon", "identifier"),
+    "WCVPID": ("identifier.taxon", "identifier"),
+}
+
+# ETS measurement/fact extension
+ETS_MEASUREMENT_EXT_LABELS = {
+    "measurementID": ("identifier.record", "identifier"),
+    "measurementDeterminedBy": ("text.observer", "text"),
+    "basisOfRecord": ("category.basis", "category"),
+    "references": ("text.reference", "text"),
+}
+
+# sPlotOpen header matrix
+SPLOT_HEADER_LABELS = {
+    "PlotObservationID": ("identifier.plot", "identifier"),
+    "GIVD_ID": ("identifier.plot", "identifier"),
+    "Dataset": ("text.source", "text"),
+    "Continent": ("location.continent", "location"),
+    "Country": ("location.country", "location"),
+    "Biome": ("category.habitat", "category"),
+    "Date_of_recording": ("event.date", "time"),
+    "Latitude": ("location.latitude", "location"),
+    "Longitude": ("location.longitude", "location"),
+    "Location_uncertainty": ("measurement.uncertainty", "measurement"),
+    "Releve_area": ("measurement.area", "measurement"),
+    "Elevation": ("location.elevation", "location"),
+    "Aspect": ("measurement.aspect", "measurement"),
+    "Slope": ("measurement.slope", "measurement"),
+    "Naturalness": ("category.ecology", "category"),
+    "Cover_total": ("measurement.cover", "measurement"),
+    "Cover_tree_layer": ("measurement.cover", "measurement"),
+    "Cover_shrub_layer": ("measurement.cover", "measurement"),
+    "Cover_herb_layer": ("measurement.cover", "measurement"),
+    "Cover_moss_layer": ("measurement.cover", "measurement"),
+    "Cover_lichen_layer": ("measurement.cover", "measurement"),
+    "Cover_algae_layer": ("measurement.cover", "measurement"),
+    "Cover_litter_layer": ("measurement.cover", "measurement"),
+    "Cover_bare_rocks": ("measurement.cover", "measurement"),
+    "Cover_cryptogams": ("measurement.cover", "measurement"),
+    "Cover_bare_soil": ("measurement.cover", "measurement"),
+    "Height_trees_highest": ("measurement.height", "measurement"),
+    "Height_trees_lowest": ("measurement.height", "measurement"),
+    "Height_shrubs_highest": ("measurement.height", "measurement"),
+    "Height_shrubs_lowest": ("measurement.height", "measurement"),
+    "Height_herbs_average": ("measurement.height", "measurement"),
+    "Height_herbs_lowest": ("measurement.height", "measurement"),
+    "Height_herbs_highest": ("measurement.height", "measurement"),
+}
+
+# sPlotOpen species/abundance matrix
+SPLOT_DT_LABELS = {
+    "PlotObservationID": ("identifier.plot", "identifier"),
+    "Species": ("taxonomy.species", "taxonomy"),
+    "Original_species": ("taxonomy.species", "taxonomy"),
+    "Original_abundance": ("statistic.count", "statistic"),
+    "Abundance_scale": ("category.method", "category"),
+    "Relative_cover": ("measurement.cover", "measurement"),
+}
+
+# sPlotOpen trait summary matrix
+SPLOT_CWM_LABELS = {
+    "PlotObservationID": ("identifier.plot", "identifier"),
+    "TraitCoverage_cover": ("measurement.cover", "measurement"),
+    "Species_richness": ("statistic.count", "statistic"),
+    "TraitCoverage_pa": ("measurement.cover", "measurement"),
+    "LeafArea_CWM": ("measurement.trait", "measurement"),
+    "StemDens_CWM": ("measurement.trait", "measurement"),
+    "SLA_CWM": ("measurement.trait", "measurement"),
+    "LeafC_perdrymass_CWM": ("measurement.trait", "measurement"),
+    "LeafN_CWM": ("measurement.trait", "measurement"),
+    "LeafP_CWM": ("measurement.trait", "measurement"),
+    "PlantHeight_CWM": ("measurement.trait", "measurement"),
+    "SeedMass_CWM": ("measurement.trait", "measurement"),
+    "Seed_length_CWM": ("measurement.trait", "measurement"),
+    "LDMC_CWM": ("measurement.trait", "measurement"),
+    "LeafNperArea_CWM": ("measurement.trait", "measurement"),
+    "LeafNPratio_CWM": ("measurement.trait", "measurement"),
+    "Leaf_delta_15N_CWM": ("measurement.trait", "measurement"),
+    "Seed_num_rep_unit_CWM": ("measurement.trait", "measurement"),
+    "Leaffreshmass_CWM": ("measurement.trait", "measurement"),
+    "Stem_cond_dens_CWM": ("measurement.trait", "measurement"),
+    "Disp_unit_leng_CWM": ("measurement.trait", "measurement"),
+    "Wood_vessel_length_CWM": ("measurement.trait", "measurement"),
+    "LeafArea_CWV": ("measurement.trait", "measurement"),
+    "StemDens_CWV": ("measurement.trait", "measurement"),
+    "SLA_CWV": ("measurement.trait", "measurement"),
+    "LeafC_perdrymass_CWV": ("measurement.trait", "measurement"),
+    "LeafN_CWV": ("measurement.trait", "measurement"),
+    "LeafP_CWV": ("measurement.trait", "measurement"),
+    "PlantHeight_CWV": ("measurement.trait", "measurement"),
+    "SeedMass_CWV": ("measurement.trait", "measurement"),
+    "Seed_length_CWV": ("measurement.trait", "measurement"),
+    "LDMC_CWV": ("measurement.trait", "measurement"),
+    "LeafNperArea_CWV": ("measurement.trait", "measurement"),
+    "LeafNPratio_CWV": ("measurement.trait", "measurement"),
+    "Leaf_delta_15N_CWV": ("measurement.trait", "measurement"),
+    "Seed_num_rep_unit_CWV": ("measurement.trait", "measurement"),
+    "Leaffreshmass_CWV": ("measurement.trait", "measurement"),
+    "Stem_cond_dens_CWV": ("measurement.trait", "measurement"),
+    "Disp_unit_leng_CWV": ("measurement.trait", "measurement"),
+    "Wood_vessel_length_CWV": ("measurement.trait", "measurement"),
+}
+
+# sPlotOpen metadata matrix
+SPLOT_METADATA_LABELS = {
+    "PlotObservationID": ("identifier.plot", "identifier"),
+    "GIVD_ID": ("identifier.plot", "identifier"),
+    "DB_BIBTEXKEY": ("text.reference", "text"),
+    "Releve_author": ("text.observer", "text"),
+    "Releve_coauthors": ("text.observer", "text"),
+    "Biblioreference": ("text.reference", "text"),
+    "BIBTEXKEY": ("text.reference", "text"),
+    "Nr_table_in_publ": ("identifier.record", "identifier"),
+    "Nr_releve_in_table": ("identifier.record", "identifier"),
+    "Original_nr_in_database": ("identifier.record", "identifier"),
+    "Original_plotID": ("identifier.plot", "identifier"),
+    "Original_subplotID": ("identifier.plot", "identifier"),
+    "Project": ("text.metadata", "text"),
+    "Remarks": ("text.metadata", "text"),
+    "GUID": ("identifier.record", "identifier"),
 }
 
 # ── Silver sources ───────────────────────────────────────────────
@@ -906,6 +1084,68 @@ SOURCES = [
         "language": "fr",
         "sample_rows": 1000,
         "sep": ";",
+    },
+    {
+        "name": "taxref_v18",
+        "path": ROOT / "data/silver/taxref/TAXREFv18.txt",
+        "labels": TAXREF_V18_LABELS,
+        "language": "fr",
+        "sample_rows": 20000,
+        "sep": "\t",
+    },
+    {
+        "name": "ets_occurrence_ext",
+        "path": ROOT / "data/silver/ets/Occurrence_ext.csv",
+        "labels": ETS_OCCURRENCE_EXT_LABELS,
+        "language": "en",
+        "sample_rows": 5000,
+    },
+    {
+        "name": "ets_taxon_ext",
+        "path": ROOT / "data/silver/ets/Taxon_ext.csv",
+        "labels": ETS_TAXON_EXT_LABELS,
+        "language": "en",
+        "sample_rows": None,
+    },
+    {
+        "name": "ets_measurement_ext",
+        "path": ROOT / "data/silver/ets/Measurement_or_Fact_ext.csv",
+        "labels": ETS_MEASUREMENT_EXT_LABELS,
+        "language": "en",
+        "sample_rows": None,
+        "encoding": "latin-1",
+    },
+    {
+        "name": "splot_header",
+        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_header(3).txt",
+        "labels": SPLOT_HEADER_LABELS,
+        "language": "en",
+        "sample_rows": None,
+        "sep": "\t",
+    },
+    {
+        "name": "splot_dt",
+        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_DT(2).txt",
+        "labels": SPLOT_DT_LABELS,
+        "language": "en",
+        "sample_rows": None,
+        "sep": "\t",
+    },
+    {
+        "name": "splot_cwm",
+        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_CWM_CWV(2).txt",
+        "labels": SPLOT_CWM_LABELS,
+        "language": "en",
+        "sample_rows": None,
+        "sep": "\t",
+    },
+    {
+        "name": "splot_metadata",
+        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_metadata(2).txt",
+        "labels": SPLOT_METADATA_LABELS,
+        "language": "en",
+        "sample_rows": None,
+        "sep": "\t",
     },
     {
         "name": "afliber_species",
@@ -2056,9 +2296,12 @@ def extract_from_source(source: dict) -> list[dict]:
 
     sep = source.get("sep", ",")
     nrows = source.get("sample_rows")
+    encoding = source.get("encoding")
 
     try:
-        df = pd.read_csv(path, sep=sep, nrows=nrows, low_memory=False)
+        df = pd.read_csv(
+            path, sep=sep, nrows=nrows, low_memory=False, encoding=encoding
+        )
     except UnicodeDecodeError:
         df = pd.read_csv(
             path, sep=sep, nrows=nrows, low_memory=False, encoding="latin-1"
@@ -2091,96 +2334,6 @@ def extract_from_source(source: dict) -> list[dict]:
     return records
 
 
-# ── Anonymous holdout ────────────────────────────────────────────
-
-_ANONYMOUS_NAME_POOL = (
-    [f"col_{i}" for i in range(1, 100)]
-    + [f"X{i}" for i in range(1, 100)]
-    + [f"V{i}" for i in range(1, 100)]
-    + [f"var_{chr(c)}" for c in range(ord("a"), ord("z") + 1)]
-    + [f"field_{i}" for i in range(1, 26)]
-)
-
-
-def _build_anonymous_holdout(
-    records: list[dict],
-    target_total: int = 100,
-    min_per_concept: int = 2,
-    seed: int = 42,
-) -> list[dict]:
-    """Build a diversified anonymous holdout from real gold set columns.
-
-    Samples real columns stratified by concept_coarse and duplicates them
-    with generic column names to test values-only detection.
-    """
-    rng = np.random.RandomState(seed)
-
-    # Only sample from non-anonymous entries
-    candidates = [r for r in records if not r.get("is_anonymous")]
-    if not candidates:
-        logger.warning("No non-anonymous records to build holdout from")
-        return []
-
-    # Group by concept_coarse
-    from collections import defaultdict
-
-    groups: dict[str, list[dict]] = defaultdict(list)
-    for r in candidates:
-        groups[r["concept_coarse"]].append(r)
-
-    # Calculate samples per group: proportional with a floor
-    total_candidates = len(candidates)
-    samples_per_group: dict[str, int] = {}
-    for concept, group in groups.items():
-        proportional = max(
-            min_per_concept,
-            round(target_total * len(group) / total_candidates),
-        )
-        samples_per_group[concept] = min(proportional, len(group))
-
-    # Adjust to get close to target_total
-    current_total = sum(samples_per_group.values())
-    if current_total > target_total:
-        # Trim proportionally from largest groups
-        excess = current_total - target_total
-        sorted_concepts = sorted(
-            samples_per_group, key=lambda c: samples_per_group[c], reverse=True
-        )
-        for concept in sorted_concepts:
-            if excess <= 0:
-                break
-            can_trim = samples_per_group[concept] - min_per_concept
-            trim = min(can_trim, excess)
-            if trim > 0:
-                samples_per_group[concept] -= trim
-                excess -= trim
-
-    # Sample and anonymize
-    available_names = list(_ANONYMOUS_NAME_POOL)
-    rng.shuffle(available_names)
-    name_idx = 0
-    holdout = []
-
-    for concept in sorted(groups.keys()):
-        group = groups[concept]
-        n = samples_per_group[concept]
-        indices = rng.choice(len(group), size=n, replace=False)
-        for idx in indices:
-            entry = copy.deepcopy(group[idx])
-            entry["column_name"] = available_names[name_idx]
-            entry["is_anonymous"] = True
-            entry["quality"] = "gold_anonymous"
-            entry["language"] = "en"
-            name_idx += 1
-            holdout.append(entry)
-
-    logger.info(
-        f"Built anonymous holdout: {len(holdout)} entries "
-        f"across {len(samples_per_group)} concepts"
-    )
-    return holdout
-
-
 # ── Main ─────────────────────────────────────────────────────────
 
 
@@ -2190,6 +2343,12 @@ def build_gold_set() -> list[dict]:
 
     # Extract from real sources
     for source in SOURCES:
+        if source["name"] in EXCLUDED_FROM_TRAINING_SOURCES:
+            logger.info(
+                "Skipping %s: reserved for acceptance benchmark, not training",
+                source["name"],
+            )
+            continue
         records = extract_from_source(source)
         all_records.extend(records)
 
@@ -2208,20 +2367,14 @@ def build_gold_set() -> list[dict]:
             else r["concept_coarse"]
         )
 
-    # Build diversified anonymous holdout from real columns
-    anon_holdout = _build_anonymous_holdout(all_records)
-    all_records.extend(anon_holdout)
-
     # Summary
     gold = [r for r in all_records if r["quality"] == "gold"]
     synthetic_count = [r for r in all_records if r["quality"] == "synthetic"]
-    anon_count = [r for r in all_records if r.get("is_anonymous")]
 
     logger.info(f"\n{'=' * 50}")
     logger.info(f"Gold set built: {len(all_records)} total columns")
     logger.info(f"  Gold:      {len(gold)}")
     logger.info(f"  Synthetic: {len(synthetic_count)}")
-    logger.info(f"  Anonymous: {len(anon_count)}")
 
     # Concept distribution
     from collections import Counter
