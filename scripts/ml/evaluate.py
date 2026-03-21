@@ -449,6 +449,8 @@ def _evaluate_holdout_score(
     test_records: list[dict],
     train_records: list[dict],
     all_concepts: list[str],
+    *,
+    return_models: bool = False,
 ):
     from scripts.ml.evaluation import compute_niamoto_offline_score
 
@@ -465,6 +467,8 @@ def _evaluate_holdout_score(
     score = compute_niamoto_offline_score(
         _to_labeled_columns(test_records), preds, confs
     )
+    if return_models:
+        return score, preds, confs, (header_model, value_model, fusion_model)
     return score, preds, confs
 
 
@@ -478,8 +482,12 @@ def evaluate_niamoto_protocol(
     from scripts.ml.evaluation import compute_niamoto_offline_score
 
     records = _load_records(gold_path)
-    real_records = [r for r in records if _is_real_record(r)]
-    synthetic_records = [r for r in records if not _is_real_record(r)]
+    real_records = [
+        r for r in records if _is_real_record(r) and not r.get("is_anonymous")
+    ]
+    synthetic_records = [
+        r for r in records if not _is_real_record(r) and not r.get("is_anonymous")
+    ]
     all_concepts = sorted(set(r["concept_coarse"] for r in records))
 
     if not real_records:
@@ -707,13 +715,39 @@ def evaluate_niamoto_protocol(
         step_label = "holdout_anonymous"
         progress.start(step_label)
         train_records = [r for r in records if not r.get("is_anonymous")]
-        score, _preds, _confs = _evaluate_holdout_score(
+        score, _preds, _confs, (_, value_model, _) = _evaluate_holdout_score(
             anonymous_records,
             train_records,
             all_concepts,
+            return_models=True,
         )
         _stderr(f"holdout_anonymous: {score.summary()}")
         product_buckets["anonymous"] = float(score.final_score)
+
+        # Values-only diagnostic (not in ProductScore)
+        if value_model is not None:
+            from scripts.ml.train_value_model import extract_value_features
+
+            X_val_test = np.array(
+                [
+                    extract_value_features(
+                        r.get("values_sample", []), r.get("values_stats", {})
+                    )
+                    for r in anonymous_records
+                ]
+            )
+            y_true = [r["concept_coarse"] for r in anonymous_records]
+            y_pred = value_model.predict(X_val_test)
+            values_accuracy = sum(1 for t, p in zip(y_true, y_pred) if t == p) / len(
+                y_true
+            )
+            _stderr(
+                f"holdout_anonymous_values_only: "
+                f"accuracy={values_accuracy:.1%} "
+                f"({sum(1 for t, p in zip(y_true, y_pred) if t == p)}"
+                f"/{len(y_true)})"
+            )
+
         progress.finish(step_label, score.summary())
 
     if synthetic_records and not fast_product:
