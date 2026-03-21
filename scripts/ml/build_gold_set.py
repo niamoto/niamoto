@@ -12,6 +12,7 @@ Extracts labeled columns from known data sources:
 Output: data/gold_set.json — list of LabeledColumn records.
 """
 
+import copy
 import json
 import logging
 import sys
@@ -1792,18 +1793,6 @@ HEADER_VARIANTS = {
         "location.longitude": ["bujur", "lon"],
         "identifier.record": ["id", "nomor"],
     },
-    "anonymous": {
-        "measurement.diameter": ["X1", "col_1", "var_a", "V1", "field1"],
-        "measurement.height": ["X2", "col_2", "var_b", "V2", "field2"],
-        "measurement.biomass": ["X8", "col_8"],
-        "location.latitude": ["X3", "col_3", "V3"],
-        "location.longitude": ["X4", "col_4", "V4"],
-        "taxonomy.species": ["X5", "col_5", "V5"],
-        "taxonomy.family": ["X6", "col_6", "V6"],
-        "statistic.count": ["X7", "col_7", "V7"],
-        "event.date": ["X9", "col_9"],
-        "identifier.record": ["X10", "col_10"],
-    },
 }
 
 GENERA = [
@@ -1903,8 +1892,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                             "concept": concept,
                             "role": concept.split(".")[0],
                             "source_dataset": f"synthetic_{biome_name}",
-                            "language": lang if lang != "anonymous" else "en",
-                            "is_anonymous": lang == "anonymous",
+                            "language": lang,
+                            "is_anonymous": False,
                             "quality": "synthetic",
                         }
                     )
@@ -1931,8 +1920,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                         "concept": concept,
                         "role": "taxonomy",
                         "source_dataset": "synthetic_taxonomy",
-                        "language": lang if lang != "anonymous" else "en",
-                        "is_anonymous": lang == "anonymous",
+                        "language": lang,
+                        "is_anonymous": False,
                         "quality": "synthetic",
                     }
                 )
@@ -1952,8 +1941,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                     "concept": "statistic.count",
                     "role": "statistic",
                     "source_dataset": "synthetic_count",
-                    "language": lang if lang != "anonymous" else "en",
-                    "is_anonymous": lang == "anonymous",
+                    "language": lang,
+                    "is_anonymous": False,
                     "quality": "synthetic",
                 }
             )
@@ -1977,8 +1966,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                         "concept": concept,
                         "role": "location",
                         "source_dataset": "synthetic_coords",
-                        "language": lang if lang != "anonymous" else "en",
-                        "is_anonymous": lang == "anonymous",
+                        "language": lang,
+                        "is_anonymous": False,
                         "quality": "synthetic",
                     }
                 )
@@ -1998,8 +1987,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                     "concept": "event.date",
                     "role": "time",
                     "source_dataset": "synthetic_dates",
-                    "language": lang if lang != "anonymous" else "en",
-                    "is_anonymous": lang == "anonymous",
+                    "language": lang,
+                    "is_anonymous": False,
                     "quality": "synthetic",
                 }
             )
@@ -2019,8 +2008,8 @@ def generate_synthetic_columns(rng_seed: int = 42) -> list[dict]:
                     "concept": "identifier.record",
                     "role": "identifier",
                     "source_dataset": "synthetic_ids",
-                    "language": lang if lang != "anonymous" else "en",
-                    "is_anonymous": lang == "anonymous",
+                    "language": lang,
+                    "is_anonymous": False,
                     "quality": "synthetic",
                 }
             )
@@ -2102,6 +2091,96 @@ def extract_from_source(source: dict) -> list[dict]:
     return records
 
 
+# ── Anonymous holdout ────────────────────────────────────────────
+
+_ANONYMOUS_NAME_POOL = (
+    [f"col_{i}" for i in range(1, 100)]
+    + [f"X{i}" for i in range(1, 100)]
+    + [f"V{i}" for i in range(1, 100)]
+    + [f"var_{chr(c)}" for c in range(ord("a"), ord("z") + 1)]
+    + [f"field_{i}" for i in range(1, 26)]
+)
+
+
+def _build_anonymous_holdout(
+    records: list[dict],
+    target_total: int = 100,
+    min_per_concept: int = 2,
+    seed: int = 42,
+) -> list[dict]:
+    """Build a diversified anonymous holdout from real gold set columns.
+
+    Samples real columns stratified by concept_coarse and duplicates them
+    with generic column names to test values-only detection.
+    """
+    rng = np.random.RandomState(seed)
+
+    # Only sample from non-anonymous entries
+    candidates = [r for r in records if not r.get("is_anonymous")]
+    if not candidates:
+        logger.warning("No non-anonymous records to build holdout from")
+        return []
+
+    # Group by concept_coarse
+    from collections import defaultdict
+
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for r in candidates:
+        groups[r["concept_coarse"]].append(r)
+
+    # Calculate samples per group: proportional with a floor
+    total_candidates = len(candidates)
+    samples_per_group: dict[str, int] = {}
+    for concept, group in groups.items():
+        proportional = max(
+            min_per_concept,
+            round(target_total * len(group) / total_candidates),
+        )
+        samples_per_group[concept] = min(proportional, len(group))
+
+    # Adjust to get close to target_total
+    current_total = sum(samples_per_group.values())
+    if current_total > target_total:
+        # Trim proportionally from largest groups
+        excess = current_total - target_total
+        sorted_concepts = sorted(
+            samples_per_group, key=lambda c: samples_per_group[c], reverse=True
+        )
+        for concept in sorted_concepts:
+            if excess <= 0:
+                break
+            can_trim = samples_per_group[concept] - min_per_concept
+            trim = min(can_trim, excess)
+            if trim > 0:
+                samples_per_group[concept] -= trim
+                excess -= trim
+
+    # Sample and anonymize
+    available_names = list(_ANONYMOUS_NAME_POOL)
+    rng.shuffle(available_names)
+    name_idx = 0
+    holdout = []
+
+    for concept in sorted(groups.keys()):
+        group = groups[concept]
+        n = samples_per_group[concept]
+        indices = rng.choice(len(group), size=n, replace=False)
+        for idx in indices:
+            entry = copy.deepcopy(group[idx])
+            entry["column_name"] = available_names[name_idx]
+            entry["is_anonymous"] = True
+            entry["quality"] = "gold_anonymous"
+            entry["language"] = "en"
+            name_idx += 1
+            holdout.append(entry)
+
+    logger.info(
+        f"Built anonymous holdout: {len(holdout)} entries "
+        f"across {len(samples_per_group)} concepts"
+    )
+    return holdout
+
+
 # ── Main ─────────────────────────────────────────────────────────
 
 
@@ -2129,14 +2208,20 @@ def build_gold_set() -> list[dict]:
             else r["concept_coarse"]
         )
 
+    # Build diversified anonymous holdout from real columns
+    anon_holdout = _build_anonymous_holdout(all_records)
+    all_records.extend(anon_holdout)
+
     # Summary
     gold = [r for r in all_records if r["quality"] == "gold"]
     synthetic_count = [r for r in all_records if r["quality"] == "synthetic"]
+    anon_count = [r for r in all_records if r.get("is_anonymous")]
 
     logger.info(f"\n{'=' * 50}")
     logger.info(f"Gold set built: {len(all_records)} total columns")
     logger.info(f"  Gold:      {len(gold)}")
     logger.info(f"  Synthetic: {len(synthetic_count)}")
+    logger.info(f"  Anonymous: {len(anon_count)}")
 
     # Concept distribution
     from collections import Counter
