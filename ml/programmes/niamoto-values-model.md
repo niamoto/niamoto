@@ -13,13 +13,13 @@ finale reste la qualité de la stack complète via `niamoto-score`.
 
 Tu peux modifier uniquement :
 
-- `scripts/ml/train_value_model.py`
+- `ml/scripts/train/train_value_model.py`
 
 Tu ne dois pas modifier :
 
-- `scripts/ml/evaluate.py`
-- `scripts/ml/evaluation.py`
-- `scripts/ml/train_fusion.py`
+- `ml/scripts/eval/evaluate.py`
+- `ml/scripts/eval/evaluation.py`
+- `ml/scripts/train/train_fusion.py`
 - `src/niamoto/core/imports/ml/classifier.py`
 - `src/niamoto/core/imports/ml/alias_registry.py`
 

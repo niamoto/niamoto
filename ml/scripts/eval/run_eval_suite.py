@@ -86,8 +86,7 @@ TIER_GBIF = [
         name="gbif-nc",
         tier="gbif",
         annotations=GBIF_ANN,
-        csv_path=ROOT
-        / "ml"
+        csv_path=ML_ROOT
         / "data"
         / "silver"
         / "gbif_targeted"
@@ -98,8 +97,7 @@ TIER_GBIF = [
         name="gbif-gabon",
         tier="gbif",
         annotations=GBIF_ANN,
-        csv_path=ROOT
-        / "ml"
+        csv_path=ML_ROOT
         / "data"
         / "silver"
         / "gbif_targeted"
@@ -110,8 +108,7 @@ TIER_GBIF = [
         name="gbif-inst-gabon",
         tier="gbif",
         annotations=GBIF_ANN,
-        csv_path=ROOT
-        / "ml"
+        csv_path=ML_ROOT
         / "data"
         / "silver"
         / "gbif_targeted_institutional"

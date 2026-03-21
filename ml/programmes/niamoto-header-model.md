@@ -13,14 +13,14 @@ header ne vaut que si elle ne dégrade pas le score global de détection.
 
 Tu peux modifier uniquement :
 
-- `scripts/ml/train_header_model.py`
+- `ml/scripts/train/train_header_model.py`
 - `src/niamoto/core/imports/ml/header_features.py`
 
 Tu ne dois pas modifier :
 
-- `scripts/ml/evaluate.py`
-- `scripts/ml/evaluation.py`
-- `scripts/ml/train_fusion.py`
+- `ml/scripts/eval/evaluate.py`
+- `ml/scripts/eval/evaluation.py`
+- `ml/scripts/train/train_fusion.py`
 - `src/niamoto/core/imports/ml/alias_registry.py`
 - `src/niamoto/core/imports/profiler.py`
 
