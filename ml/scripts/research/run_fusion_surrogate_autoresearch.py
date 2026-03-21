@@ -23,9 +23,9 @@ DEFAULT_CACHE_DIR = (
 DEFAULT_LOG_DIR = ROOT / ".autoresearch"
 DEFAULT_ALLOWED_UNTRACKED = {"ml-detection-dashboard.html"}
 DEFAULT_ALLOWED_PATHS = (
-    "ml/scripts/train_fusion.py",
+    "ml/scripts/train/train_fusion.py",
     "src/niamoto/core/imports/ml/classifier.py",
-    "ml/scripts/evaluate.py",
+    "ml/scripts/eval/evaluate.py",
 )
 DEFAULT_PROMOTIONS_FILENAME = "fusion-surrogate-promotions.jsonl"
 PROMPT_HISTORY_LIMIT = 10
@@ -271,7 +271,7 @@ Axes recommandés:
 - interactions basees sur top2/top3, entropy, confidence gap, ou calibration locale
 - signaux ciblant des cas ou header et values sont tous deux faibles
 - signaux ciblant coded headers sans ajouter de simple threshold global
-- si possible, touche d'abord `train_fusion.py`; ne modifie `classifier.py` que si la feature runtime correspondante est necessaire
+- si possible, touche d'abord `ml/scripts/train/train_fusion.py`; ne modifie `classifier.py` que si la feature runtime correspondante est necessaire
 """
 
 
