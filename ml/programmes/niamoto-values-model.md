@@ -28,13 +28,13 @@ Tu ne dois pas modifier :
 Boucle rapide :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model values --metric macro-f1 --splits 5
+uv run python -m ml.scripts.eval.evaluate --model values --metric macro-f1 --splits 5
 ```
 
 Validation stack après une amélioration locale :
 
 ```bash
-uv run python -m scripts.ml.evaluate --model all --metric niamoto-score --splits 3
+uv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3
 ```
 
 La sortie stdout est un nombre décimal unique. Les diagnostics détaillés sont écrits

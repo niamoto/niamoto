@@ -5,10 +5,10 @@ CLI metric script for ML model evaluation.
 Outputs a single number to stdout for autoresearch compatibility.
 
 Usage:
-    uv run python -m scripts.ml.evaluate --model header --metric macro-f1
-    uv run python -m scripts.ml.evaluate --model values --metric macro-f1
-    uv run python -m scripts.ml.evaluate --model fusion --metric macro-f1
-    uv run python -m scripts.ml.evaluate --model all    --metric macro-f1
+    uv run python -m ml.scripts.eval.evaluate --model header --metric macro-f1
+    uv run python -m ml.scripts.eval.evaluate --model values --metric macro-f1
+    uv run python -m ml.scripts.eval.evaluate --model fusion --metric macro-f1
+    uv run python -m ml.scripts.eval.evaluate --model all    --metric macro-f1
 """
 
 import argparse
@@ -24,15 +24,17 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.model_selection import GroupKFold
 
-from scripts.ml.fusion_surrogate import (
+from ml.scripts.research.fusion_surrogate import (
     compute_gold_set_sha256,
     default_cache_dir,
 )
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from niamoto.core.imports.ml.alias_registry import _normalize
-from niamoto.core.imports.ml.fusion_features import is_code_like_header
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+from niamoto.core.imports.ml.alias_registry import _normalize  # noqa: E402
+from niamoto.core.imports.ml.fusion_features import is_code_like_header  # noqa: E402
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -41,7 +43,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).parent.parent.parent
 PRIMARY_LANG_HOLDOUTS = ("fr", "es", "de")
 INFO_STDERR_ENABLED = True
 PROGRESS_ENABLED = False
@@ -338,12 +339,12 @@ def _train_all_models(
     train_records: list[dict],
     all_concepts: list[str],
 ) -> tuple[object | None, object | None, object | None]:
-    from scripts.ml.train_fusion import (
+    from ml.scripts.train.train_fusion import (
         build_fusion_model,
         extract_fusion_features_batch,
     )
-    from scripts.ml.train_header_model import build_pipeline, prepare_data
-    from scripts.ml.train_value_model import (
+    from ml.scripts.train.train_header_model import build_pipeline, prepare_data
+    from ml.scripts.train.train_value_model import (
         build_model as build_value_model,
         extract_value_features,
     )
@@ -390,7 +391,7 @@ def _predict_all_records(
     fusion_model,
     all_concepts: list[str],
 ) -> tuple[list[str], list[float]]:
-    from scripts.ml.train_fusion import extract_fusion_features_batch
+    from ml.scripts.train.train_fusion import extract_fusion_features_batch
 
     if not records or fusion_model is None:
         return [], []
@@ -405,7 +406,7 @@ def _predict_all_records(
 
 
 def _to_labeled_columns(records: list[dict]):
-    from scripts.ml.evaluation import LabeledColumn
+    from ml.scripts.eval.evaluation import LabeledColumn
 
     columns = []
     for record in records:
@@ -458,7 +459,7 @@ def _report_subset_score(
     confs: list[float],
     predicate,
 ) -> float | None:
-    from scripts.ml.evaluation import compute_niamoto_offline_score
+    from ml.scripts.eval.evaluation import compute_niamoto_offline_score
 
     subset = [
         (record, pred, conf)
@@ -485,7 +486,7 @@ def _evaluate_holdout_score(
     *,
     return_models: bool = False,
 ):
-    from scripts.ml.evaluation import compute_niamoto_offline_score
+    from ml.scripts.eval.evaluation import compute_niamoto_offline_score
 
     header_model, value_model, fusion_model = _train_all_models(
         train_records, all_concepts
@@ -512,7 +513,7 @@ def evaluate_niamoto_protocol(
     objective: str = "niamoto-score",
 ) -> float:
     """Evaluate the end-to-end stack with the Niamoto offline protocol."""
-    from scripts.ml.evaluation import compute_niamoto_offline_score
+    from ml.scripts.eval.evaluation import compute_niamoto_offline_score
 
     records = _load_records(gold_path)
     real_records = [
@@ -777,7 +778,7 @@ def evaluate_niamoto_protocol(
             anon_oof_confs.extend(confs)
 
             if value_model is not None:
-                from scripts.ml.train_value_model import extract_value_features
+                from ml.scripts.train.train_value_model import extract_value_features
 
                 X_val_test = np.array(
                     [
@@ -862,7 +863,7 @@ def evaluate_niamoto_protocol(
 
 def evaluate_header(gold_path: Path, n_splits: int = 5) -> float:
     """Evaluate header model via GroupKFold."""
-    from scripts.ml.train_header_model import (
+    from ml.scripts.train.train_header_model import (
         build_pipeline,
         load_gold_set,
         prepare_data,
@@ -901,7 +902,7 @@ def evaluate_header(gold_path: Path, n_splits: int = 5) -> float:
 
 def evaluate_values(gold_path: Path, n_splits: int = 5) -> float:
     """Evaluate value model via GroupKFold."""
-    from scripts.ml.train_value_model import build_model, load_and_prepare
+    from ml.scripts.train.train_value_model import build_model, load_and_prepare
 
     X, concepts, _roles, groups = load_and_prepare(gold_path)
 
@@ -939,12 +940,12 @@ def evaluate_fusion(gold_path: Path, n_splits: int = 5) -> float:
     test-fold records are never seen by the branch models that produce
     the fusion input features.
     """
-    from scripts.ml.train_fusion import (
+    from ml.scripts.train.train_fusion import (
         build_fusion_model,
         extract_fusion_features,
     )
-    from scripts.ml.train_header_model import build_pipeline, prepare_data
-    from scripts.ml.train_value_model import (
+    from ml.scripts.train.train_header_model import build_pipeline, prepare_data
+    from ml.scripts.train.train_value_model import (
         build_model as build_value_model,
         extract_value_features,
     )
@@ -1043,7 +1044,7 @@ def _compose_fusion_matrix(
     metadata: np.ndarray,
     all_concepts: list[str],
 ) -> np.ndarray:
-    from scripts.ml.train_fusion import compose_fusion_features
+    from ml.scripts.train.train_fusion import compose_fusion_features
 
     return np.array(
         [
@@ -1061,14 +1062,14 @@ def evaluate_fusion_surrogate(
     n_splits: int = 3,
     objective: str = "surrogate-fast",
 ) -> float:
-    from scripts.ml.train_fusion import build_fusion_model
+    from ml.scripts.train.train_fusion import build_fusion_model
 
     resolved_cache_dir = cache_dir or default_cache_dir(gold_path, n_splits)
     manifest_path = resolved_cache_dir / "manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(
             "Fusion surrogate cache not found. Build it with: "
-            "uv run python -m scripts.ml.build_fusion_surrogate_cache "
+            "uv run python -m ml.scripts.research.build_fusion_surrogate_cache "
             f"--gold-set {gold_path} --splits {n_splits}"
         )
 
@@ -1079,7 +1080,7 @@ def evaluate_fusion_surrogate(
     if manifest.get("gold_sha256") != current_hash:
         raise ValueError(
             "Fusion surrogate cache is stale for this gold set. Rebuild it with: "
-            "uv run python -m scripts.ml.build_fusion_surrogate_cache "
+            "uv run python -m ml.scripts.research.build_fusion_surrogate_cache "
             f"--gold-set {gold_path} --splits {manifest.get('splits', n_splits)}"
         )
 
@@ -1205,7 +1206,7 @@ def main():
     parser.add_argument(
         "--gold-set",
         type=Path,
-        default=ROOT / "data" / "gold_set.json",
+        default=ML_ROOT / "data" / "gold_set.json",
     )
     parser.add_argument("--splits", type=int, default=5)
     parser.add_argument(

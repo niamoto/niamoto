@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.model_selection import GroupKFold
 
-from scripts.ml.evaluate import (
+from ml.scripts.eval.evaluate import (
     _dataset_family,
     _is_en_field_record,
     _is_gbif_core_standard_record,
@@ -20,19 +20,19 @@ from scripts.ml.evaluate import (
     _is_real_record,
     _load_records,
 )
-from scripts.ml.fusion_surrogate import (
+from ml.scripts.research.fusion_surrogate import (
     CACHE_VERSION,
     compute_gold_set_sha256,
     default_cache_dir,
 )
-from scripts.ml.train_fusion import (
+from ml.scripts.train.train_fusion import (
     FUSION_META_FEATURE_NAMES,
     extract_fusion_branch_probabilities_batch,
     extract_fusion_metadata,
     extract_fusion_metadata_batch,
 )
-from scripts.ml.train_header_model import build_pipeline, prepare_data
-from scripts.ml.train_value_model import (
+from ml.scripts.train.train_header_model import build_pipeline, prepare_data
+from ml.scripts.train.train_value_model import (
     build_model as build_value_model,
     extract_value_features,
 )
@@ -41,7 +41,8 @@ from scripts.ml.train_value_model import (
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 SURROGATE_BUCKETS = (
     "tropical_field",
     "research_traits",
@@ -240,7 +241,7 @@ def main() -> None:
     parser.add_argument(
         "--gold-set",
         type=Path,
-        default=ROOT / "data" / "gold_set.json",
+        default=ML_ROOT / "data" / "gold_set.json",
     )
     parser.add_argument("--splits", type=int, default=3)
     parser.add_argument("--output-dir", type=Path)

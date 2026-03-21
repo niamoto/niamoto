@@ -60,7 +60,7 @@ Technology:
 
 References:
 
-- [train_header_model.py](scripts/ml/train_header_model.py)
+- [train_header_model.py](../../ml/scripts/train/train_header_model.py)
 - [header_features.py](src/niamoto/core/imports/ml/header_features.py)
 
 ### 3. Values Branch
@@ -81,7 +81,7 @@ It is less accurate alone than `header`, but it is decisive for:
 
 References:
 
-- [train_value_model.py](scripts/ml/train_value_model.py)
+- [train_value_model.py](../../ml/scripts/train/train_value_model.py)
 - [value_features.py](src/niamoto/core/imports/ml/value_features.py)
 
 ### 4. Fusion
@@ -98,7 +98,7 @@ dominant on a particular domain.
 
 References:
 
-- [train_fusion.py](scripts/ml/train_fusion.py)
+- [train_fusion.py](../../ml/scripts/train/train_fusion.py)
 - [fusion_features.py](src/niamoto/core/imports/ml/fusion_features.py)
 
 ### 5. Product Semantic Projection
@@ -148,8 +148,8 @@ improve:
 ## Retained Evaluation Ground Truth
 
 The final metric targeted by the branch is the `NiamotoOfflineScore`, computed
-in [evaluation.py](scripts/ml/evaluation.py)
-and exposed by [evaluate.py](scripts/ml/evaluate.py).
+in [evaluation.py](../../ml/scripts/eval/evaluation.py)
+and exposed by [evaluate.py](../../ml/scripts/eval/evaluate.py).
 
 The score combines:
 
@@ -191,9 +191,9 @@ What it must not do:
 
 Three loop levels are useful:
 
-- [niamoto-header-model.md](programmes/niamoto-header-model.md)
-- [niamoto-values-model.md](programmes/niamoto-values-model.md)
-- [niamoto-fusion.md](programmes/niamoto-fusion.md)
+- [niamoto-header-model.md](../../ml/programmes/niamoto-header-model.md)
+- [niamoto-values-model.md](../../ml/programmes/niamoto-values-model.md)
+- [niamoto-fusion.md](../../ml/programmes/niamoto-fusion.md)
 
 The `fusion` programme now plays the role of the **full-stack** programme.
 

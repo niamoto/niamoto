@@ -16,16 +16,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-ROOT = Path(__file__).parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CACHE_DIR = (
-    ROOT / "data" / "cache" / "ml" / "fusion_surrogate" / "gold_set_splits3"
+    ROOT / "ml" / "data" / "cache" / "ml" / "fusion_surrogate" / "gold_set_splits3"
 )
 DEFAULT_LOG_DIR = ROOT / ".autoresearch"
 DEFAULT_ALLOWED_UNTRACKED = {"ml-detection-dashboard.html"}
 DEFAULT_ALLOWED_PATHS = (
-    "scripts/ml/train_fusion.py",
+    "ml/scripts/train_fusion.py",
     "src/niamoto/core/imports/ml/classifier.py",
-    "scripts/ml/evaluate.py",
+    "ml/scripts/evaluate.py",
 )
 DEFAULT_PROMOTIONS_FILENAME = "fusion-surrogate-promotions.jsonl"
 PROMPT_HISTORY_LIMIT = 10
@@ -141,7 +141,7 @@ def evaluate_metric(
     cmd = [
         str(ROOT / ".venv" / "bin" / "python"),
         "-m",
-        "scripts.ml.evaluate",
+        "ml.scripts.eval.evaluate",
         "--model",
         model,
         "--metric",

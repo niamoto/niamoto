@@ -6,8 +6,8 @@ Classifies columns based on value statistics (distribution, patterns, ranges).
 Works independently of column names — essential for anonymous headers (X1, col_3).
 
 Usage:
-    uv run python scripts/ml/train_value_model.py
-    uv run python scripts/ml/train_value_model.py --gold-set data/gold_set.json
+    uv run python -m ml.scripts.train.train_value_model
+    uv run python -m ml.scripts.train.train_value_model --gold-set ml/data/gold_set.json
 """
 
 import argparse
@@ -21,7 +21,7 @@ import numpy as np
 from sklearn.metrics import classification_report, f1_score
 from sklearn.model_selection import GroupKFold
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from niamoto.core.imports.ml.value_features import (
     FEATURE_NAMES,
     extract_value_features_from_sample,
@@ -30,7 +30,8 @@ from niamoto.core.imports.ml.value_features import (
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 
 
 def extract_value_features(values_sample: list, stats: dict) -> np.ndarray:
@@ -110,10 +111,10 @@ def main():
     parser.add_argument(
         "--gold-set",
         type=Path,
-        default=ROOT / "data" / "gold_set.json",
+        default=ML_ROOT / "data" / "gold_set.json",
     )
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "models" / "value_model.joblib"
+        "--output", type=Path, default=ML_ROOT / "models" / "value_model.joblib"
     )
     parser.add_argument("--eval-only", action="store_true")
     args = parser.parse_args()

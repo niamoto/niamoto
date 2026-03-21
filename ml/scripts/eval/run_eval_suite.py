@@ -7,10 +7,10 @@ Evaluates ML detection across:
 - Tier 2: Silver representative datasets (7+ files)
 
 Usage:
-    uv run python -m scripts.ml.eval.run_eval_suite
-    uv run python -m scripts.ml.eval.run_eval_suite --tier 1
-    uv run python -m scripts.ml.eval.run_eval_suite --tier gbif
-    uv run python -m scripts.ml.eval.run_eval_suite --json results.json
+    uv run python -m ml.scripts.eval.run_eval_suite
+    uv run python -m ml.scripts.eval.run_eval_suite --tier 1
+    uv run python -m ml.scripts.eval.run_eval_suite --tier gbif
+    uv run python -m ml.scripts.eval.run_eval_suite --json results.json
 """
 
 from __future__ import annotations
@@ -26,18 +26,19 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from scripts.ml.eval.evaluate_instance import (  # noqa: E402
+from ml.scripts.eval.evaluate_instance import (  # noqa: E402
     ComparisonResult,
     evaluate_dataset,
     load_annotations,
     resolve_csv_paths,
 )
 
-EVAL_DIR = ROOT / "data" / "eval"
+EVAL_DIR = ML_ROOT / "data" / "eval"
 ANNOTATIONS_DIR = EVAL_DIR / "annotations"
 RESULTS_DIR = EVAL_DIR / "results"
 ACCEPTANCE_DIR = EVAL_DIR / "acceptance"
@@ -74,7 +75,7 @@ TIER1 = [
         name="guyadiv",
         tier="tier1",
         annotations=ANNOTATIONS_DIR / "guyadiv.yml",
-        data_dir=ROOT / "data" / "silver" / "guyane",
+        data_dir=ML_ROOT / "data" / "silver" / "guyane",
     ),
 ]
 
@@ -86,6 +87,7 @@ TIER_GBIF = [
         tier="gbif",
         annotations=GBIF_ANN,
         csv_path=ROOT
+        / "ml"
         / "data"
         / "silver"
         / "gbif_targeted"
@@ -97,6 +99,7 @@ TIER_GBIF = [
         tier="gbif",
         annotations=GBIF_ANN,
         csv_path=ROOT
+        / "ml"
         / "data"
         / "silver"
         / "gbif_targeted"
@@ -108,6 +111,7 @@ TIER_GBIF = [
         tier="gbif",
         annotations=GBIF_ANN,
         csv_path=ROOT
+        / "ml"
         / "data"
         / "silver"
         / "gbif_targeted_institutional"
@@ -122,7 +126,7 @@ TIER2 = [
         name="silver",
         tier="tier2",
         annotations=ANNOTATIONS_DIR / "silver.yml",
-        data_dir=ROOT / "data" / "silver",
+        data_dir=ML_ROOT / "data" / "silver",
     ),
 ]
 
@@ -134,11 +138,22 @@ def load_acceptance_manifest(path: Path) -> list[DatasetDef]:
     with open(path) as f:
         payload = yaml.safe_load(f) or {}
 
+    def _resolve_runtime_path(raw_path: str | None) -> Path | None:
+        if not raw_path:
+            return None
+        raw = Path(raw_path)
+        if raw.is_absolute():
+            return raw
+        parts = raw.parts
+        if parts and parts[0] == "data":
+            return ML_ROOT / raw
+        return ROOT / raw
+
     datasets: list[DatasetDef] = []
     for item in payload.get("datasets", []):
-        annotations = ROOT / item["annotations"]
-        data_dir = ROOT / item["data_dir"] if item.get("data_dir") else None
-        csv_path = ROOT / item["csv_path"] if item.get("csv_path") else None
+        annotations = _resolve_runtime_path(item["annotations"])
+        data_dir = _resolve_runtime_path(item.get("data_dir"))
+        csv_path = _resolve_runtime_path(item.get("csv_path"))
         datasets.append(
             DatasetDef(
                 name=item["name"],

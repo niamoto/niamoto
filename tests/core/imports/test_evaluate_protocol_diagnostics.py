@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from scripts.ml.evaluate import (
+from ml.scripts.eval.evaluate import (
     _compute_fusion_surrogate_fast_score,
     _compute_fusion_surrogate_mid_score,
     _compute_product_score,
@@ -21,7 +21,7 @@ from scripts.ml.evaluate import (
     _is_surrogate_objective,
     evaluate_fusion_surrogate,
 )
-from scripts.ml.fusion_surrogate import compute_gold_set_sha256
+from ml.scripts.research.fusion_surrogate import compute_gold_set_sha256
 
 
 def test_forest_inventory_subfamily_mapping():

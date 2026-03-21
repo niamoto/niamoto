@@ -9,7 +9,7 @@ Extracts labeled columns from known data sources:
 - Test fixtures — 8 synthetic datasets
 - Synthetic global — multi-biome × multi-language generated columns
 
-Output: data/gold_set.json — list of LabeledColumn records.
+Output: ml/data/gold_set.json — list of LabeledColumn records.
 """
 
 import json
@@ -21,8 +21,9 @@ import numpy as np
 import pandas as pd
 
 # Add src and repo root to path so the script works both as
-# `python scripts/ml/build_gold_set.py` and `python -m scripts.ml.build_gold_set`.
-ROOT = Path(__file__).parent.parent.parent
+# `python ml/scripts/data/build_gold_set.py` and `python -m ml.scripts.data.build_gold_set`.
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
@@ -931,49 +932,49 @@ GBIF_DWC_LABELS = {
 SOURCES = [
     {
         "name": "guyadiv_trees",
-        "path": ROOT / "data/silver/guyane/GUYADIV_trees_v1.csv",
+        "path": ML_ROOT / "data/silver/guyane/GUYADIV_trees_v1.csv",
         "labels": GUYADIV_TREES_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "guyadiv_plots",
-        "path": ROOT / "data/silver/guyane/GUYADIV_plots_v1.csv",
+        "path": ML_ROOT / "data/silver/guyane/GUYADIV_plots_v1.csv",
         "labels": GUYADIV_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "forestscan_paracou_census",
-        "path": ROOT / "data/silver/guyane/paracou/FGPlotsCensusData2023.csv",
+        "path": ML_ROOT / "data/silver/guyane/paracou/FGPlotsCensusData2023.csv",
         "labels": FORESTSCAN_PARACOU_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "afrique_occ",
-        "path": ROOT / "data/silver/afrique/occurrences.csv",
+        "path": ML_ROOT / "data/silver/afrique/occurrences.csv",
         "labels": AFRIQUE_OCC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "afrique_plots",
-        "path": ROOT / "data/silver/afrique/plots.csv",
+        "path": ML_ROOT / "data/silver/afrique/plots.csv",
         "labels": AFRIQUE_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "nc_occ",
-        "path": ROOT / "data/silver/nc_niamoto/occurrences.csv",
+        "path": ML_ROOT / "data/silver/nc_niamoto/occurrences.csv",
         "labels": NC_OCC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "nc_plots",
-        "path": ROOT / "data/silver/nc_niamoto/plots.csv",
+        "path": ML_ROOT / "data/silver/nc_niamoto/plots.csv",
         "labels": NC_PLOTS_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1039,7 +1040,7 @@ SOURCES = [
     # ── Silver sources ──
     {
         "name": "ifn_arbre",
-        "path": ROOT / "data/silver/ifn_france/ARBRE.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/ARBRE.csv",
         "labels": IFN_ARBRE_LABELS,
         "language": "fr",
         "sample_rows": 1000,
@@ -1047,7 +1048,7 @@ SOURCES = [
     },
     {
         "name": "ifn_placette",
-        "path": ROOT / "data/silver/ifn_france/PLACETTE.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/PLACETTE.csv",
         "labels": IFN_PLACETTE_LABELS,
         "language": "fr",
         "sample_rows": 1000,
@@ -1055,7 +1056,7 @@ SOURCES = [
     },
     {
         "name": "ifn_ecologie",
-        "path": ROOT / "data/silver/ifn_france/ECOLOGIE.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/ECOLOGIE.csv",
         "labels": IFN_ECOLOGIE_LABELS,
         "language": "fr",
         "sample_rows": None,
@@ -1063,7 +1064,7 @@ SOURCES = [
     },
     {
         "name": "ifn_flore",
-        "path": ROOT / "data/silver/ifn_france/FLORE.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/FLORE.csv",
         "labels": IFN_FLORE_LABELS,
         "language": "fr",
         "sample_rows": 1000,
@@ -1071,7 +1072,7 @@ SOURCES = [
     },
     {
         "name": "ifn_couvert",
-        "path": ROOT / "data/silver/ifn_france/COUVERT.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/COUVERT.csv",
         "labels": IFN_COUVERT_LABELS,
         "language": "fr",
         "sample_rows": 1000,
@@ -1079,7 +1080,7 @@ SOURCES = [
     },
     {
         "name": "ifn_bois_mort",
-        "path": ROOT / "data/silver/ifn_france/BOIS_MORT.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/BOIS_MORT.csv",
         "labels": IFN_BOIS_MORT_LABELS,
         "language": "fr",
         "sample_rows": 1000,
@@ -1087,7 +1088,7 @@ SOURCES = [
     },
     {
         "name": "taxref_v18",
-        "path": ROOT / "data/silver/taxref/TAXREFv18.txt",
+        "path": ML_ROOT / "data/silver/taxref/TAXREFv18.txt",
         "labels": TAXREF_V18_LABELS,
         "language": "fr",
         "sample_rows": 20000,
@@ -1095,21 +1096,21 @@ SOURCES = [
     },
     {
         "name": "ets_occurrence_ext",
-        "path": ROOT / "data/silver/ets/Occurrence_ext.csv",
+        "path": ML_ROOT / "data/silver/ets/Occurrence_ext.csv",
         "labels": ETS_OCCURRENCE_EXT_LABELS,
         "language": "en",
         "sample_rows": 5000,
     },
     {
         "name": "ets_taxon_ext",
-        "path": ROOT / "data/silver/ets/Taxon_ext.csv",
+        "path": ML_ROOT / "data/silver/ets/Taxon_ext.csv",
         "labels": ETS_TAXON_EXT_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "ets_measurement_ext",
-        "path": ROOT / "data/silver/ets/Measurement_or_Fact_ext.csv",
+        "path": ML_ROOT / "data/silver/ets/Measurement_or_Fact_ext.csv",
         "labels": ETS_MEASUREMENT_EXT_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1117,7 +1118,7 @@ SOURCES = [
     },
     {
         "name": "splot_header",
-        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_header(3).txt",
+        "path": ML_ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_header(3).txt",
         "labels": SPLOT_HEADER_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1125,7 +1126,7 @@ SOURCES = [
     },
     {
         "name": "splot_dt",
-        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_DT(2).txt",
+        "path": ML_ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_DT(2).txt",
         "labels": SPLOT_DT_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1133,7 +1134,7 @@ SOURCES = [
     },
     {
         "name": "splot_cwm",
-        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_CWM_CWV(2).txt",
+        "path": ML_ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_CWM_CWV(2).txt",
         "labels": SPLOT_CWM_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1141,7 +1142,7 @@ SOURCES = [
     },
     {
         "name": "splot_metadata",
-        "path": ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_metadata(2).txt",
+        "path": ML_ROOT / "data/silver/splot/3474_76_Dataset/sPlotOpen_metadata(2).txt",
         "labels": SPLOT_METADATA_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1149,14 +1150,14 @@ SOURCES = [
     },
     {
         "name": "afliber_species",
-        "path": ROOT / "data/silver/afliber_species.csv",
+        "path": ML_ROOT / "data/silver/afliber_species.csv",
         "labels": AFLIBER_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "ifn_habitat",
-        "path": ROOT / "data/silver/ifn_france/HABITAT.csv",
+        "path": ML_ROOT / "data/silver/ifn_france/HABITAT.csv",
         "labels": IFN_HABITAT_LABELS,
         "language": "fr",
         "sample_rows": None,
@@ -1164,49 +1165,49 @@ SOURCES = [
     },
     {
         "name": "iefc_catalonia",
-        "path": ROOT / "data/silver/iefc_catalonia.csv",
+        "path": ML_ROOT / "data/silver/iefc_catalonia.csv",
         "labels": IEFC_CATALONIA_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "fia_tree",
-        "path": ROOT / "data/silver/fia_vt_tree.csv",
+        "path": ML_ROOT / "data/silver/fia_vt_tree.csv",
         "labels": FIA_TREE_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "fia_plot",
-        "path": ROOT / "data/silver/fia_vt_plot.csv",
+        "path": ML_ROOT / "data/silver/fia_vt_plot.csv",
         "labels": FIA_PLOT_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "fia_fl_tree",
-        "path": ROOT / "data/silver/fia_fl_tree.csv",
+        "path": ML_ROOT / "data/silver/fia_fl_tree.csv",
         "labels": FIA_TREE_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "fia_fl_plot",
-        "path": ROOT / "data/silver/fia_fl_plot.csv",
+        "path": ML_ROOT / "data/silver/fia_fl_plot.csv",
         "labels": FIA_PLOT_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "fia_or_tree",
-        "path": ROOT / "data/silver/fia_or_tree.csv",
+        "path": ML_ROOT / "data/silver/fia_or_tree.csv",
         "labels": FIA_TREE_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "fia_or_plot",
-        "path": ROOT / "data/silver/fia_or_plot.csv",
+        "path": ML_ROOT / "data/silver/fia_or_plot.csv",
         "labels": FIA_PLOT_LABELS,
         "language": "en",
         "sample_rows": 1000,
@@ -1214,28 +1215,28 @@ SOURCES = [
     # ── Dryad sources ──
     {
         "name": "berenty_madagascar",
-        "path": ROOT / "data/silver/Forest_Data_Berenty_Reserve.csv",
+        "path": ML_ROOT / "data/silver/Forest_Data_Berenty_Reserve.csv",
         "labels": BERENTY_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "finland_trees",
-        "path": ROOT / "data/silver/finland_sweden/trees_finland_and_sweden.csv",
+        "path": ML_ROOT / "data/silver/finland_sweden/trees_finland_and_sweden.csv",
         "labels": FINLAND_TREES_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "finland_plots",
-        "path": ROOT / "data/silver/finland_sweden/plots_finland_and_sweden.csv",
+        "path": ML_ROOT / "data/silver/finland_sweden/plots_finland_and_sweden.csv",
         "labels": FINLAND_PLOTS_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "pasoh_crown",
-        "path": ROOT / "data/silver/pasoh/Pasoh_crown_by_ind.txt",
+        "path": ML_ROOT / "data/silver/pasoh/Pasoh_crown_by_ind.txt",
         "labels": PASOH_CROWN_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1243,7 +1244,7 @@ SOURCES = [
     },
     {
         "name": "pasoh_leaf",
-        "path": ROOT / "data/silver/pasoh/Pasoh_leaf_traits_by_leaf.txt",
+        "path": ML_ROOT / "data/silver/pasoh/Pasoh_leaf_traits_by_leaf.txt",
         "labels": PASOH_LEAF_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1251,7 +1252,7 @@ SOURCES = [
     },
     {
         "name": "pasoh_wood",
-        "path": ROOT / "data/silver/pasoh/Pasoh_Wood_Density.txt",
+        "path": ML_ROOT / "data/silver/pasoh/Pasoh_Wood_Density.txt",
         "labels": PASOH_WOOD_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1260,49 +1261,49 @@ SOURCES = [
     # ── GBIF DwC datasets ──
     {
         "name": "gbif_spain_ifn3",
-        "path": ROOT / "data/silver/gbif_spain_ifn3.csv",
+        "path": ML_ROOT / "data/silver/gbif_spain_ifn3.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "es",
         "sample_rows": None,
     },
     {
         "name": "gbif_france_ifn",
-        "path": ROOT / "data/silver/gbif_france_ifn.csv",
+        "path": ML_ROOT / "data/silver/gbif_france_ifn.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "fr",
         "sample_rows": None,
     },
     {
         "name": "gbif_sweden_nfi",
-        "path": ROOT / "data/silver/gbif_sweden_nfi.csv",
+        "path": ML_ROOT / "data/silver/gbif_sweden_nfi.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_norway_nfi",
-        "path": ROOT / "data/silver/gbif_norway_nfi.csv",
+        "path": ML_ROOT / "data/silver/gbif_norway_nfi.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_benin_lama",
-        "path": ROOT / "data/silver/gbif_benin_lama.csv",
+        "path": ML_ROOT / "data/silver/gbif_benin_lama.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "fr",
         "sample_rows": None,
     },
     {
         "name": "gbif_benin_wari_maro",
-        "path": ROOT / "data/silver/gbif_benin_wari_maro.csv",
+        "path": ML_ROOT / "data/silver/gbif_benin_wari_maro.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "fr",
         "sample_rows": None,
     },
     {
         "name": "gbif_benin_socioeco",
-        "path": ROOT / "data/silver/gbif_benin_socioeco.csv",
+        "path": ML_ROOT / "data/silver/gbif_benin_socioeco.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "fr",
         "sample_rows": None,
@@ -1310,84 +1311,84 @@ SOURCES = [
     # ── GBIF DwC datasets — wave 2 (global diversity) ──
     {
         "name": "gbif_tanzania_miombo",
-        "path": ROOT / "data/silver/gbif_tanzania_miombo.csv",
+        "path": ML_ROOT / "data/silver/gbif_tanzania_miombo.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_madagascar_grasses",
-        "path": ROOT / "data/silver/gbif_madagascar_grasses.csv",
+        "path": ML_ROOT / "data/silver/gbif_madagascar_grasses.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_uganda_savanna",
-        "path": ROOT / "data/silver/gbif_uganda_savanna.csv",
+        "path": ML_ROOT / "data/silver/gbif_uganda_savanna.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_norway_veg",
-        "path": ROOT / "data/silver/gbif_norway_veg.csv",
+        "path": ML_ROOT / "data/silver/gbif_norway_veg.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_wales_woodland",
-        "path": ROOT / "data/silver/gbif_wales_woodland.csv",
+        "path": ML_ROOT / "data/silver/gbif_wales_woodland.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_poland_botanical",
-        "path": ROOT / "data/silver/gbif_poland_botanical.csv",
+        "path": ML_ROOT / "data/silver/gbif_poland_botanical.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_berlin_botanical",
-        "path": ROOT / "data/silver/gbif_berlin_botanical.csv",
+        "path": ML_ROOT / "data/silver/gbif_berlin_botanical.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "de",
         "sample_rows": None,
     },
     {
         "name": "gbif_us_desert_herb",
-        "path": ROOT / "data/silver/gbif_us_desert_herb.csv",
+        "path": ML_ROOT / "data/silver/gbif_us_desert_herb.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_canada_herbarium",
-        "path": ROOT / "data/silver/gbif_canada_herbarium.csv",
+        "path": ML_ROOT / "data/silver/gbif_canada_herbarium.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_japan_plants",
-        "path": ROOT / "data/silver/gbif_japan_bee_plants.csv",
+        "path": ML_ROOT / "data/silver/gbif_japan_bee_plants.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_fr_traits",
-        "path": ROOT / "data/silver/gbif_fr_traits.csv",
+        "path": ML_ROOT / "data/silver/gbif_fr_traits.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "fr",
         "sample_rows": None,
     },
     {
         "name": "gbif_ethiopia_kafa",
-        "path": ROOT / "data/silver/gbif_ethiopia_kafa.csv",
+        "path": ML_ROOT / "data/silver/gbif_ethiopia_kafa.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
@@ -1395,147 +1396,148 @@ SOURCES = [
     # ── GBIF DwC datasets — wave 3 (global gaps) ──
     {
         "name": "gbif_colombia_wetland",
-        "path": ROOT / "data/silver/gbif_colombia_wetland.csv",
+        "path": ML_ROOT / "data/silver/gbif_colombia_wetland.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "es",
         "sample_rows": None,
     },
     {
         "name": "gbif_brazil_forest",
-        "path": ROOT / "data/silver/gbif_brazil_forest.csv",
+        "path": ML_ROOT / "data/silver/gbif_brazil_forest.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "pt",
         "sample_rows": None,
     },
     {
         "name": "gbif_argentina_protected",
-        "path": ROOT / "data/silver/gbif_argentina_protected.csv",
+        "path": ML_ROOT / "data/silver/gbif_argentina_protected.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "es",
         "sample_rows": None,
     },
     {
         "name": "gbif_mexico_flora",
-        "path": ROOT / "data/silver/gbif_mexico_flora.csv",
+        "path": ML_ROOT / "data/silver/gbif_mexico_flora.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "es",
         "sample_rows": None,
     },
     {
         "name": "gbif_paramo_colombia",
-        "path": ROOT / "data/silver/gbif_paramo_colombia.csv",
+        "path": ML_ROOT / "data/silver/gbif_paramo_colombia.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "es",
         "sample_rows": None,
     },
     {
         "name": "gbif_china_herbarium",
-        "path": ROOT / "data/silver/gbif_china_herbarium.csv",
+        "path": ML_ROOT / "data/silver/gbif_china_herbarium.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "zh",
         "sample_rows": None,
     },
     {
         "name": "gbif_china_south",
-        "path": ROOT / "data/silver/gbif_china_south.csv",
+        "path": ML_ROOT / "data/silver/gbif_china_south.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "zh",
         "sample_rows": None,
     },
     {
         "name": "gbif_philippines_samar",
-        "path": ROOT / "data/silver/gbif_philippines_samar.csv",
+        "path": ML_ROOT / "data/silver/gbif_philippines_samar.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_india_sundarbans",
-        "path": ROOT / "data/silver/gbif_india_sundarbans.csv",
+        "path": ML_ROOT / "data/silver/gbif_india_sundarbans.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_thailand_atlas",
-        "path": ROOT / "data/silver/gbif_thailand_atlas.csv",
+        "path": ML_ROOT / "data/silver/gbif_thailand_atlas.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_australia_carnarvon",
-        "path": ROOT / "data/silver/gbif_australia_carnarvon.csv",
+        "path": ML_ROOT / "data/silver/gbif_australia_carnarvon.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_nz_pdd",
-        "path": ROOT / "data/silver/gbif_nz_pdd.csv",
+        "path": ML_ROOT / "data/silver/gbif_nz_pdd.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_austria_herbarium",
-        "path": ROOT / "data/silver/gbif_austria_herbarium.csv",
+        "path": ML_ROOT / "data/silver/gbif_austria_herbarium.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "de",
         "sample_rows": None,
     },
     {
         "name": "gbif_bulgaria_herbolario",
-        "path": ROOT / "data/silver/gbif_bulgaria_herbolario.csv",
+        "path": ML_ROOT / "data/silver/gbif_bulgaria_herbolario.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_kenya_mangrove",
-        "path": ROOT / "data/silver/gbif_kenya_mangrove.csv",
+        "path": ML_ROOT / "data/silver/gbif_kenya_mangrove.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": None,
     },
     {
         "name": "gbif_targeted_new_caledonia",
-        "path": ROOT / "data/silver/gbif_targeted/new_caledonia/occurrences.csv",
+        "path": ML_ROOT / "data/silver/gbif_targeted/new_caledonia/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "gbif_targeted_guyane",
-        "path": ROOT / "data/silver/gbif_targeted/guyane/occurrences.csv",
+        "path": ML_ROOT / "data/silver/gbif_targeted/guyane/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "gbif_targeted_gabon",
-        "path": ROOT / "data/silver/gbif_targeted/gabon/occurrences.csv",
+        "path": ML_ROOT / "data/silver/gbif_targeted/gabon/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "gbif_targeted_cameroon",
-        "path": ROOT / "data/silver/gbif_targeted/cameroon/occurrences.csv",
+        "path": ML_ROOT / "data/silver/gbif_targeted/cameroon/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "gbif_targeted_institutional_gabon",
-        "path": ROOT / "data/silver/gbif_targeted_institutional/gabon/occurrences.csv",
+        "path": ML_ROOT
+        / "data/silver/gbif_targeted_institutional/gabon/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
         "sample_rows": 1000,
     },
     {
         "name": "gbif_targeted_institutional_cameroon",
-        "path": ROOT
+        "path": ML_ROOT
         / "data/silver/gbif_targeted_institutional/cameroon/occurrences.csv",
         "labels": GBIF_DWC_LABELS,
         "language": "en",
@@ -1544,7 +1546,7 @@ SOURCES = [
     # ── Zenodo datasets (unique schemas) ──
     {
         "name": "zenodo_bci_allometry",
-        "path": ROOT / "data/silver/zenodo_bci_allometry.csv",
+        "path": ML_ROOT / "data/silver/zenodo_bci_allometry.csv",
         "labels": {
             "Mnemonic": ("taxonomy.species", "taxonomy"),
             "SpeciesName": ("taxonomy.species", "taxonomy"),
@@ -1561,7 +1563,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_bci_traits",
-        "path": ROOT / "data/silver/zenodo_bci_traits.csv",
+        "path": ML_ROOT / "data/silver/zenodo_bci_traits.csv",
         "labels": {
             "Mnemonic": ("taxonomy.species", "taxonomy"),
             "SpeciesName": ("taxonomy.species", "taxonomy"),
@@ -1572,7 +1574,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_california_ferp",
-        "path": ROOT / "data/silver/zenodo_california_ferp.csv",
+        "path": ML_ROOT / "data/silver/zenodo_california_ferp.csv",
         "labels": {
             "quadrat": ("identifier.plot", "identifier"),
             "tag": ("identifier.record", "identifier"),
@@ -1594,7 +1596,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_china_census",
-        "path": ROOT / "data/silver/zenodo_china_census.csv",
+        "path": ML_ROOT / "data/silver/zenodo_china_census.csv",
         "labels": {
             "Qudrat": ("identifier.plot", "identifier"),
             "latin": ("taxonomy.species", "taxonomy"),
@@ -1612,7 +1614,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_china_soil",
-        "path": ROOT / "data/silver/zenodo_china_soil.csv",
+        "path": ML_ROOT / "data/silver/zenodo_china_soil.csv",
         "labels": {
             "GX": ("location.x_coord", "location"),
             "GY": ("location.y_coord", "location"),
@@ -1624,7 +1626,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_forest_inventory_pub",
-        "path": ROOT / "data/silver/zenodo_forest_inventory_pub.csv",
+        "path": ML_ROOT / "data/silver/zenodo_forest_inventory_pub.csv",
         "labels": {
             "ID": ("identifier.record", "identifier"),
             "Plot_ID": ("identifier.plot", "identifier"),
@@ -1644,7 +1646,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_leaf_traits",
-        "path": ROOT / "data/silver/zenodo_leaf_traits.csv",
+        "path": ML_ROOT / "data/silver/zenodo_leaf_traits.csv",
         "labels": {
             "Species": ("taxonomy.species", "taxonomy"),
             "Spad_mean": ("measurement.chlorophyll", "measurement"),
@@ -1658,7 +1660,7 @@ SOURCES = [
     },
     {
         "name": "zenodo_savanna_roots",
-        "path": ROOT / "data/silver/zenodo_savanna_roots.csv",
+        "path": ML_ROOT / "data/silver/zenodo_savanna_roots.csv",
         "labels": {
             "Species": ("taxonomy.species", "taxonomy"),
             "Functional_Type": ("category.growth_form", "category"),
@@ -2357,7 +2359,7 @@ def build_gold_set() -> list[dict]:
     all_records.extend(synthetic)
 
     # Add coarsened concept to each record
-    from scripts.ml.concept_taxonomy import coarsen
+    from ml.scripts.data.concept_taxonomy import coarsen
 
     for r in all_records:
         r["concept_coarse"] = coarsen(r["concept"])
@@ -2394,7 +2396,7 @@ def build_gold_set() -> list[dict]:
 
 
 def main():
-    output_dir = ROOT / "data"
+    output_dir = ML_ROOT / "data"
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / "gold_set.json"
 

@@ -6,8 +6,8 @@ Classifies column names into semantic concepts using character-level features.
 This captures cross-language variations (diametre/diametro/diameter) naturally.
 
 Usage:
-    uv run python scripts/ml/train_header_model.py
-    uv run python scripts/ml/train_header_model.py --gold-set data/gold_set.json
+    uv run python -m ml.scripts.train.train_header_model
+    uv run python -m ml.scripts.train.train_header_model --gold-set ml/data/gold_set.json
 """
 
 import argparse
@@ -24,14 +24,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report, f1_score
 from sklearn.model_selection import GroupKFold
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from niamoto.core.imports.ml.alias_registry import _normalize
 from niamoto.core.imports.ml.header_features import build_header_text_from_stats
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 
 
 def load_gold_set(path: Path) -> list[dict]:
@@ -129,17 +130,17 @@ def main():
     parser.add_argument(
         "--gold-set",
         type=Path,
-        default=ROOT / "data" / "gold_set.json",
+        default=ML_ROOT / "data" / "gold_set.json",
     )
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "models" / "header_model.joblib"
+        "--output", type=Path, default=ML_ROOT / "models" / "header_model.joblib"
     )
     parser.add_argument("--eval-only", action="store_true")
     args = parser.parse_args()
 
     if not args.gold_set.exists():
         logger.error(f"Gold set not found: {args.gold_set}")
-        logger.error("Run: uv run python scripts/ml/build_gold_set.py")
+        logger.error("Run: uv run python -m ml.scripts.data.build_gold_set")
         sys.exit(1)
 
     records = load_gold_set(args.gold_set)

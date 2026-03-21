@@ -3,19 +3,19 @@
 
 Usage:
     # Instance with centralized annotations
-    uv run python -m scripts.ml.eval.evaluate_instance \
-        --annotations data/eval/annotations/niamoto-nc.yml \
+    uv run python -m ml.scripts.eval.evaluate_instance \
+        --annotations ml/data/eval/annotations/niamoto-nc.yml \
         --data-dir test-instance/niamoto-nc/imports --compare
 
     # GBIF with specific CSV
-    uv run python -m scripts.ml.eval.evaluate_instance \
-        --annotations data/eval/annotations/gbif_darwin_core.yml \
-        --csv data/silver/gbif_targeted/new_caledonia/occurrences.csv --compare
+    uv run python -m ml.scripts.eval.evaluate_instance \
+        --annotations ml/data/eval/annotations/gbif_darwin_core.yml \
+        --csv ml/data/silver/gbif_targeted/new_caledonia/occurrences.csv --compare
 
     # Silver with auto-resolved CSVs
-    uv run python -m scripts.ml.eval.evaluate_instance \
-        --annotations data/eval/annotations/silver.yml \
-        --data-dir data/silver --compare
+    uv run python -m ml.scripts.eval.evaluate_instance \
+        --annotations ml/data/eval/annotations/silver.yml \
+        --data-dir ml/data/silver --compare
 """
 
 from __future__ import annotations
@@ -29,12 +29,13 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-ROOT = Path(__file__).parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+ML_ROOT = ROOT / "ml"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-EVAL_ANNOTATIONS = ROOT / "data" / "eval" / "annotations"
-EVAL_RESULTS = ROOT / "data" / "eval" / "results"
+EVAL_ANNOTATIONS = ML_ROOT / "data" / "eval" / "annotations"
+EVAL_RESULTS = ML_ROOT / "data" / "eval" / "results"
 
 
 # ── Ground truth ──────────────────────────────────────────────────────────
@@ -117,13 +118,13 @@ def resolve_csv_paths(
             pairs.append((csv_override, filtered))
         return pairs
 
-    # Resolve by trying data_dir, then annotations parent, then data/silver/
+    # Resolve by trying data_dir, then annotations parent, then ml/data/silver/
     search_dirs: list[Path] = []
     if data_dir:
         search_dirs.append(data_dir)
     if annotations_path:
         search_dirs.append(annotations_path.parent)
-    silver_dir = ROOT / "data" / "silver"
+    silver_dir = ML_ROOT / "data" / "silver"
     if silver_dir.exists() and silver_dir not in search_dirs:
         search_dirs.append(silver_dir)
 
@@ -395,7 +396,7 @@ def main() -> None:
         "--annotations",
         type=Path,
         required=True,
-        help="Path to annotations YAML (e.g. data/eval/annotations/niamoto-nc.yml)",
+        help="Path to annotations YAML (e.g. ml/data/eval/annotations/niamoto-nc.yml)",
     )
     parser.add_argument(
         "--data-dir",
