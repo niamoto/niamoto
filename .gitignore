@@ -139,7 +139,9 @@ src-tauri/bin/niamoto*
 data/gold_set.json
 data/silver/
 data/cache/
+ml/data/gold_set.json
 ml/data/silver/
+ml/data/cache/
 data/.DS_Store
 data/**/.DS_Store
 .autoresearch/

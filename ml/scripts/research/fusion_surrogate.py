@@ -9,7 +9,7 @@ from pathlib import Path
 
 CACHE_VERSION = 1
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CACHE_ROOT = ROOT / "ml" / "data" / "cache" / "ml" / "fusion_surrogate"
+DEFAULT_CACHE_ROOT = ROOT / "ml" / "data" / "cache" / "fusion_surrogate"
 
 
 def compute_gold_set_sha256(path: Path) -> str:

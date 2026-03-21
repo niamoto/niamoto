@@ -241,7 +241,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/niamoto", "ml"]
+packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"

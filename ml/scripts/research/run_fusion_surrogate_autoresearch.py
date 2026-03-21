@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CACHE_DIR = (
-    ROOT / "ml" / "data" / "cache" / "ml" / "fusion_surrogate" / "gold_set_splits3"
+    ROOT / "ml" / "data" / "cache" / "fusion_surrogate" / "gold_set_splits3"
 )
 DEFAULT_LOG_DIR = ROOT / ".autoresearch"
 DEFAULT_ALLOWED_UNTRACKED = {"ml-detection-dashboard.html"}

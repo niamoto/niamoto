@@ -5,7 +5,7 @@ the training gold set.
 
 Rules:
 
-- datasets listed in `manifest.yml` must not be added to `scripts/ml/build_gold_set.py`
+- datasets listed in `manifest.yml` must not be added to `ml/scripts/data/build_gold_set.py`
   unless they are explicitly removed from the acceptance benchmark first;
 - acceptance results are diagnostic and should be reviewed alongside, not mixed
   into, training metrics;

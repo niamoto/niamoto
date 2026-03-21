@@ -23,9 +23,9 @@ suffisant comme arbitre final.
 
 Tu peux modifier uniquement :
 
-- `scripts/ml/train_fusion.py`
-- `scripts/ml/evaluate.py`
-- `scripts/ml/evaluation.py`
+- `ml/scripts/train/train_fusion.py`
+- `ml/scripts/eval/evaluate.py`
+- `ml/scripts/eval/evaluation.py`
 - `src/niamoto/core/imports/ml/classifier.py`
 - `src/niamoto/core/imports/ml/alias_registry.py`
 

@@ -5,7 +5,7 @@ At runtime: exact match only (O(1) via reverse index). No fuzzy matching —
 that's handled by the ML classifier.
 
 The YAML file also serves as the source of truth for training data generation
-(scripts/ml/build_gold_set.py).
+(ml/scripts/data/build_gold_set.py).
 """
 
 import logging
