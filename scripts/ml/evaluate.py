@@ -329,7 +329,10 @@ def _train_all_models(
     train_records: list[dict],
     all_concepts: list[str],
 ) -> tuple[object | None, object | None, object | None]:
-    from scripts.ml.train_fusion import build_fusion_model, extract_fusion_features
+    from scripts.ml.train_fusion import (
+        build_fusion_model,
+        extract_fusion_features_batch,
+    )
     from scripts.ml.train_header_model import build_pipeline, prepare_data
     from scripts.ml.train_value_model import (
         build_model as build_value_model,
@@ -360,11 +363,8 @@ def _train_all_models(
 
     fusion_model = None
     if train_records:
-        X_fusion = np.array(
-            [
-                extract_fusion_features(r, header_model, value_model, all_concepts)
-                for r in train_records
-            ]
+        X_fusion = extract_fusion_features_batch(
+            train_records, header_model, value_model, all_concepts
         )
         y_fusion = [r["concept_coarse"] for r in train_records]
         fusion_model = build_fusion_model()
@@ -381,17 +381,12 @@ def _predict_all_records(
     fusion_model,
     all_concepts: list[str],
 ) -> tuple[list[str], list[float]]:
-    from scripts.ml.train_fusion import extract_fusion_features
+    from scripts.ml.train_fusion import extract_fusion_features_batch
 
     if not records or fusion_model is None:
         return [], []
 
-    X = np.array(
-        [
-            extract_fusion_features(r, header_model, value_model, all_concepts)
-            for r in records
-        ]
-    )
+    X = extract_fusion_features_batch(records, header_model, value_model, all_concepts)
     proba = fusion_model.predict_proba(X)
     classes = fusion_model.classes_
     indices = np.argmax(proba, axis=1)
