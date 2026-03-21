@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import copy
 import json
 import logging
 import sys
@@ -109,6 +110,12 @@ GBIF_CORE_STANDARD_HEADERS = {
     "taxonRank",
     "year",
 }
+_ANONYMOUS_NAME_POOL = (
+    [f"col_{i}" for i in range(1, 1000)]
+    + [f"X{i}" for i in range(1, 1000)]
+    + [f"V{i}" for i in range(1, 1000)]
+    + [f"field_{i}" for i in range(1, 1000)]
+)
 
 
 def _stderr(message: str) -> None:
@@ -265,7 +272,9 @@ class _ProgressTracker:
 
 def _load_records(gold_path: Path) -> list[dict]:
     with open(gold_path) as f:
-        return json.load(f)
+        records = json.load(f)
+    # Ignore persisted anonymous duplicates from older gold-set versions.
+    return [r for r in records if not r.get("is_anonymous")]
 
 
 def _is_real_record(record: dict) -> bool:
@@ -418,6 +427,30 @@ def _to_labeled_columns(records: list[dict]):
     return columns
 
 
+def _build_anonymous_fold_records(
+    test_records: list[dict],
+    *,
+    seed: int = 42,
+) -> list[dict]:
+    """Create anonymized copies of held-out records for leak-free evaluation."""
+    if not test_records:
+        return []
+
+    rng = np.random.RandomState(seed)
+    available_names = list(_ANONYMOUS_NAME_POOL)
+    rng.shuffle(available_names)
+
+    anonymized = []
+    for idx, record in enumerate(test_records):
+        clone = copy.deepcopy(record)
+        clone["column_name"] = available_names[idx]
+        clone["is_anonymous"] = True
+        clone["quality"] = "eval_anonymous"
+        clone["language"] = "en"
+        anonymized.append(clone)
+    return anonymized
+
+
 def _report_subset_score(
     label: str,
     records: list[dict],
@@ -519,7 +552,7 @@ def evaluate_niamoto_protocol(
     ]
     if fast_product:
         available_langs = []
-    has_anonymous = any(r.get("is_anonymous") for r in records)
+    has_anonymous = bool(real_records)
     has_synthetic = bool(synthetic_records)
     if fast_product:
         has_synthetic = False
@@ -710,42 +743,68 @@ def evaluate_niamoto_protocol(
             )
         progress.finish(step_label, score.summary())
 
-    anonymous_records = [r for r in records if r.get("is_anonymous")]
-    if anonymous_records:
+    if has_anonymous:
         step_label = "holdout_anonymous"
         progress.start(step_label)
-        train_records = [r for r in records if not r.get("is_anonymous")]
-        score, _preds, _confs, (_, value_model, _) = _evaluate_holdout_score(
-            anonymous_records,
-            train_records,
-            all_concepts,
-            return_models=True,
+        anon_oof_records: list[dict] = []
+        anon_oof_preds: list[str] = []
+        anon_oof_confs: list[float] = []
+        anon_correct = 0
+        anon_total = 0
+
+        for fold_idx, (train_idx, test_idx) in enumerate(
+            kfold.split(indices, groups=groups), start=1
+        ):
+            real_train = [real_records[i] for i in train_idx]
+            real_test = [real_records[i] for i in test_idx]
+            anonymous_test = _build_anonymous_fold_records(
+                real_test, seed=42 + fold_idx
+            )
+            train_records = synthetic_records + real_train
+            (
+                _score,
+                preds,
+                confs,
+                (_, value_model, _),
+            ) = _evaluate_holdout_score(
+                anonymous_test,
+                train_records,
+                all_concepts,
+                return_models=True,
+            )
+            anon_oof_records.extend(anonymous_test)
+            anon_oof_preds.extend(preds)
+            anon_oof_confs.extend(confs)
+
+            if value_model is not None:
+                from scripts.ml.train_value_model import extract_value_features
+
+                X_val_test = np.array(
+                    [
+                        extract_value_features(
+                            r.get("values_sample", []), r.get("values_stats", {})
+                        )
+                        for r in anonymous_test
+                    ]
+                )
+                y_true = [r["concept_coarse"] for r in anonymous_test]
+                y_pred = value_model.predict(X_val_test)
+                anon_correct += sum(1 for t, p in zip(y_true, y_pred) if t == p)
+                anon_total += len(y_true)
+
+        score = compute_niamoto_offline_score(
+            _to_labeled_columns(anon_oof_records), anon_oof_preds, anon_oof_confs
         )
         _stderr(f"holdout_anonymous: {score.summary()}")
         product_buckets["anonymous"] = float(score.final_score)
 
         # Values-only diagnostic (not in ProductScore)
-        if value_model is not None:
-            from scripts.ml.train_value_model import extract_value_features
-
-            X_val_test = np.array(
-                [
-                    extract_value_features(
-                        r.get("values_sample", []), r.get("values_stats", {})
-                    )
-                    for r in anonymous_records
-                ]
-            )
-            y_true = [r["concept_coarse"] for r in anonymous_records]
-            y_pred = value_model.predict(X_val_test)
-            values_accuracy = sum(1 for t, p in zip(y_true, y_pred) if t == p) / len(
-                y_true
-            )
+        if anon_total:
+            values_accuracy = anon_correct / anon_total
             _stderr(
                 f"holdout_anonymous_values_only: "
                 f"accuracy={values_accuracy:.1%} "
-                f"({sum(1 for t, p in zip(y_true, y_pred) if t == p)}"
-                f"/{len(y_true)})"
+                f"({anon_correct}/{anon_total})"
             )
 
         progress.finish(step_label, score.summary())

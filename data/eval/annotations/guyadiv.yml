@@ -6,23 +6,23 @@ GUYADIV_trees_v1.csv:
   tree_label: identifier.record
   plot_label: identifier.plot
   subpl_label: identifier.plot
-  subpl_type: category.plot_type
-  subpl_width: measurement.area
-  subpl_length: measurement.area
+  subpl_type: category.method
+  subpl_width: measurement.dimension
+  subpl_length: measurement.dimension
   subpl_x_orig: location.coordinate
   subpl_y_orig: location.coordinate
   x: location.coordinate
   y: location.coordinate
   rank: taxonomy.rank
-  det_uncertain: category.status
-  taxon: taxonomy.name
+  det_uncertain: category.quality
+  taxon: taxonomy.species
   auth_sp: text.metadata
-  auth_inf_sp: taxonomy.name
+  auth_inf_sp: text.metadata
   species: taxonomy.species
   family: taxonomy.family
   det_by: text.observer
-  date_det: event.date
-  vouchers: identifier.collection
+  date_det: event.year
+  vouchers: identifier.record
   date1: event.date
   dbh1: measurement.diameter
   dbh_other1: measurement.diameter
@@ -31,7 +31,7 @@ GUYADIV_trees_v1.csv:
   dbh2: measurement.diameter
   dbh_other2: measurement.diameter
   pheno2: category.ecology
-  dead2: category.status
+  dead2: category.tree_condition
 
 GUYADIV_plots_v1.csv:
   plot_label: identifier.plot
@@ -41,15 +41,15 @@ GUYADIV_plots_v1.csv:
   lat_dd: location.latitude
   X_UTM: location.coordinate
   Y_UTM: location.coordinate
-  type: category.plot_type
-  dim: measurement.area
-  area: measurement.area
+  type: category.method
+  dim: measurement.dimension
+  area: measurement.dimension
   no_subpl: statistic.count
-  date1: event.date
+  date1: event.year
   authors1: text.observer
-  date2: event.date
+  date2: event.year
   authors2: text.observer
-  comments: text.description
+  comments: text.metadata
   dbh10_inv1: statistic.count
   sp_dbh10_inv1: statistic.count
   fam_dbh10_inv1: statistic.count

@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
@@ -38,6 +40,7 @@ from scripts.ml.eval.evaluate_instance import (  # noqa: E402
 EVAL_DIR = ROOT / "data" / "eval"
 ANNOTATIONS_DIR = EVAL_DIR / "annotations"
 RESULTS_DIR = EVAL_DIR / "results"
+ACCEPTANCE_DIR = EVAL_DIR / "acceptance"
 
 
 # ── Dataset registry ──────────────────────────────────────────────────────
@@ -50,6 +53,7 @@ class DatasetDef:
     annotations: Path
     data_dir: Path | None = None
     csv_path: Path | None = None
+    suite: str | None = None
 
 
 # Tier 1 — Production instances
@@ -121,6 +125,34 @@ TIER2 = [
         data_dir=ROOT / "data" / "silver",
     ),
 ]
+
+
+def load_acceptance_manifest(path: Path) -> list[DatasetDef]:
+    if not path.exists():
+        return []
+
+    with open(path) as f:
+        payload = yaml.safe_load(f) or {}
+
+    datasets: list[DatasetDef] = []
+    for item in payload.get("datasets", []):
+        annotations = ROOT / item["annotations"]
+        data_dir = ROOT / item["data_dir"] if item.get("data_dir") else None
+        csv_path = ROOT / item["csv_path"] if item.get("csv_path") else None
+        datasets.append(
+            DatasetDef(
+                name=item["name"],
+                tier=item.get("tier", "acceptance"),
+                suite=item.get("suite"),
+                annotations=annotations,
+                data_dir=data_dir,
+                csv_path=csv_path,
+            )
+        )
+    return datasets
+
+
+TIER_ACCEPTANCE = load_acceptance_manifest(ACCEPTANCE_DIR / "manifest.yml")
 
 
 # ── Evaluation ────────────────────────────────────────────────────────────
@@ -254,6 +286,7 @@ def print_suite_report(results: list[DatasetResult], patterns: dict) -> None:
         "tier1": "Tier 1 — Production",
         "gbif": "Tier 1b — GBIF Darwin Core",
         "tier2": "Tier 2 — Silver",
+        "acceptance": "Acceptance — Frozen benchmark",
     }
     current_tier = ""
     for ds in results:
@@ -324,7 +357,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="ML detection evaluation suite")
     parser.add_argument(
         "--tier",
-        choices=["1", "gbif", "2", "all"],
+        choices=["1", "gbif", "2", "acceptance", "all"],
         default="all",
         help="Which tier(s) to evaluate (default: all)",
     )
@@ -338,6 +371,8 @@ def main() -> None:
         datasets.extend(TIER_GBIF)
     if args.tier in ("2", "all"):
         datasets.extend(TIER2)
+    if args.tier in ("acceptance", "all"):
+        datasets.extend(TIER_ACCEPTANCE)
 
     print(f"ML Detection Evaluation Suite — {len(datasets)} dataset(s)")
     print(f"{'─' * 50}")

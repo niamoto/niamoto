@@ -101,6 +101,13 @@ export interface AutoConfigureResponse {
   }
   /** Detected columns per entity name */
   detected_columns?: Record<string, string[]>
+  /** ML semantic predictions per entity, computed from sampled columns */
+  ml_predictions?: Record<string, Array<{
+    column: string
+    concept: string
+    confidence: number
+    source: string
+  }>>
   confidence: number
   warnings: string[]
 }

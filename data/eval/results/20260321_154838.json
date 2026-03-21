@@ -1,0 +1,666 @@
+{
+  "date": "2026-03-21T15:48:38.439376",
+  "duration_s": 444.3,
+  "datasets": [
+    {
+      "name": "niamoto-nc",
+      "tier": "tier1",
+      "metrics": {
+        "instance": "niamoto-nc",
+        "mode": "ml",
+        "total": 57,
+        "detected": 57,
+        "role_correct": 54,
+        "concept_correct": 50,
+        "role_pct": 94.7,
+        "concept_pct": 87.7
+      },
+      "errors": [
+        {
+          "column": "infra",
+          "file": "occurrences.csv",
+          "expected": "taxonomy.name",
+          "detected": "taxonomy.rank"
+        },
+        {
+          "column": "id_rank",
+          "file": "occurrences.csv",
+          "expected": "category.status",
+          "detected": "taxonomy.rank"
+        },
+        {
+          "column": "leaf_sla",
+          "file": "occurrences.csv",
+          "expected": "measurement.trait",
+          "detected": "other"
+        },
+        {
+          "column": "holdridge",
+          "file": "occurrences.csv",
+          "expected": "category.ecology",
+          "detected": "category.vegetation"
+        },
+        {
+          "column": "in_um",
+          "file": "occurrences.csv",
+          "expected": "category.status",
+          "detected": "other"
+        },
+        {
+          "column": "holdridge",
+          "file": "plots.csv",
+          "expected": "category.ecology",
+          "detected": "category.vegetation"
+        },
+        {
+          "column": "basal_area",
+          "file": "plots.csv",
+          "expected": "measurement.biomass",
+          "detected": "measurement.basal_area"
+        }
+      ],
+      "duration_s": 61.0
+    },
+    {
+      "name": "niamoto-gb",
+      "tier": "tier1",
+      "metrics": {
+        "instance": "niamoto-gb",
+        "mode": "ml",
+        "total": 27,
+        "detected": 27,
+        "role_correct": 21,
+        "concept_correct": 18,
+        "role_pct": 77.8,
+        "concept_pct": 66.7
+      },
+      "errors": [
+        {
+          "column": "tax_infra_level_auth",
+          "file": "occurrences.csv",
+          "expected": "taxonomy.name",
+          "detected": "taxonomy.species"
+        },
+        {
+          "column": "tax_sp_level",
+          "file": "occurrences.csv",
+          "expected": "taxonomy.species",
+          "detected": "taxonomy.rank"
+        },
+        {
+          "column": "plot_name",
+          "file": "occurrences.csv",
+          "expected": "identifier.plot",
+          "detected": "location.locality"
+        },
+        {
+          "column": "light_observations",
+          "file": "occurrences.csv",
+          "expected": "category.ecology",
+          "detected": "category.light"
+        },
+        {
+          "column": "taxa_level_wood_density_mean",
+          "file": "occurrences.csv",
+          "expected": "measurement.wood_density",
+          "detected": "other"
+        },
+        {
+          "column": "taxa_level_phenology",
+          "file": "occurrences.csv",
+          "expected": "category.ecology",
+          "detected": "text.source"
+        },
+        {
+          "column": "ddlat",
+          "file": "occurrences.csv",
+          "expected": "location.latitude",
+          "detected": "other"
+        },
+        {
+          "column": "ddlat",
+          "file": "plots.csv",
+          "expected": "location.latitude",
+          "detected": "other"
+        },
+        {
+          "column": "ddlon",
+          "file": "plots.csv",
+          "expected": "location.longitude",
+          "detected": "other"
+        }
+      ],
+      "duration_s": 119.9
+    },
+    {
+      "name": "guyadiv",
+      "tier": "tier1",
+      "metrics": {
+        "instance": "guyadiv",
+        "mode": "ml",
+        "total": 61,
+        "detected": 61,
+        "role_correct": 53,
+        "concept_correct": 40,
+        "role_pct": 86.9,
+        "concept_pct": 65.6
+      },
+      "errors": [
+        {
+          "column": "subpl_type",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "category.plot_type",
+          "detected": "category.method"
+        },
+        {
+          "column": "subpl_width",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "measurement.area",
+          "detected": "measurement.dimension"
+        },
+        {
+          "column": "subpl_length",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "measurement.area",
+          "detected": "measurement.dimension"
+        },
+        {
+          "column": "subpl_x_orig",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "location.coordinate",
+          "detected": "other"
+        },
+        {
+          "column": "subpl_y_orig",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "location.coordinate",
+          "detected": "other"
+        },
+        {
+          "column": "det_uncertain",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "category.status",
+          "detected": "category.quality"
+        },
+        {
+          "column": "taxon",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "taxonomy.name",
+          "detected": "taxonomy.species"
+        },
+        {
+          "column": "auth_inf_sp",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "taxonomy.name",
+          "detected": "text.metadata"
+        },
+        {
+          "column": "date_det",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "event.date",
+          "detected": "event.year"
+        },
+        {
+          "column": "vouchers",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "identifier.collection",
+          "detected": "identifier.record"
+        },
+        {
+          "column": "date2",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "event.date",
+          "detected": "other"
+        },
+        {
+          "column": "dbh2",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "measurement.diameter",
+          "detected": "other"
+        },
+        {
+          "column": "dbh_other2",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "measurement.diameter",
+          "detected": "other"
+        },
+        {
+          "column": "dead2",
+          "file": "GUYADIV_trees_v1.csv",
+          "expected": "category.status",
+          "detected": "category.tree_condition"
+        },
+        {
+          "column": "lat_dd",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "location.latitude",
+          "detected": "statistic.count"
+        },
+        {
+          "column": "type",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "category.plot_type",
+          "detected": "category.method"
+        },
+        {
+          "column": "dim",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "measurement.area",
+          "detected": "measurement.dimension"
+        },
+        {
+          "column": "area",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "measurement.area",
+          "detected": "measurement.dimension"
+        },
+        {
+          "column": "date1",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "event.date",
+          "detected": "other"
+        },
+        {
+          "column": "date2",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "event.date",
+          "detected": "event.year"
+        },
+        {
+          "column": "comments",
+          "file": "GUYADIV_plots_v1.csv",
+          "expected": "text.description",
+          "detected": "text.metadata"
+        }
+      ],
+      "duration_s": 263.5
+    }
+  ],
+  "patterns": {
+    "top_confusions": [
+      {
+        "expected": "measurement.area",
+        "detected": "measurement.dimension",
+        "count": 4,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "category.ecology",
+        "detected": "category.vegetation",
+        "count": 2,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "taxonomy.name",
+        "detected": "taxonomy.species",
+        "count": 2,
+        "datasets": [
+          "guyadiv",
+          "niamoto-gb"
+        ]
+      },
+      {
+        "expected": "location.latitude",
+        "detected": "other",
+        "count": 2,
+        "datasets": [
+          "niamoto-gb"
+        ]
+      },
+      {
+        "expected": "category.plot_type",
+        "detected": "category.method",
+        "count": 2,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "location.coordinate",
+        "detected": "other",
+        "count": 2,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "event.date",
+        "detected": "event.year",
+        "count": 2,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "event.date",
+        "detected": "other",
+        "count": 2,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "measurement.diameter",
+        "detected": "other",
+        "count": 2,
+        "datasets": [
+          "guyadiv"
+        ]
+      },
+      {
+        "expected": "taxonomy.name",
+        "detected": "taxonomy.rank",
+        "count": 1,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "category.status",
+        "detected": "taxonomy.rank",
+        "count": 1,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "measurement.trait",
+        "detected": "other",
+        "count": 1,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "category.status",
+        "detected": "other",
+        "count": 1,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "measurement.biomass",
+        "detected": "measurement.basal_area",
+        "count": 1,
+        "datasets": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "expected": "taxonomy.species",
+        "detected": "taxonomy.rank",
+        "count": 1,
+        "datasets": [
+          "niamoto-gb"
+        ]
+      }
+    ],
+    "systematic_failures": [
+      {
+        "column": "infra",
+        "failed_in": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "column": "id_rank",
+        "failed_in": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "column": "leaf_sla",
+        "failed_in": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "column": "holdridge",
+        "failed_in": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "column": "basal_area",
+        "failed_in": [
+          "niamoto-nc"
+        ]
+      },
+      {
+        "column": "tax_infra_level_auth",
+        "failed_in": [
+          "niamoto-gb"
+        ]
+      },
+      {
+        "column": "tax_sp_level",
+        "failed_in": [
+          "niamoto-gb"
+        ]
+      },
+      {
+        "column": "light_observations",
+        "failed_in": [
+          "niamoto-gb"
+        ]
+      },
+      {
+        "column": "taxa_level_wood_density_mean",
+        "failed_in": [
+          "niamoto-gb"
+        ]
+      },
+      {
+        "column": "taxa_level_phenology",
+        "failed_in": [
+          "niamoto-gb"
+        ]
+      }
+    ],
+    "concept_ranking": [
+      {
+        "concept": "taxonomy.name",
+        "correct": 0,
+        "total": 4,
+        "pct": 0.0
+      },
+      {
+        "concept": "location.latitude",
+        "correct": 0,
+        "total": 3,
+        "pct": 0.0
+      },
+      {
+        "concept": "category.plot_type",
+        "correct": 0,
+        "total": 2,
+        "pct": 0.0
+      },
+      {
+        "concept": "measurement.area",
+        "correct": 0,
+        "total": 4,
+        "pct": 0.0
+      },
+      {
+        "concept": "identifier.collection",
+        "correct": 0,
+        "total": 1,
+        "pct": 0.0
+      },
+      {
+        "concept": "text.description",
+        "correct": 0,
+        "total": 1,
+        "pct": 0.0
+      },
+      {
+        "concept": "category.status",
+        "correct": 1,
+        "total": 5,
+        "pct": 20.0
+      },
+      {
+        "concept": "event.date",
+        "correct": 2,
+        "total": 6,
+        "pct": 33.3
+      },
+      {
+        "concept": "measurement.biomass",
+        "correct": 1,
+        "total": 2,
+        "pct": 50.0
+      },
+      {
+        "concept": "category.ecology",
+        "correct": 5,
+        "total": 9,
+        "pct": 55.6
+      },
+      {
+        "concept": "measurement.wood_density",
+        "correct": 2,
+        "total": 3,
+        "pct": 66.7
+      },
+      {
+        "concept": "location.longitude",
+        "correct": 2,
+        "total": 3,
+        "pct": 66.7
+      },
+      {
+        "concept": "measurement.diameter",
+        "correct": 5,
+        "total": 7,
+        "pct": 71.4
+      },
+      {
+        "concept": "location.coordinate",
+        "correct": 8,
+        "total": 10,
+        "pct": 80.0
+      },
+      {
+        "concept": "taxonomy.species",
+        "correct": 5,
+        "total": 6,
+        "pct": 83.3
+      },
+      {
+        "concept": "identifier.plot",
+        "correct": 5,
+        "total": 6,
+        "pct": 83.3
+      },
+      {
+        "concept": "measurement.trait",
+        "correct": 7,
+        "total": 8,
+        "pct": 87.5
+      },
+      {
+        "concept": "identifier.record",
+        "correct": 5,
+        "total": 5,
+        "pct": 100.0
+      },
+      {
+        "concept": "identifier.taxon",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.locality",
+        "correct": 4,
+        "total": 4,
+        "pct": 100.0
+      },
+      {
+        "concept": "taxonomy.family",
+        "correct": 3,
+        "total": 3,
+        "pct": 100.0
+      },
+      {
+        "concept": "taxonomy.genus",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "measurement.height",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "category.vegetation",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "measurement.leaf_area",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.elevation",
+        "correct": 4,
+        "total": 4,
+        "pct": 100.0
+      },
+      {
+        "concept": "environment.precipitation",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.admin_area",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "statistic.count",
+        "correct": 31,
+        "total": 31,
+        "pct": 100.0
+      },
+      {
+        "concept": "taxonomy.rank",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.country",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "text.metadata",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "text.observer",
+        "correct": 3,
+        "total": 3,
+        "pct": 100.0
+      }
+    ]
+  }
+}

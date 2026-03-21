@@ -21,6 +21,29 @@ l'injection de noms de colonnes normalisés issus d'autres standards, tandis que
 le value model (macro-F1 0.35) profiterait de distributions de valeurs
 caractéristiques de chaque standard.
 
+## Blocking Preconditions
+
+Avant toute nouvelle acquisition significative, trois prérequis doivent être
+traités pour éviter d'augmenter le volume sur une base méthodologique fragile :
+
+1. **Benchmark d'acceptation séparé du train**
+   - geler au minimum un bucket `instances_real` et un bucket
+     `coded_inventory`
+   - ces jeux ne doivent pas être réinjectés dans `data/gold_set.json`
+
+2. **Alignement des labels train/eval**
+   - supprimer les divergences entre `build_gold_set.py` et
+     `data/eval/annotations/*.yml` pour les datasets communs
+   - si un dataset doit rester un vrai test d'acceptation, il doit sortir du
+     train plutôt que porter des labels contradictoires
+
+3. **Holdout anonymous leak-free**
+   - ne plus persister de doublons anonymisés dans le gold set
+   - générer l'anonymisation au moment de l'évaluation, à partir des exemples
+     exclus du train du fold courant
+
+Ces prérequis sont prioritaires sur toute phase d'acquisition ci-dessous.
+
 ## Problem Statement
 
 ### Limites identifiées
@@ -64,6 +87,22 @@ disponibles** ont été identifiés comme complémentaires au Darwin Core :
 Le standard ne remplace pas l'approche domaine (tropical field, GBIF ciblé) ;
 il la complète en apportant des noms de colonnes prévisibles et des
 distributions de valeurs caractéristiques.
+
+### Priorité produit révisée
+
+L'ordre de priorité d'acquisition doit rester aligné avec le produit :
+
+1. **instances réelles**
+2. **données terrain tropicales / semi-standardisées**
+3. **standards à fort levier direct** (`SINP`, puis `ETS`)
+4. **standards plus éloignés du coeur produit** (`sPlotOpen`, `PREDICTS`)
+
+Clarifications :
+
+- `GBIF core standard` reste bien couvert et ne doit plus motiver d'expansion
+  de volume à court terme ;
+- `FIA` / `IFN` restent utiles comme **stress tests de headers codés**, mais
+  plus comme axe principal d'acquisition d'entraînement.
 
 ### Architecture cible
 
@@ -129,26 +168,25 @@ d'attribuer toute régression à un standard spécifique.
 
 ### Implementation Phases
 
-#### Phase 1: SINP/INPN — Aliases FR + données OpenObs
+#### Phase 1A: SINP/INPN — Aliases FR + TAXREF v18
 
-**Objectif** : renforcer la couverture FR (67.5% → >75% en holdout)
+**Objectif** : poser une première couche `SINP` exploitable immédiatement,
+centrée sur la taxonomie FR et l'exact-match runtime.
 
-**Pourquoi en premier** : risque le plus bas (pas de nouveaux concepts, juste
-des aliases FR), bénéfice direct le plus élevé (FR est le holdout le plus
-faible).
+**Pourquoi en premier** : risque le plus bas (pas de nouveaux concepts,
+uniquement des aliases sur concepts existants + une source taxonomique FR
+structurée), bénéfice direct immédiat sur les colonnes standardisées.
 
 **Étapes :**
 
-1. **Ajouter le bloc `sinp:` à `column_aliases.yaml`** avec les mappings :
+1. **Ajouter le bloc `sinp:` à `column_aliases.yaml`**, mais seulement sur des
+   concepts déjà supportés par le pipeline :
 
    ```yaml
    # Identifiants
    identifier.record:
      sinp: [idSINPOccTax, id_sinp, unique_id_sinp, idOrigine, id_origine,
             id_synthese, entity_source_pk_value]
-   identifier.dataset:
-     sinp: [idSINPJdd, id_dataset, dataset_name, id_acquisition_framework,
-            id_source]
    identifier.taxon:
      sinp: [cdNom, cd_nom, cdRef, cd_ref, cd_taxsup, cd_sup]
 
@@ -156,26 +194,19 @@ faible).
    taxonomy.species:
      sinp: [nomCite, nom_cite, nomValide, nom_valide, nomComplet,
             nom_complet, lbNom, lb_nom, nomScientifique, nom_scientifique]
-   taxonomy.name:
+   taxonomy.vernacular_name:
      sinp: [nomVern, nom_vern, nomVernaculaire, nom_vernaculaire,
             nom_vern_eng]
    taxonomy.rank:
-     sinp: [rang, RANG]
-     fr: [regne, phylum, classe, ordre, famille, sous_famille, tribu]
-   text.authority:
-     sinp: [lbAuteur, lb_auteur]
+     sinp: [RANG]
 
    # Dates
    event.date:
      sinp: [dateDebut, date_debut, dateFin, date_fin, date_min, date_max,
             dateDetermination, date_determination, dEEDateDerniereModification,
             meta_create_date, meta_update_date]
-   event.time:
-     sinp: [heureDebut, heureFin]
 
    # Géographie
-   location.latitude:
-     sinp: [the_geom_4326, the_geom_point]
    location.locality:
      sinp: [nomLieu, nom_lieu, nomCommune, nom_commune]
    location.admin_area:
@@ -190,8 +221,8 @@ faible).
 
    # Dénombrements
    statistic.count:
-     sinp: [denombrementMin, count_min, denombrementMax, count_max,
-            objetDenombrement, typeDenombrement]
+     sinp: [denombrementMin, denombrement_min, count_min, denombrementMax,
+            denombrement_max, count_max]
 
    # Descripteurs biologiques
    category.ecology:
@@ -203,7 +234,7 @@ faible).
 
    # Observateurs
    text.observer:
-     sinp: [observateur, observers, determinateur, determiner]
+     sinp: [observers, determiner]
 
    # Méthode
    category.method:
@@ -211,121 +242,137 @@ faible).
             techniqueEchantillonnage, technique_echantillonnage,
             statutSource, statut_source, statutObservation,
             statut_observation]
-   measurement.effort:
-     sinp: [effortEchantillonnage, effort_echantillonnage,
-            tailleEchantillon, taille_echantillon]
-
-   # Métadonnées SINP
-   text.metadata:
-     sinp: [commentaire, comment_context, comment_description,
-            obsDescription, obsContexte, referenceBiblio,
-            sensiNiveau, sensi_niveau, diffusionNiveauPrecision,
-            dEEFloutage, dee_floutage, dSPublique, ds_publique]
 
    # Habitat
    category.habitat:
-     sinp: [codeHabitat, code_habitat, refHabitat, codeHabRef, habitat]
-
-   # Preuve
-   text.source:
-     sinp: [preuveExistante, preuve_existante, uRLPreuveNumerique,
-            url_preuve_numerique, digital_proof, preuveNonNumerique,
-            non_digital_proof]
+     sinp: [codeHabitat, code_habitat, refHabitat, codeHabRef]
    ```
 
-2. **Télécharger un export OpenObs** (CSV SINP) pour une région cible
-   (Nouvelle-Calédonie ou Guyane si disponible). Stocker dans
-   `data/silver/sinp/`.
+2. **Intégrer `TAXREF v18`** depuis
+   `data/silver/taxref/TAXREFv18.txt` comme première source `SINP/INPN`
+   directement exploitable.
 
-3. **Télécharger TAXREF v17** (CSV). Stocker dans `data/silver/taxref/`.
+3. **Créer `TAXREF_V18_LABELS` dans `build_gold_set.py`** avec un mapping
+   conservateur limité aux colonnes taxonomiques stables (`REGNE`, `PHYLUM`,
+   `CLASSE`, `ORDRE`, `FAMILLE`, `CD_*`, `RANG`, `LB_NOM`, `LB_AUTEUR`,
+   `NOM_*`, `HABITAT`).
 
-4. **Créer les LABELS dans `build_gold_set.py`** :
-   - `SINP_OPENOBS_LABELS` — mapping des colonnes de l'export OpenObs
-   - `TAXREF_LABELS` — mapping des colonnes TAXREF
+4. **Ajouter la source `taxref_v18` au `SOURCES` list** avec `language: "fr"`
+   et `sep: "\t"`.
 
-5. **Ajouter les sources au SOURCES list** avec `language: "fr"`.
+5. **Vérifier les collisions** : tests ciblés du registre d'aliases sur les
+   nouveaux headers `SINP`.
 
-6. **Vérifier les collisions** : script rapide qui normalise les aliases SINP
-   et vérifie l'intersection avec les aliases FR existants.
+6. **Rebuild gold set** pour injecter `TAXREF v18` dans le corpus
+   d'entraînement.
 
-7. **Rebuild gold set + évaluation** : snapshot baseline avant, puis after.
-   Vérifier que `holdout_lang[fr]` s'améliore et que `tropical_field` ne
-   régresse pas de plus de 2 points.
+**Note de phase** : cette étape n'intègre pas encore de vraies observations
+`SINP` et n'est donc pas suffisante pour mesurer un gain FR global à elle
+seule. Elle prépare surtout la taxonomie et l'exact-match runtime.
 
 **Fichiers impactés :**
 - `src/niamoto/core/imports/ml/column_aliases.yaml`
 - `scripts/ml/build_gold_set.py`
-- `scripts/ml/evaluate.py` (ajout du prefix `sinp_` → `standards_based`)
 
-**Critère de succès :** FR holdout > 75%, pas de régression > 2 points sur
-`tropical_field`.
+**Critère de succès :** `TAXREF v18` est intégré au gold set, les aliases
+`sinp:` matchent au runtime, et aucune collision forte n'est introduite.
 
 ---
 
-#### Phase 2: ETS — Vocabulaire de traits + données
+#### Phase 1B: SINP/INPN — Données d'observations OpenObs
 
-**Objectif** : introduire le vocabulaire formel des traits écologiques
+**Statut** : bloqué par indisponibilité de la source `OpenObs / INPN` après la
+cyberattaque du MNHN en 2025.
 
-**Pourquoi ensuite** : complexité modérée (nouveaux fine-grained concepts
-mais tous merge dans existants), foundation pour TRY futur.
+**Étapes prévues à la reprise de la source :**
+
+1. Télécharger un export `OpenObs / SINP OccTax` pour une région cible
+   (Nouvelle-Calédonie ou Guyane si disponible) et le stocker dans
+   `data/silver/sinp/`.
+2. Créer `SINP_OPENOBS_LABELS` dans `build_gold_set.py`.
+3. Ajouter les sources `sinp_*` au pipeline d'évaluation diagnostique.
+4. Rebuild gold set + évaluation ciblée FR.
+
+---
+
+#### Phase 2A: ETS — Vocabulaire de traits (aliases runtime)
+
+**Objectif** : préparer la reconnaissance des exports de traits avec un bloc
+`ets:` exploitable immédiatement au runtime.
+
+**Pourquoi ensuite** : pas de datasets `ETS` disponibles dans le repo à ce
+stade, mais le vocabulaire seul peut déjà améliorer l'exact-match sur des
+headers normalisés de traits.
 
 **Étapes :**
 
-1. **Ajouter les fine-grained concepts à `concept_taxonomy.py`** :
-
-   ```python
-   # ── measurement: trait vocabulary (ETS) ──
-   "measurement.trait_name": "measurement.trait",
-   "measurement.trait_value": "measurement.trait",
-   "measurement.precision": "measurement.quality",
-   "measurement.effort": "measurement.dimension",  # sampling effort
-   # ── statistic: trait statistics ──
-   "statistic.dispersion": "statistic.count",
-   "statistic.min": "statistic.count",
-   "statistic.max": "statistic.count",
-   "statistic.aggregate": "statistic.count",
-   ```
-
-2. **Ajouter le bloc `ets:` à `column_aliases.yaml`** :
+1. **Ajouter le bloc `ets:` à `column_aliases.yaml`**, mais seulement sur des
+   concepts déjà présents dans le pipeline :
 
    ```yaml
-   identifier.trait:
-     ets: [traitID, trait_id]
    measurement.trait:
      ets: [traitName, trait_name, traitValue, trait_value, StdValue,
+           traitID, trait_id,
            std_value, OrigValueStr, verbatimTraitName, verbatimTraitValue]
-   measurement.unit:
+   measurement.dimension:
      ets: [traitUnit, trait_unit, UnitName, unit_name, expectedUnit,
            OrigUnitStr]
    measurement.quality:
      ets: [measurementResolution, ErrorRisk, error_risk,
            RelUncertaintyPercent]
    statistic.count:
-     ets: [dispersion, aggregateMeasure, measurementValue_min,
-           measurementValue_max, Replicates, replicates]
+     ets: [measurementValue_min, measurementValue_max, Replicates,
+           replicates]
    category.method:
-     ets: [statisticalMethod, ValueKindName, UncertaintyName]
+     ets: [statisticalMethod, ValueKindName, UncertaintyName,
+           aggregateMeasure]
    category.ecology:
      ets: [morphotype]
    ```
 
-3. **Télécharger 2-3 datasets ETS-aligned depuis GitHub/Zenodo** :
-   - Le repo ETS lui-même contient des CSV exemples
-   - Chercher sur Zenodo des datasets annotés ETS
-   - Stocker dans `data/silver/ets/`
+2. **Ajouter des tests ciblés du registre d'aliases** pour sécuriser le bloc
+   `ets:`.
 
-4. **Créer les LABELS et ajouter aux SOURCES.**
+3. **Préparer le dossier de dépôt `data/silver/ets/`** pour la future
+   intégration des jeux de données réels.
 
-5. **Rebuild + évaluation** : snapshot.
+**Note de phase** : on ne crée pas encore de nouveaux concepts comme
+`identifier.trait` ou `measurement.unit`, et on n'ajoute pas encore de
+datasets au gold set faute de fichiers disponibles.
 
 **Fichiers impactés :**
-- `scripts/ml/concept_taxonomy.py`
 - `src/niamoto/core/imports/ml/column_aliases.yaml`
-- `scripts/ml/build_gold_set.py`
-- `scripts/ml/evaluate.py`
+- `tests/core/imports/test_alias_registry.py`
 
-**Critère de succès :** Les colonnes de type trait sont correctement
-classifiées en `measurement.trait` ; pas de régression > 2 points.
+**Critère de succès :** les principaux headers ETS sont reconnus au runtime,
+sans introduire de concepts orphelins ni de collisions majeures.
+
+---
+
+#### Phase 2B: ETS — Données alignées ETS
+
+**Statut** : démarré. Trois fichiers d'extension `ETS` sont disponibles et
+intégrés au gold set :
+
+- `Occurrence_ext.csv`
+- `Taxon_ext.csv`
+- `Measurement_or_Fact_ext.csv`
+
+**Décisions prises** :
+
+- `ETS.csv` est traité comme dictionnaire du standard, pas comme dataset
+  d'entraînement ;
+- `species_trait_data.csv` est conservé pour inspection ultérieure, mais n'est
+  pas intégré tant qu'un mapping sémantique plus propre n'est pas défini.
+
+**Étapes prévues quand les données seront là :**
+
+1. Intégrer les fichiers d'extension standards au gold set.
+2. Décider si de nouveaux concepts fins sont réellement nécessaires à partir
+   des colonnes observées, plutôt que les ajouter a priori.
+3. Réévaluer `species_trait_data.csv` et les autres jeux de traits non
+   normalisés.
+4. Rebuild + évaluation ciblée.
 
 ---
 
@@ -333,6 +380,21 @@ classifiées en `measurement.trait` ; pas de régression > 2 points.
 
 **Objectif** : enrichir la couverture végétation/plots avec un standard à
 header normalisés
+
+**Statut** : démarré. Les trois matrices principales sont intégrées au gold
+set :
+
+- `sPlotOpen_header(3).txt`
+- `sPlotOpen_DT(2).txt`
+- `sPlotOpen_CWM_CWV(2).txt`
+
+**Décisions prises** :
+
+- intégration conservatrice sur les concepts déjà existants du pipeline ;
+- `Abundance_scale` est traité comme `category.method` ;
+- les flags de resampling et les colonnes trop indirectes ne sont pas encore
+  labellisés ;
+- `sPlotOpen_metadata` reste à évaluer séparément.
 
 **Étapes :**
 
@@ -365,19 +427,16 @@ header normalisés
              Nr_table_in_publ]
    ```
 
-3. **Télécharger les 3 matrices sPlotOpen depuis iDiv** (accès ouvert).
-   Stocker dans `data/silver/splot/`.
-
-4. **Créer LABELS séparés pour chaque matrice** :
+3. **Créer LABELS séparés pour chaque matrice** :
    - `SPLOT_HEADER_LABELS` — 47 colonnes de la matrice header
    - `SPLOT_DT_LABELS` — 6 colonnes de la matrice espèces
    - `SPLOT_CWM_LABELS` — colonnes CWM trait means/variances
 
-5. **Attention** : les colonnes dupliquées entre matrices
+4. **Attention** : les colonnes dupliquées entre matrices
    (`PlotObservationID`) doivent être labellisées identiquement. Utiliser
    `sample_rows` distinct pour avoir des distributions de valeurs différentes.
 
-6. **Rebuild + évaluation.**
+5. **Rebuild + évaluation.**
 
 **Critère de succès :** colonnes de cover/abundance correctement classifiées ;
 pas de régression.
@@ -462,6 +521,8 @@ dans leurs concepts coarse ; ProductScore stable (± 2 points).
 
 ### Functional Requirements
 
+- [ ] Les prérequis bloquants benchmark/labels/anonymous sont traités avant
+      l'intégration d'un nouveau standard
 - [ ] `column_aliases.yaml` contient 4 nouveaux blocs de langue
       (`sinp`, `ets`, `predicts`, `splot`)
 - [ ] `concept_taxonomy.py` contient les nouveaux fine→coarse merges
@@ -476,6 +537,8 @@ dans leurs concepts coarse ; ProductScore stable (± 2 points).
 - [ ] ProductScore ne régresse pas de plus de 2 points par phase
 - [ ] Aucune régression sur `tropical_field` ou `gbif_core_standard`
 - [ ] Le temps de build du gold set reste < 2 minutes
+- [ ] `forest_inventory` est suivi comme stress test secondaire, sans devenir
+      la cible d'optimisation principale
 
 ### Quality Gates
 
@@ -516,6 +579,7 @@ données serait prématuré. Les standards commencent en bucket diagnostique.
 |--------|--------|-------------|------------|
 | Collisions aliases SINP/IFN FR | Moyen | Moyenne | Script de collision avant intégration |
 | Régression tropical_field par dilution | Haut | Faible | Intégration séquentielle + snapshot |
+| Benchmark encore fuité pendant acquisition | Haut | Moyenne | Prétraiter benchmark/labels/anonymous avant nouvelle phase |
 | Données OpenObs non exploitables (format inattendu) | Moyen | Faible | Inspecter un sample avant labelling |
 | Nouveaux concepts sous-représentés | Moyen | Haute | Merge dans coarse → pas de standalone |
 | TRY long-table contamine le pipeline | Haut | Moyenne | TRY déféré à Phase 5 |
@@ -540,11 +604,14 @@ régressions.
 
 ### Prérequis techniques
 
+- Benchmark d'acceptation gelé et séparé du train
+- Alignement des labels train/eval sur les datasets qui se recouvrent
+- Holdout anonymous reconstruit sans duplication train/test
 - Gold set baseline snapshot (à prendre AVANT Phase 1)
-- Accès OpenObs (compte INPN — gratuit)
+- Accès OpenObs si la plateforme revient en ligne
 - Accès iDiv pour sPlotOpen (inscription — gratuit)
 - Accès NHM Data Portal pour PREDICTS (libre)
-- TAXREF v17 téléchargeable librement sur inpn.mnhn.fr
+- TAXREF v18 téléchargeable librement sur inpn.mnhn.fr
 
 ## Appendix A: Cartographie complète SINP → Concepts Niamoto
 
@@ -602,8 +669,8 @@ régressions.
 
 | Standard | URL | Format | Inscription |
 |----------|-----|--------|-------------|
-| OpenObs (SINP) | https://openobs.mnhn.fr/ | CSV SINP v2 | Gratuit (compte INPN) |
-| TAXREF v17 | https://inpn.mnhn.fr/telechargement/referentielEspece/referentielTaxo | CSV/ZIP | Libre |
+| OpenObs (SINP) | https://openobs.mnhn.fr/ | CSV SINP v2 | Gratuit (compte INPN, indisponible temporairement) |
+| TAXREF v18 | https://inpn.mnhn.fr/telechargement/referentielEspece/referentielTaxo | CSV/ZIP | Libre |
 | ETS exemples | https://github.com/EcologicalTraitData/ETS | CSV | Libre |
 | sPlotOpen | https://idata.idiv.de/ddm/Data/ShowData/3474 | CSV | Libre (inscription iDiv) |
 | PREDICTS | https://data.nhm.ac.uk/dataset/the-2016-release-of-the-predicts-database | CSV | Libre |
@@ -630,7 +697,7 @@ régressions.
 - [sPlotOpen — iDiv data portal](https://idata.idiv.de/ddm/Data/ShowData/3474)
 - [PREDICTS — NHM Data Portal](https://data.nhm.ac.uk/dataset/the-2016-release-of-the-predicts-database)
 - [TRY Plant Trait Database](https://www.try-db.org/)
-- [TAXREF v17](https://inpn.mnhn.fr/telechargement/referentielEspece/referentielTaxo)
+- [TAXREF v18](https://inpn.mnhn.fr/telechargement/referentielEspece/referentielTaxo)
 - [OpenObs — MNHN](https://openobs.mnhn.fr/)
 - [GeoNature — GitHub](https://github.com/PnX-SI/GeoNature)
 - [Darwin Core Quick Reference](https://dwc.tdwg.org/terms/)

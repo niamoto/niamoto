@@ -1,0 +1,489 @@
+{
+  "date": "2026-03-21T16:51:37.601641",
+  "duration_s": 462.6,
+  "datasets": [
+    {
+      "name": "acceptance-niamoto-gb",
+      "tier": "acceptance",
+      "metrics": {
+        "instance": "acceptance-niamoto-gb",
+        "mode": "ml",
+        "total": 27,
+        "detected": 27,
+        "role_correct": 27,
+        "concept_correct": 27,
+        "role_pct": 100.0,
+        "concept_pct": 100.0
+      },
+      "errors": [],
+      "duration_s": 5.5
+    },
+    {
+      "name": "acceptance-fia-or",
+      "tier": "acceptance",
+      "metrics": {
+        "instance": "acceptance-fia-or",
+        "mode": "ml",
+        "total": 33,
+        "detected": 26,
+        "role_correct": 10,
+        "concept_correct": 9,
+        "role_pct": 30.3,
+        "concept_pct": 27.3
+      },
+      "errors": [
+        {
+          "column": "CN",
+          "file": "fia_or_tree.csv",
+          "expected": "identifier.record",
+          "detected": "other"
+        },
+        {
+          "column": "PLT_CN",
+          "file": "fia_or_tree.csv",
+          "expected": "identifier.plot",
+          "detected": "other"
+        },
+        {
+          "column": "STATECD",
+          "file": "fia_or_tree.csv",
+          "expected": "location.admin_area",
+          "detected": "other"
+        },
+        {
+          "column": "COUNTYCD",
+          "file": "fia_or_tree.csv",
+          "expected": "location.admin_area",
+          "detected": "other"
+        },
+        {
+          "column": "PLOT",
+          "file": "fia_or_tree.csv",
+          "expected": "identifier.plot",
+          "detected": "other"
+        },
+        {
+          "column": "TREE",
+          "file": "fia_or_tree.csv",
+          "expected": "identifier.record",
+          "detected": "other"
+        },
+        {
+          "column": "STATUSCD",
+          "file": "fia_or_tree.csv",
+          "expected": "category.status",
+          "detected": "other"
+        },
+        {
+          "column": "SPCD",
+          "file": "fia_or_tree.csv",
+          "expected": "identifier.taxon",
+          "detected": "taxonomy.species"
+        },
+        {
+          "column": "CR",
+          "file": "fia_or_tree.csv",
+          "expected": "measurement.canopy",
+          "detected": "measurement.cover"
+        },
+        {
+          "column": "VOLCFNET",
+          "file": "fia_or_tree.csv",
+          "expected": "measurement.biomass",
+          "detected": "other"
+        },
+        {
+          "column": "VOLBFNET",
+          "file": "fia_or_tree.csv",
+          "expected": "measurement.biomass",
+          "detected": "other"
+        },
+        {
+          "column": "DRYBIO_AG",
+          "file": "fia_or_tree.csv",
+          "expected": "measurement.biomass",
+          "detected": "other"
+        },
+        {
+          "column": "CARBON_AG",
+          "file": "fia_or_tree.csv",
+          "expected": "measurement.biomass",
+          "detected": "other"
+        },
+        {
+          "column": "CN",
+          "file": "fia_or_plot.csv",
+          "expected": "identifier.plot",
+          "detected": "other"
+        },
+        {
+          "column": "STATECD",
+          "file": "fia_or_plot.csv",
+          "expected": "location.admin_area",
+          "detected": "other"
+        },
+        {
+          "column": "COUNTYCD",
+          "file": "fia_or_plot.csv",
+          "expected": "location.admin_area",
+          "detected": "other"
+        },
+        {
+          "column": "PLOT",
+          "file": "fia_or_plot.csv",
+          "expected": "identifier.plot",
+          "detected": "other"
+        },
+        {
+          "column": "ECOSUBCD",
+          "file": "fia_or_plot.csv",
+          "expected": "category.habitat",
+          "detected": "(not found)"
+        },
+        {
+          "column": "SLOPE",
+          "file": "fia_or_plot.csv",
+          "expected": "environment.topography",
+          "detected": "(not found)"
+        },
+        {
+          "column": "ASPECT",
+          "file": "fia_or_plot.csv",
+          "expected": "environment.topography",
+          "detected": "(not found)"
+        },
+        {
+          "column": "PHYSCLCD",
+          "file": "fia_or_plot.csv",
+          "expected": "category.habitat",
+          "detected": "(not found)"
+        },
+        {
+          "column": "OWNGRPCD",
+          "file": "fia_or_plot.csv",
+          "expected": "category.management",
+          "detected": "(not found)"
+        },
+        {
+          "column": "FORINDCD",
+          "file": "fia_or_plot.csv",
+          "expected": "category.status",
+          "detected": "(not found)"
+        },
+        {
+          "column": "SITECLCD",
+          "file": "fia_or_plot.csv",
+          "expected": "category.habitat",
+          "detected": "(not found)"
+        }
+      ],
+      "duration_s": 457.1
+    }
+  ],
+  "patterns": {
+    "top_confusions": [
+      {
+        "expected": "identifier.plot",
+        "detected": "other",
+        "count": 4,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "location.admin_area",
+        "detected": "other",
+        "count": 4,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "measurement.biomass",
+        "detected": "other",
+        "count": 4,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "category.habitat",
+        "detected": "(not found)",
+        "count": 3,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "identifier.record",
+        "detected": "other",
+        "count": 2,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "environment.topography",
+        "detected": "(not found)",
+        "count": 2,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "category.status",
+        "detected": "other",
+        "count": 1,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "identifier.taxon",
+        "detected": "taxonomy.species",
+        "count": 1,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "measurement.canopy",
+        "detected": "measurement.cover",
+        "count": 1,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "category.management",
+        "detected": "(not found)",
+        "count": 1,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "expected": "category.status",
+        "detected": "(not found)",
+        "count": 1,
+        "datasets": [
+          "acceptance-fia-or"
+        ]
+      }
+    ],
+    "systematic_failures": [
+      {
+        "column": "CN",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "PLT_CN",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "STATECD",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "COUNTYCD",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "PLOT",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "TREE",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "STATUSCD",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "SPCD",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "CR",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      },
+      {
+        "column": "VOLCFNET",
+        "failed_in": [
+          "acceptance-fia-or"
+        ]
+      }
+    ],
+    "concept_ranking": [
+      {
+        "concept": "location.admin_area",
+        "correct": 0,
+        "total": 4,
+        "pct": 0.0
+      },
+      {
+        "concept": "category.status",
+        "correct": 0,
+        "total": 2,
+        "pct": 0.0
+      },
+      {
+        "concept": "measurement.canopy",
+        "correct": 0,
+        "total": 1,
+        "pct": 0.0
+      },
+      {
+        "concept": "measurement.biomass",
+        "correct": 0,
+        "total": 4,
+        "pct": 0.0
+      },
+      {
+        "concept": "category.habitat",
+        "correct": 0,
+        "total": 3,
+        "pct": 0.0
+      },
+      {
+        "concept": "environment.topography",
+        "correct": 0,
+        "total": 2,
+        "pct": 0.0
+      },
+      {
+        "concept": "category.management",
+        "correct": 0,
+        "total": 1,
+        "pct": 0.0
+      },
+      {
+        "concept": "identifier.plot",
+        "correct": 2,
+        "total": 6,
+        "pct": 33.3
+      },
+      {
+        "concept": "identifier.taxon",
+        "correct": 1,
+        "total": 2,
+        "pct": 50.0
+      },
+      {
+        "concept": "identifier.record",
+        "correct": 2,
+        "total": 4,
+        "pct": 50.0
+      },
+      {
+        "concept": "taxonomy.family",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "taxonomy.species",
+        "correct": 4,
+        "total": 4,
+        "pct": 100.0
+      },
+      {
+        "concept": "taxonomy.genus",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.locality",
+        "correct": 3,
+        "total": 3,
+        "pct": 100.0
+      },
+      {
+        "concept": "measurement.diameter",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "category.ecology",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "measurement.wood_density",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.elevation",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.latitude",
+        "correct": 3,
+        "total": 3,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.longitude",
+        "correct": 3,
+        "total": 3,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.coordinate",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "location.country",
+        "correct": 1,
+        "total": 1,
+        "pct": 100.0
+      },
+      {
+        "concept": "statistic.count",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "event.year",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      },
+      {
+        "concept": "measurement.height",
+        "correct": 2,
+        "total": 2,
+        "pct": 100.0
+      }
+    ]
+  }
+}
