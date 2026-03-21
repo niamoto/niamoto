@@ -198,8 +198,8 @@ details[open] summary { margin-bottom: 8px; }
   <h1>Automatic Semantic Column Detection via Machine Learning</h1>
   <p class="subtitle">Niamoto — Generic Ecological Data Platform</p>
   <div class="stats-grid">
-    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.04</div><div class="label">ProductScore <span class="info-tip" title="Weighted composite score across 6 data families (tropical, traits, GBIF core/extended, field, anonymous). Primary optimization metric for the fusion model.">&#9432;</span></div></div>
-    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">78.6</div><div class="label">GlobalScore <span class="info-tip" title="Complete score with all holdout families and languages. Measures end-to-end reliability across every data type and language in the gold set.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">81.82</div><div class="label">ProductScore <span class="info-tip" title="Weighted composite score across 6 data families (tropical, traits, GBIF core/extended, field, anonymous). Primary optimization metric for the fusion model.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">80.79</div><div class="label">GlobalScore <span class="info-tip" title="Complete score with all holdout families and languages. Measures end-to-end reliability across every data type and language in the gold set.">&#9432;</span></div></div>
     <div class="stat-card"><div class="value">2 525</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the gold set (training data). Each entry has a column name, value statistics, and a verified semantic concept label.">&#9432;</span></div></div>
     <div class="stat-card green"><div class="value">94+</div><div class="label">Sources <span class="info-tip" title="Distinct data files used to build the gold set: forest inventories (GUYADIV, IFN, FIA, Paracou), GBIF exports, synthetic fixtures, and instance data (niamoto-nc, niamoto-gb, Afrique).">&#9432;</span></div></div>
     <div class="stat-card"><div class="value">61</div><div class="label">Concepts <span class="info-tip" title="Distinct semantic concepts after coarsening (e.g. taxonomy.species, measurement.diameter, location.elevation). Fine-grained concepts (~116) are merged via concept_taxonomy.py for better ML performance.">&#9432;</span></div></div>
@@ -316,7 +316,7 @@ details[open] summary { margin-bottom: 8px; }
 <section id="datasets">
 <div class="container">
   <h2><span class="num">02</span>Gold Set &amp; Data Sources</h2>
-  <p class="section-desc">2,492 labeled columns (1,896 gold + 596 synthetic) from 94+ sources across 5 continents, 8 languages, and diverse biomes — from boreal forests to tropical mangroves.</p>
+  <p class="section-desc">2,525 labeled columns (1,929 gold + 596 synthetic) from 94+ sources across diverse biomes — from boreal forests to tropical mangroves.</p>
 
   <div class="chart-container">
     <div id="map-chart" style="height:450px;"></div>
@@ -379,7 +379,7 @@ details[open] summary { margin-bottom: 8px; }
 <section id="evaluation">
 <div class="container">
   <h2><span class="num">04</span>Evaluation Results</h2>
-  <p class="section-desc">The primary metric is the <strong>ProductScore</strong>, a weighted composite of family-specific holdout scores. Secondary: GlobalScore (78.6) for complete holdout reliability. The holdouts test generalization by language, data family, and structural diagnostics.</p>
+  <p class="section-desc">The primary metric is the <strong>ProductScore</strong>, a weighted composite of family-specific holdout scores. Secondary: GlobalScore (80.79) for complete holdout reliability. The holdouts test generalization by language, data family, and structural diagnostics.</p>
 
   <h3>4a — ProductScore Breakdown</h3>
   <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;">Weighted composite score across 6 strategically chosen data families. Each family represents a distinct usage scenario for Niamoto.</p>
@@ -673,7 +673,7 @@ details[open] summary { margin-bottom: 8px; }
   <div class="justification">
     <h3>8.2 — Why TF-IDF + LogisticRegression L1 instead of Transformers?</h3>
     <div class="choice">LogisticRegression(C=130, penalty="l1", class_weight="balanced")</div>
-    <p>With 2,492 labeled columns, a BERT model (110M parameters) risks <strong>severe overfitting</strong>. TF-IDF + L1 LogReg is an "embarrassingly strong baseline" that produces interpretable coefficients — one can inspect exactly which n-grams drive each prediction.</p>
+    <p>With 2,525 labeled columns, a BERT model (110M parameters) risks <strong>severe overfitting</strong>. TF-IDF + L1 LogReg is an "embarrassingly strong baseline" that produces interpretable coefficients — one can inspect exactly which n-grams drive each prediction.</p>
     <p>The L1 penalty automatically selects useful features: out of 5,000 n-grams, only a few hundred receive non-zero weights. It is a built-in filter, not a black box.</p>
     <table style="margin:12px 0;font-size:13px;border-collapse:collapse;width:100%;">
       <tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Criterion</th><th style="padding:8px;">TF-IDF + LR (our choice)</th><th style="padding:8px;">Fine-tuned BERT</th><th style="padding:8px;">Sentence Transformers</th></tr>
@@ -760,7 +760,7 @@ details[open] summary { margin-bottom: 8px; }
         <td><strong>TF-IDF + LR + HistGBT (Niamoto)</strong></td>
         <td>2.5k+ columns</td>
         <td>Yes (scikit-learn)</td>
-        <td>80.04 (ProductScore)</td>
+        <td>81.82 (ProductScore)</td>
         <td>Low</td>
         <td><span class="status done">Implemented</span></td>
         <td>This work</td>
@@ -839,7 +839,7 @@ details[open] summary { margin-bottom: 8px; }
   <details>
     <summary>Why deep learning methods are not suited to our context</summary>
     <div style="padding:12px;font-size:14px;">
-      <p><strong>Gold set size:</strong> With 2,492 columns from 94+ sources, we are 2 to 3 orders of magnitude below the typical needs of Sherlock (686k) or BERT (10k minimum). Fine-tuning a 110M parameter model on 2.5k examples would produce overfitting.</p>
+      <p><strong>Gold set size:</strong> With 2,525 columns from 94+ sources, we are 2 to 3 orders of magnitude below the typical needs of Sherlock (686k) or BERT (10k minimum). Fine-tuning a 110M parameter model on 2.5k examples would produce overfitting.</p>
       <p><strong>Source heterogeneity:</strong> Our data spans 8 languages, 5 continents, and highly varied naming conventions. Academic benchmarks (VizNet, WikiTables) are primarily English.</p>
       <p><strong>Offline constraint:</strong> Niamoto is designed to work without internet (fieldwork, oceanographic vessels). No embedded GPU.</p>
       <p><strong>Estimated break-even:</strong> Per Grinsztajn et al. (2022), deep learning surpasses boosted trees beyond ~10,000-50,000 examples. With ~5,000+ labeled columns, it would become relevant to explore Sentence Transformers or a lightweight fine-tuned BERT.</p>
@@ -1080,7 +1080,7 @@ const HEADER_PROGRESS = [
   {score:0.5640,label:"+0.49"},
   {score:0.5641,label:"+0.01"},
   {score:0.7614,label:"Round 2 (2492 cols)"},
-  {score:0.7467,label:"Round 3 (2525 cols, +NC full)"},
+  {score:0.7467,label:"Round 3 (2525 cols, +NC full, +13 alias concepts)"},
 ];
 
 const VALUES_PROGRESS = [
@@ -1094,6 +1094,7 @@ const VALUES_PROGRESS = [
   {score:0.3433,label:"+0.30"},
   {score:0.3522,label:"+0.89"},
   {score:0.3783,label:"+2.61"},
+  {score:0.3935,label:"Round 3 (+NC full)"},
 ];
 
 const ROLES = [
@@ -1244,11 +1245,11 @@ function renderRoles() {
 function renderProductScore() {
   const components = [
     {name:'anonymous', score:100.0, weight:'10%', color:'#059669'},
-    {name:'gbif_core_standard', score:95.87, weight:'20%', color:'#059669'},
-    {name:'gbif_extended', score:89.75, weight:'10%', color:'#059669'},
-    {name:'en_field', score:78.53, weight:'15%', color:'#d97706'},
-    {name:'research_traits', score:70.98, weight:'15%', color:'#d97706'},
-    {name:'tropical_field', score:64.88, weight:'30%', color:'#dc2626'},
+    {name:'gbif_core_standard', score:96.02, weight:'20%', color:'#059669'},
+    {name:'gbif_extended', score:88.18, weight:'10%', color:'#059669'},
+    {name:'en_field', score:78.46, weight:'15%', color:'#d97706'},
+    {name:'research_traits', score:75.49, weight:'15%', color:'#d97706'},
+    {name:'tropical_field', score:69.01, weight:'30%', color:'#d97706'},
   ];
 
   Plotly.newPlot('product-score-chart', [{
@@ -1259,19 +1260,19 @@ function renderProductScore() {
     text: components.map(c => c.score.toFixed(2)), textposition:'outside',
     hovertemplate: '<b>%{y}</b>: %{x:.2f}<extra></extra>'
   }], {
-    title:{text:'ProductScore 80.04 — Breakdown by data family (weight)', font:{size:14,family:'Inter'}},
+    title:{text:'ProductScore 81.82 — Breakdown by data family (weight)', font:{size:14,family:'Inter'}},
     xaxis:{title:'Score', range:[0,115]},
     yaxis:{autorange:'reversed'},
     margin:{l:220,r:60,t:40,b:40}, font:{family:'Inter',size:12},
-    shapes:[{type:'line',x0:80.04,x1:80.04,y0:-0.5,y1:5.5,line:{color:'#2563eb',width:2,dash:'dot'}}],
-    annotations:[{x:80.04,y:5.5,text:'ProductScore: 80.04',showarrow:false,font:{size:11,color:'#2563eb'},yshift:15}]
+    shapes:[{type:'line',x0:81.82,x1:81.82,y0:-0.5,y1:5.5,line:{color:'#2563eb',width:2,dash:'dot'}}],
+    annotations:[{x:81.82,y:5.5,text:'ProductScore: 81.82',showarrow:false,font:{size:11,color:'#2563eb'},yshift:15}]
   }, {responsive:true});
 }
 
 // Holdout by language
 function renderHoldoutLang() {
   const langs = ['German (de)','Spanish (es)','French (fr)'];
-  const scores = [92.7, 89.5, 66.2];
+  const scores = [91.93, 91.33, 65.60];
   const colors = ['#059669','#059669','#d97706'];
 
   Plotly.newPlot('holdout-lang-chart', [{

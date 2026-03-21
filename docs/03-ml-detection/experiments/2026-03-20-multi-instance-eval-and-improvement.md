@@ -152,6 +152,35 @@ Le biais `measurement.diameter` a disparu des top confusions.
 | V5 — Gold set + ré-entraînement | **77.5%** | **+0.9** |
 | **Gain total** | | **+11.0 pts** |
 
+## ProductScore et GlobalScore (V5)
+
+Recalculés après ré-entraînement sur le gold set enrichi (2525 cols).
+
+| Métrique | Avant | Après | Delta |
+|----------|:-----:|:-----:|:-----:|
+| **ProductScore** | 80.04 | **81.82** | **+1.78** |
+| **GlobalScore** | 78.6 | **80.79** | **+2.19** |
+
+Détail ProductScore par bucket :
+
+| Bucket | Avant | Après | Delta |
+|--------|:-----:|:-----:|:-----:|
+| tropical_field (30%) | 64.88 | **69.01** | **+4.13** |
+| research_traits (15%) | 70.98 | **75.49** | **+4.51** |
+| gbif_core_standard (20%) | 95.87 | **96.02** | +0.15 |
+| gbif_extended (10%) | 89.75 | 88.18 | -1.57 |
+| en_field (15%) | 78.53 | 78.46 | -0.07 |
+| anonymous (10%) | 100.0 | 100.0 | = |
+
+Les gains les plus forts sont sur `tropical_field` (+4.13) et `research_traits`
+(+4.51) — exactement les familles enrichies par les colonnes niamoto-nc.
+
+## Fix batch evaluate.py
+
+Le script `evaluate.py` utilisait `extract_fusion_features()` record par record
+(boucle Python). Remplacé par `extract_fusion_features_batch()` (déjà disponible
+dans `train_fusion.py`). Temps ProductScore : **14h → 42 min** (20x).
+
 ## Faiblesses restantes (V5)
 
 | Concept | Score | Occurrences |
