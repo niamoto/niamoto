@@ -1,31 +1,31 @@
 # ML Workspace
 
-Tout le chantier ML hors runtime produit est centralise ici.
+All offline ML work (training, evaluation, research) is centralized here.
 
-## Arborescence
+## Directory structure
 
 - `data/`
-  - sources d'entrainement, gold set, benchmarks, resultats, cache
+  - training sources, gold set, benchmarks, results, cache
 - `models/`
-  - artefacts entraines (`header`, `value`, `fusion`)
+  - trained artifacts (`header`, `value`, `fusion`)
 - `programmes/`
-  - playbooks d'autoresearch et de pilotage
+  - autoresearch and steering playbooks
 - `scripts/data/`
-  - construction et taxonomie du gold set
+  - gold set construction and concept taxonomy
 - `scripts/train/`
-  - entrainement des branches et de la fusion
+  - branch and fusion model training
 - `scripts/eval/`
-  - holdouts historiques, eval suite, harnesses d'evaluation
+  - historical holdouts, eval suite, evaluation harnesses
 - `scripts/research/`
-  - cache surrogate et runner autoresearch
+  - surrogate cache and autoresearch runner
 
-## Runtime produit
+## Production runtime
 
-Le runtime reste volontairement hors de ce hub :
+The runtime classifier intentionally lives outside this workspace:
 
 - `src/niamoto/core/imports/ml/`
 
-## Commandes utiles
+## Useful commands
 
 ```bash
 uv run python -m ml.scripts.data.build_gold_set

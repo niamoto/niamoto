@@ -14,6 +14,7 @@ finale reste la qualité de la stack complète via `niamoto-score`.
 Tu peux modifier uniquement :
 
 - `ml/scripts/train/train_value_model.py`
+- `src/niamoto/core/imports/ml/value_features.py`
 
 Tu ne dois pas modifier :
 
@@ -83,13 +84,28 @@ Priorité aux features qui aident les concepts structurels et les colonnes anony
 - proportion de binomiaux textuels
 - proportion de valeurs commençant par majuscule
 
-### 4. Distribution et robustesse
+### 4. Forme de distribution et spécialisation numérique
 
+Inspiré de Pythagoras (EDBT 2024) qui montre que la spécialisation numérique
+aide à distinguer les concepts proches (diameter vs height, biomass vs volume).
+
+À tester dans `extract_value_features` :
+
+- `bimodality_coefficient` : (skew² + 1) / kurtosis — distingue unimodal vs bimodal
+- `pct_positive_log_skew` : skewness de log(values) quand toutes positives — proxy
+  cheap pour la log-normalité (pas de Shapiro-Wilk, trop coûteux/fragile en inférence)
+- `pct_round_values` : proportion de valeurs rondes (multiples de 5 ou 10)
+- `pct_sequential` : proportion de paires consécutives dans les valeurs triées uniques
+  (sorted unique values, pas dépendant de l'ordre des lignes)
+- `range_ratio` : range / std — distingue uniforme vs concentré
 - nombre de modes
 - coefficient de Gini
 - rapport `Q3 / Q1`
-- normalité simple si cela reste robuste
 - ablations par groupe de features
+
+Rappel : l'extraction est partagée train/runtime (`value_features.py`),
+chaque feature ajoutée s'exécute à l'inférence sur les séries brutes.
+Privilégier les features O(n) sans dépendance à l'ordre des lignes.
 
 ### 5. Sélection et simplification
 
