@@ -1,4 +1,23 @@
-# Journal d'Itération ML Detection - 2026-03-17
+# ML Detection Iteration Log — 2026-03-17
+
+> Status: Experiment
+> Audience: Team, AI agents
+> Purpose: Historical detailed iteration log for the `feat/ml-detection-improvement`
+> branch
+
+## English summary
+
+This is the longest historical log in the folder. It documents:
+
+- the first `niamoto-score` baseline
+- the diagnosis of weak holdout families such as `forest_inventory`
+- early changes to value features and fusion features
+- the move toward a more product-oriented benchmark
+- the first surrogate/autoresearch decisions
+- the first acquisition lots and their effect on the benchmark
+
+The detailed body below is preserved as historical working material and still
+contains French wording from the original session notes.
 
 ## Objet
 
@@ -1038,4 +1057,5 @@ Erreurs restantes :
 - batch optimization commitée (entraînement 20x plus rapide)
 - évaluation par instance opérationnelle sur niamoto-subset
 - prochaine étape : câbler le ML dans l'auto-config (plan documenté dans
-  `docs/03-ml-detection/2026-03-19-ml-integration-status.md`)
+  `docs/03-ml-detection/README.md` and the active reference docs in
+  `docs/03-ml-detection/`)

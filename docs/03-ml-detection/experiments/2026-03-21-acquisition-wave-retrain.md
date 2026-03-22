@@ -1,15 +1,22 @@
-# Acquisition wave retrain and evaluation (2026-03-21)
+# Acquisition Wave Retrain and Evaluation (2026-03-21)
 
-## Objet
+> Status: Experiment
+> Audience: Team, AI agents
+> Purpose: Measure the impact of the `SINP 1A + ETS + sPlotOpen` acquisition
+> wave after a full rebuild and retrain
 
-Mesurer l'impact réel de la vague d'acquisition `SINP 1A + ETS + sPlotOpen`
-sur les modèles ML de détection sémantique, après reconstruction complète du
-gold set puis réentraînement des trois branches (`header`, `values`,
-`fusion`).
+## Context
 
-## Données intégrées avant retrain
+This run measures the effect of the acquisition wave on the ML detection stack
+after:
 
-### Intégrées au gold set
+1. rebuilding the gold set
+2. retraining the `header`, `values`, and `fusion` branches
+3. rerunning both the internal benchmark and the real-dataset suite
+
+## Data integrated before retrain
+
+### Added to the gold set
 
 - `TAXREF v18` (`ml/data/silver/taxref/TAXREFv18.txt`)
 - `ETS Occurrence_ext.csv`
@@ -20,30 +27,30 @@ gold set puis réentraînement des trois branches (`header`, `values`,
 - `sPlotOpen_CWM_CWV(2).txt`
 - `sPlotOpen_metadata(2).txt`
 
-### Intégrées runtime uniquement
+### Added at runtime only
 
-- bloc `sinp:` dans `column_aliases.yaml`
-- bloc `ets:` dans `column_aliases.yaml`
-- bloc `splot:` dans `column_aliases.yaml`
+- `sinp:` alias block in `column_aliases.yaml`
+- `ets:` alias block in `column_aliases.yaml`
+- `splot:` alias block in `column_aliases.yaml`
 
-### Explicitement laissées de côté
+### Explicitly left out
 
-- `OpenObs / SINP` : source indisponible côté MNHN
-- `species_trait_data.csv` : trop spécialisé / sémantique fragile
-- `PREDICTS` : conservé hors chemin critique
+- `OpenObs / SINP`: source unavailable
+- `species_trait_data.csv`: too specialized / semantically fragile
+- `PREDICTS`: kept outside the critical path
 
-## Gold set obtenu
+## Resulting gold set
 
-| Métrique | Valeur |
-|----------|:------:|
-| Colonnes labellisées | **2540** |
-| Concepts coarse | **61** |
-| Sources ajoutées dans cette vague | `taxref_v18`, `ets_*`, `splot_*` |
+| Metric | Value |
+|--------|:-----:|
+| Labelled columns | **2540** |
+| Coarse concepts | **61** |
+| Added sources | `taxref_v18`, `ets_*`, `splot_*` |
 
-Apports visibles par source :
+Visible contribution by source:
 
-| Source | Colonnes |
-|--------|:--------:|
+| Source | Columns |
+|--------|:-------:|
 | `taxref_v18` | 17 |
 | `ets_occurrence_ext` | 9 |
 | `ets_taxon_ext` | 17 |
@@ -53,7 +60,7 @@ Apports visibles par source :
 | `splot_cwm` | 40 |
 | `splot_metadata` | 15 |
 
-## Commandes exécutées
+## Commands run
 
 ```bash
 uv run python -m ml.scripts.data.build_gold_set
@@ -63,37 +70,34 @@ uv run python -m ml.scripts.train.train_fusion
 uv run python -m ml.scripts.eval.run_eval_suite
 ```
 
-## Résultats de training
+## Training results
 
-| Modèle | Macro-F1 cross-val | Note |
-|--------|:------------------:|------|
-| Header | **0.753** | branche la plus robuste |
-| Values | **0.378** | signal utile mais faible généralisation |
-| Fusion | **0.639** | meilleure que `values`, inférieure à `header` seul |
+| Model | Cross-val macro-F1 | Note |
+|-------|:------------------:|------|
+| Header | **0.753** | strongest branch |
+| Values | **0.378** | useful signal, still weak on generalization |
+| Fusion | **0.639** | stronger than `values`, still below `header` alone |
 
-### Avertissements
+### Warnings
 
-Le réentraînement `header` et `fusion` déclenche plusieurs
-`ConvergenceWarning` (`max_iter` atteint avec solveur `sag`). Le fit est
-terminé et les modèles sont sauvegardés, mais un réglage ultérieur de
-`max_iter` ou du solveur reste souhaitable.
+`header` and `fusion` triggered `ConvergenceWarning` messages during retraining.
+The models still trained and were saved successfully, but `max_iter` and/or the
+solver deserved a later adjustment.
 
-## Résultats d'évaluation
+## Evaluation results
 
-Fichier de sortie :
-`ml/data/eval/results/20260321_194036.json`
+Output file:
 
-### Benchmarks historiques recalculés après retrain
+- `ml/data/eval/results/20260321_194036.json`
 
-En complément de l'`eval suite`, les métriques historiques du protocole de
-holdouts ont été relancées sur les modèles retrainés :
+### Internal benchmarks after retrain
 
-| Benchmark | Valeur |
-|-----------|:------:|
+| Benchmark | Value |
+|-----------|:-----:|
 | **ProductScore** | **80.8392** |
 | **GlobalScore / NiamotoOfflineScore** | **82.764** |
 
-Détail `ProductScore` :
+Detailed `ProductScore`:
 
 | Bucket | Score |
 |--------|:-----:|
@@ -104,15 +108,14 @@ Détail `ProductScore` :
 | `research_traits` | 71.621 |
 | `anonymous` | 63.634 |
 
-Lecture :
+Interpretation:
 
-- les métriques historiques restent globalement solides
-- elles sont cohérentes avec l'`eval suite`
-- le bucket le plus pénalisant est désormais clairement `anonymous`
-- les headers codés / inventaires restent le principal plafond de
-  généralisation du protocole holdout
+- the historical holdout metrics remain broadly solid
+- they are consistent with the annotated dataset suite
+- `anonymous` is now the clearest penalizing bucket
+- coded headers and inventory-style exports remain the main generalization ceiling
 
-### Suite complète (9 datasets, 478 colonnes)
+### Full eval suite (9 datasets, 478 columns)
 
 | Dataset | Cols | Role % | Concept % |
 |---------|:----:|:------:|:---------:|
@@ -127,55 +130,54 @@ Lecture :
 | `acceptance-fia-or` | 33 | 75.8 | **63.6** |
 | **TOTAL** | **478** | **90.4** | **84.7** |
 
-### Vue "datasets produit + proches produit" (7 datasets, 418 colonnes)
+### Product-oriented aggregate view (7 datasets, 418 columns)
 
-| Agrégat | Role % | Concept % |
-|---------|:------:|:---------:|
+| Aggregate | Role % | Concept % |
+|-----------|:------:|:---------:|
 | Tier 1 + Tier 1b + Silver | **90.9** | **85.4** |
 
-## Lecture
+## Interpretation
 
-### Ce qui a bien marché
+### What worked well
 
-- `niamoto-gb` reste à **100%**
-- `niamoto-nc` monte à **91.2%**
-- `guyadiv` monte à **83.6%**
-- les trois jeux GBIF proches produit sont tous entre **87.8%** et **90.2%**
+- `niamoto-gb` stayed at **100%**
+- `niamoto-nc` rose to **91.2%**
+- `guyadiv` rose to **83.6%**
+- the three GBIF datasets closest to the product all landed between **87.8%** and **90.2%**
 
-La vague d'acquisition a donc bien renforcé le coeur produit et les cas
-standardisés proches du produit.
+The acquisition wave clearly improved the core product datasets and nearby
+standardized cases.
 
-### Ce qui reste faible
+### What remains weak
 
-Le benchmark gelé hors-train reste polarisé par `acceptance-fia-or` :
+The frozen out-of-train benchmark remains dominated by `acceptance-fia-or`:
 
 | Dataset | Concept % |
 |---------|:---------:|
 | `acceptance-niamoto-gb` | 100.0 |
 | `acceptance-fia-or` | **63.6** |
 
-Les principales erreurs restantes :
+Main remaining errors:
 
 - `measurement.biomass -> measurement.volume`
 - `identifier.taxon -> taxonomy.species`
 - `category.habitat -> (not found)`
-- `SPCD`, `CR`, `VOLCFNET`, `VOLBFNET` toujours ratés en FIA
-- `acceptedTaxonKey`, `speciesKey`, `genericName`,
-  `infraspecificEpithet`, `scientificNameAuthorship` toujours ratés sur les
-  exports GBIF
+- FIA-coded headers such as `SPCD`, `CR`, `VOLCFNET`, `VOLBFNET`
+- GBIF taxonomic keys such as `acceptedTaxonKey`, `speciesKey`,
+  `genericName`, `infraspecificEpithet`, `scientificNameAuthorship`
 
 ## Conclusion
 
-Cette vague d'acquisition est rentable.
+This acquisition wave was worth it.
 
-- Oui, elle améliore concrètement les datasets coeur Niamoto
-- Oui, elle stabilise les cas GBIF réels
-- Non, elle ne résout pas encore la généralisation sur inventaires codés
+- Yes, it improved the Niamoto core datasets
+- Yes, it stabilized real GBIF-like cases
+- No, it did not solve coded inventory generalization yet
 
-La suite logique n'est pas d'ouvrir un nouveau chantier d'acquisition
-immédiatement, mais de faire une passe de correction ciblée sur :
+The next logical step was not another acquisition wave, but a targeted
+correction pass on:
 
-1. les clés taxonomiques GBIF encore systématiquement ratées
-2. les colonnes FIA codées (`SPCD`, `CR`, `VOLCFNET`, `VOLBFNET`)
+1. the remaining GBIF taxonomic key columns
+2. the FIA-coded columns
 3. `measurement.biomass`, `identifier.taxon`, `category.habitat`,
    `text.metadata`

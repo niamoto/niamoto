@@ -1,5 +1,10 @@
 # ML Detection Branch Architecture
 
+> Status: Active
+> Audience: Team, AI agents, curious developers
+> Purpose: Architecture reference for the hybrid pipeline and its decision
+> criteria
+
 ## Purpose
 
 This document describes what the `feat/ml-detection-improvement` branch aims to
