@@ -240,6 +240,41 @@ Dans `extract_fusion_features()` :
 
 Les changements qui améliorent la cohérence au niveau dataset sont prioritaires.
 
+### 6. Contexte inter-colonnes (reranking post-classification)
+
+Inspiré de SATO (VLDB 2020) : le contexte de table aide la détection.
+Actuellement la cohérence est un post-traitement (`pair_consistency`), pas
+un signal qui influence les prédictions.
+
+**Contrainte runtime** : le classifieur (`classifier.py:119`) traite les colonnes
+une par une. Injecter des features dataset-level dans `extract_fusion_features()`
+créerait une divergence train/runtime, sauf à modifier l'API du classifieur pour
+accepter un contexte dataset.
+
+**Deux approches possibles** (au choix, pas les deux) :
+
+**A. Reranking post-classification** (pas de changement d'API) :
+Après avoir classé toutes les colonnes d'un dataset, appliquer un second passage
+qui ajuste les confiances en fonction du contexte :
+- présence d'une colonne lat détectée → boost confiance lon (et inversement)
+- plusieurs colonnes taxonomiques → boost les concepts taxonomy restants
+- cohérence paires structurelles → renforcer ou affaiblir
+
+Ceci se fait dans `profiler.py` après l'appel au classifieur, sans toucher
+au modèle de fusion lui-même.
+
+**B. Passage de contexte au classifieur** (changement d'API) :
+Modifier `classify()` pour accepter un dict de contexte dataset optionnel,
+et ajouter les features correspondantes dans la fusion. Nécessite de mettre
+à jour train ET runtime en cohérence stricte. Plus lourd mais plus propre
+à long terme.
+
+Hypothèse : pourrait améliorer la cohérence structurelle sur les paires
+coordonnées et les hiérarchies taxonomiques. Impact à mesurer.
+
+**Ne pas tenter d'ajouter des features dataset-level dans la fusion sans
+avoir choisi et implémenté l'une de ces deux approches.**
+
 ## Contraintes
 
 - pas de fuite de données dans l'évaluation
