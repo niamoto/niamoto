@@ -680,8 +680,8 @@ régressions.
 ## References
 
 ### Internal
-- `docs/03-ml-detection/acquisition-plan.md` — plan d'acquisition existant
-- `docs/03-ml-detection/candidate-data-sources.md` — sources candidates
+- `docs/03-ml-detection/archive/acquisition-history-and-source-strategy.md` — archived acquisition history and source strategy
+- `docs/03-ml-detection/current-training-sources.md` — current source inventory actually wired into the code
 - `docs/03-ml-detection/overview.md` — architecture ML
 - `scripts/ml/concept_taxonomy.py` — taxonomie des concepts
 - `scripts/ml/build_gold_set.py` — constructeur du gold set (SOURCES list)

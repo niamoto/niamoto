@@ -1,5 +1,10 @@
 # Autoresearch Surrogate Loop
 
+> Status: Active
+> Audience: Team, AI agents
+> Purpose: Current surrogate-loop strategy and acceptance logic for
+> autoresearch
+
 ## Purpose
 
 This document formalises the following pivot:

@@ -1,47 +1,69 @@
 # ML Detection & Auto-Configuration
 
-Machine learning-based column detection and automatic configuration generation for ecological datasets.
+> Status: Active
+> Audience: Team, AI agents, curious developers
+> Purpose: Portal into the ML detection knowledge base
 
-## Documentation
+This section explains how Niamoto detects semantic column types, how the ML
+stack is trained and evaluated, and where to find the current research,
+experiments, and dated planning material.
 
-### Core
+## Start here
 
-- **[Overview](overview.md)** — What ML detection does, how it works, training data, scores, and how to contribute
-- **[Branch Architecture](branch-architecture.md)** — Architecture of the 3-branch hybrid pipeline (alias + header + values + fusion), product goals, evaluation metrics, and autoresearch role
-- **[Training & Evaluation Guide](training-guide.md)** — Complete workflow: gold set → training → alias → evaluation → improvement cycle
+- **[Overview](overview.md)**: what the system does, why it exists, current
+  scores, and the main limits.
+- **[Branch Architecture](branch-architecture.md)**: the hybrid pipeline,
+  product priorities, and the role of autoresearch.
+- **[Training & Evaluation Guide](training-guide.md)**: the reproducible
+  workflow from `ml/data/silver` to trained models and evaluation results.
 
-### Integration & Status
+## If you want to...
 
-- **[ML Integration Status](2026-03-19-ml-integration-status.md)** — Current state of ML integration in the app: what works, the gap between `ColumnDetector` (heuristics) and `ColumnClassifier` (ML), and the recommended merge strategy
+- **Understand the implementation**
+  - [Overview](overview.md)
+  - [Branch Architecture](branch-architecture.md)
+  - [Current Training Sources](current-training-sources.md)
+- **Train or evaluate the stack**
+  - [Training & Evaluation Guide](training-guide.md)
+  - [ML workspace README](../../ml/README.md)
+- **Understand current autoresearch rules**
+  - [Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)
+  - [Autoresearch programmes](../../ml/programmes/)
+- **Review experiment history**
+  - [Experiments index](experiments/README.md)
+- **Review exploratory ideas or older planning docs**
+  - [Research notes](research/README.md)
+  - [Archive](archive/README.md)
+- **Find the latest dated plans**
+  - [docs/plans](../plans/)
 
-### Autoresearch
+## Structure
 
-- **[Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)** — Why full-stack autoresearch is too slow, and the pivot to a fusion-only surrogate loop with two validation levels
+### Active reference
 
-### Data Acquisition
+- [Overview](overview.md)
+- [Branch Architecture](branch-architecture.md)
+- [Training & Evaluation Guide](training-guide.md)
+- [Current Training Sources](current-training-sources.md)
+- [Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)
+- [ML Detection Dashboard](ml-detection-dashboard.html)
 
-- **[Acquisition Plan](acquisition-plan.md)** — Concrete plan: which datasets to acquire first, storage structure, benchmark tags, and progress tracking
-- **[Candidate Data Sources](candidate-data-sources.md)** — Shortlist of 15 candidate datasets with priorities, access conditions, and selection criteria
+### Research
+
+- [Research notes index](research/README.md)
 
 ### Experiments
 
-- **[Experiment Logs](experiments/)** — Session logs and evaluation results (iteration logs, instance evaluation, session handoffs)
+- [Experiments index](experiments/README.md)
 
-## Technical Stack
+### Archive
 
-- **scikit-learn**: TF-IDF, LogisticRegression, HistGradientBoosting
-- **DuckDB**: Data profiling and feature extraction
-- **Fully offline**: ~3 MB models, no LLM dependency
+- [Archive index](archive/README.md)
 
-## Quick Start
+## Related runtime and code-adjacent docs
 
-1. Read the **[Overview](overview.md)** to understand what the system does
-2. See **[Training & Evaluation Guide](training-guide.md)** for the complete workflow
-3. See **[Branch Architecture](branch-architecture.md)** for the technical design
-4. Check **[ML Integration Status](2026-03-19-ml-integration-status.md)** for current app integration
-
-## Related Documentation
-
-- [Data Pipeline](../02-data-pipeline/README.md) — Integration with import process
-- [Configuration](../08-configuration/README.md) — Configuration strategies
-- [API Reference](../05-api-reference/README.md) — ML API documentation
+- [ML workspace README](../../ml/README.md) — operational commands and where to
+  look in the offline ML workspace
+- [Data Pipeline](../02-data-pipeline/README.md) — import/runtime integration
+- [Configuration](../08-configuration/README.md) — configuration strategies
+- [API Reference](../05-api-reference/README.md) — API-level documentation

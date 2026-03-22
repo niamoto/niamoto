@@ -1,6 +1,26 @@
-# Cartographie des possibilités IA pour Niamoto
+# AI Possibilities Cartography for Niamoto
 
-*Mars 2026 — Document d'exploration*
+> Status: Research
+> Audience: Team, AI agents
+> Purpose: Exploratory map of AI-enabled extensions beyond the current ML
+> implementation
+
+*March 2026 — exploratory note*
+
+## English summary
+
+This note explores AI-enabled capabilities beyond the current column detection
+stack, from import-time understanding to chart generation and natural-language
+querying.
+
+Its role is exploratory:
+
+- it is **not** the source of truth for the current implementation
+- it intentionally relaxes current constraints to map future options
+- it mixes immediately feasible engineering ideas with longer-term LLM-enabled directions
+
+The detailed catalog below is preserved from the original exploratory note and
+still contains French wording in several sections.
 
 ## Contexte
 

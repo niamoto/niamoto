@@ -1,5 +1,10 @@
 # Automatic column detection
 
+> Status: Active
+> Audience: Team, AI agents, curious developers
+> Purpose: Conceptual overview of the ML detection system and its current
+> state
+
 ## What it does
 
 You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column ("this is a diameter, this is a species, this is coordinates"), Niamoto **automatically detects** the content and proposes a complete dashboard: diameter histogram, distribution map, breakdown by family.
@@ -42,9 +47,11 @@ Both are fused into a final prediction. The user can then refine each transforme
 
 ## Training data
 
-The model is trained on **2,231 labelled columns** from:
+The model is trained on **2,540 labelled columns** from:
 
-- **88 real datasets**: IFN France, FIA US, GBIF (Spain, Norway, Benin, Tanzania, China...), GUYADIV French Guiana, inventories from Africa/New Caledonia/Madagascar/Malaysia/Panama, Zenodo (BCI, FERP California, Heishiding China...)
+- **104 real datasets**: IFN France, FIA US, GBIF variants, GUYADIV, tested
+  Niamoto instances, TAXREF, ETS extensions, sPlotOpen, and several tropical or
+  research-oriented ecological datasets
 - **6 continents**, **8 languages** (EN, FR, ES, PT, DE, ID + anonymous headers)
 - **61 concepts** organised into roles: taxonomy, location, measurements, environment, statistics, temporal, categories, identifiers
 
@@ -64,9 +71,9 @@ To improve detection for a poorly recognised column type:
 
 | Model | Macro-F1 | What this means |
 |-------|----------|-----------------|
-| Header (column name) | 0.77 | 77% of columns correctly classified by their name |
-| Values (statistical values) | 0.35 | 35% — values alone are ambiguous (a diameter and a height look similar numerically) |
-| Fusion (header + values) | ProductScore 80.04 / NiamotoOfflineScore 78.6 | Combined signal from both branches |
+| Header (column name) | 0.77 | The strongest branch when names are informative |
+| Values (statistical values) | 0.38 | Values alone remain ambiguous, but they are improving on anonymous and numeric cases |
+| Fusion (header + values) | ProductScore 80.84 / GlobalScore 82.76 | Combined signal from both branches on the current offline benchmark |
 
 The header score is the most important because in the majority of cases columns have informative names. The values model kicks in when the name is anonymous or ambiguous.
 
