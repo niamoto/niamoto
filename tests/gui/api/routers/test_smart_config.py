@@ -719,6 +719,33 @@ class TestAutoConfigureMain:
             assert "concept" in first
             assert "confidence" in first
 
+    def test_auto_configure_exposes_decision_summary_and_semantic_evidence(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        """Test auto-configure exposes entity-level decision and evidence payloads."""
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["imports/sample_occurrences.csv"]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "decision_summary" in data
+        assert "semantic_evidence" in data
+        assert "sample_occurrences" in data["decision_summary"]
+        assert "sample_occurrences" in data["semantic_evidence"]
+
+        summary = data["decision_summary"]["sample_occurrences"]
+        assert "final_entity_type" in summary
+        assert "heuristic_entity_type" in summary
+        assert "review_required" in summary
+
+        evidence = data["semantic_evidence"]["sample_occurrences"]
+        assert "top_predictions" in evidence
+        assert "top_roles" in evidence
+        assert "inferred_ml_entity_type" in evidence
+
     def test_auto_configure_hierarchical_reference(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):

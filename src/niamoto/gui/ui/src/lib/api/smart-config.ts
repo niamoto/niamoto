@@ -108,6 +108,57 @@ export interface AutoConfigureResponse {
     confidence: number
     source: string
   }>>
+  decision_summary?: Record<string, {
+    final_entity_type: string
+    heuristic_entity_type: string
+    heuristic_confidence: number
+    ml_entity_type?: string | null
+    ml_confidence?: number
+    alignment?: 'aligned' | 'heuristic_only' | 'ml_override' | 'conflict' | 'mixed'
+    review_required?: boolean
+    review_reasons?: string[]
+    referenced_by?: Array<{
+      from: string
+      field: string
+      target_field?: string
+      confidence: number
+      match_type?: string
+    }>
+    row_count?: number
+    heuristic_flags?: Record<string, unknown>
+  }>
+  semantic_evidence?: Record<string, {
+    top_predictions?: Array<{
+      column: string
+      concept: string
+      confidence: number
+      source: string
+    }>
+    top_roles?: Array<{
+      role: string
+      score: number
+    }>
+    top_concepts?: Array<{
+      concept: string
+      score: number
+    }>
+    date_columns?: string[]
+    geometry_columns?: string[]
+    hierarchy?: {
+      detected?: boolean
+      hierarchy_type?: string
+      levels?: string[]
+    }
+    relationship_candidates?: Array<{
+      from: string
+      field: string
+      target_field?: string
+      confidence: number
+      match_type?: string
+    }>
+    inferred_ml_entity_type?: string | null
+    inferred_ml_confidence?: number
+  }>
   confidence: number
   warnings: string[]
 }

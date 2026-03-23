@@ -217,6 +217,11 @@ export function AutoConfigDisplay({
   const datasetCount = Object.keys(result.entities.datasets || {}).length
   const referenceCount = Object.keys(result.entities.references || {}).length
   const layerCount = result.entities.metadata?.layers?.length || 0
+  const decisionSummaries = result.decision_summary || {}
+  const semanticEvidence = result.semantic_evidence || {}
+  const reviewCount = Object.values(decisionSummaries).filter(
+    (summary) => summary?.review_required
+  ).length
 
   // Build available references for dataset FK dropdowns
   const availableReferences = Object.entries(result.entities.references || {}).map(
@@ -228,6 +233,76 @@ export function AutoConfigDisplay({
 
   // Build available datasets for derived reference source dropdown
   const availableDatasets = Object.keys(result.entities.datasets || {})
+
+  const getAlignmentLabel = (alignment?: string) => {
+    switch (alignment) {
+      case 'aligned':
+        return 'Heuristique + ML alignés'
+      case 'ml_override':
+        return 'ML a influencé la décision'
+      case 'conflict':
+        return 'Heuristique et ML divergent'
+      case 'mixed':
+        return 'Signaux mixtes'
+      default:
+        return 'Décision heuristique'
+    }
+  }
+
+  const renderDecisionInsight = (name: string) => {
+    const summary = decisionSummaries[name]
+    const evidence = semanticEvidence[name]
+    if (!summary && !evidence) return null
+
+    const topPrediction = evidence?.top_predictions?.[0]
+
+    return (
+      <div className="mt-2 rounded border border-border/70 bg-background/70 p-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={summary?.review_required ? 'destructive' : 'outline'} className="text-[10px]">
+            {summary?.review_required ? 'A revoir' : 'Stable'}
+          </Badge>
+          {summary?.alignment && (
+            <Badge variant="secondary" className="text-[10px]">
+              {getAlignmentLabel(summary.alignment)}
+            </Badge>
+          )}
+          {summary?.ml_entity_type && (
+            <Badge variant="outline" className="text-[10px]">
+              ML: {summary.ml_entity_type}
+              {typeof summary.ml_confidence === 'number'
+                ? ` ${Math.round(summary.ml_confidence * 100)}%`
+                : ''}
+            </Badge>
+          )}
+        </div>
+
+        {(summary?.heuristic_entity_type || summary?.final_entity_type) && (
+          <div className="mt-2 text-muted-foreground">
+            Heuristique: <span className="text-foreground">{summary?.heuristic_entity_type}</span>
+            {' · '}
+            Final: <span className="text-foreground">{summary?.final_entity_type}</span>
+          </div>
+        )}
+
+        {summary?.review_reasons && summary.review_reasons.length > 0 && (
+          <div className="mt-1 text-amber-700 dark:text-amber-400">
+            {summary.review_reasons[0]}
+          </div>
+        )}
+
+        {topPrediction && (
+          <div className="mt-1 text-muted-foreground">
+            Signal principal: <span className="text-foreground">{topPrediction.column}</span>
+            {' → '}
+            <span className="text-foreground">{topPrediction.concept}</span>
+            {' '}
+            ({Math.round(topPrediction.confidence * 100)}%)
+          </div>
+        )}
+      </div>
+    )
+  }
 
   // Build detection details
   const buildDetectionDetails = () => {
@@ -272,6 +347,15 @@ export function AutoConfigDisplay({
           icon: <TrendingUp className="h-4 w-4" />,
           text: `ML: ${confidentPredictions.length} colonne(s) semantiques confiantes pour "${name}"`,
           status: 'info',
+        })
+      }
+
+      const summary = decisionSummaries[name]
+      if (summary?.review_required) {
+        details.push({
+          icon: <AlertTriangle className="h-4 w-4" />,
+          text: `"${name}" demande une verification manuelle`,
+          status: 'warning',
         })
       }
     })
@@ -418,6 +502,15 @@ export function AutoConfigDisplay({
           </Alert>
         )}
 
+        {reviewCount > 0 && (
+          <Alert className="border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              {reviewCount} entite(s) ont des signaux heuristiques/ML a verifier avant import.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Entities grid */}
         <div className="grid gap-4 md:grid-cols-2">
           {/* Datasets */}
@@ -430,8 +523,15 @@ export function AutoConfigDisplay({
               {Object.entries(result.entities.datasets || {}).map(
                 ([name, config]: [string, any]) => (
                   <div key={name} className="group rounded bg-accent p-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{name}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{name}</span>
+                        {decisionSummaries[name]?.review_required && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Review
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1">
                         {editable && onReclassify && (
                           <>
@@ -476,6 +576,7 @@ export function AutoConfigDisplay({
                           ))}
                         </div>
                       )}
+                      {renderDecisionInsight(name)}
                     </div>
                   </div>
                 )
@@ -508,14 +609,19 @@ export function AutoConfigDisplay({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{name}</span>
-                          {config.kind && (
-                            <Badge variant="outline" className="text-xs">
-                              {config.kind}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {canMove && (
+                        {config.kind && (
+                          <Badge variant="outline" className="text-xs">
+                            {config.kind}
+                          </Badge>
+                        )}
+                        {decisionSummaries[name]?.review_required && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Review
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {canMove && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -569,6 +675,7 @@ export function AutoConfigDisplay({
                             </span>
                           </div>
                         )}
+                        {renderDecisionInsight(name)}
                       </div>
                     </div>
                   )
@@ -645,6 +752,12 @@ export function AutoConfigDisplay({
               <div className="text-xs text-muted-foreground">Layers</div>
             </div>
           </div>
+          {reviewCount > 0 && (
+            <div className="mt-3 border-t pt-3 text-center">
+              <div className="text-xl font-bold text-amber-500">{reviewCount}</div>
+              <div className="text-xs text-muted-foreground">Entites a revoir</div>
+            </div>
+          )}
         </div>
       </div>
 
