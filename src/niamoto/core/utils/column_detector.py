@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
+from niamoto.core.imports.auto_config_decision import build_heuristic_classification
+
 
 class ColumnDetector:
     """Detect patterns in column names and data for smart configuration."""
@@ -791,55 +793,7 @@ class ColumnDetector:
         result["name_columns"] = cls.detect_name_columns(columns)
         result["date_columns"] = cls.detect_date_columns(columns)
         result["ml_predictions"] = cls._detect_semantic_columns(columns, sample_data)
-
-        # Determine likely entity type with improved logic
-        has_hierarchy = (
-            result["hierarchy"]["detected"] and result["hierarchy"]["level_count"] >= 2
-        )
-        has_geometry = len(result["geometry_columns"]) > 0
-        has_many_columns = len(columns) > 10
-        has_observation_columns = any(
-            col.lower() in ["dbh", "height", "observed", "measurement", "value"]
-            for col in columns
-        )
-
-        if (
-            has_hierarchy
-            and has_geometry
-            and (has_many_columns or has_observation_columns)
-        ):
-            # File with hierarchy + geometry + many columns = dataset with hierarchy columns
-            # The hierarchy should be extracted as a separate derived reference
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.9
-            result["extract_hierarchy_as_reference"] = (
-                True  # Flag to create derived reference
-            )
-        elif has_hierarchy and not has_geometry and not has_many_columns:
-            # Pure hierarchy file (taxonomy, classification)
-            result["suggested_entity_type"] = "hierarchical_reference"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = result["hierarchy"]["confidence"]
-            result["extract_hierarchy_as_reference"] = False
-        elif has_geometry:
-            # Spatial data = dataset
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.8
-            result["extract_hierarchy_as_reference"] = False
-        elif len(result["id_columns"]) > 0 and len(columns) < 10:
-            # Small table with ID = reference
-            result["suggested_entity_type"] = "reference"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.7
-            result["extract_hierarchy_as_reference"] = False
-        else:
-            # Default to dataset
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.5
-            result["extract_hierarchy_as_reference"] = False
+        result.update(build_heuristic_classification(result))
 
         return result
 
