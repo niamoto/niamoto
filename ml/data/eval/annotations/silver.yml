@@ -96,12 +96,12 @@ finland_sweden/plots_finland_and_sweden.csv:
 
 afrique/occurrences.csv:
   tax_fam: taxonomy.family
-  tax_infra_level_auth: taxonomy.species
+  tax_infra_level_auth: taxonomy.name
   tax_infra_level: taxonomy.species
   tax_esp: taxonomy.species
   tax_gen: taxonomy.genus
   tax_sp_level: taxonomy.species
-  plot_name: location.locality
+  plot_name: identifier.plot
   idtax_individual_f: identifier.taxon
   id_n: identifier.record
   stem_diameter: measurement.diameter
