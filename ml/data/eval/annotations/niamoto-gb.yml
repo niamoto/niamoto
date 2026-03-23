@@ -1,0 +1,34 @@
+# Ground truth annotations for niamoto-gb (Gabon) instance.
+# 27 columns: 19 occurrences + 8 plots.
+# Data: test-instance/niamoto-gb/imports/
+
+occurrences.csv:
+  tax_fam: taxonomy.family
+  tax_infra_level_auth: taxonomy.species
+  tax_infra_level: taxonomy.species
+  tax_esp: taxonomy.species
+  tax_gen: taxonomy.genus
+  tax_sp_level: taxonomy.species
+  plot_name: location.locality
+  idtax_individual_f: identifier.taxon
+  id_n: identifier.record
+  stem_diameter: measurement.diameter
+  light_observations: category.ecology
+  taxa_level_wood_density_mean: measurement.wood_density
+  id_table_liste_plots_n: identifier.plot
+  taxa_level_phenology: category.ecology
+  elev: location.elevation
+  ddlat: location.latitude
+  ddlon: location.longitude
+  locality_name: location.locality
+  geo_pt: location.coordinate
+
+plots.csv:
+  locality_name: location.locality
+  ddlat: location.latitude
+  ddlon: location.longitude
+  country: location.country
+  nbe_stem: statistic.count
+  nbe_plots: statistic.count
+  id_loc: identifier.record
+  geo_pt: location.coordinate

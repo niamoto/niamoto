@@ -165,7 +165,7 @@ class AutoDetector:
                             (
                                 col.name
                                 for col in profile.columns
-                                if col.semantic_type == "reference.taxon"
+                                if col.semantic_type == "identifier.taxon"
                             ),
                             "id_taxonref",
                         ),
@@ -268,7 +268,10 @@ class AutoDetector:
 
             # Find ID column
             for col in profile.columns:
-                if col.semantic_type == "taxonomy.taxon_id":
+                if col.semantic_type in (
+                    "taxonomy.taxon_id",
+                    "identifier.taxon",
+                ):
                     config["id_field"] = col.name
                     break
 
@@ -276,7 +279,9 @@ class AutoDetector:
         elif profile.detected_type == "spatial":
             for col in profile.columns:
                 col_lower = col.name.lower()
-                if col.semantic_type == "identifier" or "id_" in col_lower:
+                if (
+                    col.semantic_type and col.semantic_type.startswith("identifier")
+                ) or "id_" in col_lower:
                     config["id_field"] = col.name
                     break
 
@@ -334,8 +339,10 @@ class AutoDetector:
 
         # Check columns for references
         for col in profile.columns:
-            if col.semantic_type and col.semantic_type.startswith("reference."):
+            if col.semantic_type and col.semantic_type.startswith("identifier."):
                 ref_type = col.semantic_type.split(".")[-1]
+                if ref_type == "record":
+                    continue  # generic row IDs are not foreign keys
 
                 # Map to actual reference names
                 if ref_type == "taxon":

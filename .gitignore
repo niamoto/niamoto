@@ -136,3 +136,12 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/bin/niamoto*
 .gitnexus
+data/gold_set.json
+data/silver/
+data/cache/
+ml/data/gold_set.json
+ml/data/silver/
+ml/data/cache/
+data/.DS_Store
+data/**/.DS_Store
+.autoresearch/

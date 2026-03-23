@@ -1,0 +1,415 @@
+# Column Alias Registry
+# Maps semantic concepts to known column names across languages.
+# Used by the header branch of the column classifier for fuzzy matching.
+#
+# Structure: concept → language → list of aliases
+# Languages: en, fr, es, pt, de, id, dwc (Darwin Core standard)
+#
+# To contribute: add aliases via PR. No ML retraining needed.
+
+# ─── Taxonomy ───────────────────────────────────────────────────
+
+taxonomy.species:
+  en: [species, scientific_name, taxon, species_name, taxon_name, binomial, accepted_name, spcd, tax_esp, tax_sp_level, tax_infra_level, tax_infra_level_auth]
+  fr: [espece, nom_scientifique, taxon, nom_espece, espar, espar_c, espar_bm]
+  es: [especie, nombre_cientifico, taxon, nombre_especie]
+  pt: [especie, nome_cientifico, taxon]
+  de: [art, wissenschaftlicher_name, taxon]
+  id: [spesies, nama_ilmiah, takson]
+  dwc: [scientificname, acceptednameusage, verbatimscientificname]
+  sinp: [nomCite, nom_cite, nomValide, nom_valide, nomComplet, nom_complet, lbNom, lb_nom, nomScientifique, nom_scientifique]
+  ets: [scientificNameGBIF, scientificNameTPL, scientificNameWCVP, verbatimScientificName, originalNameUsage]
+
+taxonomy.family:
+  en: [family, family_name, plant_family, taxon_family, tax_fam]
+  fr: [famille, nom_famille]
+  es: [familia, nombre_familia]
+  pt: [familia, nome_familia]
+  de: [familie, familienname]
+  id: [famili, nama_famili]
+  dwc: [family]
+
+taxonomy.genus:
+  en: [genus, genus_name, plant_genus, tax_gen]
+  fr: [genre, nom_genre]
+  es: [genero, nombre_genero]
+  pt: [genero, nome_genero]
+  de: [gattung]
+  id: [genus, marga]
+  dwc: [genus]
+
+taxonomy.order:
+  en: [order, taxon_order]
+  fr: [ordre]
+  es: [orden]
+  pt: [ordem]
+  de: [ordnung]
+  dwc: [order]
+
+taxonomy.class:
+  en: [class, taxon_class]
+  fr: [classe]
+  es: [clase]
+  pt: [classe]
+  de: [klasse]
+  dwc: [class]
+
+taxonomy.phylum:
+  en: [phylum, division]
+  fr: [embranchement, phylum, division]
+  es: [filo, division]
+  pt: [filo, divisao]
+  de: [stamm, abteilung]
+  dwc: [phylum]
+
+taxonomy.kingdom:
+  en: [kingdom]
+  fr: [regne]
+  es: [reino]
+  pt: [reino]
+  de: [reich]
+  dwc: [kingdom]
+
+taxonomy.rank:
+  en: [rank, taxon_rank, rank_name, taxonomic_rank]
+  fr: [rang, rang_taxonomique]
+  es: [rango, rango_taxonomico]
+  dwc: [taxonrank]
+  sinp: [RANG]
+  ets: [verbatimTaxonRank]
+
+taxonomy.vernacular_name:
+  en: [common_name, vernacular_name, local_name, english_name]
+  fr: [nom_commun, nom_vernaculaire, nom_local]
+  es: [nombre_comun, nombre_vernacular]
+  pt: [nome_comum, nome_popular]
+  de: [volksname, deutscher_name]
+  id: [nama_lokal, nama_umum]
+  dwc: [vernacularname]
+  sinp: [nomVern, nom_vern, nomVernaculaire, nom_vernaculaire, nom_vern_eng]
+
+# ─── Location / Coordinates ────────────────────────────────────
+
+location.latitude:
+  en: [latitude, lat, decimal_latitude, y_coord, lat_y, ddlat]
+  fr: [latitude, lat]
+  es: [latitud, lat]
+  pt: [latitude, lat]
+  de: [breitengrad, lat]
+  id: [lintang, lat]
+  dwc: [decimallatitude, verbatimlatitude]
+
+location.longitude:
+  en: [longitude, lon, long, decimal_longitude, x_coord, lon_x, ddlon]
+  fr: [longitude, lon, long]
+  es: [longitud, lon, long]
+  pt: [longitude, lon, long]
+  de: [laengengrad, lon, long]
+  id: [bujur, lon, long]
+  dwc: [decimallongitude, verbitimlongitude]
+
+location.elevation:
+  en: [elevation, altitude, elev, alt, height_asl]
+  fr: [altitude, elevation, alt]
+  es: [altitud, elevacion, alt]
+  pt: [altitude, elevacao, alt]
+  de: [hoehe, hoehe_ueber_nn, alt]  # "hoehe" also in measurement.height — ambiguous, deferred to ML
+  id: [ketinggian, elevasi, alt]
+  dwc: [minimumelevationinmeters, maximumelevationinmeters, verbatimelevation]
+  sinp: [altitudeMin, altitude_min, altitudeMax, altitude_max, altitudeMoyenne]
+
+location.depth:
+  en: [depth, water_depth, minimum_depth, maximum_depth, sampling_depth]
+  fr: [profondeur, prof]
+  es: [profundidad, prof]
+  pt: [profundidade, prof]
+  de: [tiefe, wassertiefe]
+  id: [kedalaman]
+  dwc: [minimumdepthinmeters, maximumdepthinmeters, verbatimdepth]
+  sinp: [profondeurMin, profondeur_min, depth_min, profondeurMax, profondeur_max, depth_max, profondeurMoyenne]
+
+location.locality:
+  en: [locality, location, place, site_name, plot_name, station, locality_name]
+  fr: [localite, lieu, site, parcelle, station]
+  es: [localidad, sitio, parcela, estacion]
+  pt: [localidade, local, parcela, estacao]
+  de: [lokalitaet, standort, ort]
+  id: [lokasi, tempat, stasiun]
+  dwc: [locality, verbatimlocality]
+  sinp: [nomLieu, nom_lieu, nomCommune, nom_commune]
+
+location.country:
+  en: [country, country_code, nation]
+  fr: [pays, code_pays]
+  es: [pais, codigo_pais]
+  pt: [pais, codigo_pais]
+  de: [land, laendercode]
+  id: [negara, kode_negara]
+  dwc: [country, countrycode]
+
+location.coordinate:
+  en: [geo_pt]
+
+# ─── Measurements ──────────────────────────────────────────────
+
+measurement.diameter:
+  en: [dbh, diameter, trunk_diameter, stem_diameter, girth, circumference, breast_height_diameter, dia, dsh]
+  fr: [diametre, diam, dbh, dhp, circonference, c13, dbm]
+  es: [diametro, dap, diametro_pecho, circunferencia]
+  pt: [diametro, dap, circunferencia]
+  de: [durchmesser, bhd, brusthoehenduchmesser]
+  id: [diameter, dbh]
+  fia: [dia, diacalc]
+
+measurement.height:
+  en: [height, tree_height, total_height, canopy_height, plant_height, h_tot, ht, actualht]
+  fr: [hauteur, haut, h_tot, hauteur_arbre, hauteur_totale, htot, hdec]
+  es: [altura, alto, altura_total, altura_arbol]
+  pt: [altura, alt_total, altura_arvore]
+  de: [hoehe, baumhoehe, gesamthoehe]  # "hoehe" also in location.elevation — ambiguous, deferred to ML
+  id: [tinggi, tinggi_pohon]
+  fia: [ht, actualht]
+
+measurement.basal_area:
+  en: [basal_area, ba, stem_area]
+  fr: [surface_terriere, st]
+  es: [area_basal, ab]
+  pt: [area_basal, ab]
+
+measurement.wood_density:
+  en: [wood_density, specific_gravity, wd, density, taxa_mean_wood_density, taxa_level_wood_density_mean]
+  fr: [densite_bois, densite, db]
+  es: [densidad_madera, gravedad_especifica]
+  pt: [densidade_madeira]
+
+measurement.leaf_area:
+  en: [leaf_area, la, sla, specific_leaf_area, leaf_surface]
+  fr: [surface_foliaire, sla]
+  es: [area_foliar, sla]
+  pt: [area_foliar, sla]
+
+measurement.biomass:
+  en: [biomass, agb, above_ground_biomass, dry_weight]
+  fr: [biomasse, biomasse_aerienne, poids_sec]
+  es: [biomasa, biomasa_aerea, peso_seco]
+  pt: [biomassa, peso_seco]
+
+measurement.cover:
+  en: [cover, coverage, cover_pct, percent_cover, canopy_cover, cr]
+  fr: [couverture, recouvrement, taux_couverture, lib, tca, tcl]
+  es: [cobertura, porcentaje_cobertura]
+  pt: [cobertura, percentual_cobertura]
+  splot: [Relative_cover, TraitCoverage_cover, TraitCoverage_pa]
+
+measurement.trait:
+  en: [shannon, pielou, simpson, bark_thickness, leaf_ldmc, leaf_thickness, leaf_dry_matter_content, nmass_percent, lma, species_level]
+  fr: [shannon, pielou, simpson, epaisseur_ecorce]
+  ets: [traitID, trait_id, traitName, trait_name, traitValue, trait_value, StdValue, std_value, OrigValueStr, verbatimTraitName, verbatimTraitValue]
+
+measurement.canopy:
+  en: [crown_area, crown_diameter, crown_radius]
+  fr: [surface_couronne]
+
+measurement.dimension:
+  ets: [traitUnit, trait_unit, UnitName, unit_name, expectedUnit, OrigUnitStr]
+
+measurement.quality:
+  ets: [measurementResolution, ErrorRisk, error_risk, RelUncertaintyPercent]
+
+# ─── Environmental ─────────────────────────────────────────────
+
+environment.temperature:
+  en: [temperature, temp, air_temperature, water_temperature, sst]
+  fr: [temperature, temp]
+  es: [temperatura, temp]
+  pt: [temperatura, temp]
+  de: [temperatur, temp]
+
+environment.precipitation:
+  en: [precipitation, rainfall, rain, precip, annual_rainfall]
+  fr: [precipitation, pluie, pluviometrie]
+  es: [precipitacion, lluvia, pluviometria]
+  pt: [precipitacao, chuva]
+  de: [niederschlag, regen]
+
+environment.topography:
+  en: [slope, aspect, slope_deg, slope_pct, exposition]
+  fr: [pente, exposition, aspect]
+  es: [pendiente, exposicion, aspecto]
+
+environment.geology:
+  en: [lithology, geology, soil_type, substrate, bedrock]
+  fr: [lithologie, geologie, type_sol, substrat]
+
+environment.salinity:
+  en: [salinity, sal, psu]
+  fr: [salinite, sal]
+  es: [salinidad, sal]
+  pt: [salinidade, sal]
+
+environment.ph:
+  en: [ph, soil_ph, water_ph]
+  fr: [ph, ph_sol, ph_eau]
+  es: [ph, ph_suelo, ph_agua]
+  pt: [ph, ph_solo, ph_agua]
+
+# ─── Temporal ──────────────────────────────────────────────────
+
+event.date:
+  en: [date, event_date, collection_date, observation_date, sampling_date]
+  fr: [date, date_evenement, date_collecte, date_observation]
+  es: [fecha, fecha_evento, fecha_colecta, fecha_observacion]
+  pt: [data, data_evento, data_coleta, data_observacao]
+  de: [datum, ereignisdatum, sammeldatum]
+  id: [tanggal, tanggal_koleksi]
+  dwc: [eventdate, dateidentified]
+  sinp: [dateDebut, date_debut, dateFin, date_fin, date_min, date_max, dateDetermination, date_determination, dEEDateDerniereModification, meta_create_date, meta_update_date]
+  splot: [Date_of_recording]
+
+event.year:
+  en: [year, obs_year, collection_year, survey_year, invyr, measyear]
+  fr: [annee, an, annee_observation, campagne]
+  es: [anio, ano, ano_colecta]
+  pt: [ano, ano_coleta]
+  de: [jahr, sammeljahr]
+  dwc: [year]
+
+# ─── Identifiers ───────────────────────────────────────────────
+
+identifier.record:
+  en: [id, record_id, row_id, observation_id, sample_id]
+  fr: [id, identifiant, numero]  # "numero" also in statistic.count — ambiguous, deferred to ML
+  es: [id, identificador, numero]
+  pt: [id, identificador, numero]
+  dwc: [occurrenceid, gbifid]
+  sinp: [idSINPOccTax, id_sinp, unique_id_sinp, idOrigine, id_origine, id_synthese, entity_source_pk_value]
+  splot: [Nr_table_in_publ, Nr_releve_in_table, Original_nr_in_database, GUID]
+
+identifier.taxon:
+  en: [taxon_id, species_id, taxon_key, idtax_individual_f]
+  fr: [id_taxon, id_taxonref, code_taxon]
+  es: [id_taxon, clave_taxon]
+  pt: [id_taxon, chave_taxon]
+  dwc: [taxonid, taxonkey, acceptednameusageid]
+  sinp: [cdNom, cd_nom, cdRef, cd_ref, cd_taxsup, cd_sup]
+  ets: [TPLID, WCVPID]
+
+identifier.plot:
+  en: [plot_id, site_id, station_id, quadrat_id, transect_id, subp, plotcode, id_table_liste_plots_n]
+  fr: [id_parcelle, id_site, id_station, id_transect, idp]
+  es: [id_parcela, id_sitio, id_estacion]
+  pt: [id_parcela, id_local, id_estacao]
+  splot: [PlotObservationID, GIVD_ID, Original_plotID, Original_subplotID]
+
+identifier.collection:
+  en: [catalog_number, collection_code, specimen_id, voucher, accession_number]
+  fr: [numero_catalogue, code_collection, numero_specimen]
+  dwc: [catalognumber, collectioncode]
+
+identifier.institution:
+  en: [institution_code, institution_id, museum_code, herbarium_code]
+  dwc: [institutioncode]
+
+# ─── Abundance / Count ─────────────────────────────────────────
+
+statistic.count:
+  en: [count, abundance, n, nb, number, individuals, total, freq, frequency, nbe_stem, nbe_plots]
+  fr: [nombre, abondance, nb, effectif, total, frequence]
+  es: [numero, abundancia, conteo, total, frecuencia]  # "numero" also in identifier.record — ambiguous, deferred to ML
+  pt: [numero, abundancia, contagem, total, frequencia]
+  de: [anzahl, haeufigkeit]
+  id: [jumlah, kelimpahan]
+  sinp: [denombrementMin, denombrement_min, count_min, denombrementMax, denombrement_max, count_max]
+  ets: [Replicates, replicates, measurementValue_min, measurementValue_max]
+  splot: [Original_abundance, Species_richness]
+
+# ─── Status / Category ─────────────────────────────────────────
+
+category.conservation_status:
+  en: [iucn, iucn_status, conservation_status, threat_status, red_list]
+  fr: [statut_iucn, statut_conservation, liste_rouge]
+  es: [estado_iucn, estado_conservacion, lista_roja]
+  pt: [estado_iucn, estado_conservacao, lista_vermelha]
+
+category.endemism:
+  en: [endemism, endemic_status, biogeographic_status, origin]
+  fr: [endemisme, statut_endemisme, statut_biogeographique, origine]
+  es: [endemismo, estado_endemismo, origen]
+  pt: [endemismo, estado_endemismo, origem]
+
+category.ecology:
+  en: [phenology, pheno, life_stage, reproductive_condition, succession_guild, bioclimatic_group, light_observations, taxa_level_phenology]
+  fr: [phenologie, pheno, stade_vie, guilde_succession]
+  dwc: [lifestage, reproductivecondition]
+  sinp: [occSexe, occ_sexe, occStadeDeVie, occ_stade_de_vie, occEtatBiologique, occ_etat_biologique, occNaturalite, occ_naturalite, occStatutBiologique, occ_statut_biologique, occStatutBioGeographique, occComportement, occ_comportement, stadeDeVie, stade_de_vie, statutBiologique, statut_biologique]
+  ets: [morphotype]
+  splot: [Naturalness]
+
+category.status:
+  en: [status, tree_status, occurrence_status, vitality, determination_status]
+  fr: [statut, etat, vitalite]
+  dwc: [occurrencestatus, taxonomicstatus]
+
+category.vegetation:
+  en: [strata, stratum, holdridge, life_zone]
+  fr: [strate, holdridge, zone_vie]
+
+category.basis:
+  dwc: [basisofrecord]
+  ets: [basisOfRecord]
+
+category.method:
+  en: [sampling_protocol, survey_method, sampling_method]
+  fr: [protocole_echantillonnage, methode_releve]
+  dwc: [samplingprotocol]
+  sinp: [obsTechnique, techniqueObservation, technique_observation, techniqueEchantillonnage, technique_echantillonnage, statutSource, statut_source, statutObservation, statut_observation]
+  ets: [statisticalMethod, ValueKindName, UncertaintyName, aggregateMeasure]
+  splot: [Abundance_scale]
+
+category.habitat:
+  en: [habitat, vegetation_type, ecosystem, biome, land_cover, forest_type]
+  fr: [habitat, type_vegetation, ecosysteme, biome, couverture_sol, type_foret]
+  es: [habitat, tipo_vegetacion, ecosistema, bioma, cobertura_suelo]
+  pt: [habitat, tipo_vegetacao, ecossistema, bioma]
+  dwc: [habitat]
+  sinp: [codeHabitat, code_habitat, refHabitat, codeHabRef]
+
+# ─── Location (extended) ──────────────────────────────────────
+
+location.admin_area:
+  en: [state, province, county, region, district, department]
+  fr: [province, departement, region, commune, canton]
+  es: [provincia, departamento, region, distrito]
+  pt: [provincia, departamento, regiao, distrito]
+  dwc: [stateprovince, county]
+  sinp: [codeCommune, code_commune, codeDepartement, code_departement, nomDepartement, nom_departement, codeMaille, code_maille]
+
+location.continent:
+  en: [continent]
+  fr: [continent]
+  dwc: [continent]
+
+# ─── Text / Observer ──────────────────────────────────────────
+
+text.observer:
+  en: [recorded_by, identified_by, observer, collector, determiner, botanist]
+  fr: [observateur, collecteur, determinateur, botaniste]
+  es: [observador, colector, determinador]
+  pt: [observador, coletor, determinador]
+  dwc: [recordedby, identifiedby]
+  sinp: [observers, determiner]
+  ets: [measurementDeterminedBy]
+  splot: [Releve_author, Releve_coauthors]
+
+text.source:
+  en: [source, dataset, data_provider]
+  splot: [Dataset]
+
+text.reference:
+  en: [reference, references, bibliography]
+  ets: [references]
+  splot: [Biblioreference, BIBTEXKEY, DB_BIBTEXKEY]
+
+text.metadata:
+  en: [remarks, comment, notes, project]
+  splot: [Project, Remarks]

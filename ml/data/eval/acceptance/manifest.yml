@@ -1,0 +1,11 @@
+datasets:
+  - name: acceptance-niamoto-gb
+    tier: acceptance
+    suite: instances_real
+    annotations: ml/data/eval/annotations/niamoto-gb.yml
+    data_dir: test-instance/niamoto-gb/imports
+  - name: acceptance-fia-or
+    tier: acceptance
+    suite: coded_inventory
+    annotations: ml/data/eval/annotations/fia-or.yml
+    data_dir: ml/data/silver

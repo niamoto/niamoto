@@ -1,0 +1,156 @@
+# Silver dataset annotations — keyed by relative path from data/silver/.
+# Only strategic columns annotated; unannotated columns are skipped.
+
+Forest_Data_Berenty_Reserve.csv:
+  Forest_type: category.vegetation
+  Forest: identifier.plot
+  Plot: identifier.plot
+  Decimal Latitude: location.latitude
+  Decimal Longitude: location.longitude
+  Geodetic Datum: other.metadata
+  Elevation (m): location.elevation
+  Number: identifier.record
+  Family: taxonomy.family
+  Genus: taxonomy.genus
+  Specific_epithet: taxonomy.species
+  Author: text.metadata
+  Vernacular_name: taxonomy.vernacular_name
+  Height_m: measurement.height
+  Crown_a_m: measurement.canopy
+  Crown_b_m: measurement.canopy
+  CBH_cm: measurement.diameter
+  Diameter_mm: measurement.diameter
+  DBH_branch_cm: measurement.diameter
+  DBH_individual_cm: measurement.diameter
+  Basal_area: measurement.biomass
+
+zenodo_bci_allometry.csv:
+  Mnemonic: identifier.taxon
+  SpeciesName: taxonomy.species
+  Site: location.locality
+  Date: event.date
+  Tag: identifier.record
+  HeightOfMeasurement: measurement.height
+  Diameter: measurement.diameter
+  Height: measurement.height
+  CrownArea: measurement.canopy
+
+iefc_catalonia.csv:
+  Idutm: identifier.record
+  Species: taxonomy.species
+  Samp_year: event.year
+  Samp_month: event.date
+  X_utm31N_m: location.coordinate
+  Y_utm31N_m: location.coordinate
+  County: location.admin_area
+  Elevation_m: location.elevation
+  Slope_deg: environment.topography
+  Aspect: environment.topography
+  Prec_mm: environment.precipitation
+  Tair: environment.temperature
+  Tair_max: environment.temperature
+  Tair_min: environment.temperature
+  Density_stems_ha: statistic.count
+  Biomass_t_ha: measurement.biomass
+  Lithology: environment.geology
+  BL_AS_t_m2: measurement.biomass
+  Nmass_percent: measurement.trait
+  LMA_mg_cm2: measurement.trait
+  Hmax_m: measurement.height
+  WD_g_cm3: measurement.wood_density
+
+ifn_france/ARBRE.csv:
+  CAMPAGNE: event.year
+  IDP: identifier.plot
+  A: identifier.record
+  ESPAR: taxonomy.species
+  VEGET: category.status
+  VEGET5: category.status
+  DATEMORT: event.date
+  AGE: measurement.trait
+  C13: measurement.diameter
+  HTOT: measurement.height
+  HDEC: measurement.height
+  V: measurement.biomass
+  W: measurement.biomass
+
+finland_sweden/trees_finland_and_sweden.csv:
+  treecode: identifier.record
+  plotcode: identifier.plot
+  treestatus: category.status
+  dbh1: measurement.diameter
+  dbh2: measurement.diameter
+  weight1: measurement.biomass
+  weight2: measurement.biomass
+  country: location.country
+  taxonname: taxonomy.species
+
+finland_sweden/plots_finland_and_sweden.csv:
+  plotcode: identifier.plot
+  country: location.country
+  surveydate1: event.date
+  surveydate2: event.date
+  longitude_generalised: location.longitude
+  latitude_generalised: location.latitude
+  management2: category.ecology
+
+afrique/occurrences.csv:
+  tax_fam: taxonomy.family
+  tax_infra_level_auth: taxonomy.name
+  tax_infra_level: taxonomy.species
+  tax_esp: taxonomy.species
+  tax_gen: taxonomy.genus
+  tax_sp_level: taxonomy.species
+  plot_name: identifier.plot
+  idtax_individual_f: identifier.taxon
+  id_n: identifier.record
+  stem_diameter: measurement.diameter
+  taxa_mean_wood_density: measurement.wood_density
+  id_table_liste_plots_n: identifier.plot
+  taxa_phenology: category.ecology
+  light_observations: category.ecology
+  taxa_bioclimatic_group: category.ecology
+  taxa_bioclimatic_subgroup: category.ecology
+  taxa_mean_leaf_N_content: measurement.trait
+  taxa_succession_guild: category.ecology
+  elev: location.elevation
+  locality_name: location.locality
+  ddlat: location.latitude
+  ddlon: location.longitude
+  geo_pt: location.coordinate
+  taxa_level_wood_density_mean: measurement.wood_density
+  tax_rank01: taxonomy.rank
+
+afrique/plots.csv:
+  id_liste_plots: identifier.record
+  plot_name: identifier.plot
+  locality_name: location.locality
+  country: location.country
+  ddlat: location.latitude
+  ddlon: location.longitude
+  method: category.method
+  date_y: event.year
+  date_m: event.date
+  data_provider: text.observer
+  nbe_stem: statistic.count
+  geo_pt: location.coordinate
+
+fia_fl_tree.csv:
+  CN: identifier.record
+  PLT_CN: identifier.plot
+  INVYR: event.year
+  STATECD: location.admin_area
+  COUNTYCD: location.admin_area
+  PLOT: identifier.plot
+  SUBP: identifier.plot
+  TREE: identifier.record
+  STATUSCD: category.status
+  SPCD: identifier.taxon
+  DIA: measurement.diameter
+  HT: measurement.height
+  ACTUALHT: measurement.height
+  CR: measurement.canopy
+  VOLCFNET: measurement.biomass
+  VOLBFNET: measurement.biomass
+  DRYBIO_AG: measurement.biomass
+  CARBON_AG: measurement.biomass

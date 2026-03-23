@@ -1,167 +1,127 @@
-# ML Detection System Overview
+# Automatic column detection
 
-## Introduction
+> Status: Active
+> Audience: Team, AI agents, curious developers
+> Purpose: Conceptual overview of the ML detection system and its current
+> state
 
-The Niamoto ML Detection system provides automatic field detection and mapping for imported data using machine learning techniques. This system analyzes data content to identify column types, semantic meaning, and suggest appropriate mappings.
+## What it does
 
-## Core Components
+You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column ("this is a diameter, this is a species, this is coordinates"), Niamoto **automatically detects** the content and proposes a complete dashboard: diameter histogram, distribution map, breakdown by family.
 
-### 1. ML Detector (`ml_detector.py`)
-- **RandomForestClassifier** for column type detection
-- Statistical feature extraction
-- Semantic pattern recognition
-- Confidence scoring
+You only need to adjust if necessary.
 
-### 2. Auto Detector (`auto_detector.py`)
-- Automatic configuration generation
-- Field mapping suggestions
-- Data profiling and analysis
-- Integration with import pipeline
+## Why it is necessary
 
-### 3. Bootstrap System (`bootstrap.py`)
-- Initial configuration setup
-- Template generation
-- Quick start for new projects
+Every team names its columns differently:
 
-### 4. Profiler (`profiler.py`)
-- Data statistical analysis
-- Pattern detection
-- Quality assessment
-- Feature extraction for ML
+| What it is | French Guiana | France IFN | FIA (US) | Spain | Anonymous |
+|------------|---------------|------------|----------|-------|-----------|
+| Diameter | `diam` | `C13` | `DIA` | `dap` | `X1` |
+| Height | `haut` | `HTOT` | `HT` | `altura` | `col_2` |
+| Species | `espece` | `ESPAR` | `SPCD` | `especie` | `X5` |
+| Latitude | `lat` | `YL` | `LAT` | `latitud` | `col_3` |
 
-## Detection Capabilities
+Without automatic detection, every user must manually configure their columns before being able to visualise anything. This is a barrier to adoption.
 
-### Supported Field Types
-- **Taxonomic**: species names, genus, family
-- **Geographic**: latitude, longitude, coordinates
-- **Temporal**: dates, timestamps, periods
-- **Identifiers**: IDs, codes, references
-- **Measurements**: numeric values with units
-- **Categories**: classifications, types, status
+## How it works
 
-### Detection Process
+The system detects the **role** of each column — that is, what can be done with it:
 
-```python
-# 1. Load and profile data
-profiler = DataProfiler()
-profile = profiler.analyze(dataframe)
+| Detected role | What Niamoto proposes |
+|--------------|----------------------|
+| Numeric measurement | Histogram, statistical summary, scatter plot |
+| Taxonomy | Breakdown by family/genus, sunburst |
+| Geographic coordinates | Interactive map |
+| Temporal data | Timeline, year filter |
+| Category | Bar chart, donut chart |
+| Identifier | Join key between tables |
 
-# 2. Extract features
-features = extract_features(profile)
+Two complementary signals are combined to achieve this:
 
-# 3. Predict field types
-detector = MLColumnDetector()
-predictions = detector.predict(features)
+1. **The column name** — `diametre` and `diametro` share the same letter sequences. A character n-gram model naturally groups them together, even across related languages.
 
-# 4. Generate configuration
-config = generate_config(predictions)
+2. **The values** — a diameter follows a log-normal distribution between 5 and 300, coordinates lie between -90 and 90, a species name follows the "Genus species" format. When the column name is anonymous (`X1`), the values take over.
+
+Both are fused into a final prediction. The user can then refine each transformer/widget pair in the GUI.
+
+## Training data
+
+The model is trained on **2,540 labelled columns** from:
+
+- **104 real datasets**: IFN France, FIA US, GBIF variants, GUYADIV, tested
+  Niamoto instances, TAXREF, ETS extensions, sPlotOpen, and several tropical or
+  research-oriented ecological datasets
+- **6 continents**, **8 languages** (EN, FR, ES, PT, DE, ID + anonymous headers)
+- **61 concepts** organised into roles: taxonomy, location, measurements, environment, statistics, temporal, categories, identifiers
+
+All detection runs locally with scikit-learn (~3 MB of dependencies). No network required, no LLM.
+
+## Contributing
+
+To improve detection for a poorly recognised column type:
+
+1. **Add aliases** in `src/niamoto/core/imports/ml/column_aliases.yaml` — no ML needed, just a YAML file. Example: add `"circonference"` as an alias for `measurement.diameter` in French.
+
+2. **Add training data** in `ml/scripts/data/build_gold_set.py` — label the columns from a new dataset and reference it in the source list.
+
+3. **Retrain**: `uv run python -m ml.scripts.train.train_header_model && uv run python -m ml.scripts.train.train_value_model`
+
+## Current scores
+
+| Model | Macro-F1 | What this means |
+|-------|----------|-----------------|
+| Header (column name) | 0.77 | The strongest branch when names are informative |
+| Values (statistical values) | 0.38 | Values alone remain ambiguous, but they are improving on anonymous and numeric cases |
+| Fusion (header + values) | ProductScore 80.84 / GlobalScore 82.76 | Combined signal from both branches on the current offline benchmark |
+
+The header score is the most important because in the majority of cases columns have informative names. The values model kicks in when the name is anonymous or ambiguous.
+
+## Known limitations
+
+- Very rare columns (< 5 examples in the gold set) are grouped under generic categories
+- Confidence calibration is not yet in place — the model cannot yet say "I am 85% confident"
+- The values model remains weak at distinguishing two measurement types from each other (diameter vs height) — but this is not blocking since the "measurement" role is sufficient to suggest a histogram
+
+## Technical architecture
+
+```
+Imported CSV
+     │
+     ├── Column name ──→ TF-IDF char n-grams ──→ LogisticRegression
+     │                                                   │
+     ├── Values ──→ 37 statistical features ──→ HistGradientBoosting
+     │                                                   │
+     └── Fusion ──→ LogReg calibrated on probabilities from both branches
+                          │
+                   Detected role + confidence
+                          │
+                   Suggested transformer/widget pairs
 ```
 
-## Key Features
+## Academic References
 
-### Smart Detection
-- Analyzes content patterns, not just column names
-- Handles multiple languages and formats
-- Adapts to domain-specific data
+| Project | Year | Approach | Features | Performance | Ecological Relevance | Status |
+|---------|------|----------|----------|-------------|---------------------|--------|
+| **Sherlock** | 2019 | Deep NN | 1,588 | F1: 0.89 | Low (generic types) | Abandoned |
+| **Sato** | 2020 | Hybrid DL + Topic | 1,588+ | F1: 0.92 | Low | Inactive |
+| **Pythagoras** | 2024 | GNN | Graph-based | F1: 0.94 | Medium (numeric) | Active |
+| **GAIT** | 2024 | GNN variants | Multi-graph | F1: 0.93 | Medium | Active |
+| **GitTables** | 2023 | Dataset | N/A | Benchmark | High (diverse) | Active |
 
-### Confidence Scoring
-- Provides confidence levels for predictions
-- Suggests manual review for low-confidence mappings
-- Learns from user corrections
+Niamoto's approach differs from these academic systems: it uses a lightweight hybrid pipeline (TF-IDF + HistGradientBoosting + Fusion) optimized for ecological data, running fully offline with scikit-learn (~3 MB).
 
-### Integration
-- Seamless integration with import pipeline
-- GUI support for visual configuration
-- CLI commands for automation
+## Key files
 
-## Architecture
-
-```
-┌─────────────────────┐
-│   Input Data (CSV)  │
-└──────────┬──────────┘
-           │
-    ┌──────▼──────┐
-    │   Profiler  │
-    └──────┬──────┘
-           │
-    ┌──────▼──────────┐
-    │ Feature Extract │
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │  ML Classifier  │
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │ Config Generator│
-    └──────┬──────────┘
-           │
-    ┌──────▼──────────┐
-    │  import.yml     │
-    └─────────────────┘
-```
-
-## Usage Examples
-
-### CLI Usage
-```bash
-# Auto-detect and generate config
-niamoto detect data.csv --output import.yml
-
-# With custom model
-niamoto detect data.csv --model custom_model.pkl
-```
-
-### Python API
-```python
-from niamoto.core.imports.ml_detector import MLColumnDetector
-from niamoto.core.imports.auto_detector import AutoDetector
-
-# Initialize detector
-detector = MLColumnDetector()
-
-# Detect column types
-results = detector.detect_columns('data.csv')
-
-# Generate configuration
-auto_detector = AutoDetector()
-config = auto_detector.generate_config(results)
-```
-
-## Training Custom Models
-
-The system can be trained on domain-specific data:
-
-```python
-from niamoto.core.imports.ml_detector import train_detector
-
-# Prepare training data
-training_data = prepare_training_data()
-
-# Train model
-model = train_detector(training_data)
-
-# Save model
-model.save('custom_detector.pkl')
-```
-
-## Performance
-
-- **Accuracy**: 85-95% on standard ecological data
-- **Speed**: <1 second for typical CSV files
-- **Scalability**: Handles files up to 1GB efficiently
-
-## Future Enhancements
-
-- Deep learning models for complex patterns
-- Multi-language support expansion
-- Real-time learning from user feedback
-- Cloud-based model sharing
-
-## Related Documentation
-
-- [Implementation Details](implementation.md)
-- [Training Guide](training-guide.md)
-- [API Reference](detector-usage.md)
-- [Roadmap](roadmap.md)
+| File | Purpose |
+|------|---------|
+| `src/niamoto/core/imports/ml/alias_registry.py` | Name → concept matching via multilingual aliases |
+| `src/niamoto/core/imports/ml/column_aliases.yaml` | 25 concepts × 8 languages |
+| `ml/scripts/eval/evaluation.py` | Evaluation harness (GroupKFold, holdouts) |
+| `ml/scripts/data/concept_taxonomy.py` | Fusion of 111 fine concepts → 61 concepts |
+| `src/niamoto/core/imports/profiler.py` | DataProfiler with `ml_mode=auto/off/force` |
+| `ml/scripts/data/build_gold_set.py` | Gold set construction (88 sources) |
+| `ml/scripts/train/train_header_model.py` | Header branch training |
+| `ml/scripts/train/train_value_model.py` | Values branch training |
+| `ml/scripts/eval/evaluate.py` | CLI metric for evaluation |
+| `ml/data/gold_set.json` | 2,231 labelled columns |

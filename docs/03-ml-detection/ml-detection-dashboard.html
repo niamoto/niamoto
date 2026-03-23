@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niamoto — ML Semantic Column Detection: Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --blue: #2563eb; --blue-light: #dbeafe; --blue-dark: #1e40af;
+  --green: #059669; --green-light: #d1fae5;
+  --orange: #d97706; --orange-light: #fef3c7;
+  --red: #dc2626; --red-light: #fee2e2;
+  --purple: #7c3aed; --purple-light: #ede9fe;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+  --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+  --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937;
+  --gray-900: #111827;
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+html { scroll-behavior: smooth; }
+body { font-family: var(--font); color: var(--gray-800); line-height: 1.6; background: #fff; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* Navigation */
+nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-bottom: 1px solid var(--gray-200); }
+nav .container { display: flex; align-items: center; gap: 8px; padding-top: 10px; padding-bottom: 10px; overflow-x: auto; }
+nav a { font-size: 13px; font-weight: 500; color: var(--gray-500); text-decoration: none; padding: 4px 10px; border-radius: 6px; white-space: nowrap; transition: all 0.15s; }
+nav a:hover, nav a.active { color: var(--blue); background: var(--blue-light); }
+nav .logo { font-weight: 700; color: var(--gray-900); font-size: 15px; margin-right: 8px; }
+
+/* Hero */
+.hero { padding: 60px 0 40px; border-bottom: 1px solid var(--gray-200); }
+.hero h1 { font-size: 32px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+.hero .subtitle { font-size: 18px; color: var(--gray-500); font-weight: 400; margin-bottom: 32px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+.stat-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; text-align: center; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: var(--blue); font-family: var(--mono); }
+.stat-card .label { font-size: 12px; color: var(--gray-500); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card.green .value { color: var(--green); }
+.stat-card.orange .value { color: var(--orange); }
+.stat-card.purple .value { color: var(--purple); }
+
+/* Sections */
+section { padding: 48px 0; border-bottom: 1px solid var(--gray-100); }
+section:last-child { border-bottom: none; }
+h2 { font-size: 24px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+h2 .num { color: var(--blue); font-family: var(--mono); font-size: 18px; margin-right: 8px; }
+h3 { font-size: 18px; font-weight: 600; color: var(--gray-800); margin: 24px 0 12px; }
+.section-desc { color: var(--gray-500); margin-bottom: 24px; font-size: 15px; }
+p { margin-bottom: 12px; }
+
+/* Pipeline diagram */
+.pipeline { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px; background: var(--gray-50); border-radius: 16px; border: 1px solid var(--gray-200); margin: 24px 0; }
+.pipeline-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.pipeline-box { background: #fff; border: 2px solid var(--gray-300); border-radius: 12px; padding: 16px 20px; min-width: 220px; cursor: pointer; transition: all 0.2s; }
+.pipeline-box:hover { border-color: var(--blue); box-shadow: 0 4px 12px rgba(37,99,235,0.15); }
+.pipeline-box.active { border-color: var(--blue); background: var(--blue-light); }
+.pipeline-box h4 { font-size: 14px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+.pipeline-box .algo { font-family: var(--mono); font-size: 12px; color: var(--blue); }
+.pipeline-box .score { font-family: var(--mono); font-size: 20px; font-weight: 700; margin-top: 8px; }
+.pipeline-arrow { color: var(--gray-400); font-size: 24px; }
+.pipeline-detail { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; width: 100%; max-width: 700px; display: none; }
+.pipeline-detail.visible { display: block; }
+.pipeline-detail h4 { font-size: 15px; margin-bottom: 12px; }
+.pipeline-detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pipeline-detail td { padding: 6px 12px; border-bottom: 1px solid var(--gray-100); }
+.pipeline-detail td:first-child { font-family: var(--mono); font-weight: 500; color: var(--gray-600); white-space: nowrap; width: 200px; }
+.flow-explainer { margin-top: 24px; padding: 24px; background: linear-gradient(180deg, #ffffff 0%, var(--gray-50) 100%); border: 1px solid var(--gray-200); border-radius: 16px; }
+.flow-explainer h3 { margin-top: 0; }
+.flow-lead { font-size: 14px; color: var(--gray-600); margin-bottom: 18px; }
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }
+.flow-step { position: relative; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; min-height: 160px; }
+.flow-step .step-num { display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--blue); background: var(--blue-light); padding: 3px 8px; border-radius: 999px; margin-bottom: 10px; }
+.flow-step h4 { font-size: 14px; margin-bottom: 8px; color: var(--gray-900); }
+.flow-step p { font-size: 13px; color: var(--gray-600); margin-bottom: 8px; }
+.flow-step code { font-family: var(--mono); font-size: 12px; }
+.flow-arrow { text-align: center; color: var(--gray-400); font-size: 18px; margin: -2px 0; }
+.flow-note { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; margin-top: 16px; }
+.flow-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 18px; }
+.flow-card h4 { margin-top: 0; margin-bottom: 10px; font-size: 14px; }
+.flow-card ul { padding-left: 18px; margin: 0; color: var(--gray-600); font-size: 13px; }
+.flow-card li { margin-bottom: 6px; }
+@media (max-width: 768px) { .flow-note { grid-template-columns: 1fr; } }
+
+/* Charts */
+.chart-container { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; margin: 16px 0; }
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .chart-row { grid-template-columns: 1fr; } }
+
+/* Tables */
+table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data-table th { background: var(--gray-50); padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); border-bottom: 2px solid var(--gray-200); position: sticky; top: 44px; z-index: 10; }
+table.data-table td { padding: 8px 12px; border-bottom: 1px solid var(--gray-100); }
+table.data-table tr:hover { background: var(--gray-50); }
+table.data-table .num { font-family: var(--mono); text-align: right; }
+.table-wrap { max-height: 400px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 8px; }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+.badge.gbif { background: var(--blue-light); color: var(--blue-dark); }
+.badge.ifn { background: var(--green-light); color: var(--green); }
+.badge.zenodo { background: var(--orange-light); color: var(--orange); }
+.badge.inventory { background: var(--purple-light); color: var(--purple); }
+.badge.synthetic { background: var(--gray-100); color: var(--gray-500); }
+
+/* Info tooltips */
+.info-tip { cursor: help; color: var(--gray-400); font-size: 14px; position: relative; display: inline-block; vertical-align: middle; margin-left: 2px; }
+.info-tip:hover { color: var(--blue); }
+.info-tip[title] { position: relative; }
+.info-tip[title]:hover::after {
+  content: attr(title); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--gray-800); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 400;
+  line-height: 1.5; white-space: normal; width: 280px; z-index: 200; text-transform: none; letter-spacing: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: none;
+}
+.info-tip[title]:hover::before {
+  content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--gray-800); z-index: 200;
+}
+
+/* Filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-btn { padding: 6px 14px; border-radius: 99px; border: 1px solid var(--gray-300); background: #fff; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+.filter-btn:hover { border-color: var(--blue); color: var(--blue); }
+.filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* Justification blocks */
+.justification { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 12px; padding: 24px; margin: 20px 0; }
+.justification h3 { margin-top: 0; font-size: 16px; }
+.justification .choice { font-family: var(--mono); font-size: 13px; color: var(--blue); background: var(--blue-light); padding: 8px 12px; border-radius: 6px; margin: 8px 0; display: inline-block; }
+.justification .citations { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-200); }
+.justification .citation { font-size: 13px; color: var(--gray-600); margin-bottom: 6px; padding-left: 16px; text-indent: -16px; }
+.justification .citation a { color: var(--blue); text-decoration: none; }
+.justification .citation a:hover { text-decoration: underline; }
+.verdict { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.verdict.supports { background: var(--green-light); color: #065f46; }
+.verdict.challenges { background: var(--red-light); color: #991b1b; }
+
+/* Error pattern blocks */
+.error-pattern { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 12px; padding: 24px; margin: 20px 0; }
+.error-pattern h4 { font-size: 15px; font-weight: 600; color: var(--gray-900); margin-bottom: 8px; }
+.error-pattern .pattern-id { font-family: var(--mono); font-size: 12px; color: var(--red); background: var(--red-light); padding: 4px 10px; border-radius: 6px; margin-bottom: 12px; display: inline-block; }
+.error-pattern p { font-size: 14px; color: var(--gray-600); }
+
+/* Comparison table */
+table.comparison { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.comparison th { background: var(--gray-800); color: #fff; padding: 10px 12px; font-weight: 500; font-size: 12px; }
+table.comparison td { padding: 10px 12px; border-bottom: 1px solid var(--gray-200); vertical-align: top; }
+table.comparison tr:nth-child(odd) { background: var(--gray-50); }
+table.comparison .current { background: var(--blue-light) !important; font-weight: 500; }
+.status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.status.done { background: var(--green-light); color: var(--green); }
+.status.wip { background: var(--orange-light); color: var(--orange); }
+.status.planned { background: var(--gray-100); color: var(--gray-500); }
+.status.rejected { background: var(--red-light); color: var(--red); }
+
+/* References */
+.ref-list { list-style: none; counter-reset: ref; }
+.ref-list li { counter-increment: ref; padding: 8px 0 8px 40px; position: relative; font-size: 13px; color: var(--gray-600); border-bottom: 1px solid var(--gray-100); }
+.ref-list li::before { content: '[' counter(ref) ']'; position: absolute; left: 0; font-family: var(--mono); font-weight: 600; color: var(--blue); font-size: 12px; }
+.ref-list a { color: var(--blue); text-decoration: none; }
+.ref-list a:hover { text-decoration: underline; }
+.ref-category { font-size: 14px; font-weight: 600; color: var(--gray-900); margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--gray-200); }
+
+/* Collapsible */
+details { margin: 8px 0; }
+details summary { cursor: pointer; font-weight: 500; font-size: 14px; color: var(--blue); padding: 8px 0; }
+details summary:hover { color: var(--blue-dark); }
+details[open] summary { margin-bottom: 8px; }
+
+/* Info box */
+.info-box { background: var(--blue-light); border: 1px solid var(--blue); border-radius: 12px; padding: 20px 24px; margin: 20px 0; }
+.info-box h3 { color: var(--blue-dark); margin-top: 0; }
+.info-box p { font-size: 14px; color: var(--gray-700); }
+
+/* Print */
+@media print {
+  nav { display: none; }
+  section { page-break-inside: avoid; }
+  .chart-container { border: 1px solid #ccc; }
+  body { font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+<div class="container">
+  <span class="logo">Niamoto ML</span>
+  <a href="#hero">Summary</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#datasets">Datasets</a>
+  <a href="#taxonomy">Taxonomy</a>
+  <a href="#evaluation">Evaluation</a>
+  <a href="#instance-eval">Instances</a>
+  <a href="#errors">Error Patterns</a>
+  <a href="#training">Training</a>
+  <a href="#workflow">Workflow</a>
+  <a href="#methodology">Methodology</a>
+  <a href="#alternatives">Alternatives</a>
+  <a href="#references">References</a>
+</div>
+</nav>
+
+<!-- Hero -->
+<section id="hero" class="hero">
+<div class="container">
+  <h1>Automatic Semantic Column Detection via Machine Learning</h1>
+  <p class="subtitle">Niamoto — Generic Ecological Data Platform</p>
+  <div class="stats-grid">
+    <div class="stat-card" style="border-color:var(--blue);grid-column:span 2;"><div class="value" style="font-size:36px;color:var(--blue);">80.84</div><div class="label">ProductScore <span class="info-tip" title="Historical holdout benchmark recalculated after the 2026-03-21 retrain. Weighted composite across tropical_field, research_traits, GBIF core/extended, en_field, and anonymous.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--green);"><div class="value" style="font-size:24px;color:var(--green);">82.76</div><div class="label">GlobalScore <span class="info-tip" title="Historical NiamotoOfflineScore recalculated after the 2026-03-21 retrain on the full gold-set protocol.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">84.7%</div><div class="label">EvalSuite Concept <span class="info-tip" title="Latest end-to-end concept accuracy from the 2026-03-21 retrain on 9 evaluation datasets (478 columns), including frozen acceptance benchmarks.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">90.4%</div><div class="label">EvalSuite Role <span class="info-tip" title="Latest end-to-end role accuracy from the 2026-03-21 retrain on 9 evaluation datasets (478 columns).">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">2 540</div><div class="label">Labeled Columns <span class="info-tip" title="Total columns in the rebuilt gold set after the TAXREF v18, ETS, and sPlotOpen acquisition wave.">&#9432;</span></div></div>
+    <div class="stat-card"><div class="value">61</div><div class="label">Concepts <span class="info-tip" title="Distinct semantic concepts after coarsening (e.g. taxonomy.species, measurement.diameter, location.elevation). Fine-grained concepts (~116) are merged via concept_taxonomy.py for better ML performance.">&#9432;</span></div></div>
+  </div>
+  <div class="stats-grid" style="margin-top:16px;">
+    <div class="stat-card green"><div class="value">0.7530</div><div class="label">Header F1 <span class="info-tip" title="Macro-F1 of the header branch alone on the 2026-03-21 retrain. This remains the strongest branch of the pipeline.">&#9432;</span></div></div>
+    <div class="stat-card orange"><div class="value">0.3780</div><div class="label">Values F1 <span class="info-tip" title="Macro-F1 of the values branch alone on the 2026-03-21 retrain. Useful as support, but still the weakest generalization layer.">&#9432;</span></div></div>
+    <div class="stat-card" style="border-color:var(--blue);"><div class="value" style="color:var(--blue);">0.6388</div><div class="label">Fusion F1 <span class="info-tip" title="Leak-free macro-F1 (GroupKFold by dataset) on the 2026-03-21 retrain. Better than values alone, still below header-only.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">80.0%</div><div class="label">Frozen Acceptance <span class="info-tip" title="Weighted concept accuracy on the frozen acceptance benchmark (acceptance-niamoto-gb + acceptance-fia-or): 60 columns total, 80.0% concept accuracy.">&#9432;</span></div></div>
+    <div class="stat-card green"><div class="value">9</div><div class="label">Eval Datasets <span class="info-tip" title="Datasets included in the latest evaluation suite: 7 product/proxy datasets plus 2 frozen acceptance benchmarks.">&#9432;</span></div></div>
+  </div>
+  <div class="info-box" style="margin-top:20px;">
+    <h3>Latest retrain snapshot — 2026-03-21 19:40</h3>
+    <p>After the acquisition wave (`TAXREF v18`, `ETS`, `sPlotOpen`) and full retrain, the dashboard now shows both benchmark families: historical holdouts (`ProductScore 80.84`, `GlobalScore 82.76`) and product evaluation (`EvalSuite 84.7% concept`, `90.4% role`). Product datasets are strong (`niamoto-nc 91.2%`, `niamoto-gb 100%`, `guyadiv 83.6%`), while the frozen coded-inventory benchmark `acceptance-fia-or` remains the main weakness at <strong>63.6% concept</strong>.</p>
+  </div>
+</div>
+</section>
+
+<!-- 01 Architecture -->
+<section id="architecture">
+<div class="container">
+  <h2><span class="num">01</span>Pipeline Architecture</h2>
+  <p class="section-desc">Hybrid 5-layer pipeline: exact aliases &rarr; header classification &rarr; values classification &rarr; fusion &rarr; semantic product projection. The goal is not academic perfection on fine-grained concepts, but correct auto-configuration of an import.</p>
+
+  <div class="pipeline">
+    <div style="text-align:center; color:var(--gray-500); font-size:14px; font-weight:500;">Unknown Column</div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" onclick="showDetail('alias')" style="width:100%;max-width:400px;border-color:var(--green);background:var(--green-light);">
+      <h4>1. EXACT ALIASES</h4>
+      <div class="algo">High-precision fast-path (multilingual YAML)</div>
+      <div>If the name matches a known alias &rarr; immediate detection</div>
+    </div>
+    <div class="pipeline-arrow">&darr; otherwise</div>
+
+    <div class="pipeline-row">
+      <div class="pipeline-box" onclick="showDetail('header')">
+        <h4>2. HEADER</h4>
+        <div class="algo">TF-IDF char n-grams + L1 LogReg</div>
+        <div>Analyzes the column name</div>
+        <div class="score" style="color:var(--green)">F1 = 0.7530</div>
+      </div>
+      <div class="pipeline-box" onclick="showDetail('values')">
+        <h4>3. VALUES</h4>
+        <div class="algo">37 features + HistGradientBoosting</div>
+        <div>Statistically analyzes values</div>
+        <div class="score" style="color:var(--orange)">F1 = 0.3780</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" onclick="showDetail('fusion')" style="width:100%;max-width:400px;">
+      <h4>4. FUSION</h4>
+      <div class="algo">LogReg + meta-features (disagreement, confidence, coded headers, cross-rank)</div>
+      <div>Combines probabilities, corrects inter-branch biases</div>
+      <div class="score" style="color:var(--blue)">F1 = 0.6388</div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div style="text-align:center; padding:16px 24px; background:var(--blue); color:#fff; border-radius:8px; font-weight:600; width:100%; max-width:500px;">
+      5. SEMANTIC PROJECTION<br>
+      <span style="font-weight:400;font-size:13px;opacity:0.9;">role &rarr; concept &rarr; affordances &rarr; transformer/widget suggestions</span>
+    </div>
+
+    <!-- Detail panels -->
+    <div id="detail-alias" class="pipeline-detail">
+      <h4>Exact Aliases — High-precision fast-path</h4>
+      <table>
+        <tr><td>File</td><td><code>column_aliases.yaml</code> — 25 concepts &times; 8 languages (en, fr, es, pt, de, id, dwc, la)</td></tr>
+        <tr><td>Exact matching</td><td>Normalization &rarr; O(1) lookup. If found &rarr; confidence 1.0, bypass classifier.</td></tr>
+        <tr><td>Fuzzy matching</td><td>Levenshtein (rapidfuzz) ratio &ge; 80% if no exact match.</td></tr>
+        <tr><td>Safeguard</td><td>An ambiguous alias must be disabled. An exact alias must not create false positives at confidence 1.0.</td></tr>
+      </table>
+    </div>
+    <div id="detail-header" class="pipeline-detail">
+      <h4>Header Model — Hyperparameters</h4>
+      <table>
+        <tr><td>analyzer</td><td><code>char_wb</code> — character n-grams respecting word boundaries</td></tr>
+        <tr><td>ngram_range</td><td><code>(2, 5)</code> — character chunks of 2 to 5 (e.g., "di", "dia", "diam", "diame")</td></tr>
+        <tr><td>max_features</td><td><code>5,000</code> — keeps the 5000 most discriminative n-grams</td></tr>
+        <tr><td>sublinear_tf</td><td><code>True</code> — uses log(1 + frequency) instead of raw frequency</td></tr>
+        <tr><td>C</td><td><code>130.0</code> — inverse regularization strength (high value = confident model)</td></tr>
+        <tr><td>penalty</td><td><code>L1</code> (Lasso) — zeros out useless n-grams, automatic feature selection</td></tr>
+        <tr><td>solver</td><td><code>saga</code> — fast algorithm compatible with L1</td></tr>
+        <tr><td>class_weight</td><td><code>balanced</code> — rare concepts weigh as much as frequent ones</td></tr>
+      </table>
+    </div>
+    <div id="detail-values" class="pipeline-detail">
+      <h4>Values Model — 37 statistical features</h4>
+      <table>
+        <tr><td>Numeric statistics (14)</td><td>mean, std, min, max, skew, kurtosis, Q25, Q50, Q75, range, CV, neg_ratio, int_ratio, zero_ratio</td></tr>
+        <tr><td>Distribution (3)</td><td>unique_ratio, null_ratio, entropy</td></tr>
+        <tr><td>Characters (6)</td><td>mean_length, std_length, digit_ratio, alpha_ratio, space_ratio, mean_word_count</td></tr>
+        <tr><td>Regex patterns (4)</td><td>pct_date_iso, pct_coordinate, pct_boolean, pct_uuid</td></tr>
+        <tr><td>Biological patterns (2)</td><td>binomial_score (Genus species), family_suffix (aceae, idae, ales)</td></tr>
+        <tr><td>Numeric domains (6)</td><td>mean_decimals, in_lat_range, in_lon_range, in_01_range, small_int_ratio, pct_starts_upper</td></tr>
+        <tr><td>Meta (2)</td><td>is_numeric, n_values</td></tr>
+      </table>
+      <p style="margin-top:12px;font-size:13px;color:var(--gray-500)">Classifier: <code>HistGradientBoostingClassifier(max_iter=500, max_depth=10, learning_rate=0.05, class_weight="balanced")</code></p>
+    </div>
+    <div id="detail-fusion" class="pipeline-detail">
+      <h4>Fusion Model — Intelligent branch combination</h4>
+      <table>
+        <tr><td>Header input</td><td>61 probabilities (one per concept) from header model</td></tr>
+        <tr><td>Values input</td><td>61 probabilities from values model</td></tr>
+        <tr><td>Basic meta (3)</td><td>is_anonymous, null_ratio, unique_ratio</td></tr>
+        <tr><td>Enriched meta</td><td>max_proba, top1-top2 margin, entropy, header/values agreement/disagreement, <code>statistic.count</code> flags, code-like header detection</td></tr>
+        <tr><td style="color:var(--green);font-weight:600;">Cross-rank reciprocity (4) — NEW</td><td>header_top1_value_rank, value_top1_header_rank, top2_cross_match, both_weak</td></tr>
+        <tr><td>Targeted damping</td><td>If code-like header + a branch pushes <code>statistic.count</code> &rarr; damped confidence before fusion</td></tr>
+        <tr><td>Classifier</td><td><code>LogisticRegression(C=1.0, solver="lbfgs", class_weight="balanced")</code></td></tr>
+      </table>
+      <p style="margin-top:12px;font-size:13px;color:var(--gray-500)">Cross-rank reciprocity features capture how well the two branches agree across their top predictions. They were a strong gain in the previous optimization cycle; after the 2026-03-21 retrain the current baseline is ProductScore 80.84.</p>
+    </div>
+  </div>
+
+  <div class="flow-explainer">
+    <h3>How <code>column_aliases</code> fits into the ML system</h3>
+    <p class="flow-lead">The YAML alias file is not a separate heuristic living next to the model. It is the first stage of the same semantic detection pipeline. If a header is known exactly, Niamoto resolves it immediately. If not, it falls through to ML.</p>
+
+    <div class="flow-grid">
+      <div class="flow-step">
+        <div class="step-num">01</div>
+        <h4>CSV Upload</h4>
+        <p>The user uploads a CSV such as <code>occurrences.csv</code> or <code>plots.csv</code>.</p>
+        <p>Niamoto reads column names plus a sample of values.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">02</div>
+        <h4>Alias Registry</h4>
+        <p><code>column_aliases.yaml</code> is loaded into an exact-match registry.</p>
+        <p>If a header like <code>ddlat</code> or <code>tax_fam</code> is known, prediction returns immediately with high confidence.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">03</div>
+        <h4>ML Classifier</h4>
+        <p>If no exact alias matches, the column goes to the ML stack:</p>
+        <p><code>header model</code> + <code>values model</code> + <code>fusion</code>.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">04</div>
+        <h4>Fallback Rules</h4>
+        <p>Only after aliases and ML do a few structural rules apply.</p>
+        <p>Example: WKT values like <code>POINT(...)</code> can still be recognized as geometry.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">05</div>
+        <h4>Product Output</h4>
+        <p>The final semantic type drives auto-config, affordances, widgets, and import suggestions.</p>
+        <p>This is what the user sees in <code>smart_config</code> and profiling.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">06</div>
+        <h4>Training And Evaluation Loop</h4>
+        <p>The same concepts are used to build <code>ml/data/gold_set.json</code> and to evaluate frozen acceptance benchmarks.</p>
+        <p>So aliases affect both runtime precision and the quality of the training/evaluation loop.</p>
+      </div>
+    </div>
+
+    <div class="flow-note">
+      <div class="flow-card">
+        <h4>Why we edited aliases before touching the model</h4>
+        <ul>
+          <li>If a header is stable and known, exact aliases are more reliable than asking ML to rediscover it every time.</li>
+          <li>This is especially true for semi-standardized exports like <code>tax_fam</code>, <code>ddlon</code>, or <code>nbe_stem</code>.</li>
+          <li>Improving aliases is therefore an improvement to the pipeline itself, not a workaround outside it.</li>
+        </ul>
+      </div>
+      <div class="flow-card">
+        <h4>When aliases are not enough</h4>
+        <ul>
+          <li>If the header is unknown, coded, noisy, or ambiguous, the ML classifier must generalize from patterns and values.</li>
+          <li>If train and eval labels contradict each other, both aliases and ML become unreliable.</li>
+          <li>This is why benchmark hygiene and label alignment had to be fixed before adding more data.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 02 Datasets -->
+<section id="datasets">
+<div class="container">
+  <h2><span class="num">02</span>Gold Set &amp; Data Sources</h2>
+  <p class="section-desc">2,525 labeled columns (1,929 gold + 596 synthetic) from 94+ sources across diverse biomes — from boreal forests to tropical mangroves.</p>
+
+  <div class="chart-container">
+    <div id="map-chart" style="height:450px;"></div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-container">
+      <div id="continent-chart" style="height:300px;"></div>
+    </div>
+    <div class="chart-container">
+      <div id="language-chart" style="height:300px;"></div>
+    </div>
+  </div>
+
+  <h3>Data Sources</h3>
+  <div class="filters" id="source-filters">
+    <button class="filter-btn active" onclick="filterTable('all')">All (96)</button>
+    <button class="filter-btn" onclick="filterTable('gbif')">GBIF (40)</button>
+    <button class="filter-btn" onclick="filterTable('ifn')">National inventories (13)</button>
+    <button class="filter-btn" onclick="filterTable('zenodo')">Zenodo (8)</button>
+    <button class="filter-btn" onclick="filterTable('inventory')">Regional inventories (17)</button>
+    <button class="filter-btn" onclick="filterTable('synthetic')">Synthetic (15)</button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="source-table">
+      <thead><tr><th>Source</th><th>Type</th><th>Country / Region</th><th>Continent</th><th>Language</th><th class="num">Columns</th></tr></thead>
+      <tbody id="source-tbody"></tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- 03 Taxonomy -->
+<section id="taxonomy">
+<div class="container">
+  <h2><span class="num">03</span>Concept Taxonomy</h2>
+  <p class="section-desc">62 fine-grained concepts grouped into 61 coarse concepts, organized into 10 semantic roles. Grouping improves ML performance by merging rare concepts (&lt; 5 examples).</p>
+
+  <div class="chart-container">
+    <div id="sunburst-chart" style="height:500px;"></div>
+  </div>
+
+  <div class="chart-container">
+    <div id="role-chart" style="height:300px;"></div>
+  </div>
+
+  <details>
+    <summary>View the full table of 61 concepts</summary>
+    <div class="table-wrap" style="max-height:500px;">
+      <table class="data-table" id="concept-table">
+        <thead><tr><th>Concept</th><th>Role</th><th class="num">Examples</th><th>Example column names</th></tr></thead>
+        <tbody id="concept-tbody"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- 04 Evaluation Results -->
+<section id="evaluation">
+<div class="container">
+  <h2><span class="num">04</span>Evaluation Results</h2>
+  <p class="section-desc">Latest eval suite snapshot after the 2026-03-21 acquisition retrain: <strong>90.4% role</strong>, <strong>84.7% concept</strong> on 9 datasets / 478 columns. The holdout charts below remain useful as historical diagnostics from the previous benchmark-hygiene phase.</p>
+
+  <h3>4a — ProductScore Breakdown</h3>
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;">Weighted composite score across 6 strategically chosen data families. Each family represents a distinct usage scenario for Niamoto.</p>
+  <div class="chart-container">
+    <div id="product-score-chart" style="height:350px;"></div>
+  </div>
+
+  <h3>4b — Holdouts &amp; Diagnostics</h3>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;"><strong>Language holdouts:</strong> Train without any column from a language, then test only on that language. Simulates a botanist importing a CSV in a language the model has never seen.</p>
+  <div class="chart-container">
+    <div id="holdout-lang-chart" style="height:300px;"></div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;"><strong>Family holdouts:</strong> Train without an entire family of datasets, then test on that family. Reveals domains where the model generalizes poorly.</p>
+  <div class="chart-container">
+    <div id="holdout-family-chart" style="height:300px;"></div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;"><strong>Structural diagnostics:</strong> Performance by column structural profile — standard English, field English, coded headers, GBIF core/extended.</p>
+  <div class="chart-container">
+    <div id="structural-chart" style="height:300px;"></div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:12px;"><strong>Forest inventory sub-split:</strong> Detailed breakdown within the weakest family.</p>
+  <div class="chart-container">
+    <div id="forest-subsplit-chart" style="height:280px;"></div>
+  </div>
+</div>
+</section>
+
+<!-- 05 Instance Evaluation -->
+<section id="instance-eval">
+<div class="container">
+  <h2><span class="num">05</span>Instance Evaluation</h2>
+  <p class="section-desc">Latest real-world evaluation on actual Niamoto instances and GBIF exports after the acquisition retrain. 418 columns evaluated — <strong>90.9% role accuracy</strong>, <strong>85.4% concept accuracy</strong>. This excludes the two frozen acceptance datasets.</p>
+
+  <div class="chart-container">
+    <div id="instance-chart" style="height:400px;"></div>
+  </div>
+
+  <div style="text-align:center; padding:12px; background:var(--blue-light); border-radius:8px; margin:16px 0; font-family:var(--mono); font-size:14px; color:var(--blue-dark);">
+    418 columns evaluated — 90.9% role, 85.4% concept
+  </div>
+
+  <details>
+    <summary>Historical detail: niamoto-nc — Alias-only vs ML (pre-acquisition snapshot)</summary>
+    <div style="padding:12px;">
+      <table class="data-table">
+        <thead><tr><th>Method</th><th>Role correct</th><th>Role %</th><th>Concept correct</th><th>Concept %</th></tr></thead>
+        <tbody>
+          <tr><td>Alias only</td><td class="num">11/29</td><td class="num">38%</td><td class="num">11/29</td><td class="num">38%</td></tr>
+          <tr style="background:var(--green-light);"><td><strong>ML pipeline</strong></td><td class="num">16/29</td><td class="num">55%</td><td class="num">14/29</td><td class="num">48%</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--gray-500);margin-top:8px;">This table is kept as a historical baseline from the pre-acquisition phase. It illustrates why aliases alone were insufficient on opaque niamoto-nc headers before the 2026-03-21 retrain.</p>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- 06 Error Patterns -->
+<section id="errors">
+<div class="container">
+  <h2><span class="num">06</span>Error Patterns</h2>
+  <p class="section-desc">Error patterns updated after the acquisition wave retrain and full eval suite run on 2026-03-21.</p>
+
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-01</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4>Over-prediction of <code>measurement.diameter</code></h4>
+    <p><strong>Fixed:</strong> diversity indices (shannon, pielou, simpson) and holdridge now matched by alias. <code>basal_area &rarr; diameter</code> merge bug in concept_taxonomy.py corrected to <code>&rarr; biomass</code>.</p>
+    <p><strong>Remaining:</strong> booleans (flower, fruit, in_um) and taxonomic counts (gymnospermae, monocotyledonae, dicotyledonae) still predicted as diameter. The values branch still has insufficient signal to distinguish boolean/count distributions from continuous measurements.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--green);">
+    <span class="pattern-id">ERROR-02</span> <span class="badge" style="background:var(--green-light);color:var(--green);">Fixed</span>
+    <h4><code>measurement.trait</code> unrecognized &rarr; now 67%</h4>
+    <p>Alias registry covers shannon, pielou, simpson, bark_thickness, leaf_ldmc, leaf_thickness. Gold set enriched with 8 trait examples from niamoto-nc. Detection: 0/12 &rarr; <strong>8/12 (67%)</strong>.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-03</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4><code>category.*</code> poorly detected</h4>
+    <p><strong>Fixed:</strong> holdridge &rarr; <code>category.vegetation</code> via alias. strata &rarr; <code>category.vegetation</code> via alias. phenology, pheno &rarr; <code>category.ecology</code> via alias. Gold set enriched with bioclimate, phenology, stratum examples.</p>
+    <p><strong>Remaining:</strong> booleans (in_forest, in_um, flower, fruit) still misclassified. The values branch treats True/False and 0/1 as numeric, not categorical.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--green);">
+    <span class="pattern-id">ERROR-04</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4><code>taxonomy.name</code> remains weak on non-binomial GBIF columns</h4>
+    <p><strong>Fixed:</strong> binomial species-name columns were real annotation issues and were aligned to <code>taxonomy.species</code>.</p>
+    <p><strong>Remaining:</strong> truly non-binomial fields such as <code>genericName</code>, <code>infraspecificEpithet</code>, and <code>scientificNameAuthorship</code> are still systematically missed on GBIF exports. In the latest eval suite, <code>taxonomy.name</code> is still <strong>0/3</strong>.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--orange);">
+    <span class="pattern-id">ERROR-05</span> <span class="badge" style="background:var(--orange-light);color:var(--orange);">Partially fixed</span>
+    <h4>GBIF Darwin Core systematic errors &rarr; 9 &rarr; 5 remaining</h4>
+    <p><strong>Fixed by alias:</strong> <code>catalogNumber</code> &rarr; identifier.collection, <code>basisOfRecord</code> &rarr; category.basis, <code>occurrenceStatus</code> &rarr; category.status, <code>taxonomicStatus</code> &rarr; category.status. GBIF concept accuracy: 76% &rarr; <strong>88-90%</strong>.</p>
+    <p><strong>Remaining (5):</strong> <code>acceptedTaxonKey</code>, <code>speciesKey</code> (numeric keys &rarr; need identifier.taxon alias for compound names), <code>genericName</code>, <code>infraspecificEpithet</code>, <code>scientificNameAuthorship</code>.</p>
+  </div>
+
+  <div class="error-pattern" style="border-left:3px solid var(--red);">
+    <span class="pattern-id">ERROR-06</span> <span class="badge" style="background:var(--red-light);color:var(--red);">Open</span>
+    <h4>Coded inventory generalization remains weak on frozen FIA benchmark</h4>
+    <p><strong>Current state:</strong> <code>acceptance-fia-or</code> reaches only <strong>63.6%</strong> concept accuracy after retrain, while <code>acceptance-niamoto-gb</code> is at 100%.</p>
+    <p><strong>Main misses:</strong> <code>SPCD</code>, <code>CR</code>, <code>VOLCFNET</code>, <code>VOLBFNET</code>, plus repeated confusions on <code>measurement.biomass</code>, <code>identifier.taxon</code>, and missing <code>category.habitat</code>. This is still the clearest gap between product-focused learning and out-of-train coded inventories.</p>
+  </div>
+</div>
+</section>
+
+<!-- 07 Training Evolution -->
+<section id="training">
+<div class="container">
+  <h2><span class="num">07</span>Training Evolution</h2>
+  <p class="section-desc">Autoresearch-driven optimization, cross-rank reciprocity features, surrogate evaluation loop, and batch optimization.</p>
+
+  <h3>7a — Autoresearch Progression</h3>
+  <div class="chart-row">
+    <div class="chart-container">
+      <div id="header-progress-chart" style="height:350px;"></div>
+    </div>
+    <div class="chart-container">
+      <div id="values-progress-chart" style="height:350px;"></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <h3>The autoresearch pattern</h3>
+    <p>Inspired by <a href="https://github.com/karpathy/autoresearch" style="color:var(--blue-dark)">Karpathy (2026)</a>: an agent modifies hyperparameters, evaluates, keeps improvements, rejects regressions, and loops.</p>
+    <p style="margin-top:8px;font-size:13px;color:var(--gray-600);"><strong>Result:</strong> 24 header iterations (+41 cumulative points), 8 values iterations (+6.5 cumulative points). Each gain tracked by a git commit.</p>
+  </div>
+
+  <h3>7b — Cross-rank Reciprocity Features</h3>
+  <div class="justification">
+    <h3 style="margin-top:0;">4 new fusion features capturing branch agreement depth</h3>
+    <table style="font-size:13px;margin:12px 0;border-collapse:collapse;width:100%;">
+      <tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Feature</th><th style="padding:8px;">Description</th></tr>
+      <tr><td style="padding:6px 8px;font-family:var(--mono);">header_top1_value_rank</td><td style="padding:6px 8px;">Rank of header's top-1 prediction in values' probability vector</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;font-family:var(--mono);">value_top1_header_rank</td><td style="padding:6px 8px;">Rank of values' top-1 prediction in header's probability vector</td></tr>
+      <tr><td style="padding:6px 8px;font-family:var(--mono);">top2_cross_match</td><td style="padding:6px 8px;">Whether either branch's top-2 contains the other's top-1</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;font-family:var(--mono);">both_weak</td><td style="padding:6px 8px;">Both branches have low max probability</td></tr>
+    </table>
+    <div style="font-family:var(--mono);font-size:14px;margin-top:12px;">
+      surrogate-fast: <strong style="color:var(--green);">+0.92</strong> &nbsp;|&nbsp;
+      surrogate-mid: <strong style="color:var(--green);">+0.89</strong> &nbsp;|&nbsp;
+      ProductScore: <strong style="color:var(--green);">+0.79</strong>
+    </div>
+  </div>
+
+  <h3>7c — Surrogate Evaluation Loop</h3>
+  <div class="justification">
+    <h3 style="margin-top:0;">Multi-tier validation chain</h3>
+    <table style="font-size:13px;margin:12px 0;border-collapse:collapse;width:100%;">
+      <tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Stage</th><th style="padding:8px;">Time</th><th style="padding:8px;">Purpose</th></tr>
+      <tr><td style="padding:6px 8px;">Cache build</td><td style="padding:6px 8px;font-family:var(--mono);">~8 min</td><td style="padding:6px 8px;">One-shot feature extraction for all columns</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;">surrogate-fast</td><td style="padding:6px 8px;font-family:var(--mono);">~1.7s/eval</td><td style="padding:6px 8px;">Quick filter for unpromising changes</td></tr>
+      <tr><td style="padding:6px 8px;">surrogate-mid</td><td style="padding:6px 8px;font-family:var(--mono);">~15s/eval</td><td style="padding:6px 8px;">GroupKFold with fewer folds</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;">product-score</td><td style="padding:6px 8px;font-family:var(--mono);">~2 min</td><td style="padding:6px 8px;">Full weighted family evaluation</td></tr>
+      <tr><td style="padding:6px 8px;">niamoto-score</td><td style="padding:6px 8px;font-family:var(--mono);">~5 min</td><td style="padding:6px 8px;">Complete offline score with all holdouts</td></tr>
+    </table>
+    <div class="verdict supports">Validation chain: fast &rarr; mid &rarr; product-score &rarr; niamoto-score. Each tier gates the next.</div>
+  </div>
+
+  <h3>7d — Batch Optimization</h3>
+  <div class="justification">
+    <h3 style="margin-top:0;">Training time: 5h &rarr; 15min (20x speedup)</h3>
+    <p>Batch fusion feature extraction replaced per-column computation. All feature vectors are computed in a single pass over pre-cached header and values probabilities. Training loop and cross-validation run on pre-computed matrices.</p>
+    <p><strong>Result:</strong> identical model outputs, 20x faster iteration. Enables more autoresearch cycles per session.</p>
+    <div class="verdict supports">Batch optimization produces identical results with 20x speedup.</div>
+  </div>
+</div>
+</section>
+
+<!-- 08 Training & Improvement Workflow -->
+<section id="workflow">
+<div class="container">
+  <h2><span class="num">08</span>Training &amp; Improvement Workflow</h2>
+  <p class="section-desc">End-to-end pipeline from raw data to evaluation. Each box is an independent step with its own script. Full guide: <code>docs/03-ml-detection/training-guide.md</code></p>
+
+  <div class="pipeline">
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="border-color:var(--gray-400);min-width:160px;">
+        <h4>DATA SOURCES</h4>
+        <div class="algo">ml/data/silver/</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">CSV files from inventories, GBIF, traits, etc.</div>
+      </div>
+      <div class="pipeline-arrow" style="align-self:center;">&plus;</div>
+      <div class="pipeline-box" style="border-color:var(--gray-400);min-width:160px;">
+        <h4>LABEL MAPPINGS</h4>
+        <div class="algo">build_gold_set.py</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Column &rarr; concept mappings per dataset</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--orange);background:var(--orange-light);">
+      <h4>GOLD SET</h4>
+      <div class="algo">uv run python -m ml.scripts.data.build_gold_set</div>
+      <div style="font-size:13px;margin-top:4px;">2 540 labeled columns &times; 61 concepts &times; value statistics</div>
+      <div class="score" style="color:var(--orange);">ml/data/gold_set.json</div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN HEADER</h4>
+        <div class="algo">TF-IDF + LogReg</div>
+        <div class="score" style="color:var(--green);">F1 = 0.7530</div>
+      </div>
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN VALUES</h4>
+        <div class="algo">37 features + HGBT</div>
+        <div class="score" style="color:var(--orange);">F1 = 0.3780</div>
+      </div>
+      <div class="pipeline-box" style="min-width:180px;">
+        <h4>TRAIN FUSION</h4>
+        <div class="algo">LogReg + cross-rank</div>
+        <div class="score" style="color:var(--blue);">F1 = 0.6388</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-row">
+      <div class="pipeline-box" style="border-color:var(--green);background:var(--green-light);min-width:200px;">
+        <h4>ALIAS REGISTRY</h4>
+        <div class="algo">column_aliases.yaml</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">25+ concepts &times; 8 languages<br>No retraining needed</div>
+      </div>
+      <div class="pipeline-arrow" style="align-self:center;">&plus;</div>
+      <div class="pipeline-box" style="min-width:200px;">
+        <h4>3 MODELS</h4>
+        <div class="algo">ml/models/*.joblib</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">header (2.6 MB) + values (40 MB)<br>+ fusion (80 KB)</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--blue);background:var(--blue-light);">
+      <h4>EVALUATION SUITE</h4>
+      <div class="algo">uv run python -m ml.scripts.eval.run_eval_suite</div>
+      <div style="font-size:13px;margin-top:4px;">9 datasets &times; 478 columns &times; verified annotations</div>
+      <div class="score" style="color:var(--blue);">84.7% concept accuracy</div>
+    </div>
+    <div class="pipeline-arrow">&darr;</div>
+
+    <div class="pipeline-box" style="width:100%;max-width:500px;border-color:var(--purple);background:var(--purple-light);">
+      <h4>DIAGNOSIS &amp; ITERATE</h4>
+      <div style="font-size:13px;margin-top:4px;">
+        Concept absent &rarr; add to gold set &amp; retrain<br>
+        Column name univoque &rarr; add alias (no retrain)<br>
+        Bad merge in taxonomy &rarr; fix concept_taxonomy.py<br>
+        Wrong annotation &rarr; fix eval annotations
+      </div>
+    </div>
+  </div>
+
+  <h3>8a — Session Improvement Timeline (2026-03-20 → 2026-03-21)</h3>
+  <div class="chart-container">
+    <div id="improvement-chart" style="height:350px;"></div>
+  </div>
+
+  <details>
+    <summary>Detail: Improvement steps</summary>
+    <div style="padding:12px;">
+      <table class="data-table">
+        <thead><tr><th>Step</th><th>Action</th><th class="num">Concept%</th><th class="num">Delta</th></tr></thead>
+        <tbody>
+          <tr><td>V1</td><td>Initial annotations (418 cols, 7 datasets)</td><td class="num">66.5%</td><td class="num">—</td></tr>
+          <tr><td>V2</td><td>Fix annotations: taxonomy.name &rarr; species, plot_name context</td><td class="num">71.1%</td><td class="num">+4.6</td></tr>
+          <tr><td>V3</td><td>Verify annotations against actual values</td><td class="num">71.3%</td><td class="num">+0.2</td></tr>
+          <tr><td>V4</td><td>Expand alias registry (+13 concepts)</td><td class="num">76.6%</td><td class="num">+5.3</td></tr>
+          <tr style="background:var(--green-light);"><td><strong>V5</strong></td><td><strong>Enrich gold set (niamoto-nc) + retrain + fix basal_area merge</strong></td><td class="num"><strong>77.5%</strong></td><td class="num"><strong>+0.9</strong></td></tr>
+          <tr style="background:var(--blue-light);"><td><strong>V6</strong></td><td><strong>Acquire TAXREF v18 + ETS + sPlotOpen, rebuild gold set, full retrain</strong></td><td class="num"><strong>85.4%</strong></td><td class="num"><strong>+7.9</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- 09 Methodology -->
+<section id="methodology">
+<div class="container">
+  <h2><span class="num">09</span>Methodology Justification</h2>
+  <p class="section-desc">Each technical choice is justified by academic literature. Bracket numbers refer to the References section.</p>
+
+  <div class="justification">
+    <h3>8.1 — Why character n-grams?</h3>
+    <div class="choice">TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 5))</div>
+    <p>Ecological column names are short strings (1-3 words) sharing Latin and Greek roots across languages. <code>"diametre"</code> (FR) and <code>"diametro"</code> (ES) generate the same trigrams: <code>dia</code>, <code>iam</code>, <code>ame</code>. Character n-grams capture these shared morphemes <strong>without a bilingual dictionary</strong>.</p>
+    <p>For strings under 50 characters (the typical length of a column name), character n-grams outperform word-level methods because there are too few tokens for stable statistics [11, 14].</p>
+    <div class="verdict supports">The approach is the canonical choice for short multilingual strings.</div>
+    <div class="citations">
+      <div class="citation">[10] Bojanowski et al. (2017). Enriching Word Vectors with Subword Information. <a href="https://arxiv.org/abs/1607.04606">arXiv:1607.04606</a></div>
+      <div class="citation">[11] Cavnar & Trenkle (1994). N-gram-based Text Categorization. 99.8% accuracy for language identification.</div>
+      <div class="citation">[14] Apple Research. Language Identification from Very Short Strings.</div>
+    </div>
+  </div>
+
+  <div class="justification">
+    <h3>8.2 — Why TF-IDF + LogisticRegression L1 instead of Transformers?</h3>
+    <div class="choice">LogisticRegression(C=130, penalty="l1", class_weight="balanced")</div>
+    <p>With 2,525 labeled columns, a BERT model (110M parameters) risks <strong>severe overfitting</strong>. TF-IDF + L1 LogReg is an "embarrassingly strong baseline" that produces interpretable coefficients — one can inspect exactly which n-grams drive each prediction.</p>
+    <p>The L1 penalty automatically selects useful features: out of 5,000 n-grams, only a few hundred receive non-zero weights. It is a built-in filter, not a black box.</p>
+    <table style="margin:12px 0;font-size:13px;border-collapse:collapse;width:100%;">
+      <tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Criterion</th><th style="padding:8px;">TF-IDF + LR (our choice)</th><th style="padding:8px;">Fine-tuned BERT</th><th style="padding:8px;">Sentence Transformers</th></tr>
+      <tr><td style="padding:6px 8px;">Data required</td><td style="padding:6px 8px;text-align:center;">1k+</td><td style="padding:6px 8px;text-align:center;">10k-100k</td><td style="padding:6px 8px;text-align:center;">1k+</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;">Training time</td><td style="padding:6px 8px;text-align:center;">~3 seconds</td><td style="padding:6px 8px;text-align:center;">10-60 min (GPU)</td><td style="padding:6px 8px;text-align:center;">5-30 min</td></tr>
+      <tr><td style="padding:6px 8px;">Interpretability</td><td style="padding:6px 8px;text-align:center;">L1 coefficients</td><td style="padding:6px 8px;text-align:center;">Black box</td><td style="padding:6px 8px;text-align:center;">Black box</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;">Offline / no GPU</td><td style="padding:6px 8px;text-align:center;">Yes</td><td style="padding:6px 8px;text-align:center;">No (GPU)</td><td style="padding:6px 8px;text-align:center;">Yes (22 MB)</td></tr>
+      <tr><td style="padding:6px 8px;">Model size</td><td style="padding:6px 8px;text-align:center;">~3 MB</td><td style="padding:6px 8px;text-align:center;">~440 MB</td><td style="padding:6px 8px;text-align:center;">~90 MB</td></tr>
+    </table>
+    <div class="verdict supports">The choice is validated by the literature as scientifically robust, not as a compromise.</div>
+    <div class="citations">
+      <div class="citation">[9] Wang & Manning, ACL 2012. Baselines and Bigrams: Simple, Good Sentiment and Topic Classification. <a href="https://aclanthology.org/P12-2018/">ACL</a></div>
+      <div class="citation">[16] Shmueli, Statistical Science 2010. To Explain or to Predict? <a href="https://doi.org/10.1214/10-STS330">DOI</a></div>
+    </div>
+  </div>
+
+  <div class="justification">
+    <h3>8.3 — Why HistGradientBoosting for values?</h3>
+    <div class="choice">HistGradientBoostingClassifier(max_iter=500, max_depth=10, lr=0.05)</div>
+    <p>The reference paper on tabular data (Grinsztajn et al., NeurIPS 2022) shows that <strong>tree-based models dominate neural networks</strong> on small-to-medium datasets (&lt; 10k rows), especially when some features are uninformative — which is exactly our case (e.g., <code>in_lat_range</code> is useless for a non-geographic concept).</p>
+    <p>Our 37 features are a streamlined, interpretable version of Sherlock's 1,588 features [1], adapted to the size of our gold set.</p>
+    <div class="verdict supports">HistGradientBoosting is the canonical choice for tabular data with &lt; 10k samples.</div>
+    <div class="citations">
+      <div class="citation">[8] Grinsztajn, Oyallon & Varoquaux, NeurIPS 2022. Why do tree-based models still outperform deep learning on tabular data? <a href="https://arxiv.org/abs/2207.08815">arXiv:2207.08815</a></div>
+      <div class="citation">[1] Hulsebos et al., KDD 2019. Sherlock: A Deep Learning Approach to Semantic Data Type Detection. <a href="https://arxiv.org/abs/1905.10688">arXiv:1905.10688</a></div>
+    </div>
+  </div>
+
+  <div class="justification">
+    <h3>8.4 — Why GroupKFold by data source?</h3>
+    <div class="choice">GroupKFold(n_splits=5, groups=source_dataset)</div>
+    <p>Columns from the same dataset share <strong>naming conventions</strong>, <strong>data quality</strong>, and similar <strong>sampling protocols</strong>. A naive KFold would leak this shared information between train and test, artificially inflating scores.</p>
+    <p>This is the exact analogue of <strong>spatial block cross-validation</strong> used in species distribution modeling — observations from the same geographic block are kept together to avoid spatial autocorrelation.</p>
+    <p>Roberts et al. (2017) is the reference for structured ecological data: <em>"standard random cross-validation on structured data leads to serious underestimation of predictive error."</em></p>
+    <div class="verdict supports">GroupKFold is the correct evaluation strategy for grouped ecological data.</div>
+    <div class="citations">
+      <div class="citation">[12] Roberts et al., Ecography 2017. Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure. <a href="https://doi.org/10.1111/ecog.02881">DOI</a></div>
+      <div class="citation">[15] Dietterich, Neural Computation 1998. Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms.</div>
+    </div>
+  </div>
+
+  <div class="justification">
+    <h3>8.5 — Why macro-F1?</h3>
+    <div class="choice">f1_score(y_true, y_pred, average="macro")</div>
+    <p>Macro-F1 computes the F1 for <strong>each concept separately</strong>, then takes the <strong>unweighted average</strong>. A rare concept (5 examples: <code>wood_density</code>) weighs as much as a frequent one (191 examples: <code>species</code>).</p>
+    <p>In ecology, rare concepts are often the most scientifically valuable (soil chemistry, phenological dates, conservation status). Accuracy or micro-F1 would mask catastrophic performance on these minority concepts.</p>
+    <table style="margin:12px 0;font-size:13px;border-collapse:collapse;width:100%;">
+      <tr style="background:var(--gray-100);"><th style="padding:8px;text-align:left;">Metric</th><th style="padding:8px;">Treatment of rare classes</th><th style="padding:8px;">Our case (61 concepts, imbalanced distribution)</th></tr>
+      <tr><td style="padding:6px 8px;">Accuracy</td><td style="padding:6px 8px;">Dominated by frequent classes</td><td style="padding:6px 8px;">Can show ~70% even if all rare concepts are misclassified</td></tr>
+      <tr style="background:var(--gray-50);"><td style="padding:6px 8px;">Micro-F1</td><td style="padding:6px 8px;">Equivalent to accuracy</td><td style="padding:6px 8px;">Same problem</td></tr>
+      <tr><td style="padding:6px 8px;">Weighted-F1</td><td style="padding:6px 8px;">Proportional to class size</td><td style="padding:6px 8px;">Masks poor performance on rare concepts</td></tr>
+      <tr style="background:var(--green-light);"><td style="padding:6px 8px;font-weight:600;">Macro-F1</td><td style="padding:6px 8px;font-weight:600;">Equal weight for each class</td><td style="padding:6px 8px;font-weight:600;">Forces the model to also detect rare concepts well</td></tr>
+    </table>
+    <div class="verdict supports">Macro-F1 is the standard for imbalanced multi-class problems where minorities matter.</div>
+    <div class="citations">
+      <div class="citation">[13] Sokolova & Lapalme, Information Processing & Management 2009. A systematic analysis of performance measures for classification tasks.</div>
+      <div class="citation">[17] Opitz & Burst (2021). Macro F1 and Macro F1. <a href="https://arxiv.org/abs/1911.03347">arXiv:1911.03347</a></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 09 Alternatives -->
+<section id="alternatives">
+<div class="container">
+  <h2><span class="num">10</span>Credible Alternatives</h2>
+  <p class="section-desc">Comparison with published approaches in the literature. Our pipeline occupies a justified trade-off between the complexity of deep learning methods and the brittleness of manual rules.</p>
+
+  <div style="overflow-x:auto;">
+  <table class="comparison">
+    <thead>
+      <tr>
+        <th>Approach</th>
+        <th>Data required</th>
+        <th>Offline</th>
+        <th>Reported F1</th>
+        <th>Complexity</th>
+        <th>Niamoto status</th>
+        <th>Reference</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="current">
+        <td><strong>TF-IDF + LR + HistGBT (Niamoto)</strong></td>
+        <td>2.54k columns</td>
+        <td>Yes (scikit-learn)</td>
+        <td>0.639 CV / 84.7% eval</td>
+        <td>Low</td>
+        <td><span class="status done">Implemented</span></td>
+        <td>This work</td>
+      </tr>
+      <tr>
+        <td><strong>Sherlock</strong> (DNN, 1588 features)</td>
+        <td>686k columns</td>
+        <td>Yes (Torch)</td>
+        <td>0.89 (weighted)</td>
+        <td>High</td>
+        <td><span class="status rejected">Insufficient data</span></td>
+        <td>[1]</td>
+      </tr>
+      <tr>
+        <td><strong>Sato</strong> (CRF + table context)</td>
+        <td>686k columns</td>
+        <td>Yes (Torch)</td>
+        <td>0.93 (weighted)</td>
+        <td>High</td>
+        <td><span class="status rejected">Insufficient data</span></td>
+        <td>[2]</td>
+      </tr>
+      <tr>
+        <td><strong>DoDuo</strong> (fine-tuned BERT)</td>
+        <td>10k+ columns</td>
+        <td>Yes (GPU)</td>
+        <td>0.90+</td>
+        <td>High</td>
+        <td><span class="status rejected">Insufficient data</span></td>
+        <td>[4]</td>
+      </tr>
+      <tr>
+        <td><strong>LLM zero-shot</strong> (GPT-4 / Claude)</td>
+        <td>0</td>
+        <td>No (API)</td>
+        <td>0.85+ (EN)</td>
+        <td>Low</td>
+        <td><span class="status planned">Gold set enrichment</span></td>
+        <td>[5]</td>
+      </tr>
+      <tr>
+        <td><strong>Sentence Transformers</strong></td>
+        <td>1k+ columns</td>
+        <td>Yes (22-90 MB)</td>
+        <td>~0.80 (estimated)</td>
+        <td>Medium</td>
+        <td><span class="status rejected">Not planned</span></td>
+        <td>[10]</td>
+      </tr>
+      <tr>
+        <td><strong>Magneto</strong> (SLM + LLM)</td>
+        <td>Variable</td>
+        <td>Yes (inference)</td>
+        <td>SotA</td>
+        <td>High</td>
+        <td><span class="status planned">To evaluate</span></td>
+        <td>[7]</td>
+      </tr>
+      <tr>
+        <td><strong>Regex / manual rules</strong></td>
+        <td>0</td>
+        <td>Yes</td>
+        <td>0.20-0.40</td>
+        <td>Very low</td>
+        <td><span class="status done">Integrated as features</span></td>
+        <td>--</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="chart-container" style="margin-top:20px;">
+    <div id="alternatives-chart" style="height:350px;"></div>
+  </div>
+
+  <details>
+    <summary>Why deep learning methods are not suited to our context</summary>
+    <div style="padding:12px;font-size:14px;">
+      <p><strong>Gold set size:</strong> With 2,525 columns from 94+ sources, we are 2 to 3 orders of magnitude below the typical needs of Sherlock (686k) or BERT (10k minimum). Fine-tuning a 110M parameter model on 2.5k examples would produce overfitting.</p>
+      <p><strong>Source heterogeneity:</strong> Our data spans 8 languages, 5 continents, and highly varied naming conventions. Academic benchmarks (VizNet, WikiTables) are primarily English.</p>
+      <p><strong>Offline constraint:</strong> Niamoto is designed to work without internet (fieldwork, oceanographic vessels). No embedded GPU.</p>
+      <p><strong>Estimated break-even:</strong> Per Grinsztajn et al. (2022), deep learning surpasses boosted trees beyond ~10,000-50,000 examples. With ~5,000+ labeled columns, it would become relevant to explore Sentence Transformers or a lightweight fine-tuned BERT.</p>
+    </div>
+  </details>
+</div>
+</section>
+
+<!-- 10 References -->
+<section id="references">
+<div class="container">
+  <h2><span class="num">11</span>Bibliography</h2>
+
+  <div class="ref-category">Column type detection</div>
+  <ol class="ref-list">
+    <li>Hulsebos, T., Hu, K., Bakker, M., et al. (2019). <strong>Sherlock: A Deep Learning Approach to Semantic Data Type Detection.</strong> <em>KDD 2019.</em> <a href="https://arxiv.org/abs/1905.10688">arXiv:1905.10688</a></li>
+    <li>Zhang, D., Suhara, Y., Li, J., et al. (2020). <strong>Sato: Contextual Semantic Type Detection in Tables.</strong> <em>VLDB 2020.</em> <a href="https://arxiv.org/abs/1911.06311">arXiv:1911.06311</a></li>
+    <li>Deng, X., Sun, H., Lees, A., et al. (2021). <strong>TURL: Table Understanding through Representation Learning.</strong> <em>VLDB 2021.</em> <a href="https://arxiv.org/abs/2006.14806">arXiv:2006.14806</a></li>
+    <li>Suhara, Y., Li, J., Li, Y., et al. (2022). <strong>Annotating Columns with Pre-trained Language Models.</strong> <em>SIGMOD 2022.</em> <a href="https://arxiv.org/abs/2104.01785">arXiv:2104.01785</a></li>
+    <li>Korini, K. & Bizer, C. (2023). <strong>Column Type Annotation using ChatGPT.</strong> <em>VLDB Workshop 2023.</em> <a href="https://arxiv.org/abs/2306.00745">arXiv:2306.00745</a></li>
+    <li>RACOON (2024). <strong>Retrieval-Augmented Column Type Annotation with Knowledge Graphs.</strong> <a href="https://arxiv.org/abs/2409.14556">arXiv:2409.14556</a></li>
+    <li>Freire, S., et al. (2025). <strong>Magneto: Combining Small and Large Language Models for Schema Matching.</strong> <em>VLDB 2025.</em> <a href="https://arxiv.org/abs/2412.08194">arXiv:2412.08194</a></li>
+  </ol>
+
+  <div class="ref-category">Modeling & features</div>
+  <ol class="ref-list" style="counter-reset:ref 7;">
+    <li>Grinsztajn, L., Oyallon, E. & Varoquaux, G. (2022). <strong>Why do tree-based models still outperform deep learning on typical tabular data?</strong> <em>NeurIPS 2022.</em> <a href="https://arxiv.org/abs/2207.08815">arXiv:2207.08815</a></li>
+    <li>Wang, S. & Manning, C. (2012). <strong>Baselines and Bigrams: Simple, Good Sentiment and Topic Classification.</strong> <em>ACL 2012.</em> <a href="https://aclanthology.org/P12-2018/">ACL</a></li>
+    <li>Bojanowski, P., Grave, E., Joulin, A. & Mikolov, T. (2017). <strong>Enriching Word Vectors with Subword Information.</strong> <em>TACL.</em> <a href="https://arxiv.org/abs/1607.04606">arXiv:1607.04606</a></li>
+    <li>Cavnar, W. & Trenkle, J. (1994). <strong>N-gram-based Text Categorization.</strong></li>
+  </ol>
+
+  <div class="ref-category">Evaluation & methodology</div>
+  <ol class="ref-list" style="counter-reset:ref 11;">
+    <li>Roberts, D.R., et al. (2017). <strong>Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure.</strong> <em>Ecography.</em> <a href="https://doi.org/10.1111/ecog.02881">DOI:10.1111/ecog.02881</a></li>
+    <li>Sokolova, M. & Lapalme, G. (2009). <strong>A systematic analysis of performance measures for classification tasks.</strong> <em>Information Processing & Management.</em></li>
+    <li>Apple Machine Learning Research. <strong>Language Identification from Very Short Strings.</strong></li>
+    <li>Dietterich, T.G. (1998). <strong>Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms.</strong> <em>Neural Computation.</em></li>
+    <li>Shmueli, G. (2010). <strong>To Explain or to Predict?</strong> <em>Statistical Science.</em> <a href="https://doi.org/10.1214/10-STS330">DOI:10.1214/10-STS330</a></li>
+    <li>Opitz, J. & Burst, S. (2021). <strong>Macro F1 and Macro F1.</strong> <a href="https://arxiv.org/abs/1911.03347">arXiv:1911.03347</a></li>
+    <li>Karpathy, A. (2026). <strong>autoresearch.</strong> <a href="https://github.com/karpathy/autoresearch">GitHub</a></li>
+  </ol>
+</div>
+</section>
+
+<!-- Footer -->
+<div style="text-align:center; padding:32px; color:var(--gray-400); font-size:12px; border-top:1px solid var(--gray-100);">
+  Niamoto — Generic Ecological Data Platform &middot; Updated 2026-03-21 &middot; Branch <code>feat/ml-detection-improvement</code>
+</div>
+
+<script>
+// ========== DATA ==========
+
+const DATASETS = [
+  // GBIF sources
+  {name:"gbif_mexico_flora",type:"gbif",country:"Mexico",continent:"North America",lang:"es",lat:23.6,lon:-102.5,cols:40},
+  {name:"gbif_colombia_wetland",type:"gbif",country:"Colombia",continent:"South America",lang:"es",lat:4.6,lon:-74.1,cols:39},
+  {name:"gbif_norway_nfi",type:"gbif",country:"Norway",continent:"Europe",lang:"en",lat:60.5,lon:10.7,cols:38},
+  {name:"gbif_us_desert_herb",type:"gbif",country:"USA (Southwest)",continent:"North America",lang:"en",lat:33.4,lon:-112.0,cols:36},
+  {name:"gbif_madagascar_grasses",type:"gbif",country:"Madagascar",continent:"Africa",lang:"en",lat:-18.9,lon:47.5,cols:35},
+  {name:"gbif_wales_woodland",type:"gbif",country:"Wales",continent:"Europe",lang:"en",lat:52.1,lon:-3.8,cols:35},
+  {name:"gbif_philippines_samar",type:"gbif",country:"Philippines",continent:"Asia",lang:"en",lat:11.5,lon:125.0,cols:34},
+  {name:"gbif_austria_herbarium",type:"gbif",country:"Austria",continent:"Europe",lang:"de",lat:47.5,lon:14.6,cols:34},
+  {name:"gbif_sweden_nfi",type:"gbif",country:"Sweden",continent:"Europe",lang:"en",lat:60.1,lon:18.6,cols:33},
+  {name:"gbif_tanzania_miombo",type:"gbif",country:"Tanzania",continent:"Africa",lang:"en",lat:-6.4,lon:34.9,cols:33},
+  {name:"gbif_berlin_botanical",type:"gbif",country:"Germany",continent:"Europe",lang:"de",lat:52.5,lon:13.4,cols:33},
+  {name:"gbif_argentina_protected",type:"gbif",country:"Argentina",continent:"South America",lang:"es",lat:-34.6,lon:-58.4,cols:33},
+  {name:"gbif_nz_pdd",type:"gbif",country:"New Zealand",continent:"Oceania",lang:"en",lat:-40.9,lon:174.9,cols:33},
+  {name:"gbif_benin_lama",type:"gbif",country:"Benin",continent:"Africa",lang:"fr",lat:7.5,lon:2.0,cols:32},
+  {name:"gbif_benin_wari_maro",type:"gbif",country:"Benin",continent:"Africa",lang:"fr",lat:9.3,lon:2.3,cols:32},
+  {name:"gbif_paramo_colombia",type:"gbif",country:"Colombia",continent:"South America",lang:"es",lat:4.8,lon:-75.5,cols:32},
+  {name:"gbif_china_herbarium",type:"gbif",country:"China",continent:"Asia",lang:"zh",lat:35.9,lon:104.2,cols:32},
+  {name:"gbif_benin_socioeco",type:"gbif",country:"Benin",continent:"Africa",lang:"fr",lat:8.5,lon:2.1,cols:31},
+  {name:"gbif_china_south",type:"gbif",country:"China (South)",continent:"Asia",lang:"zh",lat:23.1,lon:113.3,cols:31},
+  {name:"gbif_india_sundarbans",type:"gbif",country:"India",continent:"Asia",lang:"en",lat:21.9,lon:89.2,cols:31},
+  {name:"gbif_australia_carnarvon",type:"gbif",country:"Australia",continent:"Oceania",lang:"en",lat:-24.9,lon:113.7,cols:31},
+  {name:"gbif_canada_herbarium",type:"gbif",country:"Canada",continent:"North America",lang:"en",lat:45.4,lon:-75.7,cols:29},
+  {name:"gbif_japan_plants",type:"gbif",country:"Japan",continent:"Asia",lang:"en",lat:36.2,lon:138.3,cols:29},
+  {name:"gbif_ethiopia_kafa",type:"gbif",country:"Ethiopia",continent:"Africa",lang:"en",lat:7.3,lon:36.2,cols:29},
+  {name:"gbif_kenya_mangrove",type:"gbif",country:"Kenya",continent:"Africa",lang:"en",lat:-4.0,lon:39.7,cols:29},
+  {name:"gbif_poland_botanical",type:"gbif",country:"Poland",continent:"Europe",lang:"en",lat:51.9,lon:19.1,cols:28},
+  {name:"gbif_spain_ifn3",type:"gbif",country:"Spain",continent:"Europe",lang:"es",lat:40.4,lon:-3.7,cols:27},
+  {name:"gbif_uganda_savanna",type:"gbif",country:"Uganda",continent:"Africa",lang:"en",lat:1.4,lon:32.3,cols:27},
+  {name:"gbif_france_ifn",type:"gbif",country:"France",continent:"Europe",lang:"fr",lat:46.2,lon:2.2,cols:26},
+  {name:"gbif_norway_veg",type:"gbif",country:"Norway",continent:"Europe",lang:"en",lat:62.0,lon:10.0,cols:26},
+  {name:"gbif_brazil_forest",type:"gbif",country:"Brazil",continent:"South America",lang:"pt",lat:-14.2,lon:-51.9,cols:26},
+  {name:"gbif_bulgaria_herbolario",type:"gbif",country:"Bulgaria",continent:"Europe",lang:"en",lat:42.7,lon:25.5,cols:26},
+  {name:"gbif_fr_traits",type:"gbif",country:"France",continent:"Europe",lang:"fr",lat:47.0,lon:2.5,cols:24},
+  {name:"gbif_thailand_atlas",type:"gbif",country:"Thailand",continent:"Asia",lang:"en",lat:15.9,lon:100.5,cols:21},
+  {name:"gbif_terrestrial",type:"gbif",country:"Multi-country",continent:"Global",lang:"en",lat:20,lon:0,cols:18},
+  {name:"gbif_marine",type:"gbif",country:"Oceans",continent:"Global",lang:"en",lat:-10,lon:-30,cols:12},
+  // New GBIF targeted sources
+  {name:"gbif_targeted_new_caledonia",type:"gbif",country:"New Caledonia",continent:"Oceania",lang:"en",lat:-22.3,lon:166.5,cols:41},
+  {name:"gbif_targeted_guyane",type:"gbif",country:"French Guiana",continent:"South America",lang:"en",lat:3.9,lon:-53.1,cols:38},
+  {name:"gbif_targeted_gabon",type:"gbif",country:"Gabon",continent:"Africa",lang:"en",lat:-0.8,lon:11.6,cols:37},
+  {name:"gbif_targeted_cameroon",type:"gbif",country:"Cameroon",continent:"Africa",lang:"en",lat:5.9,lon:10.1,cols:39},
+  {name:"gbif_targeted_institutional_gabon",type:"gbif",country:"Gabon (institutional)",continent:"Africa",lang:"en",lat:-1.0,lon:11.8,cols:36},
+  {name:"gbif_targeted_institutional_cameroon",type:"gbif",country:"Cameroon (institutional)",continent:"Africa",lang:"en",lat:6.0,lon:10.3,cols:36},
+  // IFN / national inventories
+  {name:"ifn_arbre",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.5,lon:2.0,cols:33},
+  {name:"ifn_ecologie",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.3,lon:2.3,cols:20},
+  {name:"ifn_placette",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.0,lon:2.5,cols:18},
+  {name:"ifn_habitat",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.8,lon:2.8,cols:12},
+  {name:"ifn_couvert",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.1,lon:1.8,cols:8},
+  {name:"ifn_bois_mort",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.4,lon:2.1,cols:7},
+  {name:"ifn_flore",type:"ifn",country:"France",continent:"Europe",lang:"fr",lat:46.6,lon:1.5,cols:4},
+  {name:"fia_tree",type:"ifn",country:"USA",continent:"North America",lang:"en",lat:39.0,lon:-95.0,cols:25},
+  {name:"fia_fl_tree",type:"ifn",country:"USA (Florida)",continent:"North America",lang:"en",lat:27.7,lon:-81.5,cols:25},
+  {name:"fia_or_tree",type:"ifn",country:"USA (Oregon)",continent:"North America",lang:"en",lat:43.8,lon:-120.6,cols:25},
+  {name:"fia_plot",type:"ifn",country:"USA",continent:"North America",lang:"en",lat:39.5,lon:-94.5,cols:15},
+  {name:"fia_fl_plot",type:"ifn",country:"USA (Florida)",continent:"North America",lang:"en",lat:28.0,lon:-82.0,cols:15},
+  {name:"fia_or_plot",type:"ifn",country:"USA (Oregon)",continent:"North America",lang:"en",lat:44.0,lon:-121.0,cols:15},
+  {name:"iefc_catalonia",type:"ifn",country:"Spain (Catalonia)",continent:"Europe",lang:"es",lat:41.6,lon:1.5,cols:21},
+  // Zenodo
+  {name:"zenodo_california_ferp",type:"zenodo",country:"USA (California)",continent:"North America",lang:"en",lat:36.8,lon:-119.4,cols:14},
+  {name:"zenodo_bci_allometry",type:"zenodo",country:"Panama (BCI)",continent:"Central America",lang:"en",lat:9.2,lon:-79.8,cols:9},
+  {name:"zenodo_bci_traits",type:"zenodo",country:"Panama (BCI)",continent:"Central America",lang:"en",lat:9.15,lon:-79.85,cols:3},
+  {name:"zenodo_china_census",type:"zenodo",country:"China",continent:"Asia",lang:"en",lat:29.8,lon:121.5,cols:10},
+  {name:"zenodo_china_soil",type:"zenodo",country:"China",continent:"Asia",lang:"en",lat:35.0,lon:105.0,cols:4},
+  {name:"zenodo_forest_inventory_pub",type:"zenodo",country:"Multi-country",continent:"Europe",lang:"en",lat:50.0,lon:10.0,cols:11},
+  {name:"zenodo_leaf_traits",type:"zenodo",country:"Multi-country",continent:"Global",lang:"en",lat:10,lon:20,cols:5},
+  {name:"zenodo_savanna_roots",type:"zenodo",country:"Africa",continent:"Africa",lang:"en",lat:-2.0,lon:30.0,cols:6},
+  // Regional inventories
+  {name:"guyadiv_plots",type:"inventory",country:"French Guiana",continent:"South America",lang:"fr",lat:3.9,lon:-53.1,cols:32},
+  {name:"guyadiv_trees",type:"inventory",country:"French Guiana",continent:"South America",lang:"fr",lat:4.0,lon:-53.0,cols:29},
+  {name:"afrique_occ",type:"inventory",country:"Africa multi-country",continent:"Africa",lang:"fr",lat:0.0,lon:20.0,cols:30},
+  {name:"afrique_plots",type:"inventory",country:"Africa multi-country",continent:"Africa",lang:"fr",lat:1.0,lon:21.0,cols:19},
+  {name:"nc_occ",type:"inventory",country:"New Caledonia",continent:"Oceania",lang:"fr",lat:-22.3,lon:166.5,cols:19},
+  {name:"nc_plots",type:"inventory",country:"New Caledonia",continent:"Oceania",lang:"fr",lat:-22.2,lon:166.4,cols:8},
+  {name:"berenty_madagascar",type:"inventory",country:"Madagascar",continent:"Africa",lang:"fr",lat:-25.0,lon:46.3,cols:20},
+  {name:"pasoh_leaf",type:"inventory",country:"Malaysia (Pasoh)",continent:"Asia",lang:"en",lat:2.98,lon:102.3,cols:18},
+  {name:"pasoh_crown",type:"inventory",country:"Malaysia (Pasoh)",continent:"Asia",lang:"en",lat:2.97,lon:102.31,cols:11},
+  {name:"pasoh_wood",type:"inventory",country:"Malaysia (Pasoh)",continent:"Asia",lang:"en",lat:2.99,lon:102.29,cols:10},
+  {name:"finland_trees",type:"inventory",country:"Finland",continent:"Europe",lang:"en",lat:61.9,lon:25.7,cols:9},
+  {name:"finland_plots",type:"inventory",country:"Finland",continent:"Europe",lang:"en",lat:62.0,lon:25.8,cols:7},
+  {name:"checklist",type:"inventory",country:"Multi-country",continent:"Global",lang:"en",lat:0,lon:40,cols:7},
+  {name:"custom_forest",type:"inventory",country:"Generic",continent:"Global",lang:"en",lat:0,lon:60,cols:6},
+  {name:"afliber_species",type:"inventory",country:"Africa / Liberia",continent:"Africa",lang:"en",lat:6.4,lon:-9.4,cols:11},
+  {name:"minimal",type:"inventory",country:"Test",continent:"Global",lang:"en",lat:0,lon:80,cols:3},
+  {name:"forestscan_paracou_census",type:"inventory",country:"French Guiana (Paracou)",continent:"South America",lang:"fr",lat:5.3,lon:-52.9,cols:34},
+  // Synthetic
+  {name:"synthetic_forest_with_traits",type:"synthetic",country:"Multi-biome",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:86},
+  {name:"synthetic_tropical_rainforest",type:"synthetic",country:"Tropical",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:63},
+  {name:"synthetic_temperate_forest",type:"synthetic",country:"Temperate",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:63},
+  {name:"synthetic_boreal_forest",type:"synthetic",country:"Boreal",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:63},
+  {name:"synthetic_mangrove",type:"synthetic",country:"Mangrove",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:63},
+  {name:"synthetic_alpine",type:"synthetic",country:"Alpine",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:63},
+  {name:"synthetic_terrain_soil",type:"synthetic",country:"Soil / terrain",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:34},
+  {name:"synthetic_coords",type:"synthetic",country:"Coordinates",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:34},
+  {name:"synthetic_grassland",type:"synthetic",country:"Grassland",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:30},
+  {name:"synthetic_taxonomy",type:"synthetic",country:"Taxonomy",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:30},
+  {name:"synthetic_ids",type:"synthetic",country:"Identifiers",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:20},
+  {name:"synthetic_count",type:"synthetic",country:"Counts",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:18},
+  {name:"synthetic_dates",type:"synthetic",country:"Dates",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:16},
+  {name:"synthetic_marine",type:"synthetic",country:"Marine",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:13},
+  {name:"adversarial",type:"synthetic",country:"Adversarial",continent:"Synthetic",lang:"en",lat:null,lon:null,cols:6},
+];
+
+const CONCEPTS = [
+  {name:"taxonomy.species",role:"taxonomy",count:191,examples:"species, espece, nombre_scientifique, scientificName"},
+  {name:"measurement.height",role:"measurement",count:177,examples:"height, hauteur, altura, tree_height, ht"},
+  {name:"measurement.diameter",role:"measurement",count:174,examples:"dbh, diametre, diametro, dap, C13, stem_diam"},
+  {name:"identifier.record",role:"identifier",count:142,examples:"id, record_id, gbifID, catalogNumber"},
+  {name:"event.date",role:"event",count:127,examples:"date, eventDate, date_obs, fecha"},
+  {name:"location.elevation",role:"location",count:98,examples:"elevation, altitude, elev, altitud, msl"},
+  {name:"location.country",role:"location",count:73,examples:"country, pays, pais, countryCode"},
+  {name:"location.longitude",role:"location",count:63,examples:"longitude, lon, long, decimalLongitude, x"},
+  {name:"location.latitude",role:"location",count:63,examples:"latitude, lat, decimalLatitude, y"},
+  {name:"taxonomy.family",role:"taxonomy",count:57,examples:"family, famille, familia"},
+  {name:"event.year",role:"event",count:56,examples:"year, annee, ano, jahr"},
+  {name:"statistic.count",role:"statistic",count:55,examples:"count, abundance, n, effectif, individuos"},
+  {name:"location.admin_area",role:"location",count:52,examples:"state, region, province, departement"},
+  {name:"taxonomy.rank",role:"taxonomy",count:48,examples:"taxonRank, rank, rang"},
+  {name:"text.metadata",role:"text",count:44,examples:"notes, comments, remarks, reference"},
+  {name:"category.status",role:"category",count:43,examples:"status, iucnRedListCategory, conservation"},
+  {name:"taxonomy.genus",role:"taxonomy",count:41,examples:"genus, genre, genero"},
+  {name:"identifier.plot",role:"identifier",count:37,examples:"plot_id, placette, parcela, site_id"},
+  {name:"text.observer",role:"text",count:37,examples:"observer, recordedBy, collecteur, colector"},
+  {name:"location.locality",role:"location",count:37,examples:"locality, localite, localidad, lieu"},
+  {name:"taxonomy.kingdom",role:"taxonomy",count:37,examples:"kingdom, regne, reino"},
+  {name:"taxonomy.class",role:"taxonomy",count:37,examples:"class, classe, clase"},
+  {name:"taxonomy.order",role:"taxonomy",count:37,examples:"order, ordre, orden"},
+  {name:"category.basis",role:"category",count:36,examples:"basisOfRecord, type_obs"},
+  {name:"taxonomy.phylum",role:"taxonomy",count:36,examples:"phylum, embranchement, filo, division"},
+  {name:"location.continent",role:"location",count:34,examples:"continent, continente"},
+  {name:"measurement.biomass",role:"measurement",count:28,examples:"biomass, biomasse, agb, carbon"},
+  {name:"identifier.institution",role:"identifier",count:26,examples:"institutionCode, institution"},
+  {name:"location.coordinate",role:"location",count:20,examples:"geometry, geom, wkt, coords"},
+  {name:"identifier.collection",role:"identifier",count:19,examples:"collectionCode, collection, herbier"},
+  {name:"measurement.leaf_area",role:"measurement",count:17,examples:"leaf_area, SLA, LAI, leaf_mass"},
+  {name:"text.source",role:"text",count:17,examples:"source, dataset, provider, origin"},
+  {name:"category.habitat",role:"category",count:17,examples:"habitat, milieu, biotope, vegetation_type"},
+  {name:"environment.temperature",role:"environment",count:17,examples:"temperature, temp, bio1, MAT"},
+  {name:"category.tree_condition",role:"category",count:16,examples:"condition, etat, crown_class, vigueur"},
+  {name:"measurement.cover",role:"measurement",count:16,examples:"cover, recouvrement, cobertura, canopy_%"},
+  {name:"measurement.uncertainty",role:"measurement",count:15,examples:"coordinateUncertaintyInMeters, precision"},
+  {name:"measurement.terrain",role:"measurement",count:15,examples:"slope, aspect, pente, exposition, rock_cover"},
+  {name:"category.ecology",role:"category",count:13,examples:"ecology, phenology, origin, endemism, succession"},
+  {name:"measurement.growth",role:"measurement",count:13,examples:"increment, growth_rate, age, accroissement"},
+  {name:"measurement.canopy",role:"measurement",count:13,examples:"crown_diameter, canopy_height, crown_area"},
+  {name:"measurement.dimension",role:"measurement",count:11,examples:"length, area, distance, longueur, superficie"},
+  {name:"measurement.wood_density",role:"measurement",count:11,examples:"wood_density, densite_bois, WD, SG"},
+  {name:"location.depth",role:"location",count:10,examples:"depth, profondeur, water_depth"},
+  {name:"category.soil",role:"category",count:10,examples:"soil_type, texture, humus, calcareous"},
+  {name:"category.vegetation",role:"category",count:9,examples:"stratum, forest_type, strate, type_forestier"},
+  {name:"category.damage",role:"category",count:9,examples:"damage, degat, pest, pathology"},
+  {name:"taxonomy.name",role:"taxonomy",count:9,examples:"vernacularName, nom_commun, common_name"},
+  {name:"environment.precipitation",role:"environment",count:8,examples:"precipitation, MAP, rainfall, pluviometrie"},
+  {name:"category.method",role:"category",count:7,examples:"method, protocol, methode, sampling"},
+  {name:"category.management",role:"category",count:7,examples:"management, gestion, cutting, stand_type"},
+  {name:"measurement.volume",role:"measurement",count:7,examples:"volume, vol, timber_volume"},
+  {name:"environment.water",role:"environment",count:6,examples:"salinity, pH, dissolved_oxygen"},
+  {name:"identifier.taxon",role:"identifier",count:5,examples:"taxonID, taxon_key, cd_ref"},
+  {name:"category.light",role:"category",count:5,examples:"light, lumiere, shade_tolerance, light_regime"},
+  {name:"category.growth_form",role:"category",count:5,examples:"growth_form, life_form, forme_biologique"},
+  {name:"measurement.soil",role:"measurement",count:5,examples:"soil_carbon, soil_nitrogen, soil_organic"},
+  {name:"category.quality",role:"category",count:4,examples:"quality, qualite, data_quality, fiabilite"},
+  {name:"other",role:"other",count:3,examples:"(miscellaneous unclassified)"},
+  {name:"measurement.quality",role:"measurement",count:3,examples:"measurement_accuracy, error_margin"},
+  {name:"measurement.trait",role:"measurement",count:3,examples:"chlorophyll, root_depth, specific_trait"},
+];
+
+const HEADER_PROGRESS = [
+  {score:0.3658,label:"Baseline"},
+  {score:0.4455,label:"+7.97"},
+  {score:0.4763,label:"+3.08"},
+  {score:0.4864,label:"+1.01"},
+  {score:0.4931,label:"+0.67"},
+  {score:0.4937,label:"+0.06"},
+  {score:0.5283,label:"+3.46"},
+  {score:0.5370,label:"+0.87"},
+  {score:0.5375,label:"+0.05"},
+  {score:0.5383,label:"+0.08"},
+  {score:0.5470,label:"+0.87"},
+  {score:0.5497,label:"+0.27"},
+  {score:0.5529,label:"+0.32"},
+  {score:0.5591,label:"+0.62"},
+  {score:0.5640,label:"+0.49"},
+  {score:0.5641,label:"+0.01"},
+  {score:0.7614,label:"Round 2 (2492 cols)"},
+  {score:0.7467,label:"Round 3 (2525 cols, +NC full, +13 alias concepts)"},
+];
+
+const VALUES_PROGRESS = [
+  {score:0.2877,label:"Baseline"},
+  {score:0.3005,label:"+1.28"},
+  {score:0.3063,label:"+0.58"},
+  {score:0.3068,label:"+1.91"},
+  {score:0.3257,label:"+1.94"},
+  {score:0.3370,label:"+1.13"},
+  {score:0.3403,label:"+0.33"},
+  {score:0.3433,label:"+0.30"},
+  {score:0.3522,label:"+0.89"},
+  {score:0.3783,label:"+2.61"},
+  {score:0.3935,label:"Round 3 (+NC full)"},
+];
+
+const ROLES = [
+  {name:"measurement",count:508,color:"#2563eb"},
+  {name:"taxonomy",count:493,color:"#059669"},
+  {name:"location",count:450,color:"#d97706"},
+  {name:"identifier",count:229,color:"#7c3aed"},
+  {name:"event",count:183,color:"#dc2626"},
+  {name:"category",count:181,color:"#0891b2"},
+  {name:"text",count:98,color:"#be185d"},
+  {name:"statistic",count:55,color:"#4f46e5"},
+  {name:"environment",count:31,color:"#65a30d"},
+  {name:"other",count:3,color:"#6b7280"},
+];
+
+// ========== CHARTS ==========
+
+// World Map
+function renderMap() {
+  const realData = DATASETS.filter(d => d.lat !== null);
+  const typeColors = {gbif:"#2563eb",ifn:"#059669",zenodo:"#d97706",inventory:"#7c3aed",synthetic:"#9ca3af"};
+  const typeLabels = {gbif:"GBIF",ifn:"National inventory",zenodo:"Zenodo",inventory:"Regional inventory",synthetic:"Synthetic"};
+
+  const traces = [];
+  for (const [type, color] of Object.entries(typeColors)) {
+    const items = realData.filter(d => d.type === type);
+    if (items.length === 0) continue;
+    traces.push({
+      type: 'scattergeo', mode: 'markers',
+      lat: items.map(d => d.lat), lon: items.map(d => d.lon),
+      text: items.map(d => `<b>${d.name}</b><br>${d.country}<br>${d.cols} columns<br>Language: ${d.lang}`),
+      hoverinfo: 'text',
+      marker: {
+        size: items.map(d => Math.max(6, Math.sqrt(d.cols) * 2.5)),
+        color: color, opacity: 0.75,
+        line: {width: 1, color: '#fff'}
+      },
+      name: typeLabels[type]
+    });
+  }
+
+  Plotly.newPlot('map-chart', traces, {
+    title: {text:'Geographic distribution of data sources', font:{size:16,family:'Inter'}},
+    geo: {
+      showland: true, landcolor: '#f3f4f6',
+      showocean: true, oceancolor: '#eff6ff',
+      showcountries: true, countrycolor: '#d1d5db',
+      showcoastlines: true, coastlinecolor: '#9ca3af',
+      projection: {type: 'natural earth'},
+      lonaxis: {range: [-140, 190]}, lataxis: {range: [-50, 75]}
+    },
+    legend: {x: 0.01, y: 0.01, bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#e5e7eb', borderwidth: 1},
+    margin: {l:0,r:0,t:40,b:0}, font: {family:'Inter'}
+  }, {responsive: true});
+}
+
+// Continent & Language charts
+function renderDistributions() {
+  const continentCounts = {};
+  DATASETS.filter(d => d.type !== 'synthetic').forEach(d => {
+    continentCounts[d.continent] = (continentCounts[d.continent] || 0) + d.cols;
+  });
+  const continents = Object.entries(continentCounts).sort((a,b) => b[1]-a[1]);
+
+  Plotly.newPlot('continent-chart', [{
+    type: 'bar', orientation: 'h',
+    y: continents.map(c => c[0]), x: continents.map(c => c[1]),
+    marker: {color: '#2563eb', opacity: 0.8},
+    text: continents.map(c => c[1]), textposition: 'outside'
+  }], {
+    title: {text:'Columns by continent (excluding synthetic)', font:{size:14,family:'Inter'}},
+    xaxis: {title: 'Number of columns'}, yaxis: {autorange: 'reversed'},
+    margin: {l:120,r:60,t:40,b:40}, font: {family:'Inter', size:12}
+  }, {responsive: true});
+
+  const langMap = {en:'English',fr:'French',es:'Spanish',de:'German',pt:'Portuguese',zh:'Chinese',id:'Indonesian',la:'Latin'};
+  const langCounts = {};
+  DATASETS.forEach(d => {
+    const l = langMap[d.lang] || d.lang;
+    langCounts[l] = (langCounts[l] || 0) + d.cols;
+  });
+  const langs = Object.entries(langCounts).sort((a,b) => b[1]-a[1]);
+
+  Plotly.newPlot('language-chart', [{
+    type: 'pie',
+    labels: langs.map(l => l[0]), values: langs.map(l => l[1]),
+    marker: {colors: ['#2563eb','#059669','#d97706','#7c3aed','#dc2626','#0891b2','#65a30d','#be185d']},
+    textinfo: 'label+percent', hole: 0.4
+  }], {
+    title: {text:'Distribution by language', font:{size:14,family:'Inter'}},
+    margin: {l:20,r:20,t:40,b:20}, font: {family:'Inter', size:12},
+    showlegend: false
+  }, {responsive: true});
+}
+
+// Sunburst
+function renderSunburst() {
+  const roleColorMap = {};
+  ROLES.forEach(r => { roleColorMap[r.name] = r.color; });
+
+  const ids = [], labels = [], parents = [], values = [], colors = [];
+
+  ROLES.forEach(r => {
+    ids.push('role-' + r.name);
+    labels.push(r.name);
+    parents.push('');
+    values.push(r.count);
+    colors.push(r.color);
+  });
+
+  CONCEPTS.forEach(c => {
+    ids.push('concept-' + c.name);
+    labels.push(c.name.split('.')[1]);
+    parents.push('role-' + c.role);
+    values.push(c.count);
+    colors.push(roleColorMap[c.role] || '#6b7280');
+  });
+
+  Plotly.newPlot('sunburst-chart', [{
+    type: 'sunburst', ids, labels, parents, values,
+    branchvalues: 'total',
+    marker: {colors: colors, line: {width: 1, color: '#fff'}},
+    hovertemplate: '<b>%{label}</b><br>%{value} columns<extra></extra>',
+    textinfo: 'label+value',
+    insidetextorientation: 'radial',
+    maxdepth: 3
+  }], {
+    title: {text:'Concept taxonomy (role > concept)', font:{size:16,family:'Inter'}},
+    margin: {l:0,r:0,t:40,b:0}, font: {family:'Inter'}
+  }, {responsive: true});
+}
+
+// Role bar chart
+function renderRoles() {
+  Plotly.newPlot('role-chart', [{
+    type: 'bar',
+    x: ROLES.map(r => r.name), y: ROLES.map(r => r.count),
+    marker: {color: ROLES.map(r => r.color)},
+    text: ROLES.map(r => r.count), textposition: 'outside'
+  }], {
+    title: {text:'Columns by semantic role', font:{size:14,family:'Inter'}},
+    yaxis: {title: 'Number of columns'},
+    margin: {l:60,r:20,t:40,b:60}, font: {family:'Inter', size:12}
+  }, {responsive: true});
+}
+
+// ProductScore breakdown
+function renderProductScore() {
+  const components = [
+    {name:'gbif_core_standard', score:98.511, weight:'20%', color:'#059669'},
+    {name:'gbif_extended', score:91.018, weight:'10%', color:'#059669'},
+    {name:'en_field', score:82.672, weight:'15%', color:'#059669'},
+    {name:'tropical_field', score:75.093, weight:'30%', color:'#d97706'},
+    {name:'research_traits', score:71.621, weight:'15%', color:'#d97706'},
+    {name:'anonymous', score:63.634, weight:'10%', color:'#dc2626'},
+  ];
+
+  Plotly.newPlot('product-score-chart', [{
+    type:'bar', orientation:'h',
+    y: components.map(c => c.name + ' (' + c.weight + ')'),
+    x: components.map(c => c.score),
+    marker: {color: components.map(c => c.color)},
+    text: components.map(c => c.score.toFixed(2)), textposition:'outside',
+    hovertemplate: '<b>%{y}</b>: %{x:.2f}<extra></extra>'
+  }], {
+    title:{text:'ProductScore 80.84 — Breakdown by data family (weight)', font:{size:14,family:'Inter'}},
+    xaxis:{title:'Score', range:[0,115]},
+    yaxis:{autorange:'reversed'},
+    margin:{l:220,r:60,t:40,b:40}, font:{family:'Inter',size:12},
+    shapes:[{type:'line',x0:80.839,x1:80.839,y0:-0.5,y1:5.5,line:{color:'#2563eb',width:2,dash:'dot'}}],
+    annotations:[{x:80.839,y:5.5,text:'ProductScore: 80.84',showarrow:false,font:{size:11,color:'#2563eb'},yshift:15}]
+  }, {responsive:true});
+}
+
+// Holdout by language
+function renderHoldoutLang() {
+  const langs = ['German (de)','Spanish (es)','French (fr)'];
+  const scores = [91.93, 91.33, 65.60];
+  const colors = ['#059669','#059669','#d97706'];
+
+  Plotly.newPlot('holdout-lang-chart', [{
+    type:'bar',
+    x: langs, y: scores,
+    marker:{color:colors},
+    text: scores.map(s => s.toFixed(1)), textposition:'outside'
+  }], {
+    title:{text:'Score by language holdout (trained without that language)', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Holdout Score', range:[0,110]},
+    margin:{l:60,r:20,t:40,b:60}, font:{family:'Inter',size:12}
+  }, {responsive:true});
+}
+
+// Holdout by family
+function renderHoldoutFamily() {
+  const families = ['research_traits','dwc_gbif','tropical_field','forest_inventory'];
+  const scores = [71.4, 70.2, 64.0, 41.8];
+  const colors = ['#d97706','#d97706','#dc2626','#dc2626'];
+
+  Plotly.newPlot('holdout-family-chart', [{
+    type:'bar',
+    x: families, y: scores,
+    marker:{color:colors},
+    text: scores.map(s => s.toFixed(1)), textposition:'outside'
+  }], {
+    title:{text:'Score by family holdout (trained without that data family)', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Holdout Score', range:[0,90]},
+    margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12},
+    annotations:[{x:'forest_inventory',y:41.8,text:'Main weakness',showarrow:true,arrowhead:2,ay:-30,font:{size:11,color:'#dc2626'}}]
+  }, {responsive:true});
+}
+
+// Structural diagnostics
+function renderStructural() {
+  const names = ['gbif_core_standard','en_standard','gbif_extended','en_field','coded_headers'];
+  const scores = [96.3, 95.7, 87.0, 75.9, 72.6];
+  const colors = ['#059669','#059669','#059669','#d97706','#d97706'];
+
+  Plotly.newPlot('structural-chart', [{
+    type:'bar',
+    x: names, y: scores,
+    marker:{color:colors},
+    text: scores.map(s => s.toFixed(1)), textposition:'outside'
+  }], {
+    title:{text:'Structural diagnostics — Score by column profile', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Score', range:[0,110]},
+    margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12}
+  }, {responsive:true});
+}
+
+// Forest inventory sub-split
+function renderForestSubsplit() {
+  const names = ['nordic_inventory','fia_en','ifn_fr'];
+  const scores = [65.2, 50.3, 17.9];
+  const colors = ['#d97706','#dc2626','#dc2626'];
+
+  Plotly.newPlot('forest-subsplit-chart', [{
+    type:'bar',
+    x: names, y: scores,
+    marker:{color:colors},
+    text: scores.map(s => s.toFixed(1)), textposition:'outside'
+  }], {
+    title:{text:'Forest inventory sub-split', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Score', range:[0,80]},
+    margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12},
+    annotations:[{x:'ifn_fr',y:17.9,text:'French coded headers',showarrow:true,arrowhead:2,ay:-30,font:{size:11,color:'#dc2626'}}]
+  }, {responsive:true});
+}
+
+// Instance evaluation
+function renderInstanceEval() {
+  const instances = [
+    {name:'niamoto-nc',tier:'Tier 1',cols:57,role:96.5,concept:91.2},
+    {name:'niamoto-gb',tier:'Tier 1',cols:27,role:100.0,concept:100.0},
+    {name:'guyadiv',tier:'Tier 1',cols:61,role:83.6,concept:83.6},
+    {name:'GBIF NC',tier:'Tier 1b',cols:51,role:96.1,concept:90.2},
+    {name:'GBIF Gabon',tier:'Tier 1b',cols:45,role:91.1,concept:88.9},
+    {name:'GBIF inst.',tier:'Tier 1b',cols:41,role:90.2,concept:87.8},
+    {name:'Silver',tier:'Tier 2',cols:136,role:89.0,concept:77.2},
+  ];
+
+  Plotly.newPlot('instance-chart', [
+    {
+      type:'bar', name:'Role %',
+      x: instances.map(i => i.name + ' (' + i.cols + ' cols)'),
+      y: instances.map(i => i.role),
+      marker:{color:'#2563eb'},
+      text: instances.map(i => i.role.toFixed(1) + '%'), textposition:'outside'
+    },
+    {
+      type:'bar', name:'Concept %',
+      x: instances.map(i => i.name + ' (' + i.cols + ' cols)'),
+      y: instances.map(i => i.concept),
+      marker:{color:'#d97706'},
+      text: instances.map(i => i.concept.toFixed(1) + '%'), textposition:'outside'
+    }
+  ], {
+    title:{text:'Instance evaluation — Role vs Concept accuracy', font:{size:14,family:'Inter'}},
+    barmode:'group',
+    yaxis:{title:'Accuracy (%)', range:[0,105]},
+    margin:{l:60,r:20,t:40,b:100}, font:{family:'Inter',size:12},
+    legend:{x:0.01,y:0.99},
+    shapes:[
+      {type:'line',x0:-0.5,x1:6.5,y0:90.9,y1:90.9,line:{color:'#2563eb',width:1.5,dash:'dot'}},
+      {type:'line',x0:-0.5,x1:6.5,y0:85.4,y1:85.4,line:{color:'#d97706',width:1.5,dash:'dot'}}
+    ],
+    annotations:[
+      {x:6,y:90.9,text:'Avg role: 90.9%',showarrow:false,font:{size:10,color:'#2563eb'},yshift:10},
+      {x:6,y:85.4,text:'Avg concept: 85.4%',showarrow:false,font:{size:10,color:'#d97706'},yshift:-12}
+    ]
+  }, {responsive:true});
+}
+
+// Autoresearch progress
+function renderProgress() {
+  Plotly.newPlot('header-progress-chart', [{
+    type: 'scatter', mode: 'lines+markers',
+    x: HEADER_PROGRESS.map((_, i) => i + 1),
+    y: HEADER_PROGRESS.map(p => p.score),
+    text: HEADER_PROGRESS.map(p => p.label),
+    hovertemplate: 'Iteration %{x}<br>F1 = %{y:.4f}<br>%{text}<extra></extra>',
+    line: {color: '#059669', width: 2.5},
+    marker: {size: 7, color: '#059669'},
+    fill: 'tozeroy', fillcolor: 'rgba(5,150,105,0.08)'
+  }], {
+    title: {text:'Header model — Macro-F1 progression', font:{size:14,family:'Inter'}},
+    xaxis: {title: 'Autoresearch iteration'},
+    yaxis: {title: 'Macro-F1', range: [0.3, 0.85]},
+    margin: {l:60,r:20,t:40,b:40}, font: {family:'Inter', size:12},
+    shapes: [{type:'line',x0:0,x1:20,y0:0.85,y1:0.85,line:{color:'#dc2626',width:1,dash:'dot'}}],
+    annotations: [{x:18,y:0.85,text:'Phase 2 target',showarrow:false,font:{size:11,color:'#dc2626'}}]
+  }, {responsive: true});
+
+  Plotly.newPlot('values-progress-chart', [{
+    type: 'scatter', mode: 'lines+markers',
+    x: VALUES_PROGRESS.map((_, i) => i + 1),
+    y: VALUES_PROGRESS.map(p => p.score),
+    text: VALUES_PROGRESS.map(p => p.label),
+    hovertemplate: 'Iteration %{x}<br>F1 = %{y:.4f}<br>%{text}<extra></extra>',
+    line: {color: '#d97706', width: 2.5},
+    marker: {size: 7, color: '#d97706'},
+    fill: 'tozeroy', fillcolor: 'rgba(217,119,6,0.08)'
+  }], {
+    title: {text:'Values model — Macro-F1 progression', font:{size:14,family:'Inter'}},
+    xaxis: {title: 'Autoresearch iteration'},
+    yaxis: {title: 'Macro-F1', range: [0.2, 0.55]},
+    margin: {l:60,r:20,t:40,b:40}, font: {family:'Inter', size:12}
+  }, {responsive: true});
+}
+
+// Alternatives scatter
+function renderAlternatives() {
+  const alt = [
+    {name:'Niamoto (current)',data:2525,f1:0.8004,size:15,color:'#2563eb',offline:true},
+    {name:'Sherlock',data:686765,f1:0.89,size:10,color:'#dc2626',offline:true},
+    {name:'Sato',data:686765,f1:0.93,size:10,color:'#d97706',offline:true},
+    {name:'DoDuo',data:50000,f1:0.90,size:10,color:'#7c3aed',offline:false},
+    {name:'LLM zero-shot',data:1,f1:0.85,size:10,color:'#059669',offline:false},
+    {name:'Regex/rules',data:1,f1:0.30,size:10,color:'#6b7280',offline:true},
+  ];
+  Plotly.newPlot('alternatives-chart', [{
+    type: 'scatter', mode: 'markers+text',
+    x: alt.map(a => Math.max(1, a.data)),
+    y: alt.map(a => a.f1),
+    text: alt.map(a => a.name),
+    textposition: alt.map(a => a.name === 'Niamoto (current)' ? 'top center' : 'bottom center'),
+    textfont: {size: 11, family: 'Inter'},
+    marker: {
+      size: alt.map(a => a.size),
+      color: alt.map(a => a.color),
+      symbol: alt.map(a => a.offline ? 'circle' : 'diamond'),
+      line: {width: 2, color: '#fff'}
+    },
+    hovertemplate: '<b>%{text}</b><br>Data: %{x:,}<br>Score: %{y:.2f}<extra></extra>'
+  }], {
+    title: {text:'Trade-off: required data vs performance', font:{size:14,family:'Inter'}},
+    xaxis: {title: 'Labeled columns required', type: 'log', range: [-0.5, 6.5]},
+    yaxis: {title: 'Reported score', range: [0.2, 1.0]},
+    margin: {l:60,r:20,t:40,b:50}, font: {family:'Inter', size:12},
+    annotations: [{x: Math.log10(2525), y: 0.8004, text: 'Our position', showarrow: true,
+      arrowhead: 2, ax: 60, ay: -30, font: {size: 12, color: '#2563eb', family: 'Inter'}}],
+    shapes: [{type:'rect',x0:Math.log10(1),x1:Math.log10(5000),y0:0.2,y1:1.0,
+      fillcolor:'rgba(37,99,235,0.05)',line:{width:0}},
+      {type:'rect',x0:Math.log10(5000),x1:6.5,y0:0.2,y1:1.0,
+      fillcolor:'rgba(220,38,38,0.03)',line:{width:0}}]
+  }, {responsive: true});
+}
+
+// Improvement timeline
+function renderImprovement() {
+  const steps = [
+    {step:'V1\nInitial',concept:66.5},
+    {step:'V2\nFix annotations',concept:71.1},
+    {step:'V3\nVerify values',concept:71.3},
+    {step:'V4\nAlias +13',concept:76.6},
+    {step:'V5\nRetrain',concept:77.5},
+    {step:'V6\nAcquire + retrain',concept:85.4},
+  ];
+  Plotly.newPlot('improvement-chart', [{
+    type:'bar',
+    x: steps.map(s => s.step),
+    y: steps.map(s => s.concept),
+    marker:{color: steps.map((s,i) => i === steps.length-1 ? '#059669' : '#2563eb')},
+    text: steps.map(s => s.concept + '%'),
+    textposition:'outside',
+    textfont:{family:'JetBrains Mono',size:14}
+  }], {
+    title:{text:'Session improvement: concept accuracy progression', font:{size:14,family:'Inter'}},
+    yaxis:{title:'Concept %', range:[0,95]},
+    xaxis:{tickfont:{size:11}},
+    margin:{l:60,r:20,t:40,b:80}, font:{family:'Inter',size:12},
+    shapes:[{type:'line',x0:-0.5,x1:5.5,y0:66.5,y1:66.5,line:{color:'#dc2626',width:1,dash:'dot'}},
+            {type:'line',x0:-0.5,x1:5.5,y0:85.4,y1:85.4,line:{color:'#059669',width:1,dash:'dot'}}],
+    annotations:[
+      {x:0,y:66.5,text:'Start: 66.5%',showarrow:false,font:{size:10,color:'#dc2626'},yshift:-12},
+      {x:5,y:85.4,text:'Final: 85.4%',showarrow:false,font:{size:10,color:'#059669'},yshift:12}
+    ]
+  }, {responsive:true});
+}
+
+// ========== SOURCE TABLE ==========
+
+function renderSourceTable(filter) {
+  const tbody = document.getElementById('source-tbody');
+  const filtered = filter === 'all' ? DATASETS : DATASETS.filter(d => d.type === filter);
+  const typeLabels = {gbif:'GBIF',ifn:'IFN',zenodo:'Zenodo',inventory:'Inventory',synthetic:'Synthetic'};
+
+  tbody.innerHTML = filtered.sort((a,b) => b.cols - a.cols).map(d => `
+    <tr>
+      <td style="font-family:var(--mono);font-size:12px;">${d.name}</td>
+      <td><span class="badge ${d.type}">${typeLabels[d.type]}</span></td>
+      <td>${d.country}</td>
+      <td>${d.continent}</td>
+      <td>${d.lang.toUpperCase()}</td>
+      <td class="num">${d.cols}</td>
+    </tr>
+  `).join('');
+}
+
+function filterTable(type) {
+  document.querySelectorAll('#source-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSourceTable(type);
+}
+
+// Concept table
+function renderConceptTable() {
+  document.getElementById('concept-tbody').innerHTML = CONCEPTS.map(c => `
+    <tr>
+      <td style="font-family:var(--mono);font-size:12px;">${c.name}</td>
+      <td><span class="badge" style="background:${ROLES.find(r=>r.name===c.role)?.color || '#6b7280'}22;color:${ROLES.find(r=>r.name===c.role)?.color || '#6b7280'}">${c.role}</span></td>
+      <td class="num">${c.count}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${c.examples}</td>
+    </tr>
+  `).join('');
+}
+
+// ========== PIPELINE DETAILS ==========
+
+function showDetail(id) {
+  document.querySelectorAll('.pipeline-detail').forEach(d => d.classList.remove('visible'));
+  document.querySelectorAll('.pipeline-box').forEach(b => b.classList.remove('active'));
+  document.getElementById('detail-' + id).classList.toggle('visible');
+  event.currentTarget.classList.add('active');
+}
+
+// ========== INIT ==========
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderMap();
+  renderDistributions();
+  renderSunburst();
+  renderRoles();
+  renderProductScore();
+  renderHoldoutLang();
+  renderHoldoutFamily();
+  renderStructural();
+  renderForestSubsplit();
+  renderInstanceEval();
+  renderProgress();
+  renderImprovement();
+  renderAlternatives();
+  renderSourceTable('all');
+  renderConceptTable();
+});
+</script>
+</body>
+</html>
