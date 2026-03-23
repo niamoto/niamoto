@@ -351,6 +351,66 @@ class TestUploadFiles:
         assert categories["data.csv"] == "csv"
         assert categories["raster.tif"] == "tif"
 
+    def test_upload_sanitizes_path_traversal_filename(
+        self, test_client: TestClient, fixtures_dir: Path, working_directory: Path
+    ):
+        """Test upload sanitizes client-provided filenames to a safe leaf name."""
+        csv_file = fixtures_dir / "sample_occurrences.csv"
+
+        with open(csv_file, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("../../nested/occurrences.csv", f, "text/csv")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["errors"] == []
+        assert data["uploaded_files"][0]["filename"] == "occurrences.csv"
+        assert (working_directory / "imports" / "occurrences.csv").exists()
+        assert not (working_directory / "nested" / "occurrences.csv").exists()
+
+    def test_upload_rejects_zip_slip_archive(
+        self, test_client: TestClient, tmp_path: Path, working_directory: Path
+    ):
+        """Test malicious ZIP entries cannot escape extraction boundaries."""
+        zip_path = tmp_path / "test.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("../escape.csv", "id,name\n1,bad\n")
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["uploaded_files"] == []
+        assert any("invalid filename" in error.lower() for error in data["errors"])
+        assert not (working_directory / "escape.csv").exists()
+
+    def test_upload_rejects_oversized_file(
+        self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Test upload enforces the maximum file size."""
+        from niamoto.gui.api.routers import smart_config
+
+        monkeypatch.setattr(smart_config, "MAX_UPLOAD_SIZE_BYTES", 8)
+
+        response = test_client.post(
+            "/api/smart/upload-files",
+            files={"files": ("data.csv", io.BytesIO(b"0123456789"), "text/csv")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["uploaded_files"] == []
+        assert any("maximum upload size" in error.lower() for error in data["errors"])
+
 
 # ============================================================================
 # ANALYZE FILE ENDPOINT TESTS
@@ -440,6 +500,16 @@ class TestAnalyzeFile:
         # The entity_name might be used for better column detection
         data = response.json()
         assert "columns" in data
+
+    def test_analyze_file_rejects_path_outside_project(self, test_client: TestClient):
+        """Test analysis rejects paths outside the project directory."""
+        response = test_client.post(
+            "/api/smart/analyze-file",
+            json={"filepath": "../../etc/passwd"},
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
 
 
 # ============================================================================
@@ -609,6 +679,21 @@ class TestDetectRelationships:
 
         assert response.status_code == 404
 
+    def test_detect_relationships_rejects_path_outside_project(
+        self, test_client: TestClient
+    ):
+        """Test relationship detection rejects paths outside the project."""
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "../../etc/passwd",
+                "target_files": ["imports/sample_taxonomy.csv"],
+            },
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
+
 
 # ============================================================================
 # AUTO-CONFIGURE MAIN TESTS
@@ -638,6 +723,16 @@ class TestAutoConfigureMain:
         # Should have at least one entity configured
         entities = data["entities"]
         assert len(entities) > 0
+
+    def test_auto_configure_rejects_path_outside_project(self, test_client: TestClient):
+        """Test auto-configure rejects paths outside the project."""
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["../../etc/passwd"]},
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
 
     def test_auto_configure_multiple_csvs_detects_references(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]

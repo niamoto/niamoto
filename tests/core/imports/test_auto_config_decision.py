@@ -1,3 +1,4 @@
+import niamoto.core.imports.auto_config_decision as auto_config_decision
 from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
     build_heuristic_classification,
@@ -145,6 +146,94 @@ def test_build_heuristic_classification_identifies_small_reference_table():
     assert classification["suggested_entity_type"] == "reference"
     assert classification["suggested_connector_type"] == "file"
     assert classification["extract_hierarchy_as_reference"] is False
+
+
+def test_build_entity_decision_without_ml_predictions_stays_heuristic_only():
+    analysis = _base_analysis()
+    analysis["ml_predictions"] = []
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={},
+        all_analyses={"imports/plots.csv": analysis},
+    )
+
+    assert decision["ml_entity_type"] is None
+    assert decision["ml_confidence"] == 0.0
+    assert decision["alignment"] == "heuristic_only"
+
+
+def test_build_entity_decision_rejects_enriched_reference_when_dates_present():
+    analysis = _base_analysis()
+    analysis["columns"] = ["id_plot", "plot", "observed_at"]
+    analysis["date_columns"] = ["observed_at"]
+    analysis["id_columns"] = ["id_plot"]
+    analysis["name_columns"] = ["plot"]
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={},
+        all_analyses={"imports/plots.csv": analysis},
+    )
+
+    assert decision["heuristic_flags"]["is_enriched_reference_candidate"] is False
+
+
+def test_build_entity_decision_reuses_precomputed_heuristics(monkeypatch):
+    analysis = _base_analysis()
+    analysis["heuristic_classification"] = {
+        "suggested_entity_type": "reference",
+        "suggested_connector_type": "file",
+        "confidence": 0.77,
+        "extract_hierarchy_as_reference": False,
+    }
+    analysis["heuristic_flags"] = {
+        "has_geometry": False,
+        "has_observations": False,
+        "has_taxonomic_hierarchy": False,
+        "has_hierarchy": False,
+        "column_count": 2,
+    }
+
+    monkeypatch.setattr(
+        auto_config_decision,
+        "build_heuristic_classification",
+        lambda analysis: (_ for _ in ()).throw(AssertionError("should not recompute")),
+    )
+    monkeypatch.setattr(
+        auto_config_decision,
+        "collect_heuristic_flags",
+        lambda analysis: (_ for _ in ()).throw(AssertionError("should not recompute")),
+    )
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={},
+        all_analyses={"custom/plots-source.csv": analysis},
+    )
+
+    assert decision["heuristic_entity_type"] == "reference"
+    assert decision["heuristic_confidence"] >= 0.78
+
+
+def test_build_entity_decision_uses_entity_name_index_instead_of_hardcoded_import_path():
+    analysis = _base_analysis()
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={"plots": [{"from": "occurrences", "field": "plot_name"}]},
+        all_analyses={
+            "custom/plots-source.csv": analysis,
+            "nested/occurrences-source.csv": {"row_count": 1000},
+            "nested/occurrences.csv": {"row_count": 1000},
+        },
+    )
+
+    assert decision["final_entity_type"] == "reference"
 
 
 def test_column_detector_uses_extracted_heuristic_classification():

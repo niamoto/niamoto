@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 def build_entity_review(
@@ -57,6 +60,13 @@ def build_entity_review(
             "mixed",
         }:
             review_reasons.append(reason)
+
+    logger.debug(
+        "Auto-config review for %s: required=%s reasons=%d",
+        decision.get("final_entity_type"),
+        len(review_reasons) > 0,
+        len(review_reasons),
+    )
 
     return {
         "review_required": len(review_reasons) > 0,

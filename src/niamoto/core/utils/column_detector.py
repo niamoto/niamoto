@@ -4,24 +4,29 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from niamoto.core.imports.auto_config_decision import build_heuristic_classification
+from niamoto.core.auto_config_rules import (
+    build_heuristic_classification,
+    collect_heuristic_flags,
+)
+from niamoto.core.domain_vocabulary import (
+    DOMAIN_NAME_PATTERNS,
+    ENTITY_SYNONYMS,
+    GENERIC_NAME_PATTERNS,
+    GEOGRAPHIC_HIERARCHY_PATTERNS,
+    GEOGRAPHIC_LEVELS,
+    RELATIONSHIP_IDENTIFIER_TARGETS,
+    TAXONOMIC_HIERARCHY_PATTERNS,
+    TAXONOMIC_LEVELS,
+    infer_entity_token,
+)
 
 
 class ColumnDetector:
     """Detect patterns in column names and data for smart configuration."""
 
     RELATIONSHIP_ENTITY_PATTERNS = {
-        "plot": ["plot", "parcelle", "quadrat", "transect"],
-        "taxon": [
-            "taxon",
-            "taxa",
-            "species",
-            "genus",
-            "family",
-            "taxaname",
-            "scientific",
-        ],
-        "locality": ["locality", "location", "site", "localite", "lieu"],
+        entity: list(ENTITY_SYNONYMS[entity])
+        for entity in ("plot", "taxon", "locality")
     }
 
     RELATIONSHIP_IDENTIFIER_MARKERS = ["id", "code", "ref", "key", "pk"]
@@ -29,71 +34,22 @@ class ColumnDetector:
 
     # Patterns for hierarchy detection
     HIERARCHY_PATTERNS = {
-        # Taxonomic hierarchy
-        "kingdom": ["kingdom", "regne", "regnum", "tax_kingdom"],
-        "phylum": ["phylum", "embranchement", "division", "tax_phylum"],
-        "class": ["class", "classe", "tax_class"],
-        "order": ["order", "ordre", "ordo", "tax_order"],
-        "family": ["family", "famille", "familia", "tax_fam", "tax_family"],
-        "genus": ["genus", "genre", "tax_gen", "tax_genus"],
-        "species": [
-            "species",
-            "espece",
-            "epithet",
-            "sp",
-            "tax_sp",
-            "tax_species",
-            "tax_sp_level",
-            "tax_esp",
-        ],
-        "subspecies": [
-            "subspecies",
-            "sous-espece",
-            "infra",
-            "var",
-            "variety",
-            "tax_infra",
-            "tax_infra_level",
-        ],
+        **{
+            level: list(patterns)
+            for level, patterns in TAXONOMIC_HIERARCHY_PATTERNS.items()
+        },
         "rank": ["rank", "rang", "level", "niveau", "tax_rank"],
         "parent": ["parent", "parent_id"],
-        # Geographic hierarchy
-        "country": ["country", "pays", "nation", "pais"],
-        "region": ["region", "province", "state", "etat", "territorio"],
-        "locality": [
-            "locality",
-            "locality_name",
-            "site",
-            "location",
-            "lieu",
-            "localite",
-            "local",
-        ],
-        "sublocality": ["sublocality", "subsite", "sublocation", "zone"],
-        "plot": [
-            "plot",
-            "plot_name",
-            "parcelle",
-            "quadrat",
-            "relevé",
-            "releve",
-            "transect",
-        ],
+        **{
+            level: list(patterns)
+            for level, patterns in GEOGRAPHIC_HIERARCHY_PATTERNS.items()
+        },
     }
 
     # Hierarchy type detection: order matters!
-    TAXONOMIC_LEVELS = [
-        "kingdom",
-        "phylum",
-        "class",
-        "order",
-        "family",
-        "genus",
-        "species",
-        "subspecies",
-    ]
+    TAXONOMIC_LEVELS = list(TAXONOMIC_LEVELS)
 
-    GEOGRAPHIC_LEVELS = ["country", "region", "locality", "sublocality", "plot"]
+    GEOGRAPHIC_LEVELS = list(GEOGRAPHIC_LEVELS)
 
     # Patterns for ID columns
     ID_PATTERNS = [
@@ -120,20 +76,8 @@ class ColumnDetector:
 
     # Patterns for name/label columns
     NAME_PATTERNS = [
-        "name",
-        "nom",
-        "label",
-        "title",
-        "titre",
-        "designation",
-        "full_name",
-        "scientific_name",
-        "taxaname",
-        "taxon_name",
-        "plot",  # Ecological plot/site name
-        "site",
-        "locality",
-        "station",
+        *GENERIC_NAME_PATTERNS,
+        *DOMAIN_NAME_PATTERNS,
     ]
 
     # Patterns for date columns
@@ -880,14 +824,14 @@ class ColumnDetector:
         if (
             source_hint["semantic_type"] == "identifier.taxon"
             and target_entity_token == "taxon"
-            and target_col.lower() in {"id", "taxon_id", "id_taxon", "id_taxonref"}
+            and target_col.lower() in RELATIONSHIP_IDENTIFIER_TARGETS["taxon"]
         ):
             adjustment += 0.12
 
         if (
             source_hint["semantic_type"] == "identifier.plot"
             and target_entity_token == "plot"
-            and target_col.lower() in {"id", "plot_id", "id_plot"}
+            and target_col.lower() in RELATIONSHIP_IDENTIFIER_TARGETS["plot"]
         ):
             adjustment += 0.12
 
@@ -949,14 +893,7 @@ class ColumnDetector:
     @classmethod
     def _infer_entity_token(cls, name: Optional[str]) -> Optional[str]:
         """Infer a coarse entity token such as plot, taxon, or locality."""
-        if not name:
-            return None
-
-        normalized = name.lower().rstrip("s")
-        for token, patterns in cls.RELATIONSHIP_ENTITY_PATTERNS.items():
-            if any(pattern in normalized for pattern in patterns):
-                return token
-        return None
+        return infer_entity_token(name, allowed=("plot", "taxon", "locality"))
 
     @classmethod
     def analyze_file_columns(
@@ -983,7 +920,10 @@ class ColumnDetector:
         result["name_columns"] = cls.detect_name_columns(columns)
         result["date_columns"] = cls.detect_date_columns(columns)
         result["ml_predictions"] = cls._detect_semantic_columns(columns, sample_data)
-        result.update(build_heuristic_classification(result))
+        heuristic_classification = build_heuristic_classification(result)
+        result["heuristic_classification"] = heuristic_classification
+        result["heuristic_flags"] = collect_heuristic_flags(result)
+        result.update(heuristic_classification)
 
         return result
 

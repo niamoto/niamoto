@@ -355,6 +355,78 @@
     }
   },
   "autoConfig": {
+    "loading": {
+      "title": "Analyse en cours...",
+      "description": "Détection des hiérarchies, relations et correspondances spatiales",
+      "step": "Analyse des colonnes et des types"
+    },
+    "sections": {
+      "autoDetection": "Détection automatique",
+      "datasets": "Datasets ({{count}})",
+      "references": "Références ({{count}})",
+      "metadataLayers": "Couches metadata ({{count}})",
+      "summary": "Résumé"
+    },
+    "summary": {
+      "detectedElements": "{{count}} élément(s) détecté(s)",
+      "itemsToReview": "{{count}} à vérifier",
+      "reviewAlert": "{{count}} entité(s) ont des signaux heuristiques/ML à vérifier avant import.",
+      "datasets": "Datasets",
+      "references": "Références",
+      "layers": "Couches",
+      "entitiesToReview": "Entités à revoir"
+    },
+    "badges": {
+      "review": "Review",
+      "reviewRequired": "À revoir",
+      "stable": "Stable"
+    },
+    "actions": {
+      "edit": "Éditer",
+      "moveToReferences": "Déplacer vers les références",
+      "moveToDatasets": "Déplacer vers les datasets"
+    },
+    "labels": {
+      "heuristic": "Heuristique",
+      "final": "Final",
+      "primarySignal": "Signal principal"
+    },
+    "alignment": {
+      "aligned": "Heuristique + ML alignés",
+      "heuristicOnly": "Décision heuristique",
+      "mlOverride": "ML a influencé la décision",
+      "conflict": "Heuristique et ML divergent",
+      "mixed": "Signaux mixtes"
+    },
+    "detection": {
+      "fileFormatRecognized": "Format {{format}} reconnu pour \"{{name}}\"",
+      "idColumnFound": "Colonne ID trouvée : {{field}}",
+      "relationshipDetected": "Relation {{source}} → {{target}}",
+      "mlConfidentColumns": "ML : {{count}} colonne(s) sémantiques confiantes pour \"{{name}}\"",
+      "manualReviewRequired": "\"{{name}}\" demande une vérification manuelle",
+      "referenceOfKind": "Référence \"{{name}}\" de type {{kind}}",
+      "hierarchyDetected": "Hiérarchie détectée : {{levels}}",
+      "derivedReference": "Référence dérivée de \"{{source}}\"",
+      "spatialLayersDetected": "{{count}} couche(s) spatiale(s) détectée(s)",
+      "metadataLayersDetected": "{{count}} couche(s) metadata (rasters/vecteurs)",
+      "noStructureDetected": "Aucune structure détectée automatiquement"
+    },
+    "reference": {
+      "derivedFrom": "Dérivé de : {{source}}",
+      "sourceCount": "{{count}} source(s)",
+      "levels": "Niveaux : {{levels}}",
+      "enrichmentEnabled": "Enrichissement activé",
+      "referencedByDatasets": "Référencé par : {{count}} dataset(s)"
+    },
+    "empty": {
+      "noDatasetsDetected": "Aucun dataset détecté",
+      "noReferencesDetected": "Aucune référence détectée"
+    },
+    "sheetTitles": {
+      "dataset": "Dataset : {{name}}",
+      "reference": "Référence : {{name}}",
+      "layer": "Couche : {{name}}"
+    },
     "sheetDescriptions": {
       "dataset": "Configuration du connecteur, schema et relations",
       "reference": "Configuration de la source, hierarchie et enrichissement",

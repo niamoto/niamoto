@@ -4,17 +4,20 @@ All endpoints in this router use get_working_directory() from GUI context
 to ensure file operations happen in the correct project directory.
 """
 
-from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from pydantic import BaseModel
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, List, Optional
 import shutil
 import zipfile
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 from niamoto.gui.api.context import get_working_directory
 
 router = APIRouter()
+
+MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
 
 
 class FileInfo(BaseModel):
@@ -61,6 +64,40 @@ class UploadedFileInfo(BaseModel):
     category: str  # csv, gpkg, tif, other
 
 
+def _sanitize_uploaded_filename(filename: str) -> str:
+    """Return a safe leaf filename from a client-provided upload name."""
+    sanitized = Path(filename.replace("\\", "/")).name.strip()
+    if not sanitized or sanitized in {".", ".."}:
+        raise ValueError("Invalid filename")
+    return sanitized
+
+
+def _validate_zip_member_name(filename: str) -> str:
+    """Validate a ZIP entry path and return a safe extracted leaf name."""
+    normalized = PurePosixPath(filename.replace("\\", "/"))
+    if normalized.is_absolute() or ".." in normalized.parts:
+        raise ValueError("Invalid filename in archive")
+
+    safe_name = normalized.name.strip()
+    if not safe_name or safe_name in {".", ".."}:
+        raise ValueError("Invalid filename in archive")
+    return safe_name
+
+
+async def _read_uploaded_content(uploaded_file: UploadFile) -> bytes:
+    """Read uploaded content with a hard size cap."""
+    chunks: List[bytes] = []
+    total_size = 0
+
+    while chunk := await uploaded_file.read(1024 * 1024):
+        total_size += len(chunk)
+        if total_size > MAX_UPLOAD_SIZE_BYTES:
+            raise ValueError("File exceeds maximum upload size (100 MB)")
+        chunks.append(chunk)
+
+    return b"".join(chunks)
+
+
 @router.post("/upload-files")
 async def upload_files(
     files: List[UploadFile] = File(...), overwrite: bool = False
@@ -92,10 +129,11 @@ async def upload_files(
 
         for uploaded_file in files:
             try:
-                filename = uploaded_file.filename
-                if not filename:
+                raw_filename = uploaded_file.filename
+                if not raw_filename:
                     errors.append("File without name skipped")
                     continue
+                filename = _sanitize_uploaded_filename(raw_filename)
 
                 # Determine file type
                 file_ext = Path(filename).suffix.lower()
@@ -116,7 +154,7 @@ async def upload_files(
                         target_path.unlink()
 
                 # Save file - only read if file doesn't exist or we're overwriting
-                content = await uploaded_file.read()
+                content = await _read_uploaded_content(uploaded_file)
                 file_size = len(content)
 
                 # Handle ZIP extraction
@@ -177,7 +215,22 @@ async def _handle_zip_upload(
         # Extract
         try:
             with zipfile.ZipFile(tmp_path, "r") as zip_ref:
-                zip_ref.extractall(tmp_dir)
+                extracted_names = set()
+                for member in zip_ref.infolist():
+                    if member.is_dir():
+                        continue
+
+                    safe_name = _validate_zip_member_name(member.filename)
+                    if safe_name in extracted_names:
+                        raise ValueError(f"Duplicate file name in archive: {safe_name}")
+
+                    extracted_names.add(safe_name)
+                    dest_path = Path(tmp_dir) / safe_name
+                    with (
+                        zip_ref.open(member, "r") as source,
+                        open(dest_path, "wb") as dest,
+                    ):
+                        shutil.copyfileobj(source, dest)
 
             # Find extracted files
             extracted_files = list(Path(tmp_dir).glob("*"))
@@ -202,7 +255,7 @@ async def _handle_zip_upload(
                 uploaded_files.append(
                     UploadedFileInfo(
                         filename=extracted_file.name,
-                        path=f"imports/shapes/{shapefile_name}/{extracted_file.name}",
+                        path=f"imports/{shapefile_name}/{extracted_file.name}",
                         size=extracted_file.stat().st_size,
                         size_mb=round(extracted_file.stat().st_size / (1024 * 1024), 2),
                         type=extracted_file.suffix.lstrip("."),
@@ -212,6 +265,8 @@ async def _handle_zip_upload(
 
         except zipfile.BadZipFile:
             errors.append(f"{filename} is not a valid ZIP file")
+        except ValueError as exc:
+            errors.append(f"{filename}: {str(exc)}")
 
 
 def _categorize_file(file_ext: str) -> str:
@@ -314,6 +369,8 @@ async def detect_relationships(
         raise
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error detecting relationships: {str(e)}"

@@ -355,6 +355,78 @@
     }
   },
   "autoConfig": {
+    "loading": {
+      "title": "Analysis in progress...",
+      "description": "Detecting hierarchies, relationships and spatial matches",
+      "step": "Analyzing columns and types"
+    },
+    "sections": {
+      "autoDetection": "Automatic detection",
+      "datasets": "Datasets ({{count}})",
+      "references": "References ({{count}})",
+      "metadataLayers": "Metadata layers ({{count}})",
+      "summary": "Summary"
+    },
+    "summary": {
+      "detectedElements": "{{count}} item(s) detected",
+      "itemsToReview": "{{count}} to review",
+      "reviewAlert": "{{count}} entit(ies) have heuristic/ML signals to review before import.",
+      "datasets": "Datasets",
+      "references": "References",
+      "layers": "Layers",
+      "entitiesToReview": "Entities to review"
+    },
+    "badges": {
+      "review": "Review",
+      "reviewRequired": "Needs review",
+      "stable": "Stable"
+    },
+    "actions": {
+      "edit": "Edit",
+      "moveToReferences": "Move to references",
+      "moveToDatasets": "Move to datasets"
+    },
+    "labels": {
+      "heuristic": "Heuristic",
+      "final": "Final",
+      "primarySignal": "Primary signal"
+    },
+    "alignment": {
+      "aligned": "Heuristic + ML aligned",
+      "heuristicOnly": "Heuristic decision",
+      "mlOverride": "ML influenced the decision",
+      "conflict": "Heuristic and ML diverge",
+      "mixed": "Mixed signals"
+    },
+    "detection": {
+      "fileFormatRecognized": "{{format}} format recognized for \"{{name}}\"",
+      "idColumnFound": "ID column found: {{field}}",
+      "relationshipDetected": "Relationship {{source}} → {{target}}",
+      "mlConfidentColumns": "ML: {{count}} confident semantic column(s) for \"{{name}}\"",
+      "manualReviewRequired": "\"{{name}}\" requires manual review",
+      "referenceOfKind": "Reference \"{{name}}\" of type {{kind}}",
+      "hierarchyDetected": "Hierarchy detected: {{levels}}",
+      "derivedReference": "Reference derived from \"{{source}}\"",
+      "spatialLayersDetected": "{{count}} spatial layer(s) detected",
+      "metadataLayersDetected": "{{count}} metadata layer(s) (rasters/vectors)",
+      "noStructureDetected": "No structure detected automatically"
+    },
+    "reference": {
+      "derivedFrom": "Derived from: {{source}}",
+      "sourceCount": "{{count}} source(s)",
+      "levels": "Levels: {{levels}}",
+      "enrichmentEnabled": "Enrichment enabled",
+      "referencedByDatasets": "Referenced by: {{count}} dataset(s)"
+    },
+    "empty": {
+      "noDatasetsDetected": "No dataset detected",
+      "noReferencesDetected": "No reference detected"
+    },
+    "sheetTitles": {
+      "dataset": "Dataset: {{name}}",
+      "reference": "Reference: {{name}}",
+      "layer": "Layer: {{name}}"
+    },
     "sheetDescriptions": {
       "dataset": "Connector, schema and relations configuration",
       "reference": "Source, hierarchy and enrichment configuration",

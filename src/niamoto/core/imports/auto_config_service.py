@@ -7,6 +7,7 @@ focused on transport concerns while the product behavior lives in core.
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,11 +15,18 @@ from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
     build_semantic_evidence,
 )
+from niamoto.core.domain_vocabulary import (
+    find_taxon_identifier_column,
+    find_taxon_name_column,
+    infer_taxonomy_reference_name,
+)
 from niamoto.core.imports.auto_config_review import (
     build_auto_config_warnings,
     build_entity_review,
 )
 from niamoto.core.utils.column_detector import ColumnDetector, GeoPackageAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class AutoConfigService:
@@ -29,10 +37,20 @@ class AutoConfigService:
 
     def __init__(self, working_directory: Path):
         self.working_directory = Path(working_directory)
+        self._working_directory_resolved = self.working_directory.resolve()
+
+    def _resolve_project_path(self, filepath: str) -> Path:
+        """Resolve a project-relative path and reject paths outside the project."""
+        resolved_path = (self.working_directory / filepath).resolve()
+        try:
+            resolved_path.relative_to(self._working_directory_resolved)
+        except ValueError as exc:
+            raise ValueError(f"Invalid path outside project: {filepath}") from exc
+        return resolved_path
 
     def analyze_file(self, filepath: str) -> Dict[str, Any]:
         """Analyze a supported file from the working directory."""
-        file_path = self.working_directory / filepath
+        file_path = self._resolve_project_path(filepath)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
         if file_path.suffix.lower() != ".csv":
@@ -40,32 +58,39 @@ class AutoConfigService:
         return self.analyze_csv_file(file_path)
 
     def analyze_csv_file(self, file_path: Path) -> Dict[str, Any]:
-        """Analyze a CSV file with smart detection."""
-        try:
-            columns, sample_rows, row_count = self._read_csv_columns_and_rows(
-                file_path, max_rows=self.MAX_SAMPLE_ROWS
-            )
-            sample_data = sample_rows[: self.ANALYSIS_SAMPLE_ROWS]
+        """Analyze a CSV file without exposing internal sample rows."""
+        analysis = self._analyze_csv_file(file_path, include_sample_rows=False)
+        analysis.pop("_sample_rows", None)
+        return analysis
 
-            analysis = ColumnDetector.analyze_file_columns(columns, sample_data)
-            analysis["filename"] = file_path.name
-            analysis["filepath"] = str(file_path)
-            analysis["row_count"] = row_count
-            analysis["sample_size"] = len(sample_rows)
-            return analysis
-        except Exception as exc:  # pragma: no cover - wrapped for API callers
-            raise Exception(f"Failed to analyze CSV: {str(exc)}") from exc
+    def _analyze_csv_file(
+        self, file_path: Path, *, include_sample_rows: bool
+    ) -> Dict[str, Any]:
+        """Analyze a CSV file with smart detection."""
+        columns, sample_rows, row_count = self._read_csv_columns_and_rows(
+            file_path, max_rows=self.MAX_SAMPLE_ROWS
+        )
+        sample_data = sample_rows[: self.ANALYSIS_SAMPLE_ROWS]
+
+        analysis = ColumnDetector.analyze_file_columns(columns, sample_data)
+        analysis["filename"] = file_path.name
+        analysis["filepath"] = str(file_path)
+        analysis["row_count"] = row_count
+        analysis["sample_size"] = len(sample_rows)
+        if include_sample_rows:
+            analysis["_sample_rows"] = sample_rows[: self.ANALYSIS_SAMPLE_ROWS]
+        return analysis
 
     def detect_hierarchy(self, filepath: str) -> Dict[str, Any]:
         """Detect hierarchy-like structures in a CSV file."""
-        file_path = self.working_directory / filepath
+        file_path = self._resolve_project_path(filepath)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
         if file_path.suffix.lower() != ".csv":
             raise ValueError("Only CSV files supported for hierarchy detection")
 
         columns, sample_data, _ = self._read_csv_columns_and_rows(
-            file_path, max_rows=100
+            file_path, max_rows=100, count_all_rows=False
         )
         hierarchy_info = ColumnDetector.detect_hierarchy_columns(columns, sample_data)
 
@@ -87,23 +112,23 @@ class AutoConfigService:
         self, source_file: str, target_files: List[str]
     ) -> Dict[str, Any]:
         """Detect relationships between a source CSV and target CSVs."""
-        source_path = self.working_directory / source_file
+        source_path = self._resolve_project_path(source_file)
         if not source_path.exists():
             raise FileNotFoundError(f"Source file not found: {source_file}")
 
         source_columns, source_sample, _ = self._read_csv_columns_and_rows(
-            source_path, max_rows=100
+            source_path, max_rows=100, count_all_rows=False
         )
         source_entity_name = Path(source_file).stem
         all_relationships = []
 
         for target_file in target_files:
-            target_path = self.working_directory / target_file
+            target_path = self._resolve_project_path(target_file)
             if not target_path.exists():
                 continue
 
             target_columns, target_sample, _ = self._read_csv_columns_and_rows(
-                target_path, max_rows=100
+                target_path, max_rows=100, count_all_rows=False
             )
             target_entity_name = Path(target_file).stem
 
@@ -132,14 +157,14 @@ class AutoConfigService:
         tif_files: List[str] = []
 
         for filepath in files:
-            file_path = self.working_directory / filepath
+            file_path = self._resolve_project_path(filepath)
 
             if not file_path.exists():
                 continue
 
             file_ext = file_path.suffix.lower()
             if file_ext == ".csv":
-                analysis = self.analyze_csv_file(file_path)
+                analysis = self._analyze_csv_file(file_path, include_sample_rows=True)
                 analysis["relative_path"] = filepath
                 csv_analyses[filepath] = analysis
             elif file_ext in [".gpkg", ".geojson"]:
@@ -194,7 +219,7 @@ class AutoConfigService:
                 ):
                     ref_name = self._infer_reference_name(entity_name, analysis)
                     references[ref_name] = self._build_derived_hierarchy_reference(
-                        entity_name, filepath, analysis
+                        entity_name, analysis
                     )
 
         shapes_sources = []
@@ -233,9 +258,7 @@ class AutoConfigService:
             references["shapes"] = self._build_shapes_reference(shapes_sources)
 
         datasets = {
-            entity_name: self._build_dataset_config(
-                filepath, analysis, references, csv_analyses
-            )
+            entity_name: self._build_dataset_config(filepath)
             for entity_name, (filepath, analysis) in datasets_to_create.items()
         }
 
@@ -299,6 +322,8 @@ class AutoConfigService:
                 relationships = ColumnDetector.detect_relationships(
                     other_analysis["columns"],
                     analysis["columns"],
+                    source_sample=other_analysis.get("_sample_rows"),
+                    target_sample=analysis.get("_sample_rows"),
                     source_entity_name=other_name,
                     target_entity_name=entity_name,
                 )
@@ -347,12 +372,19 @@ class AutoConfigService:
                     }
                 )
 
+        for analysis in csv_analyses.values():
+            analysis.pop("_sample_rows", None)
+
+        logger.debug(
+            "Auto-config relationship scan detected references for %d entities",
+            len(referenced_by),
+        )
         return referenced_by
 
     def _read_csv_columns_and_rows(
-        self, file_path: Path, max_rows: int
+        self, file_path: Path, max_rows: int, *, count_all_rows: bool = True
     ) -> Tuple[List[str], List[Dict[str, Any]], int]:
-        """Read CSV header and up to max_rows rows, counting the full file length."""
+        """Read CSV header and sample rows, optionally counting the full file length."""
         with open(file_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             columns = reader.fieldnames or []
@@ -360,9 +392,13 @@ class AutoConfigService:
             rows: List[Dict[str, Any]] = []
             row_count = 0
             for row in reader:
-                row_count += 1
-                if row_count <= max_rows:
+                if row_count < max_rows:
                     rows.append(row)
+                    row_count += 1
+                elif not count_all_rows:
+                    break
+                else:
+                    row_count += 1
 
         return columns, rows, row_count
 
@@ -485,30 +521,18 @@ class AutoConfigService:
     def _build_dataset_config(
         self,
         filepath: str,
-        analysis: Dict[str, Any],
-        references: Dict[str, Any],
-        all_analyses: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Any]:
-        del analysis, references, all_analyses
         return {"connector": {"type": "file", "format": "csv", "path": filepath}}
 
     def _infer_reference_name(self, dataset_name: str, analysis: Dict[str, Any]) -> str:
         levels = analysis.get("hierarchy", {}).get("levels", [])
-        if "occurrence" in dataset_name.lower():
-            if "species" in levels or "genus" in levels:
-                return "taxons"
-            return "taxonomy"
-        if "observation" in dataset_name.lower():
-            return "taxa"
-        return f"{dataset_name}_taxonomy"
+        return infer_taxonomy_reference_name(dataset_name, levels)
 
     def _build_derived_hierarchy_reference(
         self,
         source_dataset: str,
-        source_filepath: str,
         analysis: Dict[str, Any],
     ) -> Dict[str, Any]:
-        del source_filepath
         hierarchy = analysis["hierarchy"]
         levels_config = [
             {"name": level, "column": hierarchy["column_mapping"][level]}
@@ -516,22 +540,8 @@ class AutoConfigService:
             if level in hierarchy["column_mapping"]
         ]
 
-        id_col = None
-        for col in analysis["columns"]:
-            col_lower = col.lower()
-            if "taxon" in col_lower and "id" in col_lower:
-                id_col = col
-                break
-
-        name_col = None
-        for col in analysis["columns"]:
-            col_lower = col.lower()
-            if any(
-                pattern in col_lower
-                for pattern in ["taxaname", "scientific_name", "taxon_name"]
-            ):
-                name_col = col
-                break
+        id_col = find_taxon_identifier_column(analysis["columns"])
+        name_col = find_taxon_name_column(analysis["columns"])
 
         if not name_col and analysis["name_columns"]:
             name_col = analysis["name_columns"][0]
