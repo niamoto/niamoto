@@ -45,7 +45,7 @@ Le holdout anonymous ne teste rien d'utile :
 
 #### 1.1 Supprimer le mécanisme anonymous existant
 
-**Fichier** : `scripts/ml/build_gold_set.py`
+**Fichier** : `ml/scripts/data/build_gold_set.py`
 
 - Supprimer la clé `"anonymous"` du dict `HEADER_VARIANTS` (lignes 1795-1806)
 - Supprimer les 6 blocs `if lang == "anonymous"` dans `generate_synthetic_columns()` :
@@ -62,7 +62,7 @@ Le holdout anonymous ne teste rien d'utile :
 **Emplacement** : après le step coarsen dans `build_gold_set()` (après ligne ~2130), car `concept_coarse` doit être disponible pour l'échantillonnage stratifié.
 
 ```python
-# scripts/ml/build_gold_set.py
+# ml/scripts/data/build_gold_set.py
 
 # Pool de noms anonymes (~300 noms uniques)
 _ANONYMOUS_NAME_POOL = (
@@ -116,7 +116,7 @@ def build_gold_set() -> list[dict]:
     all_records.extend(synthetic)
 
     # 3. Coarsen
-    from scripts.ml.concept_taxonomy import coarsen
+    from ml.scripts.data.concept_taxonomy import coarsen
     for r in all_records:
         r["concept_coarse"] = coarsen(r["concept"])
         r["role_coarse"] = r["concept_coarse"].split(".")[0]
@@ -137,7 +137,7 @@ def build_gold_set() -> list[dict]:
 
 #### 2.1 Ajouter l'évaluation values-only
 
-**Fichier** : `scripts/ml/evaluate.py`
+**Fichier** : `ml/scripts/eval/evaluate.py`
 
 Dans le bloc anonymous (lignes 705-717), après l'évaluation fusion existante, ajouter une évaluation values-only :
 
@@ -185,7 +185,7 @@ def _evaluate_values_only_holdout(
 #### 3.1 Rebuild gold set
 
 ```bash
-uv run python -m scripts.ml.build_gold_set
+uv run python -m ml.scripts.data.build_gold_set
 ```
 
 #### 3.2 Vérifier la distribution
@@ -211,7 +211,7 @@ for c, n in Counter(e['concept_coarse'] for e in anon).most_common():
 #### 3.3 Recalculer le ProductScore
 
 ```bash
-uv run python -m scripts.ml.evaluate --model all --metric product-score
+uv run python -m ml.scripts.eval.evaluate --model all --metric product-score
 ```
 
 **Résultat attendu** : Score anonymous significativement < 100%. ProductScore global en baisse (mécanique, attendu).
