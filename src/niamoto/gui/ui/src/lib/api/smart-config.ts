@@ -117,6 +117,12 @@ export interface AutoConfigureResponse {
     alignment?: 'aligned' | 'heuristic_only' | 'ml_override' | 'conflict' | 'mixed'
     review_required?: boolean
     review_reasons?: string[]
+    review_priority?: 'normal' | 'high'
+    analysis_snapshot?: {
+      row_count: number
+      date_columns: string[]
+      geometry_columns: string[]
+    }
     referenced_by?: Array<{
       from: string
       field: string

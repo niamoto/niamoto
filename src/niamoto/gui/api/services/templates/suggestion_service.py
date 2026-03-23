@@ -910,9 +910,30 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
         if sample_df.empty:
             return []
 
+        # DuckDB native geometry columns are exposed as binary blobs in pandas.
+        # They are useful for map suggestions, but they break semantic profiling
+        # and widget suggestion pipelines that expect textual or scalar columns.
+        profile_df = sample_df.copy()
+        columns_to_drop = []
+        for column in profile_df.columns:
+            if column.lower().endswith("_geom") or column.lower() == "geometry":
+                columns_to_drop.append(column)
+                continue
+
+            non_null = profile_df[column].dropna()
+            if non_null.empty:
+                continue
+
+            first_value = non_null.iloc[0]
+            if isinstance(first_value, (bytes, bytearray, memoryview)):
+                columns_to_drop.append(column)
+
+        if columns_to_drop:
+            profile_df = profile_df.drop(columns=columns_to_drop, errors="ignore")
+
         # Use standard pipeline: profile → enrich → generate
         profiler = DataProfiler()
-        dataset_profile = profiler.profile_dataframe(sample_df, Path(entity_table))
+        dataset_profile = profiler.profile_dataframe(profile_df, Path(entity_table))
 
         analyzer = DataAnalyzer()
         enriched_profiles = []
@@ -944,9 +965,9 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
             if col_profile.null_ratio is not None and col_profile.null_ratio > 0.9:
                 continue
 
-            if col_profile.name in sample_df.columns:
+            if col_profile.name in profile_df.columns:
                 enriched = analyzer.enrich_profile(
-                    col_profile, sample_df[col_profile.name]
+                    col_profile, profile_df[col_profile.name]
                 )
                 enriched_profiles.append(enriched)
 
