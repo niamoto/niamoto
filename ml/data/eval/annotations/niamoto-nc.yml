@@ -1,0 +1,64 @@
+# Ground truth annotations for niamoto-nc (Nouvelle-Calédonie) — full instance.
+# 57 columns: 29 occurrences + 28 plots.
+# Data: test-instance/niamoto-nc/imports/
+
+occurrences.csv:
+  id: identifier.record
+  id_taxonref: identifier.taxon
+  plot_name: location.locality
+  taxaname: taxonomy.species
+  taxonref: taxonomy.species
+  family: taxonomy.family
+  genus: taxonomy.genus
+  species: taxonomy.species
+  infra: taxonomy.rank
+  id_rank: taxonomy.rank
+  dbh: measurement.diameter
+  height: measurement.height
+  strata: category.vegetation
+  flower: category.ecology
+  fruit: category.ecology
+  month_obs: event.date
+  bark_thickness: measurement.trait
+  leaf_area: measurement.leaf_area
+  leaf_ldmc: measurement.trait
+  leaf_sla: measurement.trait
+  leaf_thickness: measurement.trait
+  wood_density: measurement.wood_density
+  elevation: location.elevation
+  rainfall: environment.precipitation
+  holdridge: category.ecology
+  province: location.admin_area
+  in_forest: category.ecology
+  in_um: category.status
+  geo_pt: location.coordinate
+
+plots.csv:
+  id_plot: identifier.record
+  plot: identifier.plot
+  elevation: location.elevation
+  rainfall: environment.precipitation
+  holdridge: category.ecology
+  in_um: category.status
+  species_level: measurement.trait
+  total_stems: statistic.count
+  living_stems: statistic.count
+  nb_families: statistic.count
+  nb_species: statistic.count
+  shannon: measurement.trait
+  pielou: measurement.trait
+  simpson: measurement.trait
+  basal_area: measurement.biomass
+  h_mean: measurement.height
+  dbh_median: measurement.diameter
+  biomass: measurement.biomass
+  wood_density_mean: measurement.wood_density
+  pteridophytes: statistic.count
+  gymnospermae: statistic.count
+  monocotyledonae: statistic.count
+  dicotyledonae: statistic.count
+  emergent: statistic.count
+  canopy: statistic.count
+  undercanopy: statistic.count
+  understorey: statistic.count
+  geo_pt: location.coordinate

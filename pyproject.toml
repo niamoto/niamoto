@@ -112,6 +112,9 @@ dependencies = [
     # scikit-learn - Machine learning library for Python
     # Documentation: https://scikit-learn.org/
     "scikit-learn>=1.7.2",
+    # Unidecode - Unicode to ASCII transliteration for header normalization
+    # Documentation: https://pypi.org/project/Unidecode/
+    "Unidecode>=1.3.8",
     # duckdb - DuckDB is an in-process SQL OLAP database management system
     # Documentation: https://duckdb.org/
     "duckdb>=1.4.2",
@@ -242,6 +245,7 @@ packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
+"ml/models" = "niamoto/models"
 # GUI dist files - only included when building for PyPI with publish.sh
 # Commented out for CI/CD compatibility
 # "src/niamoto/gui/ui/dist" = "niamoto/gui/ui/dist"

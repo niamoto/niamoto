@@ -1,0 +1,39 @@
+# Ground truth annotations for the frozen FIA Oregon coded-inventory acceptance set.
+# Data: data/silver/
+
+fia_or_tree.csv:
+  CN: identifier.record
+  PLT_CN: identifier.plot
+  INVYR: event.year
+  STATECD: location.admin_area
+  COUNTYCD: location.admin_area
+  PLOT: identifier.plot
+  SUBP: identifier.plot
+  TREE: identifier.record
+  STATUSCD: category.status
+  SPCD: identifier.taxon
+  DIA: measurement.diameter
+  HT: measurement.height
+  ACTUALHT: measurement.height
+  CR: measurement.canopy
+  VOLCFNET: measurement.biomass
+  VOLBFNET: measurement.biomass
+  DRYBIO_AG: measurement.biomass
+  CARBON_AG: measurement.biomass
+
+fia_or_plot.csv:
+  CN: identifier.plot
+  INVYR: event.year
+  STATECD: location.admin_area
+  COUNTYCD: location.admin_area
+  PLOT: identifier.plot
+  LAT: location.latitude
+  LON: location.longitude
+  ECOSUBCD: category.habitat
+  ELEV: location.elevation
+  SLOPE: environment.topography
+  ASPECT: environment.topography
+  PHYSCLCD: category.habitat
+  OWNGRPCD: category.management
+  FORINDCD: category.status
+  SITECLCD: category.habitat

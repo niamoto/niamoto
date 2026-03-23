@@ -264,6 +264,16 @@ export function AutoConfigDisplay({
           })
         })
       }
+
+      const predictions = result.ml_predictions?.[name] || []
+      const confidentPredictions = predictions.filter((p) => p.confidence >= 0.7)
+      if (confidentPredictions.length > 0) {
+        details.push({
+          icon: <TrendingUp className="h-4 w-4" />,
+          text: `ML: ${confidentPredictions.length} colonne(s) semantiques confiantes pour "${name}"`,
+          status: 'info',
+        })
+      }
     })
 
     const references = result.entities.references || {}
@@ -452,6 +462,20 @@ export function AutoConfigDisplay({
                     <div className="mt-1 text-xs text-muted-foreground">
                       <div>{config.connector?.format?.toUpperCase() || 'CSV'}</div>
                       <div className="truncate opacity-70">{config.connector?.path}</div>
+                      {result.ml_predictions?.[name] && result.ml_predictions[name].length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {result.ml_predictions[name].slice(0, 3).map((prediction) => (
+                            <Badge
+                              key={`${name}-${prediction.column}`}
+                              variant="secondary"
+                              className="text-[10px]"
+                              title={`${prediction.column} → ${prediction.concept} (${Math.round(prediction.confidence * 100)}%)`}
+                            >
+                              {prediction.column}: {Math.round(prediction.confidence * 100)}%
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

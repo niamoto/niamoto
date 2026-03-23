@@ -790,6 +790,7 @@ class ColumnDetector:
         result["geometry_columns"] = cls.detect_geometry_columns(columns)
         result["name_columns"] = cls.detect_name_columns(columns)
         result["date_columns"] = cls.detect_date_columns(columns)
+        result["ml_predictions"] = cls._detect_semantic_columns(columns, sample_data)
 
         # Determine likely entity type with improved logic
         has_hierarchy = (
@@ -841,6 +842,45 @@ class ColumnDetector:
             result["extract_hierarchy_as_reference"] = False
 
         return result
+
+    @classmethod
+    def _detect_semantic_columns(
+        cls, columns: List[str], sample_data: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        """Run the semantic ML detector on sampled column values.
+
+        This complements heuristic structure detection with column-level
+        semantic predictions and confidence scores.
+        """
+        if not columns or not sample_data:
+            return []
+
+        try:
+            import pandas as pd
+
+            from niamoto.core.imports.profiler import DataProfiler
+        except Exception:
+            return []
+
+        profiler = DataProfiler()
+        predictions: List[Dict[str, Any]] = []
+
+        for col_name in columns:
+            series = pd.Series([row.get(col_name) for row in sample_data])
+            semantic_type, confidence = profiler._detect_semantic_type(col_name, series)
+            if not semantic_type:
+                continue
+            predictions.append(
+                {
+                    "column": col_name,
+                    "concept": semantic_type,
+                    "confidence": round(confidence, 4),
+                    "source": "semantic_classifier",
+                }
+            )
+
+        predictions.sort(key=lambda item: item["confidence"], reverse=True)
+        return predictions
 
 
 class GeoPackageAnalyzer:

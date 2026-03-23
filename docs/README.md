@@ -45,7 +45,7 @@ Our documentation is organized into numbered sections for easy navigation:
 ### For Data Scientists
 - [Import CSV data](02-data-pipeline/import-configuration.md)
 - [Configure transformations](02-data-pipeline/transform-pipeline.md)
-- [Train ML models](03-ml-detection/training-guide.md)
+- [ML detection overview](03-ml-detection/overview.md)
 - [Export results](02-data-pipeline/export-process.md)
 
 ### For Developers
@@ -71,7 +71,7 @@ Our documentation is organized into numbered sections for easy navigation:
 ### By Use Case
 - **Biodiversity monitoring**: [07-tutorials/biodiversity-site.md](07-tutorials/biodiversity-site.md)
 - **Forest analysis**: [07-tutorials/forest-plot-analysis.md](07-tutorials/forest-plot-analysis.md)
-- **Auto-configuration**: [03-ml-detection/auto-config-roadmap.md](03-ml-detection/auto-config-roadmap.md)
+- **Auto-configuration**: [03-ml-detection/branch-architecture.md](03-ml-detection/branch-architecture.md)
 
 ## 📊 Documentation Status
 

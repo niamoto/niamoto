@@ -697,6 +697,28 @@ class TestAutoConfigureMain:
         assert "warnings" in data
         assert isinstance(data["warnings"], list)
 
+    def test_auto_configure_exposes_ml_predictions(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        """Test auto-configure exposes additive ML prediction metadata."""
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["imports/sample_occurrences.csv"]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "ml_predictions" in data
+        assert "sample_occurrences" in data["ml_predictions"]
+        assert isinstance(data["ml_predictions"]["sample_occurrences"], list)
+
+        if data["ml_predictions"]["sample_occurrences"]:
+            first = data["ml_predictions"]["sample_occurrences"][0]
+            assert "column" in first
+            assert "concept" in first
+            assert "confidence" in first
+
     def test_auto_configure_hierarchical_reference(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):

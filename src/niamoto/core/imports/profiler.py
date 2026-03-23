@@ -1,6 +1,10 @@
 """
 Data profiler for automatic dataset analysis and semantic detection.
 This module analyzes data files to detect their structure and suggest entity types.
+
+Semantic detection uses AliasRegistry (header-based fuzzy matching) as the primary
+name-based detector, supplemented by value-based high-precision rules for coordinates,
+WKT geometry, and dates.
 """
 
 from dataclasses import dataclass, field
@@ -16,16 +20,28 @@ try:
 except ImportError:
     HAS_GEOPANDAS = False
 
-# Import ML detector for value-based detection
-try:
-    from niamoto.core.imports.ml_detector import MLColumnDetector
-
-    HAS_ML_DETECTOR = True
-except ImportError:
-    HAS_ML_DETECTOR = False
-    logging.debug("ML detector not available, falling back to pattern-based detection")
+from niamoto.core.imports.ml.alias_registry import AliasRegistry
+from niamoto.core.imports.ml.classifier import ColumnClassifier
 
 logger = logging.getLogger(__name__)
+
+# Singletons (loaded once, thread-safe read-only after init)
+_alias_registry: Optional[AliasRegistry] = None
+_classifier: Optional[ColumnClassifier] = None
+
+
+def _get_alias_registry() -> AliasRegistry:
+    global _alias_registry
+    if _alias_registry is None:
+        _alias_registry = AliasRegistry()
+    return _alias_registry
+
+
+def _get_classifier() -> ColumnClassifier:
+    global _classifier
+    if _classifier is None:
+        _classifier = ColumnClassifier()
+    return _classifier
 
 
 @dataclass
@@ -39,10 +55,12 @@ class ColumnProfile:
     null_ratio: float = 0.0
     sample_values: List[Any] = field(default_factory=list)
     confidence: float = 0.0
+    semantic_profile: Optional[Any] = None  # ColumnSemanticProfile at runtime
+    anomalies: Optional[Dict[str, Any]] = None  # anomaly detection summary
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        result = {
             "name": self.name,
             "dtype": self.dtype,
             "semantic_type": self.semantic_type,
@@ -51,6 +69,11 @@ class ColumnProfile:
             "confidence": round(self.confidence, 2),
             "sample_values": self.sample_values[:5],  # Limit samples
         }
+        if self.semantic_profile:
+            result["semantic_profile"] = self.semantic_profile.to_dict()
+        if self.anomalies:
+            result["anomalies"] = self.anomalies
+        return result
 
 
 @dataclass
@@ -94,83 +117,20 @@ class DatasetProfile:
 
 
 class DataProfiler:
-    """Analyzes datasets to detect structure and semantics."""
+    """Analyzes datasets to detect structure and semantics.
 
-    TAXONOMY_PATTERNS = {
-        "family": ["family", "famille", "fam"],
-        "genus": ["genus", "genre", "gen"],
-        "species": ["species", "espece", "esp", "sp"],
-        "rank": ["rank", "rang", "rank_name", "level", "taxonrank"],
-        "scientific_name": [
-            "taxaname",
-            "scientific_name",
-            "nom_scientifique",
-            "taxonref",
-            "scientificname",
-            "acceptednameusage",
-            "verbatimscientificname",
-        ],
-        "taxon_id": ["id_taxonref", "taxon_id", "id_taxon", "taxonkey"],
-        "kingdom": ["kingdom"],
-        "phylum": ["phylum"],
-        "class": ["class"],
-        "order": ["order"],
-        "specific_epithet": ["specificepithet"],
-    }
+    Uses AliasRegistry for name-based detection (fuzzy header matching)
+    and value-based high-precision rules for coordinates, WKT, and dates.
+    """
 
-    SPATIAL_PATTERNS = {
-        "geometry": ["geometry", "geom", "shape", "polygon", "geo_pt"],
-        "latitude": [
-            "lat",
-            "latitude",
-            "lat_y",
-            "decimallatitude",
-            "verbatimlatitude",
-        ],
-        "longitude": [
-            "lon",
-            "longitude",
-            "long",
-            "lon_x",
-            "decimallongitude",
-            "verbitimlongitude",
-        ],
-        "coordinates": ["coordinates", "coords", "xy", "location"],
-        "plot": ["plot", "site", "parcelle", "plot_name"],
-        "locality": ["locality", "localite", "lieu", "place"],
-        "coordinate_uncertainty": ["coordinateuncertaintyinmeters"],
-    }
-
-    TEMPORAL_PATTERNS = {
-        "date": ["eventdate", "dateidentified", "date", "year"],
-    }
-
-    IDENTIFIER_PATTERNS = {
-        "id": ["id", "identifier", "code"],
-        "reference": ["_id", "_code", "_num"],
-        "gbif_id": ["gbifid", "occurrenceid", "catalognumber"],
-    }
-
-    def __init__(self, ml_detector: Optional[MLColumnDetector] = None):
-        """Initialize the profiler.
-
-        Args:
-            ml_detector: Optional ML detector instance for value-based detection.
-                        If not provided, will try to load default model.
-        """
-        self.ml_detector = ml_detector
-
-        # Try to load default ML detector if available and not provided
-        if self.ml_detector is None and HAS_ML_DETECTOR:
-            try:
-                self.ml_detector = MLColumnDetector.load_or_none()
-                if self.ml_detector:
-                    logger.info("Loaded ML detector for value-based column detection")
-            except Exception as e:
-                logger.debug(f"Could not load default ML detector: {e}")
+    def __init__(self):
+        """Initialize the profiler."""
+        self._alias_registry = _get_alias_registry()
 
     # Maximum rows to load for profiling (statistical accuracy ±0.5% at 99% confidence)
     PROFILING_SAMPLE_SIZE = 50_000
+    # ML predictions below this threshold are too noisy for product-facing semantics.
+    MIN_ML_CONFIDENCE = 0.6
 
     def profile(self, file_path: Path) -> DatasetProfile:
         """Generate complete profile of a dataset by loading from file.
@@ -314,116 +274,80 @@ class DataProfiler:
         if len(non_null) > 0:
             profile.sample_values = non_null.head(10).tolist()
 
-        # Detect semantic type
+        # Detect semantic type (legacy flat string)
         semantic_type, confidence = self._detect_semantic_type(col_name, series)
         profile.semantic_type = semantic_type
         profile.confidence = confidence
 
+        # Build rich semantic profile
+        profile.semantic_profile = self._build_semantic_profile(
+            semantic_type, confidence
+        )
+
+        # Run anomaly detection if concept is known
+        if semantic_type and len(non_null) > 0:
+            from niamoto.core.imports.ml.anomaly_rules import summarize_anomalies
+
+            anomaly_summary = summarize_anomalies(series, semantic_type)
+            if anomaly_summary:
+                profile.anomalies = anomaly_summary
+
         return profile
+
+    def _build_semantic_profile(self, semantic_type: Optional[str], confidence: float):
+        """Build a ColumnSemanticProfile from a flat semantic_type string."""
+        from niamoto.core.imports.ml.semantic_profile import (
+            ColumnSemanticProfile,
+            get_affordances,
+        )
+
+        if not semantic_type:
+            return ColumnSemanticProfile(role="other", confidence=confidence)
+
+        # Extract role from "taxonomy.species" → "taxonomy"
+        parts = semantic_type.split(".")
+        role = parts[0]
+        concept = semantic_type if len(parts) > 1 else None
+
+        return ColumnSemanticProfile(
+            role=role,
+            concept=concept,
+            affordances=get_affordances(concept, role),
+            confidence=confidence,
+        )
 
     def _detect_semantic_type(
         self, col_name: str, series: pd.Series
     ) -> Tuple[Optional[str], float]:
         """Detect the semantic type of a column.
 
-        First tries ML-based detection on column values if available,
-        then falls back to pattern-based detection on column names.
+        Strategy:
+        1. Alias registry exact match (O(1), no model loading)
+        2. ML classifier 3-branch (header + values + fusion)
+        3. Value rules (WKT geometry, FK pattern)
         """
-        # Try ML detection first if available (value-based)
-        if self.ml_detector and self.ml_detector.is_trained:
-            try:
-                ml_type, ml_confidence = self.ml_detector.predict(series)
+        # ── 1. Alias registry exact match (fast path) ─────────────────
+        concept, score = self._alias_registry.match(col_name)
+        if concept and score >= 1.0:
+            return concept, score
 
-                # Map ML types to semantic types
-                ml_to_semantic_map = {
-                    "diameter": "measurement.diameter",
-                    "height": "measurement.height",
-                    "leaf_area": "measurement.leaf_area",
-                    "wood_density": "measurement.wood_density",
-                    "species_name": "taxonomy.species",
-                    "family_name": "taxonomy.family",
-                    "genus_name": "taxonomy.genus",
-                    "location": "location.name",
-                    "latitude": "location.latitude",
-                    "longitude": "location.longitude",
-                    "date": "temporal.date",
-                    "count": "statistic.count",
-                    "identifier": "identifier",
-                    "other": None,
-                }
+        # ── 2. ML classifier (header + values + fusion) ──────────────
+        classifier = _get_classifier()
+        ml_concept, ml_confidence = classifier.classify(col_name, series)
+        if ml_concept and ml_confidence >= self.MIN_ML_CONFIDENCE:
+            return ml_concept, ml_confidence
 
-                semantic_type = ml_to_semantic_map.get(ml_type)
-
-                # Accept ML prediction if confidence is high enough
-                if semantic_type and ml_confidence >= 0.6:
-                    logger.debug(
-                        f"ML detected {col_name} as {ml_type} (confidence: {ml_confidence:.2f})"
-                    )
-                    return semantic_type, ml_confidence
-
-            except Exception as e:
-                logger.debug(f"ML detection failed for {col_name}: {e}")
-
-        # Fallback to pattern-based detection (name-based)
+        # ── 3. Value rules ───────────────────────────────────────────
         col_lower = col_name.lower()
 
-        # Check taxonomy patterns
-        for tax_type, patterns in self.TAXONOMY_PATTERNS.items():
-            for pattern in patterns:
-                if pattern in col_lower:
-                    return f"taxonomy.{tax_type}", 0.8
-
-        # Check spatial patterns
-        for spatial_type, patterns in self.SPATIAL_PATTERNS.items():
-            for pattern in patterns:
-                if pattern in col_lower:
-                    # Special handling for coordinates
-                    if spatial_type in ["latitude", "longitude"]:
-                        # Verify it contains numeric coordinates
-                        if pd.api.types.is_numeric_dtype(series):
-                            return f"location.{spatial_type}", 0.9
-                    elif spatial_type == "geometry":
-                        # Check if it looks like WKT
-                        sample = series.dropna().head(5).astype(str)
-                        if sample.str.contains("POINT|POLYGON|LINESTRING").any():
-                            return "geometry", 0.95
-                    else:
-                        return f"location.{spatial_type}", 0.7
-
-        # Check temporal patterns
-        for temporal_type, patterns in self.TEMPORAL_PATTERNS.items():
-            for pattern in patterns:
-                if pattern in col_lower:
-                    return f"temporal.{temporal_type}", 0.7
-
-        # Check identifier patterns
-        for id_type, patterns in self.IDENTIFIER_PATTERNS.items():
-            for pattern in patterns:
-                if col_lower == pattern or col_lower.endswith(pattern):
-                    return "identifier", 0.7
-
+        # Foreign key structural pattern (id prefix/suffix)
         if col_lower.startswith("id") or col_lower.endswith("_id"):
-            # Check if it's likely a foreign key
-            if "taxon" in col_lower or "taxonref" in col_lower:
-                return "reference.taxon", 0.8
-            elif "plot" in col_lower or "site" in col_lower:
-                return "reference.plot", 0.8
-            else:
-                return "identifier", 0.7
+            return "identifier.record", 0.7
 
-        # Check for name references (like plot_name)
-        if "plot_name" in col_lower:
-            return "reference.plot", 0.7
-
-        # Check for numeric measures
-        if pd.api.types.is_numeric_dtype(series):
-            # Common ecological measurements
-            if any(
-                term in col_lower for term in ["dbh", "height", "elevation", "rainfall"]
-            ):
-                return "measurement", 0.8
-            elif any(term in col_lower for term in ["count", "nb_", "total_"]):
-                return "statistic", 0.7
+        # WKT geometry detection on values
+        sample = series.dropna().head(5).astype(str)
+        if sample.str.contains("POINT|POLYGON|LINESTRING").any():
+            return "geometry", 0.95
 
         return None, 0.0
 
@@ -514,8 +438,10 @@ class DataProfiler:
         relationships = []
 
         for col in columns:
-            if col.semantic_type and col.semantic_type.startswith("reference."):
+            if col.semantic_type and col.semantic_type.startswith("identifier."):
                 ref_type = col.semantic_type.split(".")[1]
+                if ref_type == "record":
+                    continue  # generic row IDs are not foreign keys
                 relationships.append(
                     {
                         "field": col.name,

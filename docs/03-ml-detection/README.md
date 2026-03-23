@@ -1,44 +1,69 @@
 # ML Detection & Auto-Configuration
 
-Machine learning-based column detection and automatic configuration generation.
+> Status: Active
+> Audience: Team, AI agents, curious developers
+> Purpose: Portal into the ML detection knowledge base
 
-## 📚 Documents in this Section
+This section explains how Niamoto detects semantic column types, how the ML
+stack is trained and evaluated, and where to find the current research,
+experiments, and dated planning material.
 
-- **[Overview](overview.md)** - Introduction to ML detection system
-- **[Current State](current-state.md)** - Current implementation status
-- **[Training Guide](training-guide.md)** - Train custom detection models
-- **[Implementation](implementation.md)** - Technical implementation details
-- **[Detector Usage](detector-usage.md)** - Using the ML detector
-- **[Synthetic Data](synthetic-data.md)** - Generate training data
-- **[Semantic Detection](semantic-detection.md)** - Semantic type analysis
-- **[Auto Configuration](auto-config-roadmap.md)** - Automatic config generation
-- **[Roadmap](roadmap.md)** - Future development plans
+## Start here
 
-## 🤖 Key Features
+- **[Overview](overview.md)**: what the system does, why it exists, current
+  scores, and the main limits.
+- **[Branch Architecture](branch-architecture.md)**: the hybrid pipeline,
+  product priorities, and the role of autoresearch.
+- **[Training & Evaluation Guide](training-guide.md)**: the reproducible
+  workflow from `ml/data/silver` to trained models and evaluation results.
 
-- **Automatic Column Detection**: Identifies data types and semantic meaning
-- **Smart Mapping**: Suggests column mappings based on content
-- **Configuration Generation**: Creates import configs automatically
-- **Custom Training**: Train models on your specific data patterns
+## If you want to...
 
-## 🚀 Quick Start
+- **Understand the implementation**
+  - [Overview](overview.md)
+  - [Branch Architecture](branch-architecture.md)
+  - [Current Training Sources](current-training-sources.md)
+- **Train or evaluate the stack**
+  - [Training & Evaluation Guide](training-guide.md)
+  - [ML workspace README](../../ml/README.md)
+- **Understand current autoresearch rules**
+  - [Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)
+  - [Autoresearch programmes](../../ml/programmes/)
+- **Review experiment history**
+  - [Experiments index](experiments/README.md)
+- **Review exploratory ideas or older planning docs**
+  - [Research notes](research/README.md)
+  - [Archive](archive/README.md)
+- **Find the latest dated plans**
+  - [docs/plans](../plans/)
 
-1. **Basic Usage**: Start with [Detector Usage](detector-usage.md)
-2. **Understanding**: Read the [Overview](overview.md)
-3. **Training**: Follow the [Training Guide](training-guide.md)
-4. **Advanced**: Explore [Implementation](implementation.md)
+## Structure
 
-## 🔬 Technical Stack
+### Active reference
 
-- **scikit-learn**: Classification models
-- **pandas**: Data profiling
-- **Custom features**: Statistical and semantic analysis
+- [Overview](overview.md)
+- [Branch Architecture](branch-architecture.md)
+- [Training & Evaluation Guide](training-guide.md)
+- [Current Training Sources](current-training-sources.md)
+- [Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)
+- [ML Detection Dashboard](ml-detection-dashboard.html)
 
-## 📖 Related Documentation
+### Research
 
-- [Data Pipeline](../02-data-pipeline/README.md) - Integration with import process
-- [Configuration](../08-configuration/README.md) - Configuration strategies
-- [API Reference](../05-api-reference/README.md) - ML API documentation
+- [Research notes index](research/README.md)
 
----
-*Status: Active development - see [Current State](current-state.md) and [Roadmap](roadmap.md)*
+### Experiments
+
+- [Experiments index](experiments/README.md)
+
+### Archive
+
+- [Archive index](archive/README.md)
+
+## Related runtime and code-adjacent docs
+
+- [ML workspace README](../../ml/README.md) — operational commands and where to
+  look in the offline ML workspace
+- [Data Pipeline](../02-data-pipeline/README.md) — import/runtime integration
+- [Configuration](../08-configuration/README.md) — configuration strategies
+- [API Reference](../05-api-reference/README.md) — API-level documentation

@@ -1,561 +1,341 @@
-# Guide d'Entraînement du Modèle ML Column Detector
+# ML Detection — Training & Evaluation Guide
 
-## Vue d'Ensemble
+> Status: Active
+> Audience: Team, AI agents
+> Purpose: Operational reference for data, training, evaluation, and
+> improvement cycles
 
-Ce guide détaille le processus complet d'entraînement du modèle de détection automatique de types de colonnes pour Niamoto. Le modèle utilise un Random Forest pour classifier 30+ types écologiques avec une précision cible >90%.
+This guide explains how to build the gold set, train the three ML branches,
+evaluate the stack, and decide what kind of improvement is needed next.
 
-## Prérequis
+## Pipeline overview
 
-### Dépendances
-```bash
-pip install scikit-learn pandas numpy scipy requests tqdm
+```text
+ml/data/silver/          ->  build_gold_set.py  ->  ml/data/gold_set.json
+                                                     |
+                                              +------+------+
+                                              |             |
+                                              v             v
+                                     train_header_model   train_value_model
+                                              |             |
+                                              +------+------+
+                                                     |
+                                                     v
+                                              train_fusion
+                                                     |
+                                                     v
+                                          ml/models/*.joblib
+                                                     |
+                             column_aliases.yaml --->|
+                                                     v
+                               evaluate.py / run_eval_suite.py
+                                                     |
+                                                     v
+                                  ml/data/eval/results/*.json
 ```
 
-### Données Nécessaires
-- Minimum 10,000 exemples étiquetés
-- Distribution équilibrée entre types
-- Sources variées (GBIF, FIA, données locales)
+## 1. Source data
 
-## 📊 Pipeline d'Entraînement Complet
+### Silver data
 
-### Étape 1 : Collecte de Données
+`ml/data/silver/` contains real ecological tabular sources used to enrich the
+gold set:
 
-#### 1.1 Collecte Automatique
+- forest inventories
+- GBIF exports
+- trait datasets
+- tropical field datasets
+- standards-based tabular sources such as TAXREF, ETS, and sPlotOpen
+
+These files are the raw material for training data construction.
+
+### Niamoto instance datasets
+
+The tested instance datasets remain important because they represent the actual
+product target:
+
+- `test-instance/niamoto-nc/imports/`
+- `test-instance/niamoto-gb/imports/`
+
+### Evaluation annotations
+
+Independent ground truth lives in `ml/data/eval/annotations/`.
+
+This is distinct from the gold set:
+
+- **gold set** = training data
+- **eval annotations** = benchmark data
+
+Do not treat them as interchangeable, even when some columns overlap.
+
+## 2. Gold set
+
+The gold set is the training dataset. Each entry represents one labelled
+column, with:
+
+- `column_name`
+- `concept_coarse`
+- `role`
+- sampled values
+- dataset metadata
+
+### Build the gold set
+
 ```bash
-# Collecter 10,000 exemples depuis toutes sources
-python scripts/collect_training_data.py --source all --limit 10000
-
-# Collecter uniquement depuis GBIF
-python scripts/collect_training_data.py --source gbif --limit 2000
-
-# Collecter données locales
-python scripts/collect_training_data.py --source local --limit 2000
+uv run python -m ml.scripts.data.build_gold_set
 ```
 
-#### 1.2 Sources de Données
+Output:
 
-| Source | Type | Volume | Commande |
-|--------|------|--------|----------|
-| **GBIF** | API | 10M+ | `--source gbif` |
-| **Local** | CSV | Variable | `--source local` |
-| **Synthetic** | Généré | Illimité | `--source synthetic` |
-| **Augmented** | Dérivé | 5x existant | Automatique |
+- `ml/data/gold_set.json`
 
-#### 1.3 Validation Données
+### Add a new source
+
+In `ml/scripts/data/build_gold_set.py`:
+
+1. Define a label dictionary:
+
 ```python
-# Vérifier la qualité des données collectées
-import pickle
+MY_LABELS = {
+    "dbh": ("measurement.diameter", "measurement"),
+    "species": ("taxonomy.species", "taxonomy"),
+    "plot_id": ("identifier.plot", "identifier"),
+}
+```
+
+2. Register the source in `SOURCES`:
+
+```python
+{
+    "name": "my_dataset",
+    "path": ML_ROOT / "data/silver/my_file.csv",
+    "labels": MY_LABELS,
+    "language": "en",
+    "sample_rows": 1000,
+}
+```
+
+3. Rebuild the gold set.
+
+### Concept taxonomy
+
+Fine-grained concepts are merged into a coarser training taxonomy through
+`ml/scripts/data/concept_taxonomy.py`.
+
+Example:
+
+- `category.phenology` -> `category.ecology`
+- `measurement.basal_area` -> `measurement.biomass`
+
+Always verify the merge logic before adding new fine concepts, because an
+incorrect merge can bias the whole stack.
+
+## 3. Training
+
+All three models train from `ml/data/gold_set.json`.
+
+### Header model
+
+```bash
+uv run python -m ml.scripts.train.train_header_model
+```
+
+- TF-IDF character n-grams + Logistic Regression
+- strongest branch when headers are informative
+- outputs `ml/models/header_model.joblib`
+- local metric: macro-F1 on column names
+
+### Value model
+
+```bash
+uv run python -m ml.scripts.train.train_value_model
+```
+
+- statistical and pattern features + HistGradientBoosting
+- useful for anonymous or ambiguous headers
+- outputs `ml/models/value_model.joblib`
+- local metric: macro-F1 on value-derived features
+
+### Fusion model
+
+```bash
+uv run python -m ml.scripts.train.train_fusion
+```
+
+- combines header/value probabilities and meta-features
+- outputs `ml/models/fusion_model.joblib`
+- evaluated with leak-aware GroupKFold by dataset
+
+### Full retrain
+
+```bash
+uv run python -m ml.scripts.data.build_gold_set
+uv run python -m ml.scripts.train.train_header_model
+uv run python -m ml.scripts.train.train_value_model
+uv run python -m ml.scripts.train.train_fusion
+```
+
+## 4. Alias registry
+
+The alias registry is the high-precision fast path checked before ML.
+
+File:
+
+- `src/niamoto/core/imports/ml/column_aliases.yaml`
+
+Format:
+
+```yaml
+concept.subconcept:
+  en: [alias1, alias2]
+  fr: [alias_fr1, alias_fr2]
+  dwc: [darwin_core_name]
+```
+
+Add an alias when:
+
+- the header is genuinely unambiguous
+- there is no cross-concept ambiguity
+- the ML stack repeatedly misses a stable real-world header
+
+Quick check:
+
+```bash
+uv run python -c "
+from niamoto.core.imports.ml.alias_registry import AliasRegistry
+reg = AliasRegistry()
+print(reg.match('my_column_name'))
+"
+```
+
+Tests:
+
+```bash
+uv run pytest tests/core/imports/test_alias_registry.py -v
+```
+
+## 5. Evaluation
+
+### Annotated datasets
+
+Current benchmark annotations live in `ml/data/eval/annotations/`.
+
+Typical files:
+
+- `niamoto-nc.yml`
+- `niamoto-gb.yml`
+- `guyadiv.yml`
+- `gbif_darwin_core.yml`
+- `silver.yml`
+
+The YAML format is `column_name: role.concept`.
+
+### Full real-dataset suite
+
+```bash
+uv run python -m ml.scripts.eval.run_eval_suite
+```
+
+This runs the annotated dataset benchmark and writes timestamped JSON files to:
+
+- `ml/data/eval/results/`
+
+### Single dataset evaluation
+
+```bash
+uv run python -m ml.scripts.eval.evaluate_instance \
+    --annotations ml/data/eval/annotations/niamoto-nc.yml \
+    --data-dir test-instance/niamoto-nc/imports --compare
+```
+
+Other common variants:
+
+```bash
+uv run python -m ml.scripts.eval.evaluate_instance \
+    --annotations ml/data/eval/annotations/gbif_darwin_core.yml \
+    --csv ml/data/silver/gbif_targeted/new_caledonia/occurrences.csv
+
+uv run python -m ml.scripts.eval.evaluate_instance \
+    --annotations ml/data/eval/annotations/silver.yml \
+    --data-dir ml/data/silver
+```
+
+### Tier-only evaluation
+
+```bash
+uv run python -m ml.scripts.eval.run_eval_suite --tier 1
+uv run python -m ml.scripts.eval.run_eval_suite --tier gbif
+uv run python -m ml.scripts.eval.run_eval_suite --tier acceptance
+```
+
+### Gold-set / holdout evaluation
+
+Use `evaluate.py` for the internal benchmark built from the gold set and
+holdout protocol:
+
+```bash
+uv run python -m ml.scripts.eval.evaluate --model values --metric macro-f1 --splits 5
+uv run python -m ml.scripts.eval.evaluate --model fusion --metric macro-f1 --splits 5
+uv run python -m ml.scripts.eval.evaluate --model all --metric product-score --splits 3
+uv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3
+```
+
+## 6. Improvement cycle
+
+After an evaluation pass, identify:
+
+1. **Weak concepts**: low accuracy, possibly absent or underrepresented in the gold set
+2. **Systematically wrong headers**: likely alias candidates
+3. **Top confusions**: concept A repeatedly predicted as B
+
+### Choose the action
+
+| Diagnosis | Action | Typical impact |
+|-----------|--------|----------------|
+| Concept missing from gold set | Add labels in `build_gold_set.py` | Requires rebuild + retrain |
+| Stable unambiguous header missed | Add alias in `column_aliases.yaml` | Immediate, no retrain |
+| Concept present but confused | Inspect `concept_taxonomy.py` or feature space | Rebuild + retrain |
+| Evaluation annotation is wrong | Fix `ml/data/eval/annotations/` | Re-run eval only |
+| Gold set overrepresentation bias | Rebalance or enrich the data | Retrain |
+
+### Verify annotations against real values
+
+Before assuming the model is wrong, inspect the actual column values:
+
+```bash
+uv run python -c "
 import pandas as pd
-
-# Charger données
-with open('data/ml_training/training_data_20241215_120000.pkl', 'rb') as f:
-    training_data = pickle.load(f)
-
-# Analyser distribution
-type_counts = {}
-for series, label in training_data:
-    type_counts[label] = type_counts.get(label, 0) + 1
-
-# Afficher statistiques
-for type_name, count in sorted(type_counts.items()):
-    print(f"{type_name:20} : {count:5} exemples")
+df = pd.read_csv('path/to/file.csv', nrows=10)
+print(df['column_name'].head())
+"
 ```
 
-### Étape 2 : Préparation des Données
+Header-based assumptions can be misleading if the values tell another story.
 
-#### 2.1 Script de Préparation
-```python
-# scripts/prepare_training_data.py
+### Protect benchmark integrity
 
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import pickle
+Keep the separation clear:
 
-def prepare_dataset(training_data_path):
-    """Prépare le dataset pour l'entraînement."""
+- **Gold set**: training material
+- **Eval annotations**: independent benchmark
 
-    # Charger données
-    with open(training_data_path, 'rb') as f:
-        training_data = pickle.load(f)
+If the same columns appear in both, interpret the scores carefully and keep the
+labels aligned.
 
-    # Extraire features
-    X = []
-    y = []
+## Quick reference
 
-    from niamoto.core.imports.ml_detector import MLColumnDetector
-    detector = MLColumnDetector()
-
-    for series, label in training_data:
-        features = detector.extract_features(series)
-        X.append(features)
-        y.append(label)
-
-    X = np.array(X)
-    y = np.array(y)
-
-    # Split train/validation/test
-    X_temp, X_test, y_temp, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_temp, y_temp, test_size=0.2, random_state=42, stratify=y_temp
-    )
-
-    # Normalisation
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_val = scaler.transform(X_val)
-    X_test = scaler.transform(X_test)
-
-    return {
-        'X_train': X_train, 'y_train': y_train,
-        'X_val': X_val, 'y_val': y_val,
-        'X_test': X_test, 'y_test': y_test,
-        'scaler': scaler
-    }
-```
-
-#### 2.2 Features Extraites (21 total)
-
-**Features Numériques** :
-1. Moyenne
-2. Écart-type
-3. Minimum
-4. Maximum
-5. Quartile 25%
-6. Médiane
-7. Quartile 75%
-8. Range
-9. Skewness
-10. Kurtosis
-11. Ratio valeurs uniques
-12. % positifs
-13. % entiers
-14. % négatifs
-15. Est longitude possible
-16. Est latitude possible
-17. Est densité possible
-18-21. Histogram bins (4 bins)
-
-**Features Texte** :
-1. Longueur moyenne
-2. Écart-type longueur
-3. Nombre mots moyens
-4. Majuscules moyennes
-5. Minuscules moyennes
-6. Chiffres moyens
-7. Ratio unique
-8. Tirets moyens
-9. Pattern binomial
-10. Pattern famille
-11. Pattern localisation
-12-21. Padding zéros
-
-### Étape 3 : Entraînement du Modèle
-
-#### 3.1 Configuration Optimale
-```python
-# Configuration Random Forest optimisée
-from sklearn.ensemble import RandomForestClassifier
-
-model_config = {
-    'n_estimators': 200,        # Nombre d'arbres
-    'max_depth': 15,            # Profondeur max
-    'min_samples_split': 5,     # Split minimum
-    'min_samples_leaf': 2,      # Feuilles minimum
-    'max_features': 'sqrt',     # Features par split
-    'class_weight': 'balanced', # Gérer déséquilibre
-    'random_state': 42,
-    'n_jobs': -1,              # Parallélisation
-    'verbose': 1
-}
-
-model = RandomForestClassifier(**model_config)
-```
-
-#### 3.2 Script d'Entraînement Complet
-```python
-# scripts/train_ml_model.py
-
-import pickle
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score, classification_report,
-    confusion_matrix, f1_score
-)
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-def train_model(data_dict):
-    """Entraîne le modèle Random Forest."""
-
-    # Configuration
-    model = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=15,
-        min_samples_split=5,
-        min_samples_leaf=2,
-        max_features='sqrt',
-        class_weight='balanced',
-        random_state=42,
-        n_jobs=-1,
-        verbose=1
-    )
-
-    # Entraînement
-    print("Entraînement du modèle...")
-    model.fit(data_dict['X_train'], data_dict['y_train'])
-
-    # Validation
-    y_val_pred = model.predict(data_dict['X_val'])
-    val_accuracy = accuracy_score(data_dict['y_val'], y_val_pred)
-    val_f1 = f1_score(data_dict['y_val'], y_val_pred, average='weighted')
-
-    print(f"Validation Accuracy: {val_accuracy:.3f}")
-    print(f"Validation F1-Score: {val_f1:.3f}")
-
-    # Test final
-    y_test_pred = model.predict(data_dict['X_test'])
-    test_accuracy = accuracy_score(data_dict['y_test'], y_test_pred)
-    test_f1 = f1_score(data_dict['y_test'], y_test_pred, average='weighted')
-
-    print(f"Test Accuracy: {test_accuracy:.3f}")
-    print(f"Test F1-Score: {test_f1:.3f}")
-
-    # Rapport détaillé
-    print("\nClassification Report:")
-    print(classification_report(data_dict['y_test'], y_test_pred))
-
-    return model
-
-def save_model(model, scaler, path='models/ml_detector_v2.pkl'):
-    """Sauvegarde le modèle entraîné."""
-    with open(path, 'wb') as f:
-        pickle.dump({
-            'model': model,
-            'scaler': scaler,
-            'version': '2.0',
-            'features': 21,
-            'types': model.classes_.tolist()
-        }, f)
-    print(f"Modèle sauvegardé : {path}")
-```
-
-### Étape 4 : Optimisation des Hyperparamètres
-
-#### 4.1 Grid Search
-```python
-from sklearn.model_selection import GridSearchCV
-
-param_grid = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [10, 15, 20, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2', None]
-}
-
-grid_search = GridSearchCV(
-    RandomForestClassifier(random_state=42),
-    param_grid,
-    cv=5,
-    scoring='f1_weighted',
-    n_jobs=-1,
-    verbose=2
-)
-
-grid_search.fit(X_train, y_train)
-best_params = grid_search.best_params_
-```
-
-#### 4.2 Random Search (Plus Rapide)
-```python
-from sklearn.model_selection import RandomizedSearchCV
-from scipy.stats import randint
-
-param_dist = {
-    'n_estimators': randint(100, 500),
-    'max_depth': [10, 15, 20, 25, None],
-    'min_samples_split': randint(2, 20),
-    'min_samples_leaf': randint(1, 10),
-    'max_features': ['sqrt', 'log2', None],
-    'bootstrap': [True, False]
-}
-
-random_search = RandomizedSearchCV(
-    RandomForestClassifier(random_state=42),
-    param_dist,
-    n_iter=100,
-    cv=5,
-    scoring='f1_weighted',
-    n_jobs=-1,
-    verbose=2
-)
-```
-
-### Étape 5 : Évaluation et Métriques
-
-#### 5.1 Métriques Clés
-```python
-def evaluate_model(model, X_test, y_test):
-    """Évaluation complète du modèle."""
-
-    y_pred = model.predict(X_test)
-    y_proba = model.predict_proba(X_test)
-
-    metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'f1_macro': f1_score(y_test, y_pred, average='macro'),
-        'f1_weighted': f1_score(y_test, y_pred, average='weighted'),
-        'precision': precision_score(y_test, y_pred, average='weighted'),
-        'recall': recall_score(y_test, y_pred, average='weighted')
-    }
-
-    return metrics, y_pred, y_proba
-```
-
-#### 5.2 Matrice de Confusion
-```python
-def plot_confusion_matrix(y_true, y_pred, classes):
-    """Affiche matrice de confusion."""
-
-    cm = confusion_matrix(y_true, y_pred, labels=classes)
-
-    plt.figure(figsize=(15, 12))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=classes, yticklabels=classes)
-    plt.title('Matrice de Confusion')
-    plt.ylabel('Vrais Labels')
-    plt.xlabel('Prédictions')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig('confusion_matrix.png')
-    plt.show()
-```
-
-#### 5.3 Importance des Features
-```python
-def plot_feature_importance(model, feature_names):
-    """Affiche importance des features."""
-
-    importances = model.feature_importances_
-    indices = np.argsort(importances)[::-1][:15]  # Top 15
-
-    plt.figure(figsize=(10, 6))
-    plt.title("Importance des Features")
-    plt.bar(range(15), importances[indices])
-    plt.xticks(range(15), [feature_names[i] for i in indices], rotation=45)
-    plt.tight_layout()
-    plt.savefig('feature_importance.png')
-    plt.show()
-```
-
-### Étape 6 : Validation Croisée
-
-#### 6.1 K-Fold Cross-Validation
-```python
-from sklearn.model_selection import cross_val_score, StratifiedKFold
-
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-cv_scores = cross_val_score(
-    model, X_train, y_train,
-    cv=skf,
-    scoring='f1_weighted',
-    n_jobs=-1
-)
-
-print(f"CV F1-Scores: {cv_scores}")
-print(f"Mean CV F1: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
-```
-
-#### 6.2 Learning Curves
-```python
-from sklearn.model_selection import learning_curve
-
-train_sizes, train_scores, val_scores = learning_curve(
-    model, X_train, y_train,
-    cv=5,
-    train_sizes=np.linspace(0.1, 1.0, 10),
-    scoring='f1_weighted',
-    n_jobs=-1
-)
-
-plt.figure(figsize=(10, 6))
-plt.plot(train_sizes, train_scores.mean(axis=1), label='Train')
-plt.plot(train_sizes, val_scores.mean(axis=1), label='Validation')
-plt.xlabel('Training Set Size')
-plt.ylabel('F1 Score')
-plt.legend()
-plt.title('Learning Curves')
-plt.savefig('learning_curves.png')
-```
-
-## 📈 Workflow Complet
-
-### Script Master
 ```bash
-#!/bin/bash
-# train_pipeline.sh
+# Full build -> train -> evaluate
+uv run python -m ml.scripts.data.build_gold_set
+uv run python -m ml.scripts.train.train_header_model
+uv run python -m ml.scripts.train.train_value_model
+uv run python -m ml.scripts.train.train_fusion
+uv run python -m ml.scripts.eval.run_eval_suite
 
-# 1. Collecte données
-echo "=== Collecte de données ==="
-python scripts/collect_training_data.py --source all --limit 10000
+# Alias-only improvement path
+uv run pytest tests/core/imports/test_alias_registry.py -v
+uv run python -m ml.scripts.eval.run_eval_suite
 
-# 2. Préparation
-echo "=== Préparation dataset ==="
-python scripts/prepare_training_data.py
-
-# 3. Entraînement
-echo "=== Entraînement modèle ==="
-python scripts/train_ml_model.py
-
-# 4. Évaluation
-echo "=== Évaluation ==="
-python scripts/evaluate_model.py
-
-# 5. Export production
-echo "=== Export production ==="
-python scripts/export_production_model.py
-
-echo "=== Pipeline terminé ==="
+# Internal benchmark only
+uv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3
 ```
-
-## 🎯 Objectifs de Performance
-
-| Métrique | Minimum | Cible | Excellence |
-|----------|---------|-------|------------|
-| **Accuracy** | 85% | 90% | 95%+ |
-| **F1-Score** | 0.83 | 0.88 | 0.93+ |
-| **Precision** | 0.85 | 0.90 | 0.95+ |
-| **Recall** | 0.85 | 0.90 | 0.95+ |
-| **Temps inférence** | <200ms | <100ms | <50ms |
-| **Taille modèle** | <10MB | <5MB | <2MB |
-
-## 🔧 Optimisations Avancées
-
-### 1. Feature Engineering
-```python
-# Ajout de features dérivées
-def add_derived_features(features):
-    """Ajoute features calculées."""
-    # Ratio mean/std
-    features.append(features[0] / (features[1] + 1e-6))
-
-    # Log transformations
-    features.append(np.log1p(features[0]))
-
-    # Polynomiales
-    features.append(features[0] ** 2)
-
-    return features
-```
-
-### 2. Ensemble Methods
-```python
-from sklearn.ensemble import VotingClassifier
-from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
-
-# Créer ensemble
-ensemble = VotingClassifier([
-    ('rf', RandomForestClassifier()),
-    ('xgb', XGBClassifier()),
-    ('lgbm', LGBMClassifier())
-], voting='soft')
-```
-
-### 3. Active Learning
-```python
-def select_uncertain_samples(model, X_unlabeled, n_samples=100):
-    """Sélectionne échantillons incertains pour annotation."""
-    probas = model.predict_proba(X_unlabeled)
-
-    # Entropie des prédictions
-    entropy = -np.sum(probas * np.log(probas + 1e-6), axis=1)
-
-    # Sélectionner top incertains
-    uncertain_idx = np.argsort(entropy)[-n_samples:]
-
-    return uncertain_idx
-```
-
-## 🚨 Problèmes Courants
-
-### Problème 1 : Déséquilibre Classes
-**Solution** :
-```python
-# Utiliser class_weight
-model = RandomForestClassifier(class_weight='balanced')
-
-# Ou SMOTE
-from imblearn.over_sampling import SMOTE
-smote = SMOTE(random_state=42)
-X_balanced, y_balanced = smote.fit_resample(X_train, y_train)
-```
-
-### Problème 2 : Overfitting
-**Solution** :
-- Réduire `max_depth`
-- Augmenter `min_samples_split`
-- Plus de données
-- Cross-validation
-
-### Problème 3 : Features Corrélées
-**Solution** :
-```python
-# Supprimer features corrélées
-from sklearn.feature_selection import SelectKBest, f_classif
-
-selector = SelectKBest(f_classif, k=15)
-X_selected = selector.fit_transform(X_train, y_train)
-```
-
-## 📊 Monitoring Production
-
-### Métriques à Surveiller
-```python
-def monitor_predictions(model, X_new, threshold=0.7):
-    """Monitore qualité prédictions."""
-    probas = model.predict_proba(X_new)
-    max_probas = probas.max(axis=1)
-
-    metrics = {
-        'avg_confidence': max_probas.mean(),
-        'low_confidence_pct': (max_probas < threshold).mean(),
-        'predictions': model.predict(X_new)
-    }
-
-    # Alert si trop de prédictions incertaines
-    if metrics['low_confidence_pct'] > 0.3:
-        logger.warning("Trop de prédictions incertaines!")
-
-    return metrics
-```
-
-## 🎓 Ressources Complémentaires
-
-### Documentation
-- [scikit-learn RandomForest](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html)
-- [Feature Engineering Guide](https://feature-engine.readthedocs.io/)
-- [Imbalanced-learn](https://imbalanced-learn.org/)
-
-### Papers
-- Breiman, L. (2001). Random Forests
-- Sherlock (MIT, 2019). Semantic Type Detection
-- Pythagoras (2024). GNN Approach
-
-### Datasets Publics
-- [GBIF](https://www.gbif.org/developer)
-- [FIA](https://www.fia.fs.fed.us/)
-- [TRY](https://www.try-db.org/)
-
----
-
-*Guide créé : Décembre 2024*
-*Dernière mise à jour : Décembre 2024*
-*Auteur : Équipe Niamoto ML*

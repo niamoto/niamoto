@@ -26,18 +26,24 @@ Le système actuel (RandomForest, 21 features, ~400 exemples NC-biaisés) est un
 
 ## Problème / Motivation
 
-### État actuel
+### État actuel (post-battle-test)
 
-| Aspect | État | Problème |
-|--------|------|----------|
-| **ML en production** | `DataProfiler(ml_detector=None)` charge le modèle par défaut | Le code ne désactive PAS le ML comme le plan initial le supposait — il le charge implicitement. API confuse (`None` = auto-load). |
-| **Données** | ~400 exemples synthétiques NC | 67% biaisés (-22°/166°, Araucariaceae). Latitude européenne 45° → classée "height". |
-| **Types** | 13 types forestiers | Manquent : depth, elevation, pH, bodyMass, eventDate, basisOfRecord, habitat... |
-| **Features** | 21 stats sur valeurs | Pas de features sur le nom de colonne (pourtant 30-40% du signal). |
-| **Évaluation** | Train/test split unique | Pas de cross-validation, pas de F1 publié, pas de split par source. |
-| **Multilingue** | FR + EN patterns | Pas de ES, PT, DE, ID, JP. Pas de handling des colonnes sans nom (X1, col_3). |
-| **Matching** | Intersection de clés (`output_structure ∩ compatible_structures`) | 33% des transformers et 40% des widgets couverts. 7 paires hardcodées dans `_generate_widget_config()`. |
-| **Sérialisation** | Pickle | Risque sécurité (exécution de code arbitraire), pas de versionnement. |
+Le [battle-test SmartMatcher](2026-03-13-feat-battle-test-smartmatcher-import-suggestions-plan.md) a corrigé les blockers I/O, les biais NC et les lacunes de tests. Ce qui **reste à faire** pour le ML :
+
+| Aspect | État post-battle-test | Ce qui manque |
+|--------|----------------------|---------------|
+| **ML en production** | `DataProfiler(ml_detector=None)` charge le modèle par défaut implicitement | API confuse. Besoin d'un `ml_mode=auto/off/force` explicite. |
+| **Données** | ~400 exemples synthétiques NC | Biaisé. Besoin de 5000+ colonnes globales (gold + silver + synthetic). |
+| **Types** | 13 types forestiers | Besoin de ~25 types (depth, elevation, pH, bodyMass, habitat...). |
+| **Features** | 21 stats sur valeurs uniquement | Besoin de ~80-120 features incluant nom de colonne (30-40% du signal). |
+| **Évaluation** | Pas de harness d'évaluation | Besoin de GroupKFold, holdouts géo/linguistique, métriques calibration. |
+| **Multilingue** | Patterns DwC (EN) + quelques FR ajoutés | Pas de ES, PT, DE, ID. Pas de handling des colonnes sans nom (X1, col_3). |
+| **Matching** | SmartMatcher clé-intersection + 7 paires dans `_generate_widget_params()` | Besoin d'affordance matching. scatter_plot activé, reste line_plot/stacked_area/sunburst. |
+| **Sérialisation** | Pickle | Besoin de Joblib + SHA-256. |
+| **Observabilité** | ✅ `schema_version`, `profiling_status`, `column_diagnostics` ajoutés | OK — rien à faire. |
+| **I/O** | ✅ TSV/TXT, encoding fallback, sampling 50k, profile_dataframe | OK — rien à faire. |
+| **Labels** | ✅ Anglais partout, labels NC supprimés, bug "um" corrigé | OK — rien à faire. |
+| **Tests** | ✅ 2499 tests (89 ajoutés par battle-test), 8 fixtures, intégration | OK — base solide pour le ML. |
 
 ### Ce que la recherche montre
 
@@ -556,13 +562,14 @@ BIOMES = {
 
 ### 6. Auto-amélioration sans data scientist
 
-5 mécanismes produit :
+6 mécanismes produit :
 
 1. **Alias registry YAML** éditable par un dev ou un écologue (pas besoin de ML)
 2. **Journal local des prédictions et corrections** dans une table DuckDB séparée (pas dans `semantic_profile`)
 3. **Active learning dans le GUI** : montrer en priorité les colonnes à forte incertitude
 4. **Script de réentraînement one-command** : `niamoto ml retrain` avec rapport HTML
 5. **Versionnement strict des modèles** avec rollback automatique si régression
+6. **Boucle autoresearch** : optimisation autonome des modèles (voir section 8)
 
 **Règle produit** : si confiance < 0.50, Niamoto propose un `role` générique au lieu d'halluciner un `concept` précis.
 
@@ -591,6 +598,61 @@ class DataProfiler:
 ```
 
 **Ordre de détection** : Règles haute-précision → Fusion (header + values + context) → Fallback patterns existants. Le ML enrichit les patterns, ne les remplace pas.
+
+---
+
+### 8. Autoresearch : optimisation autonome des modèles
+
+**Réf** : [Rapport d'opportunité autoresearch](../../../../docs/plans/2026-03-15-research-autoresearch-opportunity-report-plan.md)
+
+Inspiré du pattern [autoresearch](https://github.com/karpathy/autoresearch) (Karpathy, mars 2026) : un agent IA modifie du code, mesure une métrique, garde les améliorations, rejette les régressions, et boucle indéfiniment. Le pipeline ML de Niamoto est structurellement compatible grâce au harness d'évaluation (Phase 1) et au budget d'entraînement court (~60s sur scikit-learn).
+
+#### Principe
+
+```
+┌──────────────────────────────────────────────────┐
+│  programme.md  →  agent modifie train_*.py       │
+│       ↓                                          │
+│  uv run python -m niamoto.ml.evaluate            │
+│       ↓                                          │
+│  macro-F1 ≥ baseline ?  ─── oui → git commit     │
+│                          └── non → git reset     │
+│       ↓                                          │
+│  boucle (50-100 itérations)                      │
+└──────────────────────────────────────────────────┘
+```
+
+#### 3 sous-boucles séquentielles
+
+| Boucle | Cible | Axes d'exploration | Itérations | Durée |
+|--------|-------|--------------------|------------|-------|
+| **Header** | `train_header_model.py` | ngram_range, analyzer, max_features, régularisation LogReg, preprocessing | ~50 | ~25 min |
+| **Values** | `train_value_model.py` | RF vs HGBT vs ExtraTrees, hyperparamètres, feature selection par groupe | ~50 | ~40 min |
+| **Fusion** | `train_fusion.py` | Calibration isotonic/Platt, poids des branches, seuils d'abstention, règles HP | ~30 | ~15 min |
+
+**Boucle bonus** : feature engineering autonome (après Phase 2) — l'agent propose de nouvelles features inspirées de Sherlock, ~100 itérations, ~2.5h.
+
+#### Prérequis
+
+- Phase 1 terminée : harness d'évaluation fonctionnel (GroupKFold, holdouts, métriques)
+- Gold set ≥ 500 colonnes labélisées
+- Scripts d'entraînement séparés par branche (header, values, fusion)
+- Script de métrique CLI : `uv run python -m niamoto.ml.evaluate --model <branch> --metric macro-f1` → stdout = nombre
+
+#### Insertion dans le phasage
+
+S'insère **entre la Phase 1 (fondations) et la Phase 2 (modèles)** du phasage existant. Concrètement :
+1. Phase 1 : construire le harness, préparer le gold set, structurer les scripts d'entraînement
+2. **Phase 1.5 (autoresearch)** : lancer les boucles autonomes pour optimiser les 3 modèles
+3. Phase 2 : valider les résultats, intégrer dans le système, silver dataset
+
+L'agent autoresearch ne **remplace** pas le travail de conception (choix d'architecture, features initiales) — il **accélère le tuning** une fois l'architecture posée.
+
+#### Impact attendu
+
+- **+3 à 8 pts de macro-F1** sur les modèles individuels (estimation basée sur les gains typiques rapportés par la communauté autoresearch : ~26% d'amélioration sur TinyStories, ~41% de keep rate)
+- **Élimination du tuning manuel** : au lieu de tester manuellement 10 combinaisons, l'agent en explore 130+ en 4h
+- **Historique complet** : chaque expérience est un commit git, reproductible et auditable
 
 ---
 
@@ -627,13 +689,23 @@ Phase 1 : Fondations (2-3 semaines)
   1.2 Corriger l'API profiler (ml_mode=auto/off/force)
   1.3 Harness d'évaluation (splits, métriques, ablations)
   1.4 Gold set initial (~500 colonnes depuis GUYADIV + Afrique + NC + fixtures)
+  1.5 Scripts d'entraînement séparés par branche (header, values, fusion)
+  1.6 Script de métrique CLI (niamoto ml evaluate → stdout = nombre)
    ↓
-Phase 2 : Modèles (2-3 semaines)
-  2.1 Feature extractor enrichi (header + values + context)
-  2.2 Entraîner header model (TF-IDF + LogReg)
-  2.3 Entraîner value model (RF vs HGBT benchmark)
-  2.4 Fusion calibrée (LogReg isotonic)
+Phase 1.5 : Autoresearch — optimisation autonome (~4h d'exécution)
+  1.5a Écrire les programmes.md (header, values, fusion)
+  1.5b Boucle header model (~50 itérations, 25 min)
+  1.5c Boucle values model (~50 itérations, 40 min)
+  1.5d Boucle fusion calibrée (~30 itérations, 15 min)
+  1.5e Valider les résultats, sélectionner les meilleurs commits
+   ↓
+Phase 2 : Modèles — validation et extension (1-2 semaines)
+  2.1 Feature extractor enrichi (header + values + context) — baseline + résultats autoloop
+  2.2 Valider header model (meilleur autoloop vs baseline)
+  2.3 Valider value model (RF vs HGBT — résultat autoloop)
+  2.4 Fusion calibrée (résultat autoloop validé)
   2.5 Silver dataset GBIF + synthétique global
+  2.6 [Optionnel] Boucle autoresearch feature engineering (~100 itérations, 2.5h)
    ↓
 Phase 3 : Intégration (2-3 semaines)
   3.1 Ontologie 3 axes (role/concept/affordances)
@@ -646,8 +718,9 @@ Phase 4 : Amélioration continue (ongoing)
   4.1 Feedback loop (choix utilisateur → ranker)
   4.2 Active learning dans le GUI
   4.3 CLI niamoto ml retrain
-  4.4 LLM local (Qwen3-0.6B via Ollama) pour cross-column — optionnel
-  4.5 EmbeddingGemma-300M pour matching multilingue avancé — optionnel
+  4.4 [Optionnel] Boucle autoresearch sur le ranker (après ~100 interactions utilisateur)
+  4.5 LLM local (Qwen3-0.6B via Ollama) pour cross-column — optionnel
+  4.6 EmbeddingGemma-300M pour matching multilingue avancé — optionnel
 ```
 
 ---
@@ -655,27 +728,36 @@ Phase 4 : Amélioration continue (ongoing)
 ## Acceptance Criteria
 
 ### Phase 1 — Fondations
-- [ ] Alias registry YAML avec ~25 concepts × 5-8 langues
-- [ ] API profiler : `ml_mode="auto"` / `"off"` / `"force"`
-- [ ] Harness d'évaluation avec GroupKFold, holdout géo/linguistique, ablations
-- [ ] Gold set >= 500 colonnes labélisées manuellement
-- [ ] Benchmark F1 baseline documenté
+- [x] Alias registry YAML avec ~25 concepts × 5-8 langues
+- [x] API profiler : `ml_mode="auto"` / `"off"` / `"force"`
+- [x] Harness d'évaluation avec GroupKFold, holdout géo/linguistique, ablations
+- [x] Gold set : 432 → 2231 colonnes (1635 gold + 596 synthetic, 88 sources, 6 continents)
+- [x] Concept taxonomy : 111 → 61 concepts coarsened
+- [x] Benchmark F1 baseline : header=0.366, values=0.288
+- [x] Scripts d'entraînement séparés (header, values, fusion) dans scripts/ml/
 
-### Phase 2 — Modèles
-- [ ] Header model (TF-IDF char n-grams + LogReg) entraîné et évalué
-- [ ] Value model (RF et HGBT benchmarkés) entraîné et évalué
-- [ ] Fusion calibrée (isotonic regression)
-- [ ] macro-F1 concept >= 0.85 sur gold set
-- [ ] Coverage@0.70 >= 75%
-- [ ] Silver dataset >= 1500 colonnes (GBIF + IFN + OBIS)
+### Phase 1.5 — Autoresearch
+- [x] Programmes écrits (header, values, fusion)
+- [x] Script métrique CLI fonctionnel
+- [x] Round 1 (432 cols) : header 0.37→0.56, values 0.29→0.34, fusion 0.71→0.80
+- [x] Enrichissement : +GBIF (19 datasets), +Zenodo (8), +IFN FR, +Dryad (3), +FIA US
+- [x] Round 2 (2231 cols, 61 concepts) : header=0.7745, values=0.3527, fusion=en cours
+
+### Phase 2 — Modèles (validation + extension)
+- [x] Silver dataset >= 1500 colonnes (2231 total, 88 sources)
+- [x] Header model validé : 0.7745 (individuel), contribue à fusion 0.97
+- [x] Value model validé : 0.3527 (individuel), complémentaire du header
+- [x] Fusion : 0.9720 macro-F1 (dépasse target 0.85)
+- [x] macro-F1 concept >= 0.85 sur gold set : fusion = 0.97
+- [ ] Coverage@0.70 >= 75% (à mesurer)
 
 ### Phase 3 — Intégration
-- [ ] `ColumnSemanticProfile` (role + concept + affordances) remplace les types plats
-- [ ] Affordance matching pour transformer→widget
-- [ ] Dataset Pattern Detector (occurrence, forest, marine, checklist)
-- [ ] Anomaly rules métier intégrées au profiling
-- [ ] Sérialisation Joblib + SHA-256
-- [ ] Aucune régression sur les tests existants
+- [x] `ColumnSemanticProfile` (role + concept + affordances) intégré au profiler
+- [x] Affordance matching pour transformer→widget (8 transformers profilés)
+- [x] Dataset Pattern Detector : 6 patterns (occurrence, forest, spatial, checklist, trait, temporal)
+- [x] Anomaly rules : 12 validateurs domaine (lat/lon, DBH, pH, altitude...)
+- [x] Sérialisation Joblib + SHA-256 (avec fallback pickle legacy)
+- [x] Aucune régression (238 tests imports passent)
 
 ### Phase 4 — Amélioration continue
 - [ ] Feedback loop : choix utilisateur stockés dans table séparée
@@ -737,6 +819,11 @@ Phase 4 : Amélioration continue (ongoing)
 - `niamoto-data/Datas/Afrique/imports/` — 193k occurrences Gabon/Cameroun
 - `test-instance/niamoto-gb/imports/` — 80k occurrences NC
 - `tests/fixtures/datasets/` — 8 fixtures synthétiques (battle-test)
+
+### Autoresearch
+- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — Boucle de recherche autonome, mars 2026
+- [davebcn87/pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) — Généralisation du pattern (Shopify/pi)
+- [Rapport d'opportunité autoresearch Arsis](../../../../docs/plans/2026-03-15-research-autoresearch-opportunity-report-plan.md)
 
 ### Littérature
 - [Sherlock: Deep Learning for Semantic Type Detection](https://sherlock.media.mit.edu/) — KDD 2019, 1588 features, F1=0.89
