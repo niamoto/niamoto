@@ -129,6 +129,8 @@ class DataProfiler:
 
     # Maximum rows to load for profiling (statistical accuracy ±0.5% at 99% confidence)
     PROFILING_SAMPLE_SIZE = 50_000
+    # ML predictions below this threshold are too noisy for product-facing semantics.
+    MIN_ML_CONFIDENCE = 0.6
 
     def profile(self, file_path: Path) -> DatasetProfile:
         """Generate complete profile of a dataset by loading from file.
@@ -332,7 +334,7 @@ class DataProfiler:
         # ── 2. ML classifier (header + values + fusion) ──────────────
         classifier = _get_classifier()
         ml_concept, ml_confidence = classifier.classify(col_name, series)
-        if ml_concept and ml_confidence >= 0.3:
+        if ml_concept and ml_confidence >= self.MIN_ML_CONFIDENCE:
             return ml_concept, ml_confidence
 
         # ── 3. Value rules ───────────────────────────────────────────
