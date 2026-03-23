@@ -20,14 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Autoresearch optimization loops: header 0.37→0.56, values 0.29→0.35, fusion 0.97 macro-F1
 
 ### Changed
-- **Profiler API**: explicit `ml_mode="auto"/"off"/"force"` replaces implicit `ml_detector=None`
-- **Serialization**: Joblib + SHA-256 integrity check (with pickle legacy fallback)
-- Replaced old `MLColumnDetector` (21 features, RF) with alias registry + 3-branch classifier
+- Replaced old `MLColumnDetector` (21 features, RF) with alias registry + 3-branch `ColumnClassifier`
 - FK heuristic simplified, specific ID type detection delegated to alias registry
+- Models loaded via plain `joblib.load()` (lazy, on first `classify()` call)
 
 ### Removed
 - Old pattern matching code in profiler (superseded by alias registry)
-- Unsafe pickle deserialization without integrity checks
 
 ## [v0.7.0] - 2025-07-31
 

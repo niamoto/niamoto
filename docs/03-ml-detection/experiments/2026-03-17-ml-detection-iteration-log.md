@@ -170,10 +170,10 @@ Objectif :
 
 Changements :
 
-- création de [value_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/value_features.py)
+- création de [value_features.py](src/niamoto/core/imports/ml/value_features.py)
 - réutilisation depuis :
-  - [train_value_model.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/train/train_value_model.py)
-  - [classifier.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/classifier.py)
+  - [train_value_model.py](ml/scripts/train/train_value_model.py)
+  - [classifier.py](src/niamoto/core/imports/ml/classifier.py)
 
 Nouveaux signaux ajoutés :
 
@@ -193,7 +193,7 @@ Objectif :
 
 Changements :
 
-- création de [fusion_features.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/ml/fusion_features.py)
+- création de [fusion_features.py](src/niamoto/core/imports/ml/fusion_features.py)
 - ajout dans la fusion de :
   - max proba
   - marge top1-top2
@@ -384,7 +384,7 @@ Objectif :
 - mieux séparer anglais standard et anglais métier ;
 - éviter de surinterpréter des splits faciles comme `zh`.
 
-Changements ajoutés au reporting de [evaluate.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/eval/evaluate.py) :
+Changements ajoutés au reporting de [evaluate.py](ml/scripts/eval/evaluate.py) :
 
 - `diagnostic_lang[zh]` comme diagnostic secondaire et non plus holdout
   stratégique
@@ -485,7 +485,7 @@ Choix fait :
 Changements réalisés :
 
 - ajout d'un bloc `FORESTSCAN_PARACOU_LABELS` dans
-  [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py)
+  [build_gold_set.py](ml/scripts/data/build_gold_set.py)
 - ajout de la source `forestscan_paracou_census` dans `SOURCES`
 - régénération du gold set
 
@@ -498,7 +498,7 @@ Résultat :
 ### Correction d'outillage connexe
 
 Défaut corrigé dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
+[build_gold_set.py](ml/scripts/data/build_gold_set.py) :
 
 - `uv run python -m ml.scripts.data.build_gold_set` cassait sur
   `ModuleNotFoundError: scripts`
@@ -558,7 +558,7 @@ Conclusion :
 ### Intégration gold set
 
 Les sources suivantes ont été ajoutées dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
+[build_gold_set.py](ml/scripts/data/build_gold_set.py) :
 
 - `gbif_targeted_new_caledonia`
 - `gbif_targeted_guyane`
@@ -638,7 +638,7 @@ Qualité observée :
 ### Intégration gold set
 
 Les sources suivantes ont été ajoutées dans
-[build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py) :
+[build_gold_set.py](ml/scripts/data/build_gold_set.py) :
 
 - `gbif_targeted_institutional_gabon`
 - `gbif_targeted_institutional_cameroon`
@@ -666,7 +666,7 @@ Décision retenue :
 ## Entrée du 2026-03-18 — run sur gold set enrichi
 
 Avant cette run, les copies de référence locales ont été internalisées dans
-`ml/data/silver/` et [build_gold_set.py](/Users/julienbarbe/Dev/clients/niamoto/ml/scripts/data/build_gold_set.py)
+`ml/data/silver/` et [build_gold_set.py](ml/scripts/data/build_gold_set.py)
 a été réaligné pour ne plus dépendre de copies hors repo pour :
 
 - `guyadiv_trees`
@@ -831,7 +831,7 @@ Pivot décidé :
 
 Document de référence :
 
-- [Autoresearch Surrogate Loop](/Users/julienbarbe/Dev/clients/niamoto/docs/03-ml-detection/autoresearch-surrogate-loop.md)
+- [Autoresearch Surrogate Loop](docs/03-ml-detection/autoresearch-surrogate-loop.md)
 
 ## Entrée du 2026-03-18 — première mesure surrogate loop
 

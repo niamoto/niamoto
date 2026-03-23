@@ -427,7 +427,7 @@ const AUTORESEARCH_VALUES = [
 ### Phase 1 : Script d'extraction des données (~30 min)
 
 `scripts/ml/export_dashboard_data.py` :
-- Lit `data/gold_set.json`
+- Lit `ml/data/gold_set.json`
 - Extrait les métriques agrégées (sources, concepts, rôles)
 - Parse le git log pour la progression autoresearch
 - Génère un `dashboard_data.json` ou injecte directement dans le template HTML
@@ -472,9 +472,9 @@ const AUTORESEARCH_VALUES = [
 
 ## Références internes
 
-- Gold set : `data/gold_set.json`
-- Concept taxonomy : `src/niamoto/core/imports/ml/concept_taxonomy.py`
+- Gold set : `ml/data/gold_set.json`
+- Concept taxonomy : `ml/scripts/data/concept_taxonomy.py`
 - Column aliases : `src/niamoto/core/imports/ml/column_aliases.yaml`
-- Training scripts : `scripts/ml/train_{header,value,fusion}_model.py`
-- Evaluation : `scripts/ml/evaluate.py`
+- Training scripts : `ml/scripts/train/train_{header,value,fusion}.py`
+- Evaluation : `ml/scripts/eval/evaluate.py`
 - Roadmap ML : `docs/plans/2026-03-14-feat-ml-detection-improvement-roadmap-plan.md`
