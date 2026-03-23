@@ -12,6 +12,26 @@ from typing import Any, Dict, List, Optional, Tuple
 
 ML_REVIEW_THRESHOLD = 0.7
 ML_OVERRIDE_THRESHOLD = 0.82
+GENERIC_ENTITY_TOKENS = {
+    "data",
+    "dataset",
+    "datasets",
+    "entity",
+    "entities",
+    "file",
+    "files",
+    "import",
+    "imports",
+    "raw",
+    "sample",
+    "samples",
+    "source",
+    "sources",
+    "stat",
+    "stats",
+    "table",
+    "tables",
+}
 
 
 def collect_heuristic_flags(analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -40,6 +60,56 @@ def collect_heuristic_flags(analysis: Dict[str, Any]) -> Dict[str, Any]:
         "has_hierarchy": bool(hierarchy.get("detected")),
         "column_count": len(columns),
     }
+
+
+def _normalize_entity_tokens(entity_name: str) -> List[str]:
+    tokens = []
+    for part in entity_name.lower().replace("-", "_").split("_"):
+        if not part or part in GENERIC_ENTITY_TOKENS:
+            continue
+        tokens.append(part)
+        if part.endswith("ies") and len(part) > 3:
+            tokens.append(part[:-3] + "y")
+        elif part.endswith("s") and len(part) > 3:
+            tokens.append(part[:-1])
+    return list(dict.fromkeys(tokens))
+
+
+def _is_enriched_reference_candidate(
+    entity_name: str,
+    analysis: Dict[str, Any],
+    heuristics: Dict[str, Any],
+) -> bool:
+    """Detect stable entity tables that should stay references despite rich fields."""
+    if heuristics["has_taxonomic_hierarchy"]:
+        return False
+
+    row_count = int(analysis.get("row_count", 0) or 0)
+    if row_count <= 0 or row_count > 5000:
+        return False
+
+    if heuristics["has_observations"] or analysis.get("date_columns"):
+        return False
+
+    id_columns = [column.lower() for column in analysis.get("id_columns", [])]
+    name_columns = [column.lower() for column in analysis.get("name_columns", [])]
+    all_columns = [column.lower() for column in analysis.get("columns", [])]
+    entity_tokens = _normalize_entity_tokens(entity_name)
+
+    has_non_generic_id = any(column not in {"id", "uuid"} for column in id_columns)
+    has_distinct_name = any(column not in set(id_columns) for column in name_columns)
+    if not has_non_generic_id or not has_distinct_name or not entity_tokens:
+        return False
+
+    anchored_identifier = any(
+        token in column
+        for token in entity_tokens
+        for column in id_columns + name_columns + all_columns
+    )
+    if not anchored_identifier:
+        return False
+
+    return heuristics["has_geometry"] or bool(name_columns)
 
 
 def build_heuristic_classification(analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,7 +250,17 @@ def build_entity_decision(
     final_entity_type = heuristic_entity_type
     ml_entity_type, ml_confidence, ml_reasons = infer_ml_entity_type(analysis)
     heuristics = collect_heuristic_flags(analysis)
+    heuristics["is_enriched_reference_candidate"] = _is_enriched_reference_candidate(
+        entity_name=entity_name,
+        analysis=analysis,
+        heuristics=heuristics,
+    )
     alignment = "heuristic_only"
+
+    if final_entity_type == "dataset" and heuristics["is_enriched_reference_candidate"]:
+        heuristic_entity_type = "reference"
+        heuristic_confidence = max(heuristic_confidence, 0.78)
+        final_entity_type = "reference"
 
     if final_entity_type == "dataset" and entity_name in referenced_by:
         if (
@@ -211,6 +291,7 @@ def build_entity_decision(
         ml_entity_type == "dataset"
         and final_entity_type in {"reference", "hierarchical_reference"}
         and ml_confidence >= ml_override_threshold
+        and not heuristics["is_enriched_reference_candidate"]
         and (
             heuristics["has_observations"]
             or heuristics["has_geometry"]
@@ -229,47 +310,15 @@ def build_entity_decision(
         else:
             alignment = "mixed"
 
-    review_reasons = []
-    if ml_entity_type and ml_confidence >= ml_review_threshold:
-        if ml_entity_type != final_entity_type:
-            review_reasons.append(
-                f"ML suggests {ml_entity_type} ({ml_confidence:.0%}) while final decision is {final_entity_type}."
-            )
-    if heuristic_confidence < 0.6:
-        review_reasons.append("Heuristic confidence is low for this file.")
-    if (
-        final_entity_type in {"reference", "hierarchical_reference"}
-        and heuristics["has_observations"]
-    ):
-        review_reasons.append(
-            "Observation-like signals were detected in a file classified as reference."
-        )
-    if (
-        final_entity_type == "dataset"
-        and heuristics["has_taxonomic_hierarchy"]
-        and not heuristics["has_geometry"]
-        and not heuristics["has_observations"]
-    ):
-        review_reasons.append(
-            "The file looks hierarchy-heavy for a dataset; taxonomy extraction should be checked."
-        )
-    if entity_name in referenced_by and final_entity_type == "dataset":
-        review_reasons.append(
-            "The file is referenced by another entity but remains a dataset."
-        )
-    for reason in ml_reasons:
-        if reason not in review_reasons and alignment in {"conflict", "mixed"}:
-            review_reasons.append(reason)
-
     return {
         "final_entity_type": final_entity_type,
         "heuristic_entity_type": heuristic_entity_type,
         "heuristic_confidence": heuristic_confidence,
         "ml_entity_type": ml_entity_type,
         "ml_confidence": ml_confidence,
+        "ml_review_threshold": ml_review_threshold,
         "alignment": alignment,
-        "review_required": len(review_reasons) > 0,
-        "review_reasons": review_reasons,
+        "ml_inference_reasons": ml_reasons,
         "referenced_by": referenced_by.get(entity_name, []),
         "row_count": analysis.get("row_count", 0),
         "heuristic_flags": heuristics,

@@ -14,6 +14,10 @@ from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
     build_semantic_evidence,
 )
+from niamoto.core.imports.auto_config_review import (
+    build_auto_config_warnings,
+    build_entity_review,
+)
 from niamoto.core.utils.column_detector import ColumnDetector, GeoPackageAnalyzer
 
 
@@ -155,7 +159,6 @@ class AutoConfigService:
         datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
         decision_summary: Dict[str, Dict[str, Any]] = {}
         semantic_evidence: Dict[str, Dict[str, Any]] = {}
-        warnings: List[str] = []
 
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
@@ -165,10 +168,11 @@ class AutoConfigService:
                 referenced_by=referenced_by,
                 all_analyses=csv_analyses,
             )
-            decision_summary[entity_name] = decision
+            review = build_entity_review(decision=decision, analysis=analysis)
+            decision_summary[entity_name] = {**decision, **review}
             semantic_evidence[entity_name] = build_semantic_evidence(
                 analysis=analysis,
-                decision=decision,
+                decision=decision_summary[entity_name],
                 referenced_by=referenced_by.get(entity_name, []),
             )
 
@@ -192,10 +196,6 @@ class AutoConfigService:
                     references[ref_name] = self._build_derived_hierarchy_reference(
                         entity_name, filepath, analysis
                     )
-
-            if decision["review_required"]:
-                joined = "; ".join(decision["review_reasons"][:2])
-                warnings.append(f'Review "{entity_name}": {joined}')
 
         shapes_sources = []
         layers_info = []
@@ -255,14 +255,11 @@ class AutoConfigService:
             sum(all_confidences) / len(all_confidences) if all_confidences else 0.5
         )
 
-        if overall_confidence < 0.6:
-            warnings.append(
-                "Low confidence in auto-configuration. Please review carefully."
-            )
-        if not references:
-            warnings.append("No references detected. Add taxonomy or lookup tables.")
-
-        seen_warnings = list(dict.fromkeys(warnings))
+        warnings = build_auto_config_warnings(
+            decision_summary=decision_summary,
+            overall_confidence=overall_confidence,
+            has_references=bool(references),
+        )
         detected_columns = {
             Path(filepath).stem: analysis.get("columns", [])
             for filepath, analysis in csv_analyses.items()
@@ -284,7 +281,7 @@ class AutoConfigService:
             "decision_summary": decision_summary,
             "semantic_evidence": semantic_evidence,
             "confidence": overall_confidence,
-            "warnings": seen_warnings,
+            "warnings": warnings,
         }
 
     def _detect_referenced_by(

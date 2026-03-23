@@ -51,11 +51,75 @@ def test_build_entity_decision_uses_ml_to_override_to_reference():
         all_analyses={"imports/plots.csv": analysis},
     )
 
-    assert decision["heuristic_entity_type"] == "dataset"
+    assert decision["heuristic_entity_type"] == "reference"
     assert decision["final_entity_type"] == "reference"
     assert decision["ml_entity_type"] == "reference"
-    assert decision["alignment"] == "ml_override"
-    assert decision["review_required"] is True
+    assert decision["alignment"] == "aligned"
+    assert decision["ml_inference_reasons"]
+    assert "review_required" not in decision
+
+
+def test_build_entity_decision_keeps_enriched_plot_reference_despite_metrics():
+    analysis = {
+        "columns": ["id_plot", "plot", "elevation", "rainfall", "geo_pt"],
+        "hierarchy": {
+            "detected": False,
+            "hierarchy_type": "unknown",
+            "levels": [],
+            "column_mapping": {},
+        },
+        "id_columns": ["id_plot"],
+        "geometry_columns": ["geo_pt"],
+        "name_columns": ["plot"],
+        "date_columns": [],
+        "suggested_entity_type": "dataset",
+        "suggested_connector_type": "file",
+        "confidence": 0.8,
+        "extract_hierarchy_as_reference": False,
+        "row_count": 22,
+        "ml_predictions": [
+            {
+                "column": "id_plot",
+                "concept": "identifier.plot",
+                "confidence": 1.0,
+                "source": "semantic_classifier",
+            },
+            {
+                "column": "plot",
+                "concept": "location.locality",
+                "confidence": 1.0,
+                "source": "semantic_classifier",
+            },
+            {
+                "column": "species_level",
+                "concept": "measurement.trait",
+                "confidence": 1.0,
+                "source": "semantic_classifier",
+            },
+            {
+                "column": "rainfall",
+                "concept": "environment.precipitation",
+                "confidence": 1.0,
+                "source": "semantic_classifier",
+            },
+        ],
+    }
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={"plots": [{"from": "occurrences", "field": "plot_name"}]},
+        all_analyses={
+            "imports/plots.csv": analysis,
+            "imports/occurrences.csv": {"row_count": 1000},
+        },
+    )
+
+    assert decision["heuristic_entity_type"] == "reference"
+    assert decision["final_entity_type"] == "reference"
+    assert decision["ml_entity_type"] == "dataset"
+    assert decision["alignment"] == "conflict"
+    assert decision["heuristic_flags"]["is_enriched_reference_candidate"] is True
 
 
 def test_build_semantic_evidence_summarizes_top_roles():
