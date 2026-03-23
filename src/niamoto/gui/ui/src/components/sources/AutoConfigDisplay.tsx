@@ -40,7 +40,11 @@ import {
   HelpCircle,
   Pencil,
 } from 'lucide-react'
-import type { AutoConfigureResponse } from '@/lib/api/smart-config'
+import type {
+  AutoConfigureResponse,
+  DecisionAlignment,
+  DecisionSummary,
+} from '@/lib/api/smart-config'
 import { EntityConfigEditor } from './EntityConfigEditor'
 import type { DatasetConfig, ReferenceConfig, LayerConfig } from './EntityConfigEditor'
 
@@ -196,14 +200,14 @@ export function AutoConfigDisplay({
         <div className="relative mb-4">
           <Sparkles className="h-12 w-12 animate-pulse text-primary" />
         </div>
-        <h3 className="mb-2 text-lg font-semibold">Analyse en cours...</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
         <p className="text-center text-sm text-muted-foreground">
-          Detection des hierarchies, relations et correspondances spatiales
+          {t('autoConfig.loading.description')}
         </p>
         <div className="mt-4 space-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Analyse des colonnes et types
+            {t('autoConfig.loading.step')}
           </div>
         </div>
       </div>
@@ -234,20 +238,25 @@ export function AutoConfigDisplay({
   // Build available datasets for derived reference source dropdown
   const availableDatasets = Object.keys(result.entities.datasets || {})
 
-  const getAlignmentLabel = (alignment?: string) => {
+  const getAlignmentLabel = (alignment?: DecisionAlignment) => {
     switch (alignment) {
       case 'aligned':
-        return 'Heuristique + ML alignés'
+        return t('autoConfig.alignment.aligned')
+      case 'heuristic_only':
+        return t('autoConfig.alignment.heuristicOnly')
       case 'ml_override':
-        return 'ML a influencé la décision'
+        return t('autoConfig.alignment.mlOverride')
       case 'conflict':
-        return 'Heuristique et ML divergent'
+        return t('autoConfig.alignment.conflict')
       case 'mixed':
-        return 'Signaux mixtes'
+        return t('autoConfig.alignment.mixed')
       default:
-        return 'Décision heuristique'
+        return t('autoConfig.alignment.heuristicOnly')
     }
   }
+
+  const getSummaryBadgeLabel = (summary?: DecisionSummary) =>
+    summary?.review_required ? t('autoConfig.badges.reviewRequired') : t('autoConfig.badges.stable')
 
   const renderDecisionInsight = (name: string) => {
     const summary = decisionSummaries[name]
@@ -260,7 +269,7 @@ export function AutoConfigDisplay({
       <div className="mt-2 rounded border border-border/70 bg-background/70 p-2 text-[11px]">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant={summary?.review_required ? 'destructive' : 'outline'} className="text-[10px]">
-            {summary?.review_required ? 'A revoir' : 'Stable'}
+            {getSummaryBadgeLabel(summary)}
           </Badge>
           {summary?.alignment && (
             <Badge variant="secondary" className="text-[10px]">
@@ -279,21 +288,26 @@ export function AutoConfigDisplay({
 
         {(summary?.heuristic_entity_type || summary?.final_entity_type) && (
           <div className="mt-2 text-muted-foreground">
-            Heuristique: <span className="text-foreground">{summary?.heuristic_entity_type}</span>
+            {t('autoConfig.labels.heuristic')}:{' '}
+            <span className="text-foreground">{summary?.heuristic_entity_type}</span>
             {' · '}
-            Final: <span className="text-foreground">{summary?.final_entity_type}</span>
+            {t('autoConfig.labels.final')}:{' '}
+            <span className="text-foreground">{summary?.final_entity_type}</span>
           </div>
         )}
 
         {summary?.review_reasons && summary.review_reasons.length > 0 && (
-          <div className="mt-1 text-amber-700 dark:text-amber-400">
-            {summary.review_reasons[0]}
-          </div>
+          <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-400">
+            {summary.review_reasons.map((reason) => (
+              <li key={reason}>• {reason}</li>
+            ))}
+          </ul>
         )}
 
         {topPrediction && (
           <div className="mt-1 text-muted-foreground">
-            Signal principal: <span className="text-foreground">{topPrediction.column}</span>
+            {t('autoConfig.labels.primarySignal')}:{' '}
+            <span className="text-foreground">{topPrediction.column}</span>
             {' → '}
             <span className="text-foreground">{topPrediction.concept}</span>
             {' '}
@@ -317,14 +331,19 @@ export function AutoConfigDisplay({
       const format = config.connector?.format || config.connector?.type || 'file'
       details.push({
         icon: <FileSpreadsheet className="h-4 w-4" />,
-        text: `Format ${format.toUpperCase()} reconnu pour "${name}"`,
+        text: t('autoConfig.detection.fileFormatRecognized', {
+          format: format.toUpperCase(),
+          name,
+        }),
         status: 'success',
       })
 
       if (config.schema?.id_field) {
         details.push({
           icon: <Key className="h-4 w-4" />,
-          text: `Colonne ID trouvee: ${config.schema.id_field}`,
+          text: t('autoConfig.detection.idColumnFound', {
+            field: config.schema.id_field,
+          }),
           status: 'success',
         })
       }
@@ -334,7 +353,10 @@ export function AutoConfigDisplay({
           const confidence = link.confidence || 0
           details.push({
             icon: <Link2 className="h-4 w-4" />,
-            text: `Relation ${name}.${link.field} → ${link.entity}`,
+            text: t('autoConfig.detection.relationshipDetected', {
+              source: `${name}.${link.field}`,
+              target: link.entity,
+            }),
             status: confidence >= 0.7 ? 'success' : 'warning',
           })
         })
@@ -345,7 +367,10 @@ export function AutoConfigDisplay({
       if (confidentPredictions.length > 0) {
         details.push({
           icon: <TrendingUp className="h-4 w-4" />,
-          text: `ML: ${confidentPredictions.length} colonne(s) semantiques confiantes pour "${name}"`,
+          text: t('autoConfig.detection.mlConfidentColumns', {
+            count: confidentPredictions.length,
+            name,
+          }),
           status: 'info',
         })
       }
@@ -354,7 +379,7 @@ export function AutoConfigDisplay({
       if (summary?.review_required) {
         details.push({
           icon: <AlertTriangle className="h-4 w-4" />,
-          text: `"${name}" demande une verification manuelle`,
+          text: t('autoConfig.detection.manualReviewRequired', { name }),
           status: 'warning',
         })
       }
@@ -365,7 +390,7 @@ export function AutoConfigDisplay({
       if (config.kind) {
         details.push({
           icon: <Database className="h-4 w-4" />,
-          text: `Reference "${name}" de type ${config.kind}`,
+          text: t('autoConfig.detection.referenceOfKind', { name, kind: config.kind }),
           status: 'success',
         })
       }
@@ -373,7 +398,9 @@ export function AutoConfigDisplay({
       if (config.hierarchy?.levels && config.hierarchy.levels.length > 0) {
         details.push({
           icon: <GitBranch className="h-4 w-4" />,
-          text: `Hierarchie detectee: ${config.hierarchy.levels.join(' → ')}`,
+          text: t('autoConfig.detection.hierarchyDetected', {
+            levels: config.hierarchy.levels.join(' → '),
+          }),
           status: 'success',
         })
       }
@@ -381,7 +408,9 @@ export function AutoConfigDisplay({
       if (config.connector?.type === 'derived') {
         details.push({
           icon: <Network className="h-4 w-4" />,
-          text: `Reference derivee de "${config.connector.source}"`,
+          text: t('autoConfig.detection.derivedReference', {
+            source: config.connector.source,
+          }),
           status: 'info',
         })
       }
@@ -390,7 +419,9 @@ export function AutoConfigDisplay({
         const sourceCount = config.connector.sources?.length || 0
         details.push({
           icon: <Map className="h-4 w-4" />,
-          text: `${sourceCount} couches spatiales detectees`,
+          text: t('autoConfig.detection.spatialLayersDetected', {
+            count: sourceCount,
+          }),
           status: 'success',
         })
       }
@@ -399,7 +430,7 @@ export function AutoConfigDisplay({
     if (layerCount > 0) {
       details.push({
         icon: <Globe2 className="h-4 w-4" />,
-        text: `${layerCount} couche(s) metadata (rasters/vecteurs)`,
+        text: t('autoConfig.detection.metadataLayersDetected', { count: layerCount }),
         status: 'success',
       })
     }
@@ -418,17 +449,17 @@ export function AutoConfigDisplay({
     switch (editingEntity.type) {
       case 'dataset':
         return {
-          title: `Dataset: ${editingEntity.name}`,
+          title: t('autoConfig.sheetTitles.dataset', { name: editingEntity.name }),
           description: t('autoConfig.sheetDescriptions.dataset'),
         }
       case 'reference':
         return {
-          title: `Reference: ${editingEntity.name}`,
+          title: t('autoConfig.sheetTitles.reference', { name: editingEntity.name }),
           description: t('autoConfig.sheetDescriptions.reference'),
         }
       case 'layer':
         return {
-          title: `Couche: ${editingEntity.config.name}`,
+          title: t('autoConfig.sheetTitles.layer', { name: editingEntity.config.name }),
           description: t('autoConfig.sheetDescriptions.layer'),
         }
     }
@@ -443,10 +474,11 @@ export function AutoConfigDisplay({
         <div className="rounded-lg border bg-muted/30 p-3">
           <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="h-4 w-4 text-primary" />
-            Detection automatique
+            {t('autoConfig.sections.autoDetection')}
             <span className="ml-auto text-xs font-normal text-muted-foreground">
-              {successCount} element(s) detecte(s)
-              {warningCount > 0 && `, ${warningCount} a verifier`}
+              {t('autoConfig.summary.detectedElements', { count: successCount })}
+              {warningCount > 0 &&
+                `, ${t('autoConfig.summary.itemsToReview', { count: warningCount })}`}
             </span>
           </h4>
           <div className="space-y-1.5">
@@ -480,7 +512,7 @@ export function AutoConfigDisplay({
             ))}
             {detectionDetails.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Aucune structure detectee automatiquement
+                {t('autoConfig.detection.noStructureDetected')}
               </p>
             )}
           </div>
@@ -506,7 +538,7 @@ export function AutoConfigDisplay({
           <Alert className="border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              {reviewCount} entite(s) ont des signaux heuristiques/ML a verifier avant import.
+              {t('autoConfig.summary.reviewAlert', { count: reviewCount })}
             </AlertDescription>
           </Alert>
         )}
@@ -517,7 +549,7 @@ export function AutoConfigDisplay({
           <div className="rounded-lg border p-3">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <Database className="h-4 w-4 text-blue-500" />
-              Datasets ({datasetCount})
+              {t('autoConfig.sections.datasets', { count: datasetCount })}
             </h4>
             <div className="space-y-2">
               {Object.entries(result.entities.datasets || {}).map(
@@ -528,7 +560,7 @@ export function AutoConfigDisplay({
                         <span className="font-medium">{name}</span>
                         {decisionSummaries[name]?.review_required && (
                           <Badge variant="destructive" className="text-[10px]">
-                            Review
+                            {t('autoConfig.badges.review')}
                           </Badge>
                         )}
                       </div>
@@ -540,7 +572,7 @@ export function AutoConfigDisplay({
                               size="sm"
                               className="h-6 gap-1 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
                               onClick={() => moveToReference(name)}
-                              title="Deplacer vers les references"
+                              title={t('autoConfig.actions.moveToReferences')}
                             >
                               <ArrowRightLeft className="h-3 w-3" />
                             </Button>
@@ -551,7 +583,7 @@ export function AutoConfigDisplay({
                               onClick={() => openDatasetEditor(name, config as DatasetConfig)}
                             >
                               <Pencil className="h-3 w-3" />
-                              Editer
+                              {t('autoConfig.actions.edit')}
                             </Button>
                           </>
                         )}
@@ -583,7 +615,7 @@ export function AutoConfigDisplay({
               )}
               {datasetCount === 0 && (
                 <p className="py-2 text-center text-xs text-muted-foreground">
-                  Aucun dataset detecte
+                  {t('autoConfig.empty.noDatasetsDetected')}
                 </p>
               )}
             </div>
@@ -593,11 +625,12 @@ export function AutoConfigDisplay({
           <div className="rounded-lg border p-3">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <Network className="h-4 w-4 text-green-500" />
-              References ({referenceCount})
+              {t('autoConfig.sections.references', { count: referenceCount })}
             </h4>
             <div className="space-y-2">
               {Object.entries(result.entities.references || {}).map(
                 ([name, config]: [string, any]) => {
+                  const referenceUsageCount = decisionSummaries[name]?.referenced_by?.length || 0
                   const canMove =
                     editable &&
                     onReclassify &&
@@ -609,25 +642,25 @@ export function AutoConfigDisplay({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{name}</span>
-                        {config.kind && (
-                          <Badge variant="outline" className="text-xs">
-                            {config.kind}
-                          </Badge>
-                        )}
-                        {decisionSummaries[name]?.review_required && (
-                          <Badge variant="destructive" className="text-[10px]">
-                            Review
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {canMove && (
+                          {config.kind && (
+                            <Badge variant="outline" className="text-xs">
+                              {config.kind}
+                            </Badge>
+                          )}
+                          {decisionSummaries[name]?.review_required && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              {t('autoConfig.badges.review')}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {canMove && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-6 gap-1 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
                               onClick={() => moveToDataset(name)}
-                              title="Deplacer vers les datasets"
+                              title={t('autoConfig.actions.moveToDatasets')}
                             >
                               <ArrowRightLeft className="h-3 w-3" />
                             </Button>
@@ -640,7 +673,7 @@ export function AutoConfigDisplay({
                               onClick={() => openRefEditor(name, config as ReferenceConfig)}
                             >
                               <Pencil className="h-3 w-3" />
-                              Editer
+                              {t('autoConfig.actions.edit')}
                             </Button>
                           )}
                         </div>
@@ -650,28 +683,37 @@ export function AutoConfigDisplay({
                       <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                         {config.connector?.type === 'derived' && (
                           <div className="text-blue-600">
-                            Derive de: {config.connector.source}
+                            {t('autoConfig.reference.derivedFrom', {
+                              source: config.connector.source,
+                            })}
                           </div>
                         )}
                         {config.connector?.type === 'file_multi_feature' && (
                           <div className="text-purple-600">
-                            {config.connector.sources?.length || 0} sources
+                            {t('autoConfig.reference.sourceCount', {
+                              count: config.connector.sources?.length || 0,
+                            })}
                           </div>
                         )}
                         {config.hierarchy?.levels && (
-                          <div>Niveaux: {config.hierarchy.levels.join(' → ')}</div>
+                          <div>
+                            {t('autoConfig.reference.levels', {
+                              levels: config.hierarchy.levels.join(' → '),
+                            })}
+                          </div>
                         )}
                         {config.enrichment?.[0]?.enabled && (
                           <div className="flex items-center gap-1 text-amber-600">
                             <Sparkles className="h-3 w-3" />
-                            Enrichissement active
+                            {t('autoConfig.reference.enrichmentEnabled')}
                           </div>
                         )}
-                        {result.entities.referenced_by?.[name] && (
+                        {referenceUsageCount > 0 && (
                           <div className="mt-1 border-t pt-1">
                             <span className="text-blue-600">
-                              Reference par: {result.entities.referenced_by[name].length}{' '}
-                              dataset(s)
+                              {t('autoConfig.reference.referencedByDatasets', {
+                                count: referenceUsageCount,
+                              })}
                             </span>
                           </div>
                         )}
@@ -683,7 +725,7 @@ export function AutoConfigDisplay({
               )}
               {referenceCount === 0 && (
                 <p className="py-2 text-center text-xs text-muted-foreground">
-                  Aucune reference detectee
+                  {t('autoConfig.empty.noReferencesDetected')}
                 </p>
               )}
             </div>
@@ -695,7 +737,7 @@ export function AutoConfigDisplay({
           <div className="rounded-lg border p-3">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <Map className="h-4 w-4 text-purple-500" />
-              Couches metadata ({layerCount})
+              {t('autoConfig.sections.metadataLayers', { count: layerCount })}
             </h4>
             <div className="grid grid-cols-2 gap-2">
               {result.entities.metadata?.layers?.map((layer: any, idx: number) => (
@@ -717,7 +759,7 @@ export function AutoConfigDisplay({
                         onClick={() => openLayerEditor(idx, layer as LayerConfig)}
                       >
                         <Pencil className="h-3 w-3" />
-                        Editer
+                        {t('autoConfig.actions.edit')}
                       </Button>
                     )}
                   </div>
@@ -736,26 +778,28 @@ export function AutoConfigDisplay({
         <div className="rounded-lg border bg-muted/20 p-3">
           <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <TrendingUp className="h-4 w-4" />
-            Resume
+            {t('autoConfig.sections.summary')}
           </h4>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-xl font-bold text-blue-500">{datasetCount}</div>
-              <div className="text-xs text-muted-foreground">Datasets</div>
+              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.datasets')}</div>
             </div>
             <div>
               <div className="text-xl font-bold text-green-500">{referenceCount}</div>
-              <div className="text-xs text-muted-foreground">References</div>
+              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.references')}</div>
             </div>
             <div>
               <div className="text-xl font-bold text-purple-500">{layerCount}</div>
-              <div className="text-xs text-muted-foreground">Layers</div>
+              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.layers')}</div>
             </div>
           </div>
           {reviewCount > 0 && (
             <div className="mt-3 border-t pt-3 text-center">
               <div className="text-xl font-bold text-amber-500">{reviewCount}</div>
-              <div className="text-xs text-muted-foreground">Entites a revoir</div>
+              <div className="text-xs text-muted-foreground">
+                {t('autoConfig.summary.entitiesToReview')}
+              </div>
             </div>
           )}
         </div>

@@ -72,23 +72,44 @@ export interface AutoConfigureRequest {
   files: string[]
 }
 
+export type DecisionAlignment =
+  | 'aligned'
+  | 'heuristic_only'
+  | 'ml_override'
+  | 'conflict'
+  | 'mixed'
+
+export interface DecisionSummary {
+  final_entity_type: string
+  heuristic_entity_type: string
+  heuristic_confidence: number
+  ml_entity_type?: string | null
+  ml_confidence?: number
+  alignment?: DecisionAlignment
+  review_required?: boolean
+  review_reasons?: string[]
+  review_priority?: 'normal' | 'high'
+  analysis_snapshot?: {
+    row_count: number
+    date_columns: string[]
+    geometry_columns: string[]
+  }
+  referenced_by?: Array<{
+    from: string
+    field: string
+    target_field?: string
+    confidence: number
+    match_type?: string
+  }>
+  row_count?: number
+  heuristic_flags?: Record<string, unknown>
+}
+
 export interface AutoConfigureResponse {
   success: boolean
   entities: {
     datasets: Record<string, any>
     references: Record<string, any>
-    detected_links?: Record<string, Array<{
-      entity: string
-      field: string
-      target_field: string
-      confidence?: number
-      match_type?: string
-    }>>
-    referenced_by?: Record<string, Array<{
-      from: string
-      field: string
-      confidence: number
-    }>>
     metadata?: {
       layers?: Array<{
         name: string
@@ -108,31 +129,7 @@ export interface AutoConfigureResponse {
     confidence: number
     source: string
   }>>
-  decision_summary?: Record<string, {
-    final_entity_type: string
-    heuristic_entity_type: string
-    heuristic_confidence: number
-    ml_entity_type?: string | null
-    ml_confidence?: number
-    alignment?: 'aligned' | 'heuristic_only' | 'ml_override' | 'conflict' | 'mixed'
-    review_required?: boolean
-    review_reasons?: string[]
-    review_priority?: 'normal' | 'high'
-    analysis_snapshot?: {
-      row_count: number
-      date_columns: string[]
-      geometry_columns: string[]
-    }
-    referenced_by?: Array<{
-      from: string
-      field: string
-      target_field?: string
-      confidence: number
-      match_type?: string
-    }>
-    row_count?: number
-    heuristic_flags?: Record<string, unknown>
-  }>
+  decision_summary?: Record<string, DecisionSummary>
   semantic_evidence?: Record<string, {
     top_predictions?: Array<{
       column: string
