@@ -71,6 +71,14 @@ uv run python -m ml.scripts.eval.evaluate --model fusion --metric surrogate-mid 
 uv run python -m ml.scripts.research.run_fusion_surrogate_autoresearch --iterations 50
 ```
 
+### Value-feature ablation
+
+```bash
+uv run python ml/scripts/research/ablation_run.py baseline
+uv run python ml/scripts/research/ablation_run.py pct_round_values
+uv run python ml/scripts/research/ablation_run.py range_ratio
+```
+
 ## Where to look
 
 - `ml/data/`: training sources, gold set, eval datasets, caches, results

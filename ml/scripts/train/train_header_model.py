@@ -81,7 +81,7 @@ def build_pipeline(
                 "clf",
                 LogisticRegression(
                     C=C,
-                    max_iter=1000,
+                    max_iter=3000,
                     solver="saga",
                     penalty="l1",
                     class_weight="balanced",
