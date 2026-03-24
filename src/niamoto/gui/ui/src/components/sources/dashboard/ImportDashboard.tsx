@@ -3,7 +3,7 @@
  *
  * Tabs:
  * 1. Summary - Global stats + priority alerts
- * 2. Completeness - Heatmap of % non-null per column
+ * 2. Field availability - Heatmap of % non-null per column
  * 3. Spatial - Map with occurrence distribution
  * 4. Taxonomy - Hierarchy tree + orphans
  * 5. Validation - Outliers + value ranges
@@ -14,7 +14,6 @@ import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   LayoutDashboard,
@@ -25,10 +24,8 @@ import {
   Layers,
   RefreshCw,
   Download,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
   Database,
+  Network,
 } from 'lucide-react'
 import { DataSummaryCard } from './DataSummaryCard'
 import { DataCompletenessView } from './DataCompletenessView'
@@ -46,14 +43,12 @@ interface ImportSummary {
     row_count: number
     column_count: number
     columns: string[]
-    quality_score: number
   }>
   alerts: Array<{
     level: string
     entity: string
     message: string
   }>
-  quality_score: number
 }
 
 interface ImportDashboardProps {
@@ -93,35 +88,6 @@ export function ImportDashboard({
     fetchSummary()
   }, [])
 
-  const getQualityColor = (score: number) => {
-    if (score >= 0.9) return 'text-green-600'
-    if (score >= 0.7) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const getQualityBadge = (score: number) => {
-    if (score >= 0.9)
-      return (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-          <CheckCircle2 className="mr-1 h-3 w-3" />
-          Excellent
-        </Badge>
-      )
-    if (score >= 0.7)
-      return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-          <AlertCircle className="mr-1 h-3 w-3" />
-          Acceptable
-        </Badge>
-      )
-    return (
-      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-        <XCircle className="mr-1 h-3 w-3" />
-        Needs Attention
-      </Badge>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -154,13 +120,16 @@ export function ImportDashboard({
     )
   }
 
+  const datasetCount = summary.entities.filter((entity) => entity.entity_type === 'dataset').length
+  const referenceCount = summary.entities.filter((entity) => entity.entity_type === 'reference').length
+  const layerCount = summary.entities.filter((entity) => entity.entity_type === 'layer').length
+
   return (
     <div className="space-y-4">
       {/* Header with global stats */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold">Import Dashboard</h2>
-          {getQualityBadge(summary.quality_score)}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchSummary}>
@@ -177,11 +146,32 @@ export function ImportDashboard({
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{summary.total_entities}</div>
-            <p className="text-xs text-muted-foreground">Entities</p>
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-blue-500" />
+              <div className="text-2xl font-bold">{datasetCount}</div>
+            </div>
+            <p className="text-xs text-muted-foreground">Datasets</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Network className="h-4 w-4 text-purple-500" />
+              <div className="text-2xl font-bold">{referenceCount}</div>
+            </div>
+            <p className="text-xs text-muted-foreground">References</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-orange-500" />
+              <div className="text-2xl font-bold">{layerCount}</div>
+            </div>
+            <p className="text-xs text-muted-foreground">Spatial layers</p>
           </CardContent>
         </Card>
         <Card>
@@ -194,16 +184,8 @@ export function ImportDashboard({
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className={`text-2xl font-bold ${getQualityColor(summary.quality_score)}`}>
-              {Math.round(summary.quality_score * 100)}%
-            </div>
-            <p className="text-xs text-muted-foreground">Data quality</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
             <div className="text-2xl font-bold">{summary.alerts.length}</div>
-            <p className="text-xs text-muted-foreground">Alerts</p>
+            <p className="text-xs text-muted-foreground">Actionable alerts</p>
           </CardContent>
         </Card>
       </div>
@@ -250,7 +232,7 @@ export function ImportDashboard({
           </TabsTrigger>
           <TabsTrigger value="completeness" className="gap-1">
             <BarChart3 className="h-3 w-3" />
-            Completeness
+            Field availability
           </TabsTrigger>
           <TabsTrigger value="spatial" className="gap-1">
             <Map className="h-3 w-3" />

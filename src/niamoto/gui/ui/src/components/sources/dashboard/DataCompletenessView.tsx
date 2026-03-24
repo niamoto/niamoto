@@ -1,5 +1,5 @@
 /**
- * DataCompletenessView - Heatmap of column completeness
+ * DataCompletenessView - Heatmap of column fill rate
  */
 
 import { useState, useEffect } from 'react'
@@ -27,7 +27,6 @@ interface EntityInfo {
   row_count: number
   column_count: number
   columns: string[]
-  quality_score: number
 }
 
 interface ColumnCompleteness {
@@ -113,17 +112,17 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
 
         {completeness && (
           <Badge variant="outline" className="ml-auto">
-            Overall: {Math.round(completeness.overall_completeness * 100)}%
+            Average fill rate: {Math.round(completeness.overall_completeness * 100)}%
           </Badge>
         )}
       </div>
 
-      {/* Completeness grid */}
+      {/* Availability grid */}
       <Card>
         <CardHeader className="py-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <BarChart3 className="h-4 w-4" />
-            Column Completeness
+            Field availability
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -172,14 +171,14 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
               </div>
             </TooltipProvider>
           ) : (
-            <p className="text-sm text-muted-foreground">Select an entity to view completeness</p>
+            <p className="text-sm text-muted-foreground">Select an entity to inspect field availability</p>
           )}
         </CardContent>
       </Card>
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>Completeness:</span>
+        <span>Fill rate:</span>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-red-400" />
           <span>&lt;40%</span>

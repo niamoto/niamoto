@@ -250,9 +250,9 @@
   },
   "dashboard": {
     "title": "Data Dashboard",
-    "description": "Overview of quality and completeness of imported data.",
+    "description": "Overview of imported data structure, coverage, and exploration options.",
     "noData": "No data imported",
-    "noDataHint": "Start by importing your data files to see statistics and quality.",
+    "noDataHint": "Start by importing your data files to inspect their structure and begin exploring them.",
     "importData": "Import data",
     "import": "Import"
   },

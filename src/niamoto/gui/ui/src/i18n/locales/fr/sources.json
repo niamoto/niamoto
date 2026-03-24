@@ -250,9 +250,9 @@
   },
   "dashboard": {
     "title": "Dashboard des données",
-    "description": "Vue d'ensemble de la qualité et de la complétude des données importées.",
+    "description": "Vue d'ensemble de la structure, de la couverture et des possibilités d'exploration des données importées.",
     "noData": "Aucune donnée importée",
-    "noDataHint": "Commencez par importer vos fichiers de données pour voir les statistiques et la qualité.",
+    "noDataHint": "Commencez par importer vos fichiers de données pour inspecter leur structure et commencer à les explorer.",
     "importData": "Importer des données",
     "import": "Importer"
   },

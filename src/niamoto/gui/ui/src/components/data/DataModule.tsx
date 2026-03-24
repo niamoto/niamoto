@@ -2,7 +2,7 @@
  * DataModule - Orchestrator for the Data (Sources) module
  *
  * Manages sidebar tree + content panel layout:
- * - Overview: ImportDashboard with data quality stats
+ * - Overview: ImportDashboard with exploration-oriented data stats
  * - Dataset detail: DatasetDetailPanel
  * - Reference detail: ReferenceDetailPanel
  * - Import wizard: ImportWizard
@@ -205,7 +205,7 @@ export function DataModule() {
                 <p className="text-muted-foreground">
                   {t(
                     'dashboard.description',
-                    'Overview of the quality and completeness of imported data.'
+                    'Overview of imported data structure, coverage, and exploration options.'
                   )}
                 </p>
               </div>
