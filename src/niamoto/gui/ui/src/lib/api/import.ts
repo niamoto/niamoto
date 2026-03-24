@@ -1,5 +1,34 @@
 import axios from 'axios'
 
+export interface ImportJobEvent {
+  timestamp: string
+  kind: 'stage' | 'detail' | 'finding' | 'complete' | 'error'
+  message: string
+  phase?: string | null
+  entity_name?: string | null
+  entity_type?: string | null
+}
+
+export interface ImportJobStatus {
+  id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress?: number
+  message?: string
+  phase?: string | null
+  total_entities?: number
+  processed_entities?: number
+  current_entity?: string | null
+  current_entity_type?: string | null
+  errors?: string[]
+  warnings?: string[]
+  events?: ImportJobEvent[]
+  processed_records?: number
+  total_records?: number
+  count?: number
+  imported_count?: number
+  result?: any
+}
+
 // Estimate import duration based on entity type and data size
 function calculateEstimatedDuration(entityType: string, dataSize: number): number {
   // Base durations in milliseconds per 1000 records
@@ -87,8 +116,8 @@ export async function executeImportAll(resetTable: boolean = false): Promise<any
   return response.data
 }
 
-export async function getImportStatus(jobId: string): Promise<any> {
-  const response = await axios.get(`/api/imports/jobs/${jobId}`)
+export async function getImportStatus(jobId: string): Promise<ImportJobStatus> {
+  const response = await axios.get<ImportJobStatus>(`/api/imports/jobs/${jobId}`)
   return response.data
 }
 
