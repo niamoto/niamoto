@@ -2,8 +2,8 @@
  * Build custom Plotly.js bundles for Niamoto.
  *
  * Output:
- *   ../src/niamoto/publish/assets/js/vendor/plotly/plotly-niamoto-core.min.js
- *   ../src/niamoto/publish/assets/js/vendor/plotly/plotly-niamoto-maps.min.js
+ *   ../../../src/niamoto/publish/assets/js/vendor/plotly/plotly-niamoto-core.min.js
+ *   ../../../src/niamoto/publish/assets/js/vendor/plotly/plotly-niamoto-maps.min.js
  */
 import { build } from "esbuild";
 import { resolve, dirname } from "path";
@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(
   __dirname,
-  "../src/niamoto/publish/assets/js/vendor/plotly"
+  "../../../src/niamoto/publish/assets/js/vendor/plotly"
 );
 
 const bundles = [
