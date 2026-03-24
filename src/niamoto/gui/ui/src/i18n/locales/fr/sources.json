@@ -364,6 +364,7 @@
       "autoDetection": "Détection automatique",
       "datasets": "Datasets ({{count}})",
       "references": "Références ({{count}})",
+      "auxiliarySources": "Sources auxiliaires ({{count}})",
       "metadataLayers": "Couches metadata ({{count}})",
       "summary": "Résumé"
     },
@@ -379,6 +380,9 @@
     "badges": {
       "review": "Review",
       "reviewRequired": "À revoir",
+      "notice": "À noter",
+      "info": "Info",
+      "auxiliary": "Auxiliaire",
       "stable": "Stable"
     },
     "actions": {
@@ -408,8 +412,13 @@
       "hierarchyDetected": "Hiérarchie détectée : {{levels}}",
       "derivedReference": "Référence dérivée de \"{{source}}\"",
       "spatialLayersDetected": "{{count}} couche(s) spatiale(s) détectée(s)",
+      "auxiliarySourcesDetected": "{{count}} source(s) stats auxiliaire(s) détectée(s)",
       "metadataLayersDetected": "{{count}} couche(s) metadata (rasters/vecteurs)",
       "noStructureDetected": "Aucune structure détectée automatiquement"
+    },
+    "auxiliary": {
+      "attachedTo": "Rattachée à : {{target}}",
+      "relation": "Relation : {{field}} → {{refField}}"
     },
     "reference": {
       "derivedFrom": "Dérivé de : {{source}}",

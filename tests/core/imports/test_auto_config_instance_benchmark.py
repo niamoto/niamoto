@@ -37,6 +37,7 @@ def test_auto_config_subset_instance_tracks_validated_import_shape(
     datasets = result["entities"]["datasets"]
     references = result["entities"]["references"]
     summaries = result["decision_summary"]
+    auxiliary_sources = result["auxiliary_sources"]
     layer_names = {layer["name"] for layer in result["entities"]["metadata"]["layers"]}
 
     validated_datasets = set(validated_import["entities"]["datasets"])
@@ -47,13 +48,22 @@ def test_auto_config_subset_instance_tracks_validated_import_shape(
     assert {"plots", "taxons", "shapes"} <= validated_references
 
     assert summaries["occurrences"]["final_entity_type"] == "dataset"
-    assert summaries["occurrences"]["review_required"] is True
+    assert summaries["occurrences"]["review_required"] is False
+    assert summaries["occurrences"]["review_level"] == "info"
 
     assert summaries["plots"]["final_entity_type"] == "reference"
-    assert summaries["plots"]["review_required"] is True
+    assert summaries["plots"]["review_required"] is False
+    assert summaries["plots"]["review_level"] == "notice"
 
-    assert summaries["raw_plot_stats"]["final_entity_type"] == "reference"
+    assert summaries["raw_plot_stats"]["final_entity_type"] == "auxiliary_source"
     assert summaries["raw_plot_stats"]["review_required"] is False
+    assert summaries["raw_shape_stats"]["final_entity_type"] == "auxiliary_source"
+    assert summaries["raw_shape_stats"]["review_required"] is False
+    assert "raw_plot_stats" not in datasets
+    assert "raw_plot_stats" not in references
+    assert "raw_shape_stats" not in datasets
+    assert "raw_shape_stats" not in references
+    assert {source["grouping"] for source in auxiliary_sources} >= {"plots", "shapes"}
 
     assert "amap_raster_holdridge_nc" in layer_names
     assert "rainfall_epsg3163" in layer_names

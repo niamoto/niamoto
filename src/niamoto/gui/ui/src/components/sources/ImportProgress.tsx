@@ -49,7 +49,10 @@ export function ImportProgress({
       setError(null)
 
       // Step 1: Save entities to import.yml
-      await createEntitiesBulk(config.entities)
+      await createEntitiesBulk({
+        entities: config.entities,
+        auxiliary_sources: config.auxiliary_sources || [],
+      })
 
       setProgress(30)
 

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 from pathlib import Path
 
 import duckdb
 
 logger = logging.getLogger(__name__)
+CLASS_OBJECT_REQUIRED_COLUMNS = {"class_object", "class_name", "class_value"}
+AUTO_ATTACH_MIN_SCORE = 0.75
 
 
 def _column_tokens(column_name: str) -> set[str]:
@@ -17,10 +20,33 @@ def _column_tokens(column_name: str) -> set[str]:
 
 def read_csv_columns(csv_path: Path) -> list[str]:
     """Read normalized column names from a CSV header."""
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, "r", encoding="utf-8", newline="") as f:
         first_line = f.readline()
         delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
-    return [c.strip().lower() for c in first_line.strip().split(delimiter)]
+        f.seek(0)
+        reader = csv.reader(f, delimiter=delimiter)
+        header = next(reader, [])
+    return [c.strip().strip('"').strip("'").lstrip("\ufeff").lower() for c in header]
+
+
+def is_class_object_stats_csv(csv_columns: list[str]) -> bool:
+    """Return True when the CSV looks like a precomputed class_object stats source."""
+    return CLASS_OBJECT_REQUIRED_COLUMNS.issubset(set(csv_columns))
+
+
+def is_high_confidence_auto_attach(
+    ref_field: str,
+    match_field: str,
+    score: float,
+    *,
+    min_score: float,
+) -> bool:
+    """Keep auto-attach strict enough to avoid generic ID false positives."""
+    if score < min_score:
+        return False
+    if ref_field == "id" and match_field != "id":
+        return False
+    return True
 
 
 def detect_relation_fields(
@@ -61,7 +87,7 @@ def detect_relation_fields(
 
     conn = None
     try:
-        conn = duckdb.connect(str(db_path))
+        conn = duckdb.connect(str(db_path), read_only=True)
         tables = conn.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
         ).fetchall()
@@ -189,39 +215,58 @@ def detect_relation_fields(
 def find_best_stats_source_for_reference(
     work_dir: Path, reference_name: str
 ) -> dict[str, str] | None:
-    """Find the best raw stats CSV for a reference based on actual joinability."""
+    """Find the best stats CSV for a reference based on actual joinability."""
+    matches = find_stats_sources_for_reference(work_dir, reference_name)
+    return matches[0] if matches else None
+
+
+def find_stats_sources_for_reference(
+    work_dir: Path,
+    reference_name: str,
+    *,
+    min_score: float = AUTO_ATTACH_MIN_SCORE,
+) -> list[dict[str, str]]:
+    """Find all high-confidence class-object stats CSVs for a reference."""
     imports_dir = work_dir / "imports"
     if not imports_dir.exists():
-        return None
+        return []
 
-    best: dict[str, str] | None = None
-    best_score = 0.0
+    matches: list[tuple[float, dict[str, str]]] = []
 
-    for csv_path in sorted(imports_dir.glob("raw_*_stats.csv")):
+    for csv_path in sorted(imports_dir.glob("*.csv")):
         try:
             csv_columns = read_csv_columns(csv_path)
+            if not is_class_object_stats_csv(csv_columns):
+                continue
             ref_field, match_field, score = detect_relation_fields(
                 work_dir, reference_name, csv_path, csv_columns
             )
         except Exception:
             continue
 
-        if score <= best_score or score <= 0.5:
+        if not is_high_confidence_auto_attach(
+            ref_field, match_field, score, min_score=min_score
+        ):
             continue
 
         source_name = csv_path.stem
         if source_name.startswith("raw_"):
             source_name = source_name[len("raw_") :]
 
-        best = {
-            "name": source_name,
-            "data": f"imports/{csv_path.name}",
-            "grouping": reference_name,
-            "relation_plugin": "stats_loader",
-            "key": "id",
-            "ref_field": ref_field,
-            "match_field": match_field,
-        }
-        best_score = score
+        matches.append(
+            (
+                score,
+                {
+                    "name": source_name,
+                    "data": f"imports/{csv_path.name}",
+                    "grouping": reference_name,
+                    "relation_plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": ref_field,
+                    "match_field": match_field,
+                },
+            )
+        )
 
-    return best
+    matches.sort(key=lambda item: item[0], reverse=True)
+    return [match for _, match in matches]

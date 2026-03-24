@@ -38,6 +38,7 @@ class AutoConfigureResponse(BaseModel):
 
     success: bool
     entities: Dict[str, Any]
+    auxiliary_sources: List[Dict[str, Any]] = []
     detected_columns: Dict[str, List[str]] = {}  # Entity name -> columns
     ml_predictions: Dict[str, List[Dict[str, Any]]] = {}
     decision_summary: Dict[str, Dict[str, Any]] = {}
@@ -416,6 +417,7 @@ class CreateEntitiesBulkRequest(BaseModel):
     """Request to create entities in bulk and save to import.yml."""
 
     entities: Dict[str, Any]  # Contains datasets, references, metadata
+    auxiliary_sources: List[Dict[str, Any]] = []
 
 
 @router.post("/management/entities/bulk")
@@ -458,6 +460,8 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
         # Add metadata if present
         if "metadata" in request.entities:
             import_config["metadata"] = request.entities["metadata"]
+        if request.auxiliary_sources:
+            import_config["auxiliary_sources"] = request.auxiliary_sources
 
         # Write to import.yml
         with open(import_yml_path, "w", encoding="utf-8") as f:
