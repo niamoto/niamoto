@@ -34,13 +34,6 @@
     "back": "Back",
     "or": "or",
     "modifyExistingConfig": "Modify existing configuration",
-    "howItWorks": "How it works?",
-    "howItWorksSteps": [
-      "Add your files (CSV for data, GeoPackage for shapes)",
-      "Configuration is analyzed and displayed for validation",
-      "Data is imported into the database",
-      "Reference groups appear in the sidebar"
-    ],
     "autoConfigError": "Error during auto-configuration",
     "autoConfigTimeout": "Auto-configuration took too long",
     "invalidConfig": "Invalid or empty configuration",
@@ -58,6 +51,35 @@
     "retry": "Retry",
     "importComplete": "Import complete!",
     "importedSummary": "{{datasets}} dataset(s) and {{references}} reference(s) imported"
+  },
+  "upload": {
+    "dropFiles": "Drag and drop your files",
+    "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "uploading": "Uploading...",
+    "uploadSelected_one": "Upload {{count}} file",
+    "uploadSelected_other": "Upload {{count}} files",
+    "failed": "Upload failed",
+    "categories": {
+      "csv": "CSV files",
+      "vector": "GeoPackage/GeoJSON",
+      "raster": "TIFF files",
+      "other": "Other files"
+    },
+    "conflicts": {
+      "title": "Existing files",
+      "description_one": "{{count}} file already exists. What do you want to do?",
+      "description_other": "{{count}} files already exist. What do you want to do?",
+      "useExisting": "Use existing files",
+      "replaceAll": "Replace all"
+    }
+  },
+  "existingFiles": {
+    "title": "Existing files",
+    "fileCount_one": "{{count}} file",
+    "fileCount_other": "{{count}} files",
+    "selectFolder": "Select folder",
+    "reconfigureSelected_one": "Reconfigure {{count}} file",
+    "reconfigureSelected_other": "Reconfigure {{count}} files"
   },
   "dataset": {
     "deleteDataset": "Delete \"{{name}}\"?",
@@ -365,6 +387,8 @@
     },
     "sections": {
       "autoDetection": "Automatic detection",
+      "aggregationCandidates": "Aggregation candidates ({{count}})",
+      "supportingSources": "Supporting sources ({{count}})",
       "datasets": "Datasets ({{count}})",
       "references": "References ({{count}})",
       "auxiliarySources": "Auxiliary sources ({{count}})",
@@ -391,7 +415,24 @@
     "actions": {
       "edit": "Edit",
       "moveToReferences": "Move to references",
-      "moveToDatasets": "Move to datasets"
+      "moveToDatasets": "Move to datasets",
+      "viewDetails": "Details",
+      "hideDetails": "Hide"
+    },
+    "itemTypes": {
+      "dataset": "Dataset",
+      "reference": "Reference",
+      "auxiliary": "Auxiliary",
+      "layer": "Layer"
+    },
+    "list": {
+      "fieldsCount": "{{count}} fields",
+      "referencedByCount": "{{count}} linked",
+      "supportsAggregationsCount": "{{count}} aggregations",
+      "linkedDatasetsCount": "{{count}} datasets",
+      "linkedAuxiliaryCount": "{{count}} auxiliary sources",
+      "derivedFrom": "derived from {{source}}",
+      "sourceCount": "{{count}} sources"
     },
     "labels": {
       "heuristic": "Heuristic",
@@ -421,14 +462,18 @@
     },
     "auxiliary": {
       "attachedTo": "Attached to: {{target}}",
-      "relation": "Relation: {{field}} → {{refField}}"
+      "relation": "Relation: {{field}} → {{refField}}",
+      "relationCompact": "attached to {{target}} • {{field}} → {{refField}}"
     },
     "reference": {
       "derivedFrom": "Derived from: {{source}}",
       "sourceCount": "{{count}} source(s)",
       "levels": "Levels: {{levels}}",
       "enrichmentEnabled": "Enrichment enabled",
-      "referencedByDatasets": "Referenced by: {{count}} dataset(s)"
+      "referencedByDatasets": "Referenced by: {{count}} dataset(s)",
+      "aggregationReady": "Can serve as an aggregation target for generated pages",
+      "linkedDatasets": "Linked datasets: {{datasets}}",
+      "linkedAuxiliary": "Auxiliary sources: {{names}}"
     },
     "empty": {
       "noDatasetsDetected": "No dataset detected",

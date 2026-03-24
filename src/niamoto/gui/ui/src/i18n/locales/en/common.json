@@ -51,7 +51,7 @@
     "never_run": "Not yet run",
     "running": "Processing...",
     "data_stale": "Data imported — groups need recalculation",
-    "data_fresh": "Data up to date",
+    "data_fresh": "Data imported",
     "groups_stale": "Stale calculations — data changed since last run",
     "groups_stale_count": "{{count}} group(s) to recalculate",
     "groups_fresh": "All groups up to date",

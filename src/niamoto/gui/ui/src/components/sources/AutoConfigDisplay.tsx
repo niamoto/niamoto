@@ -26,8 +26,6 @@ import {
   AlertTriangle,
   Database,
   Network,
-  Map,
-  TrendingUp,
   Loader2,
   Sparkles,
   Globe2,
@@ -37,8 +35,8 @@ import {
   Key,
   GitBranch,
   Link2,
-  HelpCircle,
   Pencil,
+  ChevronDown,
 } from 'lucide-react'
 import type {
   AutoConfigureResponse,
@@ -85,6 +83,7 @@ export function AutoConfigDisplay({
   const { t } = useTranslation('sources')
   // Single editing state - opens in Sheet
   const [editingEntity, setEditingEntity] = useState<EditingEntity>(null)
+  const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({})
 
   const openDatasetEditor = (name: string, config: DatasetConfig) => {
     const columns = detectedColumns[name] || []
@@ -108,6 +107,13 @@ export function AutoConfigDisplay({
 
   const closeEditor = () => {
     setEditingEntity(null)
+  }
+
+  const toggleEntry = (entryId: string) => {
+    setExpandedEntries((previous) => ({
+      ...previous,
+      [entryId]: !previous[entryId],
+    }))
   }
 
   // Handle moving entity from dataset to reference
@@ -415,140 +421,6 @@ export function AutoConfigDisplay({
     )
   }
 
-  // Build detection details
-  const buildDetectionDetails = () => {
-    const details: Array<{
-      icon: React.ReactNode
-      text: string
-      status: 'success' | 'warning' | 'info'
-    }> = []
-
-    const datasets = result.entities.datasets || {}
-    Object.entries(datasets).forEach(([name, config]: [string, any]) => {
-      const format = config.connector?.format || config.connector?.type || 'file'
-      details.push({
-        icon: <FileSpreadsheet className="h-4 w-4" />,
-        text: t('autoConfig.detection.fileFormatRecognized', {
-          format: format.toUpperCase(),
-          name,
-        }),
-        status: 'success',
-      })
-
-      if (config.schema?.id_field) {
-        details.push({
-          icon: <Key className="h-4 w-4" />,
-          text: t('autoConfig.detection.idColumnFound', {
-            field: config.schema.id_field,
-          }),
-          status: 'success',
-        })
-      }
-
-      if (config.links && config.links.length > 0) {
-        config.links.forEach((link: any) => {
-          const confidence = link.confidence || 0
-          details.push({
-            icon: <Link2 className="h-4 w-4" />,
-            text: t('autoConfig.detection.relationshipDetected', {
-              source: `${name}.${link.field}`,
-              target: link.entity,
-            }),
-            status: confidence >= 0.7 ? 'success' : 'warning',
-          })
-        })
-      }
-
-      const predictions = result.ml_predictions?.[name] || []
-      const confidentPredictions = predictions.filter((p) => p.confidence >= 0.7)
-      if (confidentPredictions.length > 0) {
-        details.push({
-          icon: <TrendingUp className="h-4 w-4" />,
-          text: t('autoConfig.detection.mlConfidentColumns', {
-            count: confidentPredictions.length,
-            name,
-          }),
-          status: 'info',
-        })
-      }
-
-      const summary = decisionSummaries[name]
-      if (summary?.review_required) {
-        details.push({
-          icon: <AlertTriangle className="h-4 w-4" />,
-          text: t('autoConfig.detection.manualReviewRequired', { name }),
-          status: 'warning',
-        })
-      }
-    })
-
-    const references = result.entities.references || {}
-    Object.entries(references).forEach(([name, config]: [string, any]) => {
-      if (config.kind) {
-        details.push({
-          icon: <Database className="h-4 w-4" />,
-          text: t('autoConfig.detection.referenceOfKind', { name, kind: config.kind }),
-          status: 'success',
-        })
-      }
-
-      if (config.hierarchy?.levels && config.hierarchy.levels.length > 0) {
-        details.push({
-          icon: <GitBranch className="h-4 w-4" />,
-          text: t('autoConfig.detection.hierarchyDetected', {
-            levels: config.hierarchy.levels.join(' → '),
-          }),
-          status: 'success',
-        })
-      }
-
-      if (config.connector?.type === 'derived') {
-        details.push({
-          icon: <Network className="h-4 w-4" />,
-          text: t('autoConfig.detection.derivedReference', {
-            source: config.connector.source,
-          }),
-          status: 'info',
-        })
-      }
-
-      if (config.connector?.type === 'file_multi_feature') {
-        const sourceCount = config.connector.sources?.length || 0
-        details.push({
-          icon: <Map className="h-4 w-4" />,
-          text: t('autoConfig.detection.spatialLayersDetected', {
-            count: sourceCount,
-          }),
-          status: 'success',
-        })
-      }
-    })
-
-    if (layerCount > 0) {
-      details.push({
-        icon: <Globe2 className="h-4 w-4" />,
-        text: t('autoConfig.detection.metadataLayersDetected', { count: layerCount }),
-        status: 'success',
-      })
-    }
-
-    if (auxiliarySources.length > 0) {
-      details.push({
-        icon: <FileSpreadsheet className="h-4 w-4" />,
-        text: t('autoConfig.detection.auxiliarySourcesDetected', {
-          count: auxiliarySources.length,
-        }),
-        status: 'info',
-      })
-    }
-
-    return details
-  }
-
-  const detectionDetails = buildDetectionDetails()
-  const successCount = detectionDetails.filter((d) => d.status === 'success').length
-  const warningCount = detectionDetails.filter((d) => d.status === 'warning').length
-
   // Get sheet title/description based on editing entity
   const getSheetInfo = () => {
     if (!editingEntity) return { title: '', description: '' }
@@ -574,55 +446,358 @@ export function AutoConfigDisplay({
 
   const sheetInfo = getSheetInfo()
 
+  type ListEntry =
+    | {
+        id: string
+        type: 'dataset'
+        name: string
+        config: DatasetConfig
+        summary?: DecisionSummary
+      }
+    | {
+        id: string
+        type: 'reference'
+        name: string
+        config: ReferenceConfig
+        summary?: DecisionSummary
+      }
+    | {
+        id: string
+        type: 'auxiliary'
+        name: string
+        source: AuxiliarySource
+      }
+    | {
+        id: string
+        type: 'layer'
+        name: string
+        index: number
+        config: LayerConfig
+      }
+
+  const entries: ListEntry[] = [
+    ...Object.entries(result.entities.datasets || {}).map(([name, config]) => ({
+      id: `dataset:${name}`,
+      type: 'dataset' as const,
+      name,
+      config: config as DatasetConfig,
+      summary: decisionSummaries[name],
+    })),
+    ...Object.entries(result.entities.references || {}).map(([name, config]) => ({
+      id: `reference:${name}`,
+      type: 'reference' as const,
+      name,
+      config: config as ReferenceConfig,
+      summary: decisionSummaries[name],
+    })),
+    ...auxiliarySources.map((source) => ({
+      id: `aux:${source.name}`,
+      type: 'auxiliary' as const,
+      name: source.name,
+      source,
+    })),
+    ...(result.entities.metadata?.layers || []).map((layer, index) => ({
+      id: `layer:${layer.name}:${index}`,
+      type: 'layer' as const,
+      name: layer.name,
+      index,
+      config: layer as LayerConfig,
+    })),
+  ]
+
+  const reviewPriority = (level?: ReviewLevel) => {
+    switch (level) {
+      case 'review':
+        return 0
+      case 'notice':
+        return 1
+      case 'info':
+        return 2
+      default:
+        return 3
+    }
+  }
+
+  const typePriority = (type: ListEntry['type']) => {
+    switch (type) {
+      case 'dataset':
+        return 0
+      case 'reference':
+        return 1
+      case 'auxiliary':
+        return 2
+      case 'layer':
+        return 3
+    }
+  }
+
+  const sortedEntries = [...entries].sort((a, b) => {
+    const reviewDelta =
+      reviewPriority('summary' in a ? a.summary?.review_level : undefined) -
+      reviewPriority('summary' in b ? b.summary?.review_level : undefined)
+    if (reviewDelta !== 0) return reviewDelta
+
+    const typeDelta = typePriority(a.type) - typePriority(b.type)
+    if (typeDelta !== 0) return typeDelta
+
+    return a.name.localeCompare(b.name)
+  })
+
+  const aggregationEntries = sortedEntries.filter(
+    (entry): entry is Extract<ListEntry, { type: 'reference' }> =>
+      entry.type === 'reference'
+  )
+  const supportingEntries = sortedEntries.filter((entry) => entry.type !== 'reference')
+
+  const getReferenceAssociations = (referenceName: string) => ({
+    datasets: decisionSummaries[referenceName]?.referenced_by?.map((item) => item.from) || [],
+    auxiliary: auxiliarySources.filter((source) => source.grouping === referenceName),
+  })
+
+  const getTypeIcon = (entry: ListEntry) => {
+    switch (entry.type) {
+      case 'dataset':
+        return <Database className="h-4 w-4 text-blue-500" />
+      case 'reference':
+        return <Network className="h-4 w-4 text-green-500" />
+      case 'auxiliary':
+        return <FileSpreadsheet className="h-4 w-4 text-violet-500" />
+      case 'layer':
+        return entry.config.type === 'raster' ? (
+          <Globe2 className="h-4 w-4 text-orange-500" />
+        ) : (
+          <Layers className="h-4 w-4 text-purple-500" />
+        )
+    }
+  }
+
+  const getTypeLabel = (entry: ListEntry) => {
+    switch (entry.type) {
+      case 'dataset':
+        return t('autoConfig.itemTypes.dataset')
+      case 'reference':
+        return t('autoConfig.itemTypes.reference')
+      case 'auxiliary':
+        return t('autoConfig.itemTypes.auxiliary')
+      case 'layer':
+        return t('autoConfig.itemTypes.layer')
+    }
+  }
+
+  const getCompactSummary = (entry: ListEntry) => {
+    switch (entry.type) {
+      case 'dataset': {
+        const format = entry.config.connector?.format?.toUpperCase() || 'CSV'
+        const fields = detectedColumns[entry.name]?.length || 0
+        const relatedCount = entry.summary?.referenced_by?.length || 0
+        const parts = [format]
+        if (fields > 0) {
+          parts.push(t('autoConfig.list.fieldsCount', { count: fields }))
+        }
+        if (relatedCount > 0) {
+          parts.push(
+            t('autoConfig.list.supportsAggregationsCount', {
+              count: relatedCount,
+            })
+          )
+        }
+        return parts.join(' • ')
+      }
+      case 'reference': {
+        const parts = []
+        if (entry.config.kind) {
+          parts.push(entry.config.kind)
+        }
+        if (entry.config.connector?.type === 'derived' && entry.config.connector?.source) {
+          parts.push(
+            t('autoConfig.list.derivedFrom', {
+              source: entry.config.connector.source,
+            })
+          )
+        }
+        if (entry.config.connector?.type === 'file_multi_feature') {
+          parts.push(
+            t('autoConfig.list.sourceCount', {
+              count: entry.config.connector.sources?.length || 0,
+            })
+          )
+        }
+        const associations = getReferenceAssociations(entry.name)
+        if (associations.datasets.length > 0) {
+          parts.push(
+            t('autoConfig.list.linkedDatasetsCount', {
+              count: associations.datasets.length,
+            })
+          )
+        }
+        if (associations.auxiliary.length > 0) {
+          parts.push(
+            t('autoConfig.list.linkedAuxiliaryCount', {
+              count: associations.auxiliary.length,
+            })
+          )
+        }
+        return parts.join(' • ')
+      }
+      case 'auxiliary':
+        return t('autoConfig.auxiliary.relationCompact', {
+          target: entry.source.grouping,
+          field: entry.source.relation.match_field,
+          refField: entry.source.relation.ref_field,
+        })
+      case 'layer':
+        return [entry.config.type, entry.config.format].filter(Boolean).join(' • ')
+    }
+  }
+
+  const renderEntryDetails = (entry: ListEntry) => {
+    const datasetLinks =
+      entry.type === 'dataset'
+        ? ((entry.config as unknown as { links?: any[] }).links ?? [])
+        : []
+
+    if (entry.type === 'auxiliary') {
+      return (
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <div className="truncate">{entry.source.data}</div>
+          <div className="text-violet-600">
+            {t('autoConfig.auxiliary.attachedTo', { target: entry.source.grouping })}
+          </div>
+          <div>
+            {t('autoConfig.auxiliary.relation', {
+              field: entry.source.relation.match_field,
+              refField: entry.source.relation.ref_field,
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    if (entry.type === 'layer') {
+      return (
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <div>{entry.config.path}</div>
+          {entry.config.description && <div>{entry.config.description}</div>}
+        </div>
+      )
+    }
+
+    return (
+        <div className="space-y-3">
+        {entry.type === 'reference' && (
+          <div className="rounded-md border border-green-200 bg-green-50/70 px-2 py-1 text-xs text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-200">
+            {t('autoConfig.reference.aggregationReady')}
+          </div>
+        )}
+        <div className="space-y-1 text-xs text-muted-foreground">
+          {entry.config.connector?.path && <div>{entry.config.connector.path}</div>}
+          {'schema' in entry.config && entry.config.schema?.id_field && (
+            <div className="flex items-center gap-1">
+              <Key className="h-3.5 w-3.5" />
+              {entry.config.schema.id_field}
+            </div>
+          )}
+          {entry.type === 'reference' && entry.config.hierarchy?.levels && (
+            <div className="flex items-center gap-1">
+              <GitBranch className="h-3.5 w-3.5" />
+              {entry.config.hierarchy.levels.join(' → ')}
+            </div>
+          )}
+          {entry.type === 'reference' && entry.config.enrichment?.[0]?.enabled && (
+            <div className="flex items-center gap-1 text-amber-600">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('autoConfig.reference.enrichmentEnabled')}
+            </div>
+          )}
+          {entry.type === 'reference' && (() => {
+            const associations = getReferenceAssociations(entry.name)
+            return (
+              <>
+                {associations.datasets.length > 0 && (
+                  <div>
+                    {t('autoConfig.reference.linkedDatasets', {
+                      datasets: associations.datasets.join(', '),
+                    })}
+                  </div>
+                )}
+                {associations.auxiliary.length > 0 && (
+                  <div>
+                    {t('autoConfig.reference.linkedAuxiliary', {
+                      names: associations.auxiliary.map((source) => source.name).join(', '),
+                    })}
+                  </div>
+                )}
+              </>
+            )
+          })()}
+          {entry.type === 'dataset' && datasetLinks.length > 0 && (
+              <div className="space-y-1">
+                {datasetLinks.map((link: any) => (
+                  <div key={`${entry.name}-${link.field}-${link.entity}`} className="flex items-center gap-1">
+                    <Link2 className="h-3.5 w-3.5" />
+                    {link.field} → {link.entity}
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+        {renderDecisionInsight(entry.name)}
+        {editable && onReclassify && entry.type === 'dataset' && (
+          <div className="border-t pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => moveToReference(entry.name)}
+            >
+              <ArrowRightLeft className="h-3 w-3" />
+              {t('autoConfig.actions.moveToReferences')}
+            </Button>
+          </div>
+        )}
+        {editable &&
+          onReclassify &&
+          entry.type === 'reference' &&
+          entry.config.connector?.type !== 'derived' &&
+          entry.config.kind !== 'hierarchical' && (
+            <div className="border-t pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => moveToDataset(entry.name)}
+              >
+                <ArrowRightLeft className="h-3 w-3" />
+                {t('autoConfig.actions.moveToDatasets')}
+              </Button>
+            </div>
+          )}
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="space-y-4">
-        {/* Detection details panel */}
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="h-4 w-4 text-primary" />
-            {t('autoConfig.sections.autoDetection')}
-            <span className="ml-auto text-xs font-normal text-muted-foreground">
-              {t('autoConfig.summary.detectedElements', { count: successCount })}
-              {warningCount > 0 &&
-                `, ${t('autoConfig.summary.itemsToReview', { count: warningCount })}`}
-            </span>
-          </h4>
-          <div className="space-y-1.5">
-            {detectionDetails.map((detail, idx) => (
-              <div key={idx} className="flex items-center gap-2 text-sm">
-                <span
-                  className={
-                    detail.status === 'success'
-                      ? 'text-green-600'
-                      : detail.status === 'warning'
-                        ? 'text-amber-600'
-                        : 'text-blue-600'
-                  }
-                >
-                  {detail.status === 'success' ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : detail.status === 'warning' ? (
-                    <AlertTriangle className="h-4 w-4" />
-                  ) : (
-                    <HelpCircle className="h-4 w-4" />
-                  )}
-                </span>
-                <span
-                  className={
-                    detail.status === 'warning' ? 'text-amber-700 dark:text-amber-400' : ''
-                  }
-                >
-                  {detail.text}
-                </span>
-              </div>
-            ))}
-            {detectionDetails.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                {t('autoConfig.detection.noStructureDetected')}
-              </p>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+          <Badge variant="outline">
+            {t('autoConfig.sections.aggregationCandidates', { count: aggregationEntries.length })}
+          </Badge>
+          <Badge variant="outline">{t('autoConfig.summary.datasets')}: {datasetCount}</Badge>
+          <Badge variant="outline">{t('autoConfig.summary.references')}: {referenceCount}</Badge>
+          {auxiliarySources.length > 0 && (
+            <Badge variant="outline">
+              {t('autoConfig.sections.auxiliarySources', { count: auxiliarySources.length })}
+            </Badge>
+          )}
+          {layerCount > 0 && (
+            <Badge variant="outline">{t('autoConfig.summary.layers')}: {layerCount}</Badge>
+          )}
+          {reviewCount > 0 && (
+            <Badge variant="secondary" className="border-amber-200 bg-amber-50 text-amber-800">
+              {t('autoConfig.summary.itemsToReview', { count: reviewCount })}
+            </Badge>
+          )}
         </div>
 
         {/* Warnings */}
@@ -650,291 +825,154 @@ export function AutoConfigDisplay({
           </Alert>
         )}
 
-        {/* Entities grid */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Datasets */}
-          <div className="rounded-lg border p-3">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              <Database className="h-4 w-4 text-blue-500" />
-              {t('autoConfig.sections.datasets', { count: datasetCount })}
-            </h4>
-            <div className="space-y-2">
-              {Object.entries(result.entities.datasets || {}).map(
-                ([name, config]: [string, any]) => (
-                  <div key={name} className="group rounded bg-accent p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{name}</span>
-                        {getEntityStatusBadge(decisionSummaries[name])}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {editable && onReclassify && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 gap-1 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
-                              onClick={() => moveToReference(name)}
-                              title={t('autoConfig.actions.moveToReferences')}
-                            >
-                              <ArrowRightLeft className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 gap-1 px-2 text-xs"
-                              onClick={() => openDatasetEditor(name, config as DatasetConfig)}
-                            >
-                              <Pencil className="h-3 w-3" />
-                              {t('autoConfig.actions.edit')}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Summary - datasets only have connector */}
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      <div>{config.connector?.format?.toUpperCase() || 'CSV'}</div>
-                      <div className="truncate opacity-70">{config.connector?.path}</div>
-                      {result.ml_predictions?.[name] && result.ml_predictions[name].length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {result.ml_predictions[name].slice(0, 3).map((prediction) => (
-                            <Badge
-                              key={`${name}-${prediction.column}`}
-                              variant="secondary"
-                              className="text-[10px]"
-                              title={`${prediction.column} → ${prediction.concept} (${Math.round(prediction.confidence * 100)}%)`}
-                            >
-                              {prediction.column}: {Math.round(prediction.confidence * 100)}%
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {renderDecisionInsight(name)}
-                    </div>
-                  </div>
-                )
-              )}
-              {datasetCount === 0 && (
-                <p className="py-2 text-center text-xs text-muted-foreground">
-                  {t('autoConfig.empty.noDatasetsDetected')}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* References */}
-          <div className="rounded-lg border p-3">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        {aggregationEntries.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
               <Network className="h-4 w-4 text-green-500" />
-              {t('autoConfig.sections.references', { count: referenceCount })}
-            </h4>
-            <div className="space-y-2">
-              {Object.entries(result.entities.references || {}).map(
-                ([name, config]: [string, any]) => {
-                  const referenceUsageCount = decisionSummaries[name]?.referenced_by?.length || 0
-                  const canMove =
-                    editable &&
-                    onReclassify &&
-                    config.connector?.type !== 'derived' &&
-                    config.kind !== 'hierarchical'
+              <h4 className="text-sm font-semibold">
+                {t('autoConfig.sections.aggregationCandidates', {
+                  count: aggregationEntries.length,
+                })}
+              </h4>
+            </div>
+            {aggregationEntries.map((entry) => {
+              const summary = entry.summary
+              const isExpanded = expandedEntries[entry.id] ?? false
 
-                  return (
-                    <div key={name} className="group rounded bg-accent p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{name}</span>
-                          {config.kind && (
-                            <Badge variant="outline" className="text-xs">
-                              {config.kind}
-                            </Badge>
-                          )}
-                          {getEntityStatusBadge(decisionSummaries[name])}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {canMove && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 gap-1 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
-                              onClick={() => moveToDataset(name)}
-                              title={t('autoConfig.actions.moveToDatasets')}
-                            >
-                              <ArrowRightLeft className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {editable && onReclassify && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 gap-1 px-2 text-xs"
-                              onClick={() => openRefEditor(name, config as ReferenceConfig)}
-                            >
-                              <Pencil className="h-3 w-3" />
-                              {t('autoConfig.actions.edit')}
-                            </Button>
-                          )}
-                        </div>
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-green-200/70 bg-green-50/30 dark:border-green-950 dark:bg-green-950/10"
+                >
+                  <div className="flex items-start justify-between gap-3 p-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {getTypeIcon(entry)}
+                        <span className="font-medium">{entry.name}</span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {entry.config.kind || getTypeLabel(entry)}
+                        </Badge>
+                        {getEntityStatusBadge(summary)}
                       </div>
-
-                      {/* Summary */}
-                      <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                        {config.connector?.type === 'derived' && (
-                          <div className="text-blue-600">
-                            {t('autoConfig.reference.derivedFrom', {
-                              source: config.connector.source,
-                            })}
-                          </div>
-                        )}
-                        {config.connector?.type === 'file_multi_feature' && (
-                          <div className="text-purple-600">
-                            {t('autoConfig.reference.sourceCount', {
-                              count: config.connector.sources?.length || 0,
-                            })}
-                          </div>
-                        )}
-                        {config.hierarchy?.levels && (
-                          <div>
-                            {t('autoConfig.reference.levels', {
-                              levels: config.hierarchy.levels.join(' → '),
-                            })}
-                          </div>
-                        )}
-                        {config.enrichment?.[0]?.enabled && (
-                          <div className="flex items-center gap-1 text-amber-600">
-                            <Sparkles className="h-3 w-3" />
-                            {t('autoConfig.reference.enrichmentEnabled')}
-                          </div>
-                        )}
-                        {referenceUsageCount > 0 && (
-                          <div className="mt-1 border-t pt-1">
-                            <span className="text-blue-600">
-                              {t('autoConfig.reference.referencedByDatasets', {
-                                count: referenceUsageCount,
-                              })}
-                            </span>
-                          </div>
-                        )}
-                        {renderDecisionInsight(name)}
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {getCompactSummary(entry)}
                       </div>
                     </div>
-                  )
-                }
-              )}
-              {referenceCount === 0 && (
-                <p className="py-2 text-center text-xs text-muted-foreground">
-                  {t('autoConfig.empty.noReferencesDetected')}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {auxiliarySources.length > 0 && (
-          <div className="rounded-lg border p-3">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              <FileSpreadsheet className="h-4 w-4 text-violet-500" />
-              {t('autoConfig.sections.auxiliarySources', { count: auxiliarySources.length })}
-            </h4>
-            <div className="space-y-2">
-              {auxiliarySources.map((source: AuxiliarySource) => (
-                <div key={`${source.grouping}-${source.name}`} className="rounded bg-accent p-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{source.name}</span>
-                    <Badge variant="outline" className="text-[10px]">
-                      {t('autoConfig.badges.auxiliary')}
-                    </Badge>
-                  </div>
-                  <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                    <div className="truncate">{source.data}</div>
-                    <div className="text-violet-600">
-                      {t('autoConfig.auxiliary.attachedTo', { target: source.grouping })}
-                    </div>
-                    <div>
-                      {t('autoConfig.auxiliary.relation', {
-                        field: source.relation.match_field,
-                        refField: source.relation.ref_field,
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Metadata Layers */}
-        {layerCount > 0 && (
-          <div className="rounded-lg border p-3">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              <Map className="h-4 w-4 text-purple-500" />
-              {t('autoConfig.sections.metadataLayers', { count: layerCount })}
-            </h4>
-            <div className="grid grid-cols-2 gap-2">
-              {result.entities.metadata?.layers?.map((layer: any, idx: number) => (
-                <div key={idx} className="group rounded bg-accent p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 font-medium">
-                      {layer.type === 'raster' ? (
-                        <Globe2 className="h-4 w-4 text-orange-500" />
-                      ) : (
-                        <Layers className="h-4 w-4 text-purple-500" />
+                    <div className="flex items-center gap-1">
+                      {editable && onReclassify && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={() => openRefEditor(entry.name, entry.config)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                          {t('autoConfig.actions.edit')}
+                        </Button>
                       )}
-                      <span className="truncate">{layer.name}</span>
-                    </div>
-                    {editable && onReclassify && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 gap-1 px-2 text-xs"
-                        onClick={() => openLayerEditor(idx, layer as LayerConfig)}
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() => toggleEntry(entry.id)}
+                      >
+                        <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        {isExpanded
+                          ? t('autoConfig.actions.hideDetails')
+                          : t('autoConfig.actions.viewDetails')}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t px-3 py-3">
+                      {renderEntryDetails(entry)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {supportingEntries.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <Database className="h-4 w-4 text-blue-500" />
+              <h4 className="text-sm font-semibold">
+                {t('autoConfig.sections.supportingSources', { count: supportingEntries.length })}
+              </h4>
+            </div>
+            {supportingEntries.map((entry) => {
+            const summary = 'summary' in entry ? entry.summary : undefined
+            const isExpanded = expandedEntries[entry.id] ?? false
+            const canEdit = editable && onReclassify && entry.type !== 'auxiliary'
+
+            return (
+              <div key={entry.id} className="rounded-lg border bg-background">
+                <div className="flex items-start justify-between gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getTypeIcon(entry)}
+                      <span className="font-medium">{entry.name}</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {getTypeLabel(entry)}
+                      </Badge>
+                      {getEntityStatusBadge(summary)}
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {getCompactSummary(entry)}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {canEdit && entry.type === 'dataset' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() => openDatasetEditor(entry.name, entry.config)}
                       >
                         <Pencil className="h-3 w-3" />
                         {t('autoConfig.actions.edit')}
                       </Button>
                     )}
-                  </div>
-
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {layer.type}
-                    {layer.format && ` (${layer.format})`}
+                    {canEdit && entry.type === 'layer' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() => openLayerEditor(entry.index, entry.config)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                        {t('autoConfig.actions.edit')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => toggleEntry(entry.id)}
+                    >
+                      <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      {isExpanded
+                        ? t('autoConfig.actions.hideDetails')
+                        : t('autoConfig.actions.viewDetails')}
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {isExpanded && (
+                  <div className="border-t px-3 py-3">
+                    {renderEntryDetails(entry)}
+                  </div>
+                )}
+              </div>
+            )
+            })}
           </div>
         )}
-
-        {/* Summary */}
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <TrendingUp className="h-4 w-4" />
-            {t('autoConfig.sections.summary')}
-          </h4>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-xl font-bold text-blue-500">{datasetCount}</div>
-              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.datasets')}</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-green-500">{referenceCount}</div>
-              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.references')}</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-purple-500">{layerCount}</div>
-              <div className="text-xs text-muted-foreground">{t('autoConfig.summary.layers')}</div>
-            </div>
-          </div>
-          {reviewCount > 0 && (
-            <div className="mt-3 border-t pt-3 text-center">
-              <div className="text-xl font-bold text-amber-500">{reviewCount}</div>
-              <div className="text-xs text-muted-foreground">
-                {t('autoConfig.summary.entitiesToReview')}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Edit Sheet */}

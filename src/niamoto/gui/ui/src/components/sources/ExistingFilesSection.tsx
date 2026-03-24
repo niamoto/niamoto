@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -31,6 +32,7 @@ interface ExistingFilesSectionProps {
 }
 
 export function ExistingFilesSection({ onFilesSelected, disabled = false }: ExistingFilesSectionProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
 
@@ -97,9 +99,9 @@ export function ExistingFilesSection({ onFilesSelected, disabled = false }: Exis
 
   const formatSize = (sizeMb: number) => {
     if (sizeMb < 1) {
-      return `${Math.round(sizeMb * 1024)} Ko`
+      return `${Math.round(sizeMb * 1024)} KB`
     }
-    return `${sizeMb.toFixed(1)} Mo`
+    return `${sizeMb.toFixed(1)} MB`
   }
 
   if (isLoading) {
@@ -121,7 +123,7 @@ export function ExistingFilesSection({ onFilesSelected, disabled = false }: Exis
       <div className="flex items-center justify-between">
         <h4 className="flex items-center gap-2 text-sm font-medium">
           <FolderOpen className="h-4 w-4" />
-          Fichiers existants
+          {t('existingFiles.title', { ns: 'sources' })}
           <Badge variant="secondary" className="text-xs">
             {scanResult.summary.importable_files}
           </Badge>
@@ -153,7 +155,10 @@ export function ExistingFilesSection({ onFilesSelected, disabled = false }: Exis
               <FolderOpen className="h-4 w-4 text-amber-500" />
               <span className="flex-1 text-left font-medium">{dir.name}/</span>
               <Badge variant="outline" className="text-xs">
-                {dir.file_count} fichiers
+                {t('existingFiles.fileCount', {
+                  ns: 'sources',
+                  count: dir.file_count,
+                })}
               </Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="ml-6 space-y-1 py-1">
@@ -163,7 +168,7 @@ export function ExistingFilesSection({ onFilesSelected, disabled = false }: Exis
                 className="h-7 w-full justify-start text-xs"
                 onClick={() => selectAllInDir(dir)}
               >
-                Selectionner le dossier
+                {t('existingFiles.selectFolder', { ns: 'sources' })}
               </Button>
             </CollapsibleContent>
           </Collapsible>
@@ -194,7 +199,10 @@ export function ExistingFilesSection({ onFilesSelected, disabled = false }: Exis
           disabled={disabled}
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          Reconfigurer {selectedPaths.size} fichier{selectedPaths.size > 1 ? 's' : ''}
+          {t('existingFiles.reconfigureSelected', {
+            ns: 'sources',
+            count: selectedPaths.size,
+          })}
         </Button>
       )}
     </div>

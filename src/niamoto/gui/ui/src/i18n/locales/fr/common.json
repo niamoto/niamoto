@@ -51,7 +51,7 @@
     "never_run": "Pas encore exécuté",
     "running": "Traitement en cours...",
     "data_stale": "Données importées — groupes à recalculer",
-    "data_fresh": "Données à jour",
+    "data_fresh": "Données importées",
     "groups_stale": "Calculs périmés — données modifiées depuis le dernier calcul",
     "groups_stale_count": "{{count}} groupe(s) à recalculer",
     "groups_fresh": "Tous les groupes sont à jour",

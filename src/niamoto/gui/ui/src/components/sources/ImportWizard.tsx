@@ -415,27 +415,12 @@ export function ImportWizard() {
                 disabled={isProcessing}
               />
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">{t('wizard.or')}</span>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
-                  <Upload className="h-4 w-4" />
-                  {t('wizard.addNewFiles')}
-                </h4>
-                <FileUploadZone
-                  onFilesReady={handleFilesReady}
-                  onError={(err) => setError(err)}
-                  disabled={isProcessing}
-                  compact={true}
-                />
-              </div>
+              <FileUploadZone
+                onFilesReady={handleFilesReady}
+                onError={(err) => setError(err)}
+                disabled={isProcessing}
+                compact={true}
+              />
             </div>
           )}
         </CardContent>
@@ -451,17 +436,6 @@ export function ImportWizard() {
         </div>
       )}
 
-      {/* Help Section */}
-      {phase === 'idle' && (
-        <div className="rounded-lg bg-muted/50 p-4">
-          <h3 className="mb-2 font-medium">{t('wizard.howItWorks')}</h3>
-          <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
-            {(t('wizard.howItWorksSteps', { returnObjects: true }) as string[]).map((step, index) => (
-              <li key={index}>{step}</li>
-            ))}
-          </ol>
-        </div>
-      )}
     </div>
   )
 }
