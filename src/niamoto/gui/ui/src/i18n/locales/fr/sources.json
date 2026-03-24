@@ -42,6 +42,7 @@
       "Les groupes de référence apparaissent dans le menu latéral"
     ],
     "autoConfigError": "Erreur lors de la configuration automatique",
+    "autoConfigTimeout": "La configuration automatique a pris trop de temps",
     "invalidConfig": "Configuration invalide ou vide",
     "loadConfigError": "Erreur lors du chargement de la configuration",
     "savingConfig": "Sauvegarde de la configuration...",
@@ -358,7 +359,9 @@
     "loading": {
       "title": "Analyse en cours...",
       "description": "Détection des hiérarchies, relations et correspondances spatiales",
-      "step": "Analyse des colonnes et des types"
+      "step": "Flux d'analyse en direct",
+      "liveFeed": "Flux d'analyse",
+      "waitingForEvents": "Démarrage de l'analyse..."
     },
     "sections": {
       "autoDetection": "Détection automatique",

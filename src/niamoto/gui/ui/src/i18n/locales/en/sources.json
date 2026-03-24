@@ -42,6 +42,7 @@
       "Reference groups appear in the sidebar"
     ],
     "autoConfigError": "Error during auto-configuration",
+    "autoConfigTimeout": "Auto-configuration took too long",
     "invalidConfig": "Invalid or empty configuration",
     "loadConfigError": "Error loading configuration",
     "savingConfig": "Saving configuration...",
@@ -358,7 +359,9 @@
     "loading": {
       "title": "Analysis in progress...",
       "description": "Detecting hierarchies, relationships and spatial matches",
-      "step": "Analyzing columns and types"
+      "step": "Streaming live analysis events",
+      "liveFeed": "Live analysis feed",
+      "waitingForEvents": "Starting analysis..."
     },
     "sections": {
       "autoDetection": "Automatic detection",

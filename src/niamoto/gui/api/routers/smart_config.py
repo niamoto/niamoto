@@ -4,12 +4,18 @@ All endpoints in this router use get_working_directory() from GUI context
 to ensure file operations happen in the correct project directory.
 """
 
+import asyncio
+import json
+import threading
+import time
+import uuid
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 import shutil
 import zipfile
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
@@ -47,6 +53,34 @@ class AutoConfigureResponse(BaseModel):
     warnings: List[str] = []
 
 
+class AutoConfigureJobStartResponse(BaseModel):
+    """Response returned when an auto-config job is created."""
+
+    job_id: str
+    status: Literal["pending", "running", "completed", "failed"]
+
+
+class AutoConfigureProgressEvent(BaseModel):
+    """Single progress event emitted during auto-configuration."""
+
+    kind: Literal["stage", "detail", "finding", "complete", "error"]
+    message: str
+    timestamp: float
+    file: Optional[str] = None
+    entity: Optional[str] = None
+    details: Dict[str, Any] = {}
+
+
+class AutoConfigureJobStatusResponse(BaseModel):
+    """Current status of an auto-config job."""
+
+    job_id: str
+    status: Literal["pending", "running", "completed", "failed"]
+    events: List[AutoConfigureProgressEvent] = []
+    result: Optional[AutoConfigureResponse] = None
+    error: Optional[str] = None
+
+
 class DetectRelationshipsRequest(BaseModel):
     """Request for detecting relationships between files."""
 
@@ -63,6 +97,129 @@ class UploadedFileInfo(BaseModel):
     size_mb: float
     type: str  # File extension
     category: str  # csv, gpkg, tif, other
+
+
+class _AutoConfigureJob:
+    """In-memory auto-config job state."""
+
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        self.status: Literal["pending", "running", "completed", "failed"] = "pending"
+        self.events: List[Dict[str, Any]] = []
+        self.result: Optional[Dict[str, Any]] = None
+        self.error: Optional[str] = None
+
+
+class _AutoConfigureJobStore:
+    """Tiny in-memory job store for long-running auto-config analysis."""
+
+    def __init__(self):
+        self._jobs: Dict[str, _AutoConfigureJob] = {}
+        self._lock = threading.Lock()
+
+    def create_job(self) -> _AutoConfigureJob:
+        job = _AutoConfigureJob(job_id=str(uuid.uuid4()))
+        with self._lock:
+            self._jobs[job.job_id] = job
+        return job
+
+    def get_job(self, job_id: str) -> Optional[_AutoConfigureJob]:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def append_event(self, job_id: str, event: Dict[str, Any]) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.events.append(event)
+
+    def set_running(self, job_id: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job:
+                job.status = "running"
+
+    def complete(self, job_id: str, result: Dict[str, Any]) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.status = "completed"
+            job.result = result
+
+    def fail(self, job_id: str, error: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.status = "failed"
+            job.error = error
+
+
+_AUTO_CONFIG_JOB_STORE = _AutoConfigureJobStore()
+
+
+def _make_progress_event(
+    *,
+    kind: Literal["stage", "detail", "finding", "complete", "error"],
+    message: str,
+    file: Optional[str] = None,
+    entity: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build a progress event payload."""
+    return {
+        "kind": kind,
+        "message": message,
+        "timestamp": time.time(),
+        "file": file,
+        "entity": entity,
+        "details": details or {},
+    }
+
+
+def _run_auto_config_job(job_id: str, work_dir_str: str, files: List[str]) -> None:
+    """Execute auto-config in a background thread and persist progress."""
+    _AUTO_CONFIG_JOB_STORE.set_running(job_id)
+    _AUTO_CONFIG_JOB_STORE.append_event(
+        job_id,
+        _make_progress_event(
+            kind="stage",
+            message=f"Scanning {len(files)} file(s)",
+            details={"file_count": len(files)},
+        ),
+    )
+
+    try:
+        service = AutoConfigService(
+            Path(work_dir_str),
+            event_sink=lambda event: _AUTO_CONFIG_JOB_STORE.append_event(job_id, event),
+        )
+        result = service.auto_configure(files)
+        _AUTO_CONFIG_JOB_STORE.complete(job_id, result)
+        _AUTO_CONFIG_JOB_STORE.append_event(
+            job_id,
+            _make_progress_event(
+                kind="complete",
+                message="Auto-configuration ready",
+                details={
+                    "dataset_count": len(
+                        result.get("entities", {}).get("datasets", {})
+                    ),
+                    "reference_count": len(
+                        result.get("entities", {}).get("references", {})
+                    ),
+                },
+            ),
+        )
+    except Exception as exc:
+        error_message = str(exc)
+        _AUTO_CONFIG_JOB_STORE.fail(job_id, error_message)
+        _AUTO_CONFIG_JOB_STORE.append_event(
+            job_id,
+            _make_progress_event(kind="error", message=error_message),
+        )
 
 
 def _sanitize_uploaded_filename(filename: str) -> str:
@@ -411,6 +568,86 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
         raise HTTPException(
             status_code=500, detail=f"Error in auto-configuration: {str(e)}"
         )
+
+
+@router.post("/auto-configure/jobs", response_model=AutoConfigureJobStartResponse)
+async def start_auto_configure_job(
+    request: AutoConfigureRequest,
+) -> AutoConfigureJobStartResponse:
+    """Start an auto-config job and return its identifier."""
+    work_dir_str = get_working_directory()
+    if not work_dir_str:
+        raise HTTPException(status_code=400, detail="Working directory not set")
+
+    job = _AUTO_CONFIG_JOB_STORE.create_job()
+    thread = threading.Thread(
+        target=_run_auto_config_job,
+        args=(job.job_id, str(work_dir_str), request.files),
+        daemon=True,
+    )
+    thread.start()
+    return AutoConfigureJobStartResponse(job_id=job.job_id, status=job.status)
+
+
+@router.get(
+    "/auto-configure/jobs/{job_id}", response_model=AutoConfigureJobStatusResponse
+)
+async def get_auto_configure_job(job_id: str) -> AutoConfigureJobStatusResponse:
+    """Return the latest status and result for an auto-config job."""
+    job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Auto-config job not found")
+
+    result = AutoConfigureResponse(**job.result) if job.result else None
+    events = [AutoConfigureProgressEvent(**event) for event in job.events]
+    return AutoConfigureJobStatusResponse(
+        job_id=job.job_id,
+        status=job.status,
+        events=events,
+        result=result,
+        error=job.error,
+    )
+
+
+@router.get("/auto-configure/jobs/{job_id}/events")
+async def stream_auto_configure_job_events(job_id: str, request: Request):
+    """Stream auto-config progress events as server-sent events."""
+    job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Auto-config job not found")
+
+    async def event_stream():
+        next_index = 0
+        while True:
+            current_job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
+            if not current_job:
+                break
+
+            pending_events = current_job.events[next_index:]
+            for event in pending_events:
+                payload = json.dumps(event)
+                yield f"data: {payload}\n\n"
+                next_index += 1
+
+            if current_job.status in {"completed", "failed"} and next_index >= len(
+                current_job.events
+            ):
+                break
+
+            if await request.is_disconnected():
+                break
+
+            await asyncio.sleep(0.25)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 class CreateEntitiesBulkRequest(BaseModel):

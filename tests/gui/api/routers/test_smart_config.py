@@ -17,6 +17,7 @@ Testing anti-patterns compliance:
 
 import io
 import shutil
+import time
 import zipfile
 from pathlib import Path
 from typing import Dict
@@ -978,6 +979,75 @@ class TestAutoConfigureEdgeCases:
         # Should process valid files and handle invalid ones
         # At minimum, should not crash
         assert response.status_code in [200, 400]
+
+
+class TestAutoConfigureJobs:
+    """Test job-based auto-config endpoints and event streaming."""
+
+    def test_auto_configure_job_completes_with_result(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        response = test_client.post(
+            "/api/smart/auto-configure/jobs",
+            json={"files": ["imports/sample_occurrences.csv"]},
+        )
+
+        assert response.status_code == 200
+        job_data = response.json()
+        assert "job_id" in job_data
+
+        job_id = job_data["job_id"]
+        deadline = time.time() + 5
+        final_status = None
+
+        while time.time() < deadline:
+            status_response = test_client.get(
+                f"/api/smart/auto-configure/jobs/{job_id}"
+            )
+            assert status_response.status_code == 200
+            final_status = status_response.json()
+            if final_status["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.1)
+
+        assert final_status is not None
+        assert final_status["status"] == "completed"
+        assert final_status["result"]["success"] is True
+        assert final_status["events"]
+
+    def test_auto_configure_job_events_stream_real_findings(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        start_response = test_client.post(
+            "/api/smart/auto-configure/jobs",
+            json={
+                "files": [
+                    "imports/sample_occurrences.csv",
+                    "imports/sample_taxonomy.csv",
+                ]
+            },
+        )
+        assert start_response.status_code == 200
+        job_id = start_response.json()["job_id"]
+
+        streamed_payloads = []
+        with test_client.stream(
+            "GET", f"/api/smart/auto-configure/jobs/{job_id}/events"
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+
+            for line in response.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                streamed_payloads.append(line.removeprefix("data: "))
+                if len(streamed_payloads) >= 4:
+                    break
+
+        assert streamed_payloads
+        decoded_events = [yaml.safe_load(payload) for payload in streamed_payloads]
+        assert any(event["kind"] == "stage" for event in decoded_events)
+        assert any(event["kind"] in {"detail", "finding"} for event in decoded_events)
 
 
 # ============================================================================

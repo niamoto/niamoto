@@ -72,6 +72,28 @@ export interface AutoConfigureRequest {
   files: string[]
 }
 
+export interface AutoConfigureJobStartResponse {
+  job_id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+}
+
+export interface AutoConfigureProgressEvent {
+  kind: 'stage' | 'detail' | 'finding' | 'complete' | 'error'
+  message: string
+  timestamp: number
+  file?: string | null
+  entity?: string | null
+  details?: Record<string, unknown>
+}
+
+export interface AutoConfigureJobStatusResponse {
+  job_id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  events: AutoConfigureProgressEvent[]
+  result?: AutoConfigureResponse | null
+  error?: string | null
+}
+
 export type DecisionAlignment =
   | 'aligned'
   | 'heuristic_only'
@@ -226,6 +248,41 @@ export async function autoConfigureEntities(
 ): Promise<AutoConfigureResponse> {
   const response = await apiClient.post<AutoConfigureResponse>('/smart/auto-configure', request)
   return response.data
+}
+
+export async function startAutoConfigureJob(
+  request: AutoConfigureRequest
+): Promise<AutoConfigureJobStartResponse> {
+  const response = await apiClient.post<AutoConfigureJobStartResponse>(
+    '/smart/auto-configure/jobs',
+    request
+  )
+  return response.data
+}
+
+export async function getAutoConfigureJob(
+  jobId: string
+): Promise<AutoConfigureJobStatusResponse> {
+  const response = await apiClient.get<AutoConfigureJobStatusResponse>(
+    `/smart/auto-configure/jobs/${jobId}`
+  )
+  return response.data
+}
+
+export function subscribeToAutoConfigureJobEvents(
+  jobId: string,
+  onEvent: (event: AutoConfigureProgressEvent) => void
+): EventSource {
+  const eventSource = new EventSource(`/api/smart/auto-configure/jobs/${jobId}/events`)
+  eventSource.onmessage = (message) => {
+    try {
+      const parsed = JSON.parse(message.data) as AutoConfigureProgressEvent
+      onEvent(parsed)
+    } catch (error) {
+      console.error('Failed to parse auto-config event:', error)
+    }
+  }
+  return eventSource
 }
 
 /**
