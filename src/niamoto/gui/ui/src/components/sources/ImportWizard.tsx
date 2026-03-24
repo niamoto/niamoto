@@ -248,6 +248,9 @@ export function ImportWizard() {
   )
 
   const isProcessing = ['uploading', 'configuring', 'importing', 'editing'].includes(phase)
+  const showCardHeader = phase !== 'configuring'
+  const phaseTransitionClassName =
+    'animate-in fade-in-0 slide-in-from-bottom-1 duration-300'
 
   return (
     <div className="space-y-6 p-6">
@@ -260,30 +263,32 @@ export function ImportWizard() {
       </div>
 
       {/* Import Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            {phase === 'editing' ? <Settings2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-            {phase === 'editing'
-              ? t('wizard.editConfig')
-              : phase === 'reviewing'
-                ? t('wizard.configDetected')
-                : phase === 'importing'
-                  ? t('wizard.importInProgress')
-                  : phase === 'complete'
-                    ? t('wizard.importComplete')
-                    : t('wizard.addData')}
-          </CardTitle>
-          {phase === 'idle' && (
-            <CardDescription>
-              {t('wizard.dropFilesToStart')}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
+      <Card className={phase === 'configuring' ? 'overflow-hidden border-border/60' : undefined}>
+        {showCardHeader && (
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {phase === 'editing' ? <Settings2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+              {phase === 'editing'
+                ? t('wizard.editConfig')
+                : phase === 'reviewing'
+                  ? t('wizard.configDetected')
+                  : phase === 'importing'
+                    ? t('wizard.importInProgress')
+                    : phase === 'complete'
+                      ? t('wizard.importComplete')
+                      : t('wizard.addData')}
+            </CardTitle>
+            {phase === 'idle' && (
+              <CardDescription>
+                {t('wizard.dropFilesToStart')}
+              </CardDescription>
+            )}
+          </CardHeader>
+        )}
+        <CardContent className={phase === 'configuring' ? 'px-6 py-8 sm:px-10' : undefined}>
           {/* Error Alert */}
           {error && phase === 'error' && (
-            <div className="space-y-4">
+            <div className={`space-y-4 ${phaseTransitionClassName}`}>
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
@@ -300,21 +305,23 @@ export function ImportWizard() {
 
           {/* Configuring Phase */}
           {phase === 'configuring' && (
-            <AutoConfigDisplay
-              result={null}
-              isLoading={true}
-              analysisEvents={analysisEvents}
-              analysisStage={analysisStage}
-            />
+            <div className={phaseTransitionClassName}>
+              <AutoConfigDisplay
+                result={null}
+                isLoading={true}
+                analysisEvents={analysisEvents}
+                analysisStage={analysisStage}
+              />
+            </div>
           )}
 
           {/* Reviewing Phase */}
           {phase === 'reviewing' && configResult && (
-            <div className="space-y-4">
+            <div className={`space-y-4 ${phaseTransitionClassName}`}>
               <Tabs defaultValue="config" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="config">Configuration</TabsTrigger>
-                  <TabsTrigger value="yaml">YAML</TabsTrigger>
+                  <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
+                  <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="config" className="mt-4">
@@ -347,7 +354,7 @@ export function ImportWizard() {
 
           {/* Editing Phase */}
           {phase === 'editing' && configResult && (
-            <div className="space-y-4">
+            <div className={`space-y-4 ${phaseTransitionClassName}`}>
               <Alert>
                 <Settings2 className="h-4 w-4" />
                 <AlertDescription>
@@ -357,8 +364,8 @@ export function ImportWizard() {
 
               <Tabs defaultValue="config" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="config">Configuration</TabsTrigger>
-                  <TabsTrigger value="yaml">YAML</TabsTrigger>
+                  <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
+                  <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="config" className="mt-4">
@@ -391,17 +398,19 @@ export function ImportWizard() {
 
           {/* Importing Phase */}
           {phase === 'importing' && configResult && (
-            <ImportProgress
-              config={configResult}
-              onComplete={handleImportComplete}
-              onError={handleImportError}
-              autoStart={true}
-            />
+            <div className={phaseTransitionClassName}>
+              <ImportProgress
+                config={configResult}
+                onComplete={handleImportComplete}
+                onError={handleImportError}
+                autoStart={true}
+              />
+            </div>
           )}
 
           {/* Complete Phase */}
           {phase === 'complete' && (
-            <div className="flex items-center gap-2 rounded-md bg-success/10 p-4 text-success">
+            <div className={`flex items-center gap-2 rounded-md bg-success/10 p-4 text-success ${phaseTransitionClassName}`}>
               <CheckCircle2 className="h-5 w-5" />
               <span className="font-medium">{t('wizard.importSuccess')}</span>
             </div>
@@ -409,7 +418,7 @@ export function ImportWizard() {
 
           {/* Idle Phase */}
           {phase === 'idle' && (
-            <div className="space-y-6">
+            <div className={`space-y-6 ${phaseTransitionClassName}`}>
               <ExistingFilesSection
                 onFilesSelected={handleExistingFilesSelected}
                 disabled={isProcessing}

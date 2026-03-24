@@ -33,6 +33,8 @@
     "importSuccess": "Import completed successfully!",
     "back": "Back",
     "or": "or",
+    "configurationTab": "Configuration",
+    "yamlTab": "YAML",
     "modifyExistingConfig": "Modify existing configuration",
     "autoConfigError": "Error during auto-configuration",
     "autoConfigTimeout": "Auto-configuration took too long",
