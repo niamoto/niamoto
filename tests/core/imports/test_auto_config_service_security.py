@@ -74,3 +74,22 @@ def test_read_csv_can_skip_full_row_count_when_not_needed(
     assert columns == ["id", "name"]
     assert len(rows) == 2
     assert row_count == 2
+
+
+def test_read_csv_detects_semicolon_delimiter(
+    secured_service: AutoConfigService, tmp_path: Path
+):
+    sample_file = tmp_path / "imports" / "sample_semicolon.csv"
+    sample_file.write_text(
+        "id;label;class_object\n1;Plot A;dbh\n2;Plot B;dbh\n",
+        encoding="utf-8",
+    )
+
+    columns, rows, row_count = secured_service._read_csv_columns_and_rows(
+        sample_file,
+        max_rows=10,
+    )
+
+    assert columns == ["id", "label", "class_object"]
+    assert rows[0]["label"] == "Plot A"
+    assert row_count == 2

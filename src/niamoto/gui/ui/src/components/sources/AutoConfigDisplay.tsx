@@ -42,8 +42,10 @@ import {
 } from 'lucide-react'
 import type {
   AutoConfigureResponse,
+  AuxiliarySource,
   DecisionAlignment,
   DecisionSummary,
+  ReviewLevel,
 } from '@/lib/api/smart-config'
 import { EntityConfigEditor } from './EntityConfigEditor'
 import type { DatasetConfig, ReferenceConfig, LayerConfig } from './EntityConfigEditor'
@@ -221,10 +223,11 @@ export function AutoConfigDisplay({
   const datasetCount = Object.keys(result.entities.datasets || {}).length
   const referenceCount = Object.keys(result.entities.references || {}).length
   const layerCount = result.entities.metadata?.layers?.length || 0
+  const auxiliarySources = result.auxiliary_sources || []
   const decisionSummaries = result.decision_summary || {}
   const semanticEvidence = result.semantic_evidence || {}
   const reviewCount = Object.values(decisionSummaries).filter(
-    (summary) => summary?.review_required
+    (summary) => summary?.review_required && summary?.final_entity_type !== 'auxiliary_source'
   ).length
 
   // Build available references for dataset FK dropdowns
@@ -256,7 +259,54 @@ export function AutoConfigDisplay({
   }
 
   const getSummaryBadgeLabel = (summary?: DecisionSummary) =>
-    summary?.review_required ? t('autoConfig.badges.reviewRequired') : t('autoConfig.badges.stable')
+    summary?.review_level === 'review'
+      ? t('autoConfig.badges.reviewRequired')
+      : summary?.review_level === 'notice'
+        ? t('autoConfig.badges.notice')
+        : summary?.review_level === 'info'
+          ? t('autoConfig.badges.info')
+          : t('autoConfig.badges.stable')
+
+  const getSummaryBadgeVariant = (level?: ReviewLevel) => {
+    switch (level) {
+      case 'review':
+        return 'destructive' as const
+      case 'notice':
+        return 'secondary' as const
+      default:
+        return 'outline' as const
+    }
+  }
+
+  const getReasonToneClass = (level?: ReviewLevel) => {
+    switch (level) {
+      case 'review':
+        return 'text-amber-700 dark:text-amber-400'
+      case 'notice':
+        return 'text-blue-700 dark:text-blue-300'
+      case 'info':
+        return 'text-muted-foreground'
+      default:
+        return 'text-muted-foreground'
+    }
+  }
+
+  const getEntityStatusBadge = (summary?: DecisionSummary) => {
+    if (!summary || summary.review_level === 'stable' || summary.review_level === 'info') {
+      return null
+    }
+
+    return (
+      <Badge
+        variant={summary.review_level === 'review' ? 'destructive' : 'secondary'}
+        className="text-[10px]"
+      >
+        {summary.review_level === 'review'
+          ? t('autoConfig.badges.review')
+          : t('autoConfig.badges.notice')}
+      </Badge>
+    )
+  }
 
   const renderDecisionInsight = (name: string) => {
     const summary = decisionSummaries[name]
@@ -266,9 +316,9 @@ export function AutoConfigDisplay({
     const topPrediction = evidence?.top_predictions?.[0]
 
     return (
-      <div className="mt-2 rounded border border-border/70 bg-background/70 p-2 text-[11px]">
+        <div className="mt-2 rounded border border-border/70 bg-background/70 p-2 text-[11px]">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant={summary?.review_required ? 'destructive' : 'outline'} className="text-[10px]">
+          <Badge variant={getSummaryBadgeVariant(summary?.review_level)} className="text-[10px]">
             {getSummaryBadgeLabel(summary)}
           </Badge>
           {summary?.alignment && (
@@ -297,7 +347,7 @@ export function AutoConfigDisplay({
         )}
 
         {summary?.review_reasons && summary.review_reasons.length > 0 && (
-          <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-400">
+          <ul className={`mt-1 space-y-0.5 ${getReasonToneClass(summary?.review_level)}`}>
             {summary.review_reasons.map((reason) => (
               <li key={reason}>• {reason}</li>
             ))}
@@ -435,6 +485,16 @@ export function AutoConfigDisplay({
       })
     }
 
+    if (auxiliarySources.length > 0) {
+      details.push({
+        icon: <FileSpreadsheet className="h-4 w-4" />,
+        text: t('autoConfig.detection.auxiliarySourcesDetected', {
+          count: auxiliarySources.length,
+        }),
+        status: 'info',
+      })
+    }
+
     return details
   }
 
@@ -558,11 +618,7 @@ export function AutoConfigDisplay({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{name}</span>
-                        {decisionSummaries[name]?.review_required && (
-                          <Badge variant="destructive" className="text-[10px]">
-                            {t('autoConfig.badges.review')}
-                          </Badge>
-                        )}
+                        {getEntityStatusBadge(decisionSummaries[name])}
                       </div>
                       <div className="flex items-center gap-1">
                         {editable && onReclassify && (
@@ -647,11 +703,7 @@ export function AutoConfigDisplay({
                               {config.kind}
                             </Badge>
                           )}
-                          {decisionSummaries[name]?.review_required && (
-                            <Badge variant="destructive" className="text-[10px]">
-                              {t('autoConfig.badges.review')}
-                            </Badge>
-                          )}
+                          {getEntityStatusBadge(decisionSummaries[name])}
                         </div>
                         <div className="flex items-center gap-1">
                           {canMove && (
@@ -731,6 +783,39 @@ export function AutoConfigDisplay({
             </div>
           </div>
         </div>
+
+        {auxiliarySources.length > 0 && (
+          <div className="rounded-lg border p-3">
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <FileSpreadsheet className="h-4 w-4 text-violet-500" />
+              {t('autoConfig.sections.auxiliarySources', { count: auxiliarySources.length })}
+            </h4>
+            <div className="space-y-2">
+              {auxiliarySources.map((source: AuxiliarySource) => (
+                <div key={`${source.grouping}-${source.name}`} className="rounded bg-accent p-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{source.name}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {t('autoConfig.badges.auxiliary')}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                    <div className="truncate">{source.data}</div>
+                    <div className="text-violet-600">
+                      {t('autoConfig.auxiliary.attachedTo', { target: source.grouping })}
+                    </div>
+                    <div>
+                      {t('autoConfig.auxiliary.relation', {
+                        field: source.relation.match_field,
+                        refField: source.relation.ref_field,
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Metadata Layers */}
         {layerCount > 0 && (

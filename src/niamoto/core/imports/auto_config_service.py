@@ -28,6 +28,8 @@ from niamoto.core.utils.column_detector import ColumnDetector, GeoPackageAnalyze
 
 logger = logging.getLogger(__name__)
 
+CLASS_OBJECT_REQUIRED_COLUMNS = {"class_object", "class_name", "class_value"}
+
 
 class AutoConfigService:
     """Build an import auto-configuration from a set of candidate files."""
@@ -180,8 +182,6 @@ class AutoConfigService:
 
         referenced_by = self._detect_referenced_by(csv_analyses)
 
-        references: Dict[str, Any] = {}
-        datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
         decision_summary: Dict[str, Dict[str, Any]] = {}
         semantic_evidence: Dict[str, Dict[str, Any]] = {}
 
@@ -200,27 +200,6 @@ class AutoConfigService:
                 decision=decision_summary[entity_name],
                 referenced_by=referenced_by.get(entity_name, []),
             )
-
-            entity_type = decision["final_entity_type"]
-            if entity_type == "hierarchical_reference":
-                references[entity_name] = self._build_hierarchy_reference_config(
-                    filepath, analysis, csv_analyses
-                )
-            elif entity_type == "reference":
-                references[entity_name] = self._build_simple_reference_config(
-                    filepath, analysis, referenced_by.get(entity_name)
-                )
-            elif entity_type == "dataset":
-                datasets_to_create[entity_name] = (filepath, analysis)
-
-                if (
-                    analysis.get("extract_hierarchy_as_reference", False)
-                    and analysis["hierarchy"]["detected"]
-                ):
-                    ref_name = self._infer_reference_name(entity_name, analysis)
-                    references[ref_name] = self._build_derived_hierarchy_reference(
-                        entity_name, analysis
-                    )
 
         shapes_sources = []
         layers_info = []
@@ -253,6 +232,57 @@ class AutoConfigService:
                         ),
                     }
                 )
+
+        auxiliary_sources = self._detect_auxiliary_sources(
+            csv_analyses=csv_analyses,
+            decision_summary=decision_summary,
+            has_shapes_reference=bool(shapes_sources),
+        )
+
+        for entity_name, auxiliary in auxiliary_sources.items():
+            decision_summary[entity_name].update(
+                {
+                    "final_entity_type": "auxiliary_source",
+                    "review_required": False,
+                    "review_reasons": [],
+                    "review_priority": "normal",
+                    "auxiliary_target": auxiliary["grouping"],
+                    "auxiliary_relation": auxiliary["relation"],
+                }
+            )
+            semantic_evidence.setdefault(entity_name, {})["auxiliary_target"] = (
+                auxiliary["grouping"]
+            )
+            semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary["relation"]
+
+        references: Dict[str, Any] = {}
+        datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            if entity_name in auxiliary_sources:
+                continue
+
+            entity_type = decision_summary[entity_name]["final_entity_type"]
+            if entity_type == "hierarchical_reference":
+                references[entity_name] = self._build_hierarchy_reference_config(
+                    filepath, analysis, csv_analyses
+                )
+            elif entity_type == "reference":
+                references[entity_name] = self._build_simple_reference_config(
+                    filepath, analysis, referenced_by.get(entity_name)
+                )
+            elif entity_type == "dataset":
+                datasets_to_create[entity_name] = (filepath, analysis)
+
+                if (
+                    analysis.get("extract_hierarchy_as_reference", False)
+                    and analysis["hierarchy"]["detected"]
+                ):
+                    ref_name = self._infer_reference_name(entity_name, analysis)
+                    references[ref_name] = self._build_derived_hierarchy_reference(
+                        entity_name, analysis
+                    )
 
         if shapes_sources:
             references["shapes"] = self._build_shapes_reference(shapes_sources)
@@ -299,6 +329,7 @@ class AutoConfigService:
         return {
             "success": True,
             "entities": entities,
+            "auxiliary_sources": list(auxiliary_sources.values()),
             "detected_columns": detected_columns,
             "ml_predictions": ml_predictions,
             "decision_summary": decision_summary,
@@ -306,6 +337,42 @@ class AutoConfigService:
             "confidence": overall_confidence,
             "warnings": warnings,
         }
+
+    def _detect_auxiliary_sources(
+        self,
+        csv_analyses: Dict[str, Dict[str, Any]],
+        decision_summary: Dict[str, Dict[str, Any]],
+        *,
+        has_shapes_reference: bool,
+    ) -> Dict[str, Dict[str, Any]]:
+        auxiliary_sources: Dict[str, Dict[str, Any]] = {}
+        reference_candidates = {
+            Path(filepath).stem
+            for filepath in csv_analyses
+            if decision_summary.get(Path(filepath).stem, {}).get("final_entity_type")
+            in {"reference", "hierarchical_reference"}
+        }
+
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            if not self._is_auxiliary_stats_candidate(analysis):
+                continue
+
+            source_config = self._build_auxiliary_source_config(
+                filepath=filepath,
+                entity_name=entity_name,
+                analysis=analysis,
+                csv_analyses=csv_analyses,
+                reference_candidates=reference_candidates,
+                has_shapes_reference=has_shapes_reference,
+            )
+            if source_config:
+                auxiliary_sources[entity_name] = source_config
+
+        logger.debug(
+            "Auto-config detected %d auxiliary source(s)", len(auxiliary_sources)
+        )
+        return auxiliary_sources
 
     def _detect_referenced_by(
         self, csv_analyses: Dict[str, Dict[str, Any]]
@@ -386,7 +453,10 @@ class AutoConfigService:
     ) -> Tuple[List[str], List[Dict[str, Any]], int]:
         """Read CSV header and sample rows, optionally counting the full file length."""
         with open(file_path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
+            first_line = f.readline()
+            delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=delimiter)
             columns = reader.fieldnames or []
 
             rows: List[Dict[str, Any]] = []
@@ -401,6 +471,114 @@ class AutoConfigService:
                     row_count += 1
 
         return columns, rows, row_count
+
+    def _is_auxiliary_stats_candidate(self, analysis: Dict[str, Any]) -> bool:
+        columns = {column.lower() for column in analysis.get("columns", [])}
+        return CLASS_OBJECT_REQUIRED_COLUMNS.issubset(columns)
+
+    def _build_auxiliary_source_config(
+        self,
+        *,
+        filepath: str,
+        entity_name: str,
+        analysis: Dict[str, Any],
+        csv_analyses: Dict[str, Dict[str, Any]],
+        reference_candidates: set[str],
+        has_shapes_reference: bool,
+    ) -> Optional[Dict[str, Any]]:
+        best_match = self._find_auxiliary_reference_match(
+            entity_name=entity_name,
+            analysis=analysis,
+            csv_analyses=csv_analyses,
+            reference_candidates=reference_candidates,
+        )
+        if best_match:
+            return {
+                "name": self._auxiliary_source_name(entity_name),
+                "data": filepath,
+                "grouping": best_match["target"],
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": best_match["target_field"],
+                    "match_field": best_match["source_field"],
+                },
+                "source_entity": entity_name,
+            }
+
+        if has_shapes_reference:
+            label_field = self._find_auxiliary_label_field(analysis)
+            if label_field:
+                return {
+                    "name": self._auxiliary_source_name(entity_name),
+                    "data": filepath,
+                    "grouping": "shapes",
+                    "relation": {
+                        "plugin": "stats_loader",
+                        "key": "id",
+                        "ref_field": "name",
+                        "match_field": label_field,
+                    },
+                    "source_entity": entity_name,
+                }
+
+        return None
+
+    def _find_auxiliary_reference_match(
+        self,
+        *,
+        entity_name: str,
+        analysis: Dict[str, Any],
+        csv_analyses: Dict[str, Dict[str, Any]],
+        reference_candidates: set[str],
+    ) -> Optional[Dict[str, Any]]:
+        best_match: Optional[Dict[str, Any]] = None
+
+        for other_filepath, other_analysis in csv_analyses.items():
+            target_name = Path(other_filepath).stem
+            if target_name == entity_name or target_name not in reference_candidates:
+                continue
+
+            relationships = ColumnDetector.detect_relationships(
+                analysis.get("columns", []),
+                other_analysis.get("columns", []),
+                source_sample=analysis.get("_sample_rows"),
+                target_sample=other_analysis.get("_sample_rows"),
+                source_entity_name=entity_name,
+                target_entity_name=target_name,
+            )
+            for relationship in relationships:
+                confidence = float(relationship.get("confidence", 0.0) or 0.0)
+                source_field = str(relationship.get("source_field", ""))
+                target_field = str(relationship.get("target_field", ""))
+
+                if confidence < 0.75:
+                    continue
+                if target_field == "id" and source_field != "id":
+                    continue
+
+                candidate = {
+                    "target": target_name,
+                    "source_field": source_field,
+                    "target_field": target_field,
+                    "confidence": confidence,
+                }
+                if not best_match or confidence > best_match["confidence"]:
+                    best_match = candidate
+
+        return best_match
+
+    def _find_auxiliary_label_field(self, analysis: Dict[str, Any]) -> Optional[str]:
+        columns = analysis.get("columns", [])
+        lowered = {column.lower(): column for column in columns}
+        for candidate in ("label", "name"):
+            if candidate in lowered:
+                return lowered[candidate]
+        name_columns = analysis.get("name_columns", [])
+        return name_columns[0] if name_columns else None
+
+    def _auxiliary_source_name(self, entity_name: str) -> str:
+        return entity_name[4:] if entity_name.startswith("raw_") else entity_name
 
     def _build_hierarchy_reference_config(
         self,

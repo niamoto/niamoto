@@ -79,6 +79,8 @@ export type DecisionAlignment =
   | 'conflict'
   | 'mixed'
 
+export type ReviewLevel = 'stable' | 'info' | 'notice' | 'review'
+
 export interface DecisionSummary {
   final_entity_type: string
   heuristic_entity_type: string
@@ -87,6 +89,7 @@ export interface DecisionSummary {
   ml_confidence?: number
   alignment?: DecisionAlignment
   review_required?: boolean
+  review_level?: ReviewLevel
   review_reasons?: string[]
   review_priority?: 'normal' | 'high'
   analysis_snapshot?: {
@@ -103,6 +106,26 @@ export interface DecisionSummary {
   }>
   row_count?: number
   heuristic_flags?: Record<string, unknown>
+  auxiliary_target?: string
+  auxiliary_relation?: {
+    plugin: string
+    key: string
+    ref_field: string
+    match_field: string
+  }
+}
+
+export interface AuxiliarySource {
+  name: string
+  data: string
+  grouping: string
+  relation: {
+    plugin: string
+    key: string
+    ref_field: string
+    match_field: string
+  }
+  source_entity?: string
 }
 
 export interface AutoConfigureResponse {
@@ -120,6 +143,7 @@ export interface AutoConfigureResponse {
       }>
     }
   }
+  auxiliary_sources?: AuxiliarySource[]
   /** Detected columns per entity name */
   detected_columns?: Record<string, string[]>
   /** ML semantic predictions per entity, computed from sampled columns */
@@ -208,9 +232,13 @@ export async function autoConfigureEntities(
  * Create multiple entities at once
  */
 export async function createEntitiesBulk(entities: {
-  datasets?: Record<string, any>
-  references?: Record<string, any>
+  entities: {
+    datasets?: Record<string, any>
+    references?: Record<string, any>
+    metadata?: Record<string, any>
+  }
+  auxiliary_sources?: AuxiliarySource[]
 }): Promise<any> {
-  const response = await apiClient.post('/smart/management/entities/bulk', { entities })
+  const response = await apiClient.post('/smart/management/entities/bulk', entities)
   return response.data
 }

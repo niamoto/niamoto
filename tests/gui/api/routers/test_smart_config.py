@@ -841,6 +841,69 @@ class TestAutoConfigureMain:
         assert "top_roles" in evidence
         assert "inferred_ml_entity_type" in evidence
 
+    def test_auto_configure_exposes_auxiliary_sources(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        imports_dir = working_directory / "imports"
+        (imports_dir / "sample_occurrences.csv").write_text(
+            "\n".join(
+                [
+                    "id,id_plot,measurement",
+                    "1,1,10.5",
+                    "2,2,11.2",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "sample_plots.csv").write_text(
+            "\n".join(
+                [
+                    "id_plot,plot,elevation",
+                    "1,Plot A,150",
+                    "2,Plot B,180",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "plot_metrics.csv").write_text(
+            "\n".join(
+                [
+                    "id,plot_id,class_object,class_name,class_value",
+                    "1,1,dbh,0-10,4",
+                    "2,2,dbh,10-20,7",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={
+                "files": [
+                    "imports/sample_occurrences.csv",
+                    "imports/sample_plots.csv",
+                    "imports/plot_metrics.csv",
+                ]
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert (
+            data["decision_summary"]["plot_metrics"]["final_entity_type"]
+            == "auxiliary_source"
+        )
+        assert any(
+            source["name"] == "plot_metrics" and source["grouping"] == "sample_plots"
+            for source in data["auxiliary_sources"]
+        )
+        assert "plot_metrics" not in data["entities"]["datasets"]
+        assert "plot_metrics" not in data["entities"]["references"]
+
     def test_auto_configure_hierarchical_reference(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):
@@ -970,6 +1033,42 @@ class TestCreateEntitiesBulk:
         assert "references" in yaml_data["entities"]
         assert "occurrences" in yaml_data["entities"]["datasets"]
         assert "taxonomy" in yaml_data["entities"]["references"]
+
+    def test_create_entities_bulk_persists_auxiliary_sources(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {
+                    "datasets": {
+                        "occurrences": {"source": "occurrences.csv", "fields": {}}
+                    },
+                    "references": {"plots": {"source": "plots.csv", "fields": {}}},
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "id_plot",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        import_yml = working_directory / "config" / "import.yml"
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert yaml_data["auxiliary_sources"][0]["grouping"] == "plots"
 
     def test_create_entities_creates_config_dir_if_missing(
         self, test_client: TestClient, working_directory: Path
