@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from niamoto.core.imports.config_models import GenericImportConfig
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.services.importer import ImporterService
 from niamoto.gui.api import context
+from niamoto.gui.api.routers.templates import get_reference_suggestions
 from niamoto.gui.api.services.templates.suggestion_service import (
     generate_navigation_suggestion,
     get_class_object_suggestions,
@@ -107,4 +109,21 @@ def test_subset_instance_suggestions_cover_navigation_maps_and_widgets(
     assert any(
         suggestion["template_id"] == "cover_forest_binary_aggregator_donut_chart"
         for suggestion in shape_class_widgets
+    )
+
+
+@pytest.mark.integration
+def test_subset_instance_taxon_suggestions_include_occurrence_map(
+    imported_subset_project: Path,
+):
+    with patch.object(context, "_working_directory", imported_subset_project):
+        response = asyncio.run(
+            get_reference_suggestions("taxons", entity=None, max_suggestions=100)
+        )
+
+    map_suggestions = [s for s in response.suggestions if s.category == "map"]
+
+    assert any(
+        suggestion.template_id == "geo_pt_geospatial_extractor_interactive_map"
+        for suggestion in map_suggestions
     )

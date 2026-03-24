@@ -134,6 +134,28 @@ class TestDataCategory:
         enriched = analyzer.enrich_profile(profile, series)
         assert enriched.data_category == DataCategory.GEOGRAPHIC
 
+    def test_geographic_detection_for_coordinate_wkt_semantic_type(self, analyzer):
+        """WKT coordinate semantics should stay geographic for map suggestions."""
+        profile = ColumnProfile(
+            name="geo_pt",
+            dtype="object",
+            semantic_type="location.coordinate",
+            unique_ratio=0.66,
+            null_ratio=0.01,
+            sample_values=["POINT (166.45 -22.18)", "POINT (166.46 -22.19)"],
+            confidence=1.0,
+        )
+        series = pd.Series(
+            [
+                "POINT (166.45 -22.18)",
+                "POINT (166.46 -22.19)",
+                "POINT (166.47 -22.20)",
+            ]
+        )
+
+        enriched = analyzer.enrich_profile(profile, series)
+        assert enriched.data_category == DataCategory.GEOGRAPHIC
+
     def test_temporal_detection(self, analyzer):
         """Test detection of temporal data."""
         profile = ColumnProfile(
