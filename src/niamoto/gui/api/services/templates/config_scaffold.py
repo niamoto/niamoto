@@ -21,6 +21,9 @@ from niamoto.gui.api.services.templates.config_service import (
     save_export_config,
     save_transform_config,
 )
+from niamoto.gui.api.services.templates.relation_detection import (
+    find_best_stats_source_for_reference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +76,6 @@ def build_relation_config(
                 "left": "lft",
                 "right": "rght",
             },
-        }
-    elif kind == "spatial":
-        return {
-            "plugin": "direct_reference",
-            "key": f"{ref_name}_id",
-            "ref_key": "id",
         }
     else:
         return {
@@ -137,7 +134,9 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
 
         # --- Transform ---
         if not find_transform_group(transform_groups, ref_name):
-            group = _build_transform_group(ref_name, kind, ref_config, first_dataset)
+            group = _build_transform_group(
+                work_dir, ref_name, kind, ref_config, first_dataset
+            )
             transform_groups.append(group)
             transform_added.append(ref_name)
 
@@ -164,15 +163,46 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
 
 
 def _build_transform_group(
+    work_dir: Path,
     ref_name: str,
     kind: str,
     ref_config: Dict[str, Any],
     first_dataset: Optional[str],
 ) -> Dict[str, Any]:
     """Construit un groupe transform minimal pour une référence."""
+    if kind == "spatial":
+        best_stats_source = find_best_stats_source_for_reference(work_dir, ref_name)
+        if best_stats_source:
+            return {
+                "group_by": ref_name,
+                "sources": [
+                    {
+                        "name": best_stats_source["name"],
+                        "data": best_stats_source["data"],
+                        "grouping": best_stats_source["grouping"],
+                        "relation": {
+                            "plugin": best_stats_source["relation_plugin"],
+                            "key": best_stats_source["key"],
+                            "ref_field": best_stats_source["ref_field"],
+                            "match_field": best_stats_source["match_field"],
+                        },
+                    }
+                ],
+                "widgets_data": {},
+            }
+
+        logger.debug(
+            "Skipping default dataset relation for spatial reference '%s' because no explicit spatial key is available",
+            ref_name,
+        )
+        return {
+            "group_by": ref_name,
+            "sources": [],
+            "widgets_data": {},
+        }
+
     source_name = "occurrences"
     data_name = first_dataset or "occurrences"
-
     relation = build_relation_config(ref_name, kind, ref_config)
 
     return {

@@ -250,12 +250,6 @@ async def get_available_references():
                     ref_key=f"{ref_name}_id",
                     fields=NestedSetFields(),  # Default nested set fields
                 )
-            elif kind == "spatial":
-                return RelationConfig(
-                    plugin="direct_reference",
-                    key=f"{ref_name}_id",
-                    ref_key="id",
-                )
             else:  # generic/default
                 return RelationConfig(
                     plugin="direct_reference",

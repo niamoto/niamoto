@@ -436,3 +436,60 @@ def test_render_occurrence_falls_back_without_group_config():
         {"legend": False},
         "Elevation",
     )
+
+
+def test_render_entity_map_falls_back_to_descendants_when_parent_has_no_geometry():
+    engine = _make_engine()
+    db = MagicMock()
+
+    parent_df = pd.DataFrame([{"id": 1, "name": "Mines", "geom": None}])
+    descendants_df = pd.DataFrame(
+        [
+            {
+                "id": 2,
+                "name": "Grand Sud",
+                "geom": "MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)))",
+            }
+        ]
+    )
+
+    with (
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.resolve_reference_table",
+            return_value="entity_shapes",
+        ),
+        patch.object(
+            engine,
+            "_get_column_names",
+            return_value=["id", "name", "location", "lft", "rght", "parent_id"],
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_identifier_column",
+            return_value="id",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_name_column",
+            return_value="name",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.pd.read_sql",
+            side_effect=[parent_df, descendants_df],
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.parse_wkt_to_geojson",
+            return_value={"type": "Polygon", "coordinates": []},
+        ),
+        patch(
+            "niamoto.gui.api.services.map_renderer.MapRenderer.render",
+            return_value="<div>map</div>",
+        ) as mock_render,
+    ):
+        result = engine._render_entity_map(
+            "shapes_location_entity_map",
+            "1",
+            db,
+            [],
+        )
+
+    assert result == "<div>map</div>"
+    mock_render.assert_called_once()
