@@ -584,6 +584,19 @@ export function AutoConfigDisplay({
     }
   }
 
+  const getReferenceKindLabel = (kind?: string) => {
+    switch (kind) {
+      case 'hierarchical':
+        return t('reference.hierarchical')
+      case 'spatial':
+        return t('reference.spatial')
+      case 'generic':
+        return t('autoConfig.itemTypes.reference')
+      default:
+        return kind || t('autoConfig.itemTypes.reference')
+    }
+  }
+
   const getCompactSummary = (entry: ListEntry) => {
     switch (entry.type) {
       case 'dataset': {
@@ -606,7 +619,7 @@ export function AutoConfigDisplay({
       case 'reference': {
         const parts = []
         if (entry.config.kind) {
-          parts.push(entry.config.kind)
+          parts.push(getReferenceKindLabel(entry.config.kind))
         }
         if (entry.config.connector?.type === 'derived' && entry.config.connector?.source) {
           parts.push(
@@ -850,7 +863,7 @@ export function AutoConfigDisplay({
                         {getTypeIcon(entry)}
                         <span className="font-medium">{entry.name}</span>
                         <Badge variant="outline" className="text-[10px]">
-                          {entry.config.kind || getTypeLabel(entry)}
+                          {getReferenceKindLabel(entry.config.kind)}
                         </Badge>
                         {getEntityStatusBadge(summary)}
                       </div>
