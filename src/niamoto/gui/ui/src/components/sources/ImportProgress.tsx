@@ -11,7 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { createEntitiesBulk } from '@/lib/api/smart-config'
-import { executeImportAll, getImportStatus } from '@/lib/api/import'
+import {
+  executeImportAll,
+  getImportStatus,
+  type ImportJobEvent,
+} from '@/lib/api/import'
 import type { AutoConfigureResponse } from '@/lib/api/smart-config'
 
 type ImportStep = 'idle' | 'saving' | 'importing' | 'complete' | 'error'
@@ -37,7 +41,10 @@ export function ImportProgress({
     totalEntities: number
     processedEntities: number
     currentEntity?: string
-  }>({ totalEntities: 0, processedEntities: 0 })
+    phase?: string | null
+    message?: string
+    events: ImportJobEvent[]
+  }>({ totalEntities: 0, processedEntities: 0, events: [] })
 
   // Guard against React 18 StrictMode double-mount
   const importStarted = useRef(false)
@@ -45,8 +52,22 @@ export function ImportProgress({
   const executeImport = useCallback(async () => {
     try {
       setStep('saving')
-      setProgress(10)
+      setProgress(0)
       setError(null)
+      setImportDetails({
+        totalEntities: 0,
+        processedEntities: 0,
+        phase: 'saving',
+        message: t('wizard.writingImportYml'),
+        events: [
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'stage',
+            message: t('wizard.writingImportYml'),
+            phase: 'saving',
+          },
+        ],
+      })
 
       // Step 1: Save entities to import.yml
       await createEntitiesBulk({
@@ -54,7 +75,25 @@ export function ImportProgress({
         auxiliary_sources: config.auxiliary_sources || [],
       })
 
-      setProgress(30)
+      setImportDetails((previous) => ({
+        ...previous,
+        message: t('wizard.importJobStarting'),
+        events: [
+          ...previous.events,
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'finding' as const,
+            message: t('wizard.savingConfigDone'),
+            phase: 'saving',
+          },
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'detail' as const,
+            message: t('wizard.importJobStarting'),
+            phase: 'importing',
+          },
+        ].slice(-30),
+      }))
 
       // Step 2: Execute the real import
       setStep('importing')
@@ -66,7 +105,7 @@ export function ImportProgress({
       const maxWaitTime = 600000 // 10 minutes max
       const startTime = Date.now()
 
-      let lastProgress = 30
+      let lastProgress = 0
 
       while (Date.now() - startTime < maxWaitTime) {
         const status = await getImportStatus(jobId)
@@ -75,13 +114,19 @@ export function ImportProgress({
         setImportDetails({
           totalEntities: status.total_entities || 0,
           processedEntities: status.processed_entities || 0,
-          currentEntity: status.current_entity,
+          currentEntity: status.current_entity || undefined,
+          phase: status.phase,
+          message: status.message,
+          events: status.events || [],
         })
 
-        // Calculate progress (30% already done for config save, 30-100% for import)
-        if (status.total_entities > 0) {
-          const importProgress = (status.processed_entities / status.total_entities) * 70
-          lastProgress = 30 + importProgress
+        if (typeof status.progress === 'number' && status.progress > 0) {
+          lastProgress = Math.max(lastProgress, status.progress)
+          setProgress(Math.round(lastProgress))
+        } else if ((status.total_entities || 0) > 0 && (status.processed_entities || 0) > 0) {
+          const importProgress =
+            ((status.processed_entities || 0) / (status.total_entities || 1)) * 100
+          lastProgress = Math.max(lastProgress, importProgress)
           setProgress(Math.round(lastProgress))
         }
 
@@ -153,8 +198,12 @@ export function ImportProgress({
   }
 
   // Saving/importing state
+  const latestEvents = importDetails.events.slice(-8)
+  const showMeasuredProgress =
+    progress > 0
+
   return (
-    <div className="space-y-4 py-4">
+    <div className="space-y-6 py-4">
       <div className="text-center">
         <Loader2 className="mx-auto mb-2 h-10 w-10 animate-spin text-primary" />
         <h3 className="font-semibold">
@@ -165,23 +214,30 @@ export function ImportProgress({
         <p className="text-sm text-muted-foreground">
           {step === 'saving' && t('wizard.writingImportYml')}
           {step === 'importing' &&
-            importDetails.currentEntity &&
-            t('wizard.importingEntity', { entity: importDetails.currentEntity })}
-          {step === 'importing' && !importDetails.currentEntity && t('wizard.processingEntities')}
+            (importDetails.message
+              || (importDetails.currentEntity
+                ? t('wizard.importingEntity', { entity: importDetails.currentEntity })
+                : t('wizard.processingEntities')))}
         </p>
       </div>
 
-      <div className="mx-auto max-w-md">
-        <Progress value={progress} className="h-2" />
-        <p className="mt-1 text-center text-xs text-muted-foreground">
-          {progress}%
-          {importDetails.totalEntities > 0 && (
-            <span className="ml-1">
-              ({importDetails.processedEntities}/{importDetails.totalEntities})
-            </span>
-          )}
-        </p>
-      </div>
+      {showMeasuredProgress ? (
+        <div className="mx-auto max-w-md">
+          <Progress value={progress} className="h-2" />
+          <p className="mt-1 text-center text-xs text-muted-foreground">
+            {progress}%
+            {importDetails.totalEntities > 0 && (
+              <span className="ml-1">
+                ({importDetails.processedEntities}/{importDetails.totalEntities})
+              </span>
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="mx-auto max-w-md rounded-md border bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
+          {t('wizard.progressWillAppear')}
+        </div>
+      )}
 
       {/* Steps indicator */}
       <div className="mx-auto max-w-md space-y-1 text-sm">
@@ -221,6 +277,50 @@ export function ImportProgress({
         <div className={`flex items-center gap-2 ${progress >= 100 ? 'text-green-600' : 'text-muted-foreground'}`}>
           {progress >= 100 ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-4 w-4" />}
           {t('wizard.complete')}
+        </div>
+      </div>
+
+      <div className="mx-auto w-full max-w-2xl rounded-lg border bg-muted/30 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-medium">{t('wizard.importLiveFeed')}</div>
+          <div className="text-xs text-muted-foreground">
+            {importDetails.phase || step}
+          </div>
+        </div>
+        <div className="space-y-2">
+          {latestEvents.length > 0 ? (
+            latestEvents.map((event, index) => (
+              <div
+                key={`${event.timestamp}-${index}`}
+                className="flex items-start gap-3 rounded-md bg-background/80 px-3 py-2 text-sm"
+              >
+                <div className="pt-0.5">
+                  {event.kind === 'finding' || event.kind === 'complete' ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  ) : event.kind === 'error' ? (
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  ) : event.kind === 'detail' ? (
+                    <div className="mt-1 h-2 w-2 rounded-full bg-muted-foreground/60" />
+                  ) : (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-foreground">{event.message}</div>
+                  {(event.entity_name || event.entity_type) && (
+                    <div className="text-xs text-muted-foreground">
+                      {[event.entity_name, event.entity_type].filter(Boolean).join(' • ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t('wizard.waitingForImportEvents')}
+            </div>
+          )}
         </div>
       </div>
     </div>
