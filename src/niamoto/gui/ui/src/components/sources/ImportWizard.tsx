@@ -7,7 +7,7 @@
  * 3. Execute import with progress
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,7 +24,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { autoConfigureEntities, type AutoConfigureResponse } from '@/lib/api/smart-config'
+import {
+  getAutoConfigureJob,
+  startAutoConfigureJob,
+  subscribeToAutoConfigureJobEvents,
+  type AutoConfigureProgressEvent,
+  type AutoConfigureResponse,
+} from '@/lib/api/smart-config'
 import { apiClient } from '@/lib/api/client'
 import {
   FileUploadZone,
@@ -53,49 +59,73 @@ export function ImportWizard() {
   const [error, setError] = useState<string | null>(null)
   const [configResult, setConfigResult] = useState<AutoConfigureResponse | null>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
+  const [analysisEvents, setAnalysisEvents] = useState<AutoConfigureProgressEvent[]>([])
+  const [analysisStage, setAnalysisStage] = useState<string | null>(null)
+  const analysisEventSourceRef = useRef<EventSource | null>(null)
 
-  // Handle files ready from upload
-  const handleFilesReady = useCallback(
-    async (_files: any[], paths: string[]) => {
+  const closeAnalysisStream = useCallback(() => {
+    analysisEventSourceRef.current?.close()
+    analysisEventSourceRef.current = null
+  }, [])
+
+  const runAutoConfigure = useCallback(
+    async (paths: string[]) => {
       setFilePaths(paths)
       setPhase('configuring')
       setError(null)
+      setAnalysisEvents([])
+      setAnalysisStage(null)
+      closeAnalysisStream()
 
       try {
-        const result = await autoConfigureEntities({ files: paths })
-        if (!result.success) {
-          throw new Error('Auto-configuration failed')
+        const job = await startAutoConfigureJob({ files: paths })
+        const eventSource = subscribeToAutoConfigureJobEvents(job.job_id, (event) => {
+          setAnalysisEvents((previous) => [...previous, event].slice(-30))
+          if (event.kind === 'stage') {
+            setAnalysisStage(event.message)
+          }
+        })
+        analysisEventSourceRef.current = eventSource
+
+        const startTime = Date.now()
+        while (Date.now() - startTime < 180000) {
+          const status = await getAutoConfigureJob(job.job_id)
+          if (status.status === 'completed' && status.result) {
+            closeAnalysisStream()
+            setConfigResult(status.result)
+            setPhase('reviewing')
+            return
+          }
+          if (status.status === 'failed') {
+            throw new Error(status.error || t('wizard.autoConfigError'))
+          }
+          await new Promise((resolve) => setTimeout(resolve, 400))
         }
-        setConfigResult(result)
-        setPhase('reviewing')
+
+        throw new Error(t('wizard.autoConfigTimeout'))
       } catch (err: any) {
+        closeAnalysisStream()
         setError(err.message || t('wizard.autoConfigError'))
         setPhase('error')
       }
     },
-    [t]
+    [closeAnalysisStream, t]
+  )
+
+  // Handle files ready from upload
+  const handleFilesReady = useCallback(
+    async (_files: any[], paths: string[]) => {
+      await runAutoConfigure(paths)
+    },
+    [runAutoConfigure]
   )
 
   // Handle existing files selected for re-import
   const handleExistingFilesSelected = useCallback(
     async (paths: string[]) => {
-      setFilePaths(paths)
-      setPhase('configuring')
-      setError(null)
-
-      try {
-        const result = await autoConfigureEntities({ files: paths })
-        if (!result.success) {
-          throw new Error('Auto-configuration failed')
-        }
-        setConfigResult(result)
-        setPhase('reviewing')
-      } catch (err: any) {
-        setError(err.message || t('wizard.autoConfigError'))
-        setPhase('error')
-      }
+      await runAutoConfigure(paths)
     },
-    [t]
+    [runAutoConfigure]
   )
 
   // Start import from review phase
@@ -128,10 +158,13 @@ export function ImportWizard() {
 
   // Reset to idle
   const resetToIdle = () => {
+    closeAnalysisStream()
     setPhase('idle')
     setError(null)
     setConfigResult(null)
     setFilePaths([])
+    setAnalysisEvents([])
+    setAnalysisStage(null)
   }
 
   // Load existing configuration for editing
@@ -190,11 +223,17 @@ export function ImportWizard() {
   // Retry from error
   const retryFromError = () => {
     if (filePaths.length > 0) {
-      handleExistingFilesSelected(filePaths)
+      void handleExistingFilesSelected(filePaths)
     } else {
       resetToIdle()
     }
   }
+
+  useEffect(() => {
+    return () => {
+      closeAnalysisStream()
+    }
+  }, [closeAnalysisStream])
 
   // Handle entity reclassification
   const handleReclassify = useCallback(
@@ -261,7 +300,12 @@ export function ImportWizard() {
 
           {/* Configuring Phase */}
           {phase === 'configuring' && (
-            <AutoConfigDisplay result={null} isLoading={true} />
+            <AutoConfigDisplay
+              result={null}
+              isLoading={true}
+              analysisEvents={analysisEvents}
+              analysisStage={analysisStage}
+            />
           )}
 
           {/* Reviewing Phase */}

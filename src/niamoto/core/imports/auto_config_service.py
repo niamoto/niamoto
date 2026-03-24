@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import csv
 import logging
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
@@ -37,9 +38,37 @@ class AutoConfigService:
     MAX_SAMPLE_ROWS = 1000
     ANALYSIS_SAMPLE_ROWS = 100
 
-    def __init__(self, working_directory: Path):
+    def __init__(
+        self,
+        working_directory: Path,
+        event_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         self.working_directory = Path(working_directory)
         self._working_directory_resolved = self.working_directory.resolve()
+        self._event_sink = event_sink
+
+    def _emit_event(
+        self,
+        kind: str,
+        message: str,
+        *,
+        file: Optional[str] = None,
+        entity: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Emit an auto-config progress event when a sink is configured."""
+        if not self._event_sink:
+            return
+        self._event_sink(
+            {
+                "kind": kind,
+                "message": message,
+                "timestamp": time.time(),
+                "file": file,
+                "entity": entity,
+                "details": details or {},
+            }
+        )
 
     def _resolve_project_path(self, filepath: str) -> Path:
         """Resolve a project-relative path and reject paths outside the project."""
@@ -154,6 +183,12 @@ class AutoConfigService:
         if not files:
             raise ValueError("No files provided")
 
+        self._emit_event(
+            "stage",
+            f"Preparing analysis for {len(files)} file(s)",
+            details={"file_count": len(files)},
+        )
+
         csv_analyses: Dict[str, Dict[str, Any]] = {}
         gpkg_analyses: Dict[str, Dict[str, Any]] = {}
         tif_files: List[str] = []
@@ -165,26 +200,67 @@ class AutoConfigService:
                 continue
 
             file_ext = file_path.suffix.lower()
+            self._emit_event(
+                "detail", f"Analyzing {Path(filepath).name}", file=filepath
+            )
             if file_ext == ".csv":
                 analysis = self._analyze_csv_file(file_path, include_sample_rows=True)
                 analysis["relative_path"] = filepath
                 csv_analyses[filepath] = analysis
+                self._emit_event(
+                    "finding",
+                    f"Loaded {len(analysis.get('columns', []))} columns from {Path(filepath).name}",
+                    file=filepath,
+                    entity=Path(filepath).stem,
+                    details={
+                        "row_count": analysis.get("row_count", 0),
+                        "column_count": len(analysis.get("columns", [])),
+                    },
+                )
+                if analysis.get("hierarchy", {}).get("detected"):
+                    hierarchy_levels = analysis["hierarchy"].get("levels", [])
+                    self._emit_event(
+                        "finding",
+                        f"Detected hierarchy candidates in {Path(filepath).name}",
+                        file=filepath,
+                        entity=Path(filepath).stem,
+                        details={"levels": hierarchy_levels},
+                    )
             elif file_ext in [".gpkg", ".geojson"]:
                 analysis = GeoPackageAnalyzer.analyze_gpkg(file_path)
                 if "error" not in analysis:
                     analysis["relative_path"] = filepath
                     gpkg_analyses[filepath] = analysis
+                    geometry_types = analysis.get("geometry_types", [])
+                    self._emit_event(
+                        "finding",
+                        f"Detected spatial layer in {Path(filepath).name}",
+                        file=filepath,
+                        entity=Path(filepath).stem,
+                        details={
+                            "classification": analysis.get("classification"),
+                            "geometry_types": geometry_types,
+                        },
+                    )
             elif file_ext in [".tif", ".tiff"]:
                 tif_files.append(filepath)
+                self._emit_event(
+                    "finding",
+                    f"Detected raster layer {Path(filepath).name}",
+                    file=filepath,
+                    entity=Path(filepath).stem,
+                )
 
         if not csv_analyses and not gpkg_analyses and not tif_files:
             raise ValueError("No valid files to analyze")
 
+        self._emit_event("stage", "Detecting relationships between files")
         referenced_by = self._detect_referenced_by(csv_analyses)
 
         decision_summary: Dict[str, Dict[str, Any]] = {}
         semantic_evidence: Dict[str, Dict[str, Any]] = {}
 
+        self._emit_event("stage", "Classifying entities")
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
             decision = build_entity_decision(
@@ -199,6 +275,18 @@ class AutoConfigService:
                 analysis=analysis,
                 decision=decision_summary[entity_name],
                 referenced_by=referenced_by.get(entity_name, []),
+            )
+            self._emit_event(
+                "finding",
+                f"Classified {entity_name} as {decision_summary[entity_name]['final_entity_type']}",
+                file=filepath,
+                entity=entity_name,
+                details={
+                    "final_entity_type": decision_summary[entity_name][
+                        "final_entity_type"
+                    ],
+                    "review_level": decision_summary[entity_name].get("review_level"),
+                },
             )
 
         shapes_sources = []
@@ -254,9 +342,18 @@ class AutoConfigService:
                 auxiliary["grouping"]
             )
             semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary["relation"]
+            self._emit_event(
+                "finding",
+                f"Attached auxiliary source {entity_name} to {auxiliary['grouping']}",
+                file=auxiliary["data"],
+                entity=entity_name,
+                details={"grouping": auxiliary["grouping"]},
+            )
 
         references: Dict[str, Any] = {}
         datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+
+        self._emit_event("stage", "Building import configuration")
 
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
@@ -437,6 +534,21 @@ class AutoConfigService:
                         "confidence": best_rel["confidence"],
                         "match_type": best_rel.get("match_type"),
                     }
+                )
+                self._emit_event(
+                    "finding",
+                    (
+                        f"Detected relationship {other_name}.{best_rel['source_field']} "
+                        f"-> {entity_name}.{best_rel['target_field']}"
+                    ),
+                    file=other_filepath,
+                    entity=other_name,
+                    details={
+                        "target_entity": entity_name,
+                        "source_field": best_rel["source_field"],
+                        "target_field": best_rel["target_field"],
+                        "confidence": best_rel["confidence"],
+                    },
                 )
 
         for analysis in csv_analyses.values():
