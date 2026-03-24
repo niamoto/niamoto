@@ -148,8 +148,6 @@ class TransformerService:
 
         # Load data for this entity using real loaders
         group_data = self._get_group_data(group_config, None, group_id)
-        if not group_data:
-            raise DataTransformError("No data available for preview")
 
         # Build config exactly as the main loop does
         transformer_cls = PluginRegistry.get_plugin(
@@ -709,14 +707,9 @@ class TransformerService:
 
     def _validate_sources_config(self, config: Dict[str, Any]) -> None:
         """Validate sources configuration list."""
-        # Validate sources list exists
         sources = config.get("sources", [])
         if not sources:
-            raise ConfigurationError(
-                "sources",
-                "Missing or empty sources configuration",
-                details={"help": "At least one source must be defined"},
-            )
+            return
 
         if not isinstance(sources, list):
             raise ConfigurationError(
@@ -765,9 +758,11 @@ class TransformerService:
             return {}
         try:
             sources = group_config.get("sources", [])
-            if not sources:
+            grouping_table = (
+                sources[0]["grouping"] if sources else group_config.get("group_by")
+            )
+            if not grouping_table:
                 return {}
-            grouping_table = sources[0]["grouping"]
             resolved_table = self._resolve_table_name(grouping_table)
 
             # Find the best name column
@@ -804,12 +799,12 @@ class TransformerService:
 
     def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
         """Get all group IDs to process."""
-        # Get grouping table from first source (they should all have the same grouping)
         sources = group_config.get("sources", [])
-        if not sources:
-            raise DataTransformError("No sources configured")
-
-        grouping_table = sources[0]["grouping"]
+        grouping_table = (
+            sources[0]["grouping"] if sources else group_config.get("group_by")
+        )
+        if not grouping_table:
+            raise DataTransformError("No grouping table configured")
         resolved_table = self._resolve_table_name(grouping_table)
 
         # Get the ID field name from entity metadata
