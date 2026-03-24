@@ -37,7 +37,6 @@ class EntitySummary(BaseModel):
     row_count: int
     column_count: int
     columns: List[str]
-    quality_score: float  # 0-1, based on completeness
 
 
 class ImportSummary(BaseModel):
@@ -47,7 +46,6 @@ class ImportSummary(BaseModel):
     total_rows: int
     entities: List[EntitySummary]
     alerts: List[Dict[str, Any]]
-    quality_score: float  # Average across entities
 
 
 class ColumnCompleteness(BaseModel):
@@ -227,13 +225,6 @@ def classify_table_type(table_name: str) -> str:
 
     # Conservative fallback: treat unknown business tables as dataset.
     return "dataset"
-
-
-def calculate_quality_score(completeness_values: List[float]) -> float:
-    """Calculate quality score from completeness values."""
-    if not completeness_values:
-        return 1.0
-    return sum(completeness_values) / len(completeness_values)
 
 
 def detect_coordinate_columns(columns: List[str]) -> Dict[str, str]:
@@ -605,7 +596,6 @@ async def get_import_summary():
             total_rows=0,
             entities=[],
             alerts=[],
-            quality_score=1.0,
         )
 
     try:
@@ -619,7 +609,6 @@ async def get_import_summary():
             entities = []
             total_rows = 0
             alerts = []
-            quality_scores = []
 
             with db.engine.connect() as conn:
                 for table_name in table_names:
@@ -638,30 +627,6 @@ async def get_import_summary():
                     columns_info = inspector.get_columns(table_name)
                     column_names = [c["name"] for c in columns_info]
 
-                    # Calculate completeness for quality score
-                    completeness_values = []
-                    for col in column_names:
-                        quoted_col = preparer.quote(col)
-                        try:
-                            result = conn.execute(
-                                text(
-                                    f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_col} IS NOT NULL"
-                                )
-                            )
-                            non_null = result.scalar() or 0
-                            if row_count > 0:
-                                completeness_values.append(non_null / row_count)
-                        except Exception as exc:
-                            logger.debug(
-                                "Completeness query failed for %s.%s: %s",
-                                table_name,
-                                col,
-                                exc,
-                            )
-
-                    quality_score = calculate_quality_score(completeness_values)
-                    quality_scores.append(quality_score)
-
                     entity_type = entity_type_map.get(
                         table_name, classify_table_type(table_name)
                     )
@@ -673,7 +638,6 @@ async def get_import_summary():
                             row_count=row_count,
                             column_count=len(column_names),
                             columns=column_names,
-                            quality_score=quality_score,
                         )
                     )
 
@@ -686,25 +650,12 @@ async def get_import_summary():
                                 "message": f"Table '{table_name}' is empty",
                             }
                         )
-                    if quality_score < 0.5:
-                        alerts.append(
-                            {
-                                "level": "warning",
-                                "entity": table_name,
-                                "message": f"Low data quality ({quality_score:.0%}) in '{table_name}'",
-                            }
-                        )
-
-            overall_quality = (
-                calculate_quality_score(quality_scores) if quality_scores else 1.0
-            )
 
             return ImportSummary(
                 total_entities=len(entities),
                 total_rows=total_rows,
                 entities=entities,
                 alerts=alerts,
-                quality_score=overall_quality,
             )
 
     except Exception as e:

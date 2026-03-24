@@ -1,9 +1,9 @@
 /**
- * DataDashboard - Global data quality and statistics dashboard
+ * DataDashboard - Global data exploration and diagnostics dashboard
  *
  * Features:
- * - Summary statistics (entities, rows, quality score)
- * - Data completeness heatmap
+ * - Summary statistics (entities, rows, exploration signals)
+ * - Field availability heatmap
  * - Spatial distribution map
  * - Taxonomy consistency view
  * - Value validation (outliers, ranges)

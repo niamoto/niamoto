@@ -79,9 +79,11 @@
       "update_all": "Update"
     },
     "summary": {
-      "quality": "Quality {{score}}%",
       "alert": "1 alert",
       "alerts": "{{count}} alerts",
+      "datasets": "{{count}} datasets",
+      "references": "{{count}} references",
+      "layers": "{{count}} spatial layers",
       "groups_ratio": "{{fresh}}/{{total}} up to date",
       "groups_stale_ratio": "{{stale}}/{{total}} to recalculate",
       "pages": "{{count}} pages",
@@ -293,7 +295,7 @@
   },
   "dashboard": {
     "title": "Data Dashboard",
-    "description": "Overview of quality and completeness of imported data.",
+    "description": "Overview of imported data structure, coverage, and exploration options.",
     "noData": "No data",
     "noDataHint": "Start by importing your data files.",
     "importData": "Import data",

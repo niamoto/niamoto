@@ -79,9 +79,11 @@
       "update_all": "Mettre à jour"
     },
     "summary": {
-      "quality": "Qualité {{score}}%",
       "alert": "1 alerte",
       "alerts": "{{count}} alertes",
+      "datasets": "{{count}} jeux de données",
+      "references": "{{count}} références",
+      "layers": "{{count}} couches spatiales",
       "groups_ratio": "{{fresh}}/{{total}} à jour",
       "groups_stale_ratio": "{{stale}}/{{total}} à recalculer",
       "pages": "{{count}} pages",
@@ -291,7 +293,7 @@
   },
   "dashboard": {
     "title": "Tableau de bord des données",
-    "description": "Vue d'ensemble de la qualité et de la complétude des données importées.",
+    "description": "Vue d'ensemble de la structure, de la couverture et des possibilités d'exploration des données importées.",
     "noData": "Aucune donnée",
     "noDataHint": "Commencez par importer vos fichiers de données.",
     "importData": "Importer des données",

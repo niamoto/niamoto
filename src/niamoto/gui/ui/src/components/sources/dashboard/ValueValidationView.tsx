@@ -59,7 +59,6 @@ interface EntityInfo {
   row_count: number
   column_count: number
   columns: string[]
-  quality_score: number
 }
 
 interface HistogramBin {

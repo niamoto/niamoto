@@ -17,7 +17,6 @@ import { useDatasets } from '@/hooks/useDatasets'
 import { useReferences } from '@/hooks/useReferences'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import {
   Database,
@@ -168,8 +167,10 @@ function DataSummary({ summary }: { summary: StageSummary | null }) {
 
   if (!summary?.entities?.length) return null
 
-  const qualityPercent = importSummary ? Math.round(importSummary.quality_score * 100) : null
   const alertCount = importSummary?.alert_count ?? 0
+  const datasetCount = importSummary?.dataset_count ?? 0
+  const referenceCount = importSummary?.reference_count ?? 0
+  const layerCount = importSummary?.layer_count ?? 0
 
   return (
     <div className="space-y-2">
@@ -186,41 +187,42 @@ function DataSummary({ summary }: { summary: StageSummary | null }) {
         ))}
       </div>
 
-      {/* Quality bar + alerts */}
-      {qualityPercent != null && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
-              {t('pipeline.summary.quality', 'Quality {{score}}%', { score: qualityPercent })}
-            </span>
-            {alertCount > 0 && (
-              <button
-                className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:bg-amber-950"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  navigate('/sources')
-                }}
-              >
-                <AlertTriangle className="h-3 w-3" />
-                {alertCount === 1
-                  ? t('pipeline.summary.alert', '1 alert')
-                  : t('pipeline.summary.alerts', '{{count}} alerts', { count: alertCount })
-                }
-              </button>
-            )}
-          </div>
-          <Progress
-            value={qualityPercent}
-            className={`h-1.5 ${
-              qualityPercent >= 90
-                ? '[&>div]:bg-green-500'
-                : qualityPercent >= 70
-                  ? '[&>div]:bg-yellow-500'
-                  : '[&>div]:bg-red-500'
-            }`}
-          />
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            {t('pipeline.summary.datasets', '{{count}} datasets', { count: datasetCount })}
+          </span>
+          <span>•</span>
+          <span>
+            {t('pipeline.summary.references', '{{count}} references', { count: referenceCount })}
+          </span>
+          {layerCount > 0 && (
+            <>
+              <span>•</span>
+              <span>
+                {t('pipeline.summary.layers', '{{count}} spatial layers', { count: layerCount })}
+              </span>
+            </>
+          )}
         </div>
-      )}
+        {alertCount > 0 && (
+          <div>
+            <button
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:bg-amber-950"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate('/sources')
+              }}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {alertCount === 1
+                ? t('pipeline.summary.alert', '1 alert')
+                : t('pipeline.summary.alerts', '{{count}} alerts', { count: alertCount })
+              }
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -5,7 +5,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import {
   Database,
   Network,
@@ -21,7 +20,6 @@ interface EntityData {
   row_count: number
   column_count: number
   columns: string[]
-  quality_score: number
 }
 
 interface DataSummaryCardProps {
@@ -53,8 +51,6 @@ export function DataSummaryCard({ entity, onExplore, onEnrich }: DataSummaryCard
     return colors[entity.entity_type] || 'bg-gray-100 text-gray-700'
   }
 
-  const qualityPercent = Math.round(entity.quality_score * 100)
-
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2">
@@ -79,34 +75,6 @@ export function DataSummaryCard({ entity, onExplore, onEnrich }: DataSummaryCard
             <p className="text-muted-foreground text-xs">Columns</p>
             <p className="font-semibold">{entity.column_count}</p>
           </div>
-        </div>
-
-        {/* Quality score */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Data quality</span>
-            <span
-              className={
-                qualityPercent >= 90
-                  ? 'text-green-600'
-                  : qualityPercent >= 70
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
-              }
-            >
-              {qualityPercent}%
-            </span>
-          </div>
-          <Progress
-            value={qualityPercent}
-            className={`h-1.5 ${
-              qualityPercent >= 90
-                ? '[&>div]:bg-green-500'
-                : qualityPercent >= 70
-                  ? '[&>div]:bg-yellow-500'
-                  : '[&>div]:bg-red-500'
-            }`}
-          />
         </div>
 
         {/* Column preview */}
