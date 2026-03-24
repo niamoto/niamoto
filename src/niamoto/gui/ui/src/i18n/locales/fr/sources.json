@@ -34,13 +34,6 @@
     "back": "Retour",
     "or": "ou",
     "modifyExistingConfig": "Modifier la configuration existante",
-    "howItWorks": "Comment ça marche ?",
-    "howItWorksSteps": [
-      "Ajoutez vos fichiers (CSV pour les données, GeoPackage pour les shapes)",
-      "La configuration est analysée et affichée pour validation",
-      "Les données sont importées dans la base",
-      "Les groupes de référence apparaissent dans le menu latéral"
-    ],
     "autoConfigError": "Erreur lors de la configuration automatique",
     "autoConfigTimeout": "La configuration automatique a pris trop de temps",
     "invalidConfig": "Configuration invalide ou vide",
@@ -58,6 +51,35 @@
     "retry": "Réessayer",
     "importComplete": "Import terminé !",
     "importedSummary": "{{datasets}} dataset(s) et {{references}} référence(s) importé(s)"
+  },
+  "upload": {
+    "dropFiles": "Glissez-déposez vos fichiers",
+    "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "uploading": "Téléversement...",
+    "uploadSelected_one": "Télécharger {{count}} fichier",
+    "uploadSelected_other": "Télécharger {{count}} fichiers",
+    "failed": "Échec du téléversement",
+    "categories": {
+      "csv": "Fichiers CSV",
+      "vector": "GeoPackage/GeoJSON",
+      "raster": "Fichiers TIFF",
+      "other": "Autres fichiers"
+    },
+    "conflicts": {
+      "title": "Fichiers existants",
+      "description_one": "{{count}} fichier existe déjà. Que souhaitez-vous faire ?",
+      "description_other": "{{count}} fichiers existent déjà. Que souhaitez-vous faire ?",
+      "useExisting": "Utiliser les existants",
+      "replaceAll": "Remplacer tout"
+    }
+  },
+  "existingFiles": {
+    "title": "Fichiers existants",
+    "fileCount_one": "{{count}} fichier",
+    "fileCount_other": "{{count}} fichiers",
+    "selectFolder": "Sélectionner le dossier",
+    "reconfigureSelected_one": "Reconfigurer {{count}} fichier",
+    "reconfigureSelected_other": "Reconfigurer {{count}} fichiers"
   },
   "dataset": {
     "deleteDataset": "Supprimer \"{{name}}\" ?",
@@ -365,6 +387,8 @@
     },
     "sections": {
       "autoDetection": "Détection automatique",
+      "aggregationCandidates": "Agrégations candidates ({{count}})",
+      "supportingSources": "Sources de support ({{count}})",
       "datasets": "Datasets ({{count}})",
       "references": "Références ({{count}})",
       "auxiliarySources": "Sources auxiliaires ({{count}})",
@@ -391,7 +415,24 @@
     "actions": {
       "edit": "Éditer",
       "moveToReferences": "Déplacer vers les références",
-      "moveToDatasets": "Déplacer vers les datasets"
+      "moveToDatasets": "Déplacer vers les datasets",
+      "viewDetails": "Détails",
+      "hideDetails": "Masquer"
+    },
+    "itemTypes": {
+      "dataset": "Dataset",
+      "reference": "Référence",
+      "auxiliary": "Auxiliaire",
+      "layer": "Couche"
+    },
+    "list": {
+      "fieldsCount": "{{count}} champs",
+      "referencedByCount": "{{count}} liés",
+      "supportsAggregationsCount": "{{count}} agrégations",
+      "linkedDatasetsCount": "{{count}} datasets",
+      "linkedAuxiliaryCount": "{{count}} sources auxiliaires",
+      "derivedFrom": "dérivé de {{source}}",
+      "sourceCount": "{{count}} sources"
     },
     "labels": {
       "heuristic": "Heuristique",
@@ -421,14 +462,18 @@
     },
     "auxiliary": {
       "attachedTo": "Rattachée à : {{target}}",
-      "relation": "Relation : {{field}} → {{refField}}"
+      "relation": "Relation : {{field}} → {{refField}}",
+      "relationCompact": "rattaché à {{target}} • {{field}} → {{refField}}"
     },
     "reference": {
       "derivedFrom": "Dérivé de : {{source}}",
       "sourceCount": "{{count}} source(s)",
       "levels": "Niveaux : {{levels}}",
       "enrichmentEnabled": "Enrichissement activé",
-      "referencedByDatasets": "Référencé par : {{count}} dataset(s)"
+      "referencedByDatasets": "Référencé par : {{count}} dataset(s)",
+      "aggregationReady": "Peut servir d'agrégation cible pour les pages générées",
+      "linkedDatasets": "Datasets liés : {{datasets}}",
+      "linkedAuxiliary": "Sources auxiliaires : {{names}}"
     },
     "empty": {
       "noDatasetsDetected": "Aucun dataset détecté",

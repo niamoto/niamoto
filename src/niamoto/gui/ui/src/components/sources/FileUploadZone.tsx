@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -43,6 +44,7 @@ export function FileUploadZone({
   disabled = false,
   compact = false,
 }: FileUploadZoneProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -115,12 +117,13 @@ export function FileUploadZone({
         onFilesReady(result.uploaded_files, filePaths)
         setSelectedFiles([])
       } else {
-        const errMsg = result.errors.join(', ') || 'Upload failed'
+        const errMsg = result.errors.join(', ') || t('upload.failed', { ns: 'sources' })
         setError(errMsg)
         onError?.(errMsg)
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.detail || err.message || 'Upload failed'
+      const errMsg =
+        err.response?.data?.detail || err.message || t('upload.failed', { ns: 'sources' })
       setError(errMsg)
       onError?.(errMsg)
     } finally {
@@ -167,9 +170,9 @@ export function FileUploadZone({
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(1)} Ko`
+      return `${(bytes / 1024).toFixed(1)} KB`
     }
-    return `${(bytes / (1024 * 1024)).toFixed(2)} Mo`
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   }
 
   const groupedFiles = selectedFiles.reduce(
@@ -209,8 +212,8 @@ export function FileUploadZone({
           onClick={() => document.getElementById('file-upload-zone')?.click()}
         >
           <Upload className={`mb-2 ${compact ? 'h-8 w-8' : 'h-10 w-10'} text-muted-foreground`} />
-          <p className="mb-1 text-sm font-medium">Glissez-deposez vos fichiers</p>
-          <p className="text-xs text-muted-foreground">CSV, GeoPackage, GeoJSON, TIFF</p>
+          <p className="mb-1 text-sm font-medium">{t('upload.dropFiles', { ns: 'sources' })}</p>
+          <p className="text-xs text-muted-foreground">{t('upload.supportedFormats', { ns: 'sources' })}</p>
           <input
             type="file"
             multiple
@@ -232,25 +235,25 @@ export function FileUploadZone({
                 {category === 'csv' && (
                   <>
                     <Table2 className="h-3 w-3 text-blue-500" />
-                    Fichiers CSV
+                    {t('upload.categories.csv', { ns: 'sources' })}
                   </>
                 )}
                 {category === 'gpkg' && (
                   <>
                     <Map className="h-3 w-3 text-green-500" />
-                    GeoPackage/GeoJSON
+                    {t('upload.categories.vector', { ns: 'sources' })}
                   </>
                 )}
                 {category === 'tif' && (
                   <>
                     <Globe className="h-3 w-3 text-purple-500" />
-                    Fichiers TIFF
+                    {t('upload.categories.raster', { ns: 'sources' })}
                   </>
                 )}
                 {category === 'other' && (
                   <>
                     <FileText className="h-3 w-3 text-gray-500" />
-                    Autres fichiers
+                    {t('upload.categories.other', { ns: 'sources' })}
                   </>
                 )}
               </div>
@@ -288,7 +291,7 @@ export function FileUploadZone({
               <div className="flex justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Telechargement...
+                  {t('upload.uploading', { ns: 'sources' })}
                 </span>
                 <span>{uploadProgress}%</span>
               </div>
@@ -313,12 +316,14 @@ export function FileUploadZone({
           {!uploading && (
             <div className="flex items-center justify-between pt-2">
               <Button variant="outline" size="sm" onClick={clearFiles}>
-                Annuler
+                {t('common:actions.cancel')}
               </Button>
               <Button onClick={() => handleUpload()} disabled={uploading || disabled}>
                 <Upload className="mr-2 h-4 w-4" />
-                Telecharger {selectedFiles.length} fichier
-                {selectedFiles.length > 1 ? 's' : ''}
+                {t('upload.uploadSelected', {
+                  ns: 'sources',
+                  count: selectedFiles.length,
+                })}
               </Button>
             </div>
           )}
@@ -329,10 +334,12 @@ export function FileUploadZone({
       <AlertDialog open={showExistingDialog} onOpenChange={setShowExistingDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Fichiers existants</AlertDialogTitle>
+            <AlertDialogTitle>{t('upload.conflicts.title', { ns: 'sources' })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {existingFiles.length} fichier{existingFiles.length !== 1 ? 's' : ''} existe
-              {existingFiles.length !== 1 ? 'nt' : ''} deja. Que souhaitez-vous faire ?
+              {t('upload.conflicts.description', {
+                ns: 'sources',
+                count: existingFiles.length,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -348,11 +355,13 @@ export function FileUploadZone({
           </div>
 
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
             <Button variant="outline" onClick={handleUseExistingFiles}>
-              Utiliser les existants
+              {t('upload.conflicts.useExisting', { ns: 'sources' })}
             </Button>
-            <AlertDialogAction onClick={handleReplaceAll}>Remplacer tout</AlertDialogAction>
+            <AlertDialogAction onClick={handleReplaceAll}>
+              {t('upload.conflicts.replaceAll', { ns: 'sources' })}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
