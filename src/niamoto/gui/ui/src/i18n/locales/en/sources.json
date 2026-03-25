@@ -287,12 +287,104 @@
     "referenceNotFound": "Reference not found"
   },
   "dashboard": {
-    "title": "Data Dashboard",
-    "description": "Overview of imported data structure, coverage, and exploration options.",
+    "title": "Imported data",
+    "description": "Explore the aggregation groups and supporting sources now available in your workspace.",
     "noData": "No data imported",
     "noDataHint": "Start by importing your data files to inspect their structure and begin exploring them.",
     "importData": "Import data",
-    "import": "Import"
+    "import": "Import",
+    "importedWorkspace": "Imported workspace",
+    "workspaceTitle": "Explore what your import made available",
+    "workspaceDescription": "Aggregation groups are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these groups, then inspect the supporting sources when you need more detail.",
+    "needsAttention": "Needs attention",
+    "aggregationGroupsTitle": "Aggregation groups",
+    "aggregationGroupsDescription": "These groups now structure the pages, navigation, and enrichment workflows you can build from this import.",
+    "supportingSourcesTitle": "Supporting sources",
+    "supportingSourcesDescription": "Datasets and imported layers remain available for direct inspection, updates, and configuration changes.",
+    "datasetFallbackDescription": "Raw source data available for direct exploration.",
+    "layerFallbackDescription": "Imported spatial source available for exploration and mapping workflows.",
+    "toolsBandTitle": "Analysis tools",
+    "toolsBandDescription": "Keep advanced diagnostics close by without turning this page into a monitoring dashboard.",
+    "importedState": "Imported",
+    "rows": "{{count}} rows",
+    "fields": "{{count}} fields",
+    "errors": {
+      "loadTitle": "Error loading imported data",
+      "loadSummary": "Failed to load imported data summary",
+      "loadConfig": "Failed to load configuration",
+      "saveConfig": "Failed to save configuration"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "reimport": "Re-import",
+      "retry": "Retry",
+      "open": "Open",
+      "explore": "Explore",
+      "openGroup": "Open group",
+      "editConfig": "Edit config",
+      "updateFile": "Update file",
+      "updateLayer": "Update file",
+      "addSource": "Add source",
+      "enrichNow": "Enrich now",
+      "manageEnrichment": "Manage enrichment"
+    },
+    "kinds": {
+      "taxonomic": "Taxonomic",
+      "spatial": "Spatial",
+      "reference": "Reference",
+      "dataset": "Dataset",
+      "layer": "Layer"
+    },
+    "aggregationDescriptions": {
+      "hierarchical": "Use this group to navigate a hierarchy of related entities and generate structured pages from it.",
+      "spatial": "Use this group to organize observations by mapped areas or geographic zones.",
+      "generic": "Use this group as a stable reference around which related observations can be aggregated."
+    },
+    "card": {
+      "rows": "Rows",
+      "fields": "Fields",
+      "role": "Role",
+      "fieldPreview": "Field preview",
+      "taxonomicReference": "Taxonomic aggregation",
+      "spatialReference": "Spatial aggregation",
+      "genericReference": "Reference aggregation"
+    },
+    "badges": {
+      "enrichmentAvailable": "Enrichment available",
+      "enrichmentEnabled": "Enrichment enabled"
+    },
+    "nextStep": {
+      "label": "Recommended next step",
+      "readyLabel": "Ready to explore",
+      "enrichmentTitle": "Enrich this reference from external APIs",
+      "enrichmentDescription": "Use API enrichment to extend this reference with additional external data before you generate pages or widgets from it.",
+      "enrichmentConfiguredTitle": "This reference already has an enrichment workflow",
+      "enrichmentConfiguredDescription": "Review or refine the API enrichment settings before regenerating pages and widgets from this group.",
+      "exploreTitle": "This group is ready to use",
+      "exploreDescription": "You can explore this imported reference directly or open its generated group page when you are ready."
+    },
+    "editor": {
+      "loadingConfig": "Loading configuration…",
+      "savingConfig": "Saving configuration…"
+    },
+    "tools": {
+      "fieldAvailability": {
+        "title": "Field availability",
+        "description": "Inspect how consistently columns are filled before building views or widgets."
+      },
+      "validation": {
+        "title": "Validation",
+        "description": "Check numeric ranges, outliers, and values that may need a closer look."
+      },
+      "taxonomy": {
+        "title": "Taxonomy checks",
+        "description": "Inspect hierarchy consistency and spot structural issues in taxonomic groups."
+      },
+      "coverage": {
+        "title": "Spatial coverage",
+        "description": "Compare occurrences and shapes to understand how well your spatial references are populated."
+      }
+    }
   },
   "configEditor": {
     "generalInfo": "General information",
@@ -326,6 +418,7 @@
     "noChanges": "No changes",
     "saving": "Saving...",
     "save": "Save",
+    "saveAndOpenEnrichment": "Save and open enrichment",
     "savedSuccess": "Configuration saved successfully",
     "saveError": "Error saving configuration",
     "loadError": "Error loading configuration",
@@ -491,6 +584,8 @@
       "sourceCount": "{{count}} source(s)",
       "levels": "Levels: {{levels}}",
       "enrichmentEnabled": "Enrichment enabled",
+      "enrichmentNotConfigured": "Configure API enrichment in the Configuration tab before using this workspace.",
+      "openConfiguration": "Open configuration",
       "referencedByDatasets": "Referenced by: {{count}} dataset(s)",
       "aggregationReady": "Can serve as an aggregation target for generated pages",
       "linkedDatasets": "Linked datasets: {{datasets}}",

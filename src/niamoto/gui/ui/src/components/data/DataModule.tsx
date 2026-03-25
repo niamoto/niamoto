@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Upload, Database } from 'lucide-react'
+import { Database, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
@@ -195,35 +195,14 @@ export function DataModule() {
         }
 
         return (
-          <div className="space-y-6 p-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold">
-                  {t('dashboard.title', 'Data Dashboard')}
-                </h1>
-                <p className="text-muted-foreground">
-                  {t(
-                    'dashboard.description',
-                    'Overview of imported data structure, coverage, and exploration options.'
-                  )}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handleSelect({ type: 'import' })}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {t('dashboard.import', 'Import')}
-                </Button>
-              </div>
-            </div>
-
-            {/* Dashboard Content */}
+          <div className="p-6">
             <ImportDashboard
               onExploreEntity={(name) => handleSelect({ type: 'dataset', name })}
-              onEnrich={(name) => handleSelect({ type: 'reference', name })}
+              onExploreReference={(name) => handleSelect({ type: 'reference', name })}
+              onOpenGroup={(name) => navigate(`/groups/${encodeURIComponent(name)}`)}
+              onEnrich={(name) =>
+                navigate(`/sources/reference/${encodeURIComponent(name)}?tab=enrichment`)
+              }
               onReimport={() => handleSelect({ type: 'import' })}
             />
           </div>
