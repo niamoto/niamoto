@@ -30,15 +30,21 @@ import {
   subscribeToAutoConfigureJobEvents,
   type AutoConfigureProgressEvent,
   type AutoConfigureResponse,
+  createEntitiesBulk,
 } from '@/lib/api/smart-config'
 import { apiClient } from '@/lib/api/client'
+import {
+  executeImportAll,
+  getImportStatus,
+  type ImportJobEvent,
+} from '@/lib/api/import'
 import {
   FileUploadZone,
   ExistingFilesSection,
   AutoConfigDisplay,
   YamlPreview,
-  ImportProgress,
 } from '@/components/sources'
+import type { FileAnalysisStatus } from '@/components/sources/FileUploadZone'
 
 type ImportPhase =
   | 'idle'
@@ -59,9 +65,21 @@ export function ImportWizard() {
   const [error, setError] = useState<string | null>(null)
   const [configResult, setConfigResult] = useState<AutoConfigureResponse | null>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; path: string; size?: number }>>([])
   const [analysisEvents, setAnalysisEvents] = useState<AutoConfigureProgressEvent[]>([])
   const [analysisStage, setAnalysisStage] = useState<string | null>(null)
+  const [importDetails, setImportDetails] = useState<{
+    totalEntities: number
+    processedEntities: number
+    currentEntity?: string
+    currentEntityType?: string
+    phase?: string | null
+    message?: string
+    progress?: number
+    events: ImportJobEvent[]
+  }>({ totalEntities: 0, processedEntities: 0, events: [] })
   const analysisEventSourceRef = useRef<EventSource | null>(null)
+  const importStartedRef = useRef(false)
 
   const closeAnalysisStream = useCallback(() => {
     analysisEventSourceRef.current?.close()
@@ -114,7 +132,14 @@ export function ImportWizard() {
 
   // Handle files ready from upload
   const handleFilesReady = useCallback(
-    async (_files: any[], paths: string[]) => {
+    async (files: any[], paths: string[]) => {
+      setUploadedFiles(
+        files.map((file) => ({
+          name: file.filename,
+          path: file.path,
+          size: file.size,
+        }))
+      )
       await runAutoConfigure(paths)
     },
     [runAutoConfigure]
@@ -123,6 +148,12 @@ export function ImportWizard() {
   // Handle existing files selected for re-import
   const handleExistingFilesSelected = useCallback(
     async (paths: string[]) => {
+      setUploadedFiles(
+        paths.map((path) => ({
+          name: path.split('/').pop() || path,
+          path,
+        }))
+      )
       await runAutoConfigure(paths)
     },
     [runAutoConfigure]
@@ -131,6 +162,15 @@ export function ImportWizard() {
   // Start import from review phase
   const startImport = () => {
     if (configResult) {
+      importStartedRef.current = false
+      setImportDetails({
+        totalEntities: 0,
+        processedEntities: 0,
+        phase: 'saving',
+        message: t('wizard.writingImportYml'),
+        progress: 0,
+        events: [],
+      })
       setPhase('importing')
     }
   }
@@ -163,8 +203,11 @@ export function ImportWizard() {
     setError(null)
     setConfigResult(null)
     setFilePaths([])
+    setUploadedFiles([])
     setAnalysisEvents([])
     setAnalysisStage(null)
+    setImportDetails({ totalEntities: 0, processedEntities: 0, events: [] })
+    importStartedRef.current = false
   }
 
   // Load existing configuration for editing
@@ -235,6 +278,100 @@ export function ImportWizard() {
     }
   }, [closeAnalysisStream])
 
+  const executeImport = useCallback(async () => {
+    if (!configResult) return
+
+    try {
+      setError(null)
+      setImportDetails({
+        totalEntities: 0,
+        processedEntities: 0,
+        phase: 'saving',
+        message: t('wizard.writingImportYml'),
+        progress: 0,
+        currentEntity: undefined,
+        currentEntityType: undefined,
+        events: [
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'stage' as const,
+            message: t('wizard.writingImportYml'),
+            phase: 'saving',
+          },
+        ],
+      })
+
+      await createEntitiesBulk({
+        entities: configResult.entities,
+        auxiliary_sources: configResult.auxiliary_sources || [],
+      })
+
+      setImportDetails((previous) => ({
+        ...previous,
+        phase: 'importing',
+        message: t('wizard.importJobStarting'),
+        events: [
+          ...previous.events,
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'finding' as const,
+            message: t('wizard.savingConfigDone'),
+            phase: 'saving',
+          },
+          {
+            timestamp: new Date().toISOString(),
+            kind: 'detail' as const,
+            message: t('wizard.importJobStarting'),
+            phase: 'importing',
+          },
+        ].slice(-30),
+      }))
+
+      const importResponse = await executeImportAll(false)
+      const jobId = importResponse.job_id
+      const pollInterval = 500
+      const maxWaitTime = 600000
+      const startTime = Date.now()
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const status = await getImportStatus(jobId)
+
+        setImportDetails({
+          totalEntities: status.total_entities || 0,
+          processedEntities: status.processed_entities || 0,
+          currentEntity: status.current_entity || undefined,
+          currentEntityType: status.current_entity_type || undefined,
+          phase: status.phase,
+          message: status.message,
+          progress: status.progress,
+          events: status.events || [],
+        })
+
+        if (status.status === 'completed') {
+          handleImportComplete()
+          return
+        }
+
+        if (status.status === 'failed') {
+          throw new Error(status.errors?.join(', ') || t('wizard.importFailed'))
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval))
+      }
+
+      throw new Error(t('wizard.importTimedOut'))
+    } catch (err: any) {
+      handleImportError(err.message || t('wizard.importFailed'))
+    }
+  }, [configResult, handleImportComplete, handleImportError, t])
+
+  useEffect(() => {
+    if (phase === 'importing' && configResult && !importStartedRef.current) {
+      importStartedRef.current = true
+      void executeImport()
+    }
+  }, [configResult, executeImport, phase])
+
   // Handle entity reclassification
   const handleReclassify = useCallback(
     (updatedEntities: AutoConfigureResponse['entities']) => {
@@ -251,6 +388,60 @@ export function ImportWizard() {
   const showCardHeader = phase !== 'configuring'
   const phaseTransitionClassName =
     'animate-in fade-in-0 slide-in-from-bottom-1 duration-300'
+
+  const fileAnalysisStatuses: Record<string, FileAnalysisStatus> = uploadedFiles.reduce(
+    (acc, file) => {
+      acc[file.name] = {
+        state: 'queued',
+        message: t('upload.status.queued'),
+      }
+      return acc
+    },
+    {} as Record<string, FileAnalysisStatus>
+  )
+
+  for (const event of analysisEvents) {
+    const eventFile = event.file ? event.file.split('/').pop() : undefined
+    const eventEntity = event.entity
+    const targetFileName =
+      eventFile
+      || uploadedFiles.find((file) => {
+        const baseName = file.name.replace(/\.[^.]+$/, '')
+        return eventEntity === baseName
+      })?.name
+
+    if (!targetFileName || !fileAnalysisStatuses[targetFileName]) {
+      continue
+    }
+
+    if (event.kind === 'detail') {
+      fileAnalysisStatuses[targetFileName] = {
+        state: 'analyzing',
+        message: event.message,
+      }
+      continue
+    }
+
+    if (event.kind === 'finding') {
+      const lowered = event.message.toLowerCase()
+      const state: FileAnalysisStatus['state'] =
+        lowered.includes('review') ? 'review' : 'detected'
+      fileAnalysisStatuses[targetFileName] = {
+        state,
+        message: event.message,
+      }
+      continue
+    }
+
+    if (event.kind === 'complete') {
+      for (const key of Object.keys(fileAnalysisStatuses)) {
+        fileAnalysisStatuses[key] = {
+          state: 'done',
+          message: t('upload.status.ready'),
+        }
+      }
+    }
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -305,62 +496,41 @@ export function ImportWizard() {
 
           {/* Configuring Phase */}
           {phase === 'configuring' && (
-            <div className={phaseTransitionClassName}>
-              <AutoConfigDisplay
-                result={null}
-                isLoading={true}
-                analysisEvents={analysisEvents}
-                analysisStage={analysisStage}
+            <div className={`space-y-6 ${phaseTransitionClassName}`}>
+              <div className="text-center">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                  <Sparkles className="h-6 w-6 animate-pulse text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {analysisStage || t('autoConfig.loading.description')}
+                </p>
+              </div>
+
+              <FileUploadZone
+                onFilesReady={handleFilesReady}
+                onError={(err) => setError(err)}
+                disabled={true}
+                compact={true}
+                analysisMode={true}
+                hideActions={true}
+                fileStatuses={fileAnalysisStatuses}
+                initialFiles={uploadedFiles}
               />
             </div>
           )}
 
-          {/* Reviewing Phase */}
-          {phase === 'reviewing' && configResult && (
+          {/* Reviewing / Editing / Importing Phases */}
+          {['reviewing', 'editing', 'importing'].includes(phase) && configResult && (
             <div className={`space-y-4 ${phaseTransitionClassName}`}>
-              <Tabs defaultValue="config" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
-                  <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="config" className="mt-4">
-                  <AutoConfigDisplay
-                    result={configResult}
-                    editable={true}
-                    onReclassify={handleReclassify}
-                    detectedColumns={configResult.detected_columns || {}}
-                  />
-                </TabsContent>
-
-                <TabsContent value="yaml" className="mt-4">
-                  <YamlPreview result={configResult} maxHeight="300px" />
-                </TabsContent>
-              </Tabs>
-
-              <div className="flex items-center justify-between border-t pt-4">
-                <Button variant="outline" onClick={resetToIdle}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  {t('common:actions.cancel')}
-                </Button>
-                <Button onClick={startImport} size="lg">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {t('wizard.startImport')}
-                  <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Editing Phase */}
-          {phase === 'editing' && configResult && (
-            <div className={`space-y-4 ${phaseTransitionClassName}`}>
-              <Alert>
-                <Settings2 className="h-4 w-4" />
-                <AlertDescription>
-                  {t('wizard.editExistingConfigDesc')}
-                </AlertDescription>
-              </Alert>
+              {phase === 'editing' && (
+                <Alert>
+                  <Settings2 className="h-4 w-4" />
+                  <AlertDescription>
+                    {t('wizard.editExistingConfigDesc')}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Tabs defaultValue="config" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
@@ -371,9 +541,24 @@ export function ImportWizard() {
                 <TabsContent value="config" className="mt-4">
                   <AutoConfigDisplay
                     result={configResult}
-                    editable={true}
+                    editable={phase !== 'importing'}
                     onReclassify={handleReclassify}
                     detectedColumns={configResult.detected_columns || {}}
+                    importState={
+                      phase === 'importing'
+                        ? {
+                            active: true,
+                            phase: importDetails.phase,
+                            message: importDetails.message,
+                            progress: importDetails.progress,
+                            processedEntities: importDetails.processedEntities,
+                            totalEntities: importDetails.totalEntities,
+                            currentEntity: importDetails.currentEntity,
+                            currentEntityType: importDetails.currentEntityType,
+                            events: importDetails.events,
+                          }
+                        : undefined
+                    }
                   />
                 </TabsContent>
 
@@ -382,29 +567,19 @@ export function ImportWizard() {
                 </TabsContent>
               </Tabs>
 
-              <div className="flex items-center justify-between border-t pt-4">
-                <Button variant="outline" onClick={resetToIdle}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  {t('common:actions.cancel')}
-                </Button>
-                <Button onClick={startImport} size="lg">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {t('wizard.saveAndReimport')}
-                  <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Importing Phase */}
-          {phase === 'importing' && configResult && (
-            <div className={phaseTransitionClassName}>
-              <ImportProgress
-                config={configResult}
-                onComplete={handleImportComplete}
-                onError={handleImportError}
-                autoStart={true}
-              />
+              {phase !== 'importing' && (
+                <div className="flex items-center justify-between border-t pt-4">
+                  <Button variant="outline" onClick={resetToIdle}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {t('common:actions.cancel')}
+                  </Button>
+                  <Button onClick={startImport} size="lg">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {phase === 'editing' ? t('wizard.saveAndReimport') : t('wizard.startImport')}
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

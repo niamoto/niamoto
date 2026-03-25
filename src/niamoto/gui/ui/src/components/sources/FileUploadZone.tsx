@@ -28,14 +28,27 @@ import {
   Map,
   Globe,
   Loader2,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react'
 import { uploadFiles, type UploadedFileInfo } from '@/lib/api/upload'
+
+export interface FileAnalysisStatus {
+  state: 'queued' | 'analyzing' | 'detected' | 'review' | 'done'
+  message?: string
+}
+
+type DisplayFile = File | { name: string; path: string; size?: number }
 
 interface FileUploadZoneProps {
   onFilesReady: (files: UploadedFileInfo[], paths: string[]) => void
   onError?: (error: string) => void
   disabled?: boolean
   compact?: boolean
+  fileStatuses?: Record<string, FileAnalysisStatus>
+  analysisMode?: boolean
+  hideActions?: boolean
+  initialFiles?: Array<{ name: string; path: string; size?: number }>
 }
 
 export function FileUploadZone({
@@ -43,6 +56,10 @@ export function FileUploadZone({
   onError,
   disabled = false,
   compact = false,
+  fileStatuses = {},
+  analysisMode = false,
+  hideActions = false,
+  initialFiles,
 }: FileUploadZoneProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [uploading, setUploading] = useState(false)
@@ -152,7 +169,7 @@ export function FileUploadZone({
     await handleUpload(true)
   }
 
-  const getFileIcon = (file: File) => {
+  const getFileIcon = (file: DisplayFile) => {
     const ext = file.name.split('.').pop()?.toLowerCase()
     switch (ext) {
       case 'csv':
@@ -175,7 +192,9 @@ export function FileUploadZone({
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   }
 
-  const groupedFiles = selectedFiles.reduce(
+  const displayFiles = initialFiles ?? selectedFiles
+
+  const groupedFiles = displayFiles.reduce(
     (acc, file) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'other'
       const category =
@@ -190,10 +209,48 @@ export function FileUploadZone({
       acc[category].push(file)
       return acc
     },
-    {} as Record<string, File[]>
+    {} as Record<string, DisplayFile[]>
   )
 
   const minHeight = compact ? 'min-h-[100px]' : 'min-h-[150px]'
+
+  const getStatusMeta = (fileName: string) => {
+    const status = fileStatuses[fileName]
+    switch (status?.state) {
+      case 'analyzing':
+        return {
+          icon: <Loader2 className="h-4 w-4 animate-spin text-primary" />,
+          label: status.message || t('upload.status.analyzing', { ns: 'sources' }),
+          tone: 'text-primary',
+        }
+      case 'detected':
+        return {
+          icon: <Sparkles className="h-4 w-4 text-blue-500" />,
+          label: status.message || t('upload.status.detected', { ns: 'sources' }),
+          tone: 'text-blue-600 dark:text-blue-400',
+        }
+      case 'review':
+        return {
+          icon: <AlertCircle className="h-4 w-4 text-amber-500" />,
+          label: status.message || t('upload.status.review', { ns: 'sources' }),
+          tone: 'text-amber-600 dark:text-amber-400',
+        }
+      case 'done':
+        return {
+          icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+          label: status.message || t('upload.status.ready', { ns: 'sources' }),
+          tone: 'text-green-600 dark:text-green-400',
+        }
+      case 'queued':
+        return {
+          icon: <div className="h-2 w-2 rounded-full bg-muted-foreground/60" />,
+          label: status.message || t('upload.status.queued', { ns: 'sources' }),
+          tone: 'text-muted-foreground',
+        }
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -227,7 +284,7 @@ export function FileUploadZone({
       )}
 
       {/* Selected files list */}
-      {selectedFiles.length > 0 && (
+      {displayFiles.length > 0 && (
         <div className="space-y-3">
           {Object.entries(groupedFiles).map(([category, files]) => (
             <div key={category} className="space-y-2">
@@ -264,22 +321,32 @@ export function FileUploadZone({
                   className="flex items-center gap-3 rounded-md border bg-muted/30 p-2"
                 >
                   {getFileIcon(file)}
-                  <span className="flex-1 truncate text-sm">{file.name}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm">{file.name}</div>
+                    {getStatusMeta(file.name) && (
+                      <div className={`mt-1 flex items-center gap-1.5 text-xs ${getStatusMeta(file.name)?.tone}`}>
+                        {getStatusMeta(file.name)?.icon}
+                        <span>{getStatusMeta(file.name)?.label}</span>
+                      </div>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
+                    {typeof file.size === 'number' ? formatFileSize(file.size) : ''}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeFile(selectedFiles.indexOf(file))
-                    }}
-                    disabled={uploading}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {!analysisMode && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeFile(selectedFiles.findIndex((selected) => selected.name === file.name))
+                      }}
+                      disabled={uploading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -313,7 +380,7 @@ export function FileUploadZone({
           )}
 
           {/* Actions */}
-          {!uploading && (
+          {!uploading && !hideActions && (
             <div className="flex items-center justify-between pt-2">
               <Button variant="outline" size="sm" onClick={clearFiles}>
                 {t('common:actions.cancel')}

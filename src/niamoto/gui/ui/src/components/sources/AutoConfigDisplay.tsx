@@ -46,6 +46,7 @@ import type {
   DecisionSummary,
   ReviewLevel,
 } from '@/lib/api/smart-config'
+import type { ImportJobEvent } from '@/lib/api/import'
 import { EntityConfigEditor } from './EntityConfigEditor'
 import type { DatasetConfig, ReferenceConfig, LayerConfig } from './EntityConfigEditor'
 
@@ -62,6 +63,18 @@ interface AutoConfigDisplayProps {
   analysisEvents?: AutoConfigureProgressEvent[]
   /** Current analysis stage, derived from the latest stage event */
   analysisStage?: string | null
+  /** Live import status while staying on the review screen */
+  importState?: {
+    active: boolean
+    phase?: string | null
+    message?: string
+    progress?: number
+    processedEntities?: number
+    totalEntities?: number
+    currentEntity?: string | null
+    currentEntityType?: string | null
+    events?: ImportJobEvent[]
+  }
 }
 
 // Types for editing state
@@ -79,6 +92,7 @@ export function AutoConfigDisplay({
   detectedColumns = {},
   analysisEvents = [],
   analysisStage = null,
+  importState,
 }: AutoConfigDisplayProps) {
   const { t } = useTranslation('sources')
   // Single editing state - opens in Sheet
@@ -279,6 +293,7 @@ export function AutoConfigDisplay({
   const auxiliarySources = result.auxiliary_sources || []
   const decisionSummaries = result.decision_summary || {}
   const semanticEvidence = result.semantic_evidence || {}
+  const isImporting = Boolean(importState?.active)
   const reviewCount = Object.values(decisionSummaries).filter(
     (summary) => summary?.review_required && summary?.final_entity_type !== 'auxiliary_source'
   ).length
@@ -584,6 +599,87 @@ export function AutoConfigDisplay({
     }
   }
 
+  type ImportEntryState = 'queued' | 'importing' | 'done' | 'failed'
+
+  const getImportStatesByEntry = (): Record<string, ImportEntryState> => {
+    if (!isImporting) return {}
+
+    const states: Record<string, ImportEntryState> = {}
+    for (const entry of entries) {
+      states[entry.id] = 'queued'
+    }
+
+    for (const event of importState?.events || []) {
+      if (!event.entity_name) continue
+
+      const targetEntry = entries.find((entry) => entry.name === event.entity_name)
+      if (!targetEntry) continue
+
+      if (event.kind === 'error') {
+        states[targetEntry.id] = 'failed'
+        continue
+      }
+
+      if (event.kind === 'finding' || event.kind === 'complete') {
+        const lowered = event.message.toLowerCase()
+        if (lowered.includes('imported') || lowered.includes('completed')) {
+          states[targetEntry.id] = 'done'
+          continue
+        }
+      }
+
+      if (event.kind === 'detail' || event.kind === 'stage') {
+        states[targetEntry.id] = 'importing'
+      }
+    }
+
+    if (importState?.currentEntity) {
+      const currentEntry = entries.find((entry) => entry.name === importState.currentEntity)
+      if (currentEntry && states[currentEntry.id] !== 'done') {
+        states[currentEntry.id] = 'importing'
+      }
+    }
+
+    return states
+  }
+
+  const importStatesByEntry = getImportStatesByEntry()
+
+  const getImportStatusBadge = (entryId: string) => {
+    if (!isImporting) return null
+
+    switch (importStatesByEntry[entryId]) {
+      case 'importing':
+        return (
+          <Badge variant="secondary" className="gap-1 text-[10px]">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('autoConfig.importStatus.importing')}
+          </Badge>
+        )
+      case 'done':
+        return (
+          <Badge variant="outline" className="gap-1 text-[10px] text-green-700">
+            <CheckCircle2 className="h-3 w-3" />
+            {t('autoConfig.importStatus.done')}
+          </Badge>
+        )
+      case 'failed':
+        return (
+          <Badge variant="destructive" className="gap-1 text-[10px]">
+            <AlertCircle className="h-3 w-3" />
+            {t('autoConfig.importStatus.failed')}
+          </Badge>
+        )
+      case 'queued':
+      default:
+        return (
+          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            {t('autoConfig.importStatus.queued')}
+          </Badge>
+        )
+    }
+  }
+
   const getReferenceKindLabel = (kind?: string) => {
     switch (kind) {
       case 'hierarchical':
@@ -755,7 +851,7 @@ export function AutoConfigDisplay({
             )}
         </div>
         {renderDecisionInsight(entry.name)}
-        {editable && onReclassify && entry.type === 'dataset' && (
+        {editable && onReclassify && !isImporting && entry.type === 'dataset' && (
           <div className="border-t pt-2">
             <Button
               variant="ghost"
@@ -770,6 +866,7 @@ export function AutoConfigDisplay({
         )}
         {editable &&
           onReclassify &&
+          !isImporting &&
           entry.type === 'reference' &&
           entry.config.connector?.type !== 'derived' &&
           entry.config.kind !== 'hierarchical' && (
@@ -792,6 +889,32 @@ export function AutoConfigDisplay({
   return (
     <>
       <div className="space-y-4">
+        {isImporting && (
+          <Alert className="border-primary/20 bg-primary/5">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <AlertDescription className="space-y-1">
+              <div className="font-medium text-foreground">
+                {importState?.message || t('wizard.importingData')}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {importState?.currentEntity
+                  ? t('wizard.importingEntity', { entity: importState.currentEntity })
+                  : t('wizard.processingEntities')}
+                {typeof importState?.processedEntities === 'number' &&
+                  typeof importState?.totalEntities === 'number' &&
+                  importState.totalEntities > 0 && (
+                    <span className="ml-1">
+                      ({importState.processedEntities}/{importState.totalEntities})
+                    </span>
+                  )}
+                {typeof importState?.progress === 'number' && importState.progress > 0 && (
+                  <span className="ml-1">· {importState.progress}%</span>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
           <Badge variant="outline">
             {t('autoConfig.sections.aggregationCandidates', { count: aggregationEntries.length })}
@@ -866,6 +989,7 @@ export function AutoConfigDisplay({
                           {getReferenceKindLabel(entry.config.kind)}
                         </Badge>
                         {getEntityStatusBadge(summary)}
+                        {getImportStatusBadge(entry.id)}
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
                         {getCompactSummary(entry)}
@@ -873,7 +997,7 @@ export function AutoConfigDisplay({
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {editable && onReclassify && (
+                      {editable && onReclassify && !isImporting && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -933,6 +1057,7 @@ export function AutoConfigDisplay({
                         {getTypeLabel(entry)}
                       </Badge>
                       {getEntityStatusBadge(summary)}
+                      {getImportStatusBadge(entry.id)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
                       {getCompactSummary(entry)}
@@ -940,7 +1065,7 @@ export function AutoConfigDisplay({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {canEdit && entry.type === 'dataset' && (
+                    {canEdit && !isImporting && entry.type === 'dataset' && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -951,7 +1076,7 @@ export function AutoConfigDisplay({
                         {t('autoConfig.actions.edit')}
                       </Button>
                     )}
-                    {canEdit && entry.type === 'layer' && (
+                    {canEdit && !isImporting && entry.type === 'layer' && (
                       <Button
                         variant="ghost"
                         size="sm"

@@ -44,6 +44,7 @@
     "savingConfigDone": "Configuration saved",
     "importingData": "Importing data...",
     "importJobStarting": "Starting import job...",
+    "importTimedOut": "Import took too long",
     "preparing": "Preparing...",
     "progressWillAppear": "Import progress will appear once the first entity finishes.",
     "importLiveFeed": "Live import feed",
@@ -78,6 +79,13 @@
       "description_other": "{{count}} files already exist. What do you want to do?",
       "useExisting": "Use existing files",
       "replaceAll": "Replace all"
+    },
+    "status": {
+      "queued": "Queued for analysis",
+      "analyzing": "Analyzing...",
+      "detected": "Detection updated",
+      "review": "Needs review",
+      "ready": "Analysis complete"
     }
   },
   "existingFiles": {
@@ -385,6 +393,12 @@
     }
   },
   "autoConfig": {
+    "importStatus": {
+      "queued": "Queued",
+      "importing": "Importing",
+      "done": "Imported",
+      "failed": "Failed"
+    },
     "loading": {
       "title": "Analysis in progress...",
       "description": "Detecting hierarchies, relationships and spatial matches",

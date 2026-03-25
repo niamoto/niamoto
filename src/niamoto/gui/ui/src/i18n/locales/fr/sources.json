@@ -44,6 +44,7 @@
     "savingConfigDone": "Configuration sauvegardée",
     "importingData": "Import des données...",
     "importJobStarting": "Démarrage du job d'import...",
+    "importTimedOut": "L'import a pris trop de temps",
     "preparing": "Préparation...",
     "progressWillAppear": "La progression apparaîtra dès que la première entité sera importée.",
     "importLiveFeed": "Flux d'import en direct",
@@ -78,6 +79,13 @@
       "description_other": "{{count}} fichiers existent déjà. Que souhaitez-vous faire ?",
       "useExisting": "Utiliser les existants",
       "replaceAll": "Remplacer tout"
+    },
+    "status": {
+      "queued": "En attente d'analyse",
+      "analyzing": "Analyse en cours...",
+      "detected": "Détection mise à jour",
+      "review": "À vérifier",
+      "ready": "Analyse terminée"
     }
   },
   "existingFiles": {
@@ -385,6 +393,12 @@
     }
   },
   "autoConfig": {
+    "importStatus": {
+      "queued": "En attente",
+      "importing": "Import en cours",
+      "done": "Importé",
+      "failed": "Échec"
+    },
     "loading": {
       "title": "Analyse en cours...",
       "description": "Détection des hiérarchies, relations et correspondances spatiales",
