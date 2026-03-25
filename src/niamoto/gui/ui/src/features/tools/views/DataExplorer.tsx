@@ -7,8 +7,20 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getTables, queryTable, previewEnrichment, type TableInfo, type QueryResponse, type EnrichmentPreviewResponse } from '@/lib/api/data'
-import { listExports, readExportFile, type ExportsListResponse, type ExportFileContent } from '@/lib/api/exports'
+import {
+  getTables,
+  queryTable,
+  previewEnrichment,
+  type TableInfo,
+  type QueryResponse,
+  type EnrichmentPreviewResponse,
+} from '@/features/tools/api/data'
+import {
+  listExports,
+  readExportFile,
+  type ExportsListResponse,
+  type ExportFileContent,
+} from '@/features/tools/api/exports'
 import { toast } from 'sonner'
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 

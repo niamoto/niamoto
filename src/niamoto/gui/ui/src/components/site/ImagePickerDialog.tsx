@@ -22,7 +22,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { useProjectFiles, useUploadFile, type ProjectFile } from '@/hooks/useSiteConfig'
+import {
+  useProjectFiles,
+  useUploadFile,
+  type ProjectFile,
+} from '@/features/site/hooks/useSiteConfig'
 import { Upload, Image as ImageIcon, Check, Loader2, FolderOpen, Images, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'

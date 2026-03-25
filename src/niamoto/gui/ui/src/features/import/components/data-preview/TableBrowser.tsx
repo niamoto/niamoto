@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react'
-import { queryTable } from '@/lib/api/data-explorer'
+import { queryTable } from '@/features/import/api/data-explorer'
 
 interface TableBrowserProps {
   tableName: string

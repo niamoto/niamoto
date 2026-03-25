@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Minus, Square, X, Maximize2, Minimize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { usePlatform } from '@/hooks/usePlatform'
-import { useRuntimeMode } from '@/hooks/useRuntimeMode'
+import { usePlatform } from '@/shared/hooks/usePlatform'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
 interface DesktopTitlebarProps {
   title?: string

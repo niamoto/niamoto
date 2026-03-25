@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert } from '@/components/ui/alert'
-import { useConfig } from '@/hooks/useConfig'
-import type { ConfigType } from '@/hooks/useConfig'
+import { useConfig } from '@/features/tools/hooks/useConfig'
+import type { ConfigType } from '@/features/tools/hooks/useConfig'
 import * as yaml from 'js-yaml'
 import { toast } from 'sonner'
 

@@ -26,7 +26,12 @@ import { RepeatableField } from './RepeatableField'
 import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import { useDataContent, useUpdateDataContent, useImportBibtex, exportBibtex } from '@/hooks/useSiteConfig'
+import {
+  useDataContent,
+  useUpdateDataContent,
+  useImportBibtex,
+  exportBibtex,
+} from '@/features/site/hooks/useSiteConfig'
 
 // Types for bibliography.html context
 interface ReferenceItem {

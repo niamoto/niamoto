@@ -24,8 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { SiteSettings } from '@/hooks/useSiteConfig'
-import { useProjectFiles, useUploadFile } from '@/hooks/useSiteConfig'
+import type { SiteSettings } from '@/features/site/hooks/useSiteConfig'
+import { useProjectFiles, useUploadFile } from '@/features/site/hooks/useSiteConfig'
 import { toast } from 'sonner'
 
 // Available languages for content generation

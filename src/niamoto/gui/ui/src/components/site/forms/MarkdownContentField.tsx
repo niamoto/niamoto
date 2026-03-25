@@ -25,8 +25,13 @@ import {
 } from '@/components/ui/select'
 import { Globe, Save, Loader2, FileText, Upload, Edit3, Code, FileType, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useFileContent, useUpdateFileContent, useProjectFiles, useUploadFile } from '@/hooks/useSiteConfig'
-import { useLanguages } from '@/contexts/LanguageContext'
+import {
+  useFileContent,
+  useUpdateFileContent,
+  useProjectFiles,
+  useUploadFile,
+} from '@/features/site/hooks/useSiteConfig'
+import { useLanguages } from '@/shared/contexts/LanguageContext'
 
 const MarkdownEditor = lazy(() =>
   import('@/components/site/MarkdownEditor').then((module) => ({

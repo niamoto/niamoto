@@ -2,13 +2,15 @@ import { useEffect, lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/shared/layout/MainLayout'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
-import { useWelcomeScreen } from '@/hooks/useWelcomeScreen'
+import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
 import { ThemeProvider } from '@/shared/theme'
 import { Toaster } from 'sonner'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/features/welcome/views'))
-const ProjectHub = lazy(() => import('@/pages/home'))
+const ProjectHub = lazy(() =>
+  import('@/features/dashboard').then((m) => ({ default: m.ProjectHub }))
+)
 
 // Module components (not lazy — they manage their own content)
 const DataModule = lazy(() =>

@@ -31,7 +31,12 @@ import { useTranslation } from 'react-i18next'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { PreviewFrame, type DeviceSize, DEVICE_DIMENSIONS } from '@/components/ui/preview-frame'
-import { useSiteConfig, useTemplatePreview, useGroups, useGroupIndexPreview } from '@/hooks/useSiteConfig'
+import {
+  useSiteConfig,
+  useTemplatePreview,
+  useGroups,
+  useGroupIndexPreview,
+} from '@/features/site/hooks/useSiteConfig'
 import { formatDistanceToNow } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 

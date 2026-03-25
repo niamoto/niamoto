@@ -76,8 +76,13 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import type { NavigationItem, StaticPage, GroupInfo, TemplateInfo } from '@/hooks/useSiteConfig'
-import { useLanguages } from '@/contexts/LanguageContext'
+import type {
+  NavigationItem,
+  StaticPage,
+  GroupInfo,
+  TemplateInfo,
+} from '@/features/site/hooks/useSiteConfig'
+import { useLanguages } from '@/shared/contexts/LanguageContext'
 
 // =============================================================================
 // Template Configuration (shared with TemplateList)

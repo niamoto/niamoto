@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { executeExportAndWait } from '@/lib/api/export'
 import { apiClient } from '@/shared/lib/api/client'
-import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
+import { useProgressiveCounter } from '@/shared/hooks/useProgressiveCounter'
 
 export default function PublishBuild() {
   const { t, i18n } = useTranslation('publish')

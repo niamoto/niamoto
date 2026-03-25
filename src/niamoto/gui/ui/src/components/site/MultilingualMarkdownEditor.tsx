@@ -28,8 +28,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MarkdownEditor } from './MarkdownEditor'
-import { useUpdateFileContent } from '@/hooks/useSiteConfig'
-import { useLanguages } from '@/contexts/LanguageContext'
+import { useUpdateFileContent } from '@/features/site/hooks/useSiteConfig'
+import { useLanguages } from '@/shared/contexts/LanguageContext'
 
 interface LanguageFileState {
   content: string

@@ -26,7 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { usePlugins } from '@/hooks/usePlugins'
+import { usePlugins } from '@/features/tools/hooks/usePlugins'
 import { PluginDetailView } from '@/components/plugins/PluginDetailView'
 
 export function Plugins() {

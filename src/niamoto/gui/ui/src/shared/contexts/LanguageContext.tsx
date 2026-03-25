@@ -12,7 +12,7 @@
  * This eliminates prop drilling for language settings across all form components.
  */
 
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from "react"
 
 interface LanguageContextValue {
   /** Available languages for content (e.g., ['fr', 'en']) */
@@ -24,8 +24,8 @@ interface LanguageContextValue {
 }
 
 const defaultValue: LanguageContextValue = {
-  languages: ['fr'],
-  defaultLang: 'fr',
+  languages: ["fr"],
+  defaultLang: "fr",
   isMultilingual: false,
 }
 
@@ -45,8 +45,8 @@ interface LanguageProviderProps {
  */
 export function LanguageProvider({
   children,
-  languages = ['fr'],
-  defaultLang = 'fr',
+  languages = ["fr"],
+  defaultLang = "fr",
 }: LanguageProviderProps) {
   // Ensure defaultLang is in the languages array
   const effectiveLanguages = languages.includes(defaultLang)

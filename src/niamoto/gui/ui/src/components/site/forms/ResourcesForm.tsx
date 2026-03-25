@@ -26,7 +26,10 @@ import { FilePickerField } from './FilePickerField'
 import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import { useDataContent, useUpdateDataContent } from '@/hooks/useSiteConfig'
+import {
+  useDataContent,
+  useUpdateDataContent,
+} from '@/features/site/hooks/useSiteConfig'
 
 // Types for resources.html context
 interface ResourceItem {

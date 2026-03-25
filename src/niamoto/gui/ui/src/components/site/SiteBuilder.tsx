@@ -95,7 +95,7 @@ import {
   type GroupInfo,
   DEFAULT_SITE_SETTINGS,
   DEFAULT_STATIC_PAGE,
-} from '@/hooks/useSiteConfig'
+} from '@/features/site/hooks/useSiteConfig'
 import { SiteConfigForm } from './SiteConfigForm'
 import { ThemeConfigForm } from './ThemeConfigForm'
 import { NavigationBuilder } from './NavigationBuilder'
@@ -103,7 +103,7 @@ import { FooterSectionsEditor } from './FooterSectionsEditor'
 import { StaticPageEditor } from './StaticPageEditor'
 import { TemplateList } from './TemplateList'
 import { GroupPageViewer } from './GroupPageViewer'
-import { LanguageProvider } from '@/contexts/LanguageContext'
+import { LanguageProvider } from '@/shared/contexts/LanguageContext'
 
 // =============================================================================
 // TYPES
