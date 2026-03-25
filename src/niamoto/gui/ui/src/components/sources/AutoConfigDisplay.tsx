@@ -13,14 +13,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
@@ -35,8 +27,6 @@ import {
   Key,
   GitBranch,
   Link2,
-  Pencil,
-  ChevronDown,
 } from 'lucide-react'
 import type {
   AutoConfigureResponse,
@@ -47,8 +37,10 @@ import type {
   ReviewLevel,
 } from '@/lib/api/smart-config'
 import type { ImportJobEvent } from '@/lib/api/import'
-import { EntityConfigEditor } from './EntityConfigEditor'
 import type { DatasetConfig, ReferenceConfig, LayerConfig } from './EntityConfigEditor'
+import { AutoConfigEditorSheet } from './auto-config/AutoConfigEditorSheet'
+import { AutoConfigEntryCard } from './auto-config/AutoConfigEntryCard'
+import { AutoConfigLoadingState } from './auto-config/AutoConfigLoadingState'
 
 interface AutoConfigDisplayProps {
   result: AutoConfigureResponse | null
@@ -224,63 +216,7 @@ export function AutoConfigDisplay({
   }
 
   if (isLoading) {
-    const latestEvents = analysisEvents.slice(-8)
-    return (
-      <div className="space-y-6 py-8">
-        <div className="flex flex-col items-center justify-center">
-          <div className="relative mb-4">
-            <Sparkles className="h-12 w-12 animate-pulse text-primary" />
-          </div>
-          <h3 className="mb-2 text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
-          <p className="text-center text-sm text-muted-foreground">
-            {analysisStage || t('autoConfig.loading.description')}
-          </p>
-        </div>
-
-        <div className="mx-auto w-full max-w-2xl rounded-lg border bg-muted/30 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-medium">{t('autoConfig.loading.liveFeed')}</div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t('autoConfig.loading.step')}
-            </div>
-          </div>
-          <div className="space-y-2">
-            {latestEvents.length > 0 ? (
-              latestEvents.map((event, index) => (
-                <div
-                  key={`${event.timestamp}-${index}`}
-                  className="flex items-start gap-3 rounded-md bg-background/80 px-3 py-2 text-sm"
-                >
-                  <div className="pt-0.5">
-                    {event.kind === 'finding' ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : event.kind === 'error' ? (
-                      <AlertCircle className="h-4 w-4 text-destructive" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-foreground">{event.message}</div>
-                    {(event.file || event.entity) && (
-                      <div className="text-xs text-muted-foreground">
-                        {[event.entity, event.file].filter(Boolean).join(' • ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('autoConfig.loading.waitingForEvents')}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
+    return <AutoConfigLoadingState analysisEvents={analysisEvents} analysisStage={analysisStage} />
   }
 
   if (!result) {
@@ -976,58 +912,30 @@ export function AutoConfigDisplay({
               const isExpanded = expandedEntries[entry.id] ?? false
 
               return (
-                <div
+                <AutoConfigEntryCard
                   key={entry.id}
                   className="rounded-lg border border-green-200/70 bg-green-50/30 dark:border-green-950 dark:bg-green-950/10"
-                >
-                  <div className="flex items-start justify-between gap-3 p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {getTypeIcon(entry)}
-                        <span className="font-medium">{entry.name}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {getReferenceKindLabel(entry.config.kind)}
-                        </Badge>
-                        {getEntityStatusBadge(summary)}
-                        {getImportStatusBadge(entry.id)}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {getCompactSummary(entry)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {editable && onReclassify && !isImporting && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1 px-2 text-xs"
-                          onClick={() => openRefEditor(entry.name, entry.config)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                          {t('autoConfig.actions.edit')}
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => toggleEntry(entry.id)}
-                      >
-                        <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                        {isExpanded
-                          ? t('autoConfig.actions.hideDetails')
-                          : t('autoConfig.actions.viewDetails')}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="border-t px-3 py-3">
-                      {renderEntryDetails(entry)}
-                    </div>
-                  )}
-                </div>
+                  name={entry.name}
+                  compactSummary={getCompactSummary(entry)}
+                  isExpanded={isExpanded}
+                  onToggle={() => toggleEntry(entry.id)}
+                  onEdit={
+                    editable && onReclassify && !isImporting
+                      ? () => openRefEditor(entry.name, entry.config)
+                      : undefined
+                  }
+                  icon={getTypeIcon(entry)}
+                  badges={
+                    <>
+                      <Badge variant="outline" className="text-[10px]">
+                        {getReferenceKindLabel(entry.config.kind)}
+                      </Badge>
+                      {getEntityStatusBadge(summary)}
+                      {getImportStatusBadge(entry.id)}
+                    </>
+                  }
+                  details={renderEntryDetails(entry)}
+                />
               )
             })}
           </div>
@@ -1047,120 +955,52 @@ export function AutoConfigDisplay({
             const canEdit = editable && onReclassify && entry.type !== 'auxiliary'
 
             return (
-              <div key={entry.id} className="rounded-lg border bg-background">
-                <div className="flex items-start justify-between gap-3 p-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {getTypeIcon(entry)}
-                      <span className="font-medium">{entry.name}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {getTypeLabel(entry)}
-                      </Badge>
-                      {getEntityStatusBadge(summary)}
-                      {getImportStatusBadge(entry.id)}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {getCompactSummary(entry)}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    {canEdit && !isImporting && entry.type === 'dataset' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => openDatasetEditor(entry.name, entry.config)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                        {t('autoConfig.actions.edit')}
-                      </Button>
-                    )}
-                    {canEdit && !isImporting && entry.type === 'layer' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => openLayerEditor(entry.index, entry.config)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                        {t('autoConfig.actions.edit')}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
-                      onClick={() => toggleEntry(entry.id)}
-                    >
-                      <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                      {isExpanded
-                        ? t('autoConfig.actions.hideDetails')
-                        : t('autoConfig.actions.viewDetails')}
-                    </Button>
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div className="border-t px-3 py-3">
-                    {renderEntryDetails(entry)}
-                  </div>
-                )}
-              </div>
+              <AutoConfigEntryCard
+                key={entry.id}
+                className="rounded-lg border bg-background"
+                name={entry.name}
+                compactSummary={getCompactSummary(entry)}
+                isExpanded={isExpanded}
+                onToggle={() => toggleEntry(entry.id)}
+                onEdit={
+                  canEdit && !isImporting
+                    ? entry.type === 'dataset'
+                      ? () => openDatasetEditor(entry.name, entry.config)
+                      : entry.type === 'layer'
+                        ? () => openLayerEditor(entry.index, entry.config)
+                        : undefined
+                    : undefined
+                }
+                icon={getTypeIcon(entry)}
+                badges={
+                  <>
+                    <Badge variant="outline" className="text-[10px]">
+                      {getTypeLabel(entry)}
+                    </Badge>
+                    {getEntityStatusBadge(summary)}
+                    {getImportStatusBadge(entry.id)}
+                  </>
+                }
+                details={renderEntryDetails(entry)}
+              />
             )
             })}
           </div>
         )}
       </div>
 
-      {/* Edit Sheet */}
-      <Sheet open={editingEntity !== null} onOpenChange={() => closeEditor()}>
-        <SheetContent className="w-[500px] sm:max-w-[500px]">
-          <SheetHeader>
-            <SheetTitle>{sheetInfo.title}</SheetTitle>
-            <SheetDescription>{sheetInfo.description}</SheetDescription>
-          </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-120px)] pr-4">
-            {editingEntity?.type === 'dataset' && (
-              <EntityConfigEditor
-                entityName={editingEntity.name}
-                entityType="dataset"
-                config={editingEntity.config}
-                detectedColumns={editingEntity.columns}
-                availableReferences={availableReferences}
-                onSave={(updated) =>
-                  handleDatasetUpdate(editingEntity.name, updated as DatasetConfig)
-                }
-                onCancel={closeEditor}
-              />
-            )}
-            {editingEntity?.type === 'reference' && (
-              <EntityConfigEditor
-                entityName={editingEntity.name}
-                entityType="reference"
-                config={editingEntity.config}
-                detectedColumns={editingEntity.columns}
-                availableDatasets={availableDatasets}
-                onSave={(updated) =>
-                  handleReferenceUpdate(editingEntity.name, updated as ReferenceConfig)
-                }
-                onCancel={closeEditor}
-              />
-            )}
-            {editingEntity?.type === 'layer' && (
-              <EntityConfigEditor
-                entityName={editingEntity.config.name}
-                entityType="layer"
-                config={editingEntity.config}
-                onSave={(updated) =>
-                  handleLayerUpdate(editingEntity.index, updated as LayerConfig)
-                }
-                onCancel={closeEditor}
-              />
-            )}
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      <AutoConfigEditorSheet
+        editingEntity={editingEntity}
+        open={editingEntity !== null}
+        title={sheetInfo.title}
+        description={sheetInfo.description}
+        availableReferences={availableReferences}
+        availableDatasets={availableDatasets}
+        onClose={closeEditor}
+        onDatasetSave={handleDatasetUpdate}
+        onReferenceSave={handleReferenceUpdate}
+        onLayerSave={handleLayerUpdate}
+      />
     </>
   )
 }

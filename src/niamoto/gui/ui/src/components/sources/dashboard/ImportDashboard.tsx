@@ -14,40 +14,24 @@ import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   AlertTriangle,
-  CheckCircle2,
-  Database,
   Download,
   FileBarChart2,
   GitBranch,
-  Globe2,
-  Layers,
-  Loader2,
   Map as MapIcon,
-  Network,
-  Pencil,
-  PlusCircle,
   RefreshCw,
-  Search,
   ShieldAlert,
-  Sparkles,
 } from 'lucide-react'
 import { useDatasets, type DatasetInfo } from '@/hooks/useDatasets'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
-import { EntityConfigEditor } from '@/components/sources/EntityConfigEditor'
 import type { DatasetConfig, ReferenceConfig } from '@/components/sources/EntityConfigEditor'
+import { AggregationGroupCard } from './AggregationGroupCard'
+import { AnalysisToolSheet } from './AnalysisToolSheet'
 import { DataCompletenessView } from './DataCompletenessView'
+import { DashboardConfigEditorSheet } from './DashboardConfigEditorSheet'
 import { GeoCoverageView } from './GeoCoverageView'
+import { SupportingSourceCard } from './SupportingSourceCard'
 import { TaxonomicConsistencyView } from './TaxonomicConsistencyView'
 import { ValueValidationView } from './ValueValidationView'
 
@@ -578,177 +562,45 @@ export function ImportDashboard({
 
         <div className="space-y-4">
           {aggregationGroups.map((group) => {
-            const Icon =
-              group.kind === 'spatial'
-                ? Globe2
-                : group.kind === 'hierarchical'
-                  ? GitBranch
-                  : Network
-            const rowCount = group.metrics?.row_count ?? group.entity_count ?? 0
-            const fieldCount = group.metrics?.column_count ?? group.schema_fields?.length ?? 0
-            const canEnrich = Boolean(group.can_enrich)
-
             return (
-              <Card key={group.name} className="overflow-hidden border-border/70">
-                <CardContent className="p-0">
-                  <div className="space-y-5 p-6">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                            <Icon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold">{group.name}</h3>
-                              <Badge variant="outline">{t('dashboard.importedState')}</Badge>
-                              <Badge variant="secondary">
-                                {getAggregationKindLabel(t, group.kind)}
-                              </Badge>
-                              {group.enrichment_enabled && (
-                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
-                                  {t('dashboard.badges.enrichmentEnabled')}
-                                </Badge>
-                              )}
-                              {!group.enrichment_enabled && canEnrich && (
-                                <Badge variant="outline">
-                                  {t('dashboard.badges.enrichmentAvailable')}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {group.table_name}
-                            </div>
-                          </div>
-                        </div>
-
-                        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                          {group.description || getAggregationDescription(t, group.kind)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {onExploreReference && (
-                          <Button onClick={() => onExploreReference(group.name)}>
-                            <Search className="mr-2 h-4 w-4" />
-                            {t('dashboard.actions.explore')}
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          onClick={() => void openReferenceEditor(group)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          {t('dashboard.actions.editConfig')}
-                        </Button>
-                        {group.canAddSource && onReimport && (
-                          <Button variant="outline" onClick={onReimport}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            {t('dashboard.actions.addSource')}
-                          </Button>
-                        )}
-                        {onOpenGroup && (
-                          <Button variant="ghost" onClick={() => onOpenGroup(group.name)}>
-                            {t('dashboard.actions.openGroup')}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                      <span>{t('dashboard.rows', { count: rowCount })}</span>
-                      <span className="text-muted-foreground/60">•</span>
-                      <span>{t('dashboard.fields', { count: fieldCount })}</span>
-                      <span className="text-muted-foreground/60">•</span>
-                      <span>
-                        {group.kind === 'spatial'
-                          ? t('dashboard.card.spatialReference')
-                          : group.kind === 'hierarchical'
-                            ? t('dashboard.card.taxonomicReference')
-                            : t('dashboard.card.genericReference')}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {t('dashboard.card.fieldPreview')}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {group.columnNames.slice(0, 6).map((column) => (
-                          <Badge key={column} variant="outline" className="font-normal">
-                            {column}
-                          </Badge>
-                        ))}
-                        {group.columnNames.length > 6 && (
-                          <Badge variant="outline" className="font-normal text-muted-foreground">
-                            +{group.columnNames.length - 6}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t bg-muted/25 p-6">
-                    {canEnrich ? (
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                            <Sparkles className="h-4 w-4" />
-                            {t('dashboard.nextStep.label')}
-                          </div>
-                          <div className="text-base font-semibold">
-                            {group.enrichment_enabled
-                              ? t('dashboard.nextStep.enrichmentConfiguredTitle')
-                              : t('dashboard.nextStep.enrichmentTitle')}
-                          </div>
-                          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                            {group.enrichment_enabled
-                              ? t('dashboard.nextStep.enrichmentConfiguredDescription')
-                              : t('dashboard.nextStep.enrichmentDescription')}
-                          </p>
-                        </div>
-                        {onEnrich && (
-                          <Button
-                            size="lg"
-                            onClick={() =>
-                              onEnrich(
-                                group.name,
-                                group.enrichment_enabled ? 'enrichment' : 'config'
-                              )
-                            }
-                          >
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            {group.enrichment_enabled
-                              ? t('dashboard.actions.manageEnrichment')
-                              : t('dashboard.actions.enrichNow')}
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            {t('dashboard.nextStep.readyLabel')}
-                          </div>
-                          <div className="text-base font-semibold">
-                            {t('dashboard.nextStep.exploreTitle')}
-                          </div>
-                          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                            {t('dashboard.nextStep.exploreDescription')}
-                          </p>
-                        </div>
-                        {onExploreReference && (
-                          <Button size="lg" onClick={() => onExploreReference(group.name)}>
-                            <Search className="mr-2 h-4 w-4" />
-                            {t('dashboard.actions.explore')}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              <AggregationGroupCard
+                key={group.name}
+                group={group}
+                kindLabel={getAggregationKindLabel(t, group.kind)}
+                description={group.description || getAggregationDescription(t, group.kind)}
+                rowsLabel={t('dashboard.rows', { count: group.metrics?.row_count ?? group.entity_count ?? 0 })}
+                fieldsLabel={t('dashboard.fields', { count: group.metrics?.column_count ?? group.schema_fields?.length ?? 0 })}
+                roleLabel={
+                  group.kind === 'spatial'
+                    ? t('dashboard.card.spatialReference')
+                    : group.kind === 'hierarchical'
+                      ? t('dashboard.card.taxonomicReference')
+                      : t('dashboard.card.genericReference')
+                }
+                fieldPreviewLabel={t('dashboard.card.fieldPreview')}
+                importedLabel={t('dashboard.importedState')}
+                enrichmentEnabledLabel={t('dashboard.badges.enrichmentEnabled')}
+                enrichmentAvailableLabel={t('dashboard.badges.enrichmentAvailable')}
+                nextStepLabel={t('dashboard.nextStep.label')}
+                enrichmentTitle={t('dashboard.nextStep.enrichmentTitle')}
+                enrichmentDescription={t('dashboard.nextStep.enrichmentDescription')}
+                enrichmentConfiguredTitle={t('dashboard.nextStep.enrichmentConfiguredTitle')}
+                enrichmentConfiguredDescription={t('dashboard.nextStep.enrichmentConfiguredDescription')}
+                readyLabel={t('dashboard.nextStep.readyLabel')}
+                exploreTitle={t('dashboard.nextStep.exploreTitle')}
+                exploreDescription={t('dashboard.nextStep.exploreDescription')}
+                exploreAction={t('dashboard.actions.explore')}
+                editConfigAction={t('dashboard.actions.editConfig')}
+                addSourceAction={t('dashboard.actions.addSource')}
+                openGroupAction={t('dashboard.actions.openGroup')}
+                enrichAction={t('dashboard.actions.enrichNow')}
+                manageEnrichmentAction={t('dashboard.actions.manageEnrichment')}
+                onExplore={onExploreReference}
+                onEdit={() => void openReferenceEditor(group)}
+                onAddSource={group.canAddSource && onReimport ? onReimport : undefined}
+                onOpenGroup={onOpenGroup}
+                onEnrich={onEnrich}
+              />
             )
           })}
         </div>
@@ -764,168 +616,80 @@ export function ImportDashboard({
 
         <div className="grid gap-4 lg:grid-cols-2">
           {supportingSources.map((entity) => (
-            <Card key={`${entity.type}:${entity.name}`} className="border-border/70">
-              <CardContent className="space-y-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {entity.type === 'dataset' ? (
-                        <Database className="h-4 w-4 text-blue-500" />
-                      ) : (
-                        <Layers className="h-4 w-4 text-orange-500" />
-                      )}
-                      <div className="font-medium">{entity.name}</div>
-                      <Badge variant="outline">
-                        {entity.type === 'dataset'
-                          ? t('dashboard.kinds.dataset')
-                          : t('dashboard.kinds.layer')}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{entity.tableName}</div>
-                  </div>
-                  {entity.type === 'dataset' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const dataset = datasets.find((item) => item.name === entity.name)
-                        if (dataset) {
-                          void openDatasetEditor(dataset)
-                        }
-                      }}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      {t('dashboard.actions.editConfig')}
-                    </Button>
-                  )}
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  {entity.description ||
-                    (entity.type === 'dataset'
-                      ? t('dashboard.datasetFallbackDescription')
-                      : t('dashboard.layerFallbackDescription'))}
-                </p>
-
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{t('dashboard.rows', { count: entity.rowCount })}</Badge>
-                  <Badge variant="secondary">
-                    {t('dashboard.fields', { count: entity.columnCount })}
-                  </Badge>
-                  {entity.columns.slice(0, 4).map((column) => (
-                    <Badge key={column} variant="outline" className="font-normal">
-                      {column}
-                    </Badge>
-                  ))}
-                  {entity.columns.length > 4 && (
-                    <Badge variant="outline" className="font-normal text-muted-foreground">
-                      +{entity.columns.length - 4}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {entity.type === 'dataset' && onExploreEntity && (
-                    <Button variant="outline" onClick={() => onExploreEntity(entity.name)}>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t('dashboard.actions.explore')}
-                    </Button>
-                  )}
-                  {onReimport && (
-                    <Button variant="ghost" onClick={onReimport}>
-                      {entity.type === 'dataset'
-                        ? t('dashboard.actions.updateFile')
-                        : t('dashboard.actions.updateLayer')}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <SupportingSourceCard
+              key={`${entity.type}:${entity.name}`}
+              entity={entity}
+              datasetLabel={t('dashboard.kinds.dataset')}
+              layerLabel={t('dashboard.kinds.layer')}
+              rowsLabel={t('dashboard.rows', { count: entity.rowCount })}
+              fieldsLabel={t('dashboard.fields', { count: entity.columnCount })}
+              fallbackDescription={
+                entity.type === 'dataset'
+                  ? t('dashboard.datasetFallbackDescription')
+                  : t('dashboard.layerFallbackDescription')
+              }
+              editConfigAction={entity.type === 'dataset' ? t('dashboard.actions.editConfig') : undefined}
+              exploreAction={entity.type === 'dataset' ? t('dashboard.actions.explore') : undefined}
+              updateAction={
+                entity.type === 'dataset'
+                  ? t('dashboard.actions.updateFile')
+                  : t('dashboard.actions.updateLayer')
+              }
+              onEdit={
+                entity.type === 'dataset'
+                  ? () => {
+                      const dataset = datasets.find((item) => item.name === entity.name)
+                      if (dataset) {
+                        void openDatasetEditor(dataset)
+                      }
+                    }
+                  : undefined
+              }
+              onExplore={
+                entity.type === 'dataset' && onExploreEntity
+                  ? () => onExploreEntity(entity.name)
+                  : undefined
+              }
+              onUpdate={onReimport}
+            />
           ))}
         </div>
       </section>
 
-      <Sheet open={activeTool !== null} onOpenChange={(open) => !open && setActiveTool(null)}>
-        <SheetContent className="w-[min(960px,92vw)] sm:max-w-[960px]">
-          <SheetHeader className="px-6 pt-6">
-            <SheetTitle>{toolMeta?.title}</SheetTitle>
-            <SheetDescription>{toolMeta?.description}</SheetDescription>
-          </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-110px)] px-6 pb-6">
-            <div className="pt-6">{toolMeta?.content}</div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      <AnalysisToolSheet
+        open={activeTool !== null}
+        title={toolMeta?.title}
+        description={toolMeta?.description}
+        content={toolMeta?.content}
+        onOpenChange={(open) => !open && setActiveTool(null)}
+      />
 
-      <Sheet open={editingState !== null} onOpenChange={(open) => !open && closeEditor()}>
-        <SheetContent className="w-[min(760px,92vw)] sm:max-w-[760px]">
-          <SheetHeader className="px-6 pt-6">
-            <SheetTitle>
-              {editingState?.entityType === 'dataset'
-                ? t('autoConfig.sheetTitles.dataset', { name: editingState.name })
-                : editingState?.entityType === 'reference'
-                  ? t('autoConfig.sheetTitles.reference', { name: editingState.name })
-                  : ''}
-            </SheetTitle>
-            <SheetDescription>
-              {editingState?.entityType === 'dataset'
-                ? t('autoConfig.sheetDescriptions.dataset')
-                : editingState?.entityType === 'reference'
-                  ? t('autoConfig.sheetDescriptions.reference')
-                  : ''}
-            </SheetDescription>
-          </SheetHeader>
-
-          <ScrollArea className="h-[calc(100vh-110px)] px-6 pb-6">
-            <div className="pt-6">
-              {editorError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{editorError}</AlertDescription>
-                </Alert>
-              )}
-
-              {savingConfig || !editingState?.config ? (
-                <div className="flex min-h-[240px] items-center justify-center">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {savingConfig
-                      ? t('dashboard.editor.savingConfig')
-                      : t('dashboard.editor.loadingConfig')}
-                  </div>
-                </div>
-              ) : editingState.entityType === 'dataset' ? (
-                <EntityConfigEditor
-                  entityName={editingState.name}
-                  entityType="dataset"
-                  config={editingState.config}
-                  detectedColumns={editingState.detectedColumns}
-                  availableReferences={availableReferences}
-                  onSave={(updated) =>
-                    void persistDatasetConfig(editingState.name, updated as DatasetConfig)
-                  }
-                  onCancel={closeEditor}
-                />
-              ) : (
-                <EntityConfigEditor
-                  entityName={editingState.name}
-                  entityType="reference"
-                  config={editingState.config}
-                  detectedColumns={editingState.detectedColumns}
-                  availableDatasets={availableDatasets}
-                  onSave={(updated) =>
-                    void persistReferenceConfig(
-                      editingState.name,
-                      updated as ReferenceConfig
-                    )
-                  }
-                  onCancel={closeEditor}
-                />
-              )}
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      <DashboardConfigEditorSheet
+        editingState={editingState}
+        editorError={editorError}
+        savingConfig={savingConfig}
+        title={
+          editingState?.entityType === 'dataset'
+            ? t('autoConfig.sheetTitles.dataset', { name: editingState.name })
+            : editingState?.entityType === 'reference'
+              ? t('autoConfig.sheetTitles.reference', { name: editingState.name })
+              : ''
+        }
+        description={
+          editingState?.entityType === 'dataset'
+            ? t('autoConfig.sheetDescriptions.dataset')
+            : editingState?.entityType === 'reference'
+              ? t('autoConfig.sheetDescriptions.reference')
+              : ''
+        }
+        availableReferences={availableReferences}
+        availableDatasets={availableDatasets}
+        loadingLabel={t('dashboard.editor.loadingConfig')}
+        savingLabel={t('dashboard.editor.savingConfig')}
+        onClose={closeEditor}
+        onDatasetSave={(name, updated) => persistDatasetConfig(name, updated)}
+        onReferenceSave={(name, updated) => persistReferenceConfig(name, updated)}
+      />
     </div>
   )
 }
