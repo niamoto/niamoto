@@ -116,6 +116,14 @@ dmypy.json
 # IntelliJ settings
 .idea/
 
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
+# Tool caches
+.ruff_cache/
+**/.ruff_cache/
+
 # Tailwind CSS standalone binaries
 tailwindcss-macos-arm64
 tailwindcss-macos-x64
