@@ -227,6 +227,47 @@
     "hierarchyOrder": "Ordre de la hiérarchie :"
   },
   "apiEnrichment": {
+    "presets": {
+      "endemia": {
+        "description": "Base de données floristique de Nouvelle-Calédonie"
+      },
+      "gbif": {
+        "description": "Global Biodiversity Information Facility"
+      },
+      "wfo": {
+        "description": "Référentiel mondial de la flore"
+      },
+      "ipni": {
+        "description": "International Plant Names Index"
+      },
+      "inaturalist": {
+        "description": "Observations citoyennes de biodiversité"
+      },
+      "tropicos": {
+        "description": "Nomenclature du Missouri Botanical Garden"
+      },
+      "openElevation": {
+        "description": "Altitude gratuite sans authentification"
+      },
+      "openTopoData": {
+        "description": "Élévation haute résolution (SRTM, ASTER)"
+      },
+      "openMeteo": {
+        "description": "Altitude mondiale issue du MNT Copernicus 90m"
+      },
+      "geoNames": {
+        "description": "Reverse geocoding et divisions administratives"
+      },
+      "geoNamesNearby": {
+        "description": "Lieux proches et toponymes"
+      },
+      "nominatim": {
+        "description": "Reverse geocoding OpenStreetMap"
+      },
+      "geoBoundaries": {
+        "description": "Frontières administratives mondiales"
+      }
+    },
     "providers": {
       "endemia": "Endemia NC",
       "gbif": "GBIF",

@@ -81,7 +81,7 @@ export type ApiCategory = 'taxonomy' | 'elevation' | 'spatial' | 'all'
 
 interface PresetAPIWithCategory extends PresetAPI {
   category: ApiCategory
-  description?: string
+  descriptionKey?: string
 }
 
 const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
@@ -89,7 +89,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Endemia NC',
     category: 'taxonomy',
-    description: 'Base de données floristique de Nouvelle-Calédonie',
+    descriptionKey: 'apiEnrichment.presets.endemia.description',
     config: {
       api_url: 'https://api.endemia.nc/v1/taxons',
       auth_method: 'api_key',
@@ -119,7 +119,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'GBIF',
     category: 'taxonomy',
-    description: 'Global Biodiversity Information Facility',
+    descriptionKey: 'apiEnrichment.presets.gbif.description',
     config: {
       api_url: 'https://api.gbif.org/v1/species/match',
       auth_method: 'none',
@@ -141,7 +141,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'WFO (World Flora Online)',
     category: 'taxonomy',
-    description: 'Référentiel mondial de la flore',
+    descriptionKey: 'apiEnrichment.presets.wfo.description',
     config: {
       api_url: 'https://list.worldfloraonline.org/matching_rest',
       auth_method: 'none',
@@ -162,7 +162,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'IPNI',
     category: 'taxonomy',
-    description: 'International Plant Names Index',
+    descriptionKey: 'apiEnrichment.presets.ipni.description',
     config: {
       api_url: 'https://www.ipni.org/api/1/search',
       auth_method: 'none',
@@ -181,7 +181,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'iNaturalist',
     category: 'taxonomy',
-    description: 'Observations citoyennes de biodiversité',
+    descriptionKey: 'apiEnrichment.presets.inaturalist.description',
     config: {
       api_url: 'https://api.inaturalist.org/v1/taxa',
       auth_method: 'none',
@@ -204,7 +204,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Tropicos',
     category: 'taxonomy',
-    description: 'Missouri Botanical Garden nomenclature',
+    descriptionKey: 'apiEnrichment.presets.tropicos.description',
     config: {
       api_url: 'http://services.tropicos.org/Name/Search',
       auth_method: 'api_key',
@@ -237,7 +237,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Open-Elevation',
     category: 'elevation',
-    description: 'Altitude gratuite sans authentification',
+    descriptionKey: 'apiEnrichment.presets.openElevation.description',
     config: {
       api_url: 'https://api.open-elevation.com/api/v1/lookup',
       auth_method: 'none',
@@ -253,7 +253,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Open Topo Data',
     category: 'elevation',
-    description: 'Élévation haute résolution (SRTM, ASTER)',
+    descriptionKey: 'apiEnrichment.presets.openTopoData.description',
     config: {
       api_url: 'https://api.opentopodata.org/v1/srtm90m',
       auth_method: 'none',
@@ -268,7 +268,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Open-Meteo Elevation',
     category: 'elevation',
-    description: 'Copernicus DEM 90m mondial',
+    descriptionKey: 'apiEnrichment.presets.openMeteo.description',
     config: {
       api_url: 'https://api.open-meteo.com/v1/elevation',
       auth_method: 'none',
@@ -283,7 +283,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'GeoNames',
     category: 'spatial',
-    description: 'Reverse geocoding, divisions administratives',
+    descriptionKey: 'apiEnrichment.presets.geoNames.description',
     config: {
       api_url: 'http://api.geonames.org/countrySubdivisionJSON',
       auth_method: 'api_key',
@@ -307,7 +307,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'GeoNames FindNearby',
     category: 'spatial',
-    description: 'Lieux proches, toponymes',
+    descriptionKey: 'apiEnrichment.presets.geoNamesNearby.description',
     config: {
       api_url: 'http://api.geonames.org/findNearbyJSON',
       auth_method: 'api_key',
@@ -333,7 +333,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'Nominatim (OSM)',
     category: 'spatial',
-    description: 'OpenStreetMap reverse geocoding',
+    descriptionKey: 'apiEnrichment.presets.nominatim.description',
     config: {
       api_url: 'https://nominatim.openstreetmap.org/reverse',
       auth_method: 'none',
@@ -355,7 +355,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   {
     name: 'geoBoundaries',
     category: 'spatial',
-    description: 'Frontières administratives mondiales',
+    descriptionKey: 'apiEnrichment.presets.geoBoundaries.description',
     config: {
       api_url: 'https://www.geoboundaries.org/api/current/gbOpen',
       auth_method: 'none',
@@ -594,7 +594,7 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
                       variant="outline"
                       size="sm"
                       onClick={() => handlePresetSelect(preset.name)}
-                      title={preset.description}
+                      title={preset.descriptionKey ? t(preset.descriptionKey) : undefined}
                     >
                       {preset.name}
                     </Button>
