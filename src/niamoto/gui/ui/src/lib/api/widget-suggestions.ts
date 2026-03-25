@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiClient } from './client'
+import { apiClient } from '@/shared/lib/api/client'
 
 /**
  * Class object category types

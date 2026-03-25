@@ -1,0 +1,5 @@
+export { default as SiteIndexPage } from '@/features/site/views/SiteIndexPage'
+export { default as SitePagesPage } from '@/features/site/views/SitePagesPage'
+export { default as SiteNavigationPage } from '@/features/site/views/SiteNavigationPage'
+export { default as SiteGeneralPage } from '@/features/site/views/SiteGeneralPage'
+export { default as SiteAppearancePage } from '@/features/site/views/SiteAppearancePage'
