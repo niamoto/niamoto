@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useProjectSwitcher } from './useProjectSwitcher';
+import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
 
 // Tauri types
 declare global {

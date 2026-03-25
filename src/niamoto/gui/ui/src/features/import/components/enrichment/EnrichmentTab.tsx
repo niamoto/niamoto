@@ -66,7 +66,7 @@ import { apiClient } from '@/shared/lib/api/client'
 import { ApiEnrichmentConfig, type ApiConfig, type ApiCategory } from './ApiEnrichmentConfig'
 import { toast } from 'sonner'
 import { useNotificationStore } from '@/stores/notificationStore'
-import { useNetworkStatus } from '@/hooks/useNetworkStatus'
+import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import { WifiOff } from 'lucide-react'
 
 interface EnrichmentTabProps {

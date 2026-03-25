@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Database, Columns, Hash } from 'lucide-react'
-import { listTables } from '@/lib/api/data-explorer'
+import { listTables } from '@/features/import/api/data-explorer'
 
 interface TableStatsProps {
   tableName: string

@@ -15,8 +15,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { DesktopTitlebar } from '@/components/layout/DesktopTitlebar';
-import type { ProjectEntry } from '@/hooks/useProjectSwitcher';
-import type { AppSettings } from '@/hooks/useWelcomeScreen';
+import type { ProjectEntry } from '@/shared/hooks/useProjectSwitcher';
+import type { AppSettings } from '@/features/welcome/hooks/useWelcomeScreen';
 import ProjectCreationWizard from './ProjectCreationWizard';
 
 interface WelcomeScreenProps {

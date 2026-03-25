@@ -21,7 +21,10 @@ import { ImagePickerField } from './ImagePickerField'
 import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import { useDataContent, useUpdateDataContent } from '@/hooks/useSiteConfig'
+import {
+  useDataContent,
+  useUpdateDataContent,
+} from '@/features/site/hooks/useSiteConfig'
 
 // Types for team.html context
 interface SocialLink {

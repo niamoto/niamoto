@@ -7,7 +7,7 @@ import {
   selectHasSuccessfulBuild,
   type DeployPlatform,
 } from '@/features/publish/store/publishStore'
-import { useNetworkStatus } from '@/hooks/useNetworkStatus'
+import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

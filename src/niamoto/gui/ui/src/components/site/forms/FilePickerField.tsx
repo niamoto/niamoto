@@ -17,7 +17,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { useProjectFiles, useUploadFile } from '@/hooks/useSiteConfig'
+import { useProjectFiles, useUploadFile } from '@/features/site/hooks/useSiteConfig'
 
 interface FilePickerFieldProps {
   value: string

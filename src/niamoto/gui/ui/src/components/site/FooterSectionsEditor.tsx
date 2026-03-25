@@ -33,7 +33,12 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { LocalizedInput } from '@/components/ui/localized-input'
-import type { FooterSection, FooterLink, StaticPage, GroupInfo } from '@/hooks/useSiteConfig'
+import type {
+  FooterSection,
+  FooterLink,
+  StaticPage,
+  GroupInfo,
+} from '@/features/site/hooks/useSiteConfig'
 
 interface FooterSectionsEditorProps {
   sections: FooterSection[]

@@ -44,7 +44,11 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useDataContent, useUpdateDataContent, useImportCsv } from '@/hooks/useSiteConfig'
+import {
+  useDataContent,
+  useUpdateDataContent,
+  useImportCsv,
+} from '@/features/site/hooks/useSiteConfig'
 
 type StorageMode = 'inline' | 'external'
 

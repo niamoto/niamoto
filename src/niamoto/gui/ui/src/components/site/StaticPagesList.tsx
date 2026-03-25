@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import type { StaticPage } from '@/hooks/useSiteConfig'
+import type { StaticPage } from '@/features/site/hooks/useSiteConfig'
 
 interface StaticPagesListProps {
   pages: StaticPage[]

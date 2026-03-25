@@ -27,7 +27,11 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { TemplateSelect } from './TemplateSelect'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import { useTemplates, type StaticPage, type NavigationItem } from '@/hooks/useSiteConfig'
+import {
+  useTemplates,
+  type StaticPage,
+  type NavigationItem,
+} from '@/features/site/hooks/useSiteConfig'
 import {
   hasTemplateForm,
   MarkdownContentField,
