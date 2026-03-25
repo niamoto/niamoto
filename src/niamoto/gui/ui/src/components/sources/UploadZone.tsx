@@ -1,8 +1,9 @@
 /**
- * Upload Zone - Drag & Drop CSV Upload
+ * Upload Zone - Specialized single-file CSV uploader
  *
- * A drop zone for uploading pre-calculated CSV files.
- * Shows expected format and accepts .csv files only.
+ * This component is intentionally narrower than FileUploadZone:
+ * it is only used by AddSourceDialog for precomputed auxiliary CSV sources.
+ * The main import workflow uses FileUploadZone.
  */
 
 import { useCallback, useState } from 'react'

@@ -7,7 +7,7 @@
  * 3. Execute import with progress
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,20 +24,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  getAutoConfigureJob,
-  startAutoConfigureJob,
-  subscribeToAutoConfigureJobEvents,
-  type AutoConfigureProgressEvent,
-  type AutoConfigureResponse,
-  createEntitiesBulk,
-} from '@/lib/api/smart-config'
+import { type AutoConfigureResponse } from '@/lib/api/smart-config'
 import { apiClient } from '@/lib/api/client'
-import {
-  executeImportAll,
-  getImportStatus,
-  type ImportJobEvent,
-} from '@/lib/api/import'
 import {
   FileUploadZone,
   ExistingFilesSection,
@@ -45,6 +33,8 @@ import {
   YamlPreview,
 } from '@/components/sources'
 import type { FileAnalysisStatus } from '@/components/sources/FileUploadZone'
+import { useAutoConfigureJob } from '@/hooks/useAutoConfigureJob'
+import { useImportJob } from '@/hooks/useImportJob'
 
 type ImportPhase =
   | 'idle'
@@ -66,68 +56,28 @@ export function ImportWizard() {
   const [configResult, setConfigResult] = useState<AutoConfigureResponse | null>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; path: string; size?: number }>>([])
-  const [analysisEvents, setAnalysisEvents] = useState<AutoConfigureProgressEvent[]>([])
-  const [analysisStage, setAnalysisStage] = useState<string | null>(null)
-  const [importDetails, setImportDetails] = useState<{
-    totalEntities: number
-    processedEntities: number
-    currentEntity?: string
-    currentEntityType?: string
-    phase?: string | null
-    message?: string
-    progress?: number
-    events: ImportJobEvent[]
-  }>({ totalEntities: 0, processedEntities: 0, events: [] })
-  const analysisEventSourceRef = useRef<EventSource | null>(null)
-  const importStartedRef = useRef(false)
-
-  const closeAnalysisStream = useCallback(() => {
-    analysisEventSourceRef.current?.close()
-    analysisEventSourceRef.current = null
-  }, [])
+  const autoConfigureJob = useAutoConfigureJob()
+  const importJob = useImportJob()
 
   const runAutoConfigure = useCallback(
     async (paths: string[]) => {
       setFilePaths(paths)
       setPhase('configuring')
       setError(null)
-      setAnalysisEvents([])
-      setAnalysisStage(null)
-      closeAnalysisStream()
 
       try {
-        const job = await startAutoConfigureJob({ files: paths })
-        const eventSource = subscribeToAutoConfigureJobEvents(job.job_id, (event) => {
-          setAnalysisEvents((previous) => [...previous, event].slice(-30))
-          if (event.kind === 'stage') {
-            setAnalysisStage(event.message)
-          }
+        const result = await autoConfigureJob.start(paths, {
+          failed: t('wizard.autoConfigError'),
+          timedOut: t('wizard.autoConfigTimeout'),
         })
-        analysisEventSourceRef.current = eventSource
-
-        const startTime = Date.now()
-        while (Date.now() - startTime < 180000) {
-          const status = await getAutoConfigureJob(job.job_id)
-          if (status.status === 'completed' && status.result) {
-            closeAnalysisStream()
-            setConfigResult(status.result)
-            setPhase('reviewing')
-            return
-          }
-          if (status.status === 'failed') {
-            throw new Error(status.error || t('wizard.autoConfigError'))
-          }
-          await new Promise((resolve) => setTimeout(resolve, 400))
-        }
-
-        throw new Error(t('wizard.autoConfigTimeout'))
+        setConfigResult(result)
+        setPhase('reviewing')
       } catch (err: any) {
-        closeAnalysisStream()
-        setError(err.message || t('wizard.autoConfigError'))
+        setError(err.message || autoConfigureJob.error || t('wizard.autoConfigError'))
         setPhase('error')
       }
     },
-    [closeAnalysisStream, t]
+    [autoConfigureJob, t]
   )
 
   // Handle files ready from upload
@@ -162,15 +112,7 @@ export function ImportWizard() {
   // Start import from review phase
   const startImport = () => {
     if (configResult) {
-      importStartedRef.current = false
-      setImportDetails({
-        totalEntities: 0,
-        processedEntities: 0,
-        phase: 'saving',
-        message: t('wizard.writingImportYml'),
-        progress: 0,
-        events: [],
-      })
+      importJob.reset()
       setPhase('importing')
     }
   }
@@ -198,16 +140,13 @@ export function ImportWizard() {
 
   // Reset to idle
   const resetToIdle = () => {
-    closeAnalysisStream()
+    autoConfigureJob.reset()
+    importJob.reset()
     setPhase('idle')
     setError(null)
     setConfigResult(null)
     setFilePaths([])
     setUploadedFiles([])
-    setAnalysisEvents([])
-    setAnalysisStage(null)
-    setImportDetails({ totalEntities: 0, processedEntities: 0, events: [] })
-    importStartedRef.current = false
   }
 
   // Load existing configuration for editing
@@ -273,104 +212,22 @@ export function ImportWizard() {
   }
 
   useEffect(() => {
-    return () => {
-      closeAnalysisStream()
-    }
-  }, [closeAnalysisStream])
-
-  const executeImport = useCallback(async () => {
-    if (!configResult) return
-
-    try {
-      setError(null)
-      setImportDetails({
-        totalEntities: 0,
-        processedEntities: 0,
-        phase: 'saving',
-        message: t('wizard.writingImportYml'),
-        progress: 0,
-        currentEntity: undefined,
-        currentEntityType: undefined,
-        events: [
-          {
-            timestamp: new Date().toISOString(),
-            kind: 'stage' as const,
-            message: t('wizard.writingImportYml'),
-            phase: 'saving',
-          },
-        ],
+    if (phase === 'importing' && configResult && importJob.state.status === 'idle') {
+      void importJob.start(configResult, {
+        writingImportYml: t('wizard.writingImportYml'),
+        importJobStarting: t('wizard.importJobStarting'),
+        savingConfigDone: t('wizard.savingConfigDone'),
+        importFailed: t('wizard.importFailed'),
+        importTimedOut: t('wizard.importTimedOut'),
       })
-
-      await createEntitiesBulk({
-        entities: configResult.entities,
-        auxiliary_sources: configResult.auxiliary_sources || [],
-      })
-
-      setImportDetails((previous) => ({
-        ...previous,
-        phase: 'importing',
-        message: t('wizard.importJobStarting'),
-        events: [
-          ...previous.events,
-          {
-            timestamp: new Date().toISOString(),
-            kind: 'finding' as const,
-            message: t('wizard.savingConfigDone'),
-            phase: 'saving',
-          },
-          {
-            timestamp: new Date().toISOString(),
-            kind: 'detail' as const,
-            message: t('wizard.importJobStarting'),
-            phase: 'importing',
-          },
-        ].slice(-30),
-      }))
-
-      const importResponse = await executeImportAll(false)
-      const jobId = importResponse.job_id
-      const pollInterval = 500
-      const maxWaitTime = 600000
-      const startTime = Date.now()
-
-      while (Date.now() - startTime < maxWaitTime) {
-        const status = await getImportStatus(jobId)
-
-        setImportDetails({
-          totalEntities: status.total_entities || 0,
-          processedEntities: status.processed_entities || 0,
-          currentEntity: status.current_entity || undefined,
-          currentEntityType: status.current_entity_type || undefined,
-          phase: status.phase,
-          message: status.message,
-          progress: status.progress,
-          events: status.events || [],
-        })
-
-        if (status.status === 'completed') {
+        .then(() => {
           handleImportComplete()
-          return
-        }
-
-        if (status.status === 'failed') {
-          throw new Error(status.errors?.join(', ') || t('wizard.importFailed'))
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-      }
-
-      throw new Error(t('wizard.importTimedOut'))
-    } catch (err: any) {
-      handleImportError(err.message || t('wizard.importFailed'))
+        })
+        .catch((err: any) => {
+          handleImportError(err.message || importJob.state.error || t('wizard.importFailed'))
+        })
     }
-  }, [configResult, handleImportComplete, handleImportError, t])
-
-  useEffect(() => {
-    if (phase === 'importing' && configResult && !importStartedRef.current) {
-      importStartedRef.current = true
-      void executeImport()
-    }
-  }, [configResult, executeImport, phase])
+  }, [configResult, handleImportComplete, handleImportError, importJob, phase, t])
 
   // Handle entity reclassification
   const handleReclassify = useCallback(
@@ -400,7 +257,7 @@ export function ImportWizard() {
     {} as Record<string, FileAnalysisStatus>
   )
 
-  for (const event of analysisEvents) {
+  for (const event of autoConfigureJob.events) {
     const eventFile = event.file ? event.file.split('/').pop() : undefined
     const eventEntity = event.entity
     const targetFileName =
@@ -503,7 +360,7 @@ export function ImportWizard() {
                 </div>
                 <h3 className="text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {analysisStage || t('autoConfig.loading.description')}
+                  {autoConfigureJob.stage || t('autoConfig.loading.description')}
                 </p>
               </div>
 
@@ -548,14 +405,14 @@ export function ImportWizard() {
                       phase === 'importing'
                         ? {
                             active: true,
-                            phase: importDetails.phase,
-                            message: importDetails.message,
-                            progress: importDetails.progress,
-                            processedEntities: importDetails.processedEntities,
-                            totalEntities: importDetails.totalEntities,
-                            currentEntity: importDetails.currentEntity,
-                            currentEntityType: importDetails.currentEntityType,
-                            events: importDetails.events,
+                            phase: importJob.state.phase,
+                            message: importJob.state.message,
+                            progress: importJob.state.progress,
+                            processedEntities: importJob.state.processedEntities,
+                            totalEntities: importJob.state.totalEntities,
+                            currentEntity: importJob.state.currentEntity,
+                            currentEntityType: importJob.state.currentEntityType,
+                            events: importJob.state.events,
                           }
                         : undefined
                     }

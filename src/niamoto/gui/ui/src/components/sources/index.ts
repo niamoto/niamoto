@@ -8,7 +8,6 @@ export { FileUploadZone } from './FileUploadZone'
 export { ExistingFilesSection } from './ExistingFilesSection'
 export { AutoConfigDisplay } from './AutoConfigDisplay'
 export { YamlPreview } from './YamlPreview'
-export { ImportProgress } from './ImportProgress'
 
 // Source management
 export { SourcesList } from './SourcesList'
