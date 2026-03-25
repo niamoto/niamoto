@@ -2,7 +2,7 @@
  * API client for data explorer endpoints
  */
 
-import { apiClient } from './client'
+import { apiClient } from '@/shared/lib/api/client'
 
 export interface TableInfo {
   name: string

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { apiClient } from './client'
+import { apiClient } from '@/shared/lib/api/client'
 
 /**
  * Source types

@@ -11,7 +11,7 @@
  * - Auto-creation of files when content is first edited
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -25,10 +25,19 @@ import {
 } from '@/components/ui/select'
 import { Globe, Save, Loader2, FileText, Upload, Edit3, Code, FileType, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { MarkdownEditor } from '@/components/site/MarkdownEditor'
-import { MultilingualMarkdownEditor } from '@/components/site/MultilingualMarkdownEditor'
 import { useFileContent, useUpdateFileContent, useProjectFiles, useUploadFile } from '@/hooks/useSiteConfig'
 import { useLanguages } from '@/contexts/LanguageContext'
+
+const MarkdownEditor = lazy(() =>
+  import('@/components/site/MarkdownEditor').then((module) => ({
+    default: module.MarkdownEditor,
+  }))
+)
+const MultilingualMarkdownEditor = lazy(() =>
+  import('@/components/site/MultilingualMarkdownEditor').then((module) => ({
+    default: module.MultilingualMarkdownEditor,
+  }))
+)
 
 type ContentMode = 'single' | 'multilingual'
 
@@ -197,6 +206,11 @@ export function MarkdownContentField({
 
   // Note: we no longer auto-initialize content_source.
   // It stays null until the user explicitly selects or creates a file.
+  const editorFallback = (
+    <div className="flex items-center justify-center p-8 border rounded-md bg-muted/30">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
 
   return (
     <div className="space-y-4">
@@ -370,12 +384,14 @@ export function MarkdownContentField({
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : isEditing ? (
-                <MarkdownEditor
-                  initialContent={fileContentData?.content ?? editedContent}
-                  onChange={handleContentChange}
-                  placeholder={placeholder || t('site:pageEditor.markdownPlaceholder')}
-                  className={`min-h-[${minHeight}]`}
-                />
+                <Suspense fallback={editorFallback}>
+                  <MarkdownEditor
+                    initialContent={fileContentData?.content ?? editedContent}
+                    onChange={handleContentChange}
+                    placeholder={placeholder || t('site:pageEditor.markdownPlaceholder')}
+                    className={`min-h-[${minHeight}]`}
+                  />
+                </Suspense>
               ) : showRawContent ? (
                 <div className="border rounded-md bg-muted/30 p-4 max-h-[400px] overflow-auto">
                   <pre className="text-sm whitespace-pre-wrap font-mono text-muted-foreground">
@@ -384,12 +400,14 @@ export function MarkdownContentField({
                 </div>
               ) : (
                 <div className="max-h-[400px] overflow-auto">
-                  <MarkdownEditor
-                    key={editedContent}
-                    initialContent={editedContent || fileContentData?.content || ''}
-                    readOnly
-                    className="border-muted/50"
-                  />
+                  <Suspense fallback={editorFallback}>
+                    <MarkdownEditor
+                      key={editedContent}
+                      initialContent={editedContent || fileContentData?.content || ''}
+                      readOnly
+                      className="border-muted/50"
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -399,12 +417,14 @@ export function MarkdownContentField({
 
       {/* Multilingual editor */}
       {contentMode === 'multilingual' && contentSource && (
-        <MultilingualMarkdownEditor
-          basePath={contentSource}
-          languages={languages}
-          defaultLang={defaultLang}
-          className={`min-h-[${minHeight}]`}
-        />
+        <Suspense fallback={editorFallback}>
+          <MultilingualMarkdownEditor
+            basePath={contentSource}
+            languages={languages}
+            defaultLang={defaultLang}
+            className={`min-h-[${minHeight}]`}
+          />
+        </Suspense>
       )}
     </div>
   )

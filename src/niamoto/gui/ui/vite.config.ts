@@ -28,6 +28,30 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000, // Augmente la limite à 1MB au lieu de 500KB
     rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined
+          }
+
+          if (
+            id.includes('@monaco-editor/react') ||
+            id.includes('monaco-editor')
+          ) {
+            return 'monaco'
+          }
+
+          if (
+            id.includes('/novel/') ||
+            id.includes('/@tiptap/') ||
+            id.includes('tiptap-extension-resize-image')
+          ) {
+            return 'rich-text'
+          }
+
+          return undefined
+        },
+      },
       onwarn(warning, warn) {
         // Ignore les warnings de commentaires PURE de @daybrush/utils
         if (warning.code === 'SOURCEMAP_ERROR' ||
