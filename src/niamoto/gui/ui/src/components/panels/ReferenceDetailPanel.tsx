@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -71,35 +71,40 @@ export function ReferenceDetailPanel({
 }: ReferenceDetailPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTable, setDeleteTable] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const requestedTab = searchParams.get('tab')
 
   // Check if enrichment is configured for this reference
   const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfig | null>(null)
-  const [enrichmentLoading, setEnrichmentLoading] = useState(true)
 
   // Reset to overview tab when reference changes
   useEffect(() => {
+    if (requestedTab === 'enrichment' || requestedTab === 'config') {
+      setActiveTab(requestedTab)
+      return
+    }
     setActiveTab('overview')
-  }, [referenceName])
+  }, [referenceName, requestedTab])
 
   // Function to reload enrichment config (called after config changes)
   const reloadEnrichmentConfig = async () => {
-    setEnrichmentLoading(true)
     try {
       const response = await apiClient.get(`/enrichment/config/${referenceName}`)
       if (response.data && response.data.enabled) {
         setEnrichmentConfig(response.data)
+        return true
       } else {
         setEnrichmentConfig(null)
+        return false
       }
     } catch {
       setEnrichmentConfig(null)
-    } finally {
-      setEnrichmentLoading(false)
+      return false
     }
   }
 
@@ -108,6 +113,15 @@ export function ReferenceDetailPanel({
   }, [referenceName])
 
   const hasEnrichment = enrichmentConfig !== null && enrichmentConfig.enabled
+
+  const handleConfigSaved = async () => {
+    await reloadEnrichmentConfig()
+    if (searchParams.get('tab')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('tab')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }
 
   const openInDataExplorer = () => {
     navigate(`/data/explorer?table=${encodeURIComponent(tableName)}`)
@@ -238,15 +252,13 @@ export function ReferenceDetailPanel({
               <LayoutDashboard className="h-4 w-4" />
               {t('reference.overview')}
             </TabsTrigger>
-            {!enrichmentLoading && hasEnrichment && (
-              <TabsTrigger value="enrichment" className="gap-1">
-                <Zap className="h-4 w-4" />
-                {t('reference.apiEnrichment')}
-              </TabsTrigger>
-            )}
             <TabsTrigger value="config" className="gap-1">
               <Settings className="h-4 w-4" />
               {t('reference.configuration')}
+            </TabsTrigger>
+            <TabsTrigger value="enrichment" className="gap-1">
+              <Zap className="h-4 w-4" />
+              {t('reference.apiEnrichment')}
             </TabsTrigger>
           </TabsList>
 
@@ -317,15 +329,20 @@ export function ReferenceDetailPanel({
           </TabsContent>
 
           {/* Enrichment Tab */}
-          {hasEnrichment && (
-            <TabsContent value="enrichment" className="space-y-6">
-              <EnrichmentTab referenceName={referenceName} />
-            </TabsContent>
-          )}
+          <TabsContent value="enrichment" className="space-y-6">
+            <EnrichmentTab
+              referenceName={referenceName}
+              hasEnrichment={hasEnrichment}
+              onConfigSaved={handleConfigSaved}
+            />
+          </TabsContent>
 
           {/* Configuration Tab */}
           <TabsContent value="config" className="space-y-6">
-            <ReferenceConfigEditor referenceName={referenceName} onSaved={reloadEnrichmentConfig} />
+            <ReferenceConfigEditor
+              referenceName={referenceName}
+              onSaved={handleConfigSaved}
+            />
           </TabsContent>
         </Tabs>
       </div>

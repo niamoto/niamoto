@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -62,6 +63,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { apiClient } from '@/lib/api/client'
+import { ApiEnrichmentConfig, type ApiConfig, type ApiCategory } from './ApiEnrichmentConfig'
 import { toast } from 'sonner'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useNetworkStatus } from '@/hooks/useNetworkStatus'
@@ -69,6 +71,90 @@ import { WifiOff } from 'lucide-react'
 
 interface EnrichmentTabProps {
   referenceName: string
+  hasEnrichment: boolean
+  onConfigSaved?: () => void
+}
+
+interface ReferenceEnrichmentConfig {
+  plugin?: string
+  enabled?: boolean
+  config?: {
+    api_url?: string
+    auth_method?: 'none' | 'api_key' | 'bearer' | 'basic'
+    auth_params?: {
+      key?: string
+      location?: 'header' | 'query'
+      name?: string
+      username?: string
+      password?: string
+    }
+    query_params?: Record<string, string>
+    query_field?: string
+    query_param_name?: string
+    rate_limit?: number
+    cache_results?: boolean
+    response_mapping?: Record<string, string>
+  }
+}
+
+interface ReferenceConfigPayload {
+  kind?: string
+  description?: string
+  connector?: Record<string, any>
+  hierarchy?: Record<string, any>
+  schema?: Record<string, any>
+  enrichment?: ReferenceEnrichmentConfig[]
+}
+
+interface ReferenceConfigResponse {
+  name?: string
+  config?: ReferenceConfigPayload
+}
+
+function normalizeReferenceConfigPayload(
+  payload: ReferenceConfigPayload | ReferenceConfigResponse | null | undefined
+): ReferenceConfigPayload | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  if ('config' in payload && payload.config && typeof payload.config === 'object') {
+    return normalizeReferenceConfigPayload(payload.config)
+  }
+  return payload as ReferenceConfigPayload
+}
+
+function enrichmentToApiConfig(enrichment?: ReferenceEnrichmentConfig): ApiConfig {
+  return {
+    enabled: enrichment?.enabled ?? false,
+    plugin: enrichment?.plugin ?? 'api_taxonomy_enricher',
+    api_url: enrichment?.config?.api_url ?? '',
+    auth_method: (enrichment?.config?.auth_method as ApiConfig['auth_method']) ?? 'none',
+    auth_params: enrichment?.config?.auth_params,
+    query_params: enrichment?.config?.query_params,
+    query_field: enrichment?.config?.query_field ?? 'full_name',
+    query_param_name: enrichment?.config?.query_param_name ?? 'q',
+    rate_limit: enrichment?.config?.rate_limit ?? 2,
+    cache_results: enrichment?.config?.cache_results ?? true,
+    response_mapping: enrichment?.config?.response_mapping,
+  }
+}
+
+function apiConfigToEnrichment(apiConfig: ApiConfig): ReferenceEnrichmentConfig {
+  return {
+    plugin: apiConfig.plugin,
+    enabled: apiConfig.enabled,
+    config: {
+      api_url: apiConfig.api_url,
+      auth_method: apiConfig.auth_method,
+      auth_params: apiConfig.auth_params,
+      query_params: apiConfig.query_params,
+      query_field: apiConfig.query_field,
+      query_param_name: apiConfig.query_param_name,
+      rate_limit: apiConfig.rate_limit,
+      cache_results: apiConfig.cache_results,
+      response_mapping: apiConfig.response_mapping,
+    },
+  }
 }
 
 interface EnrichmentJob {
@@ -217,7 +303,11 @@ const renderValue = (value: any): React.ReactNode => {
   return String(value)
 }
 
-export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
+export function EnrichmentTab({
+  referenceName,
+  hasEnrichment,
+  onConfigSaved,
+}: EnrichmentTabProps) {
   const { t } = useTranslation()
   const { isOffline } = useNetworkStatus()
 
@@ -227,6 +317,12 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
   const [job, setJob] = useState<EnrichmentJob | null>(null)
   const [jobLoading, setJobLoading] = useState(false)
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configSaving, setConfigSaving] = useState(false)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [configSaved, setConfigSaved] = useState(false)
+  const [referenceConfig, setReferenceConfig] = useState<ReferenceConfigPayload | null>(null)
+  const [isSetupExpanded, setIsSetupExpanded] = useState(!hasEnrichment)
 
   const [results, setResults] = useState<EnrichmentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
@@ -247,6 +343,60 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
   const [isResuming, setIsResuming] = useState(false)
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const apiCategory: ApiCategory =
+    referenceConfig?.kind === 'spatial' ? 'spatial' : 'taxonomy'
+  const enrichmentConfig = enrichmentToApiConfig(referenceConfig?.enrichment?.[0])
+  const enrichmentEnabled = enrichmentConfig.enabled
+
+  const loadReferenceConfig = useCallback(async () => {
+    setConfigLoading(true)
+    setConfigError(null)
+    try {
+      const response = await apiClient.get(`/config/references/${referenceName}/config`)
+      const normalized = normalizeReferenceConfigPayload(response.data)
+      setReferenceConfig(normalized)
+      setIsSetupExpanded(!(normalized?.enrichment?.[0]?.enabled ?? false))
+    } catch (err: any) {
+      console.error('Failed to load reference config:', err)
+      setConfigError(err.response?.data?.detail || 'Unable to load enrichment configuration')
+      setReferenceConfig(null)
+    } finally {
+      setConfigLoading(false)
+    }
+  }, [referenceName])
+
+  const updateEnrichmentConfig = (apiConfig: ApiConfig) => {
+    setConfigSaved(false)
+    setReferenceConfig((previous) => {
+      if (!previous) return previous
+      return {
+        ...previous,
+        enrichment: [apiConfigToEnrichment(apiConfig)],
+      }
+    })
+  }
+
+  const saveEnrichmentConfig = async () => {
+    if (!referenceConfig) return
+    setConfigSaving(true)
+    setConfigError(null)
+    setConfigSaved(false)
+    try {
+      await apiClient.put(`/config/references/${referenceName}/config`, referenceConfig)
+      setConfigSaved(true)
+      await loadReferenceConfig()
+      onConfigSaved?.()
+      toast.success('Enrichment configuration saved')
+    } catch (err: any) {
+      console.error('Failed to save enrichment config:', err)
+      setConfigError(err.response?.data?.detail || 'Unable to save enrichment configuration')
+      toast.error('Save error', {
+        description: err.response?.data?.detail || 'Unable to save enrichment configuration',
+      })
+    } finally {
+      setConfigSaving(false)
+    }
+  }
 
   // Load enrichment stats (silent refresh - no loading state after initial load)
   const loadStats = useCallback(async (showLoader = false) => {
@@ -443,6 +593,17 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
   // Initial load - only run on mount or when referenceName changes
   useEffect(() => {
+    loadReferenceConfig()
+
+    if (!hasEnrichment) {
+      stopPolling()
+      setStatsLoading(false)
+      setStats(null)
+      setJob(null)
+      setResults([])
+      return
+    }
+
     loadStats(true)  // Show loader on initial load
     loadJobStatus().then((jobData) => {
       if (jobData && jobData.status === 'running') {
@@ -452,7 +613,7 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
     return () => stopPolling()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [referenceName])
+  }, [hasEnrichment, loadJobStatus, loadReferenceConfig, loadStats, referenceName, startPolling, stopPolling])
 
   // Manual refresh handler
   const handleRefresh = async () => {
@@ -485,6 +646,118 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">{t('sources:reference.apiEnrichment')}</CardTitle>
+              <CardDescription>{t('sources:configEditor.enrichWithApi')}</CardDescription>
+            </div>
+            {enrichmentEnabled && !isSetupExpanded ? (
+              <Button variant="outline" size="sm" onClick={() => setIsSetupExpanded(true)}>
+                {t('common:actions.edit')}
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {configError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{configError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {configSaved ? (
+            <Alert className="bg-success/10 border-success/30">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <AlertDescription className="text-success">
+                {t('sources:configEditor.savedSuccess')}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {configLoading || !referenceConfig ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : enrichmentEnabled && !isSetupExpanded ? (
+            <div className="rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">
+                  {enrichmentConfig.plugin || t('sources:configEditor.apiEnrichment')}
+                </div>
+                <div className="text-sm text-muted-foreground truncate">
+                  {enrichmentConfig.api_url || t('sources:configEditor.enabled')}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <div>
+                  <Label htmlFor="reference-enrichment-enabled" className="text-sm font-medium">
+                    {t('sources:configEditor.apiEnrichment')}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t('sources:configEditor.enrichWithApi')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="reference-enrichment-enabled" className="text-sm">
+                    {enrichmentEnabled
+                      ? t('sources:configEditor.enabled')
+                      : t('sources:configEditor.disabled')}
+                  </Label>
+                  <Switch
+                    id="reference-enrichment-enabled"
+                    checked={enrichmentEnabled}
+                    onCheckedChange={(checked) =>
+                      updateEnrichmentConfig({
+                        ...enrichmentConfig,
+                        enabled: checked,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {enrichmentEnabled ? (
+                <ApiEnrichmentConfig
+                  config={enrichmentConfig}
+                  onChange={updateEnrichmentConfig}
+                  category={apiCategory}
+                />
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {t('reference.enrichmentNotConfigured', {
+                      defaultValue: 'Enable and save API enrichment to unlock this workspace.',
+                    })}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex justify-end border-t pt-4">
+                <Button onClick={saveEnrichmentConfig} disabled={configSaving}>
+                  {configSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t('sources:configEditor.saving')}
+                    </>
+                  ) : (
+                    t('sources:configEditor.save')
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {hasEnrichment || enrichmentEnabled ? (
+        <>
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Status Card */}
@@ -992,6 +1265,8 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
           </Card>
         </TabsContent>
       </Tabs>
+        </>
+      ) : null}
 
       {/* Result Detail Dialog */}
       <Dialog open={!!selectedResult} onOpenChange={(open) => !open && setSelectedResult(null)}>

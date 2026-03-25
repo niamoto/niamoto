@@ -171,6 +171,8 @@ class ReferenceInfo(BaseModel):
     description: Optional[str] = None
     schema_fields: List[Dict[str, Any]] = []
     entity_count: Optional[int] = None
+    can_enrich: bool = False
+    enrichment_enabled: bool = False
     is_hierarchical: bool = (
         False  # True if has hierarchy structure (lft/rght or parent_id)
     )
@@ -254,6 +256,12 @@ async def get_references():
 
             kind = ref_config.get("kind", "generic")
             description = ref_config.get("description")
+            enrichment_config = ref_config.get("enrichment") or []
+            enrichment_enabled = any(
+                isinstance(item, dict) and item.get("enabled")
+                for item in enrichment_config
+            )
+            can_enrich = kind == "hierarchical" or bool(enrichment_config)
 
             # Get actual table name from registry, fallback to convention
             actual_table_name = table_name_map.get(ref_name, f"reference_{ref_name}")
@@ -353,6 +361,8 @@ async def get_references():
                     description=description,
                     schema_fields=schema_fields,
                     entity_count=entity_counts.get(ref_name),
+                    can_enrich=can_enrich,
+                    enrichment_enabled=enrichment_enabled,
                     is_hierarchical=is_hierarchical,
                     hierarchy_fields=hierarchy_fields,
                 )

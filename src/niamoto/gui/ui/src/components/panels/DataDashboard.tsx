@@ -34,7 +34,11 @@ export function DataDashboard() {
   }
 
   const handleEnrich = (refName: string) => {
-    navigate(`/sources/reference/${refName}`)
+    navigate(`/sources/reference/${encodeURIComponent(refName)}?tab=enrichment`)
+  }
+
+  const handleOpenGroup = (groupName: string) => {
+    navigate(`/groups/${encodeURIComponent(groupName)}`)
   }
 
   const handleImport = () => {
@@ -68,26 +72,11 @@ export function DataDashboard() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
-          <p className="text-muted-foreground">
-            {t('dashboard.description')}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleImport}>
-            <Upload className="mr-2 h-4 w-4" />
-            {t('dashboard.import')}
-          </Button>
-        </div>
-      </div>
-
-      {/* Dashboard Content */}
+    <div className="p-6">
       <ImportDashboard
         onExploreEntity={handleExploreEntity}
+        onExploreReference={handleEnrich}
+        onOpenGroup={handleOpenGroup}
         onEnrich={handleEnrich}
         onReimport={handleImport}
       />

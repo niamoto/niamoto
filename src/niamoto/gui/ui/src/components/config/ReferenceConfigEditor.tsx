@@ -5,7 +5,6 @@
  * - Kind (hierarchical, generic, spatial)
  * - Connector settings (path, format)
  * - Hierarchy configuration (levels, id_column, name_column)
- * - API Enrichment configuration
  * - Schema fields
  */
 
@@ -18,7 +17,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -37,72 +35,12 @@ import {
   FileText,
   Leaf,
   Map,
-  Zap,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
-import { ApiEnrichmentConfig, type ApiConfig, type ApiCategory } from './ApiEnrichmentConfig'
 
 interface ReferenceConfigEditorProps {
   referenceName: string
   onSaved?: () => void
-}
-
-interface EnrichmentConfig {
-  plugin?: string
-  enabled?: boolean
-  config?: {
-    api_url?: string
-    auth_method?: 'none' | 'api_key' | 'bearer' | 'basic'
-    auth_params?: {
-      key?: string
-      location?: 'header' | 'query'
-      name?: string
-      username?: string
-      password?: string
-    }
-    query_params?: Record<string, string>
-    query_field?: string
-    query_param_name?: string
-    rate_limit?: number
-    cache_results?: boolean
-    response_mapping?: Record<string, string>
-  }
-}
-
-// Convert from EnrichmentConfig (YAML structure) to ApiConfig (form structure)
-function enrichmentToApiConfig(enrichment?: EnrichmentConfig): ApiConfig {
-  return {
-    enabled: enrichment?.enabled ?? false,
-    plugin: enrichment?.plugin ?? 'api_taxonomy_enricher',
-    api_url: enrichment?.config?.api_url ?? '',
-    auth_method: (enrichment?.config?.auth_method as ApiConfig['auth_method']) ?? 'none',
-    auth_params: enrichment?.config?.auth_params,
-    query_params: enrichment?.config?.query_params,
-    query_field: enrichment?.config?.query_field ?? 'full_name',
-    query_param_name: enrichment?.config?.query_param_name ?? 'q',
-    rate_limit: enrichment?.config?.rate_limit ?? 2,
-    cache_results: enrichment?.config?.cache_results ?? true,
-    response_mapping: enrichment?.config?.response_mapping,
-  }
-}
-
-// Convert from ApiConfig (form structure) to EnrichmentConfig (YAML structure)
-function apiConfigToEnrichment(apiConfig: ApiConfig): EnrichmentConfig {
-  return {
-    plugin: apiConfig.plugin,
-    enabled: apiConfig.enabled,
-    config: {
-      api_url: apiConfig.api_url,
-      auth_method: apiConfig.auth_method,
-      auth_params: apiConfig.auth_params,
-      query_params: apiConfig.query_params,
-      query_field: apiConfig.query_field,
-      query_param_name: apiConfig.query_param_name,
-      rate_limit: apiConfig.rate_limit,
-      cache_results: apiConfig.cache_results,
-      response_mapping: apiConfig.response_mapping,
-    },
-  }
 }
 
 interface ReferenceConfig {
@@ -126,7 +64,6 @@ interface ReferenceConfig {
     id_field?: string
     fields?: Record<string, string>
   }
-  enrichment?: EnrichmentConfig[]
 }
 
 async function fetchReferenceConfig(name: string): Promise<{ name: string; config: ReferenceConfig }> {
@@ -138,7 +75,10 @@ async function saveReferenceConfig(name: string, config: ReferenceConfig): Promi
   await apiClient.put(`/config/references/${name}/config`, config)
 }
 
-export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfigEditorProps) {
+export function ReferenceConfigEditor({
+  referenceName,
+  onSaved,
+}: ReferenceConfigEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const queryClient = useQueryClient()
   const [localConfig, setLocalConfig] = useState<ReferenceConfig | null>(null)
@@ -190,19 +130,6 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
     setHasChanges(true)
   }
 
-  // Get first enrichment config (we only support one for now)
-  const enrichment = localConfig?.enrichment?.[0]
-
-  // Handle changes from ApiEnrichmentConfig component
-  const handleEnrichmentChange = (apiConfig: ApiConfig) => {
-    if (!localConfig) return
-    setLocalConfig({
-      ...localConfig,
-      enrichment: [apiConfigToEnrichment(apiConfig)],
-    })
-    setHasChanges(true)
-  }
-
   const addHierarchyLevel = () => {
     if (!localConfig?.hierarchy) return
     const levels = localConfig.hierarchy.levels || []
@@ -250,15 +177,6 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
   if (!localConfig) return null
 
   const isHierarchical = localConfig.kind === 'hierarchical'
-  const isSpatial = localConfig.kind === 'spatial'
-
-  // Determine API category based on reference kind
-  const getApiCategory = (): ApiCategory => {
-    if (isHierarchical) return 'taxonomy'
-    if (isSpatial) return 'spatial'
-    return 'all'  // For generic references, show all options
-  }
-
   return (
     <div className="space-y-6">
       {/* Save status */}
@@ -500,45 +418,6 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
           </CardContent>
         </Card>
       )}
-
-      {/* API Enrichment Settings */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                {t('configEditor.apiEnrichment')}
-              </CardTitle>
-              <CardDescription>
-                {t('configEditor.enrichWithApi')}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="enrichment-enabled" className="text-sm">
-                {enrichment?.enabled ? t('configEditor.enabled') : t('configEditor.disabled')}
-              </Label>
-              <Switch
-                id="enrichment-enabled"
-                checked={enrichment?.enabled || false}
-                onCheckedChange={(checked) => {
-                  const currentApiConfig = enrichmentToApiConfig(enrichment)
-                  handleEnrichmentChange({ ...currentApiConfig, enabled: checked })
-                }}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        {enrichment?.enabled && (
-          <CardContent>
-            <ApiEnrichmentConfig
-              config={enrichmentToApiConfig(enrichment)}
-              onChange={handleEnrichmentChange}
-              category={getApiCategory()}
-            />
-          </CardContent>
-        )}
-      </Card>
 
       {/* Save Button */}
       <div className="flex items-center justify-between pt-4 border-t">
