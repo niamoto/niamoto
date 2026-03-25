@@ -444,6 +444,106 @@
     "enabled": "Activé",
     "disabled": "Désactivé"
   },
+  "enrichmentTab": {
+    "viewImage": "Voir l'image",
+    "cards": {
+      "status": "Statut",
+      "progress": "Progression",
+      "database": "Base de données",
+      "actions": "Actions"
+    },
+    "status": {
+      "ready": "Prêt",
+      "running": "En cours",
+      "paused": "En pause",
+      "pausedOffline": "Pause (hors ligne)",
+      "completed": "Terminé",
+      "failed": "Échec",
+      "cancelled": "Annulé"
+    },
+    "stats": {
+      "total": "Total",
+      "enriched": "Enrichis",
+      "enrichedOne": "Enrichi",
+      "pending": "En attente"
+    },
+    "currentEntity": "En cours : {{name}}",
+    "offline": {
+      "title": "Mode hors connexion",
+      "description": "L'enrichissement nécessite une connexion internet pour contacter les API externes.",
+      "internetRequired": "Connexion internet requise",
+      "internetRequiredResume": "Connexion internet requise pour reprendre"
+    },
+    "actions": {
+      "description": "Gérer le processus d'enrichissement",
+      "start": "Démarrer l'enrichissement",
+      "pause": "Pause",
+      "resume": "Reprendre"
+    },
+    "cancelDialog": {
+      "title": "Annuler l'enrichissement ?",
+      "description": "{{processed}} entités sur {{total}} ont été traitées. Cette action ne peut pas être annulée.",
+      "continue": "Continuer",
+      "resume": "Reprendre",
+      "confirm": "Annuler le job"
+    },
+    "tabs": {
+      "preview": "Aperçu",
+      "results": "Résultats"
+    },
+    "preview": {
+      "selectEntity": "Sélectionner une entité",
+      "selectEntityDescription": "Choisissez une entité à tester",
+      "loadEntities": "Cliquez sur rechercher pour charger les entités",
+      "manualInput": "Ou saisir manuellement :",
+      "resultTitle": "Résultat de l'aperçu",
+      "resultDescription": "Données retournées par l'API",
+      "loading": "Interrogation de l'API...",
+      "emptyTitle": "Sélectionnez une entité",
+      "emptyDescription": "pour tester la configuration d'enrichissement"
+    },
+    "results": {
+      "title": "Résultats d'enrichissement",
+      "description": "Entités enrichies lors du dernier job",
+      "emptyTitle": "Aucun résultat disponible",
+      "emptyDescription": "Lancez un enrichissement pour voir les résultats"
+    },
+    "result": {
+      "success": "Succès",
+      "failed": "Échec",
+      "enrichedOn": "Données enrichies le {{date}}",
+      "images": "Images ({{count}})"
+    },
+    "table": {
+      "entity": "Entité",
+      "field": "Champ",
+      "value": "Valeur",
+      "date": "Date"
+    },
+    "errors": {
+      "loadConfig": "Impossible de charger la configuration d'enrichissement",
+      "saveConfig": "Impossible de sauvegarder la configuration d'enrichissement",
+      "startJob": "Impossible de démarrer le job",
+      "pauseJob": "Impossible de mettre en pause",
+      "resumeJob": "Impossible de reprendre",
+      "cancelJob": "Impossible d'annuler",
+      "preview": "Échec de l'aperçu"
+    },
+    "toasts": {
+      "configSaved": "Configuration d'enrichissement sauvegardée",
+      "saveErrorTitle": "Erreur de sauvegarde",
+      "startedTitle": "Enrichissement démarré",
+      "startedDescription": "{{count}} entités à traiter",
+      "startErrorTitle": "Erreur de démarrage",
+      "pausedTitle": "Enrichissement en pause",
+      "pausedDescription": "Vous pouvez reprendre à tout moment",
+      "resumedTitle": "Enrichissement repris",
+      "resumedDescription": "Le traitement continue",
+      "cancelledTitle": "Enrichissement annulé",
+      "cancelledDescription": "{{count}} entités traitées",
+      "genericErrorTitle": "Erreur"
+    }
+  },
   "groupPanel": {
     "tabs": {
       "sources": "Sources de données",

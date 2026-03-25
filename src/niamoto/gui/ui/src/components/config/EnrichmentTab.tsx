@@ -187,6 +187,7 @@ interface EnrichmentStats {
 
 // Component for image with loading state
 const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
+  const { t } = useTranslation(['sources'])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -206,7 +207,7 @@ const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline truncate max-w-[150px]"
           >
-            Voir l'image
+            {t('enrichmentTab.viewImage')}
           </a>
         </div>
       ) : (
@@ -308,7 +309,7 @@ export function EnrichmentTab({
   hasEnrichment,
   onConfigSaved,
 }: EnrichmentTabProps) {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['sources', 'common'])
   const { isOffline } = useNetworkStatus()
 
   // State
@@ -358,7 +359,7 @@ export function EnrichmentTab({
       setIsSetupExpanded(!(normalized?.enrichment?.[0]?.enabled ?? false))
     } catch (err: any) {
       console.error('Failed to load reference config:', err)
-      setConfigError(err.response?.data?.detail || 'Unable to load enrichment configuration')
+      setConfigError(err.response?.data?.detail || t('enrichmentTab.errors.loadConfig'))
       setReferenceConfig(null)
     } finally {
       setConfigLoading(false)
@@ -386,12 +387,12 @@ export function EnrichmentTab({
       setConfigSaved(true)
       await loadReferenceConfig()
       onConfigSaved?.()
-      toast.success('Enrichment configuration saved')
+      toast.success(t('enrichmentTab.toasts.configSaved'))
     } catch (err: any) {
       console.error('Failed to save enrichment config:', err)
-      setConfigError(err.response?.data?.detail || 'Unable to save enrichment configuration')
-      toast.error('Save error', {
-        description: err.response?.data?.detail || 'Unable to save enrichment configuration',
+      setConfigError(err.response?.data?.detail || t('enrichmentTab.errors.saveConfig'))
+      toast.error(t('enrichmentTab.toasts.saveErrorTitle'), {
+        description: err.response?.data?.detail || t('enrichmentTab.errors.saveConfig'),
       })
     } finally {
       setConfigSaving(false)
@@ -444,13 +445,15 @@ export function EnrichmentTab({
         startedAt: new Date().toISOString(),
         meta: { referenceName },
       })
-      toast.success('Enrichment started', {
-        description: `${stats?.pending || 0} entities to process`,
+      toast.success(t('enrichmentTab.toasts.startedTitle'), {
+        description: t('enrichmentTab.toasts.startedDescription', {
+          count: stats?.pending || 0,
+        }),
       })
     } catch (err: any) {
       console.error('Failed to start job:', err)
-      toast.error('Start error', {
-        description: err.response?.data?.detail || 'Unable to start job',
+      toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
+        description: err.response?.data?.detail || t('enrichmentTab.errors.startJob'),
       })
     } finally {
       setJobLoading(false)
@@ -464,13 +467,13 @@ export function EnrichmentTab({
     try {
       await apiClient.post(`/enrichment/pause/${referenceName}`)
       await loadJobStatus()
-      toast.info('Enrichment paused', {
-        description: 'You can resume at any time',
+      toast.info(t('enrichmentTab.toasts.pausedTitle'), {
+        description: t('enrichmentTab.toasts.pausedDescription'),
       })
     } catch (err: any) {
       console.error('Failed to pause job:', err)
-      toast.error('Error', {
-        description: 'Unable to pause',
+      toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
+        description: t('enrichmentTab.errors.pauseJob'),
       })
     } finally {
       setIsPausing(false)
@@ -484,13 +487,13 @@ export function EnrichmentTab({
     try {
       await apiClient.post(`/enrichment/resume/${referenceName}`)
       startPolling()
-      toast.success('Enrichment resumed', {
-        description: 'Processing continues',
+      toast.success(t('enrichmentTab.toasts.resumedTitle'), {
+        description: t('enrichmentTab.toasts.resumedDescription'),
       })
     } catch (err: any) {
       console.error('Failed to resume job:', err)
-      toast.error('Error', {
-        description: 'Unable to resume',
+      toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
+        description: t('enrichmentTab.errors.resumeJob'),
       })
     } finally {
       setIsResuming(false)
@@ -504,13 +507,15 @@ export function EnrichmentTab({
       await apiClient.post(`/enrichment/cancel/${referenceName}`)
       await loadJobStatus()
       stopPolling()
-      toast.warning('Enrichment cancelled', {
-        description: `${job.processed} entities processed`,
+      toast.warning(t('enrichmentTab.toasts.cancelledTitle'), {
+        description: t('enrichmentTab.toasts.cancelledDescription', {
+          count: job.processed,
+        }),
       })
     } catch (err: any) {
       console.error('Failed to cancel job:', err)
-      toast.error('Error', {
-        description: 'Unable to cancel',
+      toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
+        description: t('enrichmentTab.errors.cancelJob'),
       })
     }
   }
@@ -585,7 +590,7 @@ export function EnrichmentTab({
       })
       setPreviewData(response.data)
     } catch (err: any) {
-      setPreviewError(err.response?.data?.detail || 'Preview failed')
+      setPreviewError(err.response?.data?.detail || t('enrichmentTab.errors.preview'))
     } finally {
       setPreviewLoading(false)
     }
@@ -628,17 +633,17 @@ export function EnrichmentTab({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'running':
-        return <Badge className="bg-blue-500"><Loader2 className="h-3 w-3 mr-1 animate-spin" />En cours</Badge>
+        return <Badge className="bg-blue-500"><Loader2 className="h-3 w-3 mr-1 animate-spin" />{t('enrichmentTab.status.running')}</Badge>
       case 'paused':
-        return <Badge variant="secondary"><Pause className="h-3 w-3 mr-1" />En pause</Badge>
+        return <Badge variant="secondary"><Pause className="h-3 w-3 mr-1" />{t('enrichmentTab.status.paused')}</Badge>
       case 'paused_offline':
-        return <Badge variant="secondary"><WifiOff className="h-3 w-3 mr-1" />Pause (hors ligne)</Badge>
+        return <Badge variant="secondary"><WifiOff className="h-3 w-3 mr-1" />{t('enrichmentTab.status.pausedOffline')}</Badge>
       case 'completed':
-        return <Badge className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />Termine</Badge>
+        return <Badge className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />{t('enrichmentTab.status.completed')}</Badge>
       case 'failed':
-        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Echoue</Badge>
+        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />{t('enrichmentTab.status.failed')}</Badge>
       case 'cancelled':
-        return <Badge variant="outline"><StopCircle className="h-3 w-3 mr-1" />Annule</Badge>
+        return <Badge variant="outline"><StopCircle className="h-3 w-3 mr-1" />{t('enrichmentTab.status.cancelled')}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -763,7 +768,7 @@ export function EnrichmentTab({
         {/* Status Card */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Statut</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('enrichmentTab.cards.status')}</CardTitle>
           </CardHeader>
           <CardContent className="min-h-[120px]">
             {job ? (
@@ -771,12 +776,12 @@ export function EnrichmentTab({
                 {getStatusBadge(job.status)}
                 {job.current_entity && (
                   <p className="text-xs text-muted-foreground truncate">
-                    En cours: {job.current_entity}
+                    {t('enrichmentTab.currentEntity', { name: job.current_entity })}
                   </p>
                 )}
               </div>
             ) : (
-              <Badge variant="outline">Pret</Badge>
+              <Badge variant="outline">{t('enrichmentTab.status.ready')}</Badge>
             )}
           </CardContent>
         </Card>
@@ -784,7 +789,7 @@ export function EnrichmentTab({
         {/* Progress Card */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Progression</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('enrichmentTab.cards.progress')}</CardTitle>
           </CardHeader>
           <CardContent className="min-h-[120px]">
             {job ? (
@@ -803,7 +808,7 @@ export function EnrichmentTab({
         {/* Database Stats Card */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Base de donnees</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('enrichmentTab.cards.database')}</CardTitle>
           </CardHeader>
           <CardContent className="min-h-[120px]">
             {statsLoading ? (
@@ -813,20 +818,20 @@ export function EnrichmentTab({
             ) : stats ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Total</span>
+                  <span className="text-muted-foreground">{t('enrichmentTab.stats.total')}</span>
                   <span className="font-medium">{stats.total.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1 text-green-600">
                     <CheckCircle2 className="h-3 w-3" />
-                    Enrichis
+                    {t('enrichmentTab.stats.enriched')}
                   </span>
                   <span className="font-medium text-green-600">{stats.enriched.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1 text-orange-500">
                     <Clock className="h-3 w-3" />
-                    En attente
+                    {t('enrichmentTab.stats.pending')}
                   </span>
                   <span className="font-medium text-orange-500">{stats.pending.toLocaleString()}</span>
                 </div>
@@ -845,9 +850,9 @@ export function EnrichmentTab({
       {isOffline && (
         <Alert>
           <WifiOff className="h-4 w-4" />
-          <AlertTitle>Mode hors connexion</AlertTitle>
+          <AlertTitle>{t('enrichmentTab.offline.title')}</AlertTitle>
           <AlertDescription>
-            L'enrichissement necessite une connexion internet pour contacter les API externes (GBIF, Endemia, WFO).
+            {t('enrichmentTab.offline.description')}
           </AlertDescription>
         </Alert>
       )}
@@ -855,9 +860,9 @@ export function EnrichmentTab({
       {/* Actions */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Actions</CardTitle>
+          <CardTitle className="text-sm font-medium">{t('enrichmentTab.cards.actions')}</CardTitle>
           <CardDescription>
-            Gerer le processus d'enrichissement
+            {t('enrichmentTab.actions.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
@@ -865,14 +870,14 @@ export function EnrichmentTab({
             <Button
               onClick={startJob}
               disabled={jobLoading || stats?.pending === 0 || isOffline}
-              title={isOffline ? 'Connexion internet requise' : undefined}
+              title={isOffline ? t('enrichmentTab.offline.internetRequired') : undefined}
             >
               {jobLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Play className="h-4 w-4 mr-2" />
               )}
-              Demarrer l'enrichissement
+              {t('enrichmentTab.actions.start')}
             </Button>
           ) : job.status === 'running' ? (
             <>
@@ -882,27 +887,29 @@ export function EnrichmentTab({
                 ) : (
                   <Pause className="h-4 w-4 mr-2" />
                 )}
-                Pause
+                {t('enrichmentTab.actions.pause')}
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
                     <StopCircle className="h-4 w-4 mr-2" />
-                    Annuler
+                    {t('common:actions.cancel')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Annuler l'enrichissement ?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('enrichmentTab.cancelDialog.title')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {job.processed} entites sur {job.total} ont ete traitees.
-                      Cette action ne peut pas etre annulee.
+                      {t('enrichmentTab.cancelDialog.description', {
+                        processed: job.processed,
+                        total: job.total,
+                      })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Continuer</AlertDialogCancel>
+                    <AlertDialogCancel>{t('enrichmentTab.cancelDialog.continue')}</AlertDialogCancel>
                     <AlertDialogAction onClick={cancelJob} className="bg-destructive text-destructive-foreground">
-                      Annuler le job
+                      {t('enrichmentTab.cancelDialog.confirm')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -911,34 +918,36 @@ export function EnrichmentTab({
           ) : job.status === 'paused' || job.status === 'paused_offline' ? (
             <>
               <Button onClick={resumeJob} disabled={isResuming || isOffline}
-                title={isOffline ? 'Connexion internet requise pour reprendre' : undefined}
+                title={isOffline ? t('enrichmentTab.offline.internetRequiredResume') : undefined}
               >
                 {isResuming ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Play className="h-4 w-4 mr-2" />
                 )}
-                Reprendre
+                {t('enrichmentTab.actions.resume')}
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
                     <StopCircle className="h-4 w-4 mr-2" />
-                    Annuler
+                    {t('common:actions.cancel')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Annuler l'enrichissement ?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('enrichmentTab.cancelDialog.title')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {job.processed} entites sur {job.total} ont ete traitees.
-                      Cette action ne peut pas etre annulee.
+                      {t('enrichmentTab.cancelDialog.description', {
+                        processed: job.processed,
+                        total: job.total,
+                      })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Reprendre</AlertDialogCancel>
+                    <AlertDialogCancel>{t('enrichmentTab.cancelDialog.resume')}</AlertDialogCancel>
                     <AlertDialogAction onClick={cancelJob} className="bg-destructive text-destructive-foreground">
-                      Annuler le job
+                      {t('enrichmentTab.cancelDialog.confirm')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -948,7 +957,7 @@ export function EnrichmentTab({
 
           <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Actualiser
+            {t('common:actions.refresh')}
           </Button>
         </CardContent>
       </Card>
@@ -957,7 +966,7 @@ export function EnrichmentTab({
       {job?.error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erreur</AlertTitle>
+          <AlertTitle>{t('common:status.error')}</AlertTitle>
           <AlertDescription>{job.error}</AlertDescription>
         </Alert>
       )}
@@ -973,11 +982,11 @@ export function EnrichmentTab({
         <TabsList>
           <TabsTrigger value="preview" className="gap-1">
             <Eye className="h-4 w-4" />
-            Apercu
+            {t('enrichmentTab.tabs.preview')}
           </TabsTrigger>
           <TabsTrigger value="results" className="gap-1">
             <Database className="h-4 w-4" />
-            Resultats
+            {t('enrichmentTab.tabs.results')}
             {results.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                 {results.length}
@@ -994,9 +1003,9 @@ export function EnrichmentTab({
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-sm font-medium">Selectionner une entite</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t('enrichmentTab.preview.selectEntity')}</CardTitle>
                     <CardDescription>
-                      Choisissez une entite a tester
+                      {t('enrichmentTab.preview.selectEntityDescription')}
                     </CardDescription>
                   </div>
                   <Button
@@ -1015,7 +1024,7 @@ export function EnrichmentTab({
                   <div className="flex-1 relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Rechercher..."
+                      placeholder={t('common:actions.search')}
                       value={entitySearch}
                       onChange={(e) => setEntitySearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadEntities(entitySearch)}
@@ -1041,7 +1050,7 @@ export function EnrichmentTab({
                   ) : entities.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Cliquez sur rechercher pour charger les entites</p>
+                      <p className="text-sm">{t('enrichmentTab.preview.loadEntities')}</p>
                     </div>
                   ) : (
                     <div className="p-1">
@@ -1061,7 +1070,7 @@ export function EnrichmentTab({
                             {entity.enriched && (
                               <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Enrichi
+                                {t('enrichmentTab.stats.enrichedOne')}
                               </Badge>
                             )}
                             <Eye className="h-4 w-4 opacity-0 group-hover:opacity-50" />
@@ -1074,7 +1083,7 @@ export function EnrichmentTab({
 
                 {/* Manual input fallback */}
                 <div className="pt-2 border-t">
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Ou saisir manuellement :</Label>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">{t('enrichmentTab.preview.manualInput')}</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder={t('common:labels.name')}
@@ -1102,9 +1111,9 @@ export function EnrichmentTab({
             {/* Preview result */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Resultat de l'apercu</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('enrichmentTab.preview.resultTitle')}</CardTitle>
                 <CardDescription>
-                  Donnees retournees par l'API
+                  {t('enrichmentTab.preview.resultDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1118,15 +1127,15 @@ export function EnrichmentTab({
                 {previewLoading && (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Interrogation de l'API...</span>
+                    <span className="ml-2 text-sm text-muted-foreground">{t('enrichmentTab.preview.loading')}</span>
                   </div>
                 )}
 
                 {!previewData && !previewError && !previewLoading && (
                   <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
                     <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Selectionnez une entite</p>
-                    <p className="text-xs">pour tester la configuration d'enrichissement</p>
+                    <p className="text-sm">{t('enrichmentTab.preview.emptyTitle')}</p>
+                    <p className="text-xs">{t('enrichmentTab.preview.emptyDescription')}</p>
                   </div>
                 )}
 
@@ -1142,7 +1151,7 @@ export function EnrichmentTab({
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground flex items-center gap-1">
                         <ImageIcon className="h-3 w-3" />
-                        Images ({previewData.api_enrichment.images.length})
+                        {t('enrichmentTab.result.images', { count: previewData.api_enrichment.images.length })}
                       </Label>
                       <div className="grid grid-cols-4 gap-2">
                         {previewData.api_enrichment.images.slice(0, 4).map((img: any, idx: number) => (
@@ -1163,8 +1172,8 @@ export function EnrichmentTab({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-1/4">Champ</TableHead>
-                          <TableHead>Valeur</TableHead>
+                          <TableHead className="w-1/4">{t('enrichmentTab.table.field')}</TableHead>
+                          <TableHead>{t('enrichmentTab.table.value')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1193,14 +1202,14 @@ export function EnrichmentTab({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-sm font-medium">Resultats d'enrichissement</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('enrichmentTab.results.title')}</CardTitle>
                 <CardDescription>
-                  Entites enrichies lors du dernier job
+                  {t('enrichmentTab.results.description')}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={loadResults} disabled={resultsLoading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${resultsLoading ? 'animate-spin' : ''}`} />
-                Actualiser
+                {t('common:actions.refresh')}
               </Button>
             </CardHeader>
             <CardContent>
@@ -1211,18 +1220,18 @@ export function EnrichmentTab({
               ) : results.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No results available</p>
-                  <p className="text-xs">Run an enrichment to see results</p>
+                  <p>{t('enrichmentTab.results.emptyTitle')}</p>
+                  <p className="text-xs">{t('enrichmentTab.results.emptyDescription')}</p>
                 </div>
               ) : (
                 <ScrollArea className="h-64">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Entite</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>{t('enrichmentTab.table.entity')}</TableHead>
+                        <TableHead>{t('enrichmentTab.cards.status')}</TableHead>
+                        <TableHead>{t('enrichmentTab.table.date')}</TableHead>
+                        <TableHead>{t('enrichmentTab.cards.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1233,12 +1242,12 @@ export function EnrichmentTab({
                             {result.success ? (
                               <Badge className="bg-green-500">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Succes
+                                {t('enrichmentTab.result.success')}
                               </Badge>
                             ) : (
                               <Badge variant="destructive">
                                 <AlertCircle className="h-3 w-3 mr-1" />
-                                Echec
+                                {t('enrichmentTab.result.failed')}
                               </Badge>
                             )}
                           </TableCell>
@@ -1274,7 +1283,9 @@ export function EnrichmentTab({
           <DialogHeader>
             <DialogTitle>{selectedResult?.entity_name || selectedResult?.taxon_name}</DialogTitle>
             <DialogDescription>
-              Donnees enrichies le {selectedResult && new Date(selectedResult.processed_at).toLocaleString()}
+              {t('enrichmentTab.result.enrichedOn', {
+                date: selectedResult && new Date(selectedResult.processed_at).toLocaleString(),
+              })}
             </DialogDescription>
           </DialogHeader>
           {selectedResult?.data && (
@@ -1283,7 +1294,7 @@ export function EnrichmentTab({
               {selectedResult.data.images && Array.isArray(selectedResult.data.images) && selectedResult.data.images.length > 0 && (
                 <div className="mb-4">
                   <Label className="text-xs text-muted-foreground mb-2 block">
-                    Images ({selectedResult.data.images.length})
+                    {t('enrichmentTab.result.images', { count: selectedResult.data.images.length })}
                   </Label>
                   <div className="grid grid-cols-4 gap-2">
                     {selectedResult.data.images.slice(0, 8).map((img: any, idx: number) => (
@@ -1303,8 +1314,8 @@ export function EnrichmentTab({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-1/4">Champ</TableHead>
-                    <TableHead>Valeur</TableHead>
+                    <TableHead className="w-1/4">{t('enrichmentTab.table.field')}</TableHead>
+                    <TableHead>{t('enrichmentTab.table.value')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

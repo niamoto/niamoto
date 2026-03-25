@@ -444,6 +444,106 @@
     "enabled": "Enabled",
     "disabled": "Disabled"
   },
+  "enrichmentTab": {
+    "viewImage": "View image",
+    "cards": {
+      "status": "Status",
+      "progress": "Progress",
+      "database": "Database",
+      "actions": "Actions"
+    },
+    "status": {
+      "ready": "Ready",
+      "running": "Running",
+      "paused": "Paused",
+      "pausedOffline": "Paused (offline)",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "stats": {
+      "total": "Total",
+      "enriched": "Enriched",
+      "enrichedOne": "Enriched",
+      "pending": "Pending"
+    },
+    "currentEntity": "Current: {{name}}",
+    "offline": {
+      "title": "Offline mode",
+      "description": "Enrichment requires an internet connection to contact external APIs.",
+      "internetRequired": "Internet connection required",
+      "internetRequiredResume": "Internet connection required to resume"
+    },
+    "actions": {
+      "description": "Manage the enrichment process",
+      "start": "Start enrichment",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "cancelDialog": {
+      "title": "Cancel enrichment?",
+      "description": "{{processed}} entities out of {{total}} have been processed. This action cannot be undone.",
+      "continue": "Continue",
+      "resume": "Resume",
+      "confirm": "Cancel job"
+    },
+    "tabs": {
+      "preview": "Preview",
+      "results": "Results"
+    },
+    "preview": {
+      "selectEntity": "Select an entity",
+      "selectEntityDescription": "Choose an entity to test",
+      "loadEntities": "Click search to load entities",
+      "manualInput": "Or enter one manually:",
+      "resultTitle": "Preview result",
+      "resultDescription": "Data returned by the API",
+      "loading": "Querying API...",
+      "emptyTitle": "Select an entity",
+      "emptyDescription": "to test the enrichment configuration"
+    },
+    "results": {
+      "title": "Enrichment results",
+      "description": "Entities enriched during the latest job",
+      "emptyTitle": "No results available",
+      "emptyDescription": "Run an enrichment to see results"
+    },
+    "result": {
+      "success": "Success",
+      "failed": "Failed",
+      "enrichedOn": "Enriched on {{date}}",
+      "images": "Images ({{count}})"
+    },
+    "table": {
+      "entity": "Entity",
+      "field": "Field",
+      "value": "Value",
+      "date": "Date"
+    },
+    "errors": {
+      "loadConfig": "Unable to load enrichment configuration",
+      "saveConfig": "Unable to save enrichment configuration",
+      "startJob": "Unable to start job",
+      "pauseJob": "Unable to pause",
+      "resumeJob": "Unable to resume",
+      "cancelJob": "Unable to cancel",
+      "preview": "Preview failed"
+    },
+    "toasts": {
+      "configSaved": "Enrichment configuration saved",
+      "saveErrorTitle": "Save error",
+      "startedTitle": "Enrichment started",
+      "startedDescription": "{{count}} entities to process",
+      "startErrorTitle": "Start error",
+      "pausedTitle": "Enrichment paused",
+      "pausedDescription": "You can resume at any time",
+      "resumedTitle": "Enrichment resumed",
+      "resumedDescription": "Processing continues",
+      "cancelledTitle": "Enrichment cancelled",
+      "cancelledDescription": "{{count}} entities processed",
+      "genericErrorTitle": "Error"
+    }
+  },
   "groupPanel": {
     "tabs": {
       "sources": "Data sources",
