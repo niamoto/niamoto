@@ -5,147 +5,470 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [v0.9.0] - 2026-03-23
 
-### Added
-- **ML Column Classification (Phase 1-3)**: Generic multi-model column detection system
-  - 3-branch classifier architecture: header (TF-IDF + LogReg), values (HistGradientBoosting), fusion (calibrated LogReg)
-  - Alias registry YAML with ~25 ecological concepts × 5-8 languages (EN/FR/ES/PT/DE/ID/DwC)
-  - `ColumnSemanticProfile` with role/concept/affordances ontology
-  - Affordance-based transformer→widget matching (8 transformers profiled)
-  - Dataset Pattern Detector: 6 patterns (occurrence, forest, spatial, checklist, trait, temporal)
-  - Anomaly rules: 12 domain validators (lat/lon, DBH, pH, altitude, depth, etc.)
-  - Evaluation harness with GroupKFold, geographic/linguistic holdouts, ablations
-  - Gold set: 2231 columns (1635 gold + 596 synthetic, 88 sources, 6 continents)
-  - Autoresearch optimization loops: header 0.37→0.56, values 0.29→0.35, fusion 0.97 macro-F1
+### Features
 
-### Changed
-- Replaced old `MLColumnDetector` (21 features, RF) with alias registry + 3-branch `ColumnClassifier`
-- FK heuristic simplified, specific ID type detection delegated to alias registry
-- Models loaded via plain `joblib.load()` (lazy, on first `classify()` call)
+- Integrate ML acquisition wave and retraining results
+- Replace synthetic anonymous holdout with diversified real columns
+- Retrained models on enriched gold set (2525 cols)
+- Add niamoto-nc to gold set, fix basal_area merge
+- Expand alias registry — 13 new concepts, 76.6% concept (+5.3)
+- Multi-dataset eval suite — 418 cols, 7 datasets, 71% concept
+- Full instance evaluation with annotations — 57 cols, alias 25% → ML 46% concept
+- Retrain all models with cross-rank reciprocity features — ProductScore 79.25 → 80.04 (+0.79)
+- Add fusion surrogate autoresearch runner
+- Add product-oriented evaluation and surrogate fusion loop
+- Complete Phase 3 — profiles, affordances, patterns, anomalies
+- Concept taxonomy, enriched data, coarsened training (2231 cols)
+- Add gold set builder, training scripts, and CLI metric
+- Add alias registry, ml_mode API, and evaluation harness
 
-### Removed
-- Old pattern matching code in profiler (superseded by alias registry)
+### Bug Fixes
+
+- Correct silver.yml ground-truth annotations for afrique dataset
+- Broaden pre-commit large-file exclusion to cover ml/models/*.joblib
+- Raise ML confidence threshold to 0.6 to prevent false positives
+- Clean up stale paths and packaging after ml/ centralization
+- Restore ml autoresearch and packaging entrypoints
+- Skip pre-commit hooks in autoresearch runner commits
+- Replace codex with claude cli in surrogate runner
+- Defer stack validation in surrogate runner, add scope filter
+- Harden surrogate autoresearch prompt
+- Defer stack baseline in surrogate runner
+- Address gpt-5.4 review — ship models, fix hierarchy ID, anonymous inference, coordinates
+- Address codex review — align identifier namespace, geometry affordances, drop rapidfuzz
+- Address P1 review findings — remove dead code and unsafe deserialization
+
+### Refactoring
+
+- Centralize offline ML workspace under ml
+- Simplify FK heuristic, delegate specific id types to alias registry
+- Address P3 review findings
+- Address P2 review findings
+- Replace old pattern matching with alias registry, remove old MLColumnDetector
+
+### Performance
+
+- Batch fusion features in evaluate.py — ProductScore 14h → 42min
+- Batch fusion feature extraction — training 5h → 15min, identical results
+
+### Documentation
+
+- Update CHANGELOG for v0.9.0 release
+- Fix CodeRabbit review findings — paths and changelog accuracy
+- Reorganize ml detection knowledge base
+- Add pertinence audit plan and update autoresearch programmes
+- Add standards-based dataset acquisition plan
+- Rename NiamotoOfflineScore → GlobalScore, remove CSV mention
+- Add info tooltips to dashboard hero stat cards
+- Update error patterns with fix status after session improvements
+- Add workflow schema and improvement timeline to dashboard
+- Add training & evaluation guide — complete workflow documentation
+- Update dashboard and experiment doc with V5 results (77.5% concept)
+- Rewrite ML detection dashboard with current data and new sections
+- Remove archived obsolete documentation
+- Translate all ML detection docs to English, rewrite index, fix cross-references
+- Archive obsolete files and reorganize documentation structure
+- Log retraining, ProductScore 80.04, batch optimization 20x, instance eval
+- Log session 2026-03-19 — runner fixes, cross-rank gain, plateau
+- Add integration status report, fix restore_paths for untracked files
+- Rewrite overview for botanist audience
+- Update roadmap with enriched dataset results
+
+### Chores
+
+- Add ablation runner and tune header convergence
+- Update uv.lock for 0.8.1
+
+### Other Changes
+
+- Autoresearch(values): macro-F1 0.3522 → 0.3527 (+0.05 pts)
+- Autoresearch(values): macro-F1 0.3433 → 0.3522 (+0.89 pts)
+- Autoresearch(values): macro-F1 0.3403 → 0.3433 (+0.30 pts)
+- Autoresearch(values): macro-F1 0.3370 → 0.3403 (+0.33 pts)
+- Autoresearch(values): macro-F1 0.2877 → 0.3068 (+1.91 pts)
+- Autoresearch(values): macro-F1 0.3063 → 0.3257 (+1.9 pts)
+- Autoresearch(values): macro-F1 0.3005 → 0.3063 (+0.6 pts)
+- Autoresearch(values): macro-F1 0.2877 → 0.3005 (+1.3 pts)
+- Autoresearch(header): macro-F1 0.5640 → 0.5641 (+0.01 pts)
+- Autoresearch(header): macro-F1 0.5591 → 0.5640 (+0.49 pts)
+- Autoresearch(header): macro-F1 0.5529 → 0.5591 (+0.62 pts)
+- Autoresearch(header): macro-F1 0.5497 → 0.5529 (+0.32 pts)
+- Autoresearch(header): macro-F1 0.5470 → 0.5497 (+0.27 pts)
+- Autoresearch(header): macro-F1 0.5383 → 0.5470 (+0.87 pts)
+- Autoresearch(header): macro-F1 0.5375 → 0.5383 (+0.08 pts)
+- Autoresearch(header): macro-F1 0.5370 → 0.5375 (+0.05 pts)
+- Autoresearch(header): macro-F1 0.5283 → 0.5370 (+0.87 pts)
+- Autoresearch(header): macro-F1 0.4937 → 0.5283 (+3.46 pts)
+- Autoresearch(header): macro-F1 0.4931 → 0.4937 (+0.06 pts)
+- Autoresearch(header): macro-F1 0.4864 → 0.4931 (+0.67 pts)
+- Autoresearch(header): macro-F1 0.4763 → 0.4864 (+1.01 pts)
+- Autoresearch(header): macro-F1 0.4455 → 0.4763 (+3.08 pts)
+- Autoresearch(header): macro-F1 0.3658 → 0.4455 (+7.97 pts)
+
+## [v0.8.1] - 2026-03-15
+
+### Bug Fixes
+
+- Add monaco-editor types as dev dependency
+
+### Refactoring
+
+- Declarative registries, POST inline, smart entity selection (#55)
+
+## [v0.8.0] - 2026-03-14
+
+### Features
+
+- Add multi-platform deployment from GUI
+- Add sidebar layout to Data, Groups and Publish modules
+- Add pipeline status hooks, home page and staleness banner
+- Simplify navigation, fix multi-lang export and map rendering
+- Refactor footer as category-based sections with internal/external links
+- Create niamoto-subset instance from niamoto-nc for fast testing
+- Centre de notifications connecté aux jobs du pipeline
+- Bouton transform dans GroupPanel + checkbox composite dans Build
+- Ajouter group_by, endpoints active/last-run et job composite transform→export
+- Ajouter JobFileStore + fix os.chdir() thread-unsafe
+- Add shimmer loading skeleton with widget-type icons
+- Add Plotly bundle splitting (core 1.3MB, maps 2.2MB)
+- Migrate all preview components to unified engine and delete legacy queue
+- Wire preview engine invalidation and migrate recipes (Phase 4)
+- Add usePreviewFrame hook and shared preview components (Phase 3)
+- Add unified preview engine (Phase 1)
+- Add combined widget analysis previews
+- Centralize table resolver and transform config models
+- Full offline support for desktop application
+- Enrich raster_stats and land_use with layer-select UI hints
+- Add geographic layers API and LayerSelectField widget
+- Add Phase 2.1 form widgets for transform configuration
+- Add KeyValuePairsField and TagsField widgets with auto-detection
+- Enrich Pydantic models with UI hints and fix Select.Item bug
+- Use native macOS titlebar overlay instead of custom traffic lights
+- Add multilingual support and i18n infrastructure
+- Add MapRenderer service and fix layout preview issues
+- Refactor index config with side panel editor and reusable preview
+- Improve site preview navigation and widget suggestions
+- Complete i18n migration for all UI components
+- Enhance site builder with improved navigation and group preview
+- Add x_label and y_label quick edit fields for axis customization
+- Implement Option A hybrid layout with improved widget modal
+- Add multi-field pattern detection for combined widgets
+- Add drag-and-drop widget reordering and layout.order support
+- Add specialized parameter editors and preview service
+- Add unified widget recipe editor with wizard interface
+- Enhance relation detection and support for class_object_field_aggregator
+- Add index generator configuration and widget management
+- Enhance desktop app with welcome screen, site config UI and layout editor
+- Add advanced theme system with typography, shapes, and effects
+- Replace bootstrap with intelligent widget suggestion system
+- Integrate Tauri for desktop application support
+
+### Bug Fixes
+
+- Remove obsolete deploy CLI tests and fix SyntaxWarning
+- Comprehensive i18n audit — replace all French fallbacks with English, fix namespace issues and add missing translation keys
+- Add fixed seed to ML detector tests for cross-version reproducibility
+- Remove duplicate legacy preview route that shadowed templates router
+- Address PR #54 review comments (CI, build scripts, docs)
+- Datetime serialization in job store and obsolete preview mount test
+- Prevent duplicate toasts and wrong group name on transform completion
+- Supprimer read_only=True des connexions DuckDB API
+- Codex review #3 — conditional polling, strict types, i18n timeAgo
+- Corrections revue Codex #2 — sécurité, i18n, robustesse
+- Extraire les chaînes FR hardcodées vers i18n (sources + publish)
+- Corrections revue Codex — filtrage job_type, progression monotone, polling reprise
+- Résoudre le montage preview et les chemins relatifs export
+- Resolve full export pipeline for taxons, plots, and shapes
+- Ajouter skipif pour les tests dépendant des instances locales
+- Corriger la génération de config des suggestions et les tests cassés
+- Add html.escape() to all widget error messages and data interpolations
+- Add padding to info_grid widget container
+- Refresh button now bypasses browser cache and shows shimmer
+- Categorical_distribution type coercion for YAML string categories
+- Rewrite _render_entity_map and pass is_map=True to Plotly
+- Series_extractor bar_plot field name mismatch and missing param forwarding
+- Stabilize widget previews and shape scalar gauges
+- Correct widget previews for entity and class_object sources
+- Add minimal Tailwind classes and CSS chevron for navigation preview
+- Remove CDN dependencies (Tailwind, Font Awesome) from previews
+- Force iframe preview refresh after widget reorder
+- Fix drag & drop snap-back and refresh layout after reorder
+- Make request optional in preview_template for direct call from layout.py
+- Exclude FastAPI-injected request parameter from signature test
+- Fix TypeScript errors and preview refresh
+- Finalize analysis transformer output and formatting
+- Stabilize config scaffolding and import config access
+- Formatting and remaining test updates for v1 config contract
+- Handle inline content_markdown in static pages
+- Update test assertions and mocks for recent changes
+- Ensure gauge widget is proposed for all numeric columns
+- Improve relation reference_key detection
+- Handle identical values in distribution preview and fix binary counter
+- Improve widget suggestions and fix geometry serialization errors
+- Use working directory context for Config in GUI API
+- Update tests for absolute database path and refine numeric/categorical detection
+
+### Updates
+
+- Ci: upgrade GitHub Actions to Node.js 24 compatible versions
+
+### Refactoring
+
+- Migrate deployers from services to plugins, add GUI deploy API with health check and unpublish
+- Flatten sidebar navigation and remove Labs/Tools sections
+- Delegate to TransformerService with shared code path
+- Intégrer JobFileStore dans les routers transform et export
+- Finalize preview engine — dead code removal, security hardening, ETag optimization
+- Consolidate HTML wrappers, remove dead Plotly bundle, fix review findings
+- Extract preview_utils and decouple engine from PreviewService
+- Migrate hooks to React Query + debounce
+- Optimize widget preview system performance
+- Migrate npm to pnpm and update build scripts
+- Update EntityKind types, config generator and components
+- Harden routers, normalize YAML None values, migrate to table resolver
+- Rename Index tab to Liste for better UX
+- Reorganize components directory structure
+- Reorganize routes and consolidate API structure
+- Cleanup legacy code and reorganize components
+- Separate data loading from transformation logic
+
+### Documentation
+
+- Alléger le plan transform trigger + corrections revue Codex
+- Ajouter les plans shapes config et transform trigger + jobs robustes
+- Add preview architecture, API reference, and widget thumbnail guide
+- Mark all acceptance criteria as validated
+- Add architecture docs, v1 release plan and config contract
+- Rewrite plugin dev guide with modern Pydantic patterns + update plan
+- Add Phase 3.3 user documentation for transform widgets
+- Add Phase 3.2 config simplification analysis (6 axes identified)
+- Update plan - mark Phase 2.5 layers as completed
+
+### Tests
+
+- Add preview engine tests and update layout tests
+- Add e2e, data explorer, stats and service tests
+- Add Phase 3.1 end-to-end tests for GUI config generation (30 tests)
+- Add Phase 1.3 transform config validation tests (56 tests)
+
+### Style
+
+- Replace Rocket icon with Send and Menu with PanelLeft
+- Redesign command palette with grouped layout and descriptions
+
+### Chores
+
+- Sync tauri version to 0.7.5 and add it to bumpversion config
+- Update npm dependencies to fix security vulnerabilities
+
+## [v0.7.5] - 2025-11-18
+
+### Features
+
+- Add PyInstaller support and resource cascade system
+
+### Bug Fixes
+
+- Correct PyInstaller settings to prevent numpy and DLL corruption
+- Replace Unicode arrows and bullets with ASCII, fix run command description
+- Replace all Unicode emojis with cross-platform emoji() function
+- Replace Unicode characters with ASCII-only for Windows compatibility
+- Replace Unicode characters with ASCII in spec file
+- Commit package-lock.json for reproducible builds
+- Actually check directory emptiness before blocking init
+- Improve init command path handling and error messages
+- Restore working directory after init command
+- Handle Windows paths in project name extraction
+- Correct project path derivation in plugins command
+- Remove hard dependency on uv tool
+- Flatten Windows zip structure for easier extraction
+
+### Performance
+
+- Reduce binary size by 43% through dependency optimization
+
+### Documentation
+
+- Add comprehensive git tag management commands
+
+### Other Changes
+
+- Ci: remove macOS Intel build to save GitHub Actions quota
+
+## [v0.7.4-test] - 2025-11-15
+
+### Bug Fixes
+
+- Correction de 13 bugs dans les plugins transformers et l'API smart_config
+- Preserve large integer ID precision and load group_by dynamically
+
+### Updates
+
+- Build: upgrade minimum Python version from 3.10 to 3.11
+
+### Tests
+
+- Amélioration de la couverture de tests de 60% à 68%
+- Fix test assertions and add auxiliary file cleanup
+
+### Chores
+
+- Move Claude Code config files to gitignore
+
+## [v0.7.4] - 2025-11-14
+
+### Features
+
+- Remove hardcoded table references in showcase metrics
+- Remove hardcoded entity references in data explorer and showcase
+- Complete EntityRegistry v2 migration for stats and entities
+- Add development tooling with instance context management
+- Add intelligent onboarding wizard with auto-configuration
+- Add transform-source-select widget with group context
+- Migrate 11 transformers to entity-select widget
+- Add dynamic entity-select widget and update config templates
+- Migrate aggregation transformers to EntityRegistry
+- Migrate 3 distribution transformers to EntityRegistry
+- Migrate remaining 3 class_objects transformers to EntityRegistry
+- Migrate categories_extractor and series_extractor class_objects transformers to EntityRegistry
+- Migrate loaders to EntityRegistry and create refactoring tracking system
+- Add environment variable substitution and plugin config validation
+- Add partners section to TeamSection component with logos and descriptions
+- Add PerspectivesSection component and integrate into showcase page fix: update Rich version in StackTechSection fix: include 'perspectives' in showcase store sections
+- Implement pipeline management with tabs and shared state
+- Add Cloudflare deployment functionality and integrate into the GUI
+- Add API demo component and integrate into showcase page
+- Add exports structure API endpoint and update UI components for directory visualization
+- Add YAML configuration editor and backup functionality
+- Update API documentation page and navigation structure
+- Add Plotly.js and react-plotly.js for data visualization
+- Update GUI documentation and improve language switcher component
+- Implement enrichment preview functionality in Data Explorer
+- Add package.json to repo for Docker builds
+- Enhance showcase components with improved YAML configuration display and updated use case statistics
+- Implement interactive showcase pages with real data pipeline integration
+- Expose plugin param schemas for dynamic gui config
+- Implement unified pipeline editor with ReactFlow
+- Improve Transform interface and add pipeline specifications
+- Implement hierarchical navigation and transform pipeline interface
+- Add SQLite performance optimizations
+- Update CLAUDE.md for development guidelines and commands; update permissions in settings.local.json; refine error handling in bar_plot and donut_chart widgets
+
+### Bug Fixes
+
+- Preserve large integer IDs precision in index generation
+- Fix pytest collection and test database artifacts
+- Update instance initialization to EntityRegistry v2 format
+- Improve fallback logic for displaying configuration path or file in ImportDemo component
+- Update file count logic to handle edge cases and reorder sections in showcase store
+- Resolve CI/CD build issues with GUI dist directory
+- Restore .gitkeep file for CI/CD builds
+
+### Improvements
+
+- Refactor code structure for improved readability and maintainability
+
+### Refactoring
+
+- Prepare EntityRegistry v2 migration
+
+### Documentation
+
+- Reorganize and fix Sphinx documentation structure
+- Reorganize documentation structure and add ML detection system
+
+### Chores
+
+- Upgrade all dependencies to latest versions
+- Remove old pipeline editor and dead import code
+
+## [v0.7.3] - 2025-08-06
+
+### Features
+
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance StatsLoader to support dynamic key field lookup
+
+### Bug Fixes
+
+- Update Tropicos API name in enrichment configuration
+- Improve API enrichment field translations
+- Simplify publish script to handle GUI packaging properly
+- Ensure GUI dist directory exists for CI/CD builds
+- Resolve CI/CD build issue with GUI dist directory
+- Correct caching logic in api_taxonomy_enricher
+
+## [v0.7.2] - 2025-08-06
+
+### Features
+
+- Enhance API enrichment with chained requests and improve GUI packaging
+
+## [v0.7.1] - 2025-08-05
+
+### Features
+
+- Add support for binomial naming in TaxonomyImporter
+- Enhance taxonomy name generation logic in TaxonomyImporter
+
+### Bug Fixes
+
+- Refine entity existence check in PlotImporter
+
+### Chores
+
+- Update CHANGELOG for version 0.7.0 release
 
 ## [v0.7.0] - 2025-07-31
 
-### Added
-- **GUI (Graphical User Interface)**: Complete visual configuration interface for Niamoto
-  - Modern web interface built with React 19, TypeScript, Vite, and Tailwind CSS v4
-  - Multi-step import wizard with real-time validation and progress tracking
-  - Drag-and-drop file upload supporting CSV, Excel, JSON, GeoJSON, and Shapefile formats
-  - Interactive column mapping and data transformation configuration
-  - Hierarchical taxonomy editor with visual drag-and-drop functionality
-  - Internationalization support (French/English) with language switcher
-  - FastAPI backend serving both REST API endpoints and static React build
-  - Comprehensive API endpoints for configuration management, file operations, and imports
-  - Faceted spinner loading indicator and enhanced UI components
-- **GUI CLI integration**: Enhanced `niamoto init` command behavior
-  - GUI launches automatically when creating a new project: `niamoto init my-project`
-  - GUI no longer launches by default for simple `niamoto init`
-  - New `--gui` flag to explicitly launch GUI: `niamoto init --gui`
-  - `niamoto gui` command to launch the configuration interface at any time
-- **Simplified CLI help**: Reorganized command help for better user experience
-  - New "Quick Start" section with 3 essential steps
-  - "Common Workflows" section with practical usage scenarios
-  - Cleaner command grouping: Setup, Pipeline, Analysis, Deployment
-  - GUI prominently featured in the workflow
-- **Project naming support**: `niamoto init [project-name]` now accepts an optional project name
-  - Creates a new directory with the project name if provided
-  - Prompts for confirmation when initializing in the current directory
-  - Prevents initialization in existing project directories
-- **Enhanced project metadata**: `config.yml` now includes a `project` section with:
-  - `name`: Project name (customizable during init)
-  - `version`: Project version (default: 1.0.0)
-  - `created_at`: Timestamp of project creation
-  - `niamoto_version`: Version of Niamoto used to create the project
-- **Dynamic browser title**: GUI now displays "Niamoto - [Project Name]" in the browser tab
-  - New API endpoint `/api/config/project` to retrieve project information
-  - React hook `useProjectInfo` for accessing project metadata
-- **Version tracking**: Added `__version__.py` module for consistent version management
-- **Hierarchical data extraction for geospatial_extractor plugin**:
-  - New `extract_children` parameter to extract leaf entities from hierarchical structures
-  - New `hierarchy_config` parameter for generic hierarchical extraction:
-    - `type_field`: Field identifying entity type (e.g., "plot_type")
-    - `leaf_type`: Value identifying leaf entities (e.g., "plot")
-    - `left_field`/`right_field`: Fields for nested set model (default: "lft"/"rght")
-  - Enables extraction of individual plots from hierarchical levels (country, method, etc.)
-  - Maintains backward compatibility with existing configurations
-- **Interactive map improvements**:
-  - Added support for MultiPoint geometries in map visualizations
-  - Fixed hover display to show individual entity names instead of parent node names
-  - Improved automatic zoom calculation with better margins:
-    - Added 5% margin around data bounds to prevent edge clipping
-    - Increased zoom buffer from 0.5 to 1.0 for better visibility
-  - Fixed map centering to use actual data bounds instead of hardcoded coordinates
-- **Shape ID generation**: Shape IDs are now generated using the format `{type}_{id}`
-  - The `type` comes from the shape configuration in `import.yml` (e.g., "grid", "countries")
-  - The `id` comes from the specified `id_field` in the shapefile
-  - Examples: `grid_1`, `countries_120000`, `countries_580000`
-  - This format ensures unique IDs across different shape types and enables proper matching with statistics files
-- **Hierarchical shape support**: Shapes now support hierarchical structures similar to plots
-  - Added fields to `ShapeRef` model: `parent_id`, `lft`, `rght`, `level`, `shape_type`
-  - Automatic creation of parent entries for each shape type (e.g., "countries", "grid" as parents)
-  - Parent shapes aggregate geometries from all their children using GeometryCollection
-  - Enables navigation hierarchy: click on a shape type to see all shapes of that type on one map
-  - Shape types can now have their own detail pages with aggregated maps
-- **Shape processor enhancement**: Modified to preserve individual geometries in collections
-  - GeometryCollections now render each shape individually instead of merging them
-  - Maintains visual separation between shapes while grouping them logically
-  - Better visualization for hierarchical shape data
-- **Shape extra_data standardization**: Added `entity_type` field to shape imports
-  - Shapes now include `entity_type` in extra_data like plots and taxons
-  - Parent type entries have `entity_type: "type"` and `auto_generated: true`
-  - Individual shapes have `entity_type: "shape"` and `auto_generated: false`
-  - Enables consistent entity type identification across all reference models
-- **Interactive map improvements**: Updated map styles and added Mapbox token support
-  - Corrected available map styles to match current Plotly.js capabilities
-  - Added `mapbox_access_token` parameter for premium map styles (satellite, outdoors, etc.)
-  - Free styles: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'
-  - Premium styles (require token): 'satellite', 'satellite-streets', 'outdoors', 'streets', 'light', 'dark'
-  - Updated documentation with correct style options and Mapbox token usage
+### Features
 
-### Changed
-- **GUI favicon and title**:
-  - Replaced default Vite favicon with Niamoto branding
-  - Changed browser title from "Vite + React + TS" to "Niamoto"
-  - Added comprehensive favicon support (ico, svg, apple-touch-icon, webmanifest)
-- **Transform configuration structure** (BREAKING CHANGE):
-  - Replaced `source` + `additional_sources` with a unified `sources` list
-  - Each source now requires a unique `name` identifier
-  - Widgets reference sources by name via `params.source`
-  - Updated all configuration examples and documentation
-  - Example migration:
-    ```yaml
-    # Old structure
-    source:
-      data: occurrences
-      grouping: plot_ref
-    additional_sources:
-      plot_stats:
-        data: imports/plot_stats.csv
+- Introduce Tropicos enricher plugin for enhanced taxonomy data enrichment
+- Enhance ShapeImporter and StatsLoader for improved feature handling and ID generation
+- Introduce comprehensive GUI enhancements and CLI improvements
+- Update CLI help message and initialization options
+- Enhance interactive map functionality with Mapbox support
+- Implement hierarchical shape support and enhancements
+- Implement new Shape ID generation format in documentation and code
+- Enhance geospatial extraction and interactive map functionality
+- Enhance FieldAggregator to support JSON field access
+- Add project initialization and metadata enhancements
+- Integrate i18n support across components and add language switcher
+- Enhance shape import functionality and configuration management
+- Introduce faceted spinner and enhance circular progress component
+- Enhance import process with progress tracking and new UI components
+- Add table fields retrieval and enhance import field handling
+- Enhance PlotImporter and import functionality
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance import functionality with progress tracking and hierarchy configuration
+- Implement new import-v2 interface with enhanced functionality
+- Introduce taxonomy hierarchy configuration and streamline import process
+- Integrate httpx for enhanced API interactions and improve import functionality
+- Enhance import wizard and API integration for improved data handling
+- Add React-based GUI configuration interface for Niamoto
 
-    # New structure
-    sources:
-      - name: occurrences
-        data: occurrences
-        grouping: plot_ref
-      - name: plot_stats
-        data: imports/plot_stats.csv
-    ```
+### Bug Fixes
 
-### Fixed
-- Corrected webmanifest paths from `/assets/` to `/favicon/`
-- **Field aggregator plugin**: Fixed extraction of JSON fields (e.g., `extra_data.field_name`) when data is passed as DataFrame
-  - Plugin can now properly parse JSON columns and extract nested values
-  - Resolves issue where `extra_data` fields returned null values
-- **Geospatial extractor**: Added support for MultiPoint geometries
-  - Plugin now correctly handles MultiPoint geometries for hierarchical plot levels
-  - Returns proper GeoJSON with MultiPoint features instead of empty results
-- **Interactive map widget**: Enhanced to support MultiPoint geometries
-  - Widget now handles MultiPoint features by calculating centroids for display
-  - Fixed issue where hierarchical plot levels with MultiPoint geometries were not displayed on maps
-  - Automatically adapts when configuration expects polygons but data contains Point/MultiPoint geometries
+- Update API URL and enhance drag-and-drop functionality in import wizard
+- Prevent rendering of empty widgets in WidgetPlugin and RadialGaugeWidget
+- Improve zoom level calculation in InteractiveMapWidget
+- Update parent linking logic in TaxonomyImporter
+- Update drag-and-drop cursor styles and hierarchy level descriptions
+- Correct hierarchy level description in PlotHierarchyConfig component
+- Standardize field naming in advanced options for import functionality
+
+### Refactoring
+
+- Improve geospatial data handling in GeospatialExtractor
+- Unify source configuration structure across documentation and code
+- Remove taxon estimation logic from OccurrencesStep and SummaryStep
+- Streamline import wizard and remove deprecated components
 
 ## [v0.6.2] - 2025-07-15
 

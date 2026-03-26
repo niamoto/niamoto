@@ -1,0 +1,96 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build-gui:
+    name: Build React UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
+
+      - name: Build React
+        run: cd src/niamoto/gui/ui && pnpm run build
+
+      - name: Upload GUI build
+        uses: actions/upload-artifact@v7
+        with:
+          name: gui-dist
+          path: src/niamoto/gui/ui/dist/
+          retention-days: 1
+
+  build:
+    name: Build distributions
+    needs: build-gui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Download GUI build
+        uses: actions/download-artifact@v8
+        with:
+          name: gui-dist
+          path: src/niamoto/gui/ui/dist/
+
+      - name: Enable GUI in wheel build
+        run: |
+          sed -i 's/# "src\/niamoto\/gui\/ui\/dist"/"src\/niamoto\/gui\/ui\/dist"/' pyproject.toml
+
+      - name: Install build tools
+        run: pip install uv
+
+      - name: Build wheel (with GUI)
+        run: uv build --wheel
+
+      - name: Restore pyproject.toml for sdist
+        run: git checkout pyproject.toml
+
+      - name: Build sdist (without GUI)
+        run: uv build --sdist
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # With Trusted Publishers (OIDC), no token needed.
+        # Fallback: uncomment below and add PYPI_TOKEN to GitHub secrets
+        # with:
+        #   password: ${{ secrets.PYPI_TOKEN }}
