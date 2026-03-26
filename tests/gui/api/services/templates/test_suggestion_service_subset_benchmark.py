@@ -23,6 +23,11 @@ from niamoto.gui.api.services.templates.suggestion_service import (
 
 INSTANCE_DIR = Path(__file__).parents[5] / "test-instance" / "niamoto-subset"
 
+pytestmark = pytest.mark.skipif(
+    not INSTANCE_DIR.exists(),
+    reason="test-instance/niamoto-subset not available",
+)
+
 
 def _stage_subset_project(
     instance_dir: Path, tmp_path: Path, rel_paths: list[str]
