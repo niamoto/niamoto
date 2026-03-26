@@ -36,7 +36,7 @@ import {
   useTemplatePreview,
   useGroups,
   useGroupIndexPreview,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import { formatDistanceToNow } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 

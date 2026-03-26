@@ -32,7 +32,7 @@ function StatusBadge({ status }: { status: FreshnessStatus }) {
       return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
     case "never_run":
       return <Circle className="h-4 w-4 text-muted-foreground" />
-    default:
+    case "error":
       return <Circle className="h-4 w-4 text-muted-foreground" />
   }
 }

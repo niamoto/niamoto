@@ -4,7 +4,7 @@ import * as yaml from 'js-yaml'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { AlertCircle, History, Loader2, Save, Undo2 } from 'lucide-react'
+import { AlertCircle, Loader2, Save, Undo2 } from 'lucide-react'
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 
@@ -15,9 +15,6 @@ interface YamlEditorProps {
   readOnly?: boolean
   height?: string
   showToolbar?: boolean
-  showBackupRestore?: boolean
-  onRestore?: () => void
-  canRestore?: boolean
   configName?: string
 }
 
@@ -28,9 +25,6 @@ export function YamlEditor({
   readOnly = false,
   height = '600px',
   showToolbar = true,
-  showBackupRestore = false,
-  onRestore,
-  canRestore = false,
   configName,
 }: YamlEditorProps) {
   const { theme } = useTheme()
@@ -117,17 +111,6 @@ export function YamlEditor({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {showBackupRestore && onRestore && canRestore && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRestore}
-                disabled={isSaving}
-              >
-                <History className="h-4 w-4 mr-2" />
-                Restore Backup
-              </Button>
-            )}
             {hasChanges && !readOnly && (
               <Button
                 variant="outline"

@@ -26,7 +26,7 @@ import {
   useProjectFiles,
   useUploadFile,
   type ProjectFile,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import { Upload, Image as ImageIcon, Check, Loader2, FolderOpen, Images, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'

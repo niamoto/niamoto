@@ -31,7 +31,7 @@ import {
   useUpdateDataContent,
   useImportBibtex,
   exportBibtex,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 
 // Types for bibliography.html context
 interface ReferenceItem {

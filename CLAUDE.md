@@ -89,7 +89,6 @@ When tempted to hardcode, ask: "Would this work for a forest inventory in Madaga
 - **Commits**: always in English (conventional commits format)
 - Keep GUI docs and README files in English
 - The frontend architecture now follows `src/app`, `src/features`, and `src/shared`
-- Do not commit `docs/03-ml-detection/ui-ml-integration-review.md`
 
 ## References
 

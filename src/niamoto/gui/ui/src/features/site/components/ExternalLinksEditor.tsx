@@ -51,7 +51,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { ExternalLink } from '@/features/site/hooks/useSiteConfig'
+import type { ExternalLink } from '@/shared/hooks/useSiteConfig'
 
 // Link types with their icons
 const LINK_TYPES = [

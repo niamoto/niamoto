@@ -24,7 +24,7 @@ import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-
 import {
   useDataContent,
   useUpdateDataContent,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 
 // Types for team.html context
 interface SocialLink {

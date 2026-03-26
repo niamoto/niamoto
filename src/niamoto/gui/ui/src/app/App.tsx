@@ -1,9 +1,9 @@
 import { useEffect, lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { MainLayout } from '@/shared/layout/MainLayout'
+import { MainLayout } from '@/components/layout/MainLayout'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
-import { ThemeProvider } from '@/shared/theme'
+import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 
 // Lazy load pages
@@ -24,40 +24,46 @@ const PublishModule = lazy(() =>
 )
 
 // Site pages
-const SiteIndexPage = lazy(() =>
-  import('@/features/site').then((m) => ({ default: m.SiteIndexPage }))
-)
-const SitePagesPage = lazy(() =>
-  import('@/features/site').then((m) => ({ default: m.SitePagesPage }))
-)
+const SiteIndexPage = lazy(() => import('@/features/site/views/SiteIndexPage'))
+const SitePagesPage = lazy(() => import('@/features/site/views/SitePagesPage'))
 const SiteNavigationPage = lazy(() =>
-  import('@/features/site').then((m) => ({ default: m.SiteNavigationPage }))
+  import('@/features/site/views/SiteNavigationPage')
 )
-const SiteGeneralPage = lazy(() =>
-  import('@/features/site').then((m) => ({ default: m.SiteGeneralPage }))
-)
+const SiteGeneralPage = lazy(() => import('@/features/site/views/SiteGeneralPage'))
 const SiteAppearancePage = lazy(() =>
-  import('@/features/site').then((m) => ({ default: m.SiteAppearancePage }))
+  import('@/features/site/views/SiteAppearancePage')
 )
 
 // Tools pages (accessible via Cmd+K)
 const DataExplorer = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.DataExplorer }))
+  import('@/features/tools/views/DataExplorer').then((m) => ({
+    default: m.DataExplorer,
+  }))
 )
 const LivePreview = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.LivePreview }))
+  import('@/features/tools/views/LivePreview').then((m) => ({
+    default: m.LivePreview,
+  }))
 )
 const Settings = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.Settings }))
+  import('@/features/tools/views/Settings').then((m) => ({
+    default: m.Settings,
+  }))
 )
 const Plugins = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.Plugins }))
+  import('@/features/tools/views/Plugins').then((m) => ({
+    default: m.Plugins,
+  }))
 )
 const ApiDocs = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.ApiDocs }))
+  import('@/features/tools/views/ApiDocs').then((m) => ({
+    default: m.ApiDocs,
+  }))
 )
 const ConfigEditor = lazy(() =>
-  import('@/features/tools').then((m) => ({ default: m.ConfigEditor }))
+  import('@/features/tools/views/ConfigEditor').then((m) => ({
+    default: m.ConfigEditor,
+  }))
 )
 
 // Publish pages (used by PublishModule internally)

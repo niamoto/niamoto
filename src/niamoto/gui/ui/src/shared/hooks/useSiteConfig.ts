@@ -11,9 +11,29 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import type { LocalizedString } from '@/components/ui/localized-input'
+import { apiClient } from '@/shared/lib/api/client'
 
-const API_BASE = '/api/site'
+const API_BASE = '/site'
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (isAxiosError(error)) {
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string' && detail.length > 0) {
+      return detail
+    }
+    if (typeof error.message === 'string' && error.message.length > 0) {
+      return error.message
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return fallback
+}
 
 // =============================================================================
 // TYPES
@@ -170,59 +190,46 @@ export interface FilesResponse {
 // =============================================================================
 
 async function fetchSiteConfig(): Promise<SiteConfigResponse> {
-  const response = await fetch(`${API_BASE}/config`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch site config: ${response.statusText}`)
-  }
-  return response.json()
+  const response = await apiClient.get<SiteConfigResponse>(`${API_BASE}/config`)
+  return response.data
 }
 
 async function updateSiteConfig(
   config: SiteConfigUpdate
 ): Promise<{ success: boolean; message: string; path: string }> {
-  const response = await fetch(`${API_BASE}/config`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Update failed')
+  try {
+    const response = await apiClient.put<{ success: boolean; message: string; path: string }>(
+      `${API_BASE}/config`,
+      config
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Update failed'))
   }
-
-  return response.json()
 }
 
 async function fetchTemplates(): Promise<TemplatesResponse> {
-  const response = await fetch(`${API_BASE}/templates`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch templates: ${response.statusText}`)
-  }
-  return response.json()
+  const response = await apiClient.get<TemplatesResponse>(`${API_BASE}/templates`)
+  return response.data
 }
 
 async function fetchProjectFiles(folder: string): Promise<FilesResponse> {
-  const response = await fetch(`${API_BASE}/files?folder=${encodeURIComponent(folder)}`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch files: ${response.statusText}`)
-  }
-  return response.json()
+  const response = await apiClient.get<FilesResponse>(`${API_BASE}/files`, {
+    params: { folder },
+  })
+  return response.data
 }
 
 async function previewMarkdown(content: string): Promise<{ html: string }> {
-  const response = await fetch(`${API_BASE}/preview-markdown`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Preview failed')
+  try {
+    const response = await apiClient.post<{ html: string }>(
+      `${API_BASE}/preview-markdown`,
+      { content }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Preview failed'))
   }
-
-  return response.json()
 }
 
 /**
@@ -242,26 +249,20 @@ export interface TemplatePreviewRequest {
  * Preview a template with the given context.
  */
 async function previewTemplate(request: TemplatePreviewRequest): Promise<{ html: string; template: string }> {
-  const response = await fetch(`${API_BASE}/preview-template`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Template preview failed')
+  try {
+    const response = await apiClient.post<{ html: string; template: string }>(
+      `${API_BASE}/preview-template`,
+      request
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Template preview failed'))
   }
-
-  return response.json()
 }
 
 async function fetchGroups(): Promise<GroupsResponse> {
-  const response = await fetch(`${API_BASE}/groups`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch groups: ${response.statusText}`)
-  }
-  return response.json()
+  const response = await apiClient.get<GroupsResponse>(`${API_BASE}/groups`)
+  return response.data
 }
 
 export interface FileContentResponse {
@@ -271,27 +272,27 @@ export interface FileContentResponse {
 }
 
 async function fetchFileContent(path: string): Promise<FileContentResponse> {
-  const response = await fetch(`${API_BASE}/file-content?path=${encodeURIComponent(path)}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || `Failed to fetch file content: ${response.statusText}`)
+  try {
+    const response = await apiClient.get<FileContentResponse>(
+      `${API_BASE}/file-content`,
+      { params: { path } }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to fetch file content'))
   }
-  return response.json()
 }
 
 async function updateFileContent(path: string, content: string): Promise<{ success: boolean; message: string; path: string }> {
-  const response = await fetch(`${API_BASE}/file-content`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, content }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Update failed')
+  try {
+    const response = await apiClient.put<{ success: boolean; message: string; path: string }>(
+      `${API_BASE}/file-content`,
+      { path, content }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Update failed'))
   }
-
-  return response.json()
 }
 
 // =============================================================================
@@ -392,18 +393,15 @@ async function previewGroupIndex(
   groupName: string,
   request?: GroupIndexPreviewRequest
 ): Promise<{ html: string; template: string }> {
-  const response = await fetch(`${API_BASE}/preview-group-index/${encodeURIComponent(groupName)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request || {}),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Group index preview failed')
+  try {
+    const response = await apiClient.post<{ html: string; template: string }>(
+      `${API_BASE}/preview-group-index/${encodeURIComponent(groupName)}`,
+      request || {}
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Group index preview failed'))
   }
-
-  return response.json()
 }
 
 /**
@@ -423,17 +421,19 @@ async function uploadFile(file: File, folder: string = 'files'): Promise<{ succe
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_BASE}/upload?folder=${encodeURIComponent(folder)}`, {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Upload failed')
+  try {
+    const response = await apiClient.post<{ success: boolean; path: string; filename: string }>(
+      `${API_BASE}/upload`,
+      formData,
+      {
+        params: { folder },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Upload failed'))
   }
-
-  return response.json()
 }
 
 /**
@@ -490,12 +490,15 @@ export interface DataContentResponse {
 }
 
 async function fetchDataContent(path: string): Promise<DataContentResponse> {
-  const response = await fetch(`${API_BASE}/data-content?path=${encodeURIComponent(path)}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || `Failed to fetch data content: ${response.statusText}`)
+  try {
+    const response = await apiClient.get<DataContentResponse>(
+      `${API_BASE}/data-content`,
+      { params: { path } }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to fetch data content'))
   }
-  return response.json()
 }
 
 async function updateDataContent(
@@ -503,18 +506,17 @@ async function updateDataContent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any[]
 ): Promise<{ success: boolean; message: string; path: string; count: number }> {
-  const response = await fetch(`${API_BASE}/data-content`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, data }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Update failed')
+  try {
+    const response = await apiClient.put<{
+      success: boolean
+      message: string
+      path: string
+      count: number
+    }>(`${API_BASE}/data-content`, { path, data })
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Update failed'))
   }
-
-  return response.json()
 }
 
 /**
@@ -562,38 +564,40 @@ async function importBibtex(file: File): Promise<ImportResponse> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_BASE}/import-bibtex`, {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Import failed')
+  try {
+    const response = await apiClient.post<ImportResponse>(
+      `${API_BASE}/import-bibtex`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Import failed'))
   }
-
-  return response.json()
 }
 
 async function importCsv(file: File, delimiter = ',', hasHeader = true): Promise<ImportResponse> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const params = new URLSearchParams()
-  params.append('delimiter', delimiter)
-  params.append('has_header', hasHeader.toString())
-
-  const response = await fetch(`${API_BASE}/import-csv?${params}`, {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Import failed')
+  try {
+    const response = await apiClient.post<ImportResponse>(
+      `${API_BASE}/import-csv`,
+      formData,
+      {
+        params: {
+          delimiter,
+          has_header: hasHeader,
+        },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Import failed'))
   }
-
-  return response.json()
 }
 
 /**
@@ -609,18 +613,16 @@ export function useImportBibtex() {
  * Export references as a downloadable BibTeX file.
  */
 export async function exportBibtex(references: Record<string, unknown>[]): Promise<void> {
-  const response = await fetch(`${API_BASE}/export-bibtex`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(references),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Export failed')
+  let blob: Blob
+  try {
+    const response = await apiClient.post<Blob>(`${API_BASE}/export-bibtex`, references, {
+      responseType: 'blob',
+    })
+    blob = response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Export failed'))
   }
 
-  const blob = await response.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

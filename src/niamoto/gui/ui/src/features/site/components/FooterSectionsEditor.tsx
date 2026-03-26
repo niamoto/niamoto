@@ -38,7 +38,7 @@ import type {
   FooterLink,
   StaticPage,
   GroupInfo,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 
 interface FooterSectionsEditorProps {
   sections: FooterSection[]

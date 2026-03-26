@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { SiteSettings } from '@/features/site/hooks/useSiteConfig'
+import type { SiteSettings } from '@/shared/hooks/useSiteConfig'
 import { cn } from '@/lib/utils'
 
 interface ThemeConfigFormProps {

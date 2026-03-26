@@ -66,7 +66,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import axios from 'axios'
+import { apiClient } from '@/shared/lib/api/client'
 
 // Platform icons
 const GitHubIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
@@ -267,7 +267,7 @@ export default function PublishDeploy() {
 
     setHealthStatus(prev => ({ ...prev, [platform]: 'checking' }))
     try {
-      const { data } = await axios.get('/api/deploy/health', { params: { url: targetUrl } })
+      const { data } = await apiClient.get('/deploy/health', { params: { url: targetUrl } })
       setHealthStatus(prev => ({ ...prev, [platform]: data.status === 'up' ? 'up' : 'down' }))
     } catch {
       setHealthStatus(prev => ({ ...prev, [platform]: 'down' }))
@@ -304,7 +304,7 @@ export default function PublishDeploy() {
     if (!dialogPlatform || dialogPlatform === 'ssh') return
     const checkCredentials = async () => {
       try {
-        const { data } = await axios.get(`/api/deploy/credentials/${dialogPlatform}/check`)
+        const { data } = await apiClient.get(`/deploy/credentials/${dialogPlatform}/check`)
         setCredentialStatus(prev => ({ ...prev, [dialogPlatform]: { configured: data.configured } }))
       } catch {
         // Silently ignore
@@ -316,7 +316,7 @@ export default function PublishDeploy() {
   const handleValidateCredentials = async (platform: string) => {
     setCredentialStatus(prev => ({ ...prev, [platform]: { ...prev[platform], validating: true } }))
     try {
-      const { data } = await axios.post(`/api/deploy/credentials/${platform}/validate`)
+      const { data } = await apiClient.post(`/deploy/credentials/${platform}/validate`)
       setCredentialStatus(prev => ({
         ...prev,
         [platform]: { configured: true, validating: false, valid: data.valid, user: data.user }
@@ -352,7 +352,7 @@ export default function PublishDeploy() {
         const value = config[field.key]
         if (value?.trim()) {
           try {
-            await axios.post(`/api/deploy/credentials/${platform}`, { key: field.key, value })
+            await apiClient.post(`/deploy/credentials/${platform}`, { key: field.key, value })
           } catch {
             appendDeployLog(`❌ Failed to save ${field.key} to keyring`)
           }

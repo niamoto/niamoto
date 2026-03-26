@@ -31,7 +31,7 @@ import {
   useTemplates,
   type StaticPage,
   type NavigationItem,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import {
   hasTemplateForm,
   MarkdownContentField,
