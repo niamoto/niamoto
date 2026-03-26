@@ -128,6 +128,8 @@ def pytest_sessionfinish(session, exitstatus):
 @pytest.fixture(scope="function")
 def niamoto_subset_instance_dir() -> Path:
     """Return the checked-in benchmark instance used for integration-like tests."""
+    if not NIAMOTO_SUBSET_INSTANCE.exists():
+        pytest.skip("test-instance/niamoto-subset not available")
     return NIAMOTO_SUBSET_INSTANCE
 
 
