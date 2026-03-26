@@ -1,0 +1,111 @@
+name: Build Tauri Desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Attach bundles to existing GitHub Release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-tauri:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: macOS-arm64
+            target: aarch64-apple-darwin
+            binary_suffix: ''
+          - os: ubuntu-22.04
+            name: Linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            binary_suffix: ''
+          - os: windows-latest
+            name: Windows-x86_64
+            target: x86_64-pc-windows-msvc
+            binary_suffix: '.exe'
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # --- System dependencies ---
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libappindicator3-dev librsvg2-dev patchelf \
+            gdal-bin libgdal-dev libproj-dev
+
+      # --- Python sidecar ---
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Python package
+        run: |
+          pip install uv
+          uv venv
+          uv pip install -e .
+          uv pip install pyinstaller
+
+      - name: Build Python binary (PyInstaller)
+        run: uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+
+      - name: Place sidecar binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p src-tauri/bin
+          cp dist/niamoto src-tauri/bin/niamoto-${{ matrix.target }}
+
+      - name: Place sidecar binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/bin
+          Copy-Item dist/niamoto.exe src-tauri/bin/niamoto-${{ matrix.target }}.exe
+
+      # --- Frontend ---
+      - name: Enable pnpm
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
+
+      # --- Rust + Tauri ---
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Tauri
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Tauri bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: tauri-${{ matrix.name }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+          retention-days: 7
