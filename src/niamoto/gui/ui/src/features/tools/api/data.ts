@@ -1,34 +1,12 @@
 import { apiClient } from '@/shared/lib/api/client'
+import type {
+  ColumnInfo,
+  QueryRequest,
+  QueryResponse,
+  TableInfo,
+} from '@/shared/lib/api/data-types'
 
-export interface TableInfo {
-  name: string
-  count: number
-  description: string
-  columns: string[]
-}
-
-export interface QueryRequest {
-  table: string
-  columns?: string[]
-  where?: string
-  order_by?: string
-  limit?: number
-  offset?: number
-}
-
-export interface QueryResponse {
-  columns: string[]
-  rows: Array<Record<string, any>>
-  total_count: number
-  page_count: number
-}
-
-export interface ColumnInfo {
-  name: string
-  type: string
-  nullable: boolean
-  default: string | null
-}
+export type { ColumnInfo, QueryRequest, QueryResponse, TableInfo }
 
 /**
  * Get list of all database tables with metadata

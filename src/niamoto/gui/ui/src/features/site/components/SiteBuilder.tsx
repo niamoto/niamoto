@@ -95,7 +95,7 @@ import {
   type GroupInfo,
   DEFAULT_SITE_SETTINGS,
   DEFAULT_STATIC_PAGE,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import { SiteConfigForm } from './SiteConfigForm'
 import { ThemeConfigForm } from './ThemeConfigForm'
 import { NavigationBuilder } from './NavigationBuilder'

@@ -29,6 +29,7 @@ import type {
   DatasetConfig,
   ReferenceConfig,
 } from '@/features/import/components/editors/EntityConfigEditor'
+import { apiClient } from '@/shared/lib/api/client'
 import { AggregationGroupCard } from './AggregationGroupCard'
 import { AnalysisToolSheet } from './AnalysisToolSheet'
 import { DataCompletenessView } from './DataCompletenessView'
@@ -135,12 +136,8 @@ export function ImportDashboard({
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/stats/summary')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const data = await response.json()
-      setSummary(data)
+      const response = await apiClient.get<ImportSummary>('/stats/summary')
+      setSummary(response.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('dashboard.errors.loadSummary'))
     } finally {
@@ -315,13 +312,10 @@ export function ImportDashboard({
     })
 
     try {
-      const response = await fetch(
-        `/api/config/datasets/${encodeURIComponent(dataset.name)}/config`
+      const response = await apiClient.get<DatasetConfig>(
+        `/config/datasets/${encodeURIComponent(dataset.name)}/config`
       )
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const config = (await response.json()) as DatasetConfig
+      const config = response.data
       setEditingState({
         entityType: 'dataset',
         name: dataset.name,
@@ -345,13 +339,10 @@ export function ImportDashboard({
     })
 
     try {
-      const response = await fetch(
-        `/api/config/references/${encodeURIComponent(reference.name)}/config`
+      const response = await apiClient.get<ReferenceConfig>(
+        `/config/references/${encodeURIComponent(reference.name)}/config`
       )
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const config = (await response.json()) as ReferenceConfig
+      const config = response.data
       const detectedColumns =
         config.connector?.type === 'derived' && config.connector?.source
           ? datasetColumnsMap.get(config.connector.source) ?? []
@@ -379,18 +370,10 @@ export function ImportDashboard({
     setSavingConfig(true)
     setEditorError(null)
     try {
-      const response = await fetch(
-        `/api/config/datasets/${encodeURIComponent(name)}/config`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config),
-        }
+      await apiClient.put(
+        `/config/datasets/${encodeURIComponent(name)}/config`,
+        config
       )
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
 
       await queryClient.invalidateQueries({ queryKey: ['datasets'] })
       await fetchSummary()
@@ -408,18 +391,10 @@ export function ImportDashboard({
     setSavingConfig(true)
     setEditorError(null)
     try {
-      const response = await fetch(
-        `/api/config/references/${encodeURIComponent(name)}/config`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config),
-        }
+      await apiClient.put(
+        `/config/references/${encodeURIComponent(name)}/config`,
+        config
       )
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
 
       await queryClient.invalidateQueries({ queryKey: ['references'] })
       await fetchSummary()

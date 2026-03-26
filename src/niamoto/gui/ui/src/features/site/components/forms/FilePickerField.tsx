@@ -1,11 +1,11 @@
 /**
- * ImagePickerField - Image selector with upload capability and preview
+ * FilePickerField - File selector with upload capability
  *
- * Allows selecting existing images from a folder or uploading new ones
+ * Allows selecting existing files from a folder or uploading new ones
  */
 
 import { useRef, useState } from 'react'
-import { Upload, FolderOpen, Link, Loader2, Image as ImageIcon, X } from 'lucide-react'
+import { Upload, FolderOpen, Link, Loader2, File, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -17,26 +17,38 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { useProjectFiles, useUploadFile } from '@/features/site/hooks/useSiteConfig'
+import { useProjectFiles, useUploadFile } from '@/shared/hooks/useSiteConfig'
 
-interface ImagePickerFieldProps {
+interface FilePickerFieldProps {
   value: string
   onChange: (path: string) => void
-  folder?: string // Default: 'files/team'
+  folder?: string // Default: 'files/data'
   placeholder?: string
+  accept?: string // File input accept attribute
   className?: string
 }
 
-// Image extensions
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']
+// Format file size
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
-export function ImagePickerField({
+// Get file extension
+function getExtension(filename: string): string {
+  const parts = filename.split('.')
+  return parts.length > 1 ? parts.pop()?.toUpperCase() || '' : ''
+}
+
+export function FilePickerField({
   value,
   onChange,
-  folder = 'files/team',
-  placeholder = 'Selectionner une image',
+  folder = 'files/data',
+  placeholder = 'Selectionner ou uploader un fichier',
+  accept,
   className,
-}: ImagePickerFieldProps) {
+}: FilePickerFieldProps) {
   const [open, setOpen] = useState(false)
   const [externalUrl, setExternalUrl] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -45,10 +57,7 @@ export function ImagePickerField({
   const { data: filesData, isLoading, refetch } = useProjectFiles(folder)
   const uploadMutation = useUploadFile()
 
-  // Filter only images
-  const images = (filesData?.files || []).filter((f) =>
-    IMAGE_EXTENSIONS.includes(f.extension.toLowerCase())
-  )
+  const files = filesData?.files || []
 
   // Handle file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,7 +68,7 @@ export function ImagePickerField({
       const result = await uploadMutation.mutateAsync({ file, folder })
       await refetch()
       onChange(result.path)
-      toast.success('Image uploaded', {
+      toast.success('File uploaded', {
         description: result.filename,
       })
       setOpen(false)
@@ -80,11 +89,10 @@ export function ImagePickerField({
     }
   }
 
-  // Get image URL for display
-  const getImageUrl = (path: string) => {
-    if (path.startsWith('http')) return path
-    return `/api/site/${path}`
-  }
+  // Get display name for current value
+  const displayName = value
+    ? value.split('/').pop() || value
+    : placeholder
 
   return (
     <div className={cn('flex gap-2', className)}>
@@ -92,36 +100,24 @@ export function ImagePickerField({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className="flex-1 h-auto min-h-9 justify-start font-normal p-2"
+            className="flex-1 justify-start font-normal"
           >
             {value ? (
-              <div className="flex items-center gap-2">
-                <img
-                  src={getImageUrl(value)}
-                  alt=""
-                  className="h-8 w-8 rounded object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none'
-                  }}
-                />
-                <span className="truncate text-sm">
-                  {value.split('/').pop()}
-                </span>
-              </div>
-            ) : (
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <ImageIcon className="h-4 w-4" />
-                {placeholder}
+              <span className="flex items-center gap-2 truncate">
+                <File className="h-4 w-4 shrink-0" />
+                <span className="truncate">{displayName}</span>
               </span>
+            ) : (
+              <span className="text-muted-foreground">{placeholder}</span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-0" align="start">
-          <Tabs defaultValue="gallery" className="w-full">
+        <PopoverContent className="w-96 p-0" align="start">
+          <Tabs defaultValue="files" className="w-full">
             <TabsList className="w-full grid grid-cols-2">
-              <TabsTrigger value="gallery" className="gap-2">
+              <TabsTrigger value="files" className="gap-2">
                 <FolderOpen className="h-4 w-4" />
-                Galerie
+                Fichiers existants
               </TabsTrigger>
               <TabsTrigger value="external" className="gap-2">
                 <Link className="h-4 w-4" />
@@ -129,13 +125,13 @@ export function ImagePickerField({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="gallery" className="p-2 space-y-2">
+            <TabsContent value="files" className="p-2 space-y-2">
               {/* Upload button */}
               <div className="flex gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={accept}
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -151,23 +147,23 @@ export function ImagePickerField({
                   ) : (
                     <Upload className="mr-2 h-4 w-4" />
                   )}
-                  Uploader une image
+                  Uploader un fichier
                 </Button>
               </div>
 
-              {/* Images grid */}
+              {/* Files list */}
               <ScrollArea className="h-48">
                 {isLoading ? (
                   <div className="flex items-center justify-center p-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ) : images.length === 0 ? (
+                ) : files.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
-                    Aucune image dans {folder}/
+                    Aucun fichier dans {folder}/
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-1">
-                    {images.map((file) => (
+                  <div className="space-y-1">
+                    {files.map((file) => (
                       <button
                         key={file.path}
                         type="button"
@@ -176,18 +172,20 @@ export function ImagePickerField({
                           setOpen(false)
                         }}
                         className={cn(
-                          'relative aspect-square rounded overflow-hidden border-2 transition-colors hover:border-primary/50',
-                          value === file.path
-                            ? 'border-primary'
-                            : 'border-transparent'
+                          'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+                          value === file.path && 'bg-primary/10 text-primary'
                         )}
-                        title={file.name}
                       >
-                        <img
-                          src={getImageUrl(file.path)}
-                          alt={file.name}
-                          className="h-full w-full object-cover"
-                        />
+                        <File className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 truncate text-left">{file.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {getExtension(file.name)}
+                        </span>
+                        {file.size && (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {formatFileSize(file.size)}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -197,13 +195,13 @@ export function ImagePickerField({
 
             <TabsContent value="external" className="p-2 space-y-2">
               <p className="text-xs text-muted-foreground">
-                Entrez l'URL d'une image externe
+                Entrez l'URL d'une ressource externe
               </p>
               <div className="flex gap-2">
                 <Input
                   value={externalUrl}
                   onChange={(e) => setExternalUrl(e.target.value)}
-                  placeholder="https://example.com/photo.jpg"
+                  placeholder="https://example.com/data.csv"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
@@ -239,4 +237,4 @@ export function ImagePickerField({
   )
 }
 
-export default ImagePickerField
+export default FilePickerField

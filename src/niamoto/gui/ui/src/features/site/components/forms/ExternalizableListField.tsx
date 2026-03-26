@@ -48,7 +48,7 @@ import {
   useDataContent,
   useUpdateDataContent,
   useImportCsv,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 
 type StorageMode = 'inline' | 'external'
 

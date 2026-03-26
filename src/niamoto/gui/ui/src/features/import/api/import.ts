@@ -1,4 +1,5 @@
-import axios from 'axios'
+import { isAxiosError } from 'axios'
+import { apiClient } from '@/shared/lib/api/client'
 
 export interface ImportJobEvent {
   timestamp: string
@@ -70,7 +71,7 @@ export async function analyzeFile(file: File, entityType: string): Promise<FileA
   formData.append('file', file)
   formData.append('entity_type', entityType)
 
-  const response = await axios.post<FileAnalysis>('/api/files/analyze', formData, {
+  const response = await apiClient.post<FileAnalysis>('/files/analyze', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -89,12 +90,12 @@ export async function executeImport(request: ImportRequest, file?: File): Promis
 
   let endpoint: string
   if (request.entity_type === 'reference') {
-    endpoint = `/api/imports/execute/reference/${request.entity_name}`
+    endpoint = `/imports/execute/reference/${request.entity_name}`
   } else {
-    endpoint = `/api/imports/execute/dataset/${request.entity_name}`
+    endpoint = `/imports/execute/dataset/${request.entity_name}`
   }
 
-  const response = await axios.post(endpoint, formData, {
+  const response = await apiClient.post(endpoint, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -107,7 +108,7 @@ export async function executeImportAll(resetTable: boolean = false): Promise<any
   const formData = new FormData()
   formData.append('reset_table', String(resetTable))
 
-  const response = await axios.post('/api/imports/execute/all', formData, {
+  const response = await apiClient.post('/imports/execute/all', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -117,7 +118,7 @@ export async function executeImportAll(resetTable: boolean = false): Promise<any
 }
 
 export async function getImportStatus(jobId: string): Promise<ImportJobStatus> {
-  const response = await axios.get<ImportJobStatus>(`/api/imports/jobs/${jobId}`)
+  const response = await apiClient.get<ImportJobStatus>(`/imports/jobs/${jobId}`)
   return response.data
 }
 
@@ -177,7 +178,7 @@ export async function executeImportFromConfig(
 
     throw new Error('Import timed out')
   } catch (error) {
-    if (axios.isAxiosError(error)) {
+    if (isAxiosError(error)) {
       throw new Error(error.response?.data?.detail || error.message)
     }
     throw error
@@ -256,7 +257,7 @@ export interface EntitiesResponse {
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
-  const response = await axios.get<EntitiesResponse>('/api/imports/entities')
+  const response = await apiClient.get<EntitiesResponse>('/imports/entities')
   return response.data
 }
 
@@ -271,8 +272,8 @@ export async function deleteEntity(
   entityName: string,
   deleteTable: boolean = false
 ): Promise<DeleteEntityResponse> {
-  const response = await axios.delete<DeleteEntityResponse>(
-    `/api/imports/entities/${entityType}/${entityName}`,
+  const response = await apiClient.delete<DeleteEntityResponse>(
+    `/imports/entities/${entityType}/${entityName}`,
     { params: { delete_table: deleteTable } }
   )
   return response.data

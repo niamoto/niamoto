@@ -81,7 +81,7 @@ import type {
   StaticPage,
   GroupInfo,
   TemplateInfo,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import { useLanguages } from '@/shared/contexts/LanguageContext'
 
 // =============================================================================

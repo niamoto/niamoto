@@ -30,16 +30,16 @@ import {
   useUpdateFileContent,
   useProjectFiles,
   useUploadFile,
-} from '@/features/site/hooks/useSiteConfig'
+} from '@/shared/hooks/useSiteConfig'
 import { useLanguages } from '@/shared/contexts/LanguageContext'
 
 const MarkdownEditor = lazy(() =>
-  import('@/components/site/MarkdownEditor').then((module) => ({
+  import('@/features/site/components/MarkdownEditor').then((module) => ({
     default: module.MarkdownEditor,
   }))
 )
 const MultilingualMarkdownEditor = lazy(() =>
-  import('@/components/site/MultilingualMarkdownEditor').then((module) => ({
+  import('@/features/site/components/MultilingualMarkdownEditor').then((module) => ({
     default: module.MultilingualMarkdownEditor,
   }))
 )

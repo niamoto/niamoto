@@ -39,7 +39,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import type { StaticPage, GroupInfo } from '@/features/site/hooks/useSiteConfig'
+import type { StaticPage, GroupInfo } from '@/shared/hooks/useSiteConfig'
 
 export type SelectionType = 'static' | 'group'
 

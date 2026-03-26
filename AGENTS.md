@@ -144,7 +144,6 @@ When unsure, ask: would this still work for a different ecology project with dif
 
 ## Repo-Specific Notes
 
-- Do not commit [docs/03-ml-detection/ui-ml-integration-review.md](/Users/julienbarbe/Dev/clients/niamoto/docs/03-ml-detection/ui-ml-integration-review.md).
 - `dist/` under the frontend is build output and should not be treated as source.
 - `.DS_Store` and `.ruff_cache` should never be committed.
 - [src/niamoto/gui/ui/public/fonts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/public/fonts) is intentionally kept because desktop mode uses local fonts.
