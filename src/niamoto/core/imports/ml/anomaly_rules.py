@@ -104,7 +104,7 @@ def detect_anomalies(
             logger.debug("Anomaly rule failed for %s: %s", concept, e)
 
     # Fallback: IQR × 3 for numeric columns
-    if pd.api.types.is_numeric_dtype(clean):
+    if pd.api.types.is_numeric_dtype(clean) and not pd.api.types.is_bool_dtype(clean):
         q1, q3 = clean.quantile([0.25, 0.75])
         iqr = q3 - q1
         if iqr > 0:

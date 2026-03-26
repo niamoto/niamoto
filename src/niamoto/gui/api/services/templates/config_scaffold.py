@@ -21,6 +21,9 @@ from niamoto.gui.api.services.templates.config_service import (
     save_export_config,
     save_transform_config,
 )
+from niamoto.gui.api.services.templates.relation_detection import (
+    find_stats_sources_for_reference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +76,6 @@ def build_relation_config(
                 "left": "lft",
                 "right": "rght",
             },
-        }
-    elif kind == "spatial":
-        return {
-            "plugin": "direct_reference",
-            "key": f"{ref_name}_id",
-            "ref_key": "id",
         }
     else:
         return {
@@ -137,7 +134,9 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
 
         # --- Transform ---
         if not find_transform_group(transform_groups, ref_name):
-            group = _build_transform_group(ref_name, kind, ref_config, first_dataset)
+            group = _build_transform_group(
+                work_dir, ref_name, kind, ref_config, first_dataset
+            )
             transform_groups.append(group)
             transform_added.append(ref_name)
 
@@ -164,15 +163,52 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
 
 
 def _build_transform_group(
+    work_dir: Path,
     ref_name: str,
     kind: str,
     ref_config: Dict[str, Any],
     first_dataset: Optional[str],
 ) -> Dict[str, Any]:
     """Construit un groupe transform minimal pour une référence."""
+    import_path = work_dir / "config" / "import.yml"
+    explicit_auxiliary_sources: List[Dict[str, Any]] = []
+    if import_path.exists():
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+        explicit_auxiliary_sources = [
+            source
+            for source in (import_config.get("auxiliary_sources", []) or [])
+            if source.get("grouping") == ref_name
+        ]
+
+    stats_sources = (
+        explicit_auxiliary_sources
+        if explicit_auxiliary_sources
+        else find_stats_sources_for_reference(work_dir, ref_name)
+    )
+
+    if kind == "spatial":
+        if stats_sources:
+            return {
+                "group_by": ref_name,
+                "sources": [
+                    _build_stats_source_config(source) for source in stats_sources
+                ],
+                "widgets_data": {},
+            }
+
+        logger.debug(
+            "Skipping default dataset relation for spatial reference '%s' because no explicit spatial key is available",
+            ref_name,
+        )
+        return {
+            "group_by": ref_name,
+            "sources": [],
+            "widgets_data": {},
+        }
+
     source_name = "occurrences"
     data_name = first_dataset or "occurrences"
-
     relation = build_relation_config(ref_name, kind, ref_config)
 
     return {
@@ -183,9 +219,26 @@ def _build_transform_group(
                 "data": data_name,
                 "grouping": ref_name,
                 "relation": relation,
-            }
+            },
+            *[_build_stats_source_config(source) for source in stats_sources],
         ],
         "widgets_data": {},
+    }
+
+
+def _build_stats_source_config(source: Dict[str, str]) -> Dict[str, Any]:
+    """Convert a detected auxiliary stats source into transform.yml source config."""
+    relation = source.get("relation", {})
+    return {
+        "name": source["name"],
+        "data": source["data"],
+        "grouping": source["grouping"],
+        "relation": {
+            "plugin": relation.get("plugin", source.get("relation_plugin")),
+            "key": relation.get("key", source.get("key")),
+            "ref_field": relation.get("ref_field", source.get("ref_field")),
+            "match_field": relation.get("match_field", source.get("match_field")),
+        },
     }
 
 

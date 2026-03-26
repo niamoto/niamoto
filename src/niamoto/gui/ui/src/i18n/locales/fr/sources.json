@@ -33,20 +33,22 @@
     "importSuccess": "Import terminé avec succès !",
     "back": "Retour",
     "or": "ou",
+    "configurationTab": "Configuration",
+    "yamlTab": "YAML",
     "modifyExistingConfig": "Modifier la configuration existante",
-    "howItWorks": "Comment ça marche ?",
-    "howItWorksSteps": [
-      "Ajoutez vos fichiers (CSV pour les données, GeoPackage pour les shapes)",
-      "La configuration est analysée et affichée pour validation",
-      "Les données sont importées dans la base",
-      "Les groupes de référence apparaissent dans le menu latéral"
-    ],
     "autoConfigError": "Erreur lors de la configuration automatique",
+    "autoConfigTimeout": "La configuration automatique a pris trop de temps",
     "invalidConfig": "Configuration invalide ou vide",
     "loadConfigError": "Erreur lors du chargement de la configuration",
     "savingConfig": "Sauvegarde de la configuration...",
+    "savingConfigDone": "Configuration sauvegardée",
     "importingData": "Import des données...",
+    "importJobStarting": "Démarrage du job d'import...",
+    "importTimedOut": "L'import a pris trop de temps",
     "preparing": "Préparation...",
+    "progressWillAppear": "La progression apparaîtra dès que la première entité sera importée.",
+    "importLiveFeed": "Flux d'import en direct",
+    "waitingForImportEvents": "En attente des événements d'import...",
     "writingImportYml": "Écriture dans import.yml",
     "importingEntity": "Import de {{entity}}...",
     "processingEntities": "Traitement des entités...",
@@ -57,6 +59,42 @@
     "retry": "Réessayer",
     "importComplete": "Import terminé !",
     "importedSummary": "{{datasets}} dataset(s) et {{references}} référence(s) importé(s)"
+  },
+  "upload": {
+    "dropFiles": "Glissez-déposez vos fichiers",
+    "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "uploading": "Téléversement...",
+    "uploadSelected_one": "Télécharger {{count}} fichier",
+    "uploadSelected_other": "Télécharger {{count}} fichiers",
+    "failed": "Échec du téléversement",
+    "categories": {
+      "csv": "Fichiers CSV",
+      "vector": "GeoPackage/GeoJSON",
+      "raster": "Fichiers TIFF",
+      "other": "Autres fichiers"
+    },
+    "conflicts": {
+      "title": "Fichiers existants",
+      "description_one": "{{count}} fichier existe déjà. Que souhaitez-vous faire ?",
+      "description_other": "{{count}} fichiers existent déjà. Que souhaitez-vous faire ?",
+      "useExisting": "Utiliser les existants",
+      "replaceAll": "Remplacer tout"
+    },
+    "status": {
+      "queued": "En attente d'analyse",
+      "analyzing": "Analyse en cours...",
+      "detected": "Détection mise à jour",
+      "review": "À vérifier",
+      "ready": "Analyse terminée"
+    }
+  },
+  "existingFiles": {
+    "title": "Fichiers existants",
+    "fileCount_one": "{{count}} fichier",
+    "fileCount_other": "{{count}} fichiers",
+    "selectFolder": "Sélectionner le dossier",
+    "reconfigureSelected_one": "Reconfigurer {{count}} fichier",
+    "reconfigureSelected_other": "Reconfigurer {{count}} fichiers"
   },
   "dataset": {
     "deleteDataset": "Supprimer \"{{name}}\" ?",
@@ -249,12 +287,104 @@
     "referenceNotFound": "Référence introuvable"
   },
   "dashboard": {
-    "title": "Dashboard des données",
-    "description": "Vue d'ensemble de la qualité et de la complétude des données importées.",
+    "title": "Données importées",
+    "description": "Explorez les groupes d’agrégation et les sources support désormais disponibles dans votre espace de travail.",
     "noData": "Aucune donnée importée",
-    "noDataHint": "Commencez par importer vos fichiers de données pour voir les statistiques et la qualité.",
+    "noDataHint": "Commencez par importer vos fichiers de données pour inspecter leur structure et commencer à les explorer.",
     "importData": "Importer des données",
-    "import": "Importer"
+    "import": "Importer",
+    "importedWorkspace": "Workspace importé",
+    "workspaceTitle": "Explorez ce que cet import a mis en place",
+    "workspaceDescription": "Les groupes d’agrégation sont les points d’entrée principaux pour les pages, la navigation et l’enrichissement dans Niamoto. Commencez par eux, puis inspectez les sources support lorsque vous avez besoin de plus de détail.",
+    "needsAttention": "À surveiller",
+    "aggregationGroupsTitle": "Groupes d’agrégation",
+    "aggregationGroupsDescription": "Ces groupes structurent désormais les pages, la navigation et les workflows d’enrichissement que vous pouvez construire à partir de cet import.",
+    "supportingSourcesTitle": "Sources support",
+    "supportingSourcesDescription": "Les datasets et couches importées restent disponibles pour inspection directe, mise à jour et ajustements de configuration.",
+    "datasetFallbackDescription": "Données sources brutes disponibles pour une exploration directe.",
+    "layerFallbackDescription": "Source spatiale importée disponible pour l’exploration et les usages cartographiques.",
+    "toolsBandTitle": "Outils d’analyse",
+    "toolsBandDescription": "Gardez les diagnostics avancés à portée de main sans transformer cette page en dashboard de monitoring.",
+    "importedState": "Importé",
+    "rows": "{{count}} lignes",
+    "fields": "{{count}} champs",
+    "errors": {
+      "loadTitle": "Erreur lors du chargement des données importées",
+      "loadSummary": "Impossible de charger le résumé des données importées",
+      "loadConfig": "Impossible de charger la configuration",
+      "saveConfig": "Impossible de sauvegarder la configuration"
+    },
+    "actions": {
+      "refresh": "Rafraîchir",
+      "reimport": "Réimporter",
+      "retry": "Réessayer",
+      "open": "Ouvrir",
+      "explore": "Explorer",
+      "openGroup": "Ouvrir le groupe",
+      "editConfig": "Modifier la config",
+      "updateFile": "Mettre à jour le fichier",
+      "updateLayer": "Mettre à jour le fichier",
+      "addSource": "Ajouter une source",
+      "enrichNow": "Enrichir maintenant",
+      "manageEnrichment": "Gérer l’enrichissement"
+    },
+    "kinds": {
+      "taxonomic": "Taxonomique",
+      "spatial": "Spatial",
+      "reference": "Référence",
+      "dataset": "Dataset",
+      "layer": "Couche"
+    },
+    "aggregationDescriptions": {
+      "hierarchical": "Utilisez ce groupe pour naviguer dans une hiérarchie d’entités liées et générer des pages structurées à partir d’elle.",
+      "spatial": "Utilisez ce groupe pour organiser les données par zones cartographiées ou regroupements géographiques.",
+      "generic": "Utilisez ce groupe comme référence stable autour de laquelle agréger des observations liées."
+    },
+    "card": {
+      "rows": "Lignes",
+      "fields": "Champs",
+      "fieldPreview": "Aperçu des champs",
+      "role": "Rôle",
+      "taxonomicReference": "Agrégation taxonomique",
+      "spatialReference": "Agrégation spatiale",
+      "genericReference": "Agrégation de référence"
+    },
+    "badges": {
+      "enrichmentAvailable": "Enrichissement disponible",
+      "enrichmentEnabled": "Enrichissement activé"
+    },
+    "nextStep": {
+      "label": "Étape suivante recommandée",
+      "readyLabel": "Prêt à explorer",
+      "enrichmentTitle": "Enrichir cette référence depuis des API externes",
+      "enrichmentDescription": "Utilisez l’enrichissement API pour compléter cette référence avec des données externes avant de générer des pages ou des widgets à partir d’elle.",
+      "enrichmentConfiguredTitle": "Cette référence dispose déjà d’un workflow d’enrichissement",
+      "enrichmentConfiguredDescription": "Revoyez ou affinez les paramètres d’enrichissement API avant de régénérer des pages et widgets à partir de ce groupe.",
+      "exploreTitle": "Ce groupe est prêt à être utilisé",
+      "exploreDescription": "Vous pouvez explorer cette référence importée directement ou ouvrir sa page de groupe générée lorsque vous êtes prêt."
+    },
+    "editor": {
+      "loadingConfig": "Chargement de la configuration…",
+      "savingConfig": "Sauvegarde de la configuration…"
+    },
+    "tools": {
+      "fieldAvailability": {
+        "title": "Disponibilité des champs",
+        "description": "Inspectez la régularité de remplissage des colonnes avant de construire des vues ou des widgets."
+      },
+      "validation": {
+        "title": "Validation",
+        "description": "Vérifiez les plages numériques, les outliers et les valeurs qui méritent un examen plus attentif."
+      },
+      "taxonomy": {
+        "title": "Vérifications taxonomiques",
+        "description": "Inspectez la cohérence de la hiérarchie et repérez les problèmes structurels dans les groupes taxonomiques."
+      },
+      "coverage": {
+        "title": "Couverture spatiale",
+        "description": "Comparez occurrences et shapes pour comprendre dans quelle mesure vos références spatiales sont bien alimentées."
+      }
+    }
   },
   "configEditor": {
     "generalInfo": "Informations générales",
@@ -288,6 +418,7 @@
     "noChanges": "Aucune modification",
     "saving": "Sauvegarde...",
     "save": "Sauvegarder",
+    "saveAndOpenEnrichment": "Sauvegarder et ouvrir l’enrichissement",
     "savedSuccess": "Configuration sauvegardée avec succès",
     "saveError": "Erreur lors de la sauvegarde",
     "loadError": "Erreur lors du chargement de la configuration",
@@ -312,6 +443,106 @@
     "enrichWithApi": "Enrichir les données via une API externe",
     "enabled": "Activé",
     "disabled": "Désactivé"
+  },
+  "enrichmentTab": {
+    "viewImage": "Voir l'image",
+    "cards": {
+      "status": "Statut",
+      "progress": "Progression",
+      "database": "Base de données",
+      "actions": "Actions"
+    },
+    "status": {
+      "ready": "Prêt",
+      "running": "En cours",
+      "paused": "En pause",
+      "pausedOffline": "Pause (hors ligne)",
+      "completed": "Terminé",
+      "failed": "Échec",
+      "cancelled": "Annulé"
+    },
+    "stats": {
+      "total": "Total",
+      "enriched": "Enrichis",
+      "enrichedOne": "Enrichi",
+      "pending": "En attente"
+    },
+    "currentEntity": "En cours : {{name}}",
+    "offline": {
+      "title": "Mode hors connexion",
+      "description": "L'enrichissement nécessite une connexion internet pour contacter les API externes.",
+      "internetRequired": "Connexion internet requise",
+      "internetRequiredResume": "Connexion internet requise pour reprendre"
+    },
+    "actions": {
+      "description": "Gérer le processus d'enrichissement",
+      "start": "Démarrer l'enrichissement",
+      "pause": "Pause",
+      "resume": "Reprendre"
+    },
+    "cancelDialog": {
+      "title": "Annuler l'enrichissement ?",
+      "description": "{{processed}} entités sur {{total}} ont été traitées. Cette action ne peut pas être annulée.",
+      "continue": "Continuer",
+      "resume": "Reprendre",
+      "confirm": "Annuler le job"
+    },
+    "tabs": {
+      "preview": "Aperçu",
+      "results": "Résultats"
+    },
+    "preview": {
+      "selectEntity": "Sélectionner une entité",
+      "selectEntityDescription": "Choisissez une entité à tester",
+      "loadEntities": "Cliquez sur rechercher pour charger les entités",
+      "manualInput": "Ou saisir manuellement :",
+      "resultTitle": "Résultat de l'aperçu",
+      "resultDescription": "Données retournées par l'API",
+      "loading": "Interrogation de l'API...",
+      "emptyTitle": "Sélectionnez une entité",
+      "emptyDescription": "pour tester la configuration d'enrichissement"
+    },
+    "results": {
+      "title": "Résultats d'enrichissement",
+      "description": "Entités enrichies lors du dernier job",
+      "emptyTitle": "Aucun résultat disponible",
+      "emptyDescription": "Lancez un enrichissement pour voir les résultats"
+    },
+    "result": {
+      "success": "Succès",
+      "failed": "Échec",
+      "enrichedOn": "Données enrichies le {{date}}",
+      "images": "Images ({{count}})"
+    },
+    "table": {
+      "entity": "Entité",
+      "field": "Champ",
+      "value": "Valeur",
+      "date": "Date"
+    },
+    "errors": {
+      "loadConfig": "Impossible de charger la configuration d'enrichissement",
+      "saveConfig": "Impossible de sauvegarder la configuration d'enrichissement",
+      "startJob": "Impossible de démarrer le job",
+      "pauseJob": "Impossible de mettre en pause",
+      "resumeJob": "Impossible de reprendre",
+      "cancelJob": "Impossible d'annuler",
+      "preview": "Échec de l'aperçu"
+    },
+    "toasts": {
+      "configSaved": "Configuration d'enrichissement sauvegardée",
+      "saveErrorTitle": "Erreur de sauvegarde",
+      "startedTitle": "Enrichissement démarré",
+      "startedDescription": "{{count}} entités à traiter",
+      "startErrorTitle": "Erreur de démarrage",
+      "pausedTitle": "Enrichissement en pause",
+      "pausedDescription": "Vous pouvez reprendre à tout moment",
+      "resumedTitle": "Enrichissement repris",
+      "resumedDescription": "Le traitement continue",
+      "cancelledTitle": "Enrichissement annulé",
+      "cancelledDescription": "{{count}} entités traitées",
+      "genericErrorTitle": "Erreur"
+    }
   },
   "groupPanel": {
     "tabs": {
@@ -355,6 +586,120 @@
     }
   },
   "autoConfig": {
+    "importStatus": {
+      "queued": "En attente",
+      "importing": "Import en cours",
+      "done": "Importé",
+      "failed": "Échec"
+    },
+    "loading": {
+      "title": "Analyse en cours...",
+      "description": "Détection des hiérarchies, relations et correspondances spatiales",
+      "step": "Flux d'analyse en direct",
+      "liveFeed": "Flux d'analyse",
+      "waitingForEvents": "Démarrage de l'analyse..."
+    },
+    "sections": {
+      "autoDetection": "Détection automatique",
+      "aggregationCandidates": "Agrégations candidates ({{count}})",
+      "supportingSources": "Sources de support ({{count}})",
+      "datasets": "Datasets ({{count}})",
+      "references": "Références ({{count}})",
+      "auxiliarySources": "Sources auxiliaires ({{count}})",
+      "metadataLayers": "Couches metadata ({{count}})",
+      "summary": "Résumé"
+    },
+    "summary": {
+      "detectedElements": "{{count}} élément(s) détecté(s)",
+      "itemsToReview": "{{count}} à vérifier",
+      "reviewAlert": "{{count}} entité(s) ont des signaux heuristiques/ML à vérifier avant import.",
+      "datasets": "Datasets",
+      "references": "Références",
+      "layers": "Couches",
+      "entitiesToReview": "Entités à revoir"
+    },
+    "badges": {
+      "review": "Review",
+      "reviewRequired": "À revoir",
+      "notice": "À noter",
+      "info": "Info",
+      "auxiliary": "Auxiliaire",
+      "stable": "Stable"
+    },
+    "actions": {
+      "edit": "Éditer",
+      "moveToReferences": "Déplacer vers les références",
+      "moveToDatasets": "Déplacer vers les datasets",
+      "viewDetails": "Détails",
+      "hideDetails": "Masquer"
+    },
+    "itemTypes": {
+      "dataset": "Dataset",
+      "reference": "Référence",
+      "auxiliary": "Auxiliaire",
+      "layer": "Couche"
+    },
+    "list": {
+      "fieldsCount": "{{count}} champs",
+      "referencedByCount": "{{count}} liés",
+      "supportsAggregationsCount": "{{count}} agrégations",
+      "linkedDatasetsCount": "{{count}} datasets",
+      "linkedAuxiliaryCount": "{{count}} sources auxiliaires",
+      "derivedFrom": "dérivé de {{source}}",
+      "sourceCount": "{{count}} sources"
+    },
+    "labels": {
+      "heuristic": "Heuristique",
+      "final": "Final",
+      "primarySignal": "Signal principal"
+    },
+    "alignment": {
+      "aligned": "Heuristique + ML alignés",
+      "heuristicOnly": "Décision heuristique",
+      "mlOverride": "ML a influencé la décision",
+      "conflict": "Heuristique et ML divergent",
+      "mixed": "Signaux mixtes"
+    },
+    "detection": {
+      "fileFormatRecognized": "Format {{format}} reconnu pour \"{{name}}\"",
+      "idColumnFound": "Colonne ID trouvée : {{field}}",
+      "relationshipDetected": "Relation {{source}} → {{target}}",
+      "mlConfidentColumns": "ML : {{count}} colonne(s) sémantiques confiantes pour \"{{name}}\"",
+      "manualReviewRequired": "\"{{name}}\" demande une vérification manuelle",
+      "referenceOfKind": "Référence \"{{name}}\" de type {{kind}}",
+      "hierarchyDetected": "Hiérarchie détectée : {{levels}}",
+      "derivedReference": "Référence dérivée de \"{{source}}\"",
+      "spatialLayersDetected": "{{count}} couche(s) spatiale(s) détectée(s)",
+      "auxiliarySourcesDetected": "{{count}} source(s) stats auxiliaire(s) détectée(s)",
+      "metadataLayersDetected": "{{count}} couche(s) metadata (rasters/vecteurs)",
+      "noStructureDetected": "Aucune structure détectée automatiquement"
+    },
+    "auxiliary": {
+      "attachedTo": "Rattachée à : {{target}}",
+      "relation": "Relation : {{field}} → {{refField}}",
+      "relationCompact": "rattaché à {{target}} • {{field}} → {{refField}}"
+    },
+    "reference": {
+      "derivedFrom": "Dérivé de : {{source}}",
+      "sourceCount": "{{count}} source(s)",
+      "levels": "Niveaux : {{levels}}",
+      "enrichmentEnabled": "Enrichissement activé",
+      "enrichmentNotConfigured": "Configurez l'enrichissement API dans l'onglet Configuration avant d'utiliser cet espace.",
+      "openConfiguration": "Ouvrir la configuration",
+      "referencedByDatasets": "Référencé par : {{count}} dataset(s)",
+      "aggregationReady": "Peut servir d'agrégation cible pour les pages générées",
+      "linkedDatasets": "Datasets liés : {{datasets}}",
+      "linkedAuxiliary": "Sources auxiliaires : {{names}}"
+    },
+    "empty": {
+      "noDatasetsDetected": "Aucun dataset détecté",
+      "noReferencesDetected": "Aucune référence détectée"
+    },
+    "sheetTitles": {
+      "dataset": "Dataset : {{name}}",
+      "reference": "Référence : {{name}}",
+      "layer": "Couche : {{name}}"
+    },
     "sheetDescriptions": {
       "dataset": "Configuration du connecteur, schema et relations",
       "reference": "Configuration de la source, hierarchie et enrichissement",

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { apiClient } from '@/shared/lib/api/client'
 
 export type FreshnessStatus = 'fresh' | 'stale' | 'never_run' | 'running' | 'error'
 
@@ -54,7 +54,7 @@ export function usePipelineStatus(enabled = true) {
   return useQuery<PipelineStatus>({
     queryKey: ['pipeline-status'],
     queryFn: async () => {
-      const response = await axios.get('/api/pipeline/status')
+      const response = await apiClient.get('/pipeline/status')
       return response.data
     },
     enabled,

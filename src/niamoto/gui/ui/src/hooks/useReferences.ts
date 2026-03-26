@@ -18,6 +18,8 @@ export interface ReferenceInfo {
     description?: string
   }>
   entity_count?: number
+  can_enrich?: boolean
+  enrichment_enabled?: boolean
 }
 
 interface ReferencesResponse {

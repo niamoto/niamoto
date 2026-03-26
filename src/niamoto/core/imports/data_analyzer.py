@@ -223,7 +223,11 @@ class DataAnalyzer:
         # Geographic (high priority due to special handling)
         # Only treat actual geometry or coordinate types as geographic
         # NOT reference types like location.plot or location.locality (which are just names)
-        if col_profile.semantic_type in ["geometry", "location.coordinates"]:
+        if col_profile.semantic_type in [
+            "geometry",
+            "location.coordinate",
+            "location.coordinates",
+        ]:
             return DataCategory.GEOGRAPHIC
         if col_profile.semantic_type in ["location.latitude", "location.longitude"]:
             return DataCategory.GEOGRAPHIC

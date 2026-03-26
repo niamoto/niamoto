@@ -17,6 +17,7 @@ Testing anti-patterns compliance:
 
 import io
 import shutil
+import time
 import zipfile
 from pathlib import Path
 from typing import Dict
@@ -351,6 +352,66 @@ class TestUploadFiles:
         assert categories["data.csv"] == "csv"
         assert categories["raster.tif"] == "tif"
 
+    def test_upload_sanitizes_path_traversal_filename(
+        self, test_client: TestClient, fixtures_dir: Path, working_directory: Path
+    ):
+        """Test upload sanitizes client-provided filenames to a safe leaf name."""
+        csv_file = fixtures_dir / "sample_occurrences.csv"
+
+        with open(csv_file, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("../../nested/occurrences.csv", f, "text/csv")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["errors"] == []
+        assert data["uploaded_files"][0]["filename"] == "occurrences.csv"
+        assert (working_directory / "imports" / "occurrences.csv").exists()
+        assert not (working_directory / "nested" / "occurrences.csv").exists()
+
+    def test_upload_rejects_zip_slip_archive(
+        self, test_client: TestClient, tmp_path: Path, working_directory: Path
+    ):
+        """Test malicious ZIP entries cannot escape extraction boundaries."""
+        zip_path = tmp_path / "test.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("../escape.csv", "id,name\n1,bad\n")
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["uploaded_files"] == []
+        assert any("invalid filename" in error.lower() for error in data["errors"])
+        assert not (working_directory / "escape.csv").exists()
+
+    def test_upload_rejects_oversized_file(
+        self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Test upload enforces the maximum file size."""
+        from niamoto.gui.api.routers import smart_config
+
+        monkeypatch.setattr(smart_config, "MAX_UPLOAD_SIZE_BYTES", 8)
+
+        response = test_client.post(
+            "/api/smart/upload-files",
+            files={"files": ("data.csv", io.BytesIO(b"0123456789"), "text/csv")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["uploaded_files"] == []
+        assert any("maximum upload size" in error.lower() for error in data["errors"])
+
 
 # ============================================================================
 # ANALYZE FILE ENDPOINT TESTS
@@ -440,6 +501,16 @@ class TestAnalyzeFile:
         # The entity_name might be used for better column detection
         data = response.json()
         assert "columns" in data
+
+    def test_analyze_file_rejects_path_outside_project(self, test_client: TestClient):
+        """Test analysis rejects paths outside the project directory."""
+        response = test_client.post(
+            "/api/smart/analyze-file",
+            json={"filepath": "../../etc/passwd"},
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
 
 
 # ============================================================================
@@ -609,6 +680,21 @@ class TestDetectRelationships:
 
         assert response.status_code == 404
 
+    def test_detect_relationships_rejects_path_outside_project(
+        self, test_client: TestClient
+    ):
+        """Test relationship detection rejects paths outside the project."""
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "../../etc/passwd",
+                "target_files": ["imports/sample_taxonomy.csv"],
+            },
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
+
 
 # ============================================================================
 # AUTO-CONFIGURE MAIN TESTS
@@ -638,6 +724,16 @@ class TestAutoConfigureMain:
         # Should have at least one entity configured
         entities = data["entities"]
         assert len(entities) > 0
+
+    def test_auto_configure_rejects_path_outside_project(self, test_client: TestClient):
+        """Test auto-configure rejects paths outside the project."""
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["../../etc/passwd"]},
+        )
+
+        assert response.status_code == 400
+        assert "outside project" in response.json()["detail"].lower()
 
     def test_auto_configure_multiple_csvs_detects_references(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
@@ -719,6 +815,96 @@ class TestAutoConfigureMain:
             assert "concept" in first
             assert "confidence" in first
 
+    def test_auto_configure_exposes_decision_summary_and_semantic_evidence(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        """Test auto-configure exposes entity-level decision and evidence payloads."""
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["imports/sample_occurrences.csv"]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "decision_summary" in data
+        assert "semantic_evidence" in data
+        assert "sample_occurrences" in data["decision_summary"]
+        assert "sample_occurrences" in data["semantic_evidence"]
+
+        summary = data["decision_summary"]["sample_occurrences"]
+        assert "final_entity_type" in summary
+        assert "heuristic_entity_type" in summary
+        assert "review_required" in summary
+
+        evidence = data["semantic_evidence"]["sample_occurrences"]
+        assert "top_predictions" in evidence
+        assert "top_roles" in evidence
+        assert "inferred_ml_entity_type" in evidence
+
+    def test_auto_configure_exposes_auxiliary_sources(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        imports_dir = working_directory / "imports"
+        (imports_dir / "sample_occurrences.csv").write_text(
+            "\n".join(
+                [
+                    "id,id_plot,measurement",
+                    "1,1,10.5",
+                    "2,2,11.2",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "sample_plots.csv").write_text(
+            "\n".join(
+                [
+                    "id_plot,plot,elevation",
+                    "1,Plot A,150",
+                    "2,Plot B,180",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "plot_metrics.csv").write_text(
+            "\n".join(
+                [
+                    "id,plot_id,class_object,class_name,class_value",
+                    "1,1,dbh,0-10,4",
+                    "2,2,dbh,10-20,7",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={
+                "files": [
+                    "imports/sample_occurrences.csv",
+                    "imports/sample_plots.csv",
+                    "imports/plot_metrics.csv",
+                ]
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert (
+            data["decision_summary"]["plot_metrics"]["final_entity_type"]
+            == "auxiliary_source"
+        )
+        assert any(
+            source["name"] == "plot_metrics" and source["grouping"] == "sample_plots"
+            for source in data["auxiliary_sources"]
+        )
+        assert "plot_metrics" not in data["entities"]["datasets"]
+        assert "plot_metrics" not in data["entities"]["references"]
+
     def test_auto_configure_hierarchical_reference(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):
@@ -795,6 +981,75 @@ class TestAutoConfigureEdgeCases:
         assert response.status_code in [200, 400]
 
 
+class TestAutoConfigureJobs:
+    """Test job-based auto-config endpoints and event streaming."""
+
+    def test_auto_configure_job_completes_with_result(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        response = test_client.post(
+            "/api/smart/auto-configure/jobs",
+            json={"files": ["imports/sample_occurrences.csv"]},
+        )
+
+        assert response.status_code == 200
+        job_data = response.json()
+        assert "job_id" in job_data
+
+        job_id = job_data["job_id"]
+        deadline = time.time() + 5
+        final_status = None
+
+        while time.time() < deadline:
+            status_response = test_client.get(
+                f"/api/smart/auto-configure/jobs/{job_id}"
+            )
+            assert status_response.status_code == 200
+            final_status = status_response.json()
+            if final_status["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.1)
+
+        assert final_status is not None
+        assert final_status["status"] == "completed"
+        assert final_status["result"]["success"] is True
+        assert final_status["events"]
+
+    def test_auto_configure_job_events_stream_real_findings(
+        self, test_client: TestClient, sample_csv_files: Dict[str, Path]
+    ):
+        start_response = test_client.post(
+            "/api/smart/auto-configure/jobs",
+            json={
+                "files": [
+                    "imports/sample_occurrences.csv",
+                    "imports/sample_taxonomy.csv",
+                ]
+            },
+        )
+        assert start_response.status_code == 200
+        job_id = start_response.json()["job_id"]
+
+        streamed_payloads = []
+        with test_client.stream(
+            "GET", f"/api/smart/auto-configure/jobs/{job_id}/events"
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+
+            for line in response.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                streamed_payloads.append(line.removeprefix("data: "))
+                if len(streamed_payloads) >= 4:
+                    break
+
+        assert streamed_payloads
+        decoded_events = [yaml.safe_load(payload) for payload in streamed_payloads]
+        assert any(event["kind"] == "stage" for event in decoded_events)
+        assert any(event["kind"] in {"detail", "finding"} for event in decoded_events)
+
+
 # ============================================================================
 # CREATE ENTITIES BULK TESTS
 # ============================================================================
@@ -848,6 +1103,42 @@ class TestCreateEntitiesBulk:
         assert "references" in yaml_data["entities"]
         assert "occurrences" in yaml_data["entities"]["datasets"]
         assert "taxonomy" in yaml_data["entities"]["references"]
+
+    def test_create_entities_bulk_persists_auxiliary_sources(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {
+                    "datasets": {
+                        "occurrences": {"source": "occurrences.csv", "fields": {}}
+                    },
+                    "references": {"plots": {"source": "plots.csv", "fields": {}}},
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "id_plot",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        import_yml = working_directory / "config" / "import.yml"
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert yaml_data["auxiliary_sources"][0]["grouping"] == "plots"
 
     def test_create_entities_creates_config_dir_if_missing(
         self, test_client: TestClient, working_directory: Path

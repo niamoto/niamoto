@@ -22,6 +22,7 @@ except ImportError:
 
 from niamoto.core.imports.ml.alias_registry import AliasRegistry
 from niamoto.core.imports.ml.classifier import ColumnClassifier
+from niamoto.core.domain_vocabulary import matches_entity_name
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +360,9 @@ class DataProfiler:
 
         # Special case: occurrences/observations files are always factual
         file_name_lower = str(getattr(data, "attrs", {}).get("file_path", "")).lower()
-        if "occurrence" in file_name_lower or "observation" in file_name_lower:
+        if matches_entity_name(file_name_lower, "occurrence") or matches_entity_name(
+            file_name_lower, "observation"
+        ):
             return "factual"
 
         # Check for spatial data first (geometry takes precedence)
@@ -420,13 +423,17 @@ class DataProfiler:
                 base_name = base_name[: -len(suffix)]
 
         # Handle known patterns
-        if "occurrence" in base_name or "observation" in base_name:
+        if matches_entity_name(base_name, "occurrence") or matches_entity_name(
+            base_name, "observation"
+        ):
             return "observations"
-        elif "plot" in base_name or "site" in base_name:
+        elif matches_entity_name(base_name, "plot") or matches_entity_name(
+            base_name, "locality"
+        ):
             return "locations"
         elif "shape" in base_name:
             return base_name.replace("_stats", "")
-        elif "taxon" in base_name or "species" in base_name:
+        elif matches_entity_name(base_name, "taxon"):
             return "species"
 
         return base_name

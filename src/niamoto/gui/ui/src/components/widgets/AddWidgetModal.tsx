@@ -64,7 +64,7 @@ import {
   type CombinedWidgetSuggestion,
 } from '@/lib/api/widget-suggestions'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue'
 import { useQueryClient } from '@tanstack/react-query'
 import { PreviewTile } from '@/components/preview'
 import { PreviewPane } from '@/components/preview'

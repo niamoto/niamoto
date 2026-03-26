@@ -1,200 +1,196 @@
 # Niamoto GUI
 
-## Overview
+The `src/niamoto/gui` package contains the full graphical interface layer for Niamoto:
 
-The Niamoto GUI provides a web-based interface for configuring and managing Niamoto data pipelines. It consists of:
+- a Python backend built with FastAPI
+- a React/TypeScript frontend built with Vite
 
-- **Backend**: FastAPI server (Python) that provides REST APIs
-- **Frontend**: React application (TypeScript) built with Vite
+This README is the high-level entry point for the GUI as a whole.
+For frontend-specific architecture, conventions, and assets, see:
 
-## For End Users (pip install niamoto)
+- [ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
 
-When you install Niamoto via pip, the GUI is included as pre-built static files. No Node.js or pnpm is required.
+## Directory overview
 
-### Usage
+- [api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api): FastAPI app, routers, services, request models
+- [ui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui): React frontend application
 
-Simply run:
+## End-user mode
+
+When Niamoto is installed via pip, the GUI is served as a pre-built frontend bundle behind the Python backend. End users do not need Node.js or pnpm.
+
+Run:
+
 ```bash
 niamoto gui
 ```
 
-This will:
-1. Start the FastAPI server on port 8080
-2. Serve the pre-built React application
-3. Open your browser automatically
-
-### Options
+Useful options:
 
 ```bash
-niamoto gui --port 8081  # Use a different port
-niamoto gui --no-browser  # Don't open browser automatically
-niamoto gui --reload      # Enable auto-reload (development)
+niamoto gui --port 8081
+niamoto gui --no-browser
+niamoto gui --reload
 ```
 
-## For Developers
+What this does:
+- starts the FastAPI GUI backend
+- serves the built frontend from the UI build output
+- opens the browser unless disabled
 
-If you're developing the GUI, you'll need Node.js and pnpm installed.
+## Developer workflow
 
-### Quick Start (Recommended)
+If you are developing the GUI, you need both Python and Node.js tooling.
+
+### Recommended setup
 
 From the repository root:
 
 ```bash
-# 1. Install frontend dependencies (first time only)
-cd src/niamoto/gui/ui && pnpm install && cd ../../../..
-
-# 2. Start development environment with hot reload
+cd src/niamoto/gui/ui
+pnpm install
+cd ../../../..
 ./scripts/dev_gui.sh test-instance/niamoto-nc
-
-# 3. Open browser to http://127.0.0.1:5173
 ```
 
-This launches both servers in parallel with full hot reload for both React and Python code.
+This starts:
+- the FastAPI backend with reload
+- the Vite dev server with HMR
 
-### Manual Dual Server Setup
+Default frontend URL:
 
-If you prefer to run servers separately:
+```text
+http://127.0.0.1:5173
+```
 
-**Terminal 1 - Backend:**
+### Manual dual-server setup
+
+Backend:
+
 ```bash
 python scripts/dev_api.py --instance test-instance/niamoto-nc
 ```
 
-**Terminal 2 - Frontend:**
+Frontend:
+
 ```bash
 cd src/niamoto/gui/ui
-pnpm run dev
+pnpm dev
 ```
 
-Access the frontend at `http://127.0.0.1:5173` (Vite will proxy `/api/*` requests to port 8080).
+The Vite dev server proxies `/api/*` to the backend.
 
-### Instance Context
+## Instance context
 
-The GUI needs to know which Niamoto instance to work with. Context is resolved in this order:
+The GUI needs a Niamoto instance path. Resolution order:
 
-1. **CLI argument**: `--instance /path/to/instance`
-2. **Environment variable**: `export NIAMOTO_HOME=/path/to/instance`
-3. **Current directory**: Falls back to `pwd` (with warning)
+1. CLI argument: `--instance /path/to/instance`
+2. Environment variable: `NIAMOTO_HOME=/path/to/instance`
+3. Current working directory
 
-### Development Workflow
+## Build and distribution
 
-1. Make changes to React code in `ui/src/` or Python code in `api/`
-2. Changes are automatically reloaded (no manual rebuild needed)
-3. Test in browser at `http://127.0.0.1:5173`
-4. Before publishing, build with `pnpm run build` and test production mode
-
-### Building for Distribution
-
-Before publishing to PyPI, build the GUI:
+To build the frontend bundle used by the Python GUI server:
 
 ```bash
-# From project root
 bash scripts/build_gui.sh
 ```
 
-Or when publishing:
+Or through the publish script:
+
 ```bash
 bash scripts/publish.sh --build-gui
 ```
 
-This creates the `dist/` directory with optimized static files that will be included in the pip package.
+This generates the frontend build in:
+
+- [ui/dist](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/dist)
+
+That build output is what the Python backend serves in packaged/distribution mode.
 
 ## Architecture
 
-```
-Development Mode:
-┌─────────────────────┐         ┌─────────────────────┐
-│  Vite Dev Server    │         │  FastAPI Backend    │
-│   (Port 5173)       │◄────────│   (Port 8080)       │
-│                     │  Proxy  │                     │
-│  - React HMR        │  /api/* │  - REST API         │
-│  - Hot Reload       │         │  - Auto-reload      │
-└─────────────────────┘         └─────────────────────┘
+### Development mode
 
-Production Mode:
-┌───────────────────────────────────────┐
-│         FastAPI Backend               │
-│          (Port 8080)                  │
-│                                       │
-│  - REST API at /api/*                 │
-│  - Serves static build from ui/dist/  │
-└───────────────────────────────────────┘
-```
+- Vite dev server serves the React app with HMR
+- FastAPI serves the backend API
+- Vite proxies `/api/*` to FastAPI
 
-### Backend (`api/`)
-- FastAPI application
-- Provides REST APIs for configuration management
-- Instance context management via `context.py`
-- Serves the built React application in production
-- Handles file uploads and analysis
+### Production/distribution mode
 
-### Frontend (`ui/`)
-- React 19 with TypeScript
-- Vite for build tooling and dev server
-- Tailwind CSS v4 for styling
-- shadcn/ui components
-- Internationalization (French/English)
+- the frontend is pre-built into static assets
+- FastAPI serves both the API and the built frontend
+- Node.js is not required for end users
 
-## How It Works
+## Backend responsibilities
 
-### In Development Mode
+The GUI backend is responsible for:
 
-1. Vite dev server runs on port 5173 with hot module replacement (HMR)
-2. FastAPI backend runs on port 8080 with auto-reload
-3. Vite proxies all `/api/*` requests to FastAPI (configured in `vite.config.ts`)
-4. React changes hot reload instantly without rebuilding
-5. Python changes auto-reload the FastAPI server
+- instance resolution and context management
+- serving configuration and data APIs
+- file operations and import orchestration
+- serving the built frontend in packaged mode
 
-### In Production Mode
+Main entry points:
 
-1. **Pre-built files**: The React app is built into static HTML/JS/CSS files
-2. **Python serves static files**: FastAPI serves these files directly
-3. **No Node.js required**: End users only need Python installed
-4. **Single process**: Everything runs from `niamoto gui` command
+- [api/app.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/app.py)
+- [api/context.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/context.py)
 
-## API Endpoints
+## Frontend responsibilities
 
-- `/api/config/{config_name}` - Get/update configuration files
-- `/api/database/schema` - Database introspection
-- `/api/database/tables/{table}/preview` - Preview table data
-- `/api/entities` - Entity registry management
-- `/api/files/list` - File operations
-- `/api/imports/detect-fields` - Field detection
-- `/api/docs` - Interactive API documentation (Swagger UI)
+The frontend is responsible for:
+
+- interactive import and review flows
+- dashboard and navigation
+- group configuration
+- site configuration
+- publish workflows
+- desktop onboarding UX
+
+The frontend now follows a feature-oriented structure centered on:
+
+- `src/app`
+- `src/features`
+- `src/shared`
+
+See the detailed frontend README:
+
+- [ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
 
 ## Troubleshooting
 
 ### Port already in use
 
-If port 8080 or 5173 is already in use:
-
 ```bash
-# Find and kill the process
 lsof -ti:8080 | xargs kill
 lsof -ti:5173 | xargs kill
 ```
 
-### Frontend can't connect to backend
+### Frontend cannot reach backend
 
-Make sure both servers are running:
+Check backend:
+
 ```bash
-# Check backend
 curl http://127.0.0.1:8080/api/docs
+```
 
-# Check frontend
+Check frontend:
+
+```bash
 curl http://127.0.0.1:5173
 ```
 
-### Instance not found
+### Invalid instance path
 
-Ensure you're pointing to a valid Niamoto instance:
+Check that the target instance contains the expected directories, typically:
+
 ```bash
-# Check instance structure
-ls -la test-instance/niamoto-nc/
-# Should contain: config/, db/, exports/ directories
+config/
+db/
+exports/
 ```
 
-## Environment Variables
+## Environment variables
 
-- `NIAMOTO_HOME` - Path to the Niamoto instance directory
-- `VITE_API_BASE_URL` - (Frontend only) Override API base URL (default: uses Vite proxy)
+- `NIAMOTO_HOME`: path to the active instance
+- `VITE_API_BASE_URL`: override frontend API base URL when needed

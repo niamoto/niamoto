@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import List, Dict, Any
 import yaml
 from niamoto.common.utils.emoji import emoji
+from niamoto.core.domain_vocabulary import (
+    TAXONOMIC_LEVELS,
+    find_taxon_identifier_column,
+    infer_taxonomy_reference_name,
+    matches_entity_name,
+)
 from .profiler import DataProfiler, DatasetProfile
 
 
@@ -134,18 +140,42 @@ class AutoDetector:
         # Check if we need to extract taxonomy from occurrences
         taxonomy_extracted = False
         for profile in profiles:
-            if (
-                "occurrence" in profile.suggested_name
-                or "observation" in profile.suggested_name
-            ):
+            if matches_entity_name(
+                profile.suggested_name, "occurrence"
+            ) or matches_entity_name(profile.suggested_name, "observation"):
                 # Check if it contains taxonomy columns
                 has_taxonomy = any(
                     col.semantic_type and "taxonomy" in col.semantic_type
                     for col in profile.columns
                 )
                 if has_taxonomy:
+                    hierarchy_levels = [
+                        col.name
+                        for col in profile.columns
+                        if col.semantic_type
+                        and "taxonomy" in col.semantic_type
+                        and col.semantic_type.split(".")[-1] in TAXONOMIC_LEVELS
+                    ]
+                    reference_name = infer_taxonomy_reference_name(
+                        profile.suggested_name,
+                        [
+                            col.semantic_type.split(".")[-1]
+                            for col in profile.columns
+                            if col.semantic_type and "taxonomy" in col.semantic_type
+                        ],
+                    )
+                    taxon_identifier = find_taxon_identifier_column(
+                        [col.name for col in profile.columns]
+                    ) or next(
+                        (
+                            col.name
+                            for col in profile.columns
+                            if col.semantic_type == "identifier.taxon"
+                        ),
+                        "id_taxonref",
+                    )
                     # Create extracted taxonomy reference
-                    config["references"]["taxonomy"] = {
+                    config["references"][reference_name] = {
                         "source": str(
                             profile.file_path.relative_to(
                                 profile.file_path.parent.parent
@@ -153,22 +183,8 @@ class AutoDetector:
                         ),
                         "type": "hierarchical",
                         "extract_from": "occurrences",
-                        "hierarchy": [
-                            col.name
-                            for col in profile.columns
-                            if col.semantic_type
-                            and "taxonomy" in col.semantic_type
-                            and col.semantic_type.split(".")[-1]
-                            in ["family", "genus", "species"]
-                        ],
-                        "id_field": next(
-                            (
-                                col.name
-                                for col in profile.columns
-                                if col.semantic_type == "identifier.taxon"
-                            ),
-                            "id_taxonref",
-                        ),
+                        "hierarchy": hierarchy_levels,
+                        "id_field": taxon_identifier,
                     }
                     taxonomy_extracted = True
                     break  # Avoid extracting taxonomy multiple times
@@ -224,7 +240,9 @@ class AutoDetector:
                         return True
 
         # Plot/location files are references
-        if "plot" in profile.suggested_name or "location" in profile.suggested_name:
+        if matches_entity_name(profile.suggested_name, "plot") or matches_entity_name(
+            profile.suggested_name, "locality"
+        ):
             # Small plot files are references
             if profile.record_count < 10000:
                 return True
@@ -361,9 +379,10 @@ class AutoDetector:
                 elif ref_type == "plot":
                     # Find plot/location reference
                     for ref_profile in reference_profiles:
-                        if (
-                            "plot" in ref_profile.suggested_name
-                            or "location" in ref_profile.suggested_name
+                        if matches_entity_name(
+                            ref_profile.suggested_name, "plot"
+                        ) or matches_entity_name(
+                            ref_profile.suggested_name, "locality"
                         ):
                             if not any(link["field"] == col.name for link in links):
                                 links.append(

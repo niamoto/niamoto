@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { LanguageSwitcher, ProjectSwitcher } from '@/components/common'
-import { useRuntimeMode } from '@/hooks/useRuntimeMode'
-import { useNetworkStatus } from '@/hooks/useNetworkStatus'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
+import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -543,3 +543,214 @@ class TestPreviewEndpoint:
         assert loaded is not None
         assert loaded["tops"] == ["value"]
         assert loaded["counts"][0] == pytest.approx(216.0)
+
+
+class TestConfigScaffoldSpatialReferences:
+    def test_scaffold_uses_shape_stats_for_spatial_reference(self, test_work_dir):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+        imports_dir = Path(test_work_dir) / "imports"
+        imports_dir.mkdir(exist_ok=True)
+
+        with open(config_dir / "import.yml", "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f)
+
+        import_config["entities"]["references"]["shapes"] = {
+            "kind": "spatial",
+            "connector": {
+                "type": "file",
+                "format": "gpkg",
+                "path": "imports/shapes.gpkg",
+            },
+        }
+
+        with open(config_dir / "import.yml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        with patch(
+            "niamoto.gui.api.services.templates.config_scaffold.find_stats_sources_for_reference"
+        ) as mock_find_stats:
+            mock_find_stats.return_value = [
+                {
+                    "name": "custom_stats",
+                    "data": "imports/custom_stats.csv",
+                    "grouping": "shapes",
+                    "relation_plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": "id_shape",
+                    "match_field": "shape_id",
+                }
+            ]
+            changed, _ = scaffold_configs(Path(test_work_dir))
+        assert changed is True
+
+        with open(config_dir / "transform.yml", "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        shapes_group = next(
+            group for group in transform_config if group.get("group_by") == "shapes"
+        )
+        assert shapes_group["sources"] == [
+            {
+                "name": "custom_stats",
+                "data": "imports/custom_stats.csv",
+                "grouping": "shapes",
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": "id_shape",
+                    "match_field": "shape_id",
+                },
+            }
+        ]
+
+    def test_scaffold_does_not_invent_shapes_id_relation_without_stats(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+
+        with open(config_dir / "import.yml", "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f)
+
+        import_config["entities"]["references"]["shapes"] = {
+            "kind": "spatial",
+            "connector": {
+                "type": "file",
+                "format": "gpkg",
+                "path": "imports/shapes.gpkg",
+            },
+        }
+
+        with open(config_dir / "import.yml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        with patch(
+            "niamoto.gui.api.services.templates.config_scaffold.find_stats_sources_for_reference"
+        ) as mock_find_stats:
+            mock_find_stats.return_value = []
+            changed, _ = scaffold_configs(Path(test_work_dir))
+        assert changed is True
+
+        with open(config_dir / "transform.yml", "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        shapes_group = next(
+            group for group in transform_config if group.get("group_by") == "shapes"
+        )
+        assert shapes_group["sources"] == []
+
+    def test_scaffold_appends_auxiliary_stats_to_non_spatial_reference(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+
+        with patch(
+            "niamoto.gui.api.services.templates.config_scaffold.find_stats_sources_for_reference"
+        ) as mock_find_stats:
+            mock_find_stats.side_effect = lambda _work_dir, ref_name: (
+                [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation_plugin": "stats_loader",
+                        "key": "id",
+                        "ref_field": "id_plot",
+                        "match_field": "plot_id",
+                    }
+                ]
+                if ref_name == "plots"
+                else []
+            )
+            changed, _ = scaffold_configs(Path(test_work_dir))
+
+        assert changed is True
+
+        with open(config_dir / "transform.yml", "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        plots_group = next(
+            group for group in transform_config if group.get("group_by") == "plots"
+        )
+        assert plots_group["sources"] == [
+            {
+                "name": "occurrences",
+                "data": "occurrences",
+                "grouping": "plots",
+                "relation": {
+                    "plugin": "direct_reference",
+                    "key": "id_plot",
+                    "ref_key": "id",
+                },
+            },
+            {
+                "name": "plot_stats",
+                "data": "imports/raw_plot_stats.csv",
+                "grouping": "plots",
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": "id_plot",
+                    "match_field": "plot_id",
+                },
+            },
+        ]
+
+    def test_scaffold_uses_explicit_auxiliary_sources_from_import_config(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+        import_path = config_dir / "import.yml"
+
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f)
+
+        import_config["auxiliary_sources"] = [
+            {
+                "name": "plot_stats",
+                "data": "imports/plot_stats.csv",
+                "grouping": "plots",
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": "id_plot",
+                    "match_field": "plot_id",
+                },
+            }
+        ]
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        with patch(
+            "niamoto.gui.api.services.templates.config_scaffold.find_stats_sources_for_reference"
+        ) as mock_find_stats:
+            mock_find_stats.return_value = []
+            changed, _ = scaffold_configs(Path(test_work_dir))
+
+        assert changed is True
+
+        with open(config_dir / "transform.yml", "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        plots_group = next(
+            group for group in transform_config if group.get("group_by") == "plots"
+        )
+        assert plots_group["sources"][-1] == {
+            "name": "plot_stats",
+            "data": "imports/plot_stats.csv",
+            "grouping": "plots",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "id_plot",
+                "match_field": "plot_id",
+            },
+        }

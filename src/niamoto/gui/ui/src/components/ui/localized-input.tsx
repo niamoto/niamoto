@@ -12,7 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useLanguages } from "@/contexts/LanguageContext"
+import { useLanguages } from "@/shared/contexts/LanguageContext"
 
 // Type alias matching backend LocalizedString
 export type LocalizedString = string | Record<string, string>

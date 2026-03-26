@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, Check, ChevronDown, X, AlertCircle } from 'lucide-react';
-import { useProjectSwitcher } from '@/hooks/useProjectSwitcher';
+import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

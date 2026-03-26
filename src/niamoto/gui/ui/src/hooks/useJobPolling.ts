@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useNotificationStore, JOB_TYPE_LABELS, type TrackedJob, type JobType } from '@/stores/notificationStore'
 import { getActiveTransformJob, type TransformStatus } from '@/lib/api/transform'
 import { getActiveExportJob, type ExportStatus } from '@/lib/api/export'
-import { apiClient } from '@/lib/api/client'
+import { apiClient } from '@/shared/lib/api/client'
 
 const ACTIVE_POLL_INTERVAL = 1_000  // 1s quand un job est traqué
 const DISCOVERY_POLL_INTERVAL = 5_000 // 5s en mode découverte
