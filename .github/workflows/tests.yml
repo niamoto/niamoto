@@ -21,31 +21,38 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: apt-gdal-${{ runner.os }}
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y gdal-bin libgdal-dev libproj-dev
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Cache uv virtualenv
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install uv
-        # Crée l'environnement virtuel via uv
         uv venv
-        # Installe tes dépendances *dans* l'env virtuel uv
         uv pip install -e ".[dev]"
 
     - name: Run Ruff
       run: |
         uv run ruff check .
 
-#    - name: Run MyPy
-#      run: |
-#        uv run mypy src/niamoto
-
     - name: Run Tests
       run: |
-        uv run pytest --cov=niamoto tests/ --cov-report=xml --cov-report=html
+        uv run pytest -n auto --cov=niamoto tests/ --cov-report=xml --cov-report=html
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5

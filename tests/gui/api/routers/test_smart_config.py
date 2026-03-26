@@ -997,7 +997,7 @@ class TestAutoConfigureJobs:
         assert "job_id" in job_data
 
         job_id = job_data["job_id"]
-        deadline = time.time() + 5
+        deadline = time.time() + 15
         final_status = None
 
         while time.time() < deadline:

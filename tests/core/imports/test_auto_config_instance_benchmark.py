@@ -8,6 +8,7 @@ import yaml
 from niamoto.core.imports.auto_config_service import AutoConfigService
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_auto_config_subset_instance_tracks_validated_import_shape(
     niamoto_subset_instance_dir: Path,
