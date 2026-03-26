@@ -29,6 +29,10 @@ def cli_runner():
 # Cache for known MagicMock paths to avoid excessive glob operations
 _known_magicmock_paths = set()
 
+NIAMOTO_SUBSET_INSTANCE = (
+    Path(__file__).parent.parent / "test-instance" / "niamoto-subset"
+)
+
 
 @pytest.fixture(autouse=True)
 def cleanup_magicmocks():
@@ -119,3 +123,27 @@ def pytest_sessionfinish(session, exitstatus):
                     _known_magicmock_paths.add(str(item))
             except Exception as e:
                 print(f"Error cleaning up {item}: {e}")
+
+
+@pytest.fixture(scope="function")
+def niamoto_subset_instance_dir() -> Path:
+    """Return the checked-in benchmark instance used for integration-like tests."""
+    return NIAMOTO_SUBSET_INSTANCE
+
+
+@pytest.fixture(scope="function")
+def stage_niamoto_subset(tmp_path: Path, niamoto_subset_instance_dir: Path):
+    """Copy a selected subset of the benchmark instance into a temporary project."""
+
+    def _stage(rel_paths: list[str]) -> Path:
+        for rel_path in rel_paths:
+            source = niamoto_subset_instance_dir / rel_path
+            destination = tmp_path / rel_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_dir():
+                shutil.copytree(source, destination, dirs_exist_ok=True)
+            else:
+                shutil.copy2(source, destination)
+        return tmp_path
+
+    return _stage

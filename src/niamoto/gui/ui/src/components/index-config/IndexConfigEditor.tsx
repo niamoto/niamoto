@@ -54,7 +54,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { PreviewFrame, type DeviceSize } from '@/components/ui/preview-frame'
-import { useGroupIndexPreview } from '@/hooks/useSiteConfig'
+import { useGroupIndexPreview } from '@/shared/hooks/useSiteConfig'
 import { useIndexConfig, createDefaultDisplayField } from './useIndexConfig'
 import { IndexFiltersConfig } from './IndexFiltersConfig'
 import { IndexDisplayFieldsConfig } from './IndexDisplayFieldsConfig'

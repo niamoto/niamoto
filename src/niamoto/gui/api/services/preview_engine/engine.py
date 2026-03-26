@@ -1201,6 +1201,11 @@ document.addEventListener('DOMContentLoaded', function() {{
             quoted_geom = preparer.quote(actual_geom_col)
             quoted_id = preparer.quote(id_field)
             quoted_name = preparer.quote(name_field)
+            quoted_lft = preparer.quote("lft") if "lft" in col_names else None
+            quoted_rght = preparer.quote("rght") if "rght" in col_names else None
+            quoted_parent = (
+                preparer.quote("parent_id") if "parent_id" in col_names else None
+            )
 
             # Build query according to mode
             query_params: dict[str, Any] = {}
@@ -1261,6 +1266,60 @@ document.addEventListener('DOMContentLoaded', function() {{
                         "geometry": geometry,
                     }
                 )
+
+            if (
+                not features
+                and mode == "single"
+                and entity_id
+                and (quoted_lft and quoted_rght or quoted_parent)
+            ):
+                descendant_query = None
+                descendant_params: dict[str, Any] = {"entity_id": str(entity_id)}
+
+                if quoted_lft and quoted_rght:
+                    descendant_query = (
+                        f"SELECT child.{quoted_id} as id, child.{quoted_name} as name, "
+                        f"child.{quoted_geom} as geom "
+                        f"FROM {quoted_table} parent "
+                        f"JOIN {quoted_table} child "
+                        f"ON child.{quoted_lft} > parent.{quoted_lft} "
+                        f"AND child.{quoted_rght} < parent.{quoted_rght} "
+                        f"WHERE parent.{quoted_id} = :entity_id "
+                        f"AND child.{quoted_geom} IS NOT NULL "
+                        f"LIMIT 500"
+                    )
+                elif quoted_parent:
+                    descendant_query = (
+                        f"SELECT {quoted_id} as id, {quoted_name} as name, "
+                        f"{quoted_geom} as geom FROM {quoted_table} "
+                        f"WHERE {quoted_parent} = :entity_id "
+                        f"AND {quoted_geom} IS NOT NULL "
+                        f"LIMIT 500"
+                    )
+
+                if descendant_query:
+                    descendants = pd.read_sql(
+                        text(descendant_query), db.engine, params=descendant_params
+                    )
+                    for _, row in descendants.iterrows():
+                        geom_str = str(row["geom"])
+                        geometry = parse_wkt_to_geojson(geom_str)
+                        if not geometry:
+                            continue
+                        features.append(
+                            {
+                                "type": "Feature",
+                                "properties": {
+                                    "id": str(row["id"]),
+                                    "name": (
+                                        str(row["name"])
+                                        if pd.notna(row["name"])
+                                        else f"ID: {row['id']}"
+                                    ),
+                                },
+                                "geometry": geometry,
+                            }
+                        )
 
             if not features:
                 return self._info_html("No valid geometry found")

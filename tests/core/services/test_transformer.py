@@ -221,14 +221,10 @@ class TestTransformerService:
         transformer_service.validate_configuration(config)
 
     def test_validate_configuration_missing_sources(self, transformer_service):
-        """Test validate_configuration with missing sources."""
+        """Reference-only groups may omit sources and still validate."""
         config = {"group_by": "plots", "widgets_data": {}}
 
-        with pytest.raises(ConfigurationError) as exc_info:
-            transformer_service.validate_configuration(config)
-
-        assert "Missing or empty sources configuration" in str(exc_info.value)
-        assert exc_info.value.config_key == "sources"
+        transformer_service.validate_configuration(config)
 
     def test_validate_configuration_missing_source_fields(self, transformer_service):
         """Test validate_configuration with missing source fields."""
@@ -341,6 +337,20 @@ class TestTransformerService:
             transformer_service._get_group_ids(group_config)
 
         assert "Failed to get group IDs" in str(exc_info.value)
+
+    def test_get_group_ids_falls_back_to_group_by_without_sources(
+        self, transformer_service, mock_db
+    ):
+        """Test _get_group_ids uses group_by when no sources are configured."""
+        mock_db.execute_sql.return_value = [(1,), (2,)]
+
+        group_config = {"group_by": "shapes", "sources": [], "widgets_data": {}}
+
+        result = transformer_service._get_group_ids(group_config)
+
+        assert result == [1, 2]
+        sql = mock_db.execute_sql.call_args[0][0]
+        assert "FROM shapes" in sql
 
     @patch("pandas.read_csv")
     def test_get_group_data_from_csv(self, mock_read_csv, transformer_service):

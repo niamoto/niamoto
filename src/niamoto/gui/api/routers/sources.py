@@ -24,6 +24,9 @@ from niamoto.common.table_resolver import quote_identifier, resolve_reference_ta
 from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.imports.class_object_analyzer import ClassObjectAnalyzer
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.services.templates.relation_detection import (
+    detect_relation_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -230,180 +233,6 @@ def _get_reference_entity_info(
     except Exception as e:
         logger.warning(f"Error getting reference entity info for {reference_name}: {e}")
         return None
-
-
-def _detect_relation_fields(
-    work_dir: Path, reference_name: str, csv_path: Path, csv_columns: list[str]
-) -> tuple[str, str]:
-    """
-    Intelligently detect the best ref_field and match_field for a CSV source.
-
-    Compares values from CSV columns with values from entity_* table columns
-    to find the best matching pair.
-
-    Args:
-        work_dir: Working directory containing the database
-        reference_name: Name of the reference group (e.g., "shapes", "plots")
-        csv_path: Path to the CSV file
-        csv_columns: List of column names in the CSV
-
-    Returns:
-        Tuple of (ref_field, match_field) - the best matching column pair
-    """
-    import duckdb
-
-    # Default fallback values
-    ref_field = f"id_{reference_name}"
-    if reference_name.endswith("s"):
-        ref_field = f"id_{reference_name[:-1]}"
-
-    # Find first matching entity column as fallback match_field
-    entity_candidates = ["plot_id", "shape_id", "taxon_id", "entity_id", "id"]
-    match_field = "id"
-    for candidate in entity_candidates:
-        if candidate in csv_columns:
-            match_field = candidate
-            break
-
-    # Try to find database and do intelligent matching
-    db_path = work_dir / "db" / "niamoto.duckdb"
-    if not db_path.exists():
-        db_path = work_dir / "db" / "niamoto.db"
-    if not db_path.exists():
-        logger.warning("Database not found, using default relation fields")
-        return ref_field, match_field
-
-    def _quote_duck_identifier(identifier: str) -> str:
-        return '"' + identifier.replace('"', '""') + '"'
-
-    conn = None
-    try:
-        conn = duckdb.connect(str(db_path))
-
-        # Check if table exists
-        tables = conn.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
-        ).fetchall()
-        table_lookup = {str(t[0]).lower(): str(t[0]) for t in tables}
-        table_candidates = [
-            f"entity_{reference_name}",
-            f"reference_{reference_name}",
-            reference_name,
-        ]
-        entity_table = next(
-            (
-                table_lookup[candidate.lower()]
-                for candidate in table_candidates
-                if candidate.lower() in table_lookup
-            ),
-            None,
-        )
-
-        if not entity_table:
-            return ref_field, match_field
-
-        # Get columns from entity table that could be join keys
-        quoted_entity_table = _quote_duck_identifier(entity_table)
-        entity_cols = conn.execute(f"DESCRIBE {quoted_entity_table}").fetchall()
-        # Filter to string/varchar columns that could be used for matching
-        matchable_entity_cols = [
-            c[0]
-            for c in entity_cols
-            if "VARCHAR" in str(c[1]).upper() or "TEXT" in str(c[1]).upper()
-        ]
-        # Also include id columns
-        matchable_entity_cols.extend(
-            [c[0] for c in entity_cols if c[0].startswith("id")]
-        )
-        matchable_entity_cols = list(set(matchable_entity_cols))
-
-        # Get unique values from entity table columns (limit for performance)
-        entity_values: dict[str, set[str]] = {}
-        for col in matchable_entity_cols:
-            try:
-                quoted_col = _quote_duck_identifier(col)
-                result = conn.execute(
-                    f"SELECT DISTINCT CAST({quoted_col} AS VARCHAR) "
-                    f"FROM {quoted_entity_table} LIMIT 1000"
-                ).fetchall()
-                entity_values[col] = {str(r[0]) for r in result if r[0] is not None}
-            except Exception:
-                continue
-
-        # Detect CSV delimiter
-        with open(csv_path, "r", encoding="utf-8") as f:
-            first_line = f.readline()
-            delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
-
-        # Get unique values from CSV columns
-        csv_values: dict[str, set[str]] = {}
-        # Only check columns that could be entity identifiers
-        csv_candidates = [
-            c
-            for c in csv_columns
-            if c
-            in ["id", "label", "name", "entity_id", "plot_id", "shape_id", "taxon_id"]
-            or "name" in c.lower()
-            or "label" in c.lower()
-        ]
-
-        for col in csv_candidates:
-            try:
-                quoted_col = _quote_duck_identifier(col)
-                result = conn.execute(
-                    (
-                        f"SELECT DISTINCT CAST({quoted_col} AS VARCHAR) "
-                        "FROM read_csv_auto(?, delim=?, header=true) LIMIT 1000"
-                    ),
-                    [str(csv_path), delimiter],
-                ).fetchall()
-                csv_values[col] = {str(r[0]) for r in result if r[0] is not None}
-            except Exception:
-                continue
-
-        # Find best match: compare each CSV column with each entity column
-        best_score = 0.0
-        best_ref_field = ref_field
-        best_match_field = match_field
-
-        for csv_col, csv_vals in csv_values.items():
-            if not csv_vals:
-                continue
-            for entity_col, entity_vals in entity_values.items():
-                if not entity_vals:
-                    continue
-
-                # Calculate intersection score (how many CSV values match entity values)
-                intersection = csv_vals & entity_vals
-                if not intersection:
-                    continue
-
-                # Score = percentage of CSV values that match entity values
-                score = len(intersection) / len(csv_vals)
-
-                if score > best_score:
-                    best_score = score
-                    best_ref_field = entity_col
-                    best_match_field = csv_col
-
-        if best_score > 0.5:  # At least 50% match required
-            logger.info(
-                f"Smart relation detection: {best_match_field} -> {best_ref_field} "
-                f"(score: {best_score:.1%})"
-            )
-            return best_ref_field, best_match_field
-        else:
-            logger.warning(
-                f"No good match found (best score: {best_score:.1%}), using defaults"
-            )
-            return ref_field, match_field
-
-    except Exception as e:
-        logger.warning(f"Error during smart relation detection: {e}")
-        return ref_field, match_field
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 # =============================================================================
@@ -616,7 +445,7 @@ async def save_source_config(
         csv_columns = [c.strip().lower() for c in next(reader)]
 
     # Use smart detection to find best ref_field and match_field
-    ref_field, match_field = _detect_relation_fields(
+    ref_field, match_field, _ = detect_relation_fields(
         work_dir, reference_name, csv_path, csv_columns
     )
 

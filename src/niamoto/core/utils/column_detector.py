@@ -4,77 +4,52 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
+from niamoto.core.auto_config_rules import (
+    build_heuristic_classification,
+    collect_heuristic_flags,
+)
+from niamoto.core.domain_vocabulary import (
+    DOMAIN_NAME_PATTERNS,
+    ENTITY_SYNONYMS,
+    GENERIC_NAME_PATTERNS,
+    GEOGRAPHIC_HIERARCHY_PATTERNS,
+    GEOGRAPHIC_LEVELS,
+    RELATIONSHIP_IDENTIFIER_TARGETS,
+    TAXONOMIC_HIERARCHY_PATTERNS,
+    TAXONOMIC_LEVELS,
+    infer_entity_token,
+)
+
 
 class ColumnDetector:
     """Detect patterns in column names and data for smart configuration."""
 
+    RELATIONSHIP_ENTITY_PATTERNS = {
+        entity: list(ENTITY_SYNONYMS[entity])
+        for entity in ("plot", "taxon", "locality")
+    }
+
+    RELATIONSHIP_IDENTIFIER_MARKERS = ["id", "code", "ref", "key", "pk"]
+    RELATIONSHIP_LABEL_MARKERS = ["name", "label", "title"]
+
     # Patterns for hierarchy detection
     HIERARCHY_PATTERNS = {
-        # Taxonomic hierarchy
-        "kingdom": ["kingdom", "regne", "regnum", "tax_kingdom"],
-        "phylum": ["phylum", "embranchement", "division", "tax_phylum"],
-        "class": ["class", "classe", "tax_class"],
-        "order": ["order", "ordre", "ordo", "tax_order"],
-        "family": ["family", "famille", "familia", "tax_fam", "tax_family"],
-        "genus": ["genus", "genre", "tax_gen", "tax_genus"],
-        "species": [
-            "species",
-            "espece",
-            "epithet",
-            "sp",
-            "tax_sp",
-            "tax_species",
-            "tax_sp_level",
-            "tax_esp",
-        ],
-        "subspecies": [
-            "subspecies",
-            "sous-espece",
-            "infra",
-            "var",
-            "variety",
-            "tax_infra",
-            "tax_infra_level",
-        ],
+        **{
+            level: list(patterns)
+            for level, patterns in TAXONOMIC_HIERARCHY_PATTERNS.items()
+        },
         "rank": ["rank", "rang", "level", "niveau", "tax_rank"],
         "parent": ["parent", "parent_id"],
-        # Geographic hierarchy
-        "country": ["country", "pays", "nation", "pais"],
-        "region": ["region", "province", "state", "etat", "territorio"],
-        "locality": [
-            "locality",
-            "locality_name",
-            "site",
-            "location",
-            "lieu",
-            "localite",
-            "local",
-        ],
-        "sublocality": ["sublocality", "subsite", "sublocation", "zone"],
-        "plot": [
-            "plot",
-            "plot_name",
-            "parcelle",
-            "quadrat",
-            "relevé",
-            "releve",
-            "transect",
-        ],
+        **{
+            level: list(patterns)
+            for level, patterns in GEOGRAPHIC_HIERARCHY_PATTERNS.items()
+        },
     }
 
     # Hierarchy type detection: order matters!
-    TAXONOMIC_LEVELS = [
-        "kingdom",
-        "phylum",
-        "class",
-        "order",
-        "family",
-        "genus",
-        "species",
-        "subspecies",
-    ]
+    TAXONOMIC_LEVELS = list(TAXONOMIC_LEVELS)
 
-    GEOGRAPHIC_LEVELS = ["country", "region", "locality", "sublocality", "plot"]
+    GEOGRAPHIC_LEVELS = list(GEOGRAPHIC_LEVELS)
 
     # Patterns for ID columns
     ID_PATTERNS = [
@@ -101,20 +76,8 @@ class ColumnDetector:
 
     # Patterns for name/label columns
     NAME_PATTERNS = [
-        "name",
-        "nom",
-        "label",
-        "title",
-        "titre",
-        "designation",
-        "full_name",
-        "scientific_name",
-        "taxaname",
-        "taxon_name",
-        "plot",  # Ecological plot/site name
-        "site",
-        "locality",
-        "station",
+        *GENERIC_NAME_PATTERNS,
+        *DOMAIN_NAME_PATTERNS,
     ]
 
     # Patterns for date columns
@@ -529,8 +492,13 @@ class ColumnDetector:
 
                 # Direct exact match
                 if source_col_lower == target_col_lower:
-                    confidence = cls._calculate_relationship_confidence(
-                        source_col, target_col, source_sample, target_sample
+                    confidence = cls._score_relationship_candidate(
+                        source_col,
+                        target_col,
+                        source_sample,
+                        target_sample,
+                        source_entity_name=source_entity_name,
+                        target_entity_name=target_entity_name,
                     )
 
                     if confidence > 0.3:  # Threshold for suggesting relationship
@@ -550,8 +518,13 @@ class ColumnDetector:
                         source_col_lower in target_col_lower
                         or target_col_lower in source_col_lower
                     ):
-                        confidence = cls._calculate_relationship_confidence(
-                            source_col, target_col, source_sample, target_sample
+                        confidence = cls._score_relationship_candidate(
+                            source_col,
+                            target_col,
+                            source_sample,
+                            target_sample,
+                            source_entity_name=source_entity_name,
+                            target_entity_name=target_entity_name,
                         )
 
                         if confidence > 0.5:  # Higher threshold for partial matches
@@ -574,6 +547,7 @@ class ColumnDetector:
                     target_entity_name,
                     source_sample,
                     target_sample,
+                    source_entity_name=source_entity_name,
                 )
                 if semantic_match:
                     relationships.append(semantic_match)
@@ -587,6 +561,7 @@ class ColumnDetector:
                 seen.add(key)
                 unique_relationships.append(rel)
 
+        unique_relationships.sort(key=lambda rel: rel["confidence"], reverse=True)
         return unique_relationships
 
     @classmethod
@@ -597,6 +572,7 @@ class ColumnDetector:
         target_entity_name: str,
         source_sample: Optional[List[Dict[str, Any]]],
         target_sample: Optional[List[Dict[str, Any]]],
+        source_entity_name: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Detect relationships using semantic context.
 
@@ -681,8 +657,13 @@ class ColumnDetector:
                     if source_sample and target_sample:
                         validated_candidates = []
                         for target_col, name_score in candidates:
-                            confidence = cls._calculate_relationship_confidence(
-                                source_col, target_col, source_sample, target_sample
+                            confidence = cls._score_relationship_candidate(
+                                source_col,
+                                target_col,
+                                source_sample,
+                                target_sample,
+                                source_entity_name=source_entity_name,
+                                target_entity_name=target_entity_name,
                             )
                             if confidence > 0.3:
                                 # Combine name score with data confidence
@@ -710,7 +691,14 @@ class ColumnDetector:
                         # No sample data, use name-based scoring only
                         candidates.sort(key=lambda x: x[1], reverse=True)
                         best_target_col = candidates[0][0]
-                        confidence = 0.5  # Base confidence without data validation
+                        confidence = cls._score_relationship_candidate(
+                            source_col,
+                            best_target_col,
+                            None,
+                            None,
+                            source_entity_name=source_entity_name,
+                            target_entity_name=target_entity_name,
+                        )
 
                         return {
                             "source_field": source_col,
@@ -720,6 +708,28 @@ class ColumnDetector:
                         }
 
         return None
+
+    @classmethod
+    def _score_relationship_candidate(
+        cls,
+        source_col: str,
+        target_col: str,
+        source_sample: Optional[List[Dict[str, Any]]],
+        target_sample: Optional[List[Dict[str, Any]]],
+        source_entity_name: Optional[str] = None,
+        target_entity_name: Optional[str] = None,
+    ) -> float:
+        """Score a relationship candidate from value overlap plus semantic hints."""
+        base_confidence = cls._calculate_relationship_confidence(
+            source_col, target_col, source_sample, target_sample
+        )
+        semantic_adjustment = cls._semantic_relationship_adjustment(
+            source_col,
+            target_col,
+            source_entity_name=source_entity_name,
+            target_entity_name=target_entity_name,
+        )
+        return max(0.0, min(0.99, round(base_confidence + semantic_adjustment, 4)))
 
     @classmethod
     def _calculate_relationship_confidence(
@@ -767,6 +777,125 @@ class ColumnDetector:
         return confidence
 
     @classmethod
+    def _semantic_relationship_adjustment(
+        cls,
+        source_col: str,
+        target_col: str,
+        source_entity_name: Optional[str] = None,
+        target_entity_name: Optional[str] = None,
+    ) -> float:
+        """Adjust relationship score using lightweight semantic hints from names."""
+        source_hint = cls._infer_relationship_semantic_hint(source_col)
+        target_hint = cls._infer_relationship_semantic_hint(target_col)
+        source_entity_token = cls._infer_entity_token(source_entity_name)
+        target_entity_token = cls._infer_entity_token(target_entity_name)
+
+        adjustment = 0.0
+
+        if source_hint["token"] and source_hint["token"] == target_entity_token:
+            adjustment += 0.12
+        if (
+            source_hint["token"]
+            and target_hint["token"]
+            and source_hint["token"] == target_hint["token"]
+        ):
+            adjustment += 0.18
+        if (
+            source_hint["category"] == "identifier"
+            and target_hint["category"] == "identifier"
+        ):
+            adjustment += 0.18
+        if (
+            source_hint["category"] == "label"
+            and target_hint["category"] == "label"
+            and source_hint["token"] != "locality"
+        ):
+            adjustment += 0.08
+
+        if source_entity_token and source_hint["token"] == source_entity_token:
+            adjustment += 0.04
+
+        if source_hint["semantic_type"] == "location.locality":
+            if target_hint["category"] == "identifier" or target_col.lower() == "id":
+                adjustment -= 0.28
+            if target_hint["semantic_type"] == "location.locality":
+                adjustment += 0.05
+
+        if (
+            source_hint["semantic_type"] == "identifier.taxon"
+            and target_entity_token == "taxon"
+            and target_col.lower() in RELATIONSHIP_IDENTIFIER_TARGETS["taxon"]
+        ):
+            adjustment += 0.12
+
+        if (
+            source_hint["semantic_type"] == "identifier.plot"
+            and target_entity_token == "plot"
+            and target_col.lower() in RELATIONSHIP_IDENTIFIER_TARGETS["plot"]
+        ):
+            adjustment += 0.12
+
+        return adjustment
+
+    @classmethod
+    def _infer_relationship_semantic_hint(
+        cls, column_name: str
+    ) -> Dict[str, Optional[str]]:
+        """Infer lightweight semantic hints from a column name for FK detection."""
+        normalized = column_name.lower()
+        token = cls._infer_entity_token(normalized)
+        has_identifier_marker = any(
+            marker == normalized
+            or normalized.startswith(f"{marker}_")
+            or normalized.endswith(f"_{marker}")
+            or marker in normalized.split("_")
+            for marker in cls.RELATIONSHIP_IDENTIFIER_MARKERS
+        )
+        has_label_marker = any(
+            marker == normalized
+            or normalized.endswith(f"_{marker}")
+            or marker in normalized.split("_")
+            for marker in cls.RELATIONSHIP_LABEL_MARKERS
+        )
+
+        semantic_type: Optional[str] = None
+        category = "other"
+
+        if token == "plot":
+            if has_identifier_marker:
+                semantic_type = "identifier.plot"
+                category = "identifier"
+            elif has_label_marker:
+                semantic_type = "identifier.plot"
+                category = "label"
+        elif token == "taxon":
+            if has_identifier_marker:
+                semantic_type = "identifier.taxon"
+                category = "identifier"
+            else:
+                semantic_type = "taxonomy.name"
+                category = "label" if has_label_marker else "taxonomy"
+        elif token == "locality":
+            semantic_type = "location.locality"
+            category = "identifier" if has_identifier_marker else "label"
+        elif has_identifier_marker:
+            semantic_type = "identifier.record"
+            category = "identifier"
+        elif has_label_marker:
+            category = "label"
+
+        return {
+            "token": token,
+            "semantic_type": semantic_type,
+            "category": category,
+        }
+
+    @classmethod
+    def _infer_entity_token(cls, name: Optional[str]) -> Optional[str]:
+        """Infer a coarse entity token such as plot, taxon, or locality."""
+        return infer_entity_token(name, allowed=("plot", "taxon", "locality"))
+
+    @classmethod
     def analyze_file_columns(
         cls, columns: List[str], sample_data: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
@@ -791,55 +920,10 @@ class ColumnDetector:
         result["name_columns"] = cls.detect_name_columns(columns)
         result["date_columns"] = cls.detect_date_columns(columns)
         result["ml_predictions"] = cls._detect_semantic_columns(columns, sample_data)
-
-        # Determine likely entity type with improved logic
-        has_hierarchy = (
-            result["hierarchy"]["detected"] and result["hierarchy"]["level_count"] >= 2
-        )
-        has_geometry = len(result["geometry_columns"]) > 0
-        has_many_columns = len(columns) > 10
-        has_observation_columns = any(
-            col.lower() in ["dbh", "height", "observed", "measurement", "value"]
-            for col in columns
-        )
-
-        if (
-            has_hierarchy
-            and has_geometry
-            and (has_many_columns or has_observation_columns)
-        ):
-            # File with hierarchy + geometry + many columns = dataset with hierarchy columns
-            # The hierarchy should be extracted as a separate derived reference
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.9
-            result["extract_hierarchy_as_reference"] = (
-                True  # Flag to create derived reference
-            )
-        elif has_hierarchy and not has_geometry and not has_many_columns:
-            # Pure hierarchy file (taxonomy, classification)
-            result["suggested_entity_type"] = "hierarchical_reference"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = result["hierarchy"]["confidence"]
-            result["extract_hierarchy_as_reference"] = False
-        elif has_geometry:
-            # Spatial data = dataset
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.8
-            result["extract_hierarchy_as_reference"] = False
-        elif len(result["id_columns"]) > 0 and len(columns) < 10:
-            # Small table with ID = reference
-            result["suggested_entity_type"] = "reference"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.7
-            result["extract_hierarchy_as_reference"] = False
-        else:
-            # Default to dataset
-            result["suggested_entity_type"] = "dataset"
-            result["suggested_connector_type"] = "file"
-            result["confidence"] = 0.5
-            result["extract_hierarchy_as_reference"] = False
+        heuristic_classification = build_heuristic_classification(result)
+        result["heuristic_classification"] = heuristic_classification
+        result["heuristic_flags"] = collect_heuristic_flags(result)
+        result.update(heuristic_classification)
 
         return result
 

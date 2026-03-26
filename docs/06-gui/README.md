@@ -1,90 +1,55 @@
-# Niamoto GUI - Interface Graphique de Configuration
+# GUI Documentation
 
-## Vue d'ensemble
+This directory documents the current Niamoto GUI as it exists today.
 
-L'interface graphique Niamoto (GUI) est une application web moderne qui simplifie la création et la gestion des pipelines de données écologiques. Elle permet aux utilisateurs de configurer visuellement leurs projets sans écrire de YAML.
+The GUI is split into:
 
-## Objectifs
+- a FastAPI backend in [src/niamoto/gui/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api)
+- a React/Vite frontend in [src/niamoto/gui/ui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui)
 
-- **Accessibilité** : Permettre aux écologistes sans compétences techniques de créer des portails de données
-- **Productivité** : Réduire le temps de configuration de 2h à 10 minutes
-- **Fiabilité** : Validation en temps réel pour éviter les erreurs
-- **Progressivité** : Du mode guidé pour débutants au mode expert
+For code-level structure, see:
 
-## Architecture
+- [src/niamoto/gui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/README.md)
+- [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
 
-L'interface GUI est composée de deux parties :
+## Documentation map
 
-### Backend (FastAPI)
-- API REST pour la gestion des configurations
-- Validation en temps réel avec Pydantic
-- Génération automatique des fichiers YAML
-- Support de l'upload de fichiers
-- Preview des transformations
+### Architecture
 
-### Frontend (React + TypeScript)
-- Interface moderne et réactive
-- Éditeur visuel de flux (à venir avec React Flow)
-- Formulaires intelligents avec validation
-- Preview en temps réel des configurations
+- [architecture/overview.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/overview.md)
+- [architecture/backend-frontend-runtime.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/backend-frontend-runtime.md)
+- [architecture/preview-system.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/preview-system.md)
 
-## Fonctionnalités actuelles (POC)
+### Operations
 
-- ✅ Configuration basique Import/Transform/Export
-- ✅ Génération de fichiers YAML
-- ✅ Validation des configurations
-- ✅ Intégration avec le CLI Niamoto
-- ✅ Templates de base
+- [operations/import.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/import.md)
+- [operations/transform.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/transform.md)
+- [operations/export.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/export.md)
 
-## Fonctionnalités planifiées
+### Reference
 
-- 🔄 Upload de fichiers CSV/Shapefile
-- 🔄 Détection automatique des colonnes
-- 🔄 Éditeur visuel de pipeline (React Flow)
-- 🔄 Preview des transformations
-- 🔄 Assistant de configuration guidé
-- 🔄 Gestion multi-projets
-- 🔄 Export/Import de configurations
+- [reference/preview-api.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/preview-api.md)
+- [reference/transform-plugins.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/transform-plugins.md)
+- [reference/widgets-and-transform-workflow.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/widgets-and-transform-workflow.md)
 
-## Installation
+## Scope
 
-```bash
-# Installer Niamoto avec les dépendances GUI
-pip install niamoto[gui]
+This folder should document:
 
-# Ou depuis les sources
-pip install -e ".[gui]"
-```
+- the current GUI architecture
+- the current user-facing workflows
+- stable API and preview concepts
+- how GUI concepts map to the codebase
 
-## Utilisation rapide
+This folder should not be used for:
 
-```bash
-# Créer un nouveau projet avec l'interface GUI
-mkdir mon-projet && cd mon-projet
-niamoto init  # Lance automatiquement l'interface GUI
+- outdated product plans presented as current behavior
+- default framework boilerplate
+- speculative UI designs without an explicit historical label
 
-# Ou lancer l'interface pour un projet existant
-niamoto gui
+## Maintenance rules
 
-# Options disponibles
-niamoto gui --port 8080      # Changer le port
-niamoto gui --no-browser     # Ne pas ouvrir le navigateur
-```
-
-## Documentation
-
-- [Architecture preview](preview-architecture.md) – Moteur de preview unifié (deux niveaux, bundles Plotly, sécurité)
-- [API Preview — Référence](preview-api.md) – Endpoints GET/POST, types, cache, invalidation
-- [Guide transforms & widgets](guide-transform-widgets.md) – Configuration des transformers et widgets
-- [Référence plugins transform](reference-plugins-transform.md) – Référence des plugins transformers
-- [Architecture FastAPI](fastapi-dual-purpose-architecture.md) – Architecture dual-purpose (CLI + GUI)
-
-## Support
-
-Pour toute question ou problème :
-- Ouvrez une issue sur [GitHub](https://github.com/niamoto/niamoto/issues)
-- Contactez l'équipe de développement
-
-## Licence
-
-L'interface GUI de Niamoto est distribuée sous la même licence que le projet principal (GPL-3.0-or-later).
+- Prefer documenting the current implementation over aspirational designs
+- Mark historical documents explicitly
+- Link to source code when the code is the real source of truth
+- Keep screenshots and diagrams optional; keep the text authoritative
