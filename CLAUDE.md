@@ -19,6 +19,11 @@ If the answer is already discoverable from the code or config, prefer checking f
 
 Use repo-local skills only when they are available in the current environment and clearly help with the task.
 
+- `niamoto-release` — Full release pipeline: version bump, PyPI, GitHub Release, CI monitoring. Usage: `/release [patch|minor|major]`
+- `niamoto-plugin-generator` — Scaffold Transformer/Widget/Loader/Exporter with tests
+- `niamoto-test-data-generator` — Generate realistic ecological test datasets
+- `niamoto-config-validator` — Validate YAML configs, detect typos with suggestions
+
 ## Commands
 
 Typical validation workflow:
@@ -98,3 +103,5 @@ When tempted to hardcode, ask: "Would this work for a forest inventory in Madaga
 - GUI code-level docs:
   - `src/niamoto/gui/README.md`
   - `src/niamoto/gui/ui/README.md`
+- Release process: `.github/RELEASE.md`
+- Version files synced by bump2version: `pyproject.toml`, `src/niamoto/__version__.py`, `docs/conf.py`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`
