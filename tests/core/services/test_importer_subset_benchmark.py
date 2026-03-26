@@ -21,6 +21,7 @@ def _stage_subset_project(
     return tmp_path
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_importer_subset_instance_populates_registry_and_semantic_profiles(
     tmp_path: Path,

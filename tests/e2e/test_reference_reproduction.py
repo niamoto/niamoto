@@ -28,10 +28,13 @@ TARGET_INSTANCE_PATH = (
     Path(__file__).parent.parent.parent / "test-instance" / "niamoto-test"
 )
 
-pytestmark = pytest.mark.skipif(
-    not REFERENCE_INSTANCE_PATH.exists() or not TARGET_INSTANCE_PATH.exists(),
-    reason="Instances de test locales absentes (test-instance/niamoto-nc et niamoto-test)",
-)
+pytestmark = [
+    pytest.mark.slow,
+    pytest.mark.skipif(
+        not REFERENCE_INSTANCE_PATH.exists() or not TARGET_INSTANCE_PATH.exists(),
+        reason="Instances de test locales absentes (test-instance/niamoto-nc et niamoto-test)",
+    ),
+]
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -236,6 +236,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.15.0",
+    "pytest-xdist>=3.5.0",
     "requests-mock>=1.12.1",
     "tox>=4.32.0",
 ]
@@ -252,8 +253,10 @@ packages = ["src/niamoto"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"', run with '-m slow')",
 ]
 filterwarnings = [
     # Rich wants ipywidgets for Jupyter but we don't need it in tests
