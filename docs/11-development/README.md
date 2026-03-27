@@ -11,7 +11,7 @@ Guide for contributing to Niamoto development.
 ## 🛠️ Development Setup
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.12+
 - uv (recommended) or pip
 - Node.js 18+ (for GUI)
 - Git

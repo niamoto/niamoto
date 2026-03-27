@@ -521,7 +521,7 @@ niamoto transform check
    - name: Set up Python
      uses: actions/setup-python@v4
      with:
-       python-version: '3.11'  # Specify exact version
+       python-version: '3.12'  # Specify exact version
    ```
 
 2. **Add missing dependencies**:
@@ -667,7 +667,7 @@ When reporting issues, include:
 
 ```markdown
 **Niamoto Version**: 0.5.3
-**Python Version**: 3.11.0
+**Python Version**: 3.12.0
 **OS**: Ubuntu 22.04
 
 **Issue**: Import fails with coordinate error
