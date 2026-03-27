@@ -86,7 +86,6 @@ hiddenimports = [
     'geopandas',
     'shapely',
     'shapely.geometry',
-    'fiona',
     'pyproj',
 
     # Database
@@ -117,7 +116,6 @@ hiddenimports = [
     'pydantic.fields',
     'pydantic_core',
     'yaml',
-    'pyyaml',
 
     # Templates
     'jinja2',
@@ -128,6 +126,18 @@ hiddenimports = [
 
     # CLI
     'click',
+
+    # Machine Learning
+    'sklearn',
+    'sklearn.ensemble',
+    'sklearn.preprocessing',
+    'sklearn.linear_model',
+    'sklearn.calibration',
+    'sklearn.feature_extraction.text',
+    'scipy',
+    'scipy.sparse',
+    'scipy.special',
+    'joblib',
 ]
 
 # Binaries - additional binary dependencies
@@ -140,20 +150,13 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=[str(ROOT_DIR / 'build_scripts' / 'pyinstaller_hooks')],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
         # Exclude heavy unused packages
         'matplotlib',
-        'scipy',
-        # Machine Learning (optional, handled by HAS_SKLEARN flag in code)
-        'sklearn',
-        'sklearn.ensemble',
-        'sklearn.preprocessing',
-        'sklearn.tree',
-        'sklearn.model_selection',
-        'sklearn.metrics',
+        'fiona',
         # Testing frameworks
         'pytest',
         'pytest_mock',

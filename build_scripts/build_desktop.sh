@@ -7,6 +7,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+PYINSTALLER_VERSION="${PYINSTALLER_VERSION:-6.19.0}"
+if command -v uv &> /dev/null; then
+    PYINSTALLER_CMD=(uv run pyinstaller)
+else
+    PYINSTALLER_CMD=(python3 -m PyInstaller)
+fi
 
 echo -e "${BLUE}🚀 Building Niamoto Desktop Application...${NC}"
 echo ""
@@ -41,14 +47,21 @@ echo -e "${GREEN}✓ Python 3 found${NC}"
 
 # Check PyInstaller
 if ! command -v pyinstaller &> /dev/null; then
-    echo -e "${YELLOW}⚠ PyInstaller not found. Installing...${NC}"
+    echo -e "${YELLOW}⚠ PyInstaller ${PYINSTALLER_VERSION} not found. Installing...${NC}"
     if command -v uv &> /dev/null; then
-        uv pip install pyinstaller
+        uv pip install "pyinstaller==${PYINSTALLER_VERSION}"
     else
-        python3 -m pip install pyinstaller
+        python3 -m pip install "pyinstaller==${PYINSTALLER_VERSION}"
+    fi
+elif [ "$(pyinstaller --version)" != "${PYINSTALLER_VERSION}" ]; then
+    echo -e "${YELLOW}⚠ PyInstaller $(pyinstaller --version) detected. Installing pinned ${PYINSTALLER_VERSION}...${NC}"
+    if command -v uv &> /dev/null; then
+        uv pip install "pyinstaller==${PYINSTALLER_VERSION}"
+    else
+        python3 -m pip install "pyinstaller==${PYINSTALLER_VERSION}"
     fi
 fi
-echo -e "${GREEN}✓ PyInstaller found${NC}"
+echo -e "${GREEN}✓ PyInstaller ${PYINSTALLER_VERSION} ready${NC}"
 
 # Check Node/pnpm
 if ! command -v pnpm &> /dev/null; then
@@ -70,7 +83,7 @@ echo ""
 echo -e "${BLUE}🐍 Step 2: Building Python bundle with PyInstaller...${NC}"
 echo "This may take several minutes..."
 
-pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+"${PYINSTALLER_CMD[@]}" build_scripts/niamoto.spec --clean --noconfirm
 
 if [ ! -f "dist/niamoto" ] && [ ! -f "dist/niamoto.exe" ]; then
     echo -e "${RED}❌ PyInstaller build failed${NC}"

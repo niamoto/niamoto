@@ -81,10 +81,10 @@ Selon votre OS :
 
 ### Système
 
-- **Python 3.11+** avec toutes les dépendances Niamoto
+- **Python 3.12+** avec toutes les dépendances Niamoto
 - **Node.js 18+** et pnpm
 - **Rust** (installer avec https://rustup.rs/)
-- **PyInstaller** : `pip install pyinstaller`
+- **PyInstaller** : `pip install pyinstaller==6.19.0`
 
 ### Dépendances Supplémentaires
 

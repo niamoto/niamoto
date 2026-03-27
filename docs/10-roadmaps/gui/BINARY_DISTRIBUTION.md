@@ -30,7 +30,7 @@ Build for your current platform:
 
 ```bash
 # Install PyInstaller
-pip install pyinstaller
+pip install pyinstaller==6.19.0
 
 # Build the binary
 pyinstaller build_scripts/niamoto.spec --clean --noconfirm
@@ -132,7 +132,7 @@ All standard Niamoto CLI commands work:
    ```
    niamoto (executable)
    └─ Contains:
-      ├─ Python 3.11 runtime
+      ├─ Python 3.12 runtime
       ├─ niamoto/ (package)
       ├─ models/ (ML models)
       ├─ niamoto/gui/ui/dist/ (React build)

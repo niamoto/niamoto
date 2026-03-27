@@ -28,7 +28,7 @@ The Niamoto binary includes these libraries (available for your plugins):
 ### Geospatial
 - **geopandas** 0.x - Geospatial data handling
 - **shapely** 2.x - Geometric operations
-- **fiona** 1.x - File I/O
+- **pyogrio** 0.x - Vector file I/O
 - **pyproj** 3.x - Coordinate transformations
 
 ### Database
@@ -221,8 +221,8 @@ Usage:
 If you start with binary and need more libraries:
 
 ```bash
-# 1. Install Python 3.11+
-python3 --version  # Should be 3.11 or higher
+# 1. Install Python 3.12+
+python3 --version  # Should be 3.12 or higher
 
 # 2. Install Niamoto via pip
 pip install niamoto
