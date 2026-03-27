@@ -1,5 +1,5 @@
 """
-Phase 3: WidgetGenerator tests + contract tests.
+WidgetGenerator tests and semantic profile contract tests.
 
 Tests for: DataCategory coverage, config validation, API shape, edge cases.
 """

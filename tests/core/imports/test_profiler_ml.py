@@ -8,6 +8,7 @@ using the AliasRegistry (name-based) + value-based high-precision rules.
 import tempfile
 from pathlib import Path
 
+import pytest
 
 from niamoto.core.imports.profiler import DataProfiler
 
@@ -135,31 +136,36 @@ class TestProfilerAliasRegistryDetection:
         finally:
             temp_path.unlink()
 
-    def test_darwin_core_columns(self):
+    @pytest.mark.parametrize(
+        ("column_name", "values", "expected_fragment"),
+        [
+            (
+                "scientificName",
+                ["Araucaria columnaris", "Agathis montana"],
+                "taxonomy",
+            ),
+            ("decimalLatitude", [-22.1, -21.5], "location"),
+            ("decimalLongitude", [166.5, 167.2], "location"),
+            ("kingdom", ["Plantae", "Animalia"], "taxonomy"),
+            ("eventDate", ["2024-01-15", "2024-02-20"], "event"),
+        ],
+    )
+    def test_darwin_core_columns(self, column_name, values, expected_fragment):
         """Darwin Core standard column names are recognized."""
         profiler = DataProfiler()
 
         with tempfile.NamedTemporaryFile(suffix=".csv", mode="w", delete=False) as f:
-            f.write("scientificName,decimalLatitude,decimalLongitude,eventDate\n")
-            f.write("Araucaria columnaris,-22.1,166.5,2024-01-15\n")
-            f.write("Agathis montana,-21.5,167.2,2024-02-20\n")
+            f.write(f"{column_name}\n")
+            for value in values:
+                f.write(f"{value}\n")
             temp_path = Path(f.name)
 
         try:
             profile = profiler.profile(temp_path)
-
-            sci_col = next(
-                (c for c in profile.columns if c.name == "scientificName"), None
-            )
-            assert sci_col is not None
-            assert sci_col.semantic_type is not None
-            assert "taxonomy" in sci_col.semantic_type
-
-            lat_col = next(
-                (c for c in profile.columns if c.name == "decimalLatitude"), None
-            )
-            assert lat_col is not None
-            assert "location" in lat_col.semantic_type
+            col = next((c for c in profile.columns if c.name == column_name), None)
+            assert col is not None
+            assert col.semantic_type is not None
+            assert expected_fragment in col.semantic_type
         finally:
             temp_path.unlink()
 

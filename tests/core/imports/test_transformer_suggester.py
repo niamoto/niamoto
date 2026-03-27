@@ -97,6 +97,13 @@ class TestCategoryMapping:
         assert "categorical_distribution" in transformer_names
         assert "top_ranking" in transformer_names
 
+    def test_numeric_discrete_mapping(self, suggester):
+        """Numeric discrete category should stay mapped to binned_distribution."""
+        discrete_transformers = suggester.CATEGORY_TO_TRANSFORMERS.get(
+            DataCategory.NUMERIC_DISCRETE, []
+        )
+        assert "binned_distribution" in discrete_transformers
+
     def test_identifier_gets_top_ranking(self, suggester, id_profile):
         """Test that identifiers with high cardinality get top_ranking suggestion."""
         suggestions = suggester.suggest_transformers(id_profile, "occurrences")
