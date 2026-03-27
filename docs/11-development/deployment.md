@@ -199,7 +199,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
@@ -236,7 +236,7 @@ cache:
 
 build_site:
   stage: build
-  image: python:3.11
+  image: python:3.12
   script:
     - python -m venv venv
     - source venv/bin/activate
