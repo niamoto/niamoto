@@ -216,7 +216,7 @@ class LandUseAnalysis(TransformerPlugin):
 
                 try:
                     # Load the layer
-                    layer_gdf = gpd.read_file(layer_path)
+                    layer_gdf = gpd.read_file(layer_path, engine="pyogrio")
 
                     if layer_gdf.empty:
                         self._add_empty_results(layer_categories, categories, areas)

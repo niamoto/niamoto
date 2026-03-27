@@ -152,7 +152,7 @@ class TestFragmentationAnalysis:
 
         # Verify the mock was called correctly with the full path
         expected_path = "/fake/base/dir/dummy/forest.shp"
-        mock_read_file.assert_called_once_with(expected_path)
+        mock_read_file.assert_called_once_with(expected_path, engine="pyogrio")
 
     @patch("geopandas.read_file")
     def test_transform_no_intersecting_forest(self, mock_read_file, area_of_interest):
@@ -191,7 +191,7 @@ class TestFragmentationAnalysis:
 
         # Verify the mock was called correctly with the full path
         expected_path = "/fake/base/dir/dummy/outside.shp"
-        mock_read_file.assert_called_once_with(expected_path)
+        mock_read_file.assert_called_once_with(expected_path, engine="pyogrio")
 
     # --- TODO: Add more specific tests ---
     # - Test each metric individually (meff, lpi, edge_density, core_area, connectivity, size_dist)

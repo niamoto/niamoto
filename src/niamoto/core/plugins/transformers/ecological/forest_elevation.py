@@ -229,7 +229,7 @@ class ForestElevationAnalysis(TransformerPlugin):
 
             # Load the forest types layer
             try:
-                forest_gdf = gpd.read_file(forest_types_path)
+                forest_gdf = gpd.read_file(forest_types_path, engine="pyogrio")
 
                 if forest_gdf.empty:
                     return self._empty_results(

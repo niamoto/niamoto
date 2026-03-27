@@ -441,7 +441,7 @@ class ShapeProcessor(TransformerPlugin):
                 if not os.path.exists(layer_path):
                     raise ValueError(f"Geopackage not found: {layer_path}")
 
-            layer_gdf = gpd.read_file(layer_path)
+            layer_gdf = gpd.read_file(layer_path, engine="pyogrio")
 
             if layer_config.get("clip", True):
                 layer_gdf = gpd.clip(layer_gdf, shape_gdf)

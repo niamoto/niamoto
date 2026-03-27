@@ -311,7 +311,7 @@ class GenericImporter:
 
             # Read spatial file (supports .gpkg, .shp, .geojson)
             logger.info(f"Reading {source.name} from {source_path}")
-            gdf = gpd.read_file(source_path)
+            gdf = gpd.read_file(source_path, engine="pyogrio")
 
             # Ensure geometries are in WGS84 so downstream widgets/exports work with map providers
             if getattr(gdf, "crs", None):

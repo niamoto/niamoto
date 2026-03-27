@@ -85,7 +85,7 @@ async def analyze_geopackage(content: bytes, filename: str) -> Dict[str, Any]:
 
         try:
             # Read with geopandas
-            gdf = gpd.read_file(tmp_path)
+            gdf = gpd.read_file(tmp_path, engine="pyogrio")
 
             return {
                 "filename": filename,
@@ -307,18 +307,25 @@ async def analyze_shape(content: bytes, filename: str) -> Dict[str, Any]:
             # Read with geopandas to get attributes
             # Try different encodings if no .cpg file is present
             try:
-                gdf = gpd.read_file(file_path)
+                gdf = gpd.read_file(file_path, engine="pyogrio")
             except UnicodeDecodeError:
                 # Try common encodings for shapefiles
                 for encoding in ["latin1", "cp1252", "iso-8859-1"]:
                     try:
-                        gdf = gpd.read_file(file_path, encoding=encoding)
+                        gdf = gpd.read_file(
+                            file_path, encoding=encoding, engine="pyogrio"
+                        )
                         break
                     except Exception:
                         continue
                 else:
                     # If all encodings fail, try with errors='ignore'
-                    gdf = gpd.read_file(file_path, encoding="utf-8", errors="ignore")
+                    gdf = gpd.read_file(
+                        file_path,
+                        encoding="utf-8",
+                        errors="ignore",
+                        engine="pyogrio",
+                    )
 
             # Get attribute columns (exclude geometry column)
             attribute_columns = [col for col in gdf.columns if col != "geometry"]

@@ -401,7 +401,7 @@ class GeospatialExtractor(TransformerPlugin):
         if connector_type in {"file", "duckdb_csv", "csv"}:
             df = pd.read_csv(file_path)
         elif connector_type == "vector":
-            df = gpd.read_file(file_path)
+            df = gpd.read_file(file_path, engine="pyogrio")
         else:
             raise ValueError(f"Unsupported connector type: {connector_type}")
 

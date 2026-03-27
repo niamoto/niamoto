@@ -178,7 +178,7 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                     }
 
                 # Load the forest layer
-                forest_gdf = gpd.read_file(params["forest_path"])
+                forest_gdf = gpd.read_file(params["forest_path"], engine="pyogrio")
 
                 if forest_gdf.empty:
                     raise DataTransformError(

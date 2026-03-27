@@ -299,7 +299,7 @@ def test_multi_feature_import_reprojects_to_wgs84(tmp_path, monkeypatch):
     # Ensure importer reads our synthetic data regardless of file contents
     monkeypatch.setattr(
         "niamoto.core.imports.engine.gpd.read_file",
-        lambda path: gdf_projected.copy(),
+        lambda path, **kwargs: gdf_projected.copy(),
     )
 
     fake_source = tmp_path / "communes.gpkg"
