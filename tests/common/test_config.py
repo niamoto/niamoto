@@ -17,6 +17,7 @@ from tests.common.base_test import NiamotoTestCase
 class TestConfig(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
+        Config.clear_cache()
         self.test_dir = tempfile.mkdtemp()
         self.config_dir = os.path.join(self.test_dir, "config")
 
@@ -30,6 +31,7 @@ class TestConfig(NiamotoTestCase):
 
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()
+        Config.clear_cache()
 
     def test_init_with_default_config(self):
         """Test initialization with default configuration."""
@@ -190,6 +192,60 @@ class TestConfig(NiamotoTestCase):
         self.assertEqual(len(exports), 2)
         self.assertEqual(exports[0]["name"], "export1")
         self.assertEqual(exports[1]["name"], "export2")
+
+    def test_reuses_cached_bundle_for_unchanged_files(self):
+        """Repeated Config loads should reuse the in-process cache."""
+
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
+
+        original_loader = Config._load_yaml_with_defaults.__wrapped__
+        call_count = 0
+
+        def counting_loader(file_path, default_data, create_if_missing):
+            nonlocal call_count
+            call_count += 1
+            return original_loader(file_path, default_data, create_if_missing)
+
+        with patch.object(
+            Config,
+            "_load_yaml_with_defaults",
+            staticmethod(counting_loader),
+        ):
+            Config(config_dir=self.config_dir, create_default=False)
+            self.assertEqual(call_count, 4)
+
+            Config(config_dir=self.config_dir, create_default=False)
+            self.assertEqual(call_count, 4)
+
+    def test_invalidates_cache_when_files_change(self):
+        """Changing a config file should invalidate the cached bundle."""
+
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump([{"name": "first", "type": "sql"}], f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
+
+        first = Config(config_dir=self.config_dir, create_default=False)
+        self.assertEqual(first.transforms[0]["name"], "first")
+
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump([{"name": "second", "type": "sql"}], f)
+
+        second = Config(config_dir=self.config_dir, create_default=False)
+        self.assertEqual(second.transforms[0]["name"], "second")
 
     def test_empty_imports_config(self):
         """Test error when imports configuration is empty."""
