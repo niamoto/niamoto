@@ -351,6 +351,7 @@ class TransformerService:
             )
 
         try:
+            self.db.enable_connection_reuse()
             if use_parallel:
                 if self.use_cli_integration and ProgressManager:
                     progress_manager = ProgressManager(self.console)
@@ -395,6 +396,7 @@ class TransformerService:
                     logger.info("Running DuckDB checkpoint after transformations")
                     self.db.optimize_database()
             finally:
+                self.db.disable_connection_reuse()
                 if self.transform_metrics:
                     self.transform_metrics.finish()
 

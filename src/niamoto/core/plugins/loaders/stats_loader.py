@@ -167,7 +167,7 @@ class StatsLoader(LoaderPlugin):
             SELECT {ref_field} FROM {config["grouping"]} WHERE {id_field} = :group_id
         """)
 
-        with self.db.engine.connect() as conn:
+        with self.db.connection() as conn:
             result = conn.execute(query, {"group_id": group_id}).fetchone()
             if not result:
                 return pd.DataFrame()
@@ -207,7 +207,8 @@ class StatsLoader(LoaderPlugin):
         """
 
         # Use text() wrapped query with engine directly to avoid pandas warning
-        return pd.read_sql(text(query), self.db.engine, params={"group_id": group_id})
+        with self.db.connection() as conn:
+            return pd.read_sql(text(query), conn, params={"group_id": group_id})
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
         """

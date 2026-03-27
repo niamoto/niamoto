@@ -197,7 +197,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
             """
             )
 
-            with self.db.engine.connect() as connection:
+            with self.db.connection() as connection:
                 result = connection.execute(query, {"taxon_id": taxon_id})
                 rows = result.fetchall()
 

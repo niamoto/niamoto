@@ -308,9 +308,7 @@ class TopRanking(TransformerPlugin):
                 WHERE {id_field} IN ({ids_str})
             """
 
-            # Force a fresh connection to see latest data
-            # Issue: SQLAlchemy might be using a stale transaction/snapshot
-            with self.db.engine.connect() as fresh_conn:
+            with self.db.connection() as fresh_conn:
                 from sqlalchemy import text
                 import logging
 

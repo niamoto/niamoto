@@ -163,8 +163,8 @@ class MultiColumnExtractor(TransformerPlugin):
                 params["id_value"] = id_value
 
             # Use pd.read_sql with bound parameters for cleaner DataFrame creation
-            df = pd.read_sql(text(base_query), self.db.engine, params=params)
-            return df
+            with self.db.connection() as conn:
+                return pd.read_sql(text(base_query), conn, params=params)
 
         except Exception as e:
             raise ValueError(f"Error getting data from {source}: {str(e)}")

@@ -5,12 +5,14 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 
-from typing import TypeVar, Any, Optional, List, Dict, Set
+from contextlib import contextmanager
+from threading import local
+from typing import TypeVar, Any, Iterator, Optional, List, Dict, Set
 import warnings
 import time
 from sqlalchemy import create_engine, event, exc, text, inspect
 from sqlalchemy.pool import NullPool
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
 
 from niamoto.common.exceptions import (
@@ -116,6 +118,8 @@ class Database:
             self.session = scoped_session(self.session_factory)
             self._table_names_cache: Optional[Set[str]] = None
             self._table_names_cache_ts: float = 0.0
+            self._reuse_connections = False
+            self._thread_local = local()
 
             # Apply engine-specific optimizations
             if optimize and self.is_sqlite:
@@ -150,6 +154,38 @@ class Database:
                 details={"path": db_path, "error": str(e)},
             )
 
+    def enable_connection_reuse(self) -> None:
+        """Enable per-thread connection reuse for hot read/write loops."""
+
+        self._reuse_connections = True
+
+    def disable_connection_reuse(self) -> None:
+        """Disable and close any reused connection for the current thread."""
+
+        connection = getattr(self._thread_local, "connection", None)
+        if connection is not None:
+            try:
+                connection.close()
+            except exc.SQLAlchemyError:
+                logger.debug("Shared database connection already closed")
+            self._thread_local.connection = None
+        self._reuse_connections = False
+
+    @contextmanager
+    def connection(self) -> Iterator[Connection]:
+        """Yield a SQLAlchemy connection, optionally reused within the current thread."""
+
+        if self._reuse_connections:
+            shared_connection = getattr(self._thread_local, "connection", None)
+            if shared_connection is None or shared_connection.closed:
+                shared_connection = self.engine.connect()
+                self._thread_local.connection = shared_connection
+            yield shared_connection
+            return
+
+        with self.engine.connect() as connection:
+            yield connection
+
     def _apply_sqlite_optimizations(self) -> None:
         """
         Apply SQLite PRAGMA optimizations for better performance.
@@ -172,7 +208,7 @@ class Database:
         ]
 
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 for pragma in optimizations:
                     connection.execute(text(pragma))
                     logger.debug(f"Applied optimization: {pragma}")
@@ -186,7 +222,7 @@ class Database:
         """Load DuckDB extensions required by Niamoto (best effort)."""
 
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 for command in ("INSTALL spatial", "LOAD spatial"):
                     try:
                         connection.execute(text(command))
@@ -235,7 +271,7 @@ class Database:
             logger.debug("Skipping automatic index creation for DuckDB (not supported)")
             return
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 # Get all tables
                 inspector = inspect(self.engine)
                 tables = inspector.get_table_names()
@@ -300,7 +336,7 @@ class Database:
             return
 
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 inspector = inspect(self.engine)
 
                 # Verify table exists
@@ -428,7 +464,7 @@ class Database:
                 self.create_indexes_for_table(table)
 
             # Run ANALYZE to update statistics
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 connection.execute(text("ANALYZE"))
                 connection.commit()
 
@@ -521,10 +557,10 @@ class Database:
         try:
             # For DuckDB, dispose of the pool to get fresh connections
             # This ensures we see the latest data after imports/transforms
-            if self.is_duckdb:
+            if self.is_duckdb and not self._reuse_connections:
                 self.engine.dispose()
 
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 return connection.execute(text(sql))
         except exc.SQLAlchemyError as e:
             raise DatabaseQueryError(
@@ -552,7 +588,7 @@ class Database:
             Optional[Any]: The result of the query if `fetch` is True and a result is available, or None otherwise.
         """
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 result = connection.execute(text(sql), params or {})
 
                 if fetch_all and fetch:
@@ -633,6 +669,7 @@ class Database:
         Close the database session.
         """
         try:
+            self.disable_connection_reuse()
             self.session.remove()
         except exc.SQLAlchemyError as e:
             raise DatabaseError(
@@ -740,7 +777,7 @@ class Database:
                 # SQLite optimization path
                 self._apply_sqlite_optimizations()
 
-                with self.engine.connect() as connection:
+                with self.connection() as connection:
                     # Run ANALYZE to update statistics
                     connection.execute(text("ANALYZE"))
                     logger.info("Database statistics updated")
@@ -755,7 +792,7 @@ class Database:
                 self._create_missing_indexes()
             else:
                 # DuckDB optimization path
-                with self.engine.connect() as connection:
+                with self.connection() as connection:
                     logger.info("Running DuckDB CHECKPOINT...")
                     connection.execute(text("CHECKPOINT"))
                     logger.info("CHECKPOINT completed")
@@ -781,7 +818,7 @@ class Database:
         stats = {}
 
         try:
-            with self.engine.connect() as connection:
+            with self.connection() as connection:
                 # Database size
                 if self.is_sqlite:
                     result = connection.execute(text("PRAGMA page_count"))
@@ -832,11 +869,10 @@ class Database:
         self, query: str, params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Executes a raw SQL query and returns all results as a list of dictionaries."""
-        session = self.get_new_session()
         try:
-            result = session.execute(text(query), params)
-            # Use mappings().all() to get results as list of dicts
-            rows = result.mappings().all()
+            with self.connection() as connection:
+                result = connection.execute(text(query), params or {})
+                rows = result.mappings().all()
             logger.debug(
                 f"Executed fetch_all query '{query}' with params {params}. Found {len(rows)} rows."
             )
@@ -845,7 +881,6 @@ class Database:
             logger.error(
                 f"Database error executing fetch_all query '{query}' with params {params}: {e}"
             )
-            session.rollback()  # Rollback in case of error
             # Depending on desired behavior, could raise an exception or return empty list
             raise DatabaseError(
                 message="Failed to execute fetch_all query",
@@ -856,24 +891,19 @@ class Database:
                 f"Unexpected error executing fetch_all query '{query}' with params {params}: {e}",
                 exc_info=True,
             )
-            session.rollback()
             raise DatabaseError(
                 message="Unexpected error during fetch_all query",
                 details={"query": query, "params": params, "error": str(e)},
             )
-        finally:
-            session.close()
-            logger.debug("Session closed after fetch_all.")
 
     def fetch_one(
         self, query: str, params: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """Executes a raw SQL query and returns the first result as a dictionary, or None if no result."""
-        session = self.get_new_session()
         try:
-            result = session.execute(text(query), params)
-            # Use mappings().first() to get the first result as a dict (or None)
-            row = result.mappings().first()
+            with self.connection() as connection:
+                result = connection.execute(text(query), params or {})
+                row = result.mappings().first()
             if row:
                 logger.debug(
                     f"Executed fetch_one query '{query}' with params {params}. Found row."
@@ -907,7 +937,6 @@ class Database:
             logger.error(
                 f"Database error executing fetch_one query '{query}' with params {params}: {e}"
             )
-            session.rollback()
             raise DatabaseError(
                 message="Failed to execute fetch_one query",
                 details={"query": query, "params": params, "error": str(e)},
@@ -917,27 +946,20 @@ class Database:
                 f"Unexpected error executing fetch_one query '{query}' with params {params}: {e}",
                 exc_info=True,
             )
-            session.rollback()
             raise DatabaseError(
                 message="Unexpected error during fetch_one query",
                 details={"query": query, "params": params, "error": str(e)},
             )
-        finally:
-            session.close()
-            logger.debug("Session closed after fetch_one.")
 
     def execute_query(self, query: str, params: dict = None) -> Any:
         """Executes a given SQL query using the current session."""
-        session = self.get_new_session()
         try:
-            result = session.execute(text(query), params)
-            return result.fetchall()
+            with self.connection() as connection:
+                result = connection.execute(text(query), params or {})
+                return result.fetchall()
         except exc.SQLAlchemyError as e:
-            session.rollback()
             raise DatabaseQueryError(
                 query=query,
                 message="Query execution failed",
                 details={"error": str(e)},
             )
-        finally:
-            session.close()
