@@ -466,6 +466,11 @@ class TransformerService:
             }
 
             max_workers = min(max(workers, 1), len(group_ids))
+            if workers > 1 and max_workers != workers and self.console is not None:
+                self.console.print(
+                    f"[dim]Using {max_workers} worker(s) for {group_by_name} "
+                    f"({len(group_ids)} entities).[/dim]"
+                )
             if max_workers <= 1:
                 completed = [
                     (group_id, self._compute_entity_results(group_config, group_id))
@@ -483,10 +488,22 @@ class TransformerService:
                         ): group_id
                         for group_id in group_ids
                     }
-                    completed = [
-                        (future_to_group_id[future], future.result())
-                        for future in as_completed(future_to_group_id)
-                    ]
+                    completed = []
+                    for future in as_completed(future_to_group_id):
+                        group_id = future_to_group_id[future]
+                        try:
+                            entity_result = future.result()
+                        except Exception as exc:
+                            self._record_transform_warning(
+                                f"Parallel transform failed for {group_by_name} {group_id}: {exc}",
+                                progress_manager,
+                            )
+                            entity_result = {
+                                "group_id": group_id,
+                                "results": {},
+                                "warnings": [],
+                            }
+                        completed.append((group_id, entity_result))
 
             for group_id, entity_result in completed:
                 if task_name is not None:

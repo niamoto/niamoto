@@ -173,6 +173,10 @@ def process_transformations(
             print_start(f"Processing transformations for group: {group}")
         else:
             print_start("Processing all transformation groups")
+        if data and workers > 1:
+            print_warning(
+                "Ignoring --workers when --data is used; running sequential transform."
+            )
 
         # Execute the transformation
         results = service.transform_data(

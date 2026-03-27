@@ -892,6 +892,71 @@ class TestTransformerService:
         assert result["plots"]["widgets"]["stats"] == 1
         assert mock_db.execute_sql.called
 
+    def test_transform_data_parallel_handles_future_error(self, transformer_service):
+        """A worker failure should be logged and not abort the whole group."""
+
+        transformer_service.config.config_dir = "/tmp/config"
+
+        class DummyFuture:
+            def __init__(self, result=None, error=None):
+                self._result = result
+                self._error = error
+
+            def result(self):
+                if self._error is not None:
+                    raise self._error
+                return self._result
+
+        executor_kwargs = {}
+        futures = []
+
+        class DummyExecutor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def submit(self, fn, group_config, group_id):
+                if group_id == 1:
+                    future = DummyFuture(
+                        result={
+                            "group_id": 1,
+                            "results": {"species_count": {"count": 2}},
+                            "warnings": [],
+                        }
+                    )
+                else:
+                    future = DummyFuture(error=RuntimeError("worker boom"))
+                futures.append(future)
+                return future
+
+        def fake_executor(*args, **kwargs):
+            executor_kwargs.update(kwargs)
+            return DummyExecutor()
+
+        with (
+            patch.object(transformer_service, "_get_group_ids", return_value=[1, 2]),
+            patch(
+                "niamoto.core.services.transformer.ProcessPoolExecutor",
+                side_effect=fake_executor,
+            ),
+            patch(
+                "niamoto.core.services.transformer.as_completed",
+                side_effect=lambda futures_map: list(futures_map.keys()),
+            ),
+            patch.object(transformer_service, "_record_transform_warning") as mock_warn,
+        ):
+            transformer_service.use_cli_integration = False
+            result = transformer_service.transform_data(group_by="plots", workers=2)
+
+        assert executor_kwargs["max_workers"] == 2
+        assert len(futures) == 2
+        assert result["plots"]["widgets_generated"] == 1
+        assert result["plots"]["widgets"]["species_count"] == 1
+        mock_warn.assert_called_once()
+        assert "Parallel transform failed for plots 2" in mock_warn.call_args.args[0]
+
     def test_complex_numpy_conversion(self, transformer_service, mock_db):
         """Test _save_widget_results with complex numpy data structures."""
         results = {

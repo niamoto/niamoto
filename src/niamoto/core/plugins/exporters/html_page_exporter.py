@@ -1499,8 +1499,17 @@ class HtmlPageExporter(ExporterPlugin):
                     )
 
                     if workers > 1 and len(index_data) > 1:
+                        effective_workers = min(workers, len(index_data))
+                        if effective_workers != workers:
+                            group_progress.console.print(
+                                f"[dim]Using {effective_workers} worker(s) for "
+                                f"{group_by_key} detail pages "
+                                f"({len(index_data)} items).[/dim]"
+                            )
                         futures = {}
-                        with ThreadPoolExecutor(max_workers=workers) as executor:
+                        with ThreadPoolExecutor(
+                            max_workers=effective_workers
+                        ) as executor:
                             for item_summary in index_data:
                                 item_id = item_summary.get(id_column)
                                 if item_id is None:
@@ -1548,6 +1557,11 @@ class HtmlPageExporter(ExporterPlugin):
                                     description=f"[green]Generating {group_by_key} detail pages • {current_duration:.1f}s[/green]",
                                 )
                         self._cleanup_worker_databases()
+                    elif workers > 1 and len(index_data) <= 1:
+                        group_progress.console.print(
+                            f"[dim]Ignoring parallel detail export for {group_by_key}: "
+                            f"only {len(index_data)} item(s).[/dim]"
+                        )
                     else:
                         for item_summary in index_data:
                             item_id = item_summary.get(id_column)

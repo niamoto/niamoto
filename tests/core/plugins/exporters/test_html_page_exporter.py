@@ -626,6 +626,80 @@ class TestHtmlPageExporter(NiamotoTestCase):
         content = detail_file.read_text()
         self.assertIn("Widget rendered with data:", content)
 
+    def test_process_groups_caps_parallel_workers_to_index_size(self):
+        """Parallel detail export should not create more threads than items."""
+        self.mock_db.has_table.return_value = True
+        self.mock_db.get_table_columns.return_value = ["taxon_id", "name"]
+        self.mock_db.fetch_all.return_value = [
+            {"taxon_id": 1, "name": "Species 1"},
+            {"taxon_id": 2, "name": "Species 2"},
+        ]
+
+        exporter = HtmlPageExporter(self.mock_db)
+        groups = [
+            GroupConfigWeb(
+                group_by="taxon",
+                data_source="db",
+                template="group_detail.html",
+                output_pattern="{group_by}/{id}.html",
+                index_output_pattern="{group_by}/index.html",
+                widgets=[],
+            )
+        ]
+
+        from jinja2 import Environment, FileSystemLoader
+
+        jinja_env = Environment(loader=FileSystemLoader(str(self.template_dir)))
+        params = HtmlExporterParams(
+            output_dir=str(self.output_dir), template_dir=str(self.template_dir)
+        )
+
+        class DummyFuture:
+            def __init__(self, result):
+                self._result = result
+
+            def result(self):
+                return self._result
+
+        executor_kwargs = {}
+
+        class DummyExecutor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def submit(self, fn, **kwargs):
+                return DummyFuture({})
+
+        def fake_executor(*args, **kwargs):
+            executor_kwargs.update(kwargs)
+            return DummyExecutor()
+
+        with (
+            patch(
+                "niamoto.core.plugins.exporters.html_page_exporter.ThreadPoolExecutor",
+                side_effect=fake_executor,
+            ),
+            patch(
+                "niamoto.core.plugins.exporters.html_page_exporter.as_completed",
+                side_effect=lambda futures: list(futures.keys()),
+            ),
+            patch.object(exporter, "_apply_detail_page_result"),
+            patch.object(exporter, "_cleanup_worker_databases"),
+        ):
+            exporter._process_groups(
+                groups,
+                jinja_env,
+                params,
+                self.output_dir,
+                self.mock_db,
+                workers=4,
+            )
+
+        self.assertEqual(executor_kwargs["max_workers"], 2)
+
     def test_process_groups_with_filter(self):
         """Test group processing with filter."""
         exporter = HtmlPageExporter(self.mock_db)

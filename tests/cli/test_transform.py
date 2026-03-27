@@ -212,6 +212,45 @@ def test_transform_with_workers(runner):
             )
 
 
+def test_transform_with_csv_workers_warns(runner):
+    """CSV-backed transforms should warn that workers are ignored."""
+    with runner.isolated_filesystem():
+        with open("data.csv", "w") as f:
+            f.write("species,count\n")
+            f.write("test_species,10\n")
+
+        with mock.patch("niamoto.cli.commands.transform.Config") as mock_config:
+            mock_config.return_value.database_path = "test.db"
+
+            with mock.patch(
+                "niamoto.cli.commands.transform.TransformerService"
+            ) as mock_service:
+                mock_service_instance = mock_service.return_value
+                mock_service_instance.transform_data.return_value = None
+
+                result = runner.invoke(
+                    transform_commands,
+                    [
+                        "run",
+                        "--group",
+                        "taxon",
+                        "--data",
+                        "data.csv",
+                        "--workers",
+                        "4",
+                    ],
+                )
+
+                assert result.exit_code == 0
+                assert "Ignoring --workers when --data is used" in result.output
+                mock_service_instance.transform_data.assert_called_once_with(
+                    group_by="taxon",
+                    csv_file="data.csv",
+                    recreate_table=True,
+                    workers=4,
+                )
+
+
 def test_list_command(runner, mock_config):
     """Test the list command for transform configurations."""
     result = runner.invoke(transform_commands, ["list"])
