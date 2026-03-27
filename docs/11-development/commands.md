@@ -66,7 +66,7 @@ The GUI determines which instance to use in this order:
 ```bash
 python scripts/build/generate_requirements.py   # Generate requirements.txt
 python scripts/build/build_tailwind_standalone.py  # Build Tailwind CSS
-./scripts/build/publish.sh                      # Publish to PyPI
+# PyPI publish is automated via GitHub Actions (publish-pypi.yml)
 cd docs && sphinx-apidoc -o . ../src/niamoto && make html  # Build docs
 ```
 

@@ -19,7 +19,6 @@ Build, release, and asset generation scripts.
 | Script | Description |
 |--------|-------------|
 | `build_gui.sh` | Build React GUI with pnpm |
-| `publish.sh` | Build wheel/sdist and publish to PyPI |
 | `generate_changelog.py` | Generate CHANGELOG.md from git tags |
 | `generate_requirements.py` | Generate requirements.txt from pyproject.toml |
 | `build_tailwind_standalone.py` | Build Tailwind CSS standalone binary |
@@ -37,6 +36,8 @@ Daily development workflow scripts.
 | `smart_commit.sh` | Automated commit with pre-commit hooks |
 | `test_preview_suggestions.py` | Batch test all preview suggestions |
 | `test_shapes_previews.py` | Test shapes widget previews |
+| `bench_preview.py` | Benchmark preview engine (P50/P95/P99 latency) |
+| `evaluate_pipeline.py` | Diagnostic tool for data profiling + suggestions |
 
 **Common usage:**
 ```bash
@@ -45,6 +46,12 @@ Daily development workflow scripts.
 
 # Launch API only
 uv run python scripts/dev/dev_api.py test-instance/niamoto-nc
+
+# Benchmark preview routes (requires running server)
+uv run python scripts/dev/bench_preview.py --base-url http://localhost:8000
+
+# Evaluate suggestion pipeline on a CSV
+uv run python scripts/dev/evaluate_pipeline.py path/to/data.csv
 ```
 
 ## data/
@@ -65,10 +72,3 @@ uv run python scripts/data/query_db.py "SELECT * FROM taxon LIMIT 5"
 # Interactive mode
 uv run python scripts/data/query_db.py --interactive
 ```
-
-## Root scripts
-
-| Script | Description |
-|--------|-------------|
-| `bench_preview.py` | Benchmark preview engine (P50/P95/P99 latency) |
-| `evaluate_pipeline.py` | Diagnostic tool for data profiling + suggestions |
