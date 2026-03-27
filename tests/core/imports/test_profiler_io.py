@@ -1,5 +1,5 @@
 """
-Phase 1: GBIF ingestion blockers — tests for I/O fixes.
+Tests for profiler I/O behavior.
 
 Tests for: profile_dataframe, TSV/TXT support, encoding fallback, sampling.
 """
