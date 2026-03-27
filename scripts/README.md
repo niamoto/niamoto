@@ -37,6 +37,7 @@ Daily development workflow scripts.
 | `test_preview_suggestions.py` | Batch test all preview suggestions |
 | `test_shapes_previews.py` | Test shapes widget previews |
 | `bench_preview.py` | Benchmark preview engine (P50/P95/P99 latency) |
+| `bench_pipeline.py` | Benchmark `transform` and `export` on a staged instance |
 | `evaluate_pipeline.py` | Diagnostic tool for data profiling + suggestions |
 
 **Common usage:**
@@ -49,6 +50,9 @@ uv run python scripts/dev/dev_api.py test-instance/niamoto-nc
 
 # Benchmark preview routes (requires running server)
 uv run python scripts/dev/bench_preview.py --base-url http://localhost:8000
+
+# Benchmark transform/export on niamoto-subset
+uv run python scripts/dev/bench_pipeline.py --instance test-instance/niamoto-subset
 
 # Evaluate suggestion pipeline on a CSV
 uv run python scripts/dev/evaluate_pipeline.py path/to/data.csv
