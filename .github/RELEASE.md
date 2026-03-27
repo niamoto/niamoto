@@ -31,17 +31,13 @@ This automatically:
 git push && git push origin v0.7.5
 ```
 
-### 3. Publish to PyPI
+### 3. Publish to PyPI (automated)
 
-```bash
-# Build and publish to PyPI
-bash scripts/publish.sh
-```
-
-The script will:
-- ✅ Build React UI if needed
-- ✅ Create wheel (with GUI) and sdist (without GUI)
-- ✅ Publish to PyPI using token from `scripts/.env` or interactive auth
+PyPI publication is automated via GitHub Actions (Trusted Publishers / OIDC).
+Creating a GitHub Release triggers the `publish-pypi.yml` workflow which:
+- ✅ Builds React UI
+- ✅ Creates wheel (with GUI) and sdist (without GUI)
+- ✅ Publishes to PyPI via OIDC (no token needed)
 
 ### 4. Automated Binary Build
 

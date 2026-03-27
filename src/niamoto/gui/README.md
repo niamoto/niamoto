@@ -96,10 +96,10 @@ To build the frontend bundle used by the Python GUI server:
 bash scripts/build_gui.sh
 ```
 
-Or through the publish script:
+Or through the build script:
 
 ```bash
-bash scripts/publish.sh --build-gui
+bash scripts/build/build_gui.sh
 ```
 
 This generates the frontend build in:

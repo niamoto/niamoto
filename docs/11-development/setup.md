@@ -173,9 +173,7 @@ python scripts/build_tailwind_standalone.py
 
 ### Publish to PyPI
 
-```bash
-./scripts/publish.sh
-```
+PyPI publication is automated via GitHub Actions. Creating a GitHub Release triggers the `publish-pypi.yml` workflow (OIDC Trusted Publishers, no token needed).
 
 ## Common Issues
 
