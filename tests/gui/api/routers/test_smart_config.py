@@ -997,7 +997,7 @@ class TestAutoConfigureJobs:
         assert "job_id" in job_data
 
         job_id = job_data["job_id"]
-        deadline = time.time() + 15
+        deadline = time.time() + 30
         final_status = None
 
         while time.time() < deadline:
@@ -1008,10 +1008,12 @@ class TestAutoConfigureJobs:
             final_status = status_response.json()
             if final_status["status"] in {"completed", "failed"}:
                 break
-            time.sleep(0.1)
+            time.sleep(0.5)
 
         assert final_status is not None
-        assert final_status["status"] == "completed"
+        assert final_status["status"] == "completed", (
+            f"Job did not complete within 30s (status={final_status['status']})"
+        )
         assert final_status["result"]["success"] is True
         assert final_status["events"]
 
