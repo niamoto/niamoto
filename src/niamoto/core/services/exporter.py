@@ -125,7 +125,10 @@ class ExporterService:
 
     @error_handler(log=True, raise_error=True)
     def run_export(
-        self, target_name: Optional[str] = None, group_filter: Optional[str] = None
+        self,
+        target_name: Optional[str] = None,
+        group_filter: Optional[str] = None,
+        workers: int = 1,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Executes the specified export target or all enabled targets.
@@ -206,9 +209,15 @@ class ExporterService:
                 )
 
                 # Execute the plugin's export method with validated config
-                exporter_instance.export(
-                    target_config=target, repository=self.db, group_filter=group_filter
-                )
+                export_kwargs = {
+                    "target_config": target,
+                    "repository": self.db,
+                    "group_filter": group_filter,
+                }
+                if target.exporter == "html_page_exporter":
+                    export_kwargs["workers"] = workers
+
+                exporter_instance.export(**export_kwargs)
 
                 # Collect statistics from the exporter if available
                 if hasattr(exporter_instance, "stats"):

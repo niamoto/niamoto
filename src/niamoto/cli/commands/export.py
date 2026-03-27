@@ -55,9 +55,20 @@ from ..utils.metrics import MetricsCollector
     is_flag=True,
     help="Show what would be exported without actually running the export.",
 )
+@click.option(
+    "--workers",
+    type=click.IntRange(1, None),
+    default=1,
+    show_default=True,
+    help="Number of worker threads to use for HTML detail page export.",
+)
 @error_handler(log=True, raise_error=True)
 def export_command(
-    target: Optional[str], group: Optional[str], list: bool, dry_run: bool
+    target: Optional[str],
+    group: Optional[str],
+    list: bool,
+    dry_run: bool,
+    workers: int,
 ) -> None:
     """
     Export Niamoto data according to configurations in export.yml.
@@ -122,7 +133,11 @@ def export_command(
             print_start("Running all enabled export targets")
 
         # Execute the export
-        results = service.run_export(target_name=target, group_filter=group)
+        results = service.run_export(
+            target_name=target,
+            group_filter=group,
+            workers=workers,
+        )
 
         # Create and display metrics
         export_metrics = MetricsCollector.create_export_metrics(results)

@@ -52,6 +52,12 @@ def parse_args() -> argparse.Namespace:
         help="Export target to run for the benchmark",
     )
     parser.add_argument(
+        "--export-workers",
+        type=int,
+        default=1,
+        help="Worker count passed to `niamoto export`",
+    )
+    parser.add_argument(
         "--json-out",
         type=Path,
         help="Optional path where the JSON summary will be written",
@@ -192,6 +198,8 @@ def main() -> int:
                     "export",
                     "--target",
                     args.export_target,
+                    "--workers",
+                    str(args.export_workers),
                 ],
                 cwd=staged_instance,
                 logs_dir=logs_dir,

@@ -321,6 +321,29 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertIn("Test Site", content)
         self.assertIn("<h1>Welcome</h1>", content)
 
+    def test_export_passes_workers_to_process_groups(self):
+        """Workers option should be propagated to group processing."""
+        exporter = HtmlPageExporter(self.mock_db)
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="taxons",
+                data_source="db",
+                output_pattern="taxons/{id}.html",
+                index_output_pattern="taxons/index.html",
+                widgets=[],
+            )
+        ]
+
+        with (
+            patch.object(exporter, "_copy_static_assets"),
+            patch.object(exporter, "_process_static_pages"),
+            patch.object(exporter, "_process_groups") as mock_process_groups,
+        ):
+            exporter.export(self.target_config, self.mock_db, workers=3)
+
+        mock_process_groups.assert_called_once()
+        self.assertEqual(mock_process_groups.call_args.kwargs["workers"], 3)
+
     @patch(
         "niamoto.core.plugins.exporters.html_page_exporter.importlib.resources.files"
     )
