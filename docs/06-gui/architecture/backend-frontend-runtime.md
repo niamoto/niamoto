@@ -19,7 +19,7 @@ This gives:
 Typical workflow:
 
 ```bash
-./scripts/dev_gui.sh test-instance/niamoto-nc
+./scripts/dev/dev_web.sh test-instance/niamoto-nc
 ```
 
 Or manually:
