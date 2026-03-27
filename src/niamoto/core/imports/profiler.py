@@ -216,12 +216,12 @@ class DataProfiler:
                 return self._load_csv_like(file_str, nrows=self.PROFILING_SAMPLE_SIZE)
             elif suffix in (".geojson", ".json"):
                 if HAS_GEOPANDAS:
-                    return gpd.read_file(file_str)
+                    return gpd.read_file(file_str, engine="pyogrio")
                 else:
                     return pd.read_json(file_str)
             elif suffix in (".shp", ".gpkg"):
                 if HAS_GEOPANDAS:
-                    return gpd.read_file(file_str)
+                    return gpd.read_file(file_str, engine="pyogrio")
             elif suffix in (".xlsx", ".xls"):
                 return pd.read_excel(file_str)
         except Exception as e:

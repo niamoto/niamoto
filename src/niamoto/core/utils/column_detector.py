@@ -980,15 +980,15 @@ class GeoPackageAnalyzer:
         Returns:
             Dictionary with analysis results including classification
         """
-        import fiona
         import geopandas as gpd
+        import pyogrio
 
         if not filepath.exists():
             raise FileNotFoundError(f"GPKG file not found: {filepath}")
 
         try:
             # List all layers in the GPKG
-            layers = fiona.listlayers(str(filepath))
+            layers = [row[0] for row in pyogrio.list_layers(filepath)]
 
             if not layers:
                 return {
@@ -1001,7 +1001,7 @@ class GeoPackageAnalyzer:
             layer_name = layers[0]
 
             # Load with geopandas
-            gdf = gpd.read_file(filepath, layer=layer_name)
+            gdf = gpd.read_file(filepath, layer=layer_name, engine="pyogrio")
 
             # Basic info
             geom_types = list(gdf.geometry.geom_type.unique())
@@ -1172,7 +1172,7 @@ class SpatialMatcher:
             )
 
             # Load GPKG
-            gpkg_gdf = gpd.read_file(gpkg_path, layer=layer)
+            gpkg_gdf = gpd.read_file(gpkg_path, layer=layer, engine="pyogrio")
 
             # Reproject if CRS mismatch
             if csv_gdf.crs != gpkg_gdf.crs:

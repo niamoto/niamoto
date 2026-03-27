@@ -109,15 +109,18 @@ def get_vector_metadata(file_path: Path) -> VectorMetadata:
 
     try:
         # Try to use geopandas/fiona if available
+        import pyogrio
         import geopandas as gpd
 
-        gdf = gpd.read_file(file_path, rows=0)  # Read only schema, not data
+        gdf = gpd.read_file(
+            file_path, rows=0, engine="pyogrio"
+        )  # Read only schema, not data
 
         metadata.crs = str(gdf.crs) if gdf.crs else None
         metadata.columns = [col for col in gdf.columns if col != "geometry"]
 
         # Get geometry type from first feature
-        gdf_sample = gpd.read_file(file_path, rows=1)
+        gdf_sample = gpd.read_file(file_path, rows=1, engine="pyogrio")
         if len(gdf_sample) > 0 and gdf_sample.geometry is not None:
             geom = gdf_sample.geometry.iloc[0]
             if geom is not None:
@@ -125,20 +128,23 @@ def get_vector_metadata(file_path: Path) -> VectorMetadata:
 
         # Get feature count (may be slow for large files)
         try:
-            import fiona
-
-            with fiona.open(file_path) as src:
-                metadata.feature_count = len(src)
-                if src.bounds:
-                    metadata.extent = {
-                        "minx": src.bounds[0],
-                        "miny": src.bounds[1],
-                        "maxx": src.bounds[2],
-                        "maxy": src.bounds[3],
-                    }
+            info = pyogrio.read_info(
+                file_path,
+                force_feature_count=True,
+                force_total_bounds=True,
+            )
+            metadata.feature_count = info.get("features")
+            bounds = info.get("total_bounds")
+            if bounds:
+                metadata.extent = {
+                    "minx": bounds[0],
+                    "miny": bounds[1],
+                    "maxx": bounds[2],
+                    "maxy": bounds[3],
+                }
         except Exception:
             # Fallback: count from geopandas (slower)
-            gdf_full = gpd.read_file(file_path)
+            gdf_full = gpd.read_file(file_path, engine="pyogrio")
             metadata.feature_count = len(gdf_full)
             if not gdf_full.empty and gdf_full.total_bounds is not None:
                 bounds = gdf_full.total_bounds
@@ -270,7 +276,7 @@ async def get_layer_info(layer_path: str) -> Dict[str, Any]:
         try:
             import geopandas as gpd
 
-            gdf = gpd.read_file(file_path, rows=5)
+            gdf = gpd.read_file(file_path, rows=5, engine="pyogrio")
             # Convert to dict, excluding geometry for JSON serialization
             sample_data = gdf.drop(columns=["geometry"], errors="ignore").to_dict(
                 orient="records"

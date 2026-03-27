@@ -432,7 +432,7 @@ class VectorOverlay(TransformerPlugin):
             resolved_path = self._resolve_path(overlay_path)
 
             # Load the layer
-            overlay_gdf = gpd.read_file(resolved_path)
+            overlay_gdf = gpd.read_file(resolved_path, engine="pyogrio")
             self.logger.debug(
                 f"Loaded layer with {len(overlay_gdf)} entities, CRS: {overlay_gdf.crs}"
             )

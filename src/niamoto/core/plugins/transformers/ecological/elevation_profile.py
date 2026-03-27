@@ -270,7 +270,7 @@ class ElevationProfile(TransformerPlugin):
                 forest_path = os.path.join(base_dir, forest_path)
 
             # Load the forest layer
-            forest_gdf = gpd.read_file(forest_path)
+            forest_gdf = gpd.read_file(forest_path, engine="pyogrio")
 
             if forest_gdf.empty:
                 return {
