@@ -94,7 +94,10 @@ def test_successful_group_transform(runner):
                 assert result.exit_code == 0
                 assert "Processing transformations for group: taxon" in result.output
                 mock_service_instance.transform_data.assert_called_once_with(
-                    group_by="taxon", csv_file=None, recreate_table=True
+                    group_by="taxon",
+                    csv_file=None,
+                    recreate_table=True,
+                    workers=1,
                 )
 
 
@@ -114,7 +117,10 @@ def test_successful_all_transform(runner):
             assert result.exit_code == 0
             assert "Processing all transformation groups" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by=None, csv_file=None, recreate_table=True
+                group_by=None,
+                csv_file=None,
+                recreate_table=True,
+                workers=1,
             )
 
 
@@ -175,8 +181,35 @@ def test_transform_with_csv(runner):
                 assert result.exit_code == 0
                 assert "Processing transformations for group: taxon" in result.output
                 mock_service_instance.transform_data.assert_called_once_with(
-                    group_by="taxon", csv_file="data.csv", recreate_table=True
+                    group_by="taxon",
+                    csv_file="data.csv",
+                    recreate_table=True,
+                    workers=1,
                 )
+
+
+def test_transform_with_workers(runner):
+    """Test transformation forwards the workers option to the service."""
+    with mock.patch("niamoto.cli.commands.transform.Config") as mock_config:
+        mock_config.return_value.database_path = "test.db"
+
+        with mock.patch(
+            "niamoto.cli.commands.transform.TransformerService"
+        ) as mock_service:
+            mock_service_instance = mock_service.return_value
+            mock_service_instance.transform_data.return_value = None
+
+            result = runner.invoke(
+                transform_commands, ["run", "--group", "taxon", "--workers", "4"]
+            )
+
+            assert result.exit_code == 0
+            mock_service_instance.transform_data.assert_called_once_with(
+                group_by="taxon",
+                csv_file=None,
+                recreate_table=True,
+                workers=4,
+            )
 
 
 def test_list_command(runner, mock_config):
@@ -279,7 +312,10 @@ def test_transform_with_verbose(runner):
             assert result.exit_code == 0
             assert "Initializing transformer service" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by=None, csv_file=None, recreate_table=True
+                group_by=None,
+                csv_file=None,
+                recreate_table=True,
+                workers=1,
             )
 
 
@@ -322,7 +358,10 @@ def test_run_command_explicit(runner):
             assert result.exit_code == 0
             assert "Processing transformations for group: taxon" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by="taxon", csv_file=None, recreate_table=True
+                group_by="taxon",
+                csv_file=None,
+                recreate_table=True,
+                workers=1,
             )
 
 

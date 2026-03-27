@@ -2,6 +2,7 @@
 Service for transforming data based on YAML configuration.
 """
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional, Callable
 import logging
 import json
@@ -148,14 +149,19 @@ class TransformerService:
 
         # Load data for this entity using real loaders
         group_data = self._get_group_data(group_config, None, group_id)
-
-        # Build config exactly as the main loop does
-        transformer_cls = PluginRegistry.get_plugin(
-            widget_config["plugin"], PluginType.TRANSFORMER
+        return self._execute_widget_transform(
+            group_by_name, group_data, group_id, widget_name, widget_config
         )
-        transformer = transformer_cls(self.db, registry=self.entity_registry)
 
-        config = {
+    def _build_widget_runtime_config(
+        self,
+        widget_config: Dict[str, Any],
+        group_id: Any,
+        available_sources: List[str],
+    ) -> Dict[str, Any]:
+        """Build the runtime configuration passed to a transformer plugin."""
+
+        return {
             "plugin": widget_config["plugin"],
             "params": {
                 "source": widget_config.get("source"),
@@ -163,33 +169,145 @@ class TransformerService:
                 **widget_config.get("params", {}),
             },
             "group_id": group_id,
-            "available_sources": list(group_data.keys()),
+            "available_sources": available_sources,
         }
 
-        # Smart source selection (shared with transform_data)
+    def _resolve_widget_input(
+        self,
+        group_by_name: str,
+        group_data: Any,
+        widget_config: Dict[str, Any],
+        group_id: Any,
+    ) -> tuple[Any, List[str]]:
+        """Resolve the data payload and available sources for one widget execution."""
+
+        available_sources = (
+            list(group_data.keys()) if hasattr(group_data, "keys") else []
+        )
         source_requested = widget_config.get("params", {}).get("source")
 
-        if source_requested and source_requested not in group_data:
-            if source_requested == group_by_name:
-                group_data[source_requested] = self._load_reference_entity(
-                    group_by_name, group_id
-                )
-            else:
-                group_data[source_requested] = self._load_additional_source(
-                    source_requested
-                )
+        if isinstance(group_data, dict):
+            if source_requested and source_requested not in group_data:
+                if source_requested == group_by_name:
+                    group_data[source_requested] = self._load_reference_entity(
+                        group_by_name, group_id
+                    )
+                else:
+                    group_data[source_requested] = self._load_additional_source(
+                        source_requested
+                    )
+                available_sources = list(group_data.keys())
 
-        if source_requested and source_requested in group_data:
-            data_to_pass = group_data[source_requested]
-        elif len(group_data) == 1:
-            data_to_pass = next(iter(group_data.values()))
-        else:
-            data_to_pass = group_data
+            if source_requested and source_requested in group_data:
+                return group_data[source_requested], available_sources
+            if len(group_data) == 1:
+                return next(iter(group_data.values())), available_sources
+            return group_data, available_sources
+
+        return group_data, available_sources
+
+    def _execute_widget_transform(
+        self,
+        group_by_name: str,
+        group_data: Any,
+        group_id: Any,
+        widget_name: str,
+        widget_config: Dict[str, Any],
+    ) -> Any:
+        """Execute one widget transformation for a given entity."""
+
+        transformer = PluginRegistry.get_plugin(
+            widget_config["plugin"], PluginType.TRANSFORMER
+        )(self.db, registry=self.entity_registry)
+        data_to_pass, available_sources = self._resolve_widget_input(
+            group_by_name, group_data, widget_config, group_id
+        )
+        config = self._build_widget_runtime_config(
+            widget_config, group_id, available_sources
+        )
 
         self._validate_plugin_configuration(
             transformer, config, widget_config["plugin"]
         )
         return transformer.transform(data_to_pass, config)
+
+    def _compute_entity_results(
+        self,
+        group_config: Dict[str, Any],
+        group_id: Any,
+        csv_file: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Compute all widget results for one entity without writing to the DB."""
+
+        widgets_config = group_config.get("widgets_data", {})
+        group_by_name = group_config.get("group_by", "unknown")
+        group_data = self._get_group_data(group_config, csv_file, group_id)
+
+        widget_results: Dict[str, Any] = {}
+        warnings: List[str] = []
+
+        for widget_name, widget_config in widgets_config.items():
+            try:
+                widget_result = self._execute_widget_transform(
+                    group_by_name, group_data, group_id, widget_name, widget_config
+                )
+                if widget_result:
+                    widget_results[widget_name] = widget_result
+            except Exception as exc:
+                error_msg = (
+                    f"Error processing widget '{widget_name}' for "
+                    f"{group_by_name} {group_id}: {str(exc)}"
+                )
+                if "No data found" not in str(exc):
+                    warnings.append(error_msg)
+
+        return {
+            "group_id": group_id,
+            "results": widget_results,
+            "warnings": warnings,
+        }
+
+    def _record_transform_warning(
+        self, error_msg: str, progress_manager: Any | None = None
+    ) -> None:
+        """Record a non-fatal widget warning in the appropriate output channel."""
+
+        if progress_manager is not None:
+            progress_manager.add_warning(error_msg)
+        else:
+            logger.warning(error_msg)
+            if self.console is not None:
+                self.console.print(f"[yellow]{emoji('⚠', '[!]')} {error_msg}[/yellow]")
+
+        if self.transform_metrics:
+            self.transform_metrics.add_warning(error_msg)
+
+    def _apply_entity_results(
+        self,
+        group_by_name: str,
+        entity_result: Dict[str, Any],
+        group_results: Dict[str, Any],
+    ) -> int:
+        """Persist computed entity results and update group-level counters."""
+
+        widget_results = entity_result.get("results", {})
+        if not widget_results:
+            return 0
+
+        self._save_widget_results(
+            group_by=group_by_name,
+            group_id=entity_result["group_id"],
+            results=widget_results,
+        )
+
+        generated = 0
+        for widget_name in widget_results:
+            if widget_name not in group_results["widgets"]:
+                group_results["widgets"][widget_name] = 0
+            group_results["widgets"][widget_name] += 1
+            generated += 1
+
+        return generated
 
     @error_handler(log=True, raise_error=True)
     def transform_data(
@@ -198,6 +316,7 @@ class TransformerService:
         csv_file: Optional[str] = None,
         recreate_table: bool = True,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        workers: int = 1,
     ) -> Dict[str, Any]:
         """
         Transform data according to the configuration.
@@ -225,9 +344,33 @@ class TransformerService:
 
         # Filter configurations
         configs = self._filter_configs(group_by)
+        use_parallel = workers > 1 and csv_file is None
+        if workers > 1 and csv_file is not None:
+            logger.info(
+                "Transform workers requested with CSV input; falling back to sequential mode"
+            )
 
         try:
-            if self.use_cli_integration and ProgressManager:
+            if use_parallel:
+                if self.use_cli_integration and ProgressManager:
+                    progress_manager = ProgressManager(self.console)
+                    with progress_manager.progress_context() as pm:
+                        results = self._process_configs_parallel(
+                            configs,
+                            recreate_table,
+                            workers,
+                            pm,
+                            progress_callback,
+                        )
+                else:
+                    results = self._process_configs_parallel(
+                        configs,
+                        recreate_table,
+                        workers,
+                        None,
+                        progress_callback,
+                    )
+            elif self.use_cli_integration and ProgressManager:
                 # Use unified progress manager when in CLI context
                 progress_manager = ProgressManager(self.console)
                 with progress_manager.progress_context() as pm:
@@ -254,6 +397,141 @@ class TransformerService:
             finally:
                 if self.transform_metrics:
                     self.transform_metrics.finish()
+
+        return results
+
+    def _process_configs_parallel(
+        self,
+        configs,
+        recreate_table,
+        workers: int,
+        progress_manager=None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
+        """Process DB-backed transformations in parallel by entity."""
+
+        results = {}
+        start_time = datetime.now()
+        processed_ops = 0
+
+        total_ops = 0
+        try:
+            for group_config in configs:
+                group_ids = self._get_group_ids(group_config)
+                widgets_config = group_config.get("widgets_data", {})
+                total_ops += len(group_ids) * max(len(widgets_config), 1)
+        except Exception:
+            total_ops = 0
+
+        for group_config in configs:
+            self.validate_configuration(group_config)
+
+            group_ids = self._get_group_ids(group_config)
+            widgets_config = group_config.get("widgets_data", {})
+            group_by_name = group_config.get("group_by", "unknown")
+            widget_names = list(widgets_config.keys())
+            widget_count = len(widget_names)
+
+            id_name_map: Dict[int, str] = {}
+            if progress_callback:
+                id_name_map = self._load_group_names(group_config, group_ids)
+
+            if progress_manager is not None:
+                import time
+
+                task_name = f"transform_{group_by_name}_{int(time.time())}"
+                progress_manager.add_task(
+                    task_name,
+                    f"Processing {group_by_name} data",
+                    total=len(group_ids) * widget_count,
+                )
+            else:
+                task_name = None
+
+            self._create_group_table(group_by_name, widgets_config, recreate_table)
+
+            if self.transform_metrics:
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_items", len(group_ids)
+                )
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_widgets", len(widgets_config)
+                )
+
+            widgets_generated = 0
+            results[group_by_name] = {
+                "total_items": len(group_ids),
+                "widgets": {},
+                "start_time": getattr(progress_manager, "_start_time", start_time),
+            }
+
+            max_workers = min(max(workers, 1), len(group_ids))
+            if max_workers <= 1:
+                completed = [
+                    (group_id, self._compute_entity_results(group_config, group_id))
+                    for group_id in group_ids
+                ]
+            else:
+                with ProcessPoolExecutor(
+                    max_workers=max_workers,
+                    initializer=_init_transform_worker,
+                    initargs=(self.db.db_path, self.config.config_dir),
+                ) as executor:
+                    future_to_group_id = {
+                        executor.submit(
+                            _transform_entity_task, group_config, group_id
+                        ): group_id
+                        for group_id in group_ids
+                    }
+                    completed = [
+                        (future_to_group_id[future], future.result())
+                        for future in as_completed(future_to_group_id)
+                    ]
+
+            for group_id, entity_result in completed:
+                if task_name is not None:
+                    progress_manager.update_task(
+                        task_name,
+                        advance=0,
+                        description=f"[green] Processing {group_by_name} {group_id}",
+                    )
+
+                for warning in entity_result.get("warnings", []):
+                    self._record_transform_warning(warning, progress_manager)
+
+                widgets_generated += self._apply_entity_results(
+                    group_by_name, entity_result, results[group_by_name]
+                )
+
+                for widget_name in widget_names:
+                    processed_ops += 1
+                    if task_name is not None:
+                        progress_manager.update_task(task_name, advance=1)
+                    if progress_callback and total_ops:
+                        progress_callback(
+                            {
+                                "group": group_by_name,
+                                "widget": widget_name,
+                                "item_label": id_name_map.get(group_id, str(group_id)),
+                                "processed": processed_ops,
+                                "total": total_ops,
+                            }
+                        )
+
+            self._flush_group_table(group_by_name, recreate_table)
+
+            if self.transform_metrics:
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_widgets_generated", widgets_generated
+                )
+
+            results[group_by_name]["widgets_generated"] = widgets_generated
+            results[group_by_name]["end_time"] = datetime.now()
+
+            if task_name is not None:
+                progress_manager.complete_task(
+                    task_name, f"{group_by_name} transformation completed"
+                )
 
         return results
 
@@ -329,67 +607,13 @@ class TransformerService:
                     )
 
                     try:
-                        # Load the transformation plugin
-                        transformer = PluginRegistry.get_plugin(
-                            widget_config["plugin"], PluginType.TRANSFORMER
-                        )(self.db, registry=self.entity_registry)
-
-                        # Transform the data
-                        config = {
-                            "plugin": widget_config["plugin"],
-                            "params": {
-                                "source": widget_config.get("source"),
-                                "field": widget_config.get("field"),
-                                **widget_config.get("params", {}),
-                            },
-                            "group_id": group_id,
-                            "available_sources": list(
-                                group_data.keys()
-                            ),  # Inform plugin about available sources
-                        }
-
-                        # Smart source selection
-                        # 1. If plugin requests a specific source in params, use it
-                        # 2. If only one source exists, pass it directly
-                        # 3. Otherwise, pass all sources to the plugin
-                        source_requested = widget_config.get("params", {}).get("source")
-
-                        # If a source is requested but not available in group_data, load it
-                        if source_requested and source_requested not in group_data:
-                            try:
-                                # Special case: if source matches group_by name, load the reference entity
-                                if source_requested == group_by_name:
-                                    group_data[source_requested] = (
-                                        self._load_reference_entity(
-                                            group_by_name, group_id
-                                        )
-                                    )
-                                else:
-                                    group_data[source_requested] = (
-                                        self._load_additional_source(source_requested)
-                                    )
-                            except Exception as e:
-                                raise DataTransformError(
-                                    f"Failed to load requested source '{source_requested}'",
-                                    details={"error": str(e), "widget": widget_name},
-                                ) from e
-
-                        if source_requested and source_requested in group_data:
-                            # Plugin explicitly requests a specific source
-                            data_to_pass = group_data[source_requested]
-                        elif len(group_data) == 1:
-                            # Only one source available, pass it directly
-                            data_to_pass = list(group_data.values())[0]
-                        else:
-                            # Multiple sources available, pass all sources
-                            # Plugins can access them via config['available_sources']
-                            data_to_pass = group_data
-
-                        self._validate_plugin_configuration(
-                            transformer, config, widget_config["plugin"]
+                        widget_results = self._execute_widget_transform(
+                            group_by_name,
+                            group_data,
+                            group_id,
+                            widget_name,
+                            widget_config,
                         )
-
-                        widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
                         if widget_results:
@@ -409,9 +633,7 @@ class TransformerService:
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
                         # Only display in progress manager if it's not an expected empty data case
                         if "No data found" not in str(e):
-                            progress_manager.add_warning(error_msg)
-                            if self.transform_metrics:
-                                self.transform_metrics.add_warning(error_msg)
+                            self._record_transform_warning(error_msg, progress_manager)
 
                     # Update progress
                     progress_manager.update_task(task_name, advance=1)
@@ -500,67 +722,13 @@ class TransformerService:
                 # Process each widget
                 for widget_name, widget_config in widgets_config.items():
                     try:
-                        # Load the transformation plugin
-                        transformer = PluginRegistry.get_plugin(
-                            widget_config["plugin"], PluginType.TRANSFORMER
-                        )(self.db, registry=self.entity_registry)
-
-                        # Transform the data
-                        config = {
-                            "plugin": widget_config["plugin"],
-                            "params": {
-                                "source": widget_config.get("source"),
-                                "field": widget_config.get("field"),
-                                **widget_config.get("params", {}),
-                            },
-                            "group_id": group_id,
-                            "available_sources": list(
-                                group_data.keys()
-                            ),  # Inform plugin about available sources
-                        }
-
-                        # Smart source selection
-                        # 1. If plugin requests a specific source in params, use it
-                        # 2. If only one source exists, pass it directly
-                        # 3. Otherwise, pass all sources to the plugin
-                        source_requested = widget_config.get("params", {}).get("source")
-
-                        # If a source is requested but not available in group_data, load it
-                        if source_requested and source_requested not in group_data:
-                            try:
-                                # Special case: if source matches group_by name, load the reference entity
-                                if source_requested == group_by_name:
-                                    group_data[source_requested] = (
-                                        self._load_reference_entity(
-                                            group_by_name, group_id
-                                        )
-                                    )
-                                else:
-                                    group_data[source_requested] = (
-                                        self._load_additional_source(source_requested)
-                                    )
-                            except Exception as e:
-                                raise DataTransformError(
-                                    f"Failed to load requested source '{source_requested}'",
-                                    details={"error": str(e), "widget": widget_name},
-                                ) from e
-
-                        if source_requested and source_requested in group_data:
-                            # Plugin explicitly requests a specific source
-                            data_to_pass = group_data[source_requested]
-                        elif len(group_data) == 1:
-                            # Only one source available, pass it directly
-                            data_to_pass = list(group_data.values())[0]
-                        else:
-                            # Multiple sources available, pass all sources
-                            # Plugins can access them via config['available_sources']
-                            data_to_pass = group_data
-
-                        self._validate_plugin_configuration(
-                            transformer, config, widget_config["plugin"]
+                        widget_results = self._execute_widget_transform(
+                            group_by_name,
+                            group_data,
+                            group_id,
+                            widget_name,
+                            widget_config,
                         )
-
-                        widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
                         if widget_results:
@@ -580,15 +748,7 @@ class TransformerService:
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
                         # Only log if it's not an expected empty data case
                         if "No data found" not in str(e):
-                            logger.warning(error_msg)
-                        # Only show in console if it's not an expected empty data case
-                        if not (
-                            isinstance(e, DataTransformError)
-                            and "No data found" in str(e)
-                        ):
-                            self.console.print(
-                                f"[yellow]{emoji('⚠', '[!]')} {error_msg}[/yellow]"
-                            )
+                            self._record_transform_warning(error_msg)
 
                     processed_ops += 1
                     if progress_callback and total_ops:
@@ -1198,3 +1358,25 @@ class TransformerService:
             self.db.execute_sql(insert_sql)
         finally:
             self.db.execute_sql(f"DROP TABLE IF EXISTS {staging_table}")
+
+
+_TRANSFORM_WORKER_SERVICE: TransformerService | None = None
+
+
+def _init_transform_worker(db_path: str, config_dir: str) -> None:
+    """Initialize one reusable worker-local TransformerService instance."""
+
+    global _TRANSFORM_WORKER_SERVICE
+    worker_db = Database(db_path, read_only=True)
+    _TRANSFORM_WORKER_SERVICE = TransformerService.for_preview(worker_db, config_dir)
+
+
+def _transform_entity_task(
+    group_config: Dict[str, Any], group_id: Any
+) -> Dict[str, Any]:
+    """Compute one entity's widget results inside a process worker."""
+
+    if _TRANSFORM_WORKER_SERVICE is None:
+        raise RuntimeError("Transform worker service is not initialized")
+
+    return _TRANSFORM_WORKER_SERVICE._compute_entity_results(group_config, group_id)
