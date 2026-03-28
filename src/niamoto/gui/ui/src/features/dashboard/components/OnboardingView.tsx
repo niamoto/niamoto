@@ -72,7 +72,7 @@ export function OnboardingView() {
             className="cursor-pointer transition-colors hover:bg-accent/50"
             onClick={() => navigate(step.path)}
           >
-            <CardContent className="flex items-center gap-4 p-4">
+            <CardContent className="flex cursor-pointer select-none items-center gap-4 p-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">
                 {step.number}
               </div>
