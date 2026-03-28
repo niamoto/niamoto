@@ -1,0 +1,1594 @@
+exports:
+- name: web_pages
+  enabled: true
+  exporter: html_page_exporter
+  params:
+    template_dir: templates/
+    output_dir: exports/web
+    site:
+      title: Niamoto
+      logo_header: files/niamoto_logo.png
+      logo_footer: files/niamoto_logo.png
+      lang: fr
+      primary_color: '#228b22'
+      nav_color: '#228b22'
+      github_url: https://github.com/niamoto/niamoto
+      footer_bg_color: '#228b22'
+      languages:
+      - fr
+      - en
+      partners:
+      - name: Province Nord
+        logo: files/pn_100.png
+        url: https://www.province-nord.nc
+      - name: Province Sud
+        logo: files/ps_100.png
+        url: https://www.province-sud.nc
+      - name: Endemia
+        logo: files/endemia_100.png
+        url: https://endemia.nc
+      - name: UMR AMAP
+        logo: files/amap_100.png
+        url: https://amap.cirad.fr
+      - name: Herbier de Nouvelle-Calédonie
+        logo: files/herbarium_100.png
+        url: http://publish.plantnet-project.org/project/herbier-noumea
+      - name: IAC
+        logo: files/iac_100.png
+        url: https://iac.nc
+      - name: IRD
+        logo: files/ird_100.png
+        url: https://nouvelle-caledonie.ird.fr
+      - name: CIRAD
+        logo: files/cirad_100.png
+        url: https://www.cirad.fr
+      - name: OFB
+        logo: files/ofb_100.png
+        url: https://www.ofb.gouv.fr
+    navigation:
+    - text:
+        fr: Accueil
+        en: Home
+      url: /index.html
+    - text:
+        fr: Méthodologie
+        en: Methodology
+      url: /methodology.html
+    - text:
+        fr: Arbres
+        en: Trees
+      url: /trees.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /taxons/index.html
+    - text:
+        fr: Peuplements
+        en: Plots
+      url: /plots.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /plots/index.html
+    - text:
+        fr: Forêt
+        en: Forest
+      url: /forests.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /shapes/index.html
+    - text:
+        fr: Ressources
+        en: Resources
+      url: /resources.html
+      children:
+      - text:
+          fr: Équipe & Partenaires
+          en: Team & Partners
+        url: /team.html
+      - text:
+          fr: Bibliographie
+          en: Bibliography
+        url: /bibliography.html
+    footer_navigation:
+    - title:
+        fr: Projet
+        en: Project
+      links:
+      - text:
+          fr: À propos
+          en: About
+        url: /resources.html
+        external: false
+      - text:
+          fr: Équipe
+          en: Team
+        url: /team.html
+        external: false
+      - text:
+          fr: Bibliographie
+          en: Bibliography
+        url: /bibliography.html
+        external: false
+    - title:
+        fr: Données
+        en: Data
+      links:
+      - text:
+          fr: Arbres
+          en: Trees
+        url: /taxon.html
+        external: false
+      - text:
+          fr: Parcelles
+          en: Plots
+        url: /plot.html
+        external: false
+      - text:
+          fr: Forêts
+          en: Forests
+        url: /shape.html
+        external: false
+    - title:
+        fr: Communauté
+        en: Community
+      links:
+      - text: GitHub
+        url: https://github.com/niamoto/niamoto
+        external: true
+  static_pages:
+  - name: home
+    template: index.html
+    output_file: index.html
+    context:
+      content_source: templates/content/home.md
+      title: Niamoto
+      subtitle: Portail de la forêt de Nouvelle-Calédonie
+      hero_image: files/home_background.jpg
+      partners:
+      - name: Province Nord
+        logo: files/pn_100.png
+        url: https://www.province-nord.nc
+      - name: Province Sud
+        logo: files/ps_100.png
+        url: https://www.province-sud.nc
+      - name: Endemia
+        logo: files/endemia_100.png
+        url: https://endemia.nc
+      - name: UMR AMAP
+        logo: files/amap_100.png
+        url: https://amap.cirad.fr
+      - name: Herbier de Nouvelle-Calédonie
+        logo: files/herbarium_100.png
+        url: http://publish.plantnet-project.org/project/herbier-noumea
+      - name: IAC
+        logo: files/iac_100.png
+        url: https://iac.nc
+      - name: IRD
+        logo: files/ird_100.png
+        url: https://nouvelle-caledonie.ird.fr
+      - name: CIRAD
+        logo: files/cirad_100.png
+        url: https://www.cirad.fr
+      - name: OFB
+        logo: files/ofb_100.png
+        url: https://www.ofb.gouv.fr
+      stats:
+      - icon: leaf
+        value: 1 208
+        label: Taxons d'arbres
+      - icon: trees
+        value: 5 400 km²
+        label: De forêt cartographiée
+      - icon: map-pin
+        value: '509'
+        label: Parcelles inventoriées
+      - icon: microscope
+        value: 70 000+
+        label: Arbres mesurés
+      features:
+      - icon: leaf
+        title: Arbres
+        description: Explorer les espèces d'arbres, leur répartition et leurs traits
+          fonctionnels
+        url: taxons/index.html
+      - icon: map-pin
+        title: Peuplements
+        description: Découvrir les sites d'étude et la composition des peuplements
+          forestiers
+        url: plots/index.html
+      - icon: map
+        title: Forêt
+        description: Visualiser la couverture forestière par commune, substrat et
+          milieu de vie
+        url: shapes/index.html
+  - name: methodology
+    template: page.html
+    output_file: methodology.html
+    context:
+      content_source: templates/content/methodology.md
+      title: Méthodo
+  - name: trees
+    template: page.html
+    output_file: trees.html
+    context:
+      content_source: templates/content/trees.md
+      title: Présentation des arbres
+  - name: plots
+    template: page.html
+    output_file: plots.html
+    context:
+      content_source: templates/content/plots.md
+      title: Présentation des peuplements
+  - name: forests
+    template: page.html
+    output_file: forests.html
+    context:
+      content_source: templates/content/forests.md
+      title: Présentation de la forêt
+  - name: resources
+    template: page.html
+    output_file: resources.html
+    context:
+      title: Ressources
+      introduction: Retrouvez ici l'équipe du projet, les partenaires et la bibliographie
+        scientifique.
+  - name: team
+    template: team.html
+    output_file: team.html
+    context:
+      title: Équipe & Partenaires
+      introduction: L'équipe Niamoto réunit des botanistes, écologues, modélisateurs
+        et développeurs autour de l'étude et la conservation des forêts.
+      team_source: data/team-team.json
+      partners:
+      - name: Province Nord
+        logo: files/pn_100.png
+        url: https://www.province-nord.nc
+        description: Collectivité de la Nouvelle-Calédonie
+      - name: Province Sud
+        logo: files/ps_100.png
+        url: https://www.province-sud.nc
+        description: Collectivité de la Nouvelle-Calédonie
+      - name: UMR AMAP
+        logo: files/amap_100.png
+        url: https://amap.cirad.fr
+        description: Botanique et modélisation de l'architecture des plantes
+      - name: Herbier de Nouvelle-Calédonie
+        logo: files/herbarium_100.png
+        url: http://publish.plantnet-project.org/project/herbier-noumea
+        description: Collections botaniques de référence
+      - name: IAC
+        logo: files/iac_100.png
+        url: https://iac.nc
+        description: Institut Agronomique néo-Calédonien
+      - name: IRD
+        logo: files/ird_100.png
+        url: https://nouvelle-caledonie.ird.fr
+        description: Institut de Recherche pour le Développement
+      - name: CIRAD
+        logo: files/cirad_100.png
+        url: https://www.cirad.fr
+        description: Centre de coopération internationale en recherche agronomique
+      - name: Endemia
+        logo: files/endemia_100.png
+        url: https://endemia.nc
+        description: Base de données de la biodiversité de Nouvelle-Calédonie
+      - name: OFB
+        logo: files/ofb_100.png
+        url: https://www.ofb.gouv.fr
+        description: Office Français de la Biodiversité
+      funders:
+      - name: Province Nord
+        logo: files/pn_100.png
+        url: https://www.province-nord.nc
+      - name: Province Sud
+        logo: files/ps_100.png
+        url: https://www.province-sud.nc
+      - name: CNRT
+        url: https://cnrt.nc
+      - name: OFB
+        logo: files/ofb_100.png
+        url: https://www.ofb.gouv.fr
+  - name: bibliography
+    template: bibliography.html
+    output_file: bibliography.html
+    context:
+      title: Bibliographie
+      introduction: Publications scientifiques, thèses, rapports et communications
+        issues des travaux de l'équipe Niamoto.
+      references_source: data/bibliography-references.json
+      categories:
+      - id: article
+        label: Articles
+      - id: thesis
+        label: Thèses & Mémoires
+      - id: report
+        label: Rapports
+      - id: conference
+        label: Conférences
+      - id: other
+        label: Autres
+  groups:
+  - group_by: taxons
+    output_pattern: taxons/{id}.html
+    index_output_pattern: taxons/index.html
+    index_generator:
+      enabled: true
+      template: group_index.html
+      page_config:
+        title: Liste des Taxons
+        description: Espèces et sous-espèces de Nouvelle-Calédonie
+        items_per_page: 24
+      filters:
+      - field: general_info.rank.value
+        values:
+        - species
+        - infra
+        operator: in
+      display_fields:
+      - name: name
+        source: general_info.name.value
+        fallback: full_name
+        type: text
+        label: Nom scientifique
+        searchable: true
+      - name: rank
+        source: general_info.rank.value
+        type: select
+        label: Rang taxonomique
+        format: map
+        mapping:
+          species: Espèce
+          infra: Sous-espèce
+        filter_options:
+        - value: species
+          label: Espèce
+        - value: infra
+          label: Sous-espèce
+      - name: parent_family
+        source: general_info.parent_family.value
+        type: select
+        label: Famille
+        dynamic_options: true
+      - name: parent_genus
+        source: general_info.parent_genus.value
+        type: text
+        label: Genre
+      - name: endemic
+        source: general_info.endemic.value
+        type: boolean
+        label: Endémisme
+        format: badge
+        inline_badge: true
+        true_label: Endémique
+        badge_color: bg-green-600 text-white px-2 py-1 rounded-full text-xs font-semibold
+          ml-2
+      - name: occurrences_count
+        source: general_info.occurrences_count.value
+        type: text
+        label: Nombre d'occurrences
+        format: number
+      - name: redlist_cat
+        source: general_info.redlist_cat.value
+        type: select
+        label: Catégorie UICN
+        format: map
+        inline_badge: true
+        mapping:
+          CR: CR
+          EN: EN
+          VU: VU
+          NT: NT
+          LC: LC
+          DD: DD
+          NE: NE
+        tooltip_mapping:
+          CR: En danger critique
+          EN: En danger
+          VU: Vulnérable
+          NT: Quasi menacé
+          LC: Préoccupation mineure
+          DD: Données insuffisantes
+          NE: Non évalué
+        badge_colors:
+          CR: bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2
+          EN: bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+          VU: bg-yellow-400 text-black px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+          NT: bg-green-700 text-white px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+          LC: bg-green-600 text-white px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+          DD: bg-gray-500 text-white px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+          NE: bg-gray-400 text-black px-2 py-1 rounded-full text-xs font-semibold
+            ml-2
+        filter_options:
+        - value: CR
+          label: En danger critique (CR)
+        - value: EN
+          label: En danger (EN)
+        - value: VU
+          label: Vulnérable (VU)
+        - value: NT
+          label: Quasi menacé (NT)
+        - value: LC
+          label: Préoccupation mineure (LC)
+      - name: images
+        source: general_info.images.value
+        type: json_array
+        display: image_preview
+      - name: endemia_url
+        source: general_info.endemia_url.value
+        type: text
+        display: link
+        link_label: Endemia
+        link_title: Voir sur Endemia
+        link_target: _blank
+        css_class: bg-amber-50 text-green-600 hover:bg-amber-100 px-3 py-1 rounded-md
+          text-sm font-medium no-underline ml-2 transition-colors
+      - name: id_florical
+        source: general_info.id_florical.value
+        type: text
+        display: link
+        link_label: Florical
+        link_template: https://publish.plantnet-project.org/project/florical_fr/collection/florical/taxons/details/{value}
+        link_title: Voir sur Florical
+        link_target: _blank
+        css_class: bg-emerald-50 text-teal-600 hover:bg-emerald-100 px-3 py-1 rounded-md
+          text-sm font-medium no-underline ml-2 transition-colors
+      views:
+      - type: grid
+        default: true
+      - type: list
+    widgets:
+    - plugin: hierarchical_nav_widget
+      title: Navigation taxonomique
+      data_source: ''
+      params:
+        referential_data: taxons
+        id_field: id
+        name_field: full_name
+        lft_field: lft
+        rght_field: rght
+        level_field: level
+        parent_id_field: parent_id
+        base_url: '{{ depth }}taxons/'
+        show_search: true
+    - plugin: interactive_map
+      title: Distribution géographique
+      description: Distribution géographique des occurrences
+      data_source: distribution_map
+      params:
+        map_style: carto-voyager
+        zoom: 7
+        show_attribution: true
+        layers:
+        - id: occurrences
+          source: coordinates
+          type: circle_markers
+          style:
+            color: '#1fb99d'
+            weight: 1
+            fillColor: '#00716b'
+            fillOpacity: 0.5
+            radius: 8
+    - plugin: info_grid
+      title: Informations générales
+      data_source: general_info
+      params:
+        grid_columns: 2
+        items:
+        - source: name
+          label: Taxon
+        - source: parent_family
+          label: Famille
+        - source: parent_genus
+          label: Genre
+        - source: rank
+          label: Rang
+          format: map
+          mapping:
+            family: Famille
+            genus: Genre
+            species: Espèce
+            subspecies: Sous-espèce
+        - source: occurrences_count
+          label: Nombre d'occurrences
+          format: number
+        - source: images
+          label: Images
+          format: image
+          image_mapping:
+            url: big_thumb
+            thumbnail: small_thumb
+            author: auteur
+            date: datmaj
+    - plugin: bar_plot
+      data_source: top_species
+      title: Sous-taxons principaux
+      description: Principaux sous-taxons (espèce, sous-espèce)
+      params:
+        orientation: h
+        x_axis: counts
+        y_axis: tops
+        sort_order: ascending
+        auto_color: true
+        labels:
+          x_axis: Nombre d'observations
+          y_axis: Taxon
+    - plugin: bar_plot
+      data_source: dbh_distribution
+      title: Distribution DBH
+      description: Répartition par classe de diamètre
+      params:
+        transform: bins_to_df
+        transform_params:
+          bin_field: bins
+          count_field: counts
+          use_percentages: true
+          percentage_field: percentages
+          x_field: bin
+          y_field: count
+        orientation: v
+        x_axis: bin
+        y_axis: count
+        show_legend: false
+        labels:
+          x_axis: Classe de diamètre (cm)
+          y_axis: Fréquence (%)
+        filter_zero_values: true
+        gradient_color: '#8B4513'
+        gradient_mode: luminance
+    - plugin: bar_plot
+      data_source: phenology_distribution
+      title: Phénologie
+      description: Phénologie des états fertiles (fleur, fruit)
+      params:
+        transform: monthly_data
+        transform_params:
+          labels_field: labels
+          data_field: month_data
+          melt: true
+        orientation: v
+        barmode: group
+        x_axis: labels
+        y_axis: value
+        color_field: series
+        color_discrete_map:
+          fleur: '#FFB74D'
+          fruit: '#81C784'
+        labels:
+          x_axis: Mois
+          y_axis: Fréquence (%)
+          color_field: État phénologique
+        range_y:
+        - 0
+        - 50
+    - plugin: bar_plot
+      data_source: holdridge_distribution
+      title: Milieu de vie (Holdridge)
+      description: Répartition des occurrences par type d'habitat
+      params:
+        transform: category_with_labels
+        transform_params:
+          category_field: categories
+          count_field: counts
+          label_field: labels
+          percentage_field: percentages
+          use_percentages: true
+          x_field: category_label
+          y_field: value
+        x_axis: category_label
+        y_axis: value
+        color_field: category_label
+        orientation: v
+        show_legend: false
+        labels:
+          category_label: Type d'habitat
+          value: Pourcentage (%)
+        color_discrete_map:
+          Sec: '#F9A825'
+          Humide: '#43A047'
+          Très humide: '#1E88E5'
+        filter_zero_values: true
+    - plugin: donut_chart
+      data_source: distribution_substrat
+      title: Distribution substrat
+      description: Distribution des occurrences par substrat
+      params:
+        label_mapping:
+          num: non-Ultramafique (NUM)
+          um: Ultramafique (UM)
+        color_discrete_sequence:
+        - '#a97742'
+        - '#e1a553'
+        hole_size: 0.5
+        legend_orientation: h
+    - plugin: bar_plot
+      data_source: rainfall_distribution
+      title: Répartition pluviométrie
+      description: Distribution pluviométrique des occurrences
+      params:
+        transform: bins_to_df
+        transform_params:
+          bin_field: bins
+          count_field: counts
+          use_percentages: true
+          percentage_field: percentages
+          x_field: bin
+          y_field: count
+        orientation: h
+        x_axis: count
+        y_axis: bin
+        show_legend: false
+        labels:
+          x_axis: Fréquence (%)
+          y_axis: Précipitations (mm)
+        filter_zero_values: true
+        gradient_color: '#4682B4'
+        gradient_mode: saturation
+    - plugin: bar_plot
+      data_source: elevation_distribution
+      title: Distribution altitudinale
+      description: Distribution altitudinale des occurrences
+      params:
+        transform: bins_to_df
+        transform_params:
+          bin_field: bins
+          count_field: counts
+          x_field: bin
+          y_field: count
+        orientation: h
+        x_axis: count
+        y_axis: bin
+        show_legend: false
+        labels:
+          x_axis: Nombre d'occurrences
+          y_axis: Altitude (m)
+        filter_zero_values: true
+        gradient_color: '#228B22'
+        gradient_mode: luminance
+    - plugin: bar_plot
+      data_source: strata_distribution
+      title: Stratification
+      description: Répartition des occurrences par strate
+      params:
+        orientation: h
+        x_axis: counts
+        y_axis: labels
+        show_legend: false
+        labels:
+          x_axis: Nombre d'occurrences
+          y_axis: Strate
+        color_field: labels
+        color_discrete_map:
+          Sous-bois: '#90A4AE'
+          Sous-Canopée: '#66BB6A'
+          Canopée: '#43A047'
+          Emergent: '#2E7D32'
+    - plugin: radial_gauge
+      data_source: height_max
+      title: Hauteur maximale
+      description: Hauteur maximale atteinte
+      params:
+        value_field: max
+        min_value: 0
+        max_value: 40
+        units: m
+        style_mode: contextual
+        show_axis: true
+    - plugin: radial_gauge
+      data_source: dbh_max
+      title: Diamètre maximal (DBH)
+      description: Diamètre maximal atteint
+      params:
+        value_field: max
+        min_value: 0
+        max_value: 500
+        units: cm
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: wood_density
+      title: Densité de bois
+      description: Densité de bois moyenne
+      params:
+        value_field: mean
+        min_value: 0
+        max_value: 1.2
+        units: g/cm³
+        value_format: .2f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: bark_thickness
+      title: Épaisseur d'écorce
+      description: Epaisseur moyenne de l'écorce
+      params:
+        value_field: mean
+        min_value: 0
+        max_value: 80
+        units: mm
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: leaf_sla
+      title: Surface foliaire spécifique (SLA)
+      description: Surface foliaire spécifique moyenne
+      params:
+        value_field: mean
+        min_value: 0
+        max_value: 50
+        units: m²·kg⁻¹
+        value_format: .1f
+        style_mode: contextual
+        show_axis: true
+    - plugin: radial_gauge
+      data_source: leaf_area
+      title: Surface foliaire
+      description: Surface foliaire moyenne
+      params:
+        value_field: mean
+        min_value: 0
+        max_value: 1500
+        units: cm²
+        value_format: .0f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: leaf_thickness
+      title: Épaisseur des feuilles
+      description: Epaisseur moyenne des feuilles
+      params:
+        value_field: mean
+        min_value: 0
+        max_value: 800
+        units: µm
+        value_format: .0f
+        style_mode: contextual
+        show_axis: false
+  - group_by: plots
+    output_pattern: plots/{id}.html
+    index_output_pattern: plots/index.html
+    index_generator:
+      enabled: true
+      template: group_index.html
+      page_config:
+        title: Liste des Parcelles
+        description: Parcelles forestières de Nouvelle-Calédonie
+        items_per_page: 20
+      display_fields:
+      - name: name
+        source: general_info.name.value
+        fallback: name
+        type: text
+        label: Nom de la parcelle
+        searchable: true
+      - name: elevation
+        source: general_info.elevation.value
+        type: text
+        label: Altitude (m)
+        format: number
+      - name: rainfall
+        source: general_info.rainfall.value
+        type: text
+        label: Pluviométrie (mm)
+        format: number
+      - name: holdridge
+        source: general_info.holdridge.value
+        type: select
+        label: Milieu de vie
+        format: map
+        mapping:
+          '1': Sec
+          '2': Humide
+          '3': Très humide
+        filter_options:
+        - value: '1'
+          label: Sec
+        - value: '2'
+          label: Humide
+        - value: '3'
+          label: Très humide
+      - name: in_um
+        source: general_info.in_um.value
+        type: boolean
+        label: Substrat ultramafique
+        format: map
+        mapping:
+          'True': Ultramafique
+          'False': Non-ultramafique
+      - name: occurrences_count
+        source: general_info.occurrences_count.value
+        type: text
+        label: Nombre d'occurrences
+        format: number
+      views:
+      - type: grid
+        default: true
+      - type: list
+    widgets:
+    - plugin: hierarchical_nav_widget
+      title: Navigation par parcelles
+      data_source: ''
+      params:
+        referential_data: plots
+        id_field: id_plot
+        name_field: plot
+        base_url: '{{ depth }}plots/'
+        show_search: true
+    - plugin: info_grid
+      data_source: general_info
+      title: Informations générales
+      params:
+        grid_columns: 2
+        items:
+        - label: Parcelle
+          source: plot_name
+        - label: Précipitation annuelle moyenne
+          source: rainfall
+          unit: mm
+        - label: Altitude
+          source: elevation
+          unit: m
+        - label: Milieu de vie
+          source: holdridge
+          format: map
+          mapping:
+            '1': Sec
+            '2': Humide
+            '3': Très humide
+        - label: Substrat
+          source: in_um
+          format: map
+          mapping:
+            'true': Substrat ultramafique
+            'false': Substrat non-ultramafique
+        - label: Nombre de familles
+        - label: Nombre d'espèces
+        - label: Nombre d'occurrences
+          source: occurrences_count
+          format: number
+    - plugin: interactive_map
+      data_source: map_panel
+      title: Localisation de la parcelle
+      params:
+        map_style: carto-voyager
+        show_attribution: true
+        layers:
+        - id: plot
+          source: geometry
+          type: polygon
+          style:
+            color: '#228b22'
+            weight: 3
+            fillOpacity: 0.6
+    - plugin: bar_plot
+      data_source: top_families
+      title: Familles dominantes
+      description: Les dix familles botaniques les plus fréquentes
+      params:
+        orientation: h
+        x_axis: counts
+        y_axis: tops
+        sort_order: descending
+        auto_color: true
+        labels:
+          x_axis: Nombre d'occurrences
+          y_axis: Famille
+    - plugin: bar_plot
+      data_source: top_species
+      title: Espèces principales
+      description: Les dix espèces botaniques les plus fréquentes
+      params:
+        orientation: h
+        x_axis: counts
+        y_axis: tops
+        sort_order: descending
+        auto_color: true
+        labels:
+          x_axis: Nombre d'occurrences
+          y_axis: Espèce
+    - plugin: bar_plot
+      data_source: dbh_distribution
+      title: Distribution diamétrique (DBH)
+      description: Distribution des DBH par classe de diamètre
+      params:
+        transform: bins_to_df
+        transform_params:
+          bin_field: bins
+          count_field: counts
+          use_percentages: true
+          percentage_field: percentages
+          x_field: bin
+          y_field: count
+        orientation: v
+        x_axis: bin
+        y_axis: count
+        labels:
+          x_axis: Classe de diamètre (cm)
+          y_axis: Fréquence (%)
+        filter_zero_values: true
+        gradient_color: '#8B4513'
+        gradient_mode: luminance
+    - plugin: bar_plot
+      data_source: strata_distribution
+      title: Stratification
+      description: Distribution des arbres selon la classification de Dawkins
+      params:
+        orientation: h
+        x_axis: counts
+        y_axis: labels
+        labels:
+          x_axis: Nombre d'occurrences
+          y_axis: Strate
+        color_field: labels
+        color_discrete_map:
+          Sous-bois: '#90A4AE'
+          Sous-Canopée: '#66BB6A'
+          Canopée: '#43A047'
+          Emergent: '#2E7D32'
+    - plugin: donut_chart
+      data_source: taxonomic_distribution
+      title: Types de plantes
+      description: Distinction selon les grands types de plantes arborescentes
+      params:
+        labels_field: labels
+        values_field: percentages
+        color_discrete_sequence:
+        - '#4285F4'
+        - '#A8A8A8'
+        - '#F4B400'
+        - '#0F9D58'
+        hole_size: 0.4
+        text_info: percent+label
+    - plugin: bar_plot
+      data_source: living_dead_distribution
+      title: Arbres vivants/morts
+      description: Proportion des arbres vivants et morts sur pied (DBH >= 10cm)
+      params:
+        orientation: v
+        x_axis: labels
+        y_axis: percentages
+        barmode: stack
+        labels:
+          x_axis: ''
+          y_axis: Proportion (%)
+        gradient_color: '#000000'
+        gradient_mode: luminance
+    - plugin: radial_gauge
+      data_source: species_level
+      title: Taux identification espèce
+      description: Pourcentage d'occurrences identifiées au niveau de l'espèce
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 1
+        value_format: .0%
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: height
+      title: Hauteur moyenne canopée
+      description: Hauteur moyenne de la canopée
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 40
+        units: m
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: biomass
+      title: Biomasse
+      description: Biomasse totale (Chave 2005)
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 800
+        units: t/ha
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: basal_area
+      title: Aire basale
+      description: Somme de la section de tous les arbres
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 100
+        units: m²/ha
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: wood_density
+      title: Densité de bois moyenne
+      description: Densité moyenne de bois du peuplement
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 1.2
+        units: g/cm³
+        value_format: .2f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: richness
+      title: Richesse spécifique (alpha)
+      description: Nombre d'espèces par hectare
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 130
+        units: ''
+        value_format: .0f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: shannon
+      title: Indice de Shannon
+      description: Prend en compte nombre d'espèces et abondance relative
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 5
+        units: ''
+        value_format: .2f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: simpson
+      title: Indice de Simpson
+      description: Contribution des espèces rares est faible
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 1
+        units: ''
+        value_format: .2f
+        style_mode: contextual
+        show_axis: false
+    - plugin: radial_gauge
+      data_source: pielou
+      title: Équitabilité de Pielou
+      description: Mesure la répartition des individus au sein des espèces
+      params:
+        value_field: value
+        min_value: 0
+        max_value: 1
+        units: ''
+        value_format: .2f
+        style_mode: contextual
+        show_axis: false
+  - group_by: shapes
+    output_pattern: shapes/{id}.html
+    index_output_pattern: shapes/index.html
+    index_generator:
+      enabled: true
+      template: group_index.html
+      page_config:
+        title: Liste des Zones d'étude
+        description: Zones d'étude et territoires de Nouvelle-Calédonie
+        items_per_page: 16
+      filters:
+      - field: shape_info.type.value
+        values:
+        - shape
+        operator: in
+      display_fields:
+      - name: name
+        source: shape_info.name.value
+        fallback: name
+        type: text
+        label: Nom de la zone
+        searchable: true
+      - name: type
+        source: shape_info.type.value
+        type: select
+        label: Type de zone
+        dynamic_options: true
+      - name: land_area_ha
+        source: general_info.land_area_ha.value
+        type: text
+        label: Surface totale (ha)
+        format: number
+      - name: forest_area_ha
+        source: general_info.forest_area_ha.value
+        type: text
+        label: Surface forêt (ha)
+        format: number
+      - name: elevation_median
+        source: general_info.elevation_median.value
+        type: text
+        label: Altitude médiane (m)
+        format: number
+      views:
+      - type: grid
+        default: true
+      - type: list
+    widgets:
+    - plugin: hierarchical_nav_widget
+      title: Navigation par zones
+      data_source: ''
+      params:
+        referential_data: shapes
+        id_field: id
+        name_field: name
+        parent_id_field: parent_id
+        lft_field: lft
+        rght_field: rght
+        level_field: level
+        base_url: '{{ depth }}shapes/'
+        show_search: true
+    - plugin: interactive_map
+      data_source: geography
+      title: Distribution de la forêt
+      description: Distribution de la forêt dans l'emprise sélectionnée
+      params:
+        use_topojson: true
+        show_attribution: true
+        map_style: carto-voyager
+        layers:
+        - id: forest
+          source: forest_cover_coords
+          type: geojson
+          style:
+            color: '#228b22'
+            weight: 0
+            fillColor: '#228b22'
+            fillOpacity: 0.8
+        - id: shape
+          source: shape_coords
+          type: geojson
+          style:
+            color: '#2d5016'
+            weight: 2
+            fillOpacity: 0
+    - plugin: info_grid
+      data_source: general_info
+      title: Informations générales
+      params:
+        grid_columns: 2
+        items:
+        - label: Surface totale
+          source: land_area_ha
+          unit: ha
+        - label: Surface forêt
+          source: forest_area_ha
+          unit: ha
+        - label: Forêt sur mine
+          source: forest_mining_ha
+          unit: ha
+        - label: Forêt en réserve
+          source: forest_reserve_ha
+          unit: ha
+        - label: Forêt sur captage (PPE)
+          source: forest_ppe_ha
+          unit: ha
+        - label: Pluviométrie
+          source: rainfall
+          format: range
+          units: mm
+        - label: Altitude médiane
+          source: elevation_median
+          unit: m
+        - label: Altitude maximale
+          source: elevation_max
+          unit: m
+    - plugin: concentric_rings
+      data_source: forest_cover
+      title: Couverture forestière
+      description: Proportion forêt/hors-forêt pour l'Emprise, les zones Non-Ultramafiques
+        et Ultramafiques.
+      params:
+        ring_order:
+        - um
+        - num
+        - emprise
+        ring_labels:
+          um: UM
+          num: NUM
+          emprise: Emprise
+        category_colors:
+          forest: '#6B8E23'
+          non_forest:
+            um: '#8B7355'
+            num: '#C5A98B'
+            emprise: '#F4E4BC'
+        default_colors:
+        - '#6B8E23'
+        - '#8B7355'
+        - '#C5A98B'
+        - '#F4E4BC'
+        border_width: 2.0
+        height: 500
+    - plugin: bar_plot
+      data_source: land_use
+      title: Occupation du sol
+      description: Superficie occupée par type
+      params:
+        orientation: v
+        x_axis: tops
+        y_axis: counts
+        labels:
+          tops: ''
+          counts: Superficie (ha)
+        color_field: tops
+        color_discrete_map:
+          Sol_mineral: '#000000'
+          Sol_organique: '#000000'
+    - plugin: bar_plot
+      data_source: elevation_distribution
+      title: Distribution altitudinale
+      description: Distribution altitudinale de la forêt dans l'emprise
+      params:
+        transform: subset_complement_stacked
+        transform_params:
+          data_field: elevation
+          classes_field: classes
+          subset_field: subset
+          complement_field: complement
+          class_label: altitude
+          subset_label: Forêt
+          complement_label: Hors-forêt
+          value_field: superficie
+          type_field: type
+          class_suffix: m
+        x_axis: superficie
+        y_axis: altitude
+        color_field: type
+        orientation: h
+        barmode: stack
+        labels:
+          altitude: Altitude (m)
+          superficie: Superficie (ha)
+          type: ''
+        color_discrete_map:
+          Forêt: '#228B22'
+          Hors-forêt: '#F4E4BC'
+    - plugin: bar_plot
+      data_source: holdridge
+      title: Forêt et milieux de vie
+      description: Distribution de la forêt selon les milieux de vie de Holdridge
+      params:
+        transform: nested_dict_to_long
+        transform_params:
+          primary_keys:
+          - forest
+          - non_forest
+          category_field: habitat_type
+          value_field: percentage
+          type_field: cover_type
+        x_axis: habitat_type
+        y_axis: percentage
+        color_field: cover_type
+        orientation: v
+        barmode: group
+        labels:
+          habitat_type: Type d'habitat
+          percentage: Couverture (%)
+          cover_type: Type de couverture
+        color_discrete_map:
+          forest: '#1B5E20'
+          non_forest: '#FBC02D'
+    - plugin: donut_chart
+      data_source: forest_types
+      title: Types forestiers
+      description: Répartition de la forêt selon les trois types
+      params:
+        labels_field: tops
+        values_field: counts
+        transform: toPercentage
+        colors:
+        - '#2E7D32'
+        - '#7CB342'
+        - '#C5E1A5'
+        hole: 0.6
+        legend:
+          position: bottom
+        show_labels_on_parts: true
+    - plugin: bar_plot
+      data_source: forest_cover_by_elevation
+      title: Couverture forestière par altitude
+      description: Distribution altitudinale de la couverture forestière en fonction
+        du substrat
+      params:
+        transform: pyramid_chart
+        transform_params:
+          class_field: class_name
+          series_field: series
+          left_series: forest_um
+          right_series: forest_num
+          left_label: Forêt (UM)
+          right_label: Forêt (NUM)
+          class_suffix: m
+          value_field: couverture
+          type_field: type_foret
+          class_label: altitude
+        orientation: h
+        x_axis: couverture
+        y_axis: altitude
+        color_field: type_foret
+        barmode: relative
+        labels:
+          couverture: Couverture (%)
+          altitude: Altitude (m)
+          type_foret: ''
+        color_discrete_map:
+          Forêt (UM): '#90EE90'
+          Forêt (NUM): '#2E7D32'
+        filter_zero_values: false
+        bar_width: 0.8
+        text_auto: true
+    - plugin: stacked_area_plot
+      data_source: forest_types_by_elevation
+      title: Types forestiers par altitude
+      description: Répartition des types de forêts selon l'altitude
+      params:
+        transform: stacked_area_normalized
+        transform_params:
+          x_field: altitudes
+          y_fields:
+          - secondaire
+          - mature
+          - coeur
+        x_field: altitudes
+        y_fields:
+        - secondaire
+        - mature
+        - coeur
+        colors:
+        - '#C5E1A5'
+        - '#7CB342'
+        - '#2E7D32'
+        fill_type: tonexty
+        axis_titles:
+          x: Altitude (m)
+          y: Fréquence (%)
+    - plugin: radial_gauge
+      data_source: fragmentation
+      title: Fragmentation (Taille effective de maillage)
+      description: Probabilité que deux points appartiennent au même fragment
+      params:
+        value_field: meff.value
+        min_value: 0
+        max_value: 1000
+        units: km²
+        value_format: .1f
+        style_mode: contextual
+        show_axis: false
+    - plugin: stacked_area_plot
+      data_source: fragmentation_distribution
+      title: Fragments forestiers
+      description: Aire cumulée de chaque fragment forestier classé par taille
+      params:
+        transform: simple_series_to_df
+        transform_params:
+          x_field: sizes
+          y_field: values
+          series_name: Aire Cumulée
+          convert_to_percentage: true
+        x_field: sizes
+        y_fields:
+        - Aire Cumulée
+        colors:
+        - '#4CAF50'
+        fill_type: tozeroy
+        log_x: true
+        axis_titles:
+          x: Surface (ha)
+          y: Fréquence (%)
+- name: json_api
+  enabled: true
+  exporter: json_api_exporter
+  params:
+    output_dir: exports/api
+    detail_output_pattern: '{group}/{id}.json'
+    index_output_pattern: all_{group}.json
+    index_structure:
+      total_key: total
+      list_key: '{group}'
+      include_total: true
+    json_options:
+      indent: 4
+      ensure_ascii: false
+      compress: false
+      minify: false
+      exclude_null: false
+      geometry_precision: null
+      max_array_length: null
+  groups:
+  - group_by: taxons
+    detail:
+      pass_through: true
+    index:
+      fields:
+      - id: taxon_id
+      - name: general_info.name.value
+      - rank: general_info.rank.value
+      - taxon_type: general_info.taxon_type.value
+      - parent_family: general_info.parent_family.value
+      - parent_genus: general_info.parent_genus.value
+      - occurrences_count: general_info.occurrences_count.value
+      - endemic: general_info.endemic.value
+      - redlist_cat: general_info.redlist_cat.value
+      - endemia_url: general_info.endemia_url.value
+      - images: general_info.images.value
+      - endpoint:
+          generator: endpoint_url
+          params:
+            base_path: /api
+  - group_by: plots
+    detail:
+      pass_through: true
+    index:
+      fields:
+      - id: plot_id
+      - name: locality
+      - endpoint:
+          generator: endpoint_url
+          params:
+            base_path: /api
+  - group_by: shapes
+    json_options:
+      indent: null
+      minify: true
+      exclude_null: true
+      geometry_precision: 6
+      compress: false
+    detail:
+      pass_through: true
+    index:
+      fields:
+      - id: shape_id
+      - name: name
+      - type: type
+      - endpoint:
+          generator: endpoint_url
+          params:
+            base_path: /api
+- name: dwc_occurrence_json
+  enabled: true
+  exporter: json_api_exporter
+  params:
+    output_dir: exports/dwc/occurrence_json
+    detail_output_pattern: '{group}/{id}_occurrences_dwc.json'
+    index_output_pattern: taxon_index.json
+    json_options:
+      indent: 2
+      ensure_ascii: false
+  groups:
+  - group_by: taxons
+    transformer_plugin: niamoto_to_dwc_occurrence
+    index:
+      fields:
+      - id: taxons_id
+      - scientificName: general_info.name.value
+      - taxonRank: general_info.rank.value
+      - occurrences_count: general_info.occurrences_count.value
+      - file_path:
+          generator: endpoint_url
+          params:
+            base_path: ''
+            pattern: taxon/{id}_occurrences_dwc.json
+    transformer_params:
+      occurrence_table: occurrences
+      taxonomy_entity: taxons
+      taxon_id_field: taxons_id
+      taxonomy_external_id_column: taxons_id
+      occurrence_list_source: occurrences
+      mapping:
+        type: Occurrence
+        language: fr
+        license: CC-BY-4.0
+        rightsHolder: Niamoto - Nouvelle-Calédonie
+        datasetName: Niamoto Export - Nouvelle-Calédonie Flore
+        basisOfRecord: HumanObservation
+        occurrenceID:
+          generator: unique_occurrence_id
+          params:
+            prefix: niaocc_
+            source_field: '@source.id'
+        individualCount: '1'
+        occurrenceStatus: present
+        eventID:
+          generator: unique_event_id
+          params:
+            prefix: niaevt_
+            source_field: '@source.id'
+        eventDate:
+          generator: format_event_date
+          params:
+            source_field: '@source.month_obs'
+        year:
+          generator: extract_year
+          params:
+            source_field: '@source.month_obs'
+        month:
+          generator: extract_month
+          params:
+            source_field: '@source.month_obs'
+        country: New Caledonia
+        countryCode: NC
+        stateProvince: '@source.province'
+        minimumElevationInMeters: '@source.elevation'
+        maximumElevationInMeters: '@source.elevation'
+        decimalLatitude:
+          generator: format_coordinates
+          params:
+            source_field: '@source.geo_pt'
+            type: latitude
+        decimalLongitude:
+          generator: format_coordinates
+          params:
+            source_field: '@source.geo_pt'
+            type: longitude
+        geodeticDatum: WGS84
+        identificationID:
+          generator: unique_identification_id
+          params:
+            prefix: niaid_
+            source_field: '@source.id'
+        taxonID: '@taxon.taxon_id'
+        scientificName: '@source.taxonref'
+        kingdom: Plantae
+        family: '@source.family'
+        genus: '@source.genus'
+        specificEpithet:
+          generator: extract_specific_epithet
+          params:
+            source_field: '@source.taxonref'
+        infraspecificEpithet:
+          generator: extract_infraspecific_epithet
+          params:
+            source_field: '@source.taxonref'
+        taxonRank: '@taxon.general_info.rank.value'
+        scientificNameAuthorship: '@source.taxonref'
+        dynamicProperties:
+          generator: format_measurements
+          params:
+            measurements:
+            - field: '@source.dbh'
+              name: diameterAtBreastHeight
+              unit: cm
+            - field: '@source.height'
+              name: height
+              unit: m
+            - field: '@source.wood_density'
+              name: woodDensity
+              unit: g/cm³
+            - field: '@source.bark_thickness'
+              name: barkThickness
+              unit: mm
+            - field: '@source.leaf_area'
+              name: leafArea
+              unit: cm²
+            - field: '@source.leaf_thickness'
+              name: leafThickness
+              unit: µm
+            - field: '@source.leaf_sla'
+              name: specificLeafArea
+              unit: m²/kg
+        reproductiveCondition:
+          generator: format_phenology
+          params:
+            flower_field: '@source.flower'
+            fruit_field: '@source.fruit'
+        habitat:
+          generator: format_habitat
+          params:
+            holdridge_field: '@source.holdridge'
+            rainfall_field: '@source.rainfall'
+            substrate_field: '@source.in_um'
+            forest_field: '@source.in_forest'
+        establishmentMeans:
+          generator: map_establishment_means
+          params:
+            endemic_field: '@taxon.general_info.endemic.value'

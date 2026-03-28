@@ -82,7 +82,8 @@ class TestBarPlotAutoColor:
         # Basic checks
         assert html is not None
         assert "plotly" in html.lower()
-        assert "_auto_color" in html  # Check that auto color field was created
+        for color in generate_colors(len(sample_data)):
+            assert color in html
 
         # Verify no error messages (check for HTML error tags, not JavaScript)
         assert "<p class='error'>" not in html
@@ -99,7 +100,8 @@ class TestBarPlotAutoColor:
         # Basic checks
         assert html is not None
         assert "plotly" in html.lower()
-        assert "_auto_color" in html  # Check that auto color field was created
+        for color in generate_colors(len(sample_data)):
+            assert color in html
 
         # Verify no error messages (check for HTML error tags, not JavaScript)
         assert "<p class='error'>" not in html

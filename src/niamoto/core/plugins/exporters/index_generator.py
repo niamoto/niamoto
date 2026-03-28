@@ -75,6 +75,12 @@ class IndexGeneratorPlugin(ExporterPlugin):
 
         return None
 
+    def _resolve_template_name(self, template_name: str) -> str:
+        """Normalize legacy index template names to the canonical filename."""
+        if template_name == "group_index.html":
+            return "_group_index.html"
+        return template_name
+
     def _extract_field_value(
         self, item: Dict[str, Any], field: IndexGeneratorDisplayField
     ) -> Any:
@@ -261,15 +267,16 @@ class IndexGeneratorPlugin(ExporterPlugin):
             }
 
             # Load and render template
+            template_name = self._resolve_template_name(config.template)
             try:
-                template = jinja_env.get_template(config.template)
+                template = jinja_env.get_template(template_name)
             except Exception as template_error:
                 logger.error(
-                    f"Failed to load template '{config.template}' for group '{group_by}'. "
+                    f"Failed to load template '{template_name}' for group '{group_by}'. "
                     f"Available templates: {jinja_env.list_templates()}"
                 )
                 raise ProcessError(
-                    f"Template '{config.template}' not found for group '{group_by}'"
+                    f"Template '{template_name}' not found for group '{group_by}'"
                 ) from template_error
 
             rendered_html = template.render(context)

@@ -315,8 +315,12 @@ class DonutChartWidget(WidgetPlugin):
                 try:
                     # ... (aggregation, type conversion)
                     df_agg = data.copy()  # Placeholder for actual aggregation
-                    df_agg[params.values_field] = pd.to_numeric(
-                        df_agg[params.values_field], errors="coerce"
+                    df_agg = df_agg.assign(
+                        **{
+                            params.values_field: pd.to_numeric(
+                                df_agg[params.values_field], errors="coerce"
+                            )
+                        }
                     )
                     df_agg = df_agg.dropna(subset=[params.values_field])
 
@@ -351,8 +355,13 @@ class DonutChartWidget(WidgetPlugin):
                                         params.values_field: data[params.values_field],
                                     }
                                 )
-                                df_temp[params.values_field] = pd.to_numeric(
-                                    df_temp[params.values_field], errors="coerce"
+                                df_temp = df_temp.assign(
+                                    **{
+                                        params.values_field: pd.to_numeric(
+                                            df_temp[params.values_field],
+                                            errors="coerce",
+                                        )
+                                    }
                                 )
                                 df_temp = df_temp.dropna(subset=[params.values_field])
                                 if not df_temp.empty:

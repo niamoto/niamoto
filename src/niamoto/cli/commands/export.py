@@ -57,7 +57,10 @@ from ..utils.metrics import MetricsCollector
 )
 @error_handler(log=True, raise_error=True)
 def export_command(
-    target: Optional[str], group: Optional[str], list: bool, dry_run: bool
+    target: Optional[str],
+    group: Optional[str],
+    list: bool,
+    dry_run: bool,
 ) -> None:
     """
     Export Niamoto data according to configurations in export.yml.
@@ -122,7 +125,10 @@ def export_command(
             print_start("Running all enabled export targets")
 
         # Execute the export
-        results = service.run_export(target_name=target, group_filter=group)
+        results = service.run_export(
+            target_name=target,
+            group_filter=group,
+        )
 
         # Create and display metrics
         export_metrics = MetricsCollector.create_export_metrics(results)

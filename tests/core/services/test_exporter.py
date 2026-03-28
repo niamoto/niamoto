@@ -327,6 +327,32 @@ class TestExporterService(NiamotoTestCase):
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
     @patch("niamoto.core.services.exporter.PluginRegistry")
+    def test_run_export_keeps_html_exporter_call_shape(
+        self, mock_registry, mock_loader, mock_db
+    ):
+        """HTML exporter should be called without a special workers parameter."""
+        self.valid_export_config["exports"][0]["exporter"] = "html_page_exporter"
+        self.valid_export_config["exports"][0]["params"] = {
+            "template_dir": "templates",
+            "output_dir": "exports",
+        }
+        self.mock_config.get_exports_config.return_value = self.valid_export_config
+
+        mock_plugin_instance = Mock()
+        mock_plugin_class = Mock(return_value=mock_plugin_instance)
+        mock_registry_instance = Mock()
+        mock_registry_instance.get_plugin.return_value = mock_plugin_class
+        mock_registry.return_value = mock_registry_instance
+
+        service = ExporterService(self.db_path, self.mock_config)
+        service.run_export()
+
+        call_args = mock_plugin_instance.export.call_args
+        self.assertNotIn("workers", call_args.kwargs)
+
+    @patch("niamoto.core.services.exporter.Database")
+    @patch("niamoto.core.services.exporter.PluginLoader")
+    @patch("niamoto.core.services.exporter.PluginRegistry")
     def test_run_export_multiple_targets(self, mock_registry, mock_loader, mock_db):
         """Test export with multiple enabled targets."""
         # Add multiple enabled targets

@@ -122,7 +122,10 @@ def list_configurations() -> None:
 )
 @error_handler(log=True, raise_error=True)
 def process_transformations(
-    group: Optional[str], data: Optional[str], verbose: bool, recreate_table: bool
+    group: Optional[str],
+    data: Optional[str],
+    verbose: bool,
+    recreate_table: bool,
 ) -> None:
     """
     Run data transformations based on configuration.
@@ -162,10 +165,11 @@ def process_transformations(
             print_start(f"Processing transformations for group: {group}")
         else:
             print_start("Processing all transformation groups")
-
         # Execute the transformation
         results = service.transform_data(
-            group_by=group, csv_file=data, recreate_table=recreate_table
+            group_by=group,
+            csv_file=data,
+            recreate_table=recreate_table,
         )
 
         # Create and display metrics

@@ -21,6 +21,7 @@ def mock_db():
     """Create a mock database."""
     db = Mock()
     db.engine = Mock()
+    db.connection = MagicMock(side_effect=lambda: db.engine.connect())
     return db
 
 
@@ -131,6 +132,18 @@ class TestNiamotoDwCTransformer:
         assert result.params.mapping == config["mapping"]
         assert result.params.occurrence_list_source == "occurrences"  # Default added
 
+    def test_resolve_entity_table_uses_instance_cache(self, transformer):
+        """Resolved physical table names should be memoized on the transformer."""
+        transformer.registry = Mock()
+        transformer.resolve_entity_table = Mock(return_value="entity_occurrences")
+
+        first = transformer._resolve_entity_table("occurrences")
+        second = transformer._resolve_entity_table("occurrences")
+
+        assert first == "entity_occurrences"
+        assert second == "entity_occurrences"
+        transformer.resolve_entity_table.assert_called_once_with("occurrences")
+
     def test_validate_config_invalid_type(self, transformer):
         """Test config validation with invalid type."""
         with pytest.raises(ValueError, match="Invalid configuration"):
@@ -157,6 +170,19 @@ class TestNiamotoDwCTransformer:
 
         assert isinstance(result, NiamotoDwCConfig)
         assert result.params.mapping == params.mapping
+
+    def test_configure_from_config_reuses_equal_validated_config(
+        self, transformer, sample_mapping_config
+    ):
+        """Equivalent configs should reuse the compiled mapping cache."""
+
+        with patch.object(
+            transformer, "_compile_mapping", wraps=transformer._compile_mapping
+        ) as mock_compile_mapping:
+            transformer._configure_from_config(sample_mapping_config)
+            transformer._configure_from_config(dict(sample_mapping_config))
+
+        assert mock_compile_mapping.call_count == 1
 
     def test_transform_no_taxon_id(self, transformer, sample_mapping_config):
         """Test transform when taxon data has no ID."""
@@ -245,6 +271,30 @@ class TestNiamotoDwCTransformer:
         assert dwc_record["month"] == 6
         assert dwc_record["decimalLatitude"] == -21.6461
         assert dwc_record["decimalLongitude"] == 165.7683
+
+    def test_prepare_batch_uses_preloaded_occurrences(
+        self,
+        transformer,
+        sample_taxon_data,
+        sample_occurrence_data,
+        sample_mapping_config,
+    ):
+        """Transform should reuse occurrences preloaded once for the whole group."""
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_batch_from_db",
+            return_value={123: [sample_occurrence_data]},
+        ) as mock_batch_fetch:
+            with patch.object(
+                transformer, "_fetch_occurrences_from_db"
+            ) as mock_single_fetch:
+                transformer.prepare_batch([sample_taxon_data], sample_mapping_config)
+
+                result = transformer.transform(sample_taxon_data, sample_mapping_config)
+
+        assert len(result) == 1
+        mock_batch_fetch.assert_called_once()
+        mock_single_fetch.assert_not_called()
 
     def test_transform_with_pydantic_config(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config

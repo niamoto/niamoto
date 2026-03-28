@@ -201,6 +201,18 @@ def test_duckdb_read_only_mode(tmp_path) -> None:
     db_readonly.engine.dispose()
 
 
+def test_connection_reuse_reuses_same_connection(duckdb_database: Any) -> None:
+    """Shared connection mode should reuse one checked-out connection per thread."""
+
+    duckdb_database.enable_connection_reuse()
+    try:
+        with duckdb_database.connection() as first:
+            with duckdb_database.connection() as second:
+                assert first is second
+    finally:
+        duckdb_database.disable_connection_reuse()
+
+
 # SQLite optimizations and index creation
 def test_sqlite_optimizations_applied(tmp_path) -> None:
     """Test that SQLite optimizations are actually applied."""

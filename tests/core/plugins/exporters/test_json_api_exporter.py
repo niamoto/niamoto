@@ -167,6 +167,15 @@ class TestJsonApiExporter:
         # Note: Current implementation doesn't support nested filters
         # This would need enhancement
 
+    def test_should_parse_json_string(self, exporter):
+        """JSON parsing heuristic should skip plain text values."""
+        assert exporter._should_parse_json_string('{"a": 1}') is True
+        assert exporter._should_parse_json_string("[1,2,3]") is True
+        assert exporter._should_parse_json_string("true") is True
+        assert exporter._should_parse_json_string("42") is True
+        assert exporter._should_parse_json_string("plain text") is False
+        assert exporter._should_parse_json_string(" species ") is False
+
     @patch("builtins.open", create=True)
     def test_generate_detail_file(self, mock_open, exporter, tmp_path):
         """Test detail file generation."""
@@ -696,6 +705,82 @@ class TestJsonApiExporterTransformers:
                 }
             )
             assert result == {"result": "success"}
+
+    def test_transformer_bundle_is_cached_per_group(self, exporter):
+        """Transformer instance and validated params should be reused per group."""
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
+        ) as mock_get:
+            mock_transformer_class = Mock()
+            mock_transformer = Mock()
+            mock_config_model = Mock()
+            mock_config_model.model_validate.return_value = {"validated": True}
+
+            mock_transformer.config_model = mock_config_model
+            mock_transformer.transform.return_value = {"result": "success"}
+            mock_transformer_class.return_value = mock_transformer
+            mock_get.return_value = mock_transformer_class
+
+            group_config = GroupConfig(
+                group_by="test",
+                transformer_plugin="config_transformer",
+                transformer_params={"param1": "value1"},
+            )
+
+            first = exporter._apply_transformer({"id": 1}, group_config)
+            second = exporter._apply_transformer({"id": 2}, group_config)
+
+            assert first == {"result": "success"}
+            assert second == {"result": "success"}
+            mock_get.assert_called_once_with(
+                "config_transformer", PluginType.TRANSFORMER
+            )
+            mock_transformer_class.assert_called_once_with(
+                exporter.db, registry=exporter.registry
+            )
+            mock_config_model.model_validate.assert_called_once_with(
+                {
+                    "plugin": "config_transformer",
+                    "params": {"param1": "value1"},
+                }
+            )
+            assert mock_transformer.transform.call_count == 2
+
+    def test_transformer_batch_preparation_runs_once_per_group(self, exporter):
+        """Batch preparation should run once before iterating over group items."""
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
+        ) as mock_get:
+            mock_transformer_class = Mock()
+            mock_transformer = Mock()
+            mock_transformer.config_model = None
+            mock_transformer.prepare_batch = Mock()
+            mock_transformer_class.return_value = mock_transformer
+            mock_get.return_value = mock_transformer_class
+
+            group_config = GroupConfig(
+                group_by="test",
+                transformer_plugin="batch_transformer",
+                transformer_params={"param1": "value1"},
+            )
+            params = JsonApiExporterParams(output_dir="test")
+            repository = Mock()
+            progress_manager = Mock()
+            group_data = [{"id": 1}, {"id": 2}]
+
+            with patch.object(exporter, "_fetch_group_data", return_value=group_data):
+                with patch.object(exporter, "_generate_detail_file", return_value=True):
+                    exporter._process_group_with_progress_manager(
+                        group_config,
+                        params,
+                        repository,
+                        Path("test"),
+                        progress_manager,
+                    )
+
+            mock_transformer.prepare_batch.assert_called_once_with(
+                group_data, {"param1": "value1"}
+            )
 
     def test_transformer_with_typed_params_model(self, exporter):
         """Transformer params provided as Pydantic model should be wrapped correctly."""

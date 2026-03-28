@@ -9,7 +9,7 @@ which is widely used for biodiversity data exchange.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Callable, Dict, List, Optional, Literal, Set, Tuple, Union
 import re
 
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
@@ -37,6 +37,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
         super().__init__(db, registry)
         self._current_taxon = None
         self._occurrence_index = 0
+        self._resolved_entity_tables: Dict[str, str] = {}
         # Store config parameters for use in generators
         self._occurrence_table: Optional[str] = None
         self._taxon_id_column = "id_taxonref"
@@ -44,6 +45,37 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._taxonomy_table: Optional[str] = None
         self._taxonomy_external_id_column: Optional[str] = None
         self._taxonomy_entity: Optional[str] = None
+        self._prepared_taxon_ids: Optional[Set[int]] = None
+        self._preloaded_occurrences_by_taxon_id: Dict[int, List[Dict[str, Any]]] = {}
+        self._active_config_ref: Optional[Any] = None
+        self._active_params: Optional[DwcTransformerParams] = None
+        self._active_compiled_mapping: Optional[
+            List[Tuple[str, Tuple[str, Any, Any]]]
+        ] = None
+        self._generator_functions: Dict[
+            str, Callable[[Dict[str, Any], Dict[str, Any]], Any]
+        ] = {
+            "unique_occurrence_id": self._generate_unique_occurrence_id,
+            "unique_event_id": self._generate_unique_event_id,
+            "unique_identification_id": self._generate_unique_identification_id,
+            "extract_specific_epithet": self._extract_specific_epithet,
+            "extract_infraspecific_epithet": self._extract_infraspecific_epithet,
+            "format_event_date": self._format_event_date,
+            "extract_year": self._extract_year,
+            "extract_month": self._extract_month,
+            "extract_day": self._extract_day,
+            "format_media_urls": self._format_media_urls,
+            "format_coordinates": self._format_coordinates,
+            "map_establishment_means": self._map_establishment_means,
+            "map_occurrence_status": self._map_occurrence_status,
+            "format_measurements": self._format_measurements,
+            "format_phenology": self._format_phenology,
+            "format_habitat": self._format_habitat,
+            "count_occurrences": self._count_occurrences,
+            "current_date": self._current_date,
+            "count_processed_taxa": self._count_processed_taxa,
+            "count_total_occurrences": self._count_total_occurrences,
+        }
 
     def validate_config(self, config: Dict[str, Any]) -> NiamotoDwCConfig:
         """
@@ -107,25 +139,11 @@ class NiamotoDwCTransformer(TransformerPlugin):
             List of Darwin Core formatted occurrences
         """
         try:
-            # Validate config and get typed parameters
-            validated_config = self.validate_config(config)
-            params = validated_config.params
-
             # Store current taxon data for reference in mapping
             self._current_taxon = data
 
-            # Get mapping and database config from typed params
-            mapping = params.mapping
-            self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
-            self._taxonomy_entity = params.taxonomy_entity
-            self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
-            self._taxon_id_column = params.taxon_id_column
-            self._taxon_id_field = params.taxon_id_field
-            self._taxonomy_external_id_column = (
-                self._resolve_taxonomy_external_id_column(
-                    params.taxonomy_external_id_column
-                )
-            )
+            self._configure_from_config(config)
+            mapping = self._active_compiled_mapping or []
 
             # Get taxon ID from configured field
             taxon_id = data.get(self._taxon_id_field)
@@ -133,14 +151,20 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 logger.warning(f"Taxon data missing '{self._taxon_id_field}' field")
                 return []
 
-            # Fetch occurrences from database for this taxon
-            occurrences = self._fetch_occurrences_from_db(
-                taxon_id,
-                self._occurrence_table,
-                self._taxon_id_column,
-                self._taxonomy_table,
-                self._taxonomy_external_id_column,
-            )
+            # Reuse batch-preloaded occurrences when available for the current group.
+            if (
+                self._prepared_taxon_ids is not None
+                and taxon_id in self._prepared_taxon_ids
+            ):
+                occurrences = self._preloaded_occurrences_by_taxon_id.get(taxon_id, [])
+            else:
+                occurrences = self._fetch_occurrences_from_db(
+                    taxon_id,
+                    self._occurrence_table,
+                    self._taxon_id_column,
+                    self._taxonomy_table,
+                    self._taxonomy_external_id_column,
+                )
             if not occurrences:
                 logger.debug(f"No occurrences found for taxon {taxon_id}, skipping")
                 return []
@@ -161,6 +185,56 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
         except Exception as e:
             raise DataTransformError(f"Darwin Core transformation failed: {str(e)}")
+
+    def prepare_batch(
+        self, items: List[Dict[str, Any]], config: Union[Dict[str, Any], PluginConfig]
+    ) -> None:
+        """Preload occurrences for the current group to avoid one query per taxon."""
+        self._configure_from_config(config)
+
+        taxon_ids = [
+            taxon_id
+            for taxon_id in (item.get(self._taxon_id_field) for item in items)
+            if taxon_id is not None
+        ]
+        unique_taxon_ids = list(dict.fromkeys(taxon_ids))
+        self._prepared_taxon_ids = set(unique_taxon_ids)
+
+        if not unique_taxon_ids:
+            self._preloaded_occurrences_by_taxon_id = {}
+            return
+
+        self._preloaded_occurrences_by_taxon_id = self._fetch_occurrences_batch_from_db(
+            unique_taxon_ids,
+            self._occurrence_table,
+            self._taxon_id_column,
+            self._taxonomy_table,
+            self._taxonomy_external_id_column,
+        )
+
+    def _configure_from_config(self, config: Dict[str, Any]) -> DwcTransformerParams:
+        """Validate and cache the resolved table/column settings for this run."""
+        validated_config = self.validate_config(config)
+        if (
+            self._active_config_ref == validated_config
+            and self._active_params is not None
+        ):
+            return self._active_params
+
+        params = validated_config.params
+
+        self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
+        self._taxonomy_entity = params.taxonomy_entity
+        self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
+        self._taxon_id_column = params.taxon_id_column
+        self._taxon_id_field = params.taxon_id_field
+        self._taxonomy_external_id_column = self._resolve_taxonomy_external_id_column(
+            params.taxonomy_external_id_column
+        )
+        self._active_config_ref = validated_config
+        self._active_params = params
+        self._active_compiled_mapping = self._compile_mapping(params.mapping)
+        return params
 
     def _fetch_occurrences_from_db(
         self,
@@ -197,7 +271,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
             """
             )
 
-            with self.db.engine.connect() as connection:
+            with self.db.connection() as connection:
                 result = connection.execute(query, {"taxon_id": taxon_id})
                 rows = result.fetchall()
 
@@ -232,18 +306,80 @@ class NiamotoDwCTransformer(TransformerPlugin):
             )
             return []
 
+    def _fetch_occurrences_batch_from_db(
+        self,
+        taxon_ids: List[int],
+        occurrence_table: str,
+        taxon_id_column: str,
+        taxonomy_table: str,
+        taxonomy_external_id_column: str,
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        """Fetch occurrences for a batch of taxa in a single query."""
+        if not taxon_ids:
+            return {}
+
+        try:
+            from sqlalchemy import bindparam, text
+
+            query = text(
+                f"""
+                SELECT t.id AS _taxon_id, o.*
+                FROM "{occurrence_table}" o
+                JOIN "{taxonomy_table}" t
+                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                WHERE t.id IN :taxon_ids
+                """
+            ).bindparams(bindparam("taxon_ids", expanding=True))
+
+            with self.db.connection() as connection:
+                result = connection.execute(query, {"taxon_ids": taxon_ids})
+                rows = result.fetchall()
+                columns = list(result.keys())
+
+            grouped_occurrences: Dict[int, List[Dict[str, Any]]] = {
+                taxon_id: [] for taxon_id in taxon_ids
+            }
+            for row in rows:
+                occurrence_dict = dict(zip(columns, row))
+                grouped_occurrences.setdefault(
+                    occurrence_dict.pop("_taxon_id"), []
+                ).append(occurrence_dict)
+
+            logger.info(
+                "Preloaded %s occurrences across %s taxa from %s",
+                sum(len(records) for records in grouped_occurrences.values()),
+                len(taxon_ids),
+                occurrence_table,
+            )
+            return grouped_occurrences
+
+        except Exception as e:
+            logger.error(
+                "Error batch fetching occurrences from %s.%s: %s",
+                occurrence_table,
+                taxon_id_column,
+                str(e),
+            )
+            return {taxon_id: [] for taxon_id in taxon_ids}
+
     def _resolve_entity_table(self, logical_name: str) -> str:
         """Resolve a logical entity name to the physical table name."""
+        cached = self._resolved_entity_tables.get(logical_name)
+        if cached is not None:
+            return cached
 
         if self.registry:
             try:
-                return self.resolve_entity_table(logical_name)
+                resolved = self.resolve_entity_table(logical_name)
+                self._resolved_entity_tables[logical_name] = resolved
+                return resolved
             except Exception as exc:  # pragma: no cover - defensive logging
                 logger.warning(
                     "Failed to resolve entity '%s' via registry (%s); using provided value",
                     logical_name,
                     exc,
                 )
+        self._resolved_entity_tables[logical_name] = logical_name
         return logical_name
 
     def _resolve_taxonomy_external_id_column(
@@ -278,15 +414,15 @@ class NiamotoDwCTransformer(TransformerPlugin):
         return f"{entity_name}_id"
 
     def _map_occurrence(
-        self, occurrence: Dict[str, Any], mapping: Dict[str, Any]
+        self, occurrence: Dict[str, Any], mapping: Any
     ) -> Dict[str, Any]:
         """Map a single occurrence to Darwin Core format."""
         dwc_record = {}
+        compiled_mapping = (
+            self._compile_mapping(mapping) if isinstance(mapping, dict) else mapping
+        )
 
-        for dwc_term, mapping_config in mapping.items():
-            if dwc_term == "error_handling":  # Skip non-DwC configuration
-                continue
-
+        for dwc_term, mapping_config in compiled_mapping:
             try:
                 value = self._resolve_mapping(occurrence, mapping_config)
                 if value is not None:
@@ -298,6 +434,15 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
     def _resolve_mapping(self, occurrence: Dict[str, Any], mapping_config: Any) -> Any:
         """Resolve a mapping configuration to a value."""
+        if isinstance(mapping_config, tuple) and len(mapping_config) == 3:
+            kind, primary, secondary = mapping_config
+            if kind == "generator":
+                return primary(occurrence, secondary)
+            if kind == "reference":
+                return self._resolve_reference(occurrence, primary)
+            if kind == "static":
+                return primary
+
         # Import here to avoid circular imports
         from niamoto.core.plugins.models import DwcMappingValue
 
@@ -340,6 +485,14 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
     def _resolve_reference(self, occurrence: Dict[str, Any], reference: str) -> Any:
         """Resolve @ references to actual values."""
+        if isinstance(reference, tuple) and len(reference) == 2:
+            ref_kind, ref_path = reference
+            if ref_kind == "source":
+                return self._get_nested_value(occurrence, ref_path)
+            if ref_kind == "taxon":
+                return self._get_nested_value(self._current_taxon, ref_path)
+            return None
+
         if not reference.startswith("@"):
             return reference
 
@@ -357,12 +510,12 @@ class NiamotoDwCTransformer(TransformerPlugin):
             logger.warning(f"Unknown reference type: {reference}")
             return None
 
-    def _get_nested_value(self, data: Dict[str, Any], path: str) -> Any:
+    def _get_nested_value(self, data: Dict[str, Any], path: Any) -> Any:
         """Get value from nested dictionary using dot notation."""
         if not path:
             return data
 
-        keys = path.split(".")
+        keys = path if isinstance(path, tuple) else path.split(".")
         current = data
 
         for key in keys:
@@ -374,37 +527,103 @@ class NiamotoDwCTransformer(TransformerPlugin):
         return current
 
     def _apply_generator(
-        self, occurrence: Dict[str, Any], generator_name: str, params: Dict[str, Any]
+        self,
+        occurrence: Dict[str, Any],
+        generator_name: Any,
+        params: Dict[str, Any],
     ) -> Any:
         """Apply a generator function to produce a value."""
-        generators = {
-            "unique_occurrence_id": self._generate_unique_occurrence_id,
-            "unique_event_id": self._generate_unique_event_id,
-            "unique_identification_id": self._generate_unique_identification_id,
-            "extract_specific_epithet": self._extract_specific_epithet,
-            "extract_infraspecific_epithet": self._extract_infraspecific_epithet,
-            "format_event_date": self._format_event_date,
-            "extract_year": self._extract_year,
-            "extract_month": self._extract_month,
-            "extract_day": self._extract_day,
-            "format_media_urls": self._format_media_urls,
-            "format_coordinates": self._format_coordinates,
-            "map_establishment_means": self._map_establishment_means,
-            "map_occurrence_status": self._map_occurrence_status,
-            "format_measurements": self._format_measurements,
-            "format_phenology": self._format_phenology,
-            "format_habitat": self._format_habitat,
-            "count_occurrences": self._count_occurrences,
-            "current_date": self._current_date,
-            "count_processed_taxa": self._count_processed_taxa,
-            "count_total_occurrences": self._count_total_occurrences,
-        }
+        if callable(generator_name):
+            return generator_name(occurrence, params)
 
-        if generator_name in generators:
-            return generators[generator_name](occurrence, params)
-        else:
-            logger.warning(f"Unknown generator: {generator_name}")
-            return None
+        generator = self._generator_functions.get(generator_name)
+        if generator is not None:
+            return generator(occurrence, params)
+
+        logger.warning(f"Unknown generator: {generator_name}")
+        return None
+
+    def _compile_mapping(
+        self, mapping: Dict[str, Any]
+    ) -> List[Tuple[str, Tuple[str, Any, Any]]]:
+        """Compile DwC mapping entries once for faster per-occurrence execution."""
+        compiled_mapping: List[Tuple[str, Tuple[str, Any, Any]]] = []
+
+        for dwc_term, mapping_config in mapping.items():
+            if dwc_term == "error_handling":
+                continue
+            compiled_mapping.append(
+                (dwc_term, self._compile_mapping_value(mapping_config))
+            )
+
+        return compiled_mapping
+
+    def _compile_mapping_value(self, mapping_config: Any) -> Tuple[str, Any, Any]:
+        """Compile one mapping entry into a fast runtime representation."""
+        # Import here to avoid circular imports
+        from niamoto.core.plugins.models import DwcMappingValue
+
+        if isinstance(mapping_config, DwcMappingValue):
+            if mapping_config.generator:
+                return (
+                    "generator",
+                    self._generator_functions.get(
+                        mapping_config.generator, mapping_config.generator
+                    ),
+                    self._compile_params(mapping_config.params),
+                )
+            if mapping_config.source:
+                return (
+                    "reference",
+                    self._compile_reference(mapping_config.source),
+                    None,
+                )
+
+        if isinstance(mapping_config, str):
+            if mapping_config.startswith("@"):
+                return ("reference", self._compile_reference(mapping_config), None)
+            return ("static", mapping_config, None)
+
+        if isinstance(mapping_config, dict):
+            if "generator" in mapping_config:
+                return (
+                    "generator",
+                    self._generator_functions.get(
+                        mapping_config["generator"], mapping_config["generator"]
+                    ),
+                    self._compile_params(mapping_config.get("params", {})),
+                )
+            if "source" in mapping_config:
+                return (
+                    "reference",
+                    self._compile_reference(mapping_config["source"]),
+                    None,
+                )
+            return ("static", mapping_config, None)
+
+        return ("static", mapping_config, None)
+
+    def _compile_params(self, value: Any) -> Any:
+        """Recursively precompile @source/@taxon references inside generator params."""
+        if isinstance(value, dict):
+            return {key: self._compile_params(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._compile_params(item) for item in value]
+        if isinstance(value, str) and value.startswith("@"):
+            return self._compile_reference(value)
+        return value
+
+    def _compile_reference(self, reference: str) -> Any:
+        """Compile @source.x or @taxon.y references into a parsed form."""
+        if not reference.startswith("@"):
+            return reference
+
+        ref_path = reference[1:]
+        if ref_path.startswith("source."):
+            return ("source", tuple(ref_path[7:].split(".")))
+        if ref_path.startswith("taxon."):
+            return ("taxon", tuple(ref_path[6:].split(".")))
+        return reference
 
     # Generator implementations
     def _generate_unique_occurrence_id(

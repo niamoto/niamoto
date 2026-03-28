@@ -157,14 +157,17 @@ class StackedAreaPlotWidget(WidgetPlugin):
                 for field in y_fields:
                     df_data[field] = data[field]
 
-                df = pd.DataFrame(df_data)
+                df = pd.DataFrame(df_data).copy()
 
                 # Calculate total for each x point for normalization
-                df["total"] = df[y_fields].sum(axis=1)
+                df = df.assign(total=df[y_fields].sum(axis=1))
 
                 # Convert to percentages (0-100%)
-                for field in y_fields:
-                    df[field] = (df[field] / df["total"] * 100).fillna(0)
+                normalized_fields = {
+                    field: (df[field] / df["total"] * 100).fillna(0)
+                    for field in y_fields
+                }
+                df = df.assign(**normalized_fields)
 
                 # Remove total column
                 df = df.drop("total", axis=1)

@@ -116,8 +116,9 @@ class SpatialLoader(LoaderPlugin):
         # Use text() wrapped query with engine directly to avoid pandas warning
         from sqlalchemy import text
 
-        return pd.read_sql(
-            text(query),
-            self.db.engine,
-            params={"shape_geom": shape_geom},
-        )
+        with self.db.connection() as conn:
+            return pd.read_sql(
+                text(query),
+                conn,
+                params={"shape_geom": shape_geom},
+            )

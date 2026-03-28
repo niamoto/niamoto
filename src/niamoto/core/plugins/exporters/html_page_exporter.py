@@ -38,6 +38,7 @@ from niamoto.core.plugins.models import (
     HtmlExporterParams,
     StaticPageConfig,
     GroupConfigWeb,
+    WidgetConfig,
 )
 from niamoto.core.plugins.registry import PluginRegistry
 
@@ -56,6 +57,15 @@ class HtmlPageExporter(ExporterPlugin):
         super().__init__(db, registry)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._navigation_js_generated: Set[str] = set()
+        self._navigation_js_content_cache: Dict[
+            Tuple[str, str, Tuple[str, ...], Tuple[str, ...]], str
+        ] = {}
+        self._entity_resolution_cache: Dict[
+            str, Tuple[Optional[str], Dict[str, Any]]
+        ] = {}
+        self._reference_table_cache: Dict[str, str] = {}
+        self._table_columns_cache: Dict[str, Tuple[str, ...]] = {}
+        self._group_table_cache: Dict[Tuple[str, Optional[str]], Tuple[str, str]] = {}
 
         # Initialize statistics tracking
         self.stats: Dict[str, Any] = {
@@ -92,8 +102,14 @@ class HtmlPageExporter(ExporterPlugin):
         self, entity_name: str
     ) -> Tuple[Optional[str], Dict[str, Any]]:
         """Resolve an entity through registry metadata when available."""
+        cached = self._entity_resolution_cache.get(entity_name)
+        if cached is not None:
+            return cached
+
         if not self.registry:
-            return None, {}
+            result = (None, {})
+            self._entity_resolution_cache[entity_name] = result
+            return result
 
         try:
             entity_meta = self.registry.get(entity_name)
@@ -101,17 +117,28 @@ class HtmlPageExporter(ExporterPlugin):
             if table_name and self.db.has_table(table_name):
                 config = getattr(entity_meta, "config", {}) or {}
                 if isinstance(config, dict):
-                    return table_name, config
-                return table_name, {}
+                    result = (table_name, config)
+                    self._entity_resolution_cache[entity_name] = result
+                    return result
+                result = (table_name, {})
+                self._entity_resolution_cache[entity_name] = result
+                return result
         except Exception:
             pass
 
-        return None, {}
+        result = (None, {})
+        self._entity_resolution_cache[entity_name] = result
+        return result
 
     def _resolve_group_table_and_id(
         self, group_by_key: str, navigation_entity: Optional[str] = None
     ) -> Tuple[str, str]:
         """Resolve group table and identifier column from registry/config/conventions."""
+        cache_key = (group_by_key, navigation_entity)
+        cached = self._group_table_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         table_name, entity_config = self._resolve_registry_entity(group_by_key)
         if not table_name and navigation_entity and navigation_entity != group_by_key:
             table_name, entity_config = self._resolve_registry_entity(navigation_entity)
@@ -139,7 +166,7 @@ class HtmlPageExporter(ExporterPlugin):
 
         id_column = f"{group_by_key}_id"
         try:
-            table_columns = self.db.get_table_columns(table_name) or []
+            table_columns = self._get_table_columns_cached(table_name)
         except Exception:
             return table_name, id_column
 
@@ -159,16 +186,40 @@ class HtmlPageExporter(ExporterPlugin):
 
         resolved_id = next((c for c in id_candidates if c in table_columns), None)
         if resolved_id:
-            return table_name, resolved_id
-        return table_name, id_column
+            result = (table_name, resolved_id)
+            self._group_table_cache[cache_key] = result
+            return result
+        result = (table_name, id_column)
+        self._group_table_cache[cache_key] = result
+        return result
 
     def _resolve_reference_table_name(self, entity_name: str) -> str:
         """Resolve reference table with registry-first strategy and safe fallback."""
+        cached = self._reference_table_cache.get(entity_name)
+        if cached is not None:
+            return cached
+
         table_name, _ = self._resolve_registry_entity(entity_name)
         if table_name:
+            self._reference_table_cache[entity_name] = table_name
             return table_name
 
-        return resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
+        table_name = (
+            resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
+        )
+        self._reference_table_cache[entity_name] = table_name
+        return table_name
+
+    def _get_table_columns_cached(self, table_name: str) -> List[str]:
+        """Cache table columns for one exporter run to avoid repeated metadata queries."""
+        cached = self._table_columns_cache.get(table_name)
+        if cached is not None:
+            return list(cached)
+
+        columns = self.db.get_table_columns(table_name) or []
+        columns_tuple = tuple(columns)
+        self._table_columns_cache[table_name] = columns_tuple
+        return list(columns_tuple)
 
     def _resolve_localized(self, value: Any, lang: Optional[str] = None) -> Any:
         """
@@ -340,6 +391,7 @@ class HtmlPageExporter(ExporterPlugin):
         self.stats["start_time"] = datetime.now()
 
         try:
+            self.db.enable_connection_reuse()
             # 1. Validate and parse specific HTML exporter parameters
             try:
                 html_params = HtmlExporterParams.model_validate(target_config.params)
@@ -574,6 +626,8 @@ class HtmlPageExporter(ExporterPlugin):
             raise ProcessError(
                 f"HTML export failed unexpectedly for {target_config.name}"
             ) from e
+        finally:
+            self.db.disable_connection_reuse()
 
     def _copy_static_assets(
         self, html_params: HtmlExporterParams, output_dir: Path
@@ -1420,7 +1474,7 @@ class HtmlPageExporter(ExporterPlugin):
             transform_table = group_by_key
             transform_id_col = f"{group_by_key}_id"
             if repository.has_table(transform_table) and transform_table != table_name:
-                transform_cols = repository.get_table_columns(transform_table) or []
+                transform_cols = self._get_table_columns_cached(transform_table)
                 if transform_id_col in transform_cols:
                     detail_table_name = transform_table
                     detail_id_column = transform_id_col
@@ -1471,8 +1525,22 @@ class HtmlPageExporter(ExporterPlugin):
                         total=len(index_data),
                     )
 
-                    # Cache widget plugin classes to avoid repeated lookups
-                    widget_cache = {}
+                    widget_plugin_classes = self._resolve_widget_plugin_classes(
+                        group_config, plugin_registry
+                    )
+                    sorted_widgets = sorted(
+                        enumerate(group_config.widgets),
+                        key=lambda x: (x[1].layout.order if x[1].layout else x[0]),
+                    )
+                    detail_context_base = self._build_detail_context_base(
+                        group_config=group_config,
+                        html_params=html_params,
+                        group_by_key=group_by_key,
+                        id_column=id_column,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
+                    )
 
                     for item_summary in index_data:
                         item_id = item_summary.get(id_column)
@@ -1483,284 +1551,23 @@ class HtmlPageExporter(ExporterPlugin):
                             group_progress.update(detail_task, advance=1)
                             continue
 
-                        # Inner try for processing a single item
-                        try:
-                            # Get item data from transform output table (has widget columns)
-                            item_data = self._get_item_detail_data(
-                                repository, detail_table_name, detail_id_column, item_id
-                            )
-                            if not item_data:
-                                # Warning already logged in _get_item_detail_data
-                                group_progress.update(detail_task, advance=1)
-                                continue
+                        result = self._render_detail_page_task(
+                            repository=repository,
+                            detail_table_name=detail_table_name,
+                            detail_id_column=detail_id_column,
+                            item_id=item_id,
+                            group_by_key=group_by_key,
+                            id_column=id_column,
+                            group_config=group_config,
+                            detail_template=detail_template,
+                            output_dir=output_dir,
+                            group_output_dir=group_output_dir,
+                            sorted_widgets=sorted_widgets,
+                            widget_plugin_classes=widget_plugin_classes,
+                            detail_context_base=detail_context_base,
+                        )
+                        self._apply_detail_page_result(result)
 
-                            rendered_widgets: Dict[str, str] = {}
-                            widget_dependencies: Set[str] = set()
-
-                            # Sort widgets by layout.order before processing
-                            sorted_widgets = sorted(
-                                enumerate(group_config.widgets),
-                                key=lambda x: (
-                                    x[1].layout.order if x[1].layout else x[0]
-                                ),
-                            )
-
-                            # Process widgets for this item
-                            for i, widget_config in sorted_widgets:
-                                # Create a unique key combining plugin type, data source, and index
-                                widget_key = f"{widget_config.plugin}_{widget_config.data_source}_{i}"  # Unique key per widget instance
-
-                                try:
-                                    # Check if this is the hierarchical navigation widget
-                                    is_hierarchical_nav = (
-                                        widget_config.plugin
-                                        == "hierarchical_nav_widget"
-                                    )
-
-                                    # Use cached widget class if available
-                                    if widget_config.plugin not in widget_cache:
-                                        widget_plugin_class = (
-                                            plugin_registry.get_plugin(
-                                                widget_config.plugin, PluginType.WIDGET
-                                            )
-                                        )
-                                        if not widget_plugin_class:
-                                            raise ConfigurationError(
-                                                config_key="widgets.plugin",
-                                                message=f"Widget plugin '{widget_config.plugin}' not found.",
-                                            )
-                                        widget_cache[widget_config.plugin] = (
-                                            widget_plugin_class
-                                        )
-                                    else:
-                                        widget_plugin_class = widget_cache[
-                                            widget_config.plugin
-                                        ]
-
-                                    widget_instance: WidgetPlugin = widget_plugin_class(
-                                        db=repository
-                                    )
-
-                                    deps = widget_instance.get_dependencies()
-                                    if deps:
-                                        widget_dependencies.update(deps)
-
-                                    # Validate widget parameters
-                                    validated_widget_params = widget_config.params
-                                    if (
-                                        hasattr(widget_instance, "param_schema")
-                                        and widget_instance.param_schema
-                                    ):
-                                        try:
-                                            validated_widget_params = widget_instance.param_schema.model_validate(
-                                                widget_config.params
-                                            )
-                                        except Exception as validation_err:
-                                            logger.error(
-                                                f"Parameter validation failed for widget '{widget_config.plugin}' (ID: {widget_key}) "
-                                                f"for {group_by_key} ID {item_id}: {validation_err}",
-                                            )
-                                            rendered_widgets[widget_key] = (
-                                                f"<div id='{widget_key}' class='widget-error'>"
-                                                f"Error validating parameters for widget '{widget_config.plugin}'. Check config."
-                                                f"</div>"
-                                            )
-                                            continue  # Skip rendering this widget if validation fails
-
-                                    # Handle data source differently for hierarchical nav widget
-                                    if is_hierarchical_nav:
-                                        # For hierarchical nav, we pass a flag to indicate data should be loaded from JS
-                                        # The widget will check for this flag
-                                        final_widget_data = {"load_from_js": True}
-
-                                        # Inject current item ID into params
-                                        if hasattr(
-                                            validated_widget_params, "model_dump"
-                                        ):
-                                            params_dict = (
-                                                validated_widget_params.model_dump()
-                                            )
-                                        else:
-                                            params_dict = dict(validated_widget_params)
-
-                                        params_dict["current_item_id"] = (
-                                            str(item_id)
-                                            if item_id is not None
-                                            else None
-                                        )
-
-                                        # Re-validate with updated params
-                                        try:
-                                            validated_widget_params = widget_instance.param_schema.model_validate(
-                                                params_dict
-                                            )
-                                        except Exception as e:
-                                            logger.error(
-                                                f"Failed to inject current_item_id for hierarchical nav: {e}"
-                                            )
-                                    else:
-                                        # Get and process data source normally for other widgets
-                                        data_source_key = widget_config.data_source
-                                        raw_widget_data = self._get_nested_data(
-                                            item_data, data_source_key
-                                        )
-
-                                        if raw_widget_data is None:
-                                            # Debug level instead of warning - missing data is often expected
-                                            logger.debug(
-                                                f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
-                                                f"in {group_by_key} ID {item_id}. Skipping widget."
-                                            )
-                                            rendered_widgets[widget_key] = (
-                                                f"<!-- Widget skipped: Data source '{data_source_key}' not found -->"
-                                            )
-                                            continue
-
-                                        # Process data (JSON parse, DataFrame conversion)
-                                        final_widget_data = raw_widget_data
-                                        if isinstance(raw_widget_data, str):
-                                            try:
-                                                parsed_data = json.loads(
-                                                    raw_widget_data
-                                                )
-                                                final_widget_data = parsed_data
-                                                if (
-                                                    isinstance(parsed_data, list)
-                                                    and parsed_data
-                                                ):
-                                                    try:
-                                                        df = pd.DataFrame(parsed_data)
-                                                        final_widget_data = df
-                                                        # logger.debug(f"Converted '{data_source_key}' to DataFrame for '{widget_config.plugin}'.")
-                                                    except Exception as df_err:
-                                                        logger.warning(
-                                                            f"Could not convert parsed data from '{data_source_key}' to DataFrame for '{widget_config.plugin}'. Passing parsed list/dict. Error: {df_err}",
-                                                            exc_info=False,
-                                                        )
-                                            except json.JSONDecodeError:
-                                                logger.warning(
-                                                    f"Data source '{data_source_key}' for '{widget_config.plugin}' in {group_by_key} ID {item_id} "
-                                                    f"is string but not valid JSON. Passing raw string.",
-                                                    exc_info=False,
-                                                )
-                                                # final_widget_data remains raw_widget_data
-                                            except Exception as parse_err:
-                                                logger.error(
-                                                    f"Error processing data for '{widget_config.plugin}' (source: {data_source_key}): {parse_err}",
-                                                    exc_info=True,
-                                                )
-                                                rendered_widgets[widget_key] = (
-                                                    f"<!-- Widget Error: Failed to process data source '{data_source_key}' -->"
-                                                )
-                                                continue
-
-                                    # Render the widget
-                                    widget_content_html = widget_instance.render(
-                                        final_widget_data, validated_widget_params
-                                    )
-                                    widget_html = widget_instance.get_container_html(
-                                        widget_key, widget_content_html, widget_config
-                                    )
-                                    rendered_widgets[widget_key] = widget_html
-
-                                except Exception as widget_err:
-                                    logger.error(
-                                        f"Failed to render widget '{widget_config.plugin}' (ID: {widget_key}, Source: {widget_config.data_source}) "
-                                        f"for {group_by_key} ID {item_id}: {widget_err}",
-                                        exc_info=True,
-                                    )
-                                    rendered_widgets[widget_key] = (
-                                        f"<div id='{widget_key}' class='widget-error'>"
-                                        f"Error rendering widget '{widget_config.plugin}': {widget_err}"
-                                        f"</div>"
-                                    )
-                            # End widget loop for this item
-
-                            # Prepare context and render detail page for this item
-                            # Calculate depth based on output pattern
-                            nav_depth = group_config.output_pattern.count("/")
-                            is_multilang = bool(
-                                lang and languages and len(languages) > 1
-                            )
-                            depth = nav_depth + (1 if is_multilang else 0)
-
-                            # Build site context with resolved localized strings
-                            site_context = self._get_site_context(html_params, lang)
-                            if lang:
-                                site_context["current_lang"] = lang
-                            if languages:
-                                site_context["languages"] = languages
-                            site_context["language_switcher"] = language_switcher
-
-                            # Resolve navigation with localized strings
-                            navigation = self._resolve_navigation(
-                                html_params.navigation
-                                if html_params.navigation
-                                else [],
-                                lang,
-                            )
-                            footer_navigation = self._resolve_footer_sections(
-                                html_params.footer_navigation
-                                if html_params.footer_navigation
-                                else [],
-                                lang,
-                            )
-
-                            detail_context = {
-                                "site": site_context,
-                                "navigation": navigation,
-                                "footer_navigation": footer_navigation,
-                                "id_column": id_column,
-                                "group_config": group_config,
-                                "group_by": group_by_key,
-                                "item": item_data,
-                                "widgets": rendered_widgets,
-                                "dependencies": list(
-                                    self._dedupe_plotly_deps(widget_dependencies)
-                                ),
-                                "depth": depth,  # Add depth for relative URLs
-                                "nav_depth": nav_depth,
-                                "current_lang": lang,
-                                "languages": languages or [],
-                                "language_switcher": language_switcher,
-                            }
-                            rendered_detail_html = detail_template.render(
-                                detail_context
-                            )
-
-                            # Restore backslash replacement
-                            safe_item_id = (
-                                str(item_id).replace("/", "_").replace("\\", "_")
-                            )
-
-                            output_file_name = group_config.output_pattern.format(
-                                group_by=group_by_key, id=safe_item_id
-                            )
-
-                            if (
-                                f"{group_by_key}/" in group_config.output_pattern
-                                or "{group_by}/" in group_config.output_pattern
-                            ):
-                                # Remove the group prefix from group_output_dir to avoid duplication
-                                detail_output_path = output_dir / output_file_name
-                            else:
-                                # Keep current behavior for backward compatibility
-                                detail_output_path = group_output_dir / output_file_name
-
-                            detail_output_path.parent.mkdir(parents=True, exist_ok=True)
-                            with open(detail_output_path, "w", encoding="utf-8") as f:
-                                f.write(rendered_detail_html)
-                            self.stats["total_files_generated"] += 1
-                            # logger.debug(f"Rendered detail page: {detail_output_path}")
-
-                        except Exception as item_render_err:  # Catch errors specific to rendering this single item
-                            logger.error(
-                                f"Failed rendering detail page for item {item_id} in group '{group_by_key}': {item_render_err}",
-                                exc_info=True,
-                            )
-                            # Continue to the next item even if one fails
-
-                        # Update progress after each item (success or failure)
                         current_duration = time.time() - start_time
                         group_progress.update(
                             detail_task,
@@ -1790,6 +1597,305 @@ class HtmlPageExporter(ExporterPlugin):
 
         # End group loop
         logger.info("Data group processing finished.")
+
+    def _resolve_widget_plugin_classes(
+        self, group_config: GroupConfigWeb, plugin_registry: PluginRegistry
+    ) -> Dict[str, type[WidgetPlugin]]:
+        """Resolve widget plugin classes once per group."""
+        widget_plugin_classes: Dict[str, type[WidgetPlugin]] = {}
+        for widget_config in group_config.widgets:
+            if widget_config.plugin in widget_plugin_classes:
+                continue
+            widget_plugin_class = plugin_registry.get_plugin(
+                widget_config.plugin, PluginType.WIDGET
+            )
+            if not widget_plugin_class:
+                raise ConfigurationError(
+                    config_key="widgets.plugin",
+                    message=f"Widget plugin '{widget_config.plugin}' not found.",
+                )
+            widget_plugin_classes[widget_config.plugin] = widget_plugin_class
+        return widget_plugin_classes
+
+    def _build_detail_context_base(
+        self,
+        *,
+        group_config: GroupConfigWeb,
+        html_params: HtmlExporterParams,
+        group_by_key: str,
+        id_column: str,
+        lang: Optional[str],
+        languages: Optional[List[str]],
+        language_switcher: bool,
+    ) -> Dict[str, Any]:
+        """Build the part of the detail page context shared by all items in a group."""
+        nav_depth = group_config.output_pattern.count("/")
+        is_multilang = bool(lang and languages and len(languages) > 1)
+        depth = nav_depth + (1 if is_multilang else 0)
+
+        site_context = self._get_site_context(html_params, lang)
+        if lang:
+            site_context["current_lang"] = lang
+        if languages:
+            site_context["languages"] = languages
+        site_context["language_switcher"] = language_switcher
+
+        navigation = self._resolve_navigation(
+            html_params.navigation if html_params.navigation else [],
+            lang,
+        )
+        footer_navigation = self._resolve_footer_sections(
+            html_params.footer_navigation if html_params.footer_navigation else [],
+            lang,
+        )
+
+        return {
+            "site": site_context,
+            "navigation": navigation,
+            "footer_navigation": footer_navigation,
+            "id_column": id_column,
+            "group_config": group_config,
+            "group_by": group_by_key,
+            "depth": depth,
+            "nav_depth": nav_depth,
+            "current_lang": lang,
+            "languages": languages or [],
+            "language_switcher": language_switcher,
+        }
+
+    def _resolve_detail_output_path(
+        self,
+        *,
+        group_config: GroupConfigWeb,
+        group_by_key: str,
+        item_id: Any,
+        output_dir: Path,
+        group_output_dir: Path,
+    ) -> Path:
+        """Compute the output path for one detail page."""
+        safe_item_id = str(item_id).replace("/", "_").replace("\\", "_")
+        output_file_name = group_config.output_pattern.format(
+            group_by=group_by_key,
+            id=safe_item_id,
+        )
+
+        if (
+            f"{group_by_key}/" in group_config.output_pattern
+            or "{group_by}/" in group_config.output_pattern
+        ):
+            return output_dir / output_file_name
+        return group_output_dir / output_file_name
+
+    def _render_widgets_for_item(
+        self,
+        *,
+        repository: Database,
+        item_data: Dict[str, Any],
+        item_id: Any,
+        group_by_key: str,
+        sorted_widgets: List[Tuple[int, WidgetConfig]],
+        widget_plugin_classes: Dict[str, type[WidgetPlugin]],
+    ) -> Tuple[Dict[str, str], Set[str]]:
+        """Render all widgets for a single detail page item."""
+        rendered_widgets: Dict[str, str] = {}
+        widget_dependencies: Set[str] = set()
+
+        for i, widget_config in sorted_widgets:
+            widget_key = f"{widget_config.plugin}_{widget_config.data_source}_{i}"
+
+            try:
+                is_hierarchical_nav = widget_config.plugin == "hierarchical_nav_widget"
+                widget_plugin_class = widget_plugin_classes[widget_config.plugin]
+                widget_instance: WidgetPlugin = widget_plugin_class(db=repository)
+
+                deps = widget_instance.get_dependencies()
+                if deps:
+                    widget_dependencies.update(deps)
+
+                validated_widget_params = widget_config.params
+                if (
+                    hasattr(widget_instance, "param_schema")
+                    and widget_instance.param_schema
+                ):
+                    try:
+                        validated_widget_params = (
+                            widget_instance.param_schema.model_validate(
+                                widget_config.params
+                            )
+                        )
+                    except Exception as validation_err:
+                        logger.error(
+                            f"Parameter validation failed for widget '{widget_config.plugin}' (ID: {widget_key}) "
+                            f"for {group_by_key} ID {item_id}: {validation_err}",
+                        )
+                        rendered_widgets[widget_key] = (
+                            f"<div id='{widget_key}' class='widget-error'>"
+                            f"Error validating parameters for widget '{widget_config.plugin}'. Check config."
+                            f"</div>"
+                        )
+                        continue
+
+                if is_hierarchical_nav:
+                    final_widget_data = {"load_from_js": True}
+                    if hasattr(validated_widget_params, "model_dump"):
+                        params_dict = validated_widget_params.model_dump()
+                    else:
+                        params_dict = dict(validated_widget_params)
+
+                    params_dict["current_item_id"] = (
+                        str(item_id) if item_id is not None else None
+                    )
+
+                    try:
+                        validated_widget_params = (
+                            widget_instance.param_schema.model_validate(params_dict)
+                        )
+                    except Exception as err:
+                        logger.error(
+                            f"Failed to inject current_item_id for hierarchical nav: {err}"
+                        )
+                else:
+                    data_source_key = widget_config.data_source
+                    raw_widget_data = self._get_nested_data(item_data, data_source_key)
+
+                    if raw_widget_data is None:
+                        logger.debug(
+                            f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
+                            f"in {group_by_key} ID {item_id}. Skipping widget."
+                        )
+                        rendered_widgets[widget_key] = (
+                            f"<!-- Widget skipped: Data source '{data_source_key}' not found -->"
+                        )
+                        continue
+
+                    final_widget_data = raw_widget_data
+                    if isinstance(raw_widget_data, str):
+                        try:
+                            parsed_data = json.loads(raw_widget_data)
+                            final_widget_data = parsed_data
+                            if isinstance(parsed_data, list) and parsed_data:
+                                try:
+                                    final_widget_data = pd.DataFrame(parsed_data)
+                                except Exception as df_err:
+                                    logger.warning(
+                                        f"Could not convert parsed data from '{data_source_key}' to DataFrame for '{widget_config.plugin}'. Passing parsed list/dict. Error: {df_err}",
+                                        exc_info=False,
+                                    )
+                        except json.JSONDecodeError:
+                            logger.warning(
+                                f"Data source '{data_source_key}' for '{widget_config.plugin}' in {group_by_key} ID {item_id} "
+                                f"is string but not valid JSON. Passing raw string.",
+                                exc_info=False,
+                            )
+                        except Exception as parse_err:
+                            logger.error(
+                                f"Error processing data for '{widget_config.plugin}' (source: {data_source_key}): {parse_err}",
+                                exc_info=True,
+                            )
+                            rendered_widgets[widget_key] = (
+                                f"<!-- Widget Error: Failed to process data source '{data_source_key}' -->"
+                            )
+                            continue
+
+                widget_content_html = widget_instance.render(
+                    final_widget_data, validated_widget_params
+                )
+                widget_html = widget_instance.get_container_html(
+                    widget_key, widget_content_html, widget_config
+                )
+                rendered_widgets[widget_key] = widget_html
+
+            except Exception as widget_err:
+                logger.error(
+                    f"Failed to render widget '{widget_config.plugin}' (ID: {widget_key}, Source: {widget_config.data_source}) "
+                    f"for {group_by_key} ID {item_id}: {widget_err}",
+                    exc_info=True,
+                )
+                rendered_widgets[widget_key] = (
+                    f"<div id='{widget_key}' class='widget-error'>"
+                    f"Error rendering widget '{widget_config.plugin}': {widget_err}"
+                    f"</div>"
+                )
+
+        return rendered_widgets, widget_dependencies
+
+    def _render_detail_page_task(
+        self,
+        *,
+        repository: Database,
+        detail_table_name: str,
+        detail_id_column: str,
+        item_id: Any,
+        group_by_key: str,
+        id_column: str,
+        group_config: GroupConfigWeb,
+        detail_template,
+        output_dir: Path,
+        group_output_dir: Path,
+        sorted_widgets: List[Tuple[int, WidgetConfig]],
+        widget_plugin_classes: Dict[str, type[WidgetPlugin]],
+        detail_context_base: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Render one detail page and return a small result payload."""
+        try:
+            item_data = self._get_item_detail_data(
+                repository,
+                detail_table_name,
+                detail_id_column,
+                item_id,
+            )
+            if not item_data:
+                return {"status": "skipped", "item_id": item_id}
+
+            rendered_widgets, widget_dependencies = self._render_widgets_for_item(
+                repository=repository,
+                item_data=item_data,
+                item_id=item_id,
+                group_by_key=group_by_key,
+                sorted_widgets=sorted_widgets,
+                widget_plugin_classes=widget_plugin_classes,
+            )
+
+            detail_context = {
+                **detail_context_base,
+                "item": item_data,
+                "widgets": rendered_widgets,
+                "dependencies": list(self._dedupe_plotly_deps(widget_dependencies)),
+            }
+            rendered_detail_html = detail_template.render(detail_context)
+            detail_output_path = self._resolve_detail_output_path(
+                group_config=group_config,
+                group_by_key=group_by_key,
+                item_id=item_id,
+                output_dir=output_dir,
+                group_output_dir=group_output_dir,
+            )
+            detail_output_path.parent.mkdir(parents=True, exist_ok=True)
+            detail_output_path.write_text(rendered_detail_html, encoding="utf-8")
+
+            return {
+                "status": "success",
+                "item_id": item_id,
+                "output_path": str(detail_output_path),
+            }
+        except Exception as item_render_err:
+            logger.error(
+                f"Failed rendering detail page for item {item_id} in group '{group_by_key}': {item_render_err}",
+                exc_info=True,
+            )
+            return {
+                "status": "error",
+                "item_id": item_id,
+                "error": str(item_render_err),
+            }
+
+    def _apply_detail_page_result(self, result: Dict[str, Any]) -> None:
+        """Apply one detail-page result to exporter stats."""
+        status = result.get("status")
+        if status == "success":
+            self.stats["total_files_generated"] += 1
+        elif status == "error":
+            self.stats["errors_count"] += 1
 
     def _validate_template_availability(
         self, jinja_env: Environment, template_name: str
@@ -1969,7 +2075,7 @@ class HtmlPageExporter(ExporterPlugin):
 
         # Check which fields actually exist in the table
         try:
-            table_columns = self.db.get_table_columns(reference_table)
+            table_columns = self._get_table_columns_cached(reference_table)
             # Filter to only include fields that exist in the table
             existing_fields = [f for f in required_fields if f in table_columns]
 
@@ -2018,30 +2124,45 @@ class HtmlPageExporter(ExporterPlugin):
             preferred_order_fields.append("id")
 
         # Load navigation data with only existing fields
-        navigation_data = self._load_and_cache_navigation_data(
+        content_cache_key = (
+            group_by_key,
             reference_table,
-            existing_fields,
-            preferred_order_fields,
+            tuple(existing_fields),
+            tuple(preferred_order_fields),
         )
-        if not navigation_data:
-            logger.warning(f"No navigation data to generate JS for {group_by_key}")
-            return
+        js_content = self._navigation_js_content_cache.get(content_cache_key)
+        if js_content is None:
+            navigation_data = self._load_and_cache_navigation_data(
+                reference_table,
+                existing_fields,
+                preferred_order_fields,
+            )
+            if not navigation_data:
+                logger.warning(f"No navigation data to generate JS for {group_by_key}")
+                return
 
-        # Ensure identifier columns are serialised as strings to avoid float rounding in JS
-        id_like_fields = [
-            field
-            for field in existing_fields
-            if field == "id" or field.endswith("_id") or field == "parent_id"
-        ]
-        if id_like_fields:
-            for item in navigation_data:
-                for field in id_like_fields:
-                    value = item.get(field)
-                    if value is not None:
-                        try:
-                            item[field] = str(int(value))
-                        except (TypeError, ValueError):
-                            item[field] = str(value)
+            # Ensure identifier columns are serialised as strings to avoid float rounding in JS
+            id_like_fields = [
+                field
+                for field in existing_fields
+                if field == "id" or field.endswith("_id") or field == "parent_id"
+            ]
+            if id_like_fields:
+                for item in navigation_data:
+                    for field in id_like_fields:
+                        value = item.get(field)
+                        if value is not None:
+                            try:
+                                item[field] = str(int(value))
+                            except (TypeError, ValueError):
+                                item[field] = str(value)
+
+            var_name = f"{group_by_key}NavigationData"
+            js_content = (
+                f"const {var_name} = "
+                f"{json.dumps(navigation_data, separators=(',', ':'))};"
+            )
+            self._navigation_js_content_cache[content_cache_key] = js_content
 
         try:
             # Create JS directory if it doesn't exist
@@ -2051,10 +2172,6 @@ class HtmlPageExporter(ExporterPlugin):
             # Generic filename and variable name based on group
             js_filename = f"{group_by_key}_navigation.js"
             var_name = f"{group_by_key}NavigationData"
-
-            # Simply dump all data as-is - let the widget handle the structure
-            # This preserves all original field names and data
-            js_content = f"const {var_name} = {json.dumps(navigation_data, separators=(',', ':'))};"
 
             # Write JS file
             js_path = js_dir / js_filename
@@ -2083,7 +2200,7 @@ class HtmlPageExporter(ExporterPlugin):
         )
 
         try:
-            table_columns = repository.get_table_columns(table_name)
+            table_columns = self._get_table_columns_cached(table_name)
             if not table_columns:
                 logger.error(
                     f"Could not get columns for table '{table_name}'. Cannot fetch index data."
@@ -2214,7 +2331,7 @@ class HtmlPageExporter(ExporterPlugin):
             transform_table = group_by_key
             transform_id_col = f"{group_by_key}_id"
             if repository.has_table(transform_table) and transform_table != table_name:
-                transform_cols = repository.get_table_columns(transform_table) or []
+                transform_cols = self._get_table_columns_cached(transform_table)
                 if transform_id_col in transform_cols:
                     index_table = transform_table
                     index_id_col = transform_id_col

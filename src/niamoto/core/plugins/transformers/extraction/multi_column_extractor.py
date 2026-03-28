@@ -163,8 +163,8 @@ class MultiColumnExtractor(TransformerPlugin):
                 params["id_value"] = id_value
 
             # Use pd.read_sql with bound parameters for cleaner DataFrame creation
-            df = pd.read_sql(text(base_query), self.db.engine, params=params)
-            return df
+            with self.db.connection() as conn:
+                return pd.read_sql(text(base_query), conn, params=params)
 
         except Exception as e:
             raise ValueError(f"Error getting data from {source}: {str(e)}")
@@ -191,6 +191,10 @@ class MultiColumnExtractor(TransformerPlugin):
                     "labels": params.labels if params.labels is not None else columns,
                     "counts": [0] * len(columns),
                 }
+
+            # The source dataframe can originate from slices/views depending on the
+            # loader path. Work on a local copy before adding derived columns.
+            df = df.copy()
 
             # Process derived columns if any
             for derived in params.derived_columns:
@@ -232,7 +236,7 @@ class MultiColumnExtractor(TransformerPlugin):
                     # Evaluate the formula
                     value = eval(temp_formula)
                     # Add the derived column to the dataframe
-                    df[derived_name] = value
+                    df = df.assign(**{derived_name: value})
                 except Exception as e:
                     # Catch runtime evaluation errors
                     raise ValueError(
