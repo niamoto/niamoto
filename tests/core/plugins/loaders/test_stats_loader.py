@@ -21,6 +21,10 @@ class TestStatsLoader(NiamotoTestCase):
         # Mock the database connection (as expected by Plugin.__init__)
         self.mock_db = MagicMock()
         self.mock_db.engine = MagicMock()
+        self.mock_conn = MagicMock()
+        self.mock_conn.__enter__.return_value = self.mock_conn
+        self.mock_conn.__exit__.return_value = False
+        self.mock_db.connection.return_value = self.mock_conn
 
         # Mock Config to prevent creating config directory at project root
         with patch("niamoto.core.plugins.loaders.stats_loader.Config") as mock_config:
@@ -102,7 +106,7 @@ class TestStatsLoader(NiamotoTestCase):
             " ".join(query_string.split()), " ".join(expected_query.split())
         )
         self.assertEqual(kwargs["params"], {"group_id": group_id})
-        self.assertEqual(args[1], self.mock_db.engine)  # Check engine used directly
+        self.assertEqual(args[1], self.mock_conn)  # Check shared connection is used
 
     @patch("pandas.read_sql")
     def test_load_data_db_read_error(self, mock_read_sql):
@@ -155,7 +159,9 @@ class TestStatsLoader(NiamotoTestCase):
         mock_result = MagicMock()
         mock_result.fetchone.return_value = (789,)  # shape_id value
         mock_conn.execute.return_value = mock_result
-        self.mock_db.engine.connect().__enter__.return_value = mock_conn
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = False
+        self.mock_db.connection.return_value = mock_conn
 
         # Simulate pd.read_csv succeeding with comma, returning filtered data
         df_full = pd.DataFrame({"record_id": [789, 790], "value": [10, 20]})
@@ -198,7 +204,9 @@ class TestStatsLoader(NiamotoTestCase):
         mock_result = MagicMock()
         mock_result.fetchone.return_value = (101,)  # plot_id value
         mock_conn.execute.return_value = mock_result
-        self.mock_db.engine.connect().__enter__.return_value = mock_conn
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = False
+        self.mock_db.connection.return_value = mock_conn
 
         # Simulate read_csv failing with comma, then succeeding with semicolon
         df_full = pd.DataFrame({"id": [101, 102], "metric": [1.5, 2.5]})
@@ -339,7 +347,9 @@ class TestStatsLoader(NiamotoTestCase):
         mock_result = MagicMock()
         mock_result.fetchone.return_value = (10,)  # shape_id value
         mock_conn.execute.return_value = mock_result
-        self.mock_db.engine.connect().__enter__.return_value = mock_conn
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = False
+        self.mock_db.connection.return_value = mock_conn
 
         # Simulate pd.read_csv succeeding
         df_full = pd.DataFrame({"id_grid": [10, 12], "value": [6, 10]})
