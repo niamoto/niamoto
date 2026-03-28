@@ -907,7 +907,7 @@ class BarPlotWidget(WidgetPlugin):
         if params.filter_zero_values:
             # Remove rows where y-axis value is 0 or null
             mask = pd.notna(df_plot[params.y_axis]) & (df_plot[params.y_axis] != 0)
-            df_plot = df_plot[mask]
+            df_plot = df_plot.loc[mask].copy()
             logger.debug(
                 f"Filtered {len(processed_data) - len(df_plot)} zero/null values from data"
             )
@@ -920,22 +920,34 @@ class BarPlotWidget(WidgetPlugin):
                 if params.orientation == "h":
                     # For horizontal bars, sort by x_axis (values)
                     sort_column = params.x_axis
-                    df_plot = df_plot.sort_values(by=sort_column, ascending=ascending)
+                    df_plot = df_plot.sort_values(
+                        by=sort_column, ascending=ascending
+                    ).copy()
                     # Ensure y-axis categories (labels) respect this order
-                    df_plot[params.y_axis] = pd.Categorical(
-                        df_plot[params.y_axis],
-                        categories=df_plot[params.y_axis].unique(),
-                        ordered=True,
+                    df_plot = df_plot.assign(
+                        **{
+                            params.y_axis: pd.Categorical(
+                                df_plot[params.y_axis],
+                                categories=df_plot[params.y_axis].unique(),
+                                ordered=True,
+                            )
+                        }
                     )
                 else:
                     # For vertical bars, sort by y_axis (values)
                     sort_column = params.y_axis
-                    df_plot = df_plot.sort_values(by=sort_column, ascending=ascending)
+                    df_plot = df_plot.sort_values(
+                        by=sort_column, ascending=ascending
+                    ).copy()
                     # Ensure x-axis categories (labels) respect this order
-                    df_plot[params.x_axis] = pd.Categorical(
-                        df_plot[params.x_axis],
-                        categories=df_plot[params.x_axis].unique(),
-                        ordered=True,
+                    df_plot = df_plot.assign(
+                        **{
+                            params.x_axis: pd.Categorical(
+                                df_plot[params.x_axis],
+                                categories=df_plot[params.x_axis].unique(),
+                                ordered=True,
+                            )
+                        }
                     )
             except KeyError:
                 logger.warning(
@@ -964,7 +976,9 @@ class BarPlotWidget(WidgetPlugin):
                     category_field = params.x_axis
 
                 # Create a temporary color field that's just a copy of the category field
-                df_plot["_gradient_color"] = df_plot[category_field].astype(str)
+                df_plot = df_plot.assign(
+                    _gradient_color=df_plot[category_field].astype(str)
+                )
                 color_field = "_gradient_color"
 
                 # Generate gradient colors based on unique categories
@@ -991,7 +1005,9 @@ class BarPlotWidget(WidgetPlugin):
                     category_field = params.x_axis
 
                 # Create a temporary color field that's just a copy of the category field
-                df_plot["_auto_color"] = df_plot[category_field].astype(str)
+                df_plot = df_plot.assign(
+                    _auto_color=df_plot[category_field].astype(str)
+                )
                 color_field = "_auto_color"
 
                 # Generate colors based on unique categories
