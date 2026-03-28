@@ -192,6 +192,10 @@ class MultiColumnExtractor(TransformerPlugin):
                     "counts": [0] * len(columns),
                 }
 
+            # The source dataframe can originate from slices/views depending on the
+            # loader path. Work on a local copy before adding derived columns.
+            df = df.copy()
+
             # Process derived columns if any
             for derived in params.derived_columns:
                 formula = derived.formula
@@ -232,7 +236,7 @@ class MultiColumnExtractor(TransformerPlugin):
                     # Evaluate the formula
                     value = eval(temp_formula)
                     # Add the derived column to the dataframe
-                    df[derived_name] = value
+                    df = df.assign(**{derived_name: value})
                 except Exception as e:
                     # Catch runtime evaluation errors
                     raise ValueError(

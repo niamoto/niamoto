@@ -292,9 +292,7 @@ class HierarchyBuilder:
             # Only keep external_id on the deepest level for this ID
             return row[external_id_col] if row["level"] == max_level else None
 
-        df[external_id_col] = df.apply(should_keep_external_id, axis=1)
-
-        return df
+        return df.assign(**{external_id_col: df.apply(should_keep_external_id, axis=1)})
 
     def _build_parent_relationships(
         self, df: pd.DataFrame, levels: List[HierarchyLevel]
@@ -309,20 +307,18 @@ class HierarchyBuilder:
             DataFrame with parent_id column added
         """
         # Create parent path (all but last level)
-        df["parent_path"] = df["full_path"].apply(
+        parent_path = df["full_path"].apply(
             lambda p: "|".join(p.split("|")[:-1]) if "|" in p else None
         )
 
         # First pass: assign temporary IDs
-        df["temp_id"] = range(len(df))
-        path_to_id = dict(zip(df["full_path"], df["temp_id"]))
+        temp_ids = pd.Series(range(len(df)), index=df.index, dtype="Int64")
+        path_to_id = dict(zip(df["full_path"], temp_ids))
 
         # Second pass: resolve parent_id
-        df["parent_id"] = df["parent_path"].apply(
-            lambda p: path_to_id.get(p) if p else None
-        )
+        parent_id = parent_path.apply(lambda p: path_to_id.get(p) if p else None)
 
-        return df
+        return df.assign(parent_path=parent_path, temp_id=temp_ids, parent_id=parent_id)
 
     def _validate_hierarchy_integrity(
         self, df: pd.DataFrame, levels: List[HierarchyLevel]
@@ -475,13 +471,15 @@ class HierarchyBuilder:
             for parent_path in df["parent_path"]
         ]
 
-        df["id"] = _to_nullable_int_series(new_ids)
-        df["parent_id"] = _to_nullable_int_series(parent_ids)
+        df = df.assign(
+            id=_to_nullable_int_series(new_ids),
+            parent_id=_to_nullable_int_series(parent_ids),
+        )
 
         # Normalise other *_id columns to avoid float coercion (e.g. taxons_id)
         for col in df.columns:
             if col.endswith("_id") and col not in {"id", "parent_id"}:
-                df[col] = _to_nullable_int_series(df[col])
+                df = df.assign(**{col: _to_nullable_int_series(df[col])})
 
         # Select final columns
         base_cols = ["id", "parent_id", "level", "rank_name", "rank_value", "full_path"]
@@ -489,7 +487,7 @@ class HierarchyBuilder:
             c for c in df.columns if c not in base_cols + ["temp_id", "parent_path"]
         ]
 
-        return df[base_cols + extra_cols]
+        return df.loc[:, base_cols + extra_cols].copy()
 
     def add_nested_sets(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add nested set (lft/rght) fields to hierarchical DataFrame.
@@ -515,8 +513,10 @@ class HierarchyBuilder:
             return df
 
         # Initialize lft/rght columns
-        df["lft"] = None
-        df["rght"] = None
+        df = df.assign(
+            lft=pd.Series([None] * len(df), index=df.index),
+            rght=pd.Series([None] * len(df), index=df.index),
+        )
 
         # Build parent->children mapping
         children_map = {}
