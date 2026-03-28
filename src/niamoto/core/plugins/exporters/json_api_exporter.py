@@ -17,6 +17,7 @@ import gzip
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import re
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -40,6 +41,7 @@ from niamoto.core.plugins.models import TargetConfig, BasePluginParams
 from niamoto.core.plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
+JSON_NUMBER_RE = re.compile(r"^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$")
 
 
 # Pydantic models for configuration validation
@@ -684,20 +686,25 @@ class JsonApiExporter(ExporterPlugin):
             data = self._optimize_data_size(data, json_options)
 
         # Prepare JSON dump kwargs
-        dump_kwargs = {"ensure_ascii": json_options.ensure_ascii}
+        dump_kwargs = {
+            "ensure_ascii": json_options.ensure_ascii,
+            "check_circular": False,
+        }
 
         if json_options.minify:
             dump_kwargs["separators"] = (",", ":")
         elif json_options.indent:
             dump_kwargs["indent"] = json_options.indent
 
+        serialized = json.dumps(data, **dump_kwargs)
+
         # Write file
         if json_options.compress:
             with gzip.open(f"{file_path}.gz", "wt", encoding="utf-8") as f:
-                json.dump(data, f, **dump_kwargs)
+                f.write(serialized)
         else:
             with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, **dump_kwargs)
+                f.write(serialized)
 
     def _optimize_data_size(self, data: Any, json_options: JsonOptions) -> Any:
         """Apply size optimizations to data before JSON serialization."""
@@ -773,7 +780,9 @@ class JsonApiExporter(ExporterPlugin):
                             if col_value:  # If the column has data
                                 try:
                                     # Try to parse as JSON first
-                                    if isinstance(col_value, str):
+                                    if isinstance(
+                                        col_value, str
+                                    ) and self._should_parse_json_string(col_value):
                                         data = json.loads(col_value)
                                     else:
                                         data = col_value
@@ -800,6 +809,19 @@ class JsonApiExporter(ExporterPlugin):
         except Exception as e:
             logger.error(f"Error fetching data for group {group_name}: {str(e)}")
             return []
+
+    def _should_parse_json_string(self, value: str) -> bool:
+        """Cheap heuristic to avoid json.loads on plain text columns."""
+        stripped = value.strip()
+        if not stripped:
+            return False
+
+        first_char = stripped[0]
+        if first_char in {"{", "[", '"'}:
+            return True
+        if stripped in {"true", "false", "null"}:
+            return True
+        return bool(JSON_NUMBER_RE.match(stripped))
 
     def _apply_filters(
         self, data: List[Dict[str, Any]], filters: Dict[str, Any]

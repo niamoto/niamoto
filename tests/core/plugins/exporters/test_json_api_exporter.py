@@ -167,6 +167,15 @@ class TestJsonApiExporter:
         # Note: Current implementation doesn't support nested filters
         # This would need enhancement
 
+    def test_should_parse_json_string(self, exporter):
+        """JSON parsing heuristic should skip plain text values."""
+        assert exporter._should_parse_json_string('{"a": 1}') is True
+        assert exporter._should_parse_json_string("[1,2,3]") is True
+        assert exporter._should_parse_json_string("true") is True
+        assert exporter._should_parse_json_string("42") is True
+        assert exporter._should_parse_json_string("plain text") is False
+        assert exporter._should_parse_json_string(" species ") is False
+
     @patch("builtins.open", create=True)
     def test_generate_detail_file(self, mock_open, exporter, tmp_path):
         """Test detail file generation."""
