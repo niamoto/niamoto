@@ -259,6 +259,30 @@ class TestNiamotoDwCTransformer:
         assert dwc_record["decimalLatitude"] == -21.6461
         assert dwc_record["decimalLongitude"] == 165.7683
 
+    def test_prepare_batch_uses_preloaded_occurrences(
+        self,
+        transformer,
+        sample_taxon_data,
+        sample_occurrence_data,
+        sample_mapping_config,
+    ):
+        """Transform should reuse occurrences preloaded once for the whole group."""
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_batch_from_db",
+            return_value={123: [sample_occurrence_data]},
+        ) as mock_batch_fetch:
+            with patch.object(
+                transformer, "_fetch_occurrences_from_db"
+            ) as mock_single_fetch:
+                transformer.prepare_batch([sample_taxon_data], sample_mapping_config)
+
+                result = transformer.transform(sample_taxon_data, sample_mapping_config)
+
+        assert len(result) == 1
+        mock_batch_fetch.assert_called_once()
+        mock_single_fetch.assert_not_called()
+
     def test_transform_with_pydantic_config(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config
     ):

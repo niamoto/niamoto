@@ -365,6 +365,7 @@ class JsonApiExporter(ExporterPlugin):
 
         # Create mapper for this group
         mapper = DataMapper(group_config, params)
+        self._prepare_transformer_batch(group_data, group_config)
 
         # Process group data sequentially
         generated_items = self._process_group_sequential(
@@ -488,6 +489,7 @@ class JsonApiExporter(ExporterPlugin):
 
         # Create mapper for this group
         mapper = DataMapper(group_config, params)
+        self._prepare_transformer_batch(group_data, group_config)
 
         # Add progress task
         task_name = f"export_{group_name}"
@@ -613,6 +615,23 @@ class JsonApiExporter(ExporterPlugin):
         except Exception as e:
             logger.error(f"Transformer error: {str(e)}")
             raise ProcessError(f"Failed to apply transformer: {str(e)}")
+
+    def _prepare_transformer_batch(
+        self, group_data: List[Dict[str, Any]], group_config: GroupConfig
+    ) -> None:
+        """Allow transformers to preload shared state once per group."""
+        if not (
+            hasattr(group_config, "transformer_plugin")
+            and group_config.transformer_plugin
+        ):
+            return
+
+        try:
+            transformer, validated_params = self._get_transformer_bundle(group_config)
+            transformer.prepare_batch(group_data, validated_params)
+        except Exception as e:
+            logger.error(f"Transformer batch preparation error: {str(e)}")
+            raise ProcessError(f"Failed to prepare transformer batch: {str(e)}")
 
     def _generate_index_file(
         self,

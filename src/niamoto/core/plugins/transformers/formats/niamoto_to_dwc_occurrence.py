@@ -9,7 +9,7 @@ which is widely used for biodiversity data exchange.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Set
 import re
 
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
@@ -45,6 +45,10 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._taxonomy_table: Optional[str] = None
         self._taxonomy_external_id_column: Optional[str] = None
         self._taxonomy_entity: Optional[str] = None
+        self._prepared_taxon_ids: Optional[Set[int]] = None
+        self._preloaded_occurrences_by_taxon_id: Dict[int, List[Dict[str, Any]]] = {}
+        self._active_config_ref: Optional[Any] = None
+        self._active_params: Optional[DwcTransformerParams] = None
 
     def validate_config(self, config: Dict[str, Any]) -> NiamotoDwCConfig:
         """
@@ -108,25 +112,11 @@ class NiamotoDwCTransformer(TransformerPlugin):
             List of Darwin Core formatted occurrences
         """
         try:
-            # Validate config and get typed parameters
-            validated_config = self.validate_config(config)
-            params = validated_config.params
-
             # Store current taxon data for reference in mapping
             self._current_taxon = data
 
-            # Get mapping and database config from typed params
+            params = self._configure_from_config(config)
             mapping = params.mapping
-            self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
-            self._taxonomy_entity = params.taxonomy_entity
-            self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
-            self._taxon_id_column = params.taxon_id_column
-            self._taxon_id_field = params.taxon_id_field
-            self._taxonomy_external_id_column = (
-                self._resolve_taxonomy_external_id_column(
-                    params.taxonomy_external_id_column
-                )
-            )
 
             # Get taxon ID from configured field
             taxon_id = data.get(self._taxon_id_field)
@@ -134,14 +124,20 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 logger.warning(f"Taxon data missing '{self._taxon_id_field}' field")
                 return []
 
-            # Fetch occurrences from database for this taxon
-            occurrences = self._fetch_occurrences_from_db(
-                taxon_id,
-                self._occurrence_table,
-                self._taxon_id_column,
-                self._taxonomy_table,
-                self._taxonomy_external_id_column,
-            )
+            # Reuse batch-preloaded occurrences when available for the current group.
+            if (
+                self._prepared_taxon_ids is not None
+                and taxon_id in self._prepared_taxon_ids
+            ):
+                occurrences = self._preloaded_occurrences_by_taxon_id.get(taxon_id, [])
+            else:
+                occurrences = self._fetch_occurrences_from_db(
+                    taxon_id,
+                    self._occurrence_table,
+                    self._taxon_id_column,
+                    self._taxonomy_table,
+                    self._taxonomy_external_id_column,
+                )
             if not occurrences:
                 logger.debug(f"No occurrences found for taxon {taxon_id}, skipping")
                 return []
@@ -162,6 +158,52 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
         except Exception as e:
             raise DataTransformError(f"Darwin Core transformation failed: {str(e)}")
+
+    def prepare_batch(
+        self, items: List[Dict[str, Any]], config: Dict[str, Any]
+    ) -> None:
+        """Preload occurrences for the current group to avoid one query per taxon."""
+        self._configure_from_config(config)
+
+        taxon_ids = [
+            taxon_id
+            for taxon_id in (item.get(self._taxon_id_field) for item in items)
+            if taxon_id is not None
+        ]
+        unique_taxon_ids = list(dict.fromkeys(taxon_ids))
+        self._prepared_taxon_ids = set(unique_taxon_ids)
+
+        if not unique_taxon_ids:
+            self._preloaded_occurrences_by_taxon_id = {}
+            return
+
+        self._preloaded_occurrences_by_taxon_id = self._fetch_occurrences_batch_from_db(
+            unique_taxon_ids,
+            self._occurrence_table,
+            self._taxon_id_column,
+            self._taxonomy_table,
+            self._taxonomy_external_id_column,
+        )
+
+    def _configure_from_config(self, config: Dict[str, Any]) -> DwcTransformerParams:
+        """Validate and cache the resolved table/column settings for this run."""
+        if config is self._active_config_ref and self._active_params is not None:
+            return self._active_params
+
+        validated_config = self.validate_config(config)
+        params = validated_config.params
+
+        self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
+        self._taxonomy_entity = params.taxonomy_entity
+        self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
+        self._taxon_id_column = params.taxon_id_column
+        self._taxon_id_field = params.taxon_id_field
+        self._taxonomy_external_id_column = self._resolve_taxonomy_external_id_column(
+            params.taxonomy_external_id_column
+        )
+        self._active_config_ref = config
+        self._active_params = params
+        return params
 
     def _fetch_occurrences_from_db(
         self,
@@ -232,6 +274,62 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 str(e),
             )
             return []
+
+    def _fetch_occurrences_batch_from_db(
+        self,
+        taxon_ids: List[int],
+        occurrence_table: str,
+        taxon_id_column: str,
+        taxonomy_table: str,
+        taxonomy_external_id_column: str,
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        """Fetch occurrences for a batch of taxa in a single query."""
+        if not taxon_ids:
+            return {}
+
+        try:
+            from sqlalchemy import bindparam, text
+
+            query = text(
+                f"""
+                SELECT t.id AS _taxon_id, o.*
+                FROM "{occurrence_table}" o
+                JOIN "{taxonomy_table}" t
+                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                WHERE t.id IN :taxon_ids
+                """
+            ).bindparams(bindparam("taxon_ids", expanding=True))
+
+            with self.db.connection() as connection:
+                result = connection.execute(query, {"taxon_ids": taxon_ids})
+                rows = result.fetchall()
+                columns = list(result.keys())
+
+            grouped_occurrences: Dict[int, List[Dict[str, Any]]] = {
+                taxon_id: [] for taxon_id in taxon_ids
+            }
+            for row in rows:
+                occurrence_dict = dict(zip(columns, row))
+                grouped_occurrences.setdefault(
+                    occurrence_dict.pop("_taxon_id"), []
+                ).append(occurrence_dict)
+
+            logger.info(
+                "Preloaded %s occurrences across %s taxa from %s",
+                sum(len(records) for records in grouped_occurrences.values()),
+                len(taxon_ids),
+                occurrence_table,
+            )
+            return grouped_occurrences
+
+        except Exception as e:
+            logger.error(
+                "Error batch fetching occurrences from %s.%s: %s",
+                occurrence_table,
+                taxon_id_column,
+                str(e),
+            )
+            return {taxon_id: [] for taxon_id in taxon_ids}
 
     def _resolve_entity_table(self, logical_name: str) -> str:
         """Resolve a logical entity name to the physical table name."""

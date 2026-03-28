@@ -737,6 +737,42 @@ class TestJsonApiExporterTransformers:
             )
             assert mock_transformer.transform.call_count == 2
 
+    def test_transformer_batch_preparation_runs_once_per_group(self, exporter):
+        """Batch preparation should run once before iterating over group items."""
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
+        ) as mock_get:
+            mock_transformer_class = Mock()
+            mock_transformer = Mock()
+            mock_transformer.config_model = None
+            mock_transformer.prepare_batch = Mock()
+            mock_transformer_class.return_value = mock_transformer
+            mock_get.return_value = mock_transformer_class
+
+            group_config = GroupConfig(
+                group_by="test",
+                transformer_plugin="batch_transformer",
+                transformer_params={"param1": "value1"},
+            )
+            params = JsonApiExporterParams(output_dir="test")
+            repository = Mock()
+            progress_manager = Mock()
+            group_data = [{"id": 1}, {"id": 2}]
+
+            with patch.object(exporter, "_fetch_group_data", return_value=group_data):
+                with patch.object(exporter, "_generate_detail_file", return_value=True):
+                    exporter._process_group_with_progress_manager(
+                        group_config,
+                        params,
+                        repository,
+                        Path("test"),
+                        progress_manager,
+                    )
+
+            mock_transformer.prepare_batch.assert_called_once_with(
+                group_data, {"param1": "value1"}
+            )
+
     def test_transformer_with_typed_params_model(self, exporter):
         """Transformer params provided as Pydantic model should be wrapped correctly."""
         with patch(
