@@ -9,7 +9,7 @@ which is widely used for biodiversity data exchange.
 
 import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Literal, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Literal, Set, Tuple, Union
 import re
 
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
@@ -187,7 +187,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
             raise DataTransformError(f"Darwin Core transformation failed: {str(e)}")
 
     def prepare_batch(
-        self, items: List[Dict[str, Any]], config: Dict[str, Any]
+        self, items: List[Dict[str, Any]], config: Union[Dict[str, Any], PluginConfig]
     ) -> None:
         """Preload occurrences for the current group to avoid one query per taxon."""
         self._configure_from_config(config)
@@ -214,10 +214,13 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
     def _configure_from_config(self, config: Dict[str, Any]) -> DwcTransformerParams:
         """Validate and cache the resolved table/column settings for this run."""
-        if config is self._active_config_ref and self._active_params is not None:
+        validated_config = self.validate_config(config)
+        if (
+            self._active_config_ref == validated_config
+            and self._active_params is not None
+        ):
             return self._active_params
 
-        validated_config = self.validate_config(config)
         params = validated_config.params
 
         self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
@@ -228,7 +231,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._taxonomy_external_id_column = self._resolve_taxonomy_external_id_column(
             params.taxonomy_external_id_column
         )
-        self._active_config_ref = config
+        self._active_config_ref = validated_config
         self._active_params = params
         self._active_compiled_mapping = self._compile_mapping(params.mapping)
         return params

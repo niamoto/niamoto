@@ -688,7 +688,7 @@ class JsonApiExporter(ExporterPlugin):
         # Prepare JSON dump kwargs
         dump_kwargs = {
             "ensure_ascii": json_options.ensure_ascii,
-            "check_circular": False,
+            "check_circular": True,
         }
 
         if json_options.minify:

@@ -171,6 +171,19 @@ class TestNiamotoDwCTransformer:
         assert isinstance(result, NiamotoDwCConfig)
         assert result.params.mapping == params.mapping
 
+    def test_configure_from_config_reuses_equal_validated_config(
+        self, transformer, sample_mapping_config
+    ):
+        """Equivalent configs should reuse the compiled mapping cache."""
+
+        with patch.object(
+            transformer, "_compile_mapping", wraps=transformer._compile_mapping
+        ) as mock_compile_mapping:
+            transformer._configure_from_config(sample_mapping_config)
+            transformer._configure_from_config(dict(sample_mapping_config))
+
+        assert mock_compile_mapping.call_count == 1
+
     def test_transform_no_taxon_id(self, transformer, sample_mapping_config):
         """Test transform when taxon data has no ID."""
         data = {"name": "Test taxon"}  # No id or taxon_id

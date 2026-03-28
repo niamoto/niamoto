@@ -221,6 +221,7 @@ def main() -> int:
         return 1
     finally:
         if not args.keep_workdir:
+            shutil.rmtree(logs_dir, ignore_errors=True)
             shutil.rmtree(staged_instance.parent, ignore_errors=True)
 
 

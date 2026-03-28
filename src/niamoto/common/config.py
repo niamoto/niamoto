@@ -35,6 +35,12 @@ class Config:
         Dict[Tuple[str, Tuple[Any, ...]], List[Dict[str, Any]]]
     ] = {}
     _CACHE_LOCK: ClassVar[Lock] = Lock()
+    _BRACED_ENV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
+        r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}"
+    )
+    _PLAIN_ENV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
+        r"(?<!\$)\$([A-Z0-9_]+)\b"
+    )
 
     @error_handler(log=True, raise_error=True)
     def __init__(
@@ -47,10 +53,12 @@ class Config:
             config_dir (str): Path to the directory containing the 4 config files.
             create_default (bool): If True, create default configs if not found.
         """
+        resolved_config_dir: Optional[str] = None
         try:
             if not config_dir:
                 config_dir = os.path.join(self.get_niamoto_home(), "config")
-            self.config_dir = os.path.abspath(config_dir)
+            resolved_config_dir = os.path.abspath(config_dir)
+            self.config_dir = resolved_config_dir
             self.config: Dict[str, Any] = {}
             self.imports: Dict[str, Any] = {}
             self.transforms: Any = {}
@@ -70,7 +78,10 @@ class Config:
             raise ConfigurationError(
                 config_key="initialization",
                 message="Failed to initialize configuration",
-                details={"config_dir": self.config_dir, "error": str(e)},
+                details={
+                    "config_dir": resolved_config_dir,
+                    "error": str(e),
+                },
             )
 
     @classmethod
@@ -81,17 +92,52 @@ class Config:
             cls._CONFIG_CACHE.clear()
             cls._VALIDATED_TRANSFORMS_CACHE.clear()
 
-    @staticmethod
+    @classmethod
     def _config_file_signature(
+        cls,
         file_path: str,
-    ) -> Tuple[bool, Optional[int], Optional[int]]:
+    ) -> Tuple[
+        bool, Optional[int], Optional[int], Tuple[Tuple[str, Optional[str]], ...]
+    ]:
         """Return a cache-safe fingerprint for one config file path."""
 
         if not os.path.exists(file_path):
-            return (False, None, None)
+            return (False, None, None, ())
 
         stat = os.stat(file_path)
-        return (True, stat.st_mtime_ns, stat.st_size)
+        return (
+            True,
+            stat.st_mtime_ns,
+            stat.st_size,
+            cls._env_signature_for_file(file_path),
+        )
+
+    @classmethod
+    def _extract_env_variable_names(cls, content: str) -> Tuple[str, ...]:
+        """Return the env vars referenced by a config file."""
+
+        braced_vars = {
+            match.group(1) for match in cls._BRACED_ENV_PATTERN.finditer(content)
+        }
+        plain_vars = {
+            match.group(1) for match in cls._PLAIN_ENV_PATTERN.finditer(content)
+        }
+        return tuple(sorted(braced_vars | plain_vars))
+
+    @classmethod
+    def _env_signature_for_file(
+        cls, file_path: str
+    ) -> Tuple[Tuple[str, Optional[str]], ...]:
+        """Capture current values of env vars referenced by one config file."""
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except OSError:
+            return ()
+
+        variable_names = cls._extract_env_variable_names(content)
+        return tuple((name, os.environ.get(name)) for name in variable_names)
 
     @classmethod
     def _get_cache_fingerprint(cls, config_dir: str) -> Tuple[Any, ...]:
@@ -292,8 +338,6 @@ class Config:
         if "${" not in content:
             return content
 
-        pattern = re.compile(r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}")
-
         def replace(match: re.Match[str]) -> str:
             var_name = match.group(1)
             default_value = match.group(2)
@@ -307,7 +351,7 @@ class Config:
                 details={"variable": var_name, "file": source},
             )
 
-        substituted = pattern.sub(replace, content)
+        substituted = Config._BRACED_ENV_PATTERN.sub(replace, content)
 
         # Support $VAR style via string.Template for backwards compatibility
         try:

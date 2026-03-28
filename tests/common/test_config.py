@@ -247,6 +247,34 @@ class TestConfig(NiamotoTestCase):
         second = Config(config_dir=self.config_dir, create_default=False)
         self.assertEqual(second.transforms[0]["name"], "second")
 
+    def test_invalidates_cache_when_environment_value_changes(self):
+        """Referenced env vars should participate in the config cache key."""
+
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(
+                {
+                    **Config._default_config(),
+                    "database": {"path": "${NIAMOTO_TEST_DB_PATH}"},
+                },
+                f,
+            )
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
+
+        with patch.dict(os.environ, {"NIAMOTO_TEST_DB_PATH": "db/first.duckdb"}):
+            first = Config(config_dir=self.config_dir, create_default=False)
+
+        with patch.dict(os.environ, {"NIAMOTO_TEST_DB_PATH": "db/second.duckdb"}):
+            second = Config(config_dir=self.config_dir, create_default=False)
+
+        self.assertTrue(first.database_path.endswith("db/first.duckdb"))
+        self.assertTrue(second.database_path.endswith("db/second.duckdb"))
+
     def test_empty_imports_config(self):
         """Test error when imports configuration is empty."""
         os.makedirs(self.config_dir, exist_ok=True)
