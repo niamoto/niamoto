@@ -44,6 +44,8 @@
   },
   "actions": {
     "addWidget": "Ajouter un widget",
+    "addFromSuggestions": "Depuis les suggestions",
+    "addCombinedWidget": "Widget combiné",
     "duplicateWidget": "Dupliquer le widget",
     "addField": "+ Ajouter un champ",
     "addColor": "Ajouter une couleur",

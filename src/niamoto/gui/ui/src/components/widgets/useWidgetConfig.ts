@@ -233,10 +233,10 @@ function mergeWidgetData(
 }
 
 /** Fetch parallèle des deux configs */
-async function fetchWidgetConfigs({ signal }: { signal: AbortSignal }): Promise<RawConfigs> {
+async function fetchWidgetConfigs(): Promise<RawConfigs> {
   const [transformRes, exportRes] = await Promise.all([
-    fetch(`${API_BASE}/transform`, { signal }),
-    fetch(`${API_BASE}/export`, { signal })
+    fetch(`${API_BASE}/transform`),
+    fetch(`${API_BASE}/export`)
   ])
 
   if (!transformRes.ok) {
@@ -401,13 +401,14 @@ async function performReorder(widgetIds: string[], groupBy: string): Promise<voi
  * Hook pour la gestion des widgets configurés.
  * Utilise React Query pour le cache et la synchronisation.
  */
-export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
+export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWidgetConfigReturn {
   const queryClient = useQueryClient()
 
   // Fetch parallèle des deux configs avec React Query
   const { data, isLoading, error } = useQuery({
     queryKey: ['widget-config'],
     queryFn: fetchWidgetConfigs,
+    enabled,
     staleTime: 30_000,
   })
 

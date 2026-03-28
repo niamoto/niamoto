@@ -105,6 +105,7 @@ export function PreviewTile({
             transform: `scale(${width / 400})`,
             transformOrigin: '0 0',
             border: 'none',
+            pointerEvents: 'none',
           }}
         />
       )}

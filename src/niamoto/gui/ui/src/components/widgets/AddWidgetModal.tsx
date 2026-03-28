@@ -6,7 +6,7 @@
  * - Combined: Semantic groups + manual field selection
  * - Custom: 4-step wizard with YAML preview
  */
-import { useState, useCallback, useMemo, useEffect, memo } from 'react'
+import { useState, useCallback, useMemo, useEffect, memo, startTransition, useDeferredValue } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -507,7 +507,11 @@ export function AddWidgetModal({
   const { save: saveConfig, loading: saving } = useSaveConfig()
 
   // Semantic groups for combined widgets
-  const { groups: semanticGroups } = useSemanticGroups(reference.name, 'occurrences')
+  const { groups: semanticGroups } = useSemanticGroups(
+    reference.name,
+    'occurrences',
+    activeTab === 'combined'
+  )
 
   // Debounce des champs sélectionnés pour throttle les appels combined (300ms)
   const debouncedFields = useDebouncedValue(selectedFields, 300)
@@ -526,6 +530,19 @@ export function AddWidgetModal({
       ),
     [suggestions]
   )
+
+  const selectedSuggestionIds = useMemo(
+    () => new Set(selectedSuggestions),
+    [selectedSuggestions]
+  )
+
+  const selectedSuggestionOrder = useMemo(() => {
+    const order = new globalThis.Map<string, number>()
+    selectedSuggestions.forEach((id, index) => {
+      order.set(id, index + 1)
+    })
+    return order
+  }, [selectedSuggestions])
 
   // Get available fields from suggestions
   const availableFields = useMemo(() => {
@@ -567,8 +584,9 @@ export function AddWidgetModal({
     }
   }, [combinedSuggestions, selectedCombined])
 
-  // Get the suggestion to preview (only when clicked/focused)
-  const previewSuggestionId = focusedSuggestion || null
+  // Defer right-panel preview updates so card selection feels instant.
+  const deferredFocusedSuggestion = useDeferredValue(focusedSuggestion)
+  const previewSuggestionId = deferredFocusedSuggestion || null
   const previewSuggestion = visibleSuggestions.find((s) => s.template_id === previewSuggestionId)
   const isHeavyMapPreview = previewSuggestion
     ? isHeavyMapSuggestion(
@@ -580,7 +598,7 @@ export function AddWidgetModal({
 
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
-    if (!previewSuggestion || !selectedSuggestions.includes(previewSuggestion.template_id)) {
+    if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
       setQuickEditFields([])
       return
     }
@@ -612,7 +630,7 @@ export function AddWidgetModal({
         setQuickEditFields([])
       })
       .finally(() => setLoadingSchema(false))
-  }, [previewSuggestion, selectedSuggestions])
+  }, [previewSuggestion, selectedSuggestionIds])
 
   // Group suggestions with smart ordering:
   // 1. Group widgets (navigation, info) - with group name
@@ -696,7 +714,7 @@ export function AddWidgetModal({
     })
 
     return result
-  }, [visibleSuggestions, searchQuery, categoryFilter, sourceFilter, reference.name])
+  }, [visibleSuggestions, searchQuery, categoryFilter, sourceFilter, reference.name, t])
 
   // Get all unique categories for filter chips
   const availableCategories = useMemo(() => {
@@ -760,13 +778,14 @@ export function AddWidgetModal({
 
   // Toggle suggestion selection
   const toggleSuggestion = useCallback((id: string) => {
+    startTransition(() => {
+      setFocusedSuggestion(id)
+    })
     setSelectedSuggestions((prev) => {
       if (prev.includes(id)) {
         return prev.filter((s) => s !== id)
-      } else {
-        setFocusedSuggestion(id)
-        return [...prev, id]
       }
+      return [...prev, id]
     })
   }, [])
 
@@ -1067,11 +1086,6 @@ export function AddWidgetModal({
                       </div>
                     )}
 
-                    {import.meta.env.DEV && (
-                      <div className="text-[10px] text-muted-foreground font-mono border rounded px-2 py-1 bg-muted/30">
-                        previews via TanStack Query
-                      </div>
-                    )}
                   </div>
 
                   {/* Suggestions grid with scroll */}
@@ -1139,7 +1153,7 @@ export function AddWidgetModal({
                                   <div className="grid grid-cols-2 gap-2">
                                     {visible.map((suggestion, suggestionIdx) => {
                                       const Icon = CATEGORY_ICONS[suggestion.category] || BarChart3
-                                      const isSelected = selectedSuggestions.includes(suggestion.template_id)
+                                      const isSelected = selectedSuggestionIds.has(suggestion.template_id)
                                       const isFocused = focusedSuggestion === suggestion.template_id
 
                                       return (
@@ -1159,7 +1173,7 @@ export function AddWidgetModal({
                                           <div className="relative shrink-0">
                                             {isSelected && (
                                               <div className="absolute top-1 left-1 z-10 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold">
-                                                {selectedSuggestions.indexOf(suggestion.template_id) + 1}
+                                                {selectedSuggestionOrder.get(suggestion.template_id)}
                                               </div>
                                             )}
                                             <WidgetPreview
@@ -1212,6 +1226,8 @@ export function AddWidgetModal({
                                               checked={isSelected}
                                               className="h-4 w-4"
                                               onClick={(e) => e.stopPropagation()}
+                                              onPointerDown={(e) => e.stopPropagation()}
+                                              onCheckedChange={() => toggleSuggestion(suggestion.template_id)}
                                             />
                                           </div>
                                         </div>
@@ -1255,7 +1271,7 @@ export function AddWidgetModal({
                             })()}
                             <span className="font-medium text-sm">{previewSuggestion.name}</span>
                           </div>
-                          {selectedSuggestions.includes(previewSuggestion.template_id) && (
+                          {selectedSuggestionIds.has(previewSuggestion.template_id) && (
                             <Badge variant="outline" className="text-xs">
                               <Check className="h-3 w-3 mr-1" />
                               {t('common:status.selected')}
@@ -1299,7 +1315,7 @@ export function AddWidgetModal({
                         <Separator className="my-4" />
 
                         {/* Quick customization (only when selected) */}
-                        {selectedSuggestions.includes(previewSuggestion.template_id) ? (
+                        {selectedSuggestionIds.has(previewSuggestion.template_id) ? (
                           <div>
                             <div className="flex items-center gap-2 mb-3">
                               <Settings2 className="h-4 w-4 text-muted-foreground" />

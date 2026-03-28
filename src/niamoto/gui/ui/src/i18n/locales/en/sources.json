@@ -576,7 +576,9 @@
       "successToast": "Computation completed for {{name}}",
       "errorToast": "Error: {{message}}",
       "failedToast": "Computation failed",
-      "exportRunning": "An export is in progress, please wait"
+      "exportRunning": "An export is in progress, please wait",
+      "noWidgetsTooltip": "Configure at least one widget before running computation",
+      "noWidgetsConfigured": "Configure at least one widget before running computation"
     },
     "relativeTime": {
       "justNow": "just now",

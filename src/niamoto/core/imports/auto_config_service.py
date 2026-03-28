@@ -367,7 +367,10 @@ class AutoConfigService:
                 )
             elif entity_type == "reference":
                 references[entity_name] = self._build_simple_reference_config(
-                    filepath, analysis, referenced_by.get(entity_name)
+                    filepath,
+                    analysis,
+                    referenced_by.get(entity_name),
+                    decision_summary,
                 )
             elif entity_type == "dataset":
                 datasets_to_create[entity_name] = (filepath, analysis)
@@ -551,9 +554,6 @@ class AutoConfigService:
                     },
                 )
 
-        for analysis in csv_analyses.values():
-            analysis.pop("_sample_rows", None)
-
         logger.debug(
             "Auto-config relationship scan detected references for %d entities",
             len(referenced_by),
@@ -674,11 +674,45 @@ class AutoConfigService:
                     "source_field": source_field,
                     "target_field": target_field,
                     "confidence": confidence,
+                    "match_type": relationship.get("match_type"),
                 }
-                if not best_match or confidence > best_match["confidence"]:
+                if not best_match or self._auxiliary_match_priority(
+                    candidate
+                ) > self._auxiliary_match_priority(best_match):
                     best_match = candidate
 
         return best_match
+
+    def _auxiliary_match_priority(
+        self, candidate: Dict[str, Any]
+    ) -> tuple[float, int, int]:
+        """Prefer entity-specific auxiliary joins over generic id/id overlaps."""
+        target_name = str(candidate.get("target", "")).lower()
+        target_tokens = {
+            part.rstrip("s")
+            for part in target_name.split("_")
+            if part and part not in {"raw", "entity", "dataset"}
+        }
+        source_field = str(candidate.get("source_field", "")).lower()
+        target_field = str(candidate.get("target_field", "")).lower()
+        match_type = str(candidate.get("match_type", ""))
+
+        mentions_target = any(
+            token and (token in source_field or token in target_field)
+            for token in target_tokens
+        )
+        generic_id_match = source_field == "id" and target_field == "id"
+        match_type_rank = {
+            "semantic_context": 3,
+            "exact_match": 2,
+            "name_similarity": 1,
+        }.get(match_type, 0)
+
+        return (
+            float(candidate.get("confidence", 0.0) or 0.0),
+            int(mentions_target) - int(generic_id_match),
+            match_type_rank,
+        )
 
     def _find_auxiliary_label_field(self, analysis: Dict[str, Any]) -> Optional[str]:
         columns = analysis.get("columns", [])
@@ -752,6 +786,7 @@ class AutoConfigService:
         filepath: str,
         analysis: Dict[str, Any],
         relation_info: Optional[List[Dict[str, Any]]] = None,
+        decision_summary: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         id_column = analysis["id_columns"][0] if analysis["id_columns"] else "id"
         name_columns = analysis.get("name_columns", [])
@@ -768,8 +803,9 @@ class AutoConfigService:
             )
 
         if relation_info:
-            best_relation = max(
-                relation_info, key=lambda item: item.get("confidence", 0)
+            best_relation = self._select_reference_relation(
+                relation_info,
+                decision_summary or {},
             )
             reference_key = (
                 best_relation.get("target_field") or name_column or id_column
@@ -781,6 +817,35 @@ class AutoConfigService:
             }
 
         return config
+
+    def _select_reference_relation(
+        self,
+        relation_info: List[Dict[str, Any]],
+        decision_summary: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Pick the relation that should define the main reference link.
+
+        Auxiliary sources are valid transform inputs, but they must not replace
+        the primary dataset relationship stored in import.yml.
+        """
+
+        def _priority(item: Dict[str, Any]) -> tuple[int, float]:
+            source_name = str(item.get("from", ""))
+            source_type = (
+                decision_summary.get(source_name, {}).get("final_entity_type")
+                if decision_summary
+                else None
+            )
+            type_rank = {
+                "dataset": 3,
+                "reference": 2,
+                "hierarchical_reference": 2,
+                "auxiliary_source": 0,
+            }.get(str(source_type), 1)
+            confidence = float(item.get("confidence", 0.0) or 0.0)
+            return (type_rank, confidence)
+
+        return max(relation_info, key=_priority)
 
     def _build_shapes_reference(self, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {

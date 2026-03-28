@@ -354,11 +354,15 @@ export function useCombinedWidgetSuggestions(
 /**
  * Hook for semantic groups (proactive detection)
  */
-export function useSemanticGroups(referenceName: string, entity: string = 'occurrences') {
+export function useSemanticGroups(
+  referenceName: string,
+  entity: string = 'occurrences',
+  enabled: boolean = true
+) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['semantic-groups', referenceName, entity],
     queryFn: () => getSemanticGroups(referenceName, entity),
-    enabled: !!referenceName,
+    enabled: enabled && !!referenceName,
     staleTime: 60_000,
   })
 

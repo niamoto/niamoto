@@ -148,3 +148,64 @@ class TestAutoConfigServiceBenchmark:
             source["name"] == "plot_metrics" and source["grouping"] == "sample_plots"
             for source in result["auxiliary_sources"]
         )
+        assert any(
+            source["name"] == "plot_metrics"
+            and source["relation"]["ref_field"] == "id_plot"
+            and source["relation"]["match_field"] == "plot_id"
+            for source in result["auxiliary_sources"]
+        )
+
+    def test_reference_relation_prefers_dataset_over_auxiliary_source(
+        self, benchmark_service: AutoConfigService, tmp_path: Path
+    ):
+        imports_dir = tmp_path / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        (imports_dir / "sample_occurrences.csv").write_text(
+            "\n".join(
+                [
+                    "id,plot_name,measurement",
+                    "1,Plot A,10.5",
+                    "2,Plot B,11.2",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "sample_plots.csv").write_text(
+            "\n".join(
+                [
+                    "id_plot,plot,elevation",
+                    "1,Plot A,150",
+                    "2,Plot B,180",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "plot_metrics.csv").write_text(
+            "\n".join(
+                [
+                    "id,plot_id,class_object,class_name,class_value",
+                    "1,1,dbh,0-10,4",
+                    "2,2,dbh,10-20,7",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = benchmark_service.auto_configure(
+            [
+                "imports/sample_occurrences.csv",
+                "imports/sample_plots.csv",
+                "imports/plot_metrics.csv",
+            ]
+        )
+
+        relation = result["entities"]["references"]["sample_plots"]["relation"]
+
+        assert relation == {
+            "dataset": "sample_occurrences",
+            "foreign_key": "plot_name",
+            "reference_key": "plot",
+        }

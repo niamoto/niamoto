@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { GripVertical, Plus } from 'lucide-react'
 import {
   ResizableHandle,
@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  useConfiguredWidgets,
   useWidgetConfig,
   useSuggestions,
   type ConfiguredWidget,
@@ -45,6 +46,7 @@ interface ContentTabProps {
 }
 
 export function ContentTab({ reference }: ContentTabProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   // Selection state
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
 
@@ -60,6 +62,12 @@ export function ContentTab({ reference }: ContentTabProps) {
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
 
+  const {
+    configuredIds,
+    loading: configuredWidgetsLoading,
+  } = useConfiguredWidgets(reference.name)
+  const hasConfiguredWidgets = configuredIds.length > 0
+
   // Fetch configured widgets
   const {
     configuredWidgets,
@@ -69,13 +77,13 @@ export function ContentTab({ reference }: ContentTabProps) {
     duplicateWidget,
     reorderWidgets,
     refetch: refetchWidgets,
-  } = useWidgetConfig(reference.name)
+  } = useWidgetConfig(reference.name, hasConfiguredWidgets)
 
-  // Fetch suggestions for the modal
-  const queryClient = useQueryClient()
+  // Fetch suggestions only when the add-widget modal is opened
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
-    'occurrences'
+    'occurrences',
+    addModalOpen
   )
 
   // Extract available fields from suggestions (for field-select widgets)
@@ -148,8 +156,7 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleOpenAddModal = useCallback((tab: 'suggestions' | 'combined' | 'custom') => {
     setAddModalTab(tab)
     setAddModalOpen(true)
-    queryClient.invalidateQueries({ queryKey: ['suggestions', reference.name] })
-  }, [queryClient, reference.name])
+  }, [])
 
   // Handle widget added from modal
   const handleWidgetAdded = useCallback(() => {
@@ -170,18 +177,18 @@ export function ContentTab({ reference }: ContentTabProps) {
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="gap-1">
                     <Plus className="h-4 w-4" />
-                    Ajouter un widget
+                    {t('widgets:actions.addWidget')}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                    Depuis les suggestions
+                    {t('widgets:actions.addFromSuggestions')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                    Widget combine
+                    {t('widgets:actions.addCombinedWidget')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                    Widget personnalise
+                    {t('widgets:modal.custom')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -190,7 +197,7 @@ export function ContentTab({ reference }: ContentTabProps) {
             {/* Search */}
             <div className="p-3 border-b">
               <Input
-                placeholder="Rechercher..."
+                placeholder={t('common:actions.search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8"
@@ -201,7 +208,7 @@ export function ContentTab({ reference }: ContentTabProps) {
             <WidgetListPanel
               widgets={filteredWidgets}
               selectedId={selectedWidgetId}
-              loading={widgetsLoading}
+              loading={configuredWidgetsLoading || (hasConfiguredWidgets && widgetsLoading)}
               onSelect={handleSelectWidget}
               onDelete={handleDeleteWidget}
               onDuplicate={handleDuplicateWidget}
@@ -239,15 +246,17 @@ export function ContentTab({ reference }: ContentTabProps) {
       </ResizablePanelGroup>
 
       {/* Add Widget Modal */}
-      <AddWidgetModal
-        open={addModalOpen}
-        onOpenChange={setAddModalOpen}
-        defaultTab={addModalTab}
-        reference={reference}
-        suggestions={suggestions}
-        suggestionsLoading={suggestionsLoading}
-        onWidgetAdded={handleWidgetAdded}
-      />
+      {addModalOpen ? (
+        <AddWidgetModal
+          open={addModalOpen}
+          onOpenChange={setAddModalOpen}
+          defaultTab={addModalTab}
+          reference={reference}
+          suggestions={suggestions}
+          suggestionsLoading={suggestionsLoading}
+          onWidgetAdded={handleWidgetAdded}
+        />
+      ) : null}
     </div>
   )
 }

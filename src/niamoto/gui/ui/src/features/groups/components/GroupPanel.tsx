@@ -22,6 +22,7 @@ import { SourcesList } from '@/features/groups/components/sources/SourcesList'
 import { AddSourceDialog } from '@/features/groups/components/sources/AddSourceDialog'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
+import { useConfiguredWidgets } from '@/components/widgets'
 import {
   executeTransformAndWait,
   getActiveTransformJob,
@@ -38,6 +39,7 @@ interface GroupPanelProps {
 export function GroupPanel({ reference }: GroupPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [activeTab, setActiveTab] = useState('sources')
+  const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
 
   // Transform job state
   const [isTransforming, setIsTransforming] = useState(false)
@@ -152,6 +154,11 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   }, [reference.name, pollRunningJob, stopPolling])
 
   const runTransform = useCallback(async () => {
+    if (configuredIds.length === 0) {
+      toast.error(t('groupPanel.transform.noWidgetsConfigured'))
+      return
+    }
+
     ownedByRunTransformRef.current = true
     setIsTransforming(true)
     setTransformProgress(0)
@@ -175,12 +182,19 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       setTransformProgress(0)
       setTransformMessage('')
     }
-  }, [reference.name])
+  }, [configuredIds.length, reference.name, t])
 
   // Format relative time for last run
   const lastRunLabel = lastRun?.completed_at
     ? formatRelativeTime(lastRun.completed_at, t)
     : null
+  const cannotRunWithoutWidgets = !widgetsLoading && configuredIds.length === 0
+  const runButtonDisabled = isTransforming || exportRunning || widgetsLoading || cannotRunWithoutWidgets
+  const runButtonTitle = exportRunning
+    ? t('groupPanel.transform.exportRunning')
+    : cannotRunWithoutWidgets
+      ? t('groupPanel.transform.noWidgetsTooltip')
+      : undefined
 
   return (
     <div className="flex h-full flex-col">
@@ -224,8 +238,8 @@ export function GroupPanel({ reference }: GroupPanelProps) {
             <Button
               size="sm"
               onClick={runTransform}
-              disabled={isTransforming || exportRunning}
-              title={exportRunning ? t('groupPanel.transform.exportRunning') : undefined}
+              disabled={runButtonDisabled}
+              title={runButtonTitle}
             >
               {isTransforming ? (
                 <>

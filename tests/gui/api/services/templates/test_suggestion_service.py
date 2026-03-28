@@ -4,11 +4,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
+
 from niamoto.gui.api.services.templates.suggestion_service import (
+    _build_reference_field_cache_key,
     _get_first_dataset_name,
     _pick_identifier_column,
     _pick_name_column,
     _resolve_entity_table,
+    _should_profile_reference_field,
 )
 
 
@@ -105,3 +109,47 @@ def test_get_first_dataset_name_prefers_registry():
     dataset = _get_first_dataset_name(import_config, registry=registry)
 
     assert dataset == "observations"
+
+
+def test_should_profile_reference_field_skips_technical_columns():
+    assert not _should_profile_reference_field("parent_id", pd.Series([1, 2, 3]))
+    assert not _should_profile_reference_field("created_at", pd.Series(["a", "b"]))
+    assert not _should_profile_reference_field(
+        "geometry", pd.Series([b"\x00\x01", b"\x00\x02"])
+    )
+
+
+def test_should_profile_reference_field_keeps_useful_columns():
+    assert _should_profile_reference_field(
+        "full_name", pd.Series(["Araucaria columnaris", "Amborella trichopoda"])
+    )
+
+
+def test_build_reference_field_cache_key_tracks_project_state(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir()
+
+    db_path = db_dir / "niamoto.duckdb"
+    import_path = config_dir / "import.yml"
+    db_path.write_text("", encoding="utf-8")
+    import_path.write_text("entities: {}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: work_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+
+    key1 = _build_reference_field_cache_key("taxons")
+    import_path.write_text("entities: {references: {taxons: {}}}", encoding="utf-8")
+    key2 = _build_reference_field_cache_key("taxons")
+
+    assert key1 is not None
+    assert key2 is not None
+    assert key1 != key2

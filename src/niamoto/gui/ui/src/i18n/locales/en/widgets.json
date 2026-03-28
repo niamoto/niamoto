@@ -44,6 +44,8 @@
   },
   "actions": {
     "addWidget": "Add widget",
+    "addFromSuggestions": "From suggestions",
+    "addCombinedWidget": "Combined widget",
     "duplicateWidget": "Duplicate widget",
     "addField": "+ Add field",
     "addColor": "Add color",
