@@ -72,6 +72,13 @@ const defaultEnrichmentConfig: ApiConfig = {
   response_mapping: {},
 }
 
+function getDefaultConnectorType(config: ReferenceConfig): string {
+  if (config.connector?.type) return config.connector.type
+  if (config.kind === 'hierarchical') return 'derived'
+  if (config.kind === 'spatial') return 'file_multi_feature'
+  return 'file'
+}
+
 export function ReferenceConfigForm({
   name: _name,
   config,
@@ -81,9 +88,17 @@ export function ReferenceConfigForm({
   onCancel,
 }: ReferenceConfigFormProps) {
   const { t } = useTranslation(['sources', 'common'])
+  const normalizedConnector = config.connector?.type
+    ? config.connector
+    : {
+        ...config.connector,
+        type: getDefaultConnectorType(config),
+      }
+
   const [localConfig, setLocalConfig] = useState<ReferenceConfig>({
     ...config,
     description: config.description || '',
+    connector: normalizedConnector,
   })
 
   const [enrichmentOpen, setEnrichmentOpen] = useState(
@@ -298,7 +313,7 @@ export function ReferenceConfigForm({
   // Extract current hierarchy config for TaxonomyHierarchyEditor
   const currentRanks = localConfig.hierarchy?.levels || ['family', 'genus', 'species']
   const currentMappings: Record<string, string> = {}
-  localConfig.connector.extraction?.levels?.forEach((level) => {
+  localConfig.connector?.extraction?.levels?.forEach((level) => {
     if (level.column) {
       currentMappings[level.name] = level.column
     }
