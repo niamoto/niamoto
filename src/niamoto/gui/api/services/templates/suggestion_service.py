@@ -4,10 +4,11 @@ Suggestion service for templates.
 Provides functions to generate widget suggestions based on data analysis.
 """
 
+import copy
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import yaml
@@ -22,6 +23,81 @@ from niamoto.core.imports.widget_generator import WidgetGenerator
 from niamoto.core.imports.class_object_suggester import suggest_widgets_for_source
 
 logger = logging.getLogger(__name__)
+
+_REFERENCE_FIELD_SKIP_EXACT = {
+    "id",
+    "lft",
+    "rght",
+    "level",
+    "parent_id",
+    "location",
+    "geo_pt",
+    "extra_data",
+    "geometry",
+}
+_REFERENCE_FIELD_SKIP_SUFFIXES = ("_id", "_geom", "_ref", "_key")
+_REFERENCE_FIELD_SKIP_SUBSTRINGS = ("created", "updated", "geometry", "geom", "_wkt")
+_REFERENCE_FIELD_SUGGESTIONS_CACHE: Dict[
+    Tuple[str, str, str, int, int], List[Dict[str, Any]]
+] = {}
+
+
+def _get_path_mtime_ns(path: Path) -> int:
+    """Return path mtime in nanoseconds, or 0 when the path is missing."""
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def _build_reference_field_cache_key(
+    reference_name: str,
+) -> Optional[Tuple[str, str, str, int, int]]:
+    """Build a cache key that invalidates when project DB or import config changes."""
+    work_dir = get_working_directory()
+    db_path = get_database_path()
+    if not work_dir or not db_path:
+        return None
+
+    import_path = Path(work_dir) / "config" / "import.yml"
+    return (
+        str(Path(work_dir).resolve()),
+        reference_name,
+        str(Path(db_path).resolve()),
+        _get_path_mtime_ns(Path(db_path)),
+        _get_path_mtime_ns(import_path),
+    )
+
+
+def _should_profile_reference_field(column_name: str, series: pd.Series) -> bool:
+    """Return whether a reference-table column is worth profiling for widgets."""
+    col_lower = column_name.lower()
+    if col_lower in _REFERENCE_FIELD_SKIP_EXACT:
+        return False
+    if col_lower.endswith(_REFERENCE_FIELD_SKIP_SUFFIXES):
+        return False
+    if col_lower.startswith("id_"):
+        return False
+    if any(sub in col_lower for sub in _REFERENCE_FIELD_SKIP_SUBSTRINGS):
+        return False
+
+    total_count = len(series)
+    if total_count == 0:
+        return False
+
+    non_null = series.dropna()
+    if non_null.empty:
+        return False
+
+    null_ratio = 1 - (len(non_null) / total_count)
+    if null_ratio > 0.9:
+        return False
+
+    first_value = non_null.iloc[0]
+    if isinstance(first_value, (bytes, bytearray, memoryview)):
+        return False
+
+    return True
 
 
 def _load_import_config() -> Dict[str, Any]:
@@ -891,6 +967,11 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
     if not db_path:
         return []
 
+    cache_key = _build_reference_field_cache_key(reference_name)
+    cached = _REFERENCE_FIELD_SUGGESTIONS_CACHE.get(cache_key) if cache_key else None
+    if cached is not None:
+        return copy.deepcopy(cached)
+
     db = Database(str(db_path), read_only=True)
 
     try:
@@ -910,26 +991,16 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
         if sample_df.empty:
             return []
 
-        # DuckDB native geometry columns are exposed as binary blobs in pandas.
-        # They are useful for map suggestions, but they break semantic profiling
-        # and widget suggestion pipelines that expect textual or scalar columns.
-        profile_df = sample_df.copy()
-        columns_to_drop = []
-        for column in profile_df.columns:
-            if column.lower().endswith("_geom") or column.lower() == "geometry":
-                columns_to_drop.append(column)
-                continue
+        # Only profile columns that can actually produce widget suggestions.
+        profile_columns = [
+            column
+            for column in sample_df.columns
+            if _should_profile_reference_field(column, sample_df[column])
+        ]
+        if not profile_columns:
+            return []
 
-            non_null = profile_df[column].dropna()
-            if non_null.empty:
-                continue
-
-            first_value = non_null.iloc[0]
-            if isinstance(first_value, (bytes, bytearray, memoryview)):
-                columns_to_drop.append(column)
-
-        if columns_to_drop:
-            profile_df = profile_df.drop(columns=columns_to_drop, errors="ignore")
+        profile_df = sample_df[profile_columns].copy()
 
         # Use standard pipeline: profile → enrich → generate
         profiler = DataProfiler()
@@ -938,33 +1009,6 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
         analyzer = DataAnalyzer()
         enriched_profiles = []
         for col_profile in dataset_profile.columns:
-            # Skip technical columns
-            col_lower = col_profile.name.lower()
-            skip_exact = {
-                "id",
-                "lft",
-                "rght",
-                "level",
-                "parent_id",
-                "location",
-                "geo_pt",
-                "extra_data",
-                "geometry",
-            }
-            if col_lower in skip_exact:
-                continue
-            if col_lower.endswith(("_id", "_geom", "_ref", "_key")):
-                continue
-            if col_lower.startswith("id_"):
-                continue
-            # Substring filtering for technical columns (created_at, geometry_wkt, etc.)
-            skip_substrings = ("created", "updated", "geometry", "geom", "_wkt")
-            if any(sub in col_lower for sub in skip_substrings):
-                continue
-            # Skip columns with too many nulls
-            if col_profile.null_ratio is not None and col_profile.null_ratio > 0.9:
-                continue
-
             if col_profile.name in profile_df.columns:
                 enriched = analyzer.enrich_profile(
                     col_profile, profile_df[col_profile.name]
@@ -993,6 +1037,9 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
             d["source"] = "reference"
             d["source_name"] = reference_name
             result.append(d)
+
+        if cache_key is not None:
+            _REFERENCE_FIELD_SUGGESTIONS_CACHE[cache_key] = copy.deepcopy(result)
 
         return result
 

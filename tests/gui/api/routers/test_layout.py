@@ -6,6 +6,16 @@ de preview unifié (PreviewEngine).
 """
 
 import inspect
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from niamoto.gui.api import context
+from niamoto.gui.api.app import create_app
+
+
+INSTANCE_DIR = Path(__file__).parents[4] / "test-instance" / "niamoto-nc"
 
 
 class TestLayoutPreviewDelegation:
@@ -54,3 +64,21 @@ class TestLayoutPreviewDelegation:
         assert "hierarchical_nav_widget" in source_code, (
             "preview_widget doit gérer le cas spécial hierarchical_nav_widget"
         )
+
+
+@pytest.mark.skipif(
+    not INSTANCE_DIR.exists(),
+    reason="test-instance/niamoto-nc not available",
+)
+def test_plots_representatives_falls_back_when_label_column_is_invalid():
+    context.set_working_directory(INSTANCE_DIR)
+    client = TestClient(create_app())
+
+    response = client.get("/api/layout/plots/representatives")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["group_by"] == "plots"
+    assert payload["total"] > 0
+    assert payload["entities"][0]["id"]
+    assert payload["entities"][0]["name"]

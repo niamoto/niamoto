@@ -208,6 +208,66 @@ def _extract_navigation_widget(
     return None
 
 
+def _query_generic_representatives(
+    *,
+    db: Any,
+    entity_table: str,
+    id_field: str,
+    candidate_name_fields: List[str],
+    limit: int,
+) -> Any:
+    """Load representatives for generic references with safe fallback fields.
+
+    Some imported reference tables contain broken text values in their display
+    column. When that happens, fallback to the identifier column rather than
+    surfacing a 500 to the UI.
+    """
+    import pandas as pd
+    from niamoto.common.table_resolver import quote_identifier
+    from sqlalchemy import text
+
+    quoted_entity_table = quote_identifier(db, entity_table)
+    quoted_id_field = quote_identifier(db, id_field)
+    safe_limit = max(1, int(limit))
+    last_error: Optional[Exception] = None
+
+    for name_field in candidate_name_fields:
+        quoted_name_field = quote_identifier(db, name_field)
+        query = text(f"""
+            SELECT
+                {quoted_id_field} as id,
+                COALESCE({quoted_name_field}, CAST({quoted_id_field} AS VARCHAR)) as name
+            FROM {quoted_entity_table}
+            ORDER BY {quoted_name_field} NULLS LAST, {quoted_id_field}
+            LIMIT :limit
+        """)
+        try:
+            return pd.read_sql(query, db.engine, params={"limit": safe_limit})
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Representative query failed for table '%s' using name field '%s': %s",
+                entity_table,
+                name_field,
+                exc,
+            )
+
+    fallback_query = text(f"""
+        SELECT
+            {quoted_id_field} as id,
+            CAST({quoted_id_field} AS VARCHAR) as name
+        FROM {quoted_entity_table}
+        ORDER BY {quoted_id_field}
+        LIMIT :limit
+    """)
+    if last_error is not None:
+        logger.info(
+            "Falling back to identifier-only representatives for table '%s'",
+            entity_table,
+        )
+    return pd.read_sql(fallback_query, db.engine, params={"limit": safe_limit})
+
+
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
@@ -703,19 +763,24 @@ async def get_representatives(
             if not name_field:
                 name_field = next((c for c in columns if "name" in c.lower()), id_field)
 
-            # Build query
-            quoted_id_field = quote_identifier(db, id_field)
-            quoted_name_field = quote_identifier(db, name_field)
-            query = text(f"""
-                SELECT
-                    {quoted_id_field} as id,
-                    COALESCE({quoted_name_field}, CAST({quoted_id_field} AS VARCHAR)) as name
-                FROM {quoted_entity_table}
-                ORDER BY {quoted_name_field}
-                LIMIT :limit
-            """)
-            safe_limit = max(1, int(limit))
-            result = pd.read_sql(query, db.engine, params={"limit": safe_limit})
+            candidate_name_fields: List[str] = []
+            if name_field and name_field in columns and name_field != id_field:
+                candidate_name_fields.append(name_field)
+            for candidate in name_candidates:
+                if (
+                    candidate in columns
+                    and candidate != id_field
+                    and candidate not in candidate_name_fields
+                ):
+                    candidate_name_fields.append(candidate)
+
+            result = _query_generic_representatives(
+                db=db,
+                entity_table=entity_table,
+                id_field=id_field,
+                candidate_name_fields=candidate_name_fields,
+                limit=limit,
+            )
             for _, row in result.iterrows():
                 entities.append(
                     RepresentativeEntity(

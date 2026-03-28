@@ -110,12 +110,14 @@ async function fetchSuggestions(
  */
 export function useSuggestions(
   groupBy: string = 'taxons',
-  entity: string = 'occurrences'
+  entity: string = 'occurrences',
+  enabled: boolean = true
 ): UseSuggestionsReturn {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['suggestions', groupBy, entity],
     queryFn: ({ signal }) => fetchSuggestions(groupBy, entity, signal),
-    staleTime: 5_000,
+    enabled: enabled && !!groupBy,
+    staleTime: 60_000,
   })
 
   return {
@@ -239,10 +241,9 @@ interface UseConfiguredWidgetsReturn {
 }
 
 async function fetchConfiguredWidgets(
-  groupBy: string,
-  signal: AbortSignal
+  groupBy: string
 ): Promise<ConfiguredWidgetsResponse> {
-  const response = await fetch(`${API_BASE}/${groupBy}/configured`, { signal })
+  const response = await fetch(`${API_BASE}/${groupBy}/configured`)
   if (!response.ok) {
     throw new Error(`Failed to fetch configured widgets: ${response.statusText}`)
   }
@@ -252,7 +253,7 @@ async function fetchConfiguredWidgets(
 export function useConfiguredWidgets(groupBy: string): UseConfiguredWidgetsReturn {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['configured-widgets', groupBy],
-    queryFn: ({ signal }) => fetchConfiguredWidgets(groupBy, signal),
+    queryFn: () => fetchConfiguredWidgets(groupBy),
     staleTime: 30_000,
   })
 

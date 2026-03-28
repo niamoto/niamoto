@@ -576,7 +576,9 @@
       "successToast": "Calcul terminé pour {{name}}",
       "errorToast": "Erreur : {{message}}",
       "failedToast": "Le calcul a échoué",
-      "exportRunning": "Un export est en cours, veuillez patienter"
+      "exportRunning": "Un export est en cours, veuillez patienter",
+      "noWidgetsTooltip": "Configurez au moins un widget avant de lancer le calcul",
+      "noWidgetsConfigured": "Configurez au moins un widget avant de lancer le calcul"
     },
     "relativeTime": {
       "justNow": "à l'instant",
