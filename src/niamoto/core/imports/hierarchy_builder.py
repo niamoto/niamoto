@@ -552,8 +552,11 @@ class HierarchyBuilder:
         for root_idx in sorted(root_indices):
             traverse(root_idx)
 
-        # Convert to int (were set as None initially)
-        df["lft"] = df["lft"].astype("Int64")
-        df["rght"] = df["rght"].astype("Int64")
+        # Convert to nullable ints with a single assign to avoid chained-assignment
+        # warnings under pandas Copy-on-Write.
+        df = df.assign(
+            lft=df["lft"].astype("Int64"),
+            rght=df["rght"].astype("Int64"),
+        )
 
         return df
