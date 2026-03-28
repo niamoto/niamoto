@@ -700,6 +700,23 @@ class TestHtmlPageExporter(NiamotoTestCase):
 
         self.assertEqual(executor_kwargs["max_workers"], 2)
 
+    def test_resolve_registry_entity_uses_instance_cache(self):
+        """Registry lookups should be memoized during one exporter run."""
+        mock_registry = Mock()
+        mock_registry.get.return_value = Mock(
+            table_name="entity_taxons",
+            config={"schema": {"id_field": "taxon_id"}},
+        )
+        self.mock_db.has_table.return_value = True
+
+        exporter = HtmlPageExporter(self.mock_db, registry=mock_registry)
+
+        first = exporter._resolve_registry_entity("taxons")
+        second = exporter._resolve_registry_entity("taxons")
+
+        self.assertEqual(first, second)
+        mock_registry.get.assert_called_once_with("taxons")
+
     def test_process_groups_with_filter(self):
         """Test group processing with filter."""
         exporter = HtmlPageExporter(self.mock_db)

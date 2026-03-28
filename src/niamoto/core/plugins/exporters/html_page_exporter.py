@@ -59,6 +59,10 @@ class HtmlPageExporter(ExporterPlugin):
         super().__init__(db, registry)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._navigation_js_generated: Set[str] = set()
+        self._entity_resolution_cache: Dict[
+            str, Tuple[Optional[str], Dict[str, Any]]
+        ] = {}
+        self._group_table_cache: Dict[Tuple[str, Optional[str]], Tuple[str, str]] = {}
         self._worker_db_local = local()
         self._worker_databases: List[Database] = []
         self._worker_databases_lock = Lock()
@@ -98,8 +102,14 @@ class HtmlPageExporter(ExporterPlugin):
         self, entity_name: str
     ) -> Tuple[Optional[str], Dict[str, Any]]:
         """Resolve an entity through registry metadata when available."""
+        cached = self._entity_resolution_cache.get(entity_name)
+        if cached is not None:
+            return cached
+
         if not self.registry:
-            return None, {}
+            result = (None, {})
+            self._entity_resolution_cache[entity_name] = result
+            return result
 
         try:
             entity_meta = self.registry.get(entity_name)
@@ -107,17 +117,28 @@ class HtmlPageExporter(ExporterPlugin):
             if table_name and self.db.has_table(table_name):
                 config = getattr(entity_meta, "config", {}) or {}
                 if isinstance(config, dict):
-                    return table_name, config
-                return table_name, {}
+                    result = (table_name, config)
+                    self._entity_resolution_cache[entity_name] = result
+                    return result
+                result = (table_name, {})
+                self._entity_resolution_cache[entity_name] = result
+                return result
         except Exception:
             pass
 
-        return None, {}
+        result = (None, {})
+        self._entity_resolution_cache[entity_name] = result
+        return result
 
     def _resolve_group_table_and_id(
         self, group_by_key: str, navigation_entity: Optional[str] = None
     ) -> Tuple[str, str]:
         """Resolve group table and identifier column from registry/config/conventions."""
+        cache_key = (group_by_key, navigation_entity)
+        cached = self._group_table_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         table_name, entity_config = self._resolve_registry_entity(group_by_key)
         if not table_name and navigation_entity and navigation_entity != group_by_key:
             table_name, entity_config = self._resolve_registry_entity(navigation_entity)
@@ -165,8 +186,12 @@ class HtmlPageExporter(ExporterPlugin):
 
         resolved_id = next((c for c in id_candidates if c in table_columns), None)
         if resolved_id:
-            return table_name, resolved_id
-        return table_name, id_column
+            result = (table_name, resolved_id)
+            self._group_table_cache[cache_key] = result
+            return result
+        result = (table_name, id_column)
+        self._group_table_cache[cache_key] = result
+        return result
 
     def _resolve_reference_table_name(self, entity_name: str) -> str:
         """Resolve reference table with registry-first strategy and safe fallback."""
@@ -347,6 +372,7 @@ class HtmlPageExporter(ExporterPlugin):
         self.stats["start_time"] = datetime.now()
 
         try:
+            self.db.enable_connection_reuse()
             # 1. Validate and parse specific HTML exporter parameters
             try:
                 html_params = HtmlExporterParams.model_validate(target_config.params)
@@ -583,6 +609,9 @@ class HtmlPageExporter(ExporterPlugin):
             raise ProcessError(
                 f"HTML export failed unexpectedly for {target_config.name}"
             ) from e
+        finally:
+            self._cleanup_worker_databases()
+            self.db.disable_connection_reuse()
 
     def _copy_static_assets(
         self, html_params: HtmlExporterParams, output_dir: Path
@@ -1522,6 +1551,7 @@ class HtmlPageExporter(ExporterPlugin):
                                 future = executor.submit(
                                     self._render_detail_page_task,
                                     repository=repository,
+                                    use_thread_local_repository=True,
                                     detail_table_name=detail_table_name,
                                     detail_id_column=detail_id_column,
                                     item_id=item_id,
@@ -1574,6 +1604,7 @@ class HtmlPageExporter(ExporterPlugin):
 
                             result = self._render_detail_page_task(
                                 repository=repository,
+                                use_thread_local_repository=False,
                                 detail_table_name=detail_table_name,
                                 detail_id_column=detail_id_column,
                                 item_id=item_id,
@@ -1694,7 +1725,8 @@ class HtmlPageExporter(ExporterPlugin):
         if not db_path:
             return repository
 
-        repo = Database(db_path, read_only=True)
+        repo = Database(db_path)
+        repo.enable_connection_reuse()
         self._worker_db_local.repository = repo
         with self._worker_databases_lock:
             self._worker_databases.append(repo)
@@ -1707,6 +1739,10 @@ class HtmlPageExporter(ExporterPlugin):
             self._worker_databases.clear()
 
         for repository in repositories:
+            try:
+                repository.disable_connection_reuse()
+            except Exception:
+                logger.debug("Failed to disable worker repository reuse", exc_info=True)
             try:
                 repository.close_db_session()
             except Exception:
@@ -1878,6 +1914,7 @@ class HtmlPageExporter(ExporterPlugin):
         self,
         *,
         repository: Database,
+        use_thread_local_repository: bool,
         detail_table_name: str,
         detail_id_column: str,
         item_id: Any,
@@ -1892,7 +1929,11 @@ class HtmlPageExporter(ExporterPlugin):
         detail_context_base: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Render one detail page and return a small result payload."""
-        worker_repository = self._get_worker_repository(repository)
+        worker_repository = (
+            self._get_worker_repository(repository)
+            if use_thread_local_repository
+            else repository
+        )
 
         try:
             item_data = self._get_item_detail_data(
