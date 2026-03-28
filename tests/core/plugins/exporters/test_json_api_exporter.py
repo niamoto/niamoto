@@ -697,6 +697,46 @@ class TestJsonApiExporterTransformers:
             )
             assert result == {"result": "success"}
 
+    def test_transformer_bundle_is_cached_per_group(self, exporter):
+        """Transformer instance and validated params should be reused per group."""
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
+        ) as mock_get:
+            mock_transformer_class = Mock()
+            mock_transformer = Mock()
+            mock_config_model = Mock()
+            mock_config_model.model_validate.return_value = {"validated": True}
+
+            mock_transformer.config_model = mock_config_model
+            mock_transformer.transform.return_value = {"result": "success"}
+            mock_transformer_class.return_value = mock_transformer
+            mock_get.return_value = mock_transformer_class
+
+            group_config = GroupConfig(
+                group_by="test",
+                transformer_plugin="config_transformer",
+                transformer_params={"param1": "value1"},
+            )
+
+            first = exporter._apply_transformer({"id": 1}, group_config)
+            second = exporter._apply_transformer({"id": 2}, group_config)
+
+            assert first == {"result": "success"}
+            assert second == {"result": "success"}
+            mock_get.assert_called_once_with(
+                "config_transformer", PluginType.TRANSFORMER
+            )
+            mock_transformer_class.assert_called_once_with(
+                exporter.db, registry=exporter.registry
+            )
+            mock_config_model.model_validate.assert_called_once_with(
+                {
+                    "plugin": "config_transformer",
+                    "params": {"param1": "value1"},
+                }
+            )
+            assert mock_transformer.transform.call_count == 2
+
     def test_transformer_with_typed_params_model(self, exporter):
         """Transformer params provided as Pydantic model should be wrapped correctly."""
         with patch(

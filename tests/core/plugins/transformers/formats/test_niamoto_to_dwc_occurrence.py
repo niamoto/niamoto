@@ -21,6 +21,7 @@ def mock_db():
     """Create a mock database."""
     db = Mock()
     db.engine = Mock()
+    db.connection = MagicMock(side_effect=lambda: db.engine.connect())
     return db
 
 
@@ -130,6 +131,18 @@ class TestNiamotoDwCTransformer:
         assert isinstance(result, NiamotoDwCConfig)
         assert result.params.mapping == config["mapping"]
         assert result.params.occurrence_list_source == "occurrences"  # Default added
+
+    def test_resolve_entity_table_uses_instance_cache(self, transformer):
+        """Resolved physical table names should be memoized on the transformer."""
+        transformer.registry = Mock()
+        transformer.resolve_entity_table = Mock(return_value="entity_occurrences")
+
+        first = transformer._resolve_entity_table("occurrences")
+        second = transformer._resolve_entity_table("occurrences")
+
+        assert first == "entity_occurrences"
+        assert second == "entity_occurrences"
+        transformer.resolve_entity_table.assert_called_once_with("occurrences")
 
     def test_validate_config_invalid_type(self, transformer):
         """Test config validation with invalid type."""

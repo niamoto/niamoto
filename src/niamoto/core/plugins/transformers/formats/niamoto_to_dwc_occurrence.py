@@ -37,6 +37,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
         super().__init__(db, registry)
         self._current_taxon = None
         self._occurrence_index = 0
+        self._resolved_entity_tables: Dict[str, str] = {}
         # Store config parameters for use in generators
         self._occurrence_table: Optional[str] = None
         self._taxon_id_column = "id_taxonref"
@@ -234,16 +235,22 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
     def _resolve_entity_table(self, logical_name: str) -> str:
         """Resolve a logical entity name to the physical table name."""
+        cached = self._resolved_entity_tables.get(logical_name)
+        if cached is not None:
+            return cached
 
         if self.registry:
             try:
-                return self.resolve_entity_table(logical_name)
+                resolved = self.resolve_entity_table(logical_name)
+                self._resolved_entity_tables[logical_name] = resolved
+                return resolved
             except Exception as exc:  # pragma: no cover - defensive logging
                 logger.warning(
                     "Failed to resolve entity '%s' via registry (%s); using provided value",
                     logical_name,
                     exc,
                 )
+        self._resolved_entity_tables[logical_name] = logical_name
         return logical_name
 
     def _resolve_taxonomy_external_id_column(

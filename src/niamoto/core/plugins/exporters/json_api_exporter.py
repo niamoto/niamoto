@@ -175,6 +175,8 @@ class JsonApiExporter(ExporterPlugin):
         """Initialize the exporter with database connection."""
         super().__init__(db, registry)
         self.errors: List[Dict[str, Any]] = []
+        self._json_options_cache: Dict[str, JsonOptions] = {}
+        self._transformer_cache: Dict[str, tuple[Any, Any]] = {}
         self.stats: Dict[str, Any] = {
             "start_time": None,
             "end_time": None,
@@ -182,6 +184,82 @@ class JsonApiExporter(ExporterPlugin):
             "total_files_generated": 0,
             "errors_count": 0,
         }
+
+    def _make_group_cache_key(self, group_config: GroupConfig) -> str:
+        """Build a stable per-group cache key for exporter internals."""
+        if hasattr(group_config, "model_dump"):
+            payload = group_config.model_dump(mode="json")
+        else:
+            payload = {
+                "group_by": getattr(group_config, "group_by", None),
+                "transformer_plugin": getattr(group_config, "transformer_plugin", None),
+                "transformer_params": getattr(group_config, "transformer_params", None),
+                "json_options": getattr(group_config, "json_options", None),
+            }
+        return json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+
+    def _get_group_json_options(
+        self, group_config: GroupConfig, default_options: JsonOptions
+    ) -> JsonOptions:
+        """Resolve and cache merged JSON options once per group."""
+        cache_key = self._make_group_cache_key(group_config)
+        cached = self._json_options_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        resolved = self._merge_json_options(group_config.json_options, default_options)
+        self._json_options_cache[cache_key] = resolved
+        return resolved
+
+    def _get_transformer_bundle(self, group_config: GroupConfig) -> tuple[Any, Any]:
+        """Instantiate and validate a transformer once per group configuration."""
+        cache_key = self._make_group_cache_key(group_config)
+        cached = self._transformer_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        transformer_class = PluginRegistry.get_plugin(
+            group_config.transformer_plugin, PluginType.TRANSFORMER
+        )
+
+        if not transformer_class:
+            raise ConfigurationError(
+                config_key="exports.transformer_plugin",
+                message=f"Transformer plugin '{group_config.transformer_plugin}' not found",
+            )
+
+        transformer = transformer_class(self.db, registry=self.registry)
+        config_model_cls = getattr(transformer, "config_model", None)
+        raw_params = group_config.transformer_params or {}
+
+        if config_model_cls and raw_params:
+            if isinstance(config_model_cls, type) and isinstance(
+                raw_params, config_model_cls
+            ):
+                validated_params = raw_params
+            else:
+                if isinstance(raw_params, dict) and "plugin" in raw_params:
+                    config_payload = raw_params
+                else:
+                    if isinstance(raw_params, BaseModel):
+                        params_payload = raw_params
+                    elif isinstance(raw_params, dict):
+                        params_payload = raw_params
+                    else:
+                        params_payload = raw_params or {}
+
+                    config_payload = {
+                        "plugin": group_config.transformer_plugin,
+                        "params": params_payload,
+                    }
+
+                validated_params = config_model_cls.model_validate(config_payload)
+        else:
+            validated_params = raw_params
+
+        bundle = (transformer, validated_params)
+        self._transformer_cache[cache_key] = bundle
+        return bundle
 
     def export(
         self,
@@ -340,13 +418,10 @@ class JsonApiExporter(ExporterPlugin):
         )
 
         generated_items = []
+        json_options = self._get_group_json_options(group_config, params.json_options)
 
         for item in group_data:
             try:
-                # Use group-specific JSON options if available
-                json_options = self._merge_json_options(
-                    group_config.json_options, params.json_options
-                )
                 file_generated = self._generate_detail_file(
                     item,
                     group_name,
@@ -422,12 +497,9 @@ class JsonApiExporter(ExporterPlugin):
 
         # Process group data
         generated_items = []
+        json_options = self._get_group_json_options(group_config, params.json_options)
         for item in group_data:
             try:
-                # Use group-specific JSON options if available
-                json_options = self._merge_json_options(
-                    group_config.json_options, params.json_options
-                )
                 file_generated = self._generate_detail_file(
                     item,
                     group_name,
@@ -458,9 +530,6 @@ class JsonApiExporter(ExporterPlugin):
             and group_config.index
             and params.index_output_pattern
         ):
-            json_options = self._merge_json_options(
-                group_config.json_options, params.json_options
-            )
             self._generate_index_file(
                 generated_items,
                 group_name,
@@ -536,48 +605,7 @@ class JsonApiExporter(ExporterPlugin):
     ) -> Any:
         """Apply a transformer plugin to the data."""
         try:
-            # Get the transformer plugin
-            transformer_class = PluginRegistry.get_plugin(
-                group_config.transformer_plugin, PluginType.TRANSFORMER
-            )
-
-            if not transformer_class:
-                raise ConfigurationError(
-                    f"Transformer plugin '{group_config.transformer_plugin}' not found"
-                )
-
-            # Instantiate and configure the transformer
-            transformer = transformer_class(self.db, registry=self.registry)
-
-            # Validate transformer params if provided
-            config_model_cls = getattr(transformer, "config_model", None)
-
-            if config_model_cls and group_config.transformer_params:
-                raw_params = group_config.transformer_params
-
-                if isinstance(config_model_cls, type) and isinstance(
-                    raw_params, config_model_cls
-                ):
-                    validated_params = raw_params
-                else:
-                    if isinstance(raw_params, dict) and "plugin" in raw_params:
-                        config_payload = raw_params
-                    else:
-                        if isinstance(raw_params, BaseModel):
-                            params_payload = raw_params
-                        elif isinstance(raw_params, dict):
-                            params_payload = raw_params
-                        else:
-                            params_payload = raw_params or {}
-
-                        config_payload = {
-                            "plugin": group_config.transformer_plugin,
-                            "params": params_payload,
-                        }
-
-                    validated_params = config_model_cls.model_validate(config_payload)
-            else:
-                validated_params = group_config.transformer_params or {}
+            transformer, validated_params = self._get_transformer_bundle(group_config)
 
             # Apply transformation
             return transformer.transform(item, validated_params)
