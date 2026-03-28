@@ -351,7 +351,8 @@ class TransformerService:
             )
 
         try:
-            self.db.enable_connection_reuse()
+            if not use_parallel:
+                self.db.enable_connection_reuse()
             if use_parallel:
                 if self.use_cli_integration and ProgressManager:
                     progress_manager = ProgressManager(self.console)
