@@ -4,6 +4,8 @@ import click
 import webbrowser
 from threading import Timer
 import logging
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +24,7 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
     and serves the React-based configuration interface.
     """
     try:
-        # Import here to avoid circular imports and to check if dependencies are installed
         import uvicorn
-        from niamoto.gui.api.app import create_app
     except ImportError as e:
         click.echo(
             click.style("Error: GUI dependencies not installed.", fg="red") + "\n"
@@ -38,17 +38,24 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
         f"API Docs: http://{host}:{port}/api/docs"
     )
 
-    # Set the working directory for the GUI context
-    import os
-    from pathlib import Path
     from niamoto.gui.api.context import set_working_directory
 
-    # Use NIAMOTO_HOME if set, otherwise use current working directory
+    # Expose the resolved project directory before importing the FastAPI app module.
+    # The module creates an app instance at import time and reads the GUI context.
     niamoto_home = os.environ.get("NIAMOTO_HOME")
-    work_dir = Path(niamoto_home) if niamoto_home else Path.cwd()
+    work_dir = Path(niamoto_home).expanduser().resolve() if niamoto_home else Path.cwd()
+    os.environ["NIAMOTO_HOME"] = str(work_dir)
     set_working_directory(work_dir)
 
-    # Create the app
+    try:
+        from niamoto.gui.api.app import create_app
+    except ImportError as e:
+        click.echo(
+            click.style("Error: GUI dependencies not installed.", fg="red") + "\n"
+            "Please install with: pip install niamoto[gui]"
+        )
+        raise click.ClickException(str(e))
+
     app = create_app()
 
     # Open browser after server starts (if not disabled)
