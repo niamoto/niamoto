@@ -185,6 +185,8 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertEqual(exporter.db, self.mock_db)
         self.assertEqual(exporter._navigation_cache, {})
         self.assertEqual(exporter._navigation_js_generated, set())
+        self.assertEqual(exporter._reference_table_cache, {})
+        self.assertEqual(exporter._table_columns_cache, {})
 
     def test_get_nested_data(self):
         """Test _get_nested_data method."""
@@ -705,9 +707,8 @@ class TestHtmlPageExporter(NiamotoTestCase):
 
     def test_get_group_index_data(self):
         """Test _get_group_index_data method."""
-        exporter = HtmlPageExporter(self.mock_db)
-
         # Test successful fetch
+        exporter = HtmlPageExporter(self.mock_db)
         self.mock_db.get_table_columns.return_value = ["taxon_id", "name", "rank"]
         self.mock_db.fetch_all.return_value = [
             {"taxon_id": 1, "name": "Species A"},
@@ -719,16 +720,19 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertEqual(result[0]["name"], "Species A")
 
         # Test missing table columns
+        exporter = HtmlPageExporter(self.mock_db)
         self.mock_db.get_table_columns.return_value = None
         result = exporter._get_group_index_data(self.mock_db, "invalid_table", "id")
         self.assertIsNone(result)
 
         # Test missing id column
+        exporter = HtmlPageExporter(self.mock_db)
         self.mock_db.get_table_columns.return_value = ["name", "rank"]
         result = exporter._get_group_index_data(self.mock_db, "taxon", "taxon_id")
         self.assertIsNone(result)
 
         # Test database error
+        exporter = HtmlPageExporter(self.mock_db)
         self.mock_db.get_table_columns.return_value = ["taxon_id", "name"]
         self.mock_db.fetch_all.side_effect = Exception("DB Error")
         result = exporter._get_group_index_data(self.mock_db, "taxon", "taxon_id")
@@ -797,6 +801,40 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.mock_db.fetch_all.reset_mock()
         exporter._generate_navigation_js(group_config, self.output_dir)
         self.mock_db.fetch_all.assert_not_called()
+
+    def test_generate_navigation_js_reuses_cached_payload_across_outputs(self):
+        """Navigation payload and table metadata should be cached across outputs."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        self.mock_db.has_table.return_value = True
+        self.mock_db.fetch_all.return_value = [
+            {"taxon_id": 1, "name": "Root", "parent_id": None},
+            {"taxon_id": 2, "name": "Child", "parent_id": 1},
+        ]
+
+        group_config = GroupConfigWeb(
+            group_by="taxon",
+            navigation_entity="taxonomy",
+            data_source="db",
+            template="_layouts/group_detail.html",
+            output_pattern="{group_by}/{id}.html",
+            index_output_pattern="{group_by}/index.html",
+            widgets=[],
+        )
+
+        second_output_dir = Path(self.test_dir) / "output-second"
+
+        exporter._generate_navigation_js(group_config, self.output_dir)
+        exporter._navigation_js_generated.clear()
+        self.mock_db.fetch_all.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
+
+        exporter._generate_navigation_js(group_config, second_output_dir)
+
+        self.mock_db.fetch_all.assert_not_called()
+        self.mock_db.get_table_columns.assert_not_called()
+        js_file = second_output_dir / "assets" / "js" / "taxon_navigation.js"
+        self.assertTrue(js_file.exists())
 
     def test_export_validation_error(self):
         """Test export with validation error."""

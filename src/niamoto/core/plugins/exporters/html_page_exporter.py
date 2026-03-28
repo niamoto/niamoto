@@ -57,9 +57,14 @@ class HtmlPageExporter(ExporterPlugin):
         super().__init__(db, registry)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._navigation_js_generated: Set[str] = set()
+        self._navigation_js_content_cache: Dict[
+            Tuple[str, str, Tuple[str, ...], Tuple[str, ...]], str
+        ] = {}
         self._entity_resolution_cache: Dict[
             str, Tuple[Optional[str], Dict[str, Any]]
         ] = {}
+        self._reference_table_cache: Dict[str, str] = {}
+        self._table_columns_cache: Dict[str, Tuple[str, ...]] = {}
         self._group_table_cache: Dict[Tuple[str, Optional[str]], Tuple[str, str]] = {}
 
         # Initialize statistics tracking
@@ -161,7 +166,7 @@ class HtmlPageExporter(ExporterPlugin):
 
         id_column = f"{group_by_key}_id"
         try:
-            table_columns = self.db.get_table_columns(table_name) or []
+            table_columns = self._get_table_columns_cached(table_name)
         except Exception:
             return table_name, id_column
 
@@ -190,11 +195,31 @@ class HtmlPageExporter(ExporterPlugin):
 
     def _resolve_reference_table_name(self, entity_name: str) -> str:
         """Resolve reference table with registry-first strategy and safe fallback."""
+        cached = self._reference_table_cache.get(entity_name)
+        if cached is not None:
+            return cached
+
         table_name, _ = self._resolve_registry_entity(entity_name)
         if table_name:
+            self._reference_table_cache[entity_name] = table_name
             return table_name
 
-        return resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
+        table_name = (
+            resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
+        )
+        self._reference_table_cache[entity_name] = table_name
+        return table_name
+
+    def _get_table_columns_cached(self, table_name: str) -> List[str]:
+        """Cache table columns for one exporter run to avoid repeated metadata queries."""
+        cached = self._table_columns_cache.get(table_name)
+        if cached is not None:
+            return list(cached)
+
+        columns = self.db.get_table_columns(table_name) or []
+        columns_tuple = tuple(columns)
+        self._table_columns_cache[table_name] = columns_tuple
+        return list(columns_tuple)
 
     def _resolve_localized(self, value: Any, lang: Optional[str] = None) -> Any:
         """
@@ -1449,7 +1474,7 @@ class HtmlPageExporter(ExporterPlugin):
             transform_table = group_by_key
             transform_id_col = f"{group_by_key}_id"
             if repository.has_table(transform_table) and transform_table != table_name:
-                transform_cols = repository.get_table_columns(transform_table) or []
+                transform_cols = self._get_table_columns_cached(transform_table)
                 if transform_id_col in transform_cols:
                     detail_table_name = transform_table
                     detail_id_column = transform_id_col
@@ -2050,7 +2075,7 @@ class HtmlPageExporter(ExporterPlugin):
 
         # Check which fields actually exist in the table
         try:
-            table_columns = self.db.get_table_columns(reference_table)
+            table_columns = self._get_table_columns_cached(reference_table)
             # Filter to only include fields that exist in the table
             existing_fields = [f for f in required_fields if f in table_columns]
 
@@ -2099,30 +2124,45 @@ class HtmlPageExporter(ExporterPlugin):
             preferred_order_fields.append("id")
 
         # Load navigation data with only existing fields
-        navigation_data = self._load_and_cache_navigation_data(
+        content_cache_key = (
+            group_by_key,
             reference_table,
-            existing_fields,
-            preferred_order_fields,
+            tuple(existing_fields),
+            tuple(preferred_order_fields),
         )
-        if not navigation_data:
-            logger.warning(f"No navigation data to generate JS for {group_by_key}")
-            return
+        js_content = self._navigation_js_content_cache.get(content_cache_key)
+        if js_content is None:
+            navigation_data = self._load_and_cache_navigation_data(
+                reference_table,
+                existing_fields,
+                preferred_order_fields,
+            )
+            if not navigation_data:
+                logger.warning(f"No navigation data to generate JS for {group_by_key}")
+                return
 
-        # Ensure identifier columns are serialised as strings to avoid float rounding in JS
-        id_like_fields = [
-            field
-            for field in existing_fields
-            if field == "id" or field.endswith("_id") or field == "parent_id"
-        ]
-        if id_like_fields:
-            for item in navigation_data:
-                for field in id_like_fields:
-                    value = item.get(field)
-                    if value is not None:
-                        try:
-                            item[field] = str(int(value))
-                        except (TypeError, ValueError):
-                            item[field] = str(value)
+            # Ensure identifier columns are serialised as strings to avoid float rounding in JS
+            id_like_fields = [
+                field
+                for field in existing_fields
+                if field == "id" or field.endswith("_id") or field == "parent_id"
+            ]
+            if id_like_fields:
+                for item in navigation_data:
+                    for field in id_like_fields:
+                        value = item.get(field)
+                        if value is not None:
+                            try:
+                                item[field] = str(int(value))
+                            except (TypeError, ValueError):
+                                item[field] = str(value)
+
+            var_name = f"{group_by_key}NavigationData"
+            js_content = (
+                f"const {var_name} = "
+                f"{json.dumps(navigation_data, separators=(',', ':'))};"
+            )
+            self._navigation_js_content_cache[content_cache_key] = js_content
 
         try:
             # Create JS directory if it doesn't exist
@@ -2132,10 +2172,6 @@ class HtmlPageExporter(ExporterPlugin):
             # Generic filename and variable name based on group
             js_filename = f"{group_by_key}_navigation.js"
             var_name = f"{group_by_key}NavigationData"
-
-            # Simply dump all data as-is - let the widget handle the structure
-            # This preserves all original field names and data
-            js_content = f"const {var_name} = {json.dumps(navigation_data, separators=(',', ':'))};"
 
             # Write JS file
             js_path = js_dir / js_filename
@@ -2164,7 +2200,7 @@ class HtmlPageExporter(ExporterPlugin):
         )
 
         try:
-            table_columns = repository.get_table_columns(table_name)
+            table_columns = self._get_table_columns_cached(table_name)
             if not table_columns:
                 logger.error(
                     f"Could not get columns for table '{table_name}'. Cannot fetch index data."
@@ -2295,7 +2331,7 @@ class HtmlPageExporter(ExporterPlugin):
             transform_table = group_by_key
             transform_id_col = f"{group_by_key}_id"
             if repository.has_table(transform_table) and transform_table != table_name:
-                transform_cols = repository.get_table_columns(transform_table) or []
+                transform_cols = self._get_table_columns_cached(transform_table)
                 if transform_id_col in transform_cols:
                     index_table = transform_table
                     index_id_col = transform_id_col
