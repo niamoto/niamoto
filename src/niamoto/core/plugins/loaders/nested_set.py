@@ -158,7 +158,7 @@ class NestedSetLoader(LoaderPlugin):
             WHERE id = :id
         """)
 
-        with self.db.engine.connect() as conn:
+        with self.db.connection() as conn:
             node = conn.execute(node_query, {"id": group_id}).fetchone()
             if not node:
                 return pd.DataFrame()

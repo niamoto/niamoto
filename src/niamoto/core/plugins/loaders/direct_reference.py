@@ -181,14 +181,16 @@ class DirectReferenceLoader(LoaderPlugin):
                     JOIN {physical_ref} r ON m.{key_field} = r."{ref_key}"
                     WHERE r."{ref_id_field}" = :id
                 """)
-                return pd.read_sql(query, self.db.engine, params={"id": group_id})
+                with self.db.connection() as conn:
+                    return pd.read_sql(query, conn, params={"id": group_id})
             else:
                 query = text(f"""
                     SELECT m.*
                     FROM {physical_main} m
                     WHERE m.{key_field} = :id
                 """)
-                return pd.read_sql(query, self.db.engine, params={"id": group_id})
+                with self.db.connection() as conn:
+                    return pd.read_sql(query, conn, params={"id": group_id})
 
         except Exception as e:
             raise DatabaseError(f"Error executing query: {str(e)}") from e

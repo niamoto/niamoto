@@ -228,7 +228,8 @@ class GeospatialExtractor(TransformerPlugin):
                 else:
                     query = sa_text(f"SELECT * FROM {table_name}")
                     params = {}
-                return pd.read_sql(query, self.db.engine, params=params or None)
+                with self.db.connection() as conn:
+                    return pd.read_sql(query, conn, params=params or None)
 
             # Fallback to connector configuration if available
             try:
@@ -253,7 +254,8 @@ class GeospatialExtractor(TransformerPlugin):
                 table_name = entity_info.table_name
                 try:
                     query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
-                    df = pd.read_sql(query, self.db.engine, params={"id": id_value})
+                    with self.db.connection() as conn:
+                        df = pd.read_sql(query, conn, params={"id": id_value})
                     if not df.empty:
                         return df
                 except Exception as e:
@@ -315,7 +317,8 @@ class GeospatialExtractor(TransformerPlugin):
             type_query = sa_text(
                 f"SELECT {type_field} FROM {table_name} WHERE id = :id"
             )
-            type_df = pd.read_sql(type_query, self.db.engine, params={"id": parent_id})
+            with self.db.connection() as conn:
+                type_df = pd.read_sql(type_query, conn, params={"id": parent_id})
 
             if type_df.empty:
                 return pd.DataFrame()
@@ -325,7 +328,8 @@ class GeospatialExtractor(TransformerPlugin):
             # If it's already a leaf entity, return itself
             if entity_type == leaf_type:
                 query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
-                return pd.read_sql(query, self.db.engine, params={"id": parent_id})
+                with self.db.connection() as conn:
+                    return pd.read_sql(query, conn, params={"id": parent_id})
 
             # Get all leaf descendants based on hierarchy model
             if use_adjacency_list:
@@ -347,11 +351,12 @@ class GeospatialExtractor(TransformerPlugin):
                     WHERE {type_field} = :leaf_type
                     ORDER BY id
                 """
-                return pd.read_sql(
-                    query,
-                    self.db.engine,
-                    params={"parent_id": parent_id, "leaf_type": leaf_type},
-                )
+                with self.db.connection() as conn:
+                    return pd.read_sql(
+                        query,
+                        conn,
+                        params={"parent_id": parent_id, "leaf_type": leaf_type},
+                    )
             else:
                 # Use nested sets query (legacy)
                 parent_query = f"""

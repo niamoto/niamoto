@@ -166,7 +166,7 @@ class JoinTableLoader(LoaderPlugin):
             WHERE j.{params.keys["reference"]} = :id
         """)
 
-        with self.db.engine.connect() as conn:
+        with self.db.connection() as conn:
             return pd.read_sql(query, conn, params={"id": group_id})
 
     def _resolve_table_name(self, logical_name: str) -> str:

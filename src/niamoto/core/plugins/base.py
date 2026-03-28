@@ -138,6 +138,20 @@ class TransformerPlugin(Plugin, ABC):
         # passing the validated Pydantic model instance.
         raise NotImplementedError
 
+    def prepare_batch(self, items: List[Any], params: "BaseModel") -> None:
+        """
+        Optionally prepare shared state for a batch of items before repeated transforms.
+
+        Exporters can call this once per group to let a transformer preload data or
+        memoize lookups that would otherwise be repeated for every item. The default
+        implementation is a no-op so existing transformers do not need to change.
+
+        Args:
+            items: The items that will be transformed next.
+            params: The validated transformer parameters for the current group.
+        """
+        return None
+
 
 class ExporterPlugin(Plugin, ABC):
     """Abstract base class for data exporter plugins."""

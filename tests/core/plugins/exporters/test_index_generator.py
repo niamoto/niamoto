@@ -364,6 +364,47 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         mock_file.write.assert_called_once_with("<html>Index Page</html>")
 
     @patch("builtins.open", create=True)
+    def test_generate_index_resolves_legacy_group_index_template(self, mock_open):
+        """Legacy group_index.html should resolve to _group_index.html."""
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        mock_template = Mock()
+        mock_template.render.return_value = "<html>Index Page</html>"
+        mock_jinja_env = Mock()
+        mock_jinja_env.get_template.return_value = mock_template
+
+        mock_html_params = Mock()
+        mock_html_params.site = Mock()
+        mock_html_params.site.model_dump.return_value = {"title": "Test Site"}
+        mock_html_params.navigation = []
+        mock_html_params.footer_navigation = []
+
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="name", source="name", label="Name", type="text"
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        with patch.object(
+            self.plugin, "_get_group_data", return_value=[{"taxon_id": 1}]
+        ):
+            with patch("pathlib.Path.mkdir"):
+                self.plugin.generate_index(
+                    "taxon",
+                    config,
+                    self.test_output_dir,
+                    mock_jinja_env,
+                    mock_html_params,
+                )
+
+        mock_jinja_env.get_template.assert_called_once_with("_group_index.html")
+
+    @patch("builtins.open", create=True)
     def test_generate_index_no_data(self, mock_open):
         """Test index generation with no data."""
         # Mock jinja environment

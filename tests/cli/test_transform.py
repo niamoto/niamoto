@@ -94,7 +94,9 @@ def test_successful_group_transform(runner):
                 assert result.exit_code == 0
                 assert "Processing transformations for group: taxon" in result.output
                 mock_service_instance.transform_data.assert_called_once_with(
-                    group_by="taxon", csv_file=None, recreate_table=True
+                    group_by="taxon",
+                    csv_file=None,
+                    recreate_table=True,
                 )
 
 
@@ -114,7 +116,9 @@ def test_successful_all_transform(runner):
             assert result.exit_code == 0
             assert "Processing all transformation groups" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by=None, csv_file=None, recreate_table=True
+                group_by=None,
+                csv_file=None,
+                recreate_table=True,
             )
 
 
@@ -175,7 +179,9 @@ def test_transform_with_csv(runner):
                 assert result.exit_code == 0
                 assert "Processing transformations for group: taxon" in result.output
                 mock_service_instance.transform_data.assert_called_once_with(
-                    group_by="taxon", csv_file="data.csv", recreate_table=True
+                    group_by="taxon",
+                    csv_file="data.csv",
+                    recreate_table=True,
                 )
 
 
@@ -279,7 +285,9 @@ def test_transform_with_verbose(runner):
             assert result.exit_code == 0
             assert "Initializing transformer service" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by=None, csv_file=None, recreate_table=True
+                group_by=None,
+                csv_file=None,
+                recreate_table=True,
             )
 
 
@@ -322,7 +330,9 @@ def test_run_command_explicit(runner):
             assert result.exit_code == 0
             assert "Processing transformations for group: taxon" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by="taxon", csv_file=None, recreate_table=True
+                group_by="taxon",
+                csv_file=None,
+                recreate_table=True,
             )
 
 

@@ -54,6 +54,22 @@ class TestBarPlotWidget(NiamotoTestCase):
         self.assertNotIn("<p class='info'>", result)
         self.assertIn("plotly-graph-div", result)
 
+    def test_render_basic_dataframe_avoids_plotly_express(self):
+        """Simple single-trace charts should use the faster graph_objects path."""
+        df = pd.DataFrame(
+            {
+                "species": ["Araucaria", "Agathis", "Podocarpus"],
+                "count": [150, 230, 95],
+            }
+        )
+        params = BarPlotParams(x_axis="species", y_axis="count")
+
+        with patch("niamoto.core.plugins.widgets.bar_plot.px.bar") as mock_px_bar:
+            result = self.widget.render(df, params)
+
+        mock_px_bar.assert_not_called()
+        self.assertIn("plotly-graph-div", result)
+
     def test_render_empty_dataframe(self):
         """Test rendering with empty DataFrame."""
         df = pd.DataFrame()
@@ -105,6 +121,37 @@ class TestBarPlotWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
+
+    def test_render_with_color_field_keeps_plotly_express_path(self):
+        """Grouped color charts should keep the existing Plotly Express behavior."""
+        df = pd.DataFrame(
+            {
+                "species": ["Araucaria", "Agathis", "Podocarpus", "Dacrydium"],
+                "count": [150, 230, 95, 75],
+                "family": [
+                    "Araucariaceae",
+                    "Araucariaceae",
+                    "Podocarpaceae",
+                    "Cupressaceae",
+                ],
+            }
+        )
+        params = BarPlotParams(x_axis="species", y_axis="count", color_field="family")
+
+        with (
+            patch("niamoto.core.plugins.widgets.bar_plot.px.bar") as mock_px_bar,
+            patch(
+                "niamoto.core.plugins.widgets.bar_plot.render_plotly_figure",
+                return_value="<div>ok</div>",
+            ),
+        ):
+            mock_fig = Mock()
+            mock_px_bar.return_value = mock_fig
+            result = self.widget.render(df, params)
+
+        mock_px_bar.assert_called_once()
+        mock_fig.update_traces.assert_called_once()
+        self.assertNotIn("<p class='error'>", result)
 
     def test_render_horizontal_orientation(self):
         """Test rendering with horizontal orientation."""
@@ -421,13 +468,15 @@ class TestBarPlotWidget(NiamotoTestCase):
 
         params = BarPlotParams(x_axis="species", y_axis="count")
 
-        # Mock plotly.express.bar to raise an exception
-        with patch("plotly.express.bar", side_effect=Exception("Plotly error")):
+        with patch(
+            "niamoto.core.plugins.widgets.bar_plot.render_plotly_figure",
+            side_effect=Exception("Plotly error"),
+        ):
             result = self.widget.render(df, params)
 
-            self.assertIn("<p class='error'>", result)
-            self.assertIn("Error generating bar plot", result)
-            self.assertIn("Plotly error", result)
+        self.assertIn("<p class='error'>", result)
+        self.assertIn("Error generating bar plot", result)
+        self.assertIn("Plotly error", result)
 
     def test_render_with_field_mapping(self):
         """Test rendering with field mapping transformation."""

@@ -15,6 +15,10 @@ def mock_db():
     # Create a mock engine instead of real SQLAlchemy engine
     mock_engine = Mock()
     db.engine = mock_engine
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.__exit__.return_value = False
+    db.connection = MagicMock(return_value=mock_conn)
     return db
 
 
@@ -150,7 +154,7 @@ class TestLoadDataWithRegistry:
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=False)
 
-        mock_db.engine.connect.return_value = mock_conn
+        mock_db.connection.return_value = mock_conn
 
         # Mock pandas read_sql to avoid actual DB query
         mock_df = pd.DataFrame({"id": [1, 2], "name": ["test1", "test2"]})
@@ -206,7 +210,7 @@ class TestLoadDataWithRegistry:
         mock_conn.execute.return_value = mock_result
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=False)
-        mock_db.engine.connect.return_value = mock_conn
+        mock_db.connection.return_value = mock_conn
 
         mock_df = pd.DataFrame({"id": [10, 20]})
         monkeypatch.setattr("pandas.read_sql", Mock(return_value=mock_df))
@@ -247,7 +251,7 @@ class TestBackwardCompatibility:
         mock_conn.execute.return_value = mock_result
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=False)
-        mock_db.engine.connect.return_value = mock_conn
+        mock_db.connection.return_value = mock_conn
 
         mock_df = pd.DataFrame({"id": [100]})
         monkeypatch.setattr("pandas.read_sql", Mock(return_value=mock_df))
@@ -279,7 +283,7 @@ class TestEdgeCases:
         mock_conn.execute.return_value = mock_result
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=False)
-        mock_db.engine.connect.return_value = mock_conn
+        mock_db.connection.return_value = mock_conn
 
         result = loader.load_data(group_id=999, config=config)
 

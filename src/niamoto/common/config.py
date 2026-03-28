@@ -1,8 +1,11 @@
 import os
 import re
+from copy import deepcopy
 from string import Template
+from threading import Lock
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
+
 import yaml
-from typing import Any, Dict, Optional, List
 
 from niamoto.core.imports.config_models import GenericImportConfig
 from niamoto.common.transform_config_models import validate_transform_config
@@ -25,6 +28,20 @@ class Config:
      - export.yml (widgets)
     """
 
+    _CONFIG_CACHE: ClassVar[
+        Dict[Tuple[str, bool, Tuple[Any, ...]], Dict[str, Any]]
+    ] = {}
+    _VALIDATED_TRANSFORMS_CACHE: ClassVar[
+        Dict[Tuple[str, Tuple[Any, ...]], List[Dict[str, Any]]]
+    ] = {}
+    _CACHE_LOCK: ClassVar[Lock] = Lock()
+    _BRACED_ENV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
+        r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}"
+    )
+    _PLAIN_ENV_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
+        r"(?<!\$)\$([A-Z0-9_]+)\b"
+    )
+
     @error_handler(log=True, raise_error=True)
     def __init__(
         self, config_dir: Optional[str] = None, create_default: bool = True
@@ -36,10 +53,12 @@ class Config:
             config_dir (str): Path to the directory containing the 4 config files.
             create_default (bool): If True, create default configs if not found.
         """
+        resolved_config_dir: Optional[str] = None
         try:
             if not config_dir:
                 config_dir = os.path.join(self.get_niamoto_home(), "config")
-            self.config_dir = config_dir
+            resolved_config_dir = os.path.abspath(config_dir)
+            self.config_dir = resolved_config_dir
             self.config: Dict[str, Any] = {}
             self.imports: Dict[str, Any] = {}
             self.transforms: Any = {}
@@ -47,28 +66,145 @@ class Config:
             self.deploy: Dict[str, Any] = {}
             self._generic_import_config: Optional[GenericImportConfig] = None
             self._validated_transforms_config: Optional[List[Dict[str, Any]]] = None
+            self._cache_fingerprint = self._get_cache_fingerprint(self.config_dir)
 
-            self._load_files(create_default)
-
-            # Define plugins directory - default is next to config directory
-            # Check if there's a custom plugins path in config.yml
-            plugins_path = "plugins"  # default path
-            if "plugins" in self.config and "path" in self.config["plugins"]:
-                plugins_path = self.config["plugins"]["path"]
-
-            # If plugins_path is absolute, use it directly, otherwise join with project_root
-            if os.path.isabs(plugins_path):
-                self.plugins_dir = plugins_path
-            else:
-                project_root = os.path.dirname(config_dir)
-                self.plugins_dir = os.path.join(project_root, plugins_path)
+            if not self._restore_from_cache(create_default):
+                self._load_files(create_default)
+                self.plugins_dir = self._resolve_plugins_dir()
+                self._cache_fingerprint = self._get_cache_fingerprint(self.config_dir)
+                self._store_in_cache(create_default)
 
         except Exception as e:
             raise ConfigurationError(
                 config_key="initialization",
                 message="Failed to initialize configuration",
-                details={"config_dir": config_dir, "error": str(e)},
+                details={
+                    "config_dir": resolved_config_dir,
+                    "error": str(e),
+                },
             )
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear in-process config caches. Mainly useful for tests."""
+
+        with cls._CACHE_LOCK:
+            cls._CONFIG_CACHE.clear()
+            cls._VALIDATED_TRANSFORMS_CACHE.clear()
+
+    @classmethod
+    def _config_file_signature(
+        cls,
+        file_path: str,
+    ) -> Tuple[
+        bool, Optional[int], Optional[int], Tuple[Tuple[str, Optional[str]], ...]
+    ]:
+        """Return a cache-safe fingerprint for one config file path."""
+
+        if not os.path.exists(file_path):
+            return (False, None, None, ())
+
+        stat = os.stat(file_path)
+        return (
+            True,
+            stat.st_mtime_ns,
+            stat.st_size,
+            cls._env_signature_for_file(file_path),
+        )
+
+    @classmethod
+    def _extract_env_variable_names(cls, content: str) -> Tuple[str, ...]:
+        """Return the env vars referenced by a config file."""
+
+        braced_vars = {
+            match.group(1) for match in cls._BRACED_ENV_PATTERN.finditer(content)
+        }
+        plain_vars = {
+            match.group(1) for match in cls._PLAIN_ENV_PATTERN.finditer(content)
+        }
+        return tuple(sorted(braced_vars | plain_vars))
+
+    @classmethod
+    def _env_signature_for_file(
+        cls, file_path: str
+    ) -> Tuple[Tuple[str, Optional[str]], ...]:
+        """Capture current values of env vars referenced by one config file."""
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except OSError:
+            return ()
+
+        variable_names = cls._extract_env_variable_names(content)
+        return tuple((name, os.environ.get(name)) for name in variable_names)
+
+    @classmethod
+    def _get_cache_fingerprint(cls, config_dir: str) -> Tuple[Any, ...]:
+        """Fingerprint the current config directory state for cache invalidation."""
+
+        filenames = (
+            "config.yml",
+            "import.yml",
+            "transform.yml",
+            "export.yml",
+            "deploy.yml",
+        )
+        return tuple(
+            (filename, cls._config_file_signature(os.path.join(config_dir, filename)))
+            for filename in filenames
+        )
+
+    def _resolve_plugins_dir(self) -> str:
+        """Resolve the plugins directory from the loaded config."""
+
+        plugins_path = "plugins"
+        if "plugins" in self.config and "path" in self.config["plugins"]:
+            plugins_path = self.config["plugins"]["path"]
+
+        if os.path.isabs(plugins_path):
+            return plugins_path
+
+        project_root = os.path.dirname(self.config_dir)
+        return os.path.join(project_root, plugins_path)
+
+    def _cache_key(self, create_default: bool) -> Tuple[str, bool, Tuple[Any, ...]]:
+        """Build the cache key for the current config state."""
+
+        return (self.config_dir, create_default, self._cache_fingerprint)
+
+    def _restore_from_cache(self, create_default: bool) -> bool:
+        """Populate the instance from the in-process cache if possible."""
+
+        cache_key = self._cache_key(create_default)
+        with self._CACHE_LOCK:
+            cached_bundle = self._CONFIG_CACHE.get(cache_key)
+
+        if cached_bundle is None:
+            return False
+
+        self.config = deepcopy(cached_bundle["config"])
+        self.imports = deepcopy(cached_bundle["imports"])
+        self.transforms = deepcopy(cached_bundle["transforms"])
+        self.exports = deepcopy(cached_bundle["exports"])
+        self.deploy = deepcopy(cached_bundle["deploy"])
+        self.plugins_dir = cached_bundle["plugins_dir"]
+        return True
+
+    def _store_in_cache(self, create_default: bool) -> None:
+        """Store the current loaded config bundle for reuse in this process."""
+
+        cache_key = self._cache_key(create_default)
+        cache_value = {
+            "config": deepcopy(self.config),
+            "imports": deepcopy(self.imports),
+            "transforms": deepcopy(self.transforms),
+            "exports": deepcopy(self.exports),
+            "deploy": deepcopy(self.deploy),
+            "plugins_dir": self.plugins_dir,
+        }
+        with self._CACHE_LOCK:
+            self._CONFIG_CACHE[cache_key] = cache_value
 
     @error_handler(log=True, raise_error=True)
     def _load_files(self, create_default: bool) -> None:
@@ -202,8 +338,6 @@ class Config:
         if "${" not in content:
             return content
 
-        pattern = re.compile(r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}")
-
         def replace(match: re.Match[str]) -> str:
             var_name = match.group(1)
             default_value = match.group(2)
@@ -217,7 +351,7 @@ class Config:
                 details={"variable": var_name, "file": source},
             )
 
-        substituted = pattern.sub(replace, content)
+        substituted = Config._BRACED_ENV_PATTERN.sub(replace, content)
 
         # Support $VAR style via string.Template for backwards compatibility
         try:
@@ -925,6 +1059,12 @@ exports:
             return self.transforms
         if self._validated_transforms_config is not None:
             return self._validated_transforms_config
+        cache_key = (self.config_dir, self._cache_fingerprint)
+        with self._CACHE_LOCK:
+            cached_transforms = self._VALIDATED_TRANSFORMS_CACHE.get(cache_key)
+        if cached_transforms is not None:
+            self._validated_transforms_config = deepcopy(cached_transforms)
+            return self._validated_transforms_config
         try:
             self._validated_transforms_config = validate_transform_config(
                 self.transforms
@@ -935,6 +1075,10 @@ exports:
                 message="Invalid transform configuration",
                 details={"transforms_file": "transform.yml", "error": str(e)},
             ) from e
+        with self._CACHE_LOCK:
+            self._VALIDATED_TRANSFORMS_CACHE[cache_key] = deepcopy(
+                self._validated_transforms_config
+            )
         return self._validated_transforms_config
 
     @error_handler(log=True, raise_error=True)

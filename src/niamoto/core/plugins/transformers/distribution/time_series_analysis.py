@@ -210,8 +210,14 @@ class TimeSeriesAnalysis(TransformerPlugin):
             if missing_fields:
                 return {"month_data": {}, "labels": params.labels}
 
+            # Work on a local copy to avoid pandas Copy-on-Write warnings when the
+            # incoming dataframe is a slice from an upstream loader.
+            data = data.copy()
+
             # Convert time field to numeric
-            data[time_field] = pd.to_numeric(data[time_field], errors="coerce")
+            data = data.assign(
+                **{time_field: pd.to_numeric(data[time_field], errors="coerce")}
+            )
 
             # Initialize month data
             month_data = {}
@@ -219,8 +225,11 @@ class TimeSeriesAnalysis(TransformerPlugin):
             # Process fields dictionary if provided
             if params.fields:
                 # Convert phenology fields to numeric
-                for field_name in params.fields.values():
-                    data[field_name] = pd.to_numeric(data[field_name], errors="coerce")
+                converted_fields = {
+                    field_name: pd.to_numeric(data[field_name], errors="coerce")
+                    for field_name in params.fields.values()
+                }
+                data = data.assign(**converted_fields)
 
                 # Initialize month data structure
                 month_data = {name: [0] * 12 for name in params.fields.keys()}
@@ -240,7 +249,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
             # Process single field if provided and fields is empty
             elif params.field:
                 field_name = params.field
-                data[field_name] = pd.to_numeric(data[field_name], errors="coerce")
+                data = data.assign(
+                    **{field_name: pd.to_numeric(data[field_name], errors="coerce")}
+                )
 
                 # Initialize month data with a single series
                 month_data = {"value": [0] * 12}

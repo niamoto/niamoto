@@ -172,7 +172,7 @@ class AdjacencyListLoader(LoaderPlugin):
                 WHERE m.{key_column} = :id
             """)
 
-            with self.db.engine.connect() as conn:
+            with self.db.connection() as conn:
                 return pd.read_sql(query, conn, params={"id": group_id})
 
         # Complex case: load data for this node and all descendants
@@ -202,5 +202,5 @@ class AdjacencyListLoader(LoaderPlugin):
             INNER JOIN hierarchy h ON m.{key_column} = h.match_id
         """)
 
-        with self.db.engine.connect() as conn:
+        with self.db.connection() as conn:
             return pd.read_sql(query, conn, params={"id": group_id})

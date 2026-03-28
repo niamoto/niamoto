@@ -56,7 +56,7 @@ class AliasRegistry:
                 self._exact_index[norm] = next(iter(concepts))
             else:
                 self._ambiguous[norm] = frozenset(concepts)
-                logger.warning(
+                logger.debug(
                     "Ambiguous alias '%s' maps to %d concepts (%s) — "
                     "excluded from exact matching, deferred to ML",
                     norm,

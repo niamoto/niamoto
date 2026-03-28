@@ -23,6 +23,10 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         self.mock_db.engine = MagicMock()
         self.mock_db.has_table = MagicMock(return_value=True)
         self.mock_db.get_table_columns = MagicMock()
+        self.mock_conn = MagicMock()
+        self.mock_conn.__enter__.return_value = self.mock_conn
+        self.mock_conn.__exit__.return_value = False
+        self.mock_db.connection.return_value = self.mock_conn
 
         registry_patch = patch(
             "niamoto.core.plugins.loaders.direct_reference.EntityRegistry"
@@ -139,8 +143,8 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         actual_query_cleaned = " ".join(actual_query.split())
         expected_query_cleaned = " ".join(expected_query.split())
         self.assertEqual(actual_query_cleaned, expected_query_cleaned)
-        # Check the second positional argument (engine)
-        self.assertEqual(call_args[0][1], self.mock_db.engine)
+        # Check the second positional argument (shared DB connection)
+        self.assertEqual(call_args[0][1], self.mock_conn)
         self.assertEqual(call_args.kwargs["params"], {"id": test_group_id})
 
         # Check result DataFrame
