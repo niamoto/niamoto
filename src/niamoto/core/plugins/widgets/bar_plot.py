@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Union, Set
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from pydantic import Field, ConfigDict
 
 from niamoto.common.utils.data_access import convert_to_dataframe
@@ -142,6 +143,38 @@ def generate_colors(count: int) -> List[str]:
         colors.append(rgb_to_hex(r, g, b))
 
     return colors
+
+
+def _resolve_bar_colors(
+    df_plot: pd.DataFrame, params: "BarPlotParams"
+) -> Optional[List[str]]:
+    """Build per-bar colors for simple single-trace charts."""
+    if params.orientation == "h":
+        category_field = params.y_axis
+    else:
+        category_field = params.x_axis
+
+    if params.gradient_color:
+        unique_categories = df_plot[category_field].astype(str).unique()
+        generated_colors = generate_gradient_colors(
+            params.gradient_color,
+            len(unique_categories),
+            params.gradient_mode,
+        )
+        color_map = {
+            str(cat): color for cat, color in zip(unique_categories, generated_colors)
+        }
+        return [color_map[str(value)] for value in df_plot[category_field].astype(str)]
+
+    if params.auto_color:
+        unique_categories = df_plot[category_field].astype(str).unique()
+        generated_colors = generate_colors(len(unique_categories))
+        color_map = {
+            str(cat): color for cat, color in zip(unique_categories, generated_colors)
+        }
+        return [color_map[str(value)] for value in df_plot[category_field].astype(str)]
+
+    return None
 
 
 # Pydantic model for Bar Plot parameters validation
@@ -959,6 +992,10 @@ class BarPlotWidget(WidgetPlugin):
                 logger.error("Error applying sorting: {}".format(e))
 
         try:
+            if self._can_use_graph_objects_fast_path(params):
+                fig = self._render_fast_bar_figure(df_plot, params)
+                return render_plotly_figure(fig)
+
             # Handle automatic coloring
             color_field = params.color_field
             color_discrete_sequence = None
@@ -1090,3 +1127,128 @@ class BarPlotWidget(WidgetPlugin):
         except Exception as e:
             logger.exception("Error rendering BarPlotWidget: {}".format(e))
             return "<p class='error'>Error generating bar plot: {}</p>".format(e)
+
+    def _can_use_graph_objects_fast_path(self, params: BarPlotParams) -> bool:
+        """Use a lighter Plotly path for single-trace bar charts."""
+        return params.color_field is None
+
+    def _render_fast_bar_figure(
+        self, df_plot: pd.DataFrame, params: BarPlotParams
+    ) -> go.Figure:
+        """Build a single-trace bar chart without plotly.express overhead."""
+        color_values = _resolve_bar_colors(df_plot, params)
+        marker_kwargs: Dict[str, Any] = {}
+        if color_values is not None:
+            marker_kwargs["color"] = color_values
+
+        value_series = (
+            df_plot[params.x_axis]
+            if params.orientation == "h"
+            else df_plot[params.y_axis]
+        )
+        text = None
+        texttemplate = None
+        if params.text_auto:
+            text = value_series
+            if isinstance(params.text_auto, str):
+                texttemplate = f"%{{text:{params.text_auto}}}"
+            else:
+                texttemplate = "%{text}"
+
+        customdata = None
+        hovertemplate = None
+        hover_parts: List[str] = []
+        if params.hover_name and params.hover_name in df_plot.columns:
+            hover_parts.append("<b>%{customdata[0]}</b>")
+            custom_columns = [params.hover_name]
+        else:
+            custom_columns = []
+
+        if params.hover_data:
+            for column in params.hover_data:
+                if column in df_plot.columns:
+                    custom_columns.append(column)
+
+        if custom_columns:
+            customdata = df_plot[custom_columns].to_numpy()
+            start_index = (
+                1 if params.hover_name and params.hover_name in df_plot.columns else 0
+            )
+            for idx, column in enumerate(
+                custom_columns[start_index:], start=start_index
+            ):
+                label = params.labels.get(column, column) if params.labels else column
+                hover_parts.append(f"{label}: %{{customdata[{idx}]}}")
+
+        if hover_parts:
+            hovertemplate = "<br>".join(hover_parts) + "<extra></extra>"
+
+        trace_kwargs: Dict[str, Any] = {
+            "orientation": params.orientation,
+            "text": text,
+            "marker": marker_kwargs or None,
+            "customdata": customdata,
+            "hovertemplate": hovertemplate,
+            "showlegend": False,
+        }
+        if texttemplate is not None:
+            trace_kwargs["texttemplate"] = texttemplate
+
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=df_plot[params.x_axis],
+                    y=df_plot[params.y_axis],
+                    **trace_kwargs,
+                )
+            ]
+        )
+
+        layout_updates = {
+            "xaxis_title": params.labels.get(params.x_axis)
+            if params.labels
+            else params.x_axis,
+            "yaxis_title": params.labels.get(params.y_axis)
+            if params.labels
+            else params.y_axis,
+            "barmode": params.barmode,
+            "showlegend": False,
+        }
+
+        if params.orientation == "v":
+            if params.range_y:
+                layout_updates["yaxis"] = {"range": params.range_y}
+            category_order = [
+                str(value) for value in df_plot[params.x_axis].astype(str).unique()
+            ]
+            layout_updates["xaxis"] = {
+                **layout_updates.get("xaxis", {}),
+                "categoryorder": "array",
+                "categoryarray": category_order,
+            }
+        else:
+            category_order = [
+                str(value) for value in df_plot[params.y_axis].astype(str).unique()
+            ]
+            layout_updates["yaxis"] = {
+                **layout_updates.get("yaxis", {}),
+                "categoryorder": "array",
+                "categoryarray": category_order,
+            }
+
+        apply_plotly_defaults(fig, layout_updates)
+
+        bar_width = params.bar_width
+        if bar_width is None:
+            num_bars = len(df_plot)
+            if num_bars <= 5:
+                bar_width = 0.8
+            elif num_bars <= 10:
+                bar_width = 0.6
+            elif num_bars <= 20:
+                bar_width = 0.4
+            else:
+                bar_width = 0.3
+
+        fig.update_traces(width=bar_width)
+        return fig

@@ -327,10 +327,10 @@ class TestExporterService(NiamotoTestCase):
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
     @patch("niamoto.core.services.exporter.PluginRegistry")
-    def test_run_export_passes_workers_to_html_exporter(
+    def test_run_export_keeps_html_exporter_call_shape(
         self, mock_registry, mock_loader, mock_db
     ):
-        """HTML exporter receives workers while other exporters keep the old call shape."""
+        """HTML exporter should be called without a special workers parameter."""
         self.valid_export_config["exports"][0]["exporter"] = "html_page_exporter"
         self.valid_export_config["exports"][0]["params"] = {
             "template_dir": "templates",
@@ -345,10 +345,10 @@ class TestExporterService(NiamotoTestCase):
         mock_registry.return_value = mock_registry_instance
 
         service = ExporterService(self.db_path, self.mock_config)
-        service.run_export(workers=4)
+        service.run_export()
 
         call_args = mock_plugin_instance.export.call_args
-        self.assertEqual(call_args.kwargs["workers"], 4)
+        self.assertNotIn("workers", call_args.kwargs)
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")

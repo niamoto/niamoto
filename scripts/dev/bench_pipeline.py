@@ -52,12 +52,6 @@ def parse_args() -> argparse.Namespace:
         help="Export target to run for the benchmark",
     )
     parser.add_argument(
-        "--export-workers",
-        type=int,
-        default=1,
-        help="Worker count passed to `niamoto export`",
-    )
-    parser.add_argument(
         "--json-out",
         type=Path,
         help="Optional path where the JSON summary will be written",
@@ -122,12 +116,10 @@ def build_summary(
     staged_instance: Path,
     transform_result: StepResult,
     export_result: Optional[StepResult],
-    export_workers: int,
 ) -> dict:
     summary: dict[str, object] = {
         "instance": str(source_instance),
         "staged_instance": str(staged_instance),
-        "export_workers": export_workers,
         "transform": asdict(transform_result),
     }
     if export_result is not None:
@@ -152,7 +144,6 @@ def print_summary(summary: dict) -> None:
     export = summary.get("export")
     if export is not None:
         print("Export")
-        print(f"  Workers         : {summary['export_workers']}")
         print(f"  Status          : {'ok' if export['ok'] else 'failed'}")
         print(f"  Duration        : {format_duration(export['duration_s'])}")
         print(f"  Return code     : {export['returncode']}")
@@ -207,8 +198,6 @@ def main() -> int:
                     "export",
                     "--target",
                     args.export_target,
-                    "--workers",
-                    str(args.export_workers),
                 ],
                 cwd=staged_instance,
                 logs_dir=logs_dir,
@@ -219,7 +208,6 @@ def main() -> int:
             staged_instance=staged_instance,
             transform_result=transform_result,
             export_result=export_result,
-            export_workers=args.export_workers,
         )
         print_summary(summary)
 

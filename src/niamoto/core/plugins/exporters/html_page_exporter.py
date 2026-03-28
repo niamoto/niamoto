@@ -17,11 +17,9 @@ import re
 import shutil
 import json
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Set, Optional, Tuple
 import importlib.resources
-from threading import Lock, local
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape, ChoiceLoader
 from pydantic import ValidationError
@@ -63,9 +61,6 @@ class HtmlPageExporter(ExporterPlugin):
             str, Tuple[Optional[str], Dict[str, Any]]
         ] = {}
         self._group_table_cache: Dict[Tuple[str, Optional[str]], Tuple[str, str]] = {}
-        self._worker_db_local = local()
-        self._worker_databases: List[Database] = []
-        self._worker_databases_lock = Lock()
 
         # Initialize statistics tracking
         self.stats: Dict[str, Any] = {
@@ -350,7 +345,6 @@ class HtmlPageExporter(ExporterPlugin):
         target_config: TargetConfig,
         repository: Database,
         group_filter: Optional[str] = None,
-        workers: int = 1,
     ) -> None:
         """
         Executes the HTML export process.
@@ -547,7 +541,6 @@ class HtmlPageExporter(ExporterPlugin):
                         lang=lang,
                         languages=languages,
                         language_switcher=language_switcher,
-                        workers=workers,
                     )
 
                 # Generate root redirect page
@@ -573,7 +566,6 @@ class HtmlPageExporter(ExporterPlugin):
                     output_dir,
                     repository,
                     group_filter,
-                    workers=workers,
                 )
 
             # Mark completion time
@@ -610,7 +602,6 @@ class HtmlPageExporter(ExporterPlugin):
                 f"HTML export failed unexpectedly for {target_config.name}"
             ) from e
         finally:
-            self._cleanup_worker_databases()
             self.db.disable_connection_reuse()
 
     def _copy_static_assets(
@@ -1296,7 +1287,6 @@ class HtmlPageExporter(ExporterPlugin):
         lang: Optional[str] = None,
         languages: Optional[List[str]] = None,
         language_switcher: bool = False,
-        workers: int = 1,
     ) -> None:
         """
         Processes each data group to generate index and detail pages.
@@ -1527,105 +1517,38 @@ class HtmlPageExporter(ExporterPlugin):
                         language_switcher=language_switcher,
                     )
 
-                    if workers > 1 and len(index_data) > 1:
-                        effective_workers = min(workers, len(index_data))
-                        if effective_workers != workers:
-                            group_progress.console.print(
-                                f"[dim]Using {effective_workers} worker(s) for "
-                                f"{group_by_key} detail pages "
-                                f"({len(index_data)} items).[/dim]"
+                    for item_summary in index_data:
+                        item_id = item_summary.get(id_column)
+                        if item_id is None:
+                            logger.warning(
+                                f"Skipping item with missing ID in group '{group_by_key}' based on id_column '{id_column}'. Item data: {item_summary}"
                             )
-                        futures = {}
-                        with ThreadPoolExecutor(
-                            max_workers=effective_workers
-                        ) as executor:
-                            for item_summary in index_data:
-                                item_id = item_summary.get(id_column)
-                                if item_id is None:
-                                    logger.warning(
-                                        f"Skipping item with missing ID in group '{group_by_key}' based on id_column '{id_column}'. Item data: {item_summary}"
-                                    )
-                                    group_progress.update(detail_task, advance=1)
-                                    continue
+                            group_progress.update(detail_task, advance=1)
+                            continue
 
-                                future = executor.submit(
-                                    self._render_detail_page_task,
-                                    repository=repository,
-                                    use_thread_local_repository=True,
-                                    detail_table_name=detail_table_name,
-                                    detail_id_column=detail_id_column,
-                                    item_id=item_id,
-                                    group_by_key=group_by_key,
-                                    id_column=id_column,
-                                    group_config=group_config,
-                                    detail_template=detail_template,
-                                    output_dir=output_dir,
-                                    group_output_dir=group_output_dir,
-                                    sorted_widgets=sorted_widgets,
-                                    widget_plugin_classes=widget_plugin_classes,
-                                    detail_context_base=detail_context_base,
-                                )
-                                futures[future] = item_id
-
-                            for future in as_completed(futures):
-                                item_id = futures[future]
-                                try:
-                                    result = future.result()
-                                except Exception as item_render_err:
-                                    logger.error(
-                                        f"Failed rendering detail page for item {item_id} in group '{group_by_key}': {item_render_err}",
-                                        exc_info=True,
-                                    )
-                                    self.stats["errors_count"] += 1
-                                else:
-                                    self._apply_detail_page_result(result)
-
-                                current_duration = time.time() - start_time
-                                group_progress.update(
-                                    detail_task,
-                                    advance=1,
-                                    description=f"[green]Generating {group_by_key} detail pages • {current_duration:.1f}s[/green]",
-                                )
-                        self._cleanup_worker_databases()
-                    elif workers > 1 and len(index_data) <= 1:
-                        group_progress.console.print(
-                            f"[dim]Ignoring parallel detail export for {group_by_key}: "
-                            f"only {len(index_data)} item(s).[/dim]"
+                        result = self._render_detail_page_task(
+                            repository=repository,
+                            detail_table_name=detail_table_name,
+                            detail_id_column=detail_id_column,
+                            item_id=item_id,
+                            group_by_key=group_by_key,
+                            id_column=id_column,
+                            group_config=group_config,
+                            detail_template=detail_template,
+                            output_dir=output_dir,
+                            group_output_dir=group_output_dir,
+                            sorted_widgets=sorted_widgets,
+                            widget_plugin_classes=widget_plugin_classes,
+                            detail_context_base=detail_context_base,
                         )
-                    else:
-                        for item_summary in index_data:
-                            item_id = item_summary.get(id_column)
-                            if item_id is None:
-                                logger.warning(
-                                    f"Skipping item with missing ID in group '{group_by_key}' based on id_column '{id_column}'. Item data: {item_summary}"
-                                )
-                                group_progress.update(detail_task, advance=1)
-                                continue
+                        self._apply_detail_page_result(result)
 
-                            result = self._render_detail_page_task(
-                                repository=repository,
-                                use_thread_local_repository=False,
-                                detail_table_name=detail_table_name,
-                                detail_id_column=detail_id_column,
-                                item_id=item_id,
-                                group_by_key=group_by_key,
-                                id_column=id_column,
-                                group_config=group_config,
-                                detail_template=detail_template,
-                                output_dir=output_dir,
-                                group_output_dir=group_output_dir,
-                                sorted_widgets=sorted_widgets,
-                                widget_plugin_classes=widget_plugin_classes,
-                                detail_context_base=detail_context_base,
-                            )
-                            self._apply_detail_page_result(result)
-
-                            current_duration = time.time() - start_time
-                            group_progress.update(
-                                detail_task,
-                                advance=1,
-                                description=f"[green]Generating {group_by_key} detail pages • {current_duration:.1f}s[/green]",
-                            )
+                        current_duration = time.time() - start_time
+                        group_progress.update(
+                            detail_task,
+                            advance=1,
+                            description=f"[green]Generating {group_by_key} detail pages • {current_duration:.1f}s[/green]",
+                        )
 
                     # Update task description to show completion after all items processed
                     duration = time.time() - start_time
@@ -1714,45 +1637,6 @@ class HtmlPageExporter(ExporterPlugin):
             "languages": languages or [],
             "language_switcher": language_switcher,
         }
-
-    def _get_worker_repository(self, repository: Database) -> Database:
-        """Return a thread-local read-only repository when possible."""
-        repo = getattr(self._worker_db_local, "repository", None)
-        if repo is not None:
-            return repo
-
-        db_path = getattr(repository, "db_path", None)
-        if not db_path:
-            return repository
-
-        repo = Database(db_path)
-        repo.enable_connection_reuse()
-        self._worker_db_local.repository = repo
-        with self._worker_databases_lock:
-            self._worker_databases.append(repo)
-        return repo
-
-    def _cleanup_worker_databases(self) -> None:
-        """Dispose temporary worker repositories created during a parallel export."""
-        with self._worker_databases_lock:
-            repositories = list(self._worker_databases)
-            self._worker_databases.clear()
-
-        for repository in repositories:
-            try:
-                repository.disable_connection_reuse()
-            except Exception:
-                logger.debug("Failed to disable worker repository reuse", exc_info=True)
-            try:
-                repository.close_db_session()
-            except Exception:
-                logger.debug("Failed to close worker repository session", exc_info=True)
-            try:
-                repository.engine.dispose()
-            except Exception:
-                logger.debug(
-                    "Failed to dispose worker repository engine", exc_info=True
-                )
 
     def _resolve_detail_output_path(
         self,
@@ -1914,7 +1798,6 @@ class HtmlPageExporter(ExporterPlugin):
         self,
         *,
         repository: Database,
-        use_thread_local_repository: bool,
         detail_table_name: str,
         detail_id_column: str,
         item_id: Any,
@@ -1929,15 +1812,9 @@ class HtmlPageExporter(ExporterPlugin):
         detail_context_base: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Render one detail page and return a small result payload."""
-        worker_repository = (
-            self._get_worker_repository(repository)
-            if use_thread_local_repository
-            else repository
-        )
-
         try:
             item_data = self._get_item_detail_data(
-                worker_repository,
+                repository,
                 detail_table_name,
                 detail_id_column,
                 item_id,
@@ -1946,7 +1823,7 @@ class HtmlPageExporter(ExporterPlugin):
                 return {"status": "skipped", "item_id": item_id}
 
             rendered_widgets, widget_dependencies = self._render_widgets_for_item(
-                repository=worker_repository,
+                repository=repository,
                 item_data=item_data,
                 item_id=item_id,
                 group_by_key=group_by_key,

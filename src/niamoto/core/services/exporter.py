@@ -128,7 +128,6 @@ class ExporterService:
         self,
         target_name: Optional[str] = None,
         group_filter: Optional[str] = None,
-        workers: int = 1,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Executes the specified export target or all enabled targets.
@@ -214,8 +213,6 @@ class ExporterService:
                     "repository": self.db,
                     "group_filter": group_filter,
                 }
-                if target.exporter == "html_page_exporter":
-                    export_kwargs["workers"] = workers
 
                 exporter_instance.export(**export_kwargs)
 

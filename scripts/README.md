@@ -37,7 +37,7 @@ Daily development workflow scripts.
 | `test_preview_suggestions.py` | Batch test all preview suggestions |
 | `test_shapes_previews.py` | Test shapes widget previews |
 | `bench_preview.py` | Benchmark preview engine (P50/P95/P99 latency) |
-| `bench_pipeline.py` | Benchmark `transform` and `export` on a staged instance |
+| `bench_pipeline.py` | Benchmark sequential `transform` and `export` on a staged instance |
 | `evaluate_pipeline.py` | Diagnostic tool for data profiling + suggestions |
 
 **Common usage:**

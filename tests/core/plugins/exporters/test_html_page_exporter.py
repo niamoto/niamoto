@@ -321,8 +321,8 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertIn("Test Site", content)
         self.assertIn("<h1>Welcome</h1>", content)
 
-    def test_export_passes_workers_to_process_groups(self):
-        """Workers option should be propagated to group processing."""
+    def test_export_calls_process_groups_without_parallel_options(self):
+        """Export should use the sequential group-processing call shape."""
         exporter = HtmlPageExporter(self.mock_db)
         self.target_config.groups = [
             GroupConfigWeb(
@@ -339,10 +339,10 @@ class TestHtmlPageExporter(NiamotoTestCase):
             patch.object(exporter, "_process_static_pages"),
             patch.object(exporter, "_process_groups") as mock_process_groups,
         ):
-            exporter.export(self.target_config, self.mock_db, workers=3)
+            exporter.export(self.target_config, self.mock_db)
 
         mock_process_groups.assert_called_once()
-        self.assertEqual(mock_process_groups.call_args.kwargs["workers"], 3)
+        self.assertNotIn("workers", mock_process_groups.call_args.kwargs)
 
     @patch(
         "niamoto.core.plugins.exporters.html_page_exporter.importlib.resources.files"
@@ -625,80 +625,6 @@ class TestHtmlPageExporter(NiamotoTestCase):
         # Read the content and verify the widget was rendered
         content = detail_file.read_text()
         self.assertIn("Widget rendered with data:", content)
-
-    def test_process_groups_caps_parallel_workers_to_index_size(self):
-        """Parallel detail export should not create more threads than items."""
-        self.mock_db.has_table.return_value = True
-        self.mock_db.get_table_columns.return_value = ["taxon_id", "name"]
-        self.mock_db.fetch_all.return_value = [
-            {"taxon_id": 1, "name": "Species 1"},
-            {"taxon_id": 2, "name": "Species 2"},
-        ]
-
-        exporter = HtmlPageExporter(self.mock_db)
-        groups = [
-            GroupConfigWeb(
-                group_by="taxon",
-                data_source="db",
-                template="group_detail.html",
-                output_pattern="{group_by}/{id}.html",
-                index_output_pattern="{group_by}/index.html",
-                widgets=[],
-            )
-        ]
-
-        from jinja2 import Environment, FileSystemLoader
-
-        jinja_env = Environment(loader=FileSystemLoader(str(self.template_dir)))
-        params = HtmlExporterParams(
-            output_dir=str(self.output_dir), template_dir=str(self.template_dir)
-        )
-
-        class DummyFuture:
-            def __init__(self, result):
-                self._result = result
-
-            def result(self):
-                return self._result
-
-        executor_kwargs = {}
-
-        class DummyExecutor:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def submit(self, fn, **kwargs):
-                return DummyFuture({})
-
-        def fake_executor(*args, **kwargs):
-            executor_kwargs.update(kwargs)
-            return DummyExecutor()
-
-        with (
-            patch(
-                "niamoto.core.plugins.exporters.html_page_exporter.ThreadPoolExecutor",
-                side_effect=fake_executor,
-            ),
-            patch(
-                "niamoto.core.plugins.exporters.html_page_exporter.as_completed",
-                side_effect=lambda futures: list(futures.keys()),
-            ),
-            patch.object(exporter, "_apply_detail_page_result"),
-            patch.object(exporter, "_cleanup_worker_databases"),
-        ):
-            exporter._process_groups(
-                groups,
-                jinja_env,
-                params,
-                self.output_dir,
-                self.mock_db,
-                workers=4,
-            )
-
-        self.assertEqual(executor_kwargs["max_workers"], 2)
 
     def test_resolve_registry_entity_uses_instance_cache(self):
         """Registry lookups should be memoized during one exporter run."""

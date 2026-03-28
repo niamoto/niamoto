@@ -67,7 +67,7 @@ def test_export_pages_no_group(mock_config, mock_path, mock_exporter):
     )
     # Check run_export is called instead of export_data
     mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name="web_pages", group_filter=None, workers=1
+        target_name="web_pages", group_filter=None
     )
 
 
@@ -89,7 +89,7 @@ def test_export_pages_with_group(mock_config, mock_path, mock_exporter):
     )
     # Check run_export is called with the right group
     mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name="web_pages", group_filter="taxon", workers=1
+        target_name="web_pages", group_filter="taxon"
     )
 
 
@@ -185,21 +185,7 @@ def test_export_default_command(mock_config, mock_path, mock_exporter):
     )
     # Check run_export is called instead of export_data
     mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name=None, group_filter=None, workers=1
-    )
-
-
-def test_export_pages_with_workers(mock_config, mock_path, mock_exporter):
-    """Test export pages with explicit worker count."""
-    mock_config_instance = mock_config.return_value
-    mock_config_instance.exports = {"some": "config"}
-
-    runner = CliRunner()
-    result = runner.invoke(export_command, ["--target", "web_pages", "--workers", "4"])
-
-    assert result.exit_code == 0
-    mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name="web_pages", group_filter=None, workers=4
+        target_name=None, group_filter=None
     )
 
 
