@@ -72,7 +72,7 @@ export function ReferenceDetailPanel({
 }: ReferenceDetailPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTable, setDeleteTable] = useState(false)
@@ -117,11 +117,6 @@ export function ReferenceDetailPanel({
 
   const handleConfigSaved = async () => {
     await reloadEnrichmentConfig()
-    if (searchParams.get('tab')) {
-      const nextParams = new URLSearchParams(searchParams)
-      nextParams.delete('tab')
-      setSearchParams(nextParams, { replace: true })
-    }
   }
 
   const openInDataExplorer = () => {

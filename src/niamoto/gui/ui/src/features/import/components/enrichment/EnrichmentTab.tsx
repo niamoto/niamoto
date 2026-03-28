@@ -761,7 +761,7 @@ export function EnrichmentTab({
         </CardContent>
       </Card>
 
-      {hasEnrichment || enrichmentEnabled ? (
+      {hasEnrichment ? (
         <>
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
