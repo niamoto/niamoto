@@ -120,7 +120,7 @@ export function ReferenceDetailPanel({
   }
 
   const openInDataExplorer = () => {
-    navigate(`/data/explorer?table=${encodeURIComponent(tableName)}`)
+    navigate(`/tools/explorer?table=${encodeURIComponent(tableName)}`)
   }
 
   const handleDelete = async () => {

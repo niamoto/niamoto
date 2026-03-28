@@ -67,7 +67,7 @@ export function DatasetDetailPanel({
   const [activeTab, setActiveTab] = useState('overview')
 
   const openInDataExplorer = () => {
-    navigate(`/data/explorer?table=${encodeURIComponent(tableName)}`)
+    navigate(`/tools/explorer?table=${encodeURIComponent(tableName)}`)
   }
 
   const handleDelete = async () => {
