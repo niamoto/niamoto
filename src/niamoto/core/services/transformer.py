@@ -1,8 +1,5 @@
-"""
-Service for transforming data based on YAML configuration.
-"""
+"""Service for transforming data based on YAML configuration."""
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional, Callable
 import logging
 import json
@@ -316,7 +313,6 @@ class TransformerService:
         csv_file: Optional[str] = None,
         recreate_table: bool = True,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-        workers: int = 1,
     ) -> Dict[str, Any]:
         """
         Transform data according to the configuration.
@@ -344,35 +340,9 @@ class TransformerService:
 
         # Filter configurations
         configs = self._filter_configs(group_by)
-        use_parallel = workers > 1 and csv_file is None
-        if workers > 1 and csv_file is not None:
-            logger.info(
-                "Transform workers requested with CSV input; falling back to sequential mode"
-            )
-
         try:
-            if not use_parallel:
-                self.db.enable_connection_reuse()
-            if use_parallel:
-                if self.use_cli_integration and ProgressManager:
-                    progress_manager = ProgressManager(self.console)
-                    with progress_manager.progress_context() as pm:
-                        results = self._process_configs_parallel(
-                            configs,
-                            recreate_table,
-                            workers,
-                            pm,
-                            progress_callback,
-                        )
-                else:
-                    results = self._process_configs_parallel(
-                        configs,
-                        recreate_table,
-                        workers,
-                        None,
-                        progress_callback,
-                    )
-            elif self.use_cli_integration and ProgressManager:
+            self.db.enable_connection_reuse()
+            if self.use_cli_integration and ProgressManager:
                 # Use unified progress manager when in CLI context
                 progress_manager = ProgressManager(self.console)
                 with progress_manager.progress_context() as pm:
@@ -400,158 +370,6 @@ class TransformerService:
                 self.db.disable_connection_reuse()
                 if self.transform_metrics:
                     self.transform_metrics.finish()
-
-        return results
-
-    def _process_configs_parallel(
-        self,
-        configs,
-        recreate_table,
-        workers: int,
-        progress_manager=None,
-        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-    ):
-        """Process DB-backed transformations in parallel by entity."""
-
-        results = {}
-        start_time = datetime.now()
-        processed_ops = 0
-
-        total_ops = 0
-        try:
-            for group_config in configs:
-                group_ids = self._get_group_ids(group_config)
-                widgets_config = group_config.get("widgets_data", {})
-                total_ops += len(group_ids) * max(len(widgets_config), 1)
-        except Exception:
-            total_ops = 0
-
-        for group_config in configs:
-            self.validate_configuration(group_config)
-
-            group_ids = self._get_group_ids(group_config)
-            widgets_config = group_config.get("widgets_data", {})
-            group_by_name = group_config.get("group_by", "unknown")
-            widget_names = list(widgets_config.keys())
-            widget_count = len(widget_names)
-
-            id_name_map: Dict[int, str] = {}
-            if progress_callback:
-                id_name_map = self._load_group_names(group_config, group_ids)
-
-            if progress_manager is not None:
-                import time
-
-                task_name = f"transform_{group_by_name}_{int(time.time())}"
-                progress_manager.add_task(
-                    task_name,
-                    f"Processing {group_by_name} data",
-                    total=len(group_ids) * widget_count,
-                )
-            else:
-                task_name = None
-
-            self._create_group_table(group_by_name, widgets_config, recreate_table)
-
-            if self.transform_metrics:
-                self.transform_metrics.add_metric(
-                    f"{group_by_name}_items", len(group_ids)
-                )
-                self.transform_metrics.add_metric(
-                    f"{group_by_name}_widgets", len(widgets_config)
-                )
-
-            widgets_generated = 0
-            results[group_by_name] = {
-                "total_items": len(group_ids),
-                "widgets": {},
-                "start_time": getattr(progress_manager, "_start_time", start_time),
-            }
-
-            max_workers = min(max(workers, 1), len(group_ids))
-            if workers > 1 and max_workers != workers and self.console is not None:
-                self.console.print(
-                    f"[dim]Using {max_workers} worker(s) for {group_by_name} "
-                    f"({len(group_ids)} entities).[/dim]"
-                )
-            if max_workers <= 1:
-                completed = [
-                    (group_id, self._compute_entity_results(group_config, group_id))
-                    for group_id in group_ids
-                ]
-            else:
-                with ProcessPoolExecutor(
-                    max_workers=max_workers,
-                    initializer=_init_transform_worker,
-                    initargs=(self.db.db_path, self.config.config_dir),
-                ) as executor:
-                    future_to_group_id = {
-                        executor.submit(
-                            _transform_entity_task, group_config, group_id
-                        ): group_id
-                        for group_id in group_ids
-                    }
-                    completed = []
-                    for future in as_completed(future_to_group_id):
-                        group_id = future_to_group_id[future]
-                        try:
-                            entity_result = future.result()
-                        except Exception as exc:
-                            self._record_transform_warning(
-                                f"Parallel transform failed for {group_by_name} {group_id}: {exc}",
-                                progress_manager,
-                            )
-                            entity_result = {
-                                "group_id": group_id,
-                                "results": {},
-                                "warnings": [],
-                            }
-                        completed.append((group_id, entity_result))
-
-            for group_id, entity_result in completed:
-                if task_name is not None:
-                    progress_manager.update_task(
-                        task_name,
-                        advance=0,
-                        description=f"[green] Processing {group_by_name} {group_id}",
-                    )
-
-                for warning in entity_result.get("warnings", []):
-                    self._record_transform_warning(warning, progress_manager)
-
-                widgets_generated += self._apply_entity_results(
-                    group_by_name, entity_result, results[group_by_name]
-                )
-
-                for widget_name in widget_names:
-                    processed_ops += 1
-                    if task_name is not None:
-                        progress_manager.update_task(task_name, advance=1)
-                    if progress_callback and total_ops:
-                        progress_callback(
-                            {
-                                "group": group_by_name,
-                                "widget": widget_name,
-                                "item_label": id_name_map.get(group_id, str(group_id)),
-                                "processed": processed_ops,
-                                "total": total_ops,
-                            }
-                        )
-
-            self._flush_group_table(group_by_name, recreate_table)
-
-            if self.transform_metrics:
-                self.transform_metrics.add_metric(
-                    f"{group_by_name}_widgets_generated", widgets_generated
-                )
-
-            results[group_by_name]["widgets_generated"] = widgets_generated
-            results[group_by_name]["end_time"] = datetime.now()
-
-            if task_name is not None:
-                progress_manager.complete_task(
-                    task_name, f"{group_by_name} transformation completed"
-                )
 
         return results
 
@@ -1378,25 +1196,3 @@ class TransformerService:
             self.db.execute_sql(insert_sql)
         finally:
             self.db.execute_sql(f"DROP TABLE IF EXISTS {staging_table}")
-
-
-_TRANSFORM_WORKER_SERVICE: TransformerService | None = None
-
-
-def _init_transform_worker(db_path: str, config_dir: str) -> None:
-    """Initialize one reusable worker-local TransformerService instance."""
-
-    global _TRANSFORM_WORKER_SERVICE
-    worker_db = Database(db_path, read_only=True)
-    _TRANSFORM_WORKER_SERVICE = TransformerService.for_preview(worker_db, config_dir)
-
-
-def _transform_entity_task(
-    group_config: Dict[str, Any], group_id: Any
-) -> Dict[str, Any]:
-    """Compute one entity's widget results inside a process worker."""
-
-    if _TRANSFORM_WORKER_SERVICE is None:
-        raise RuntimeError("Transform worker service is not initialized")
-
-    return _TRANSFORM_WORKER_SERVICE._compute_entity_results(group_config, group_id)

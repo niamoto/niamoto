@@ -120,20 +120,12 @@ def list_configurations() -> None:
     default=True,
     help="Recreate tables instead of updating them.",
 )
-@click.option(
-    "--workers",
-    type=click.IntRange(min=1),
-    default=1,
-    show_default=True,
-    help="Number of worker processes for DB-backed transforms.",
-)
 @error_handler(log=True, raise_error=True)
 def process_transformations(
     group: Optional[str],
     data: Optional[str],
     verbose: bool,
     recreate_table: bool,
-    workers: int,
 ) -> None:
     """
     Run data transformations based on configuration.
@@ -173,17 +165,11 @@ def process_transformations(
             print_start(f"Processing transformations for group: {group}")
         else:
             print_start("Processing all transformation groups")
-        if data and workers > 1:
-            print_warning(
-                "Ignoring --workers when --data is used; running sequential transform."
-            )
-
         # Execute the transformation
         results = service.transform_data(
             group_by=group,
             csv_file=data,
             recreate_table=recreate_table,
-            workers=workers,
         )
 
         # Create and display metrics

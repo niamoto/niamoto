@@ -47,12 +47,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to the source instance to benchmark",
     )
     parser.add_argument(
-        "--transform-workers",
-        type=int,
-        default=1,
-        help="Worker count passed to `niamoto transform run`",
-    )
-    parser.add_argument(
         "--export-target",
         default="web_pages",
         help="Export target to run for the benchmark",
@@ -128,13 +122,11 @@ def build_summary(
     staged_instance: Path,
     transform_result: StepResult,
     export_result: Optional[StepResult],
-    transform_workers: int,
     export_workers: int,
 ) -> dict:
     summary: dict[str, object] = {
         "instance": str(source_instance),
         "staged_instance": str(staged_instance),
-        "transform_workers": transform_workers,
         "export_workers": export_workers,
         "transform": asdict(transform_result),
     }
@@ -151,7 +143,6 @@ def print_summary(summary: dict) -> None:
 
     transform = summary["transform"]
     print("Transform")
-    print(f"  Workers         : {summary['transform_workers']}")
     print(f"  Status          : {'ok' if transform['ok'] else 'failed'}")
     print(f"  Duration        : {format_duration(transform['duration_s'])}")
     print(f"  Return code     : {transform['returncode']}")
@@ -200,8 +191,6 @@ def main() -> int:
                 "niamoto",
                 "transform",
                 "run",
-                "--workers",
-                str(args.transform_workers),
             ],
             cwd=staged_instance,
             logs_dir=logs_dir,
@@ -230,7 +219,6 @@ def main() -> int:
             staged_instance=staged_instance,
             transform_result=transform_result,
             export_result=export_result,
-            transform_workers=args.transform_workers,
             export_workers=args.export_workers,
         )
         print_summary(summary)

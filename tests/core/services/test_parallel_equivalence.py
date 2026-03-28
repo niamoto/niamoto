@@ -43,13 +43,13 @@ def _project_env(project_dir: Path):
             os.environ["NIAMOTO_HOME"] = previous
 
 
-def _run_transform(project_dir: Path, workers: int) -> None:
+def _run_transform(project_dir: Path) -> None:
     config = Config(str(project_dir / "config"), create_default=False)
     service = TransformerService(
         config.database_path, config, enable_cli_integration=False
     )
     try:
-        service.transform_data(workers=workers)
+        service.transform_data()
     finally:
         service.db.close_db_session()
 
@@ -96,32 +96,6 @@ def _collect_export_html(project_dir: Path) -> dict[str, str]:
         str(path.relative_to(root)): _normalize_html(path.read_text(encoding="utf-8"))
         for path in html_files
     }
-
-
-@pytest.mark.slow
-@pytest.mark.integration
-def test_transform_outputs_match_between_sequential_and_parallel(
-    tmp_path: Path,
-    niamoto_subset_instance_dir: Path,
-):
-    sequential_project = _copy_instance(
-        niamoto_subset_instance_dir, tmp_path / "subset-transform-w1"
-    )
-    parallel_project = _copy_instance(
-        niamoto_subset_instance_dir, tmp_path / "subset-transform-w2"
-    )
-
-    with _project_env(sequential_project):
-        _run_transform(sequential_project, workers=1)
-    with _project_env(parallel_project):
-        _run_transform(parallel_project, workers=2)
-
-    with _project_env(sequential_project):
-        sequential_tables = _load_transform_tables(sequential_project)
-    with _project_env(parallel_project):
-        parallel_tables = _load_transform_tables(parallel_project)
-
-    assert parallel_tables == sequential_tables
 
 
 @pytest.mark.slow
