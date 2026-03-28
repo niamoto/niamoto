@@ -161,7 +161,6 @@ a = Analysis(
         'pytest',
         'pytest_mock',
         'hypothesis',
-        'unittest',
         '_pytest',
         # Documentation
         'sphinx',

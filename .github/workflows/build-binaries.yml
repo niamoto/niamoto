@@ -97,7 +97,7 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+          python -m PyInstaller build_scripts/niamoto.spec --clean --noconfirm
 
       - name: Verify binary (Unix)
         if: matrix.platform != 'windows'
