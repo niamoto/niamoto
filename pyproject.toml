@@ -99,6 +99,9 @@ dependencies = [
     # FastAPI - Modern, fast web framework for building APIs
     # Documentation: https://fastapi.tiangolo.com/
     "fastapi>=0.135.1",
+    # AnyIO - Async compatibility layer used by the FastAPI/Starlette stack.
+    # Pin a Python 3.14-compatible minimum to avoid the from_thread.py SyntaxWarning.
+    "anyio>=4.10.0",
     # Uvicorn - Lightning-fast ASGI server
     # Documentation: https://www.uvicorn.org/
     "uvicorn[standard]>=0.41.0",
