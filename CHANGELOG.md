@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.10.0] - 2026-03-28
+
+### Features
+
+- Add release automation infrastructure (CI workflows, Trusted Publishers, skill)
+- Show live import progress events
+- Stream auto-config analysis events
+- Classify auxiliary stats sources separately
+- Improve semantic relationship detection
+
+### Performance
+
+- Streamline transform and export pipelines (parallel execution)
+- Add pytest-xdist parallel execution and mark slow benchmarks
+
+### Bug Fixes
+
+- Fix auto-configure job polling timeout for CI with xdist
+- Fix CI uv venv cached virtualenv handling
+- Use correct codecov-action v5 parameter name
+- Skip benchmark tests when subset instance is unavailable
+- Translate api enrichment UI
+- Support reference-only spatial widgets
+- Restore map suggestions for coordinate fields
+
+### Refactoring
+
+- Migrate geospatial I/O to pyogrio
+- Close UI architecture review findings
+- Finalize frontend feature architecture cleanup
+- Simplify import flow and configuration review UX
+- Streamline reference enrichment flow
+- Extract smart auto-config decision layer
+- Harden and centralize auto-config rules
+- Move plotly-bundles to scripts/build/
+- Clean up scripts directory, archive obsolete utilities
+- Remove publish.sh, move scripts to dev/, update docs for CI-based PyPI publish
+
+### Documentation
+
+- Rewrite GUI documentation in English
+- Refine repository guidance for coding agents
+- Add ML model regeneration design
+
+### Other
+
+- Realign dependencies and raise minimum Python to 3.12
+- Regenerate ML models for sklearn 1.8
+- Pin pyinstaller and update desktop packaging
+- Replace battle test phases with focused import suites
+
 ## [v0.9.0] - 2026-03-23
 
 ### Features
