@@ -406,6 +406,10 @@ async def generate_transform_config(request: GenerateConfigRequest):
                 },
             }
         ]
+    elif request.reference_kind == "spatial":
+        # Spatial references should not invent a dataset FK like `shapes_id`.
+        # They rely on explicit auxiliary sources (for example shape_stats) instead.
+        sources = []
     else:
         # Flat and spatial references use direct_reference
         # Use relation from import.yml if available, otherwise fallback to convention

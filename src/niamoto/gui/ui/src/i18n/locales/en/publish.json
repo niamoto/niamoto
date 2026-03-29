@@ -243,6 +243,7 @@
     "confirmClearDeploys": "Are you sure you want to clear deployment history? This action cannot be undone.",
     "clearedBuilds": "Build history cleared",
     "clearedDeploys": "Deployment history cleared",
+    "clearError": "Failed to clear history",
     "noBuildsYet": "No builds performed",
     "noDeploysYet": "No deployments performed",
     "buildDetails": "Build Details",

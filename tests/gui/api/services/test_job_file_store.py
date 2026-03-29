@@ -228,6 +228,34 @@ class TestGetLastRun:
         assert store.get_last_run("transform", group_by="plots") is None
 
 
+class TestClearHistory:
+    def test_clears_only_requested_job_type(self, store: JobFileStore):
+        transform_job = store.create_job("transform")
+        store.complete_job(transform_job["id"])
+
+        export_job = store.create_job("export")
+        store.complete_job(export_job["id"])
+
+        running_job = store.create_job("transform")
+
+        removed = store.clear_history(job_type="export")
+
+        assert removed == 1
+        history = store.get_history(limit=10)
+        assert len(history) == 1
+        assert history[0]["type"] == "transform"
+        assert store.get_active_job()["id"] == running_job["id"]
+
+    def test_clears_terminal_active_job_when_type_matches(self, store: JobFileStore):
+        export_job = store.create_job("export")
+        store.complete_job(export_job["id"])
+
+        removed = store.clear_history(job_type="export")
+
+        assert removed == 1
+        assert store.get_active_job() is None
+
+
 # --- recover_on_startup ---
 
 

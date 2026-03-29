@@ -1,6 +1,8 @@
 {
   "title": "Configuration de l'index",
   "description": "Configurer l'affichage de l'index",
+  "defaultTitle": "Liste des {{groupBy}}",
+  "groupDescription": "Configurer la page d'index du groupe \"{{groupBy}}\"",
   "loading": "Chargement de la configuration...",
   "pageSettings": {
     "title": "Titre",
@@ -11,6 +13,54 @@
   },
   "replaceExisting": "Remplacer la configuration existante ?",
   "existingConfig": "Une configuration existe déjà avec {{count}} champ(s)",
+  "confirm": {
+    "replaceDescription": "Une configuration existe déjà avec {{fieldCount}} champ(s). L'auto-détection va remplacer ces paramètres par de nouvelles suggestions.",
+    "replaceDescriptionWithFilters": "Une configuration existe déjà avec {{fieldCount}} champ(s) et {{filterCount}} filtre(s). L'auto-détection va remplacer ces paramètres par de nouvelles suggestions."
+  },
+  "actions": {
+    "detecting": "Détection...",
+    "autoDetect": "Auto-détecter",
+    "saving": "Sauvegarde...",
+    "replace": "Remplacer"
+  },
+  "status": {
+    "unsavedChanges": "Modifications non sauvegardées",
+    "saveSuccess": "Configuration sauvegardée avec succès"
+  },
+  "toggle": {
+    "label": "Activer la page d'index",
+    "description": "Génère une page listant toutes les entités du groupe",
+    "descriptionDetecting": "Détection automatique des champs en cours..."
+  },
+  "sections": {
+    "page": {
+      "title": "Paramètres de page",
+      "description": "Titre, description, pagination"
+    },
+    "filters": {
+      "title": "Filtres",
+      "description": "Filtrer les entités affichées"
+    },
+    "fields": {
+      "title": "Champs affichés",
+      "description": "Colonnes visibles dans la liste"
+    },
+    "views": {
+      "title": "Modes d'affichage",
+      "description": "Grille et/ou liste"
+    }
+  },
+  "views": {
+    "defaultLabel": "Mode par défaut",
+    "grid": {
+      "label": "Affichage en grille",
+      "description": "Affiche les entités dans une grille de cartes"
+    },
+    "list": {
+      "label": "Affichage en liste",
+      "description": "Affiche les entités dans une liste tabulaire"
+    }
+  },
   "filters": {
     "noFilters": "Aucun filtre configuré. Les filtres permettent de restreindre les entités affichées dans l'index.",
     "addFilter": "Ajouter un filtre",
@@ -21,7 +71,12 @@
     "noFields": "Aucun champ configuré. Les champs définissent les colonnes affichées dans l'index.",
     "addField": "Ajouter un champ",
     "editField": "Modifier le champ",
+    "unnamed": "(sans nom)",
     "sourceUndefined": "(source non définie)",
+    "instructions": "Cliquez sur un champ pour le modifier. Glissez-déposez pour réordonner.",
+    "searchableBadge": "Recherche",
+    "badgeBadge": "Badge",
+    "hiddenBadge": "Caché",
     "generateFilterOptions": "Générer les options de filtre depuis les données",
     "linkSettings": "Paramètres du lien",
     "linkLabel": "Label du lien",

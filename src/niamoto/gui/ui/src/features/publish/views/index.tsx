@@ -40,17 +40,31 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 
+function getExportedSitePreviewUrl(path: string) {
+  return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
+}
+
+function getExportedHomePath(lang?: string, languages?: string[]) {
+  const uniqueLanguages = Array.from(new Set((languages || []).filter(Boolean)))
+  if (uniqueLanguages.length > 1 && lang) {
+    return `${lang}/index.html`
+  }
+  return 'index.html'
+}
+
 /** Inline preview of the generated static site using a real iframe (not srcdoc). */
 function StaticSitePreview({
   device,
   onDeviceChange,
   onClose,
   lang,
+  languages,
 }: {
   device: DeviceSize
   onDeviceChange: (d: DeviceSize) => void
   onClose: () => void
   lang?: string
+  languages?: string[]
 }) {
   const { t } = useTranslation('publish')
   const [iframeKey, setIframeKey] = useState(0)
@@ -58,7 +72,7 @@ function StaticSitePreview({
   const [scale, setScale] = useState(1)
   const dims = DEVICE_DIMENSIONS[device]
   // Build preview URL: skip root redirect by going directly to the lang directory
-  const previewUrl = lang ? `/preview/${lang}/index.html` : '/preview/index.html'
+  const previewUrl = getExportedSitePreviewUrl(getExportedHomePath(lang, languages))
 
   useEffect(() => {
     const update = () => {
@@ -428,6 +442,7 @@ export default function PublishOverview() {
               onDeviceChange={setPreviewDevice}
               onClose={() => setPreviewOpen(false)}
               lang={siteConfig?.site?.lang as string || i18n.language?.split('-')[0] || 'fr'}
+              languages={siteConfig?.site?.languages as string[] | undefined}
             />
           ) : (
             // Before build: dynamic template preview

@@ -1,6 +1,8 @@
 {
   "title": "Index Configuration",
   "description": "Configure index display",
+  "defaultTitle": "List of {{groupBy}}",
+  "groupDescription": "Configure the index page for the group \"{{groupBy}}\"",
   "loading": "Loading configuration...",
   "pageSettings": {
     "title": "Title",
@@ -11,6 +13,54 @@
   },
   "replaceExisting": "Replace existing configuration?",
   "existingConfig": "A configuration already exists with {{count}} field(s)",
+  "confirm": {
+    "replaceDescription": "A configuration already exists with {{fieldCount}} field(s). Auto-detection will replace these settings with new suggestions.",
+    "replaceDescriptionWithFilters": "A configuration already exists with {{fieldCount}} field(s) and {{filterCount}} filter(s). Auto-detection will replace these settings with new suggestions."
+  },
+  "actions": {
+    "detecting": "Detecting...",
+    "autoDetect": "Auto-detect",
+    "saving": "Saving...",
+    "replace": "Replace"
+  },
+  "status": {
+    "unsavedChanges": "Unsaved changes",
+    "saveSuccess": "Configuration saved successfully"
+  },
+  "toggle": {
+    "label": "Enable index page",
+    "description": "Generates a page listing all entities in the group",
+    "descriptionDetecting": "Automatic field detection in progress..."
+  },
+  "sections": {
+    "page": {
+      "title": "Page settings",
+      "description": "Title, description, pagination"
+    },
+    "filters": {
+      "title": "Filters",
+      "description": "Filter displayed entities"
+    },
+    "fields": {
+      "title": "Displayed fields",
+      "description": "Columns visible in the list"
+    },
+    "views": {
+      "title": "Display modes",
+      "description": "Grid and/or list"
+    }
+  },
+  "views": {
+    "defaultLabel": "Default mode",
+    "grid": {
+      "label": "Grid view",
+      "description": "Displays entities in a card grid"
+    },
+    "list": {
+      "label": "List view",
+      "description": "Displays entities in a table list"
+    }
+  },
   "filters": {
     "noFilters": "No filters configured. Filters restrict which entities are displayed in the index.",
     "addFilter": "Add filter",
@@ -21,7 +71,12 @@
     "noFields": "No fields configured. Fields define the columns displayed in the index.",
     "addField": "Add field",
     "editField": "Edit field",
+    "unnamed": "(unnamed)",
     "sourceUndefined": "(source undefined)",
+    "instructions": "Click a field to edit it. Drag and drop to reorder.",
+    "searchableBadge": "Search",
+    "badgeBadge": "Badge",
+    "hiddenBadge": "Hidden",
     "generateFilterOptions": "Generate filter options from data",
     "linkSettings": "Link settings",
     "linkLabel": "Link label",

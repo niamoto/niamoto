@@ -77,6 +77,8 @@ export interface PlatformConfig {
 }
 
 interface PublishState {
+  projectScope: string | null
+
   // Current operations
   currentBuild: BuildJob | null
   currentDeploy: DeployJob | null
@@ -88,6 +90,10 @@ interface PublishState {
   // Platform configurations (persisted)
   platformConfigs: PlatformConfig
   preferredPlatform: DeployPlatform | null
+
+  // Project scoping / hydration
+  setProjectScope: (scope: string) => void
+  hydrateBuildState: (payload: { currentBuild: BuildJob | null; buildHistory: BuildJob[] }) => void
 
   // Build actions
   startBuild: () => BuildJob
@@ -127,12 +133,30 @@ export const usePublishStore = create<PublishState>()(
   persist(
     (set, get) => ({
       // Initial state
+      projectScope: null,
       currentBuild: null,
       currentDeploy: null,
       buildHistory: [],
       deployHistory: [],
       platformConfigs: {},
       preferredPlatform: null,
+
+      setProjectScope: (scope) => {
+        set((state) => {
+          if (state.projectScope === scope) return state
+          return {
+            projectScope: scope,
+            currentBuild: null,
+            currentDeploy: null,
+            buildHistory: [],
+            deployHistory: [],
+          }
+        })
+      },
+
+      hydrateBuildState: ({ currentBuild, buildHistory }) => {
+        set({ currentBuild, buildHistory })
+      },
 
       // Build actions
       startBuild: () => {
@@ -319,11 +343,21 @@ export const usePublishStore = create<PublishState>()(
     }),
     {
       name: 'publish-storage',
+      version: 2,
+      migrate: (persistedState) => {
+        const state = (persistedState as Partial<PublishState> | undefined) ?? {}
+        return {
+          projectScope: null,
+          deployHistory: [],
+          platformConfigs: state.platformConfigs ?? {},
+          preferredPlatform: state.preferredPlatform ?? null,
+        }
+      },
       partialize: (state) => ({
-        buildHistory: state.buildHistory,
         deployHistory: state.deployHistory,
         platformConfigs: state.platformConfigs,
         preferredPlatform: state.preferredPlatform,
+        projectScope: state.projectScope,
       })
     }
   )

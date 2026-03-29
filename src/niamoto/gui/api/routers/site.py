@@ -1,8 +1,10 @@
 """Site configuration API endpoints for managing export.yml site settings."""
 
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 import yaml
 import shutil
@@ -11,6 +13,60 @@ from datetime import datetime
 from ..context import get_working_directory
 
 router = APIRouter()
+
+_LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
+
+
+def _candidate_exported_preview_path(
+    exports_web_dir: Path, requested_path: str
+) -> Path:
+    normalized = requested_path.strip("/")
+
+    if not normalized:
+        return exports_web_dir / "index.html"
+
+    candidate = exports_web_dir / normalized
+    if candidate.is_dir() or requested_path.endswith("/"):
+        candidate = candidate / "index.html"
+    return candidate
+
+
+def _fallback_without_language_prefix(
+    exports_web_dir: Path, normalized: str
+) -> Path | None:
+    parts = normalized.split("/", 1)
+    if len(parts) != 2:
+        return None
+
+    prefix, remainder = parts
+    if not _LANGUAGE_PREFIX_RE.match(prefix):
+        return None
+
+    return _candidate_exported_preview_path(exports_web_dir, remainder)
+
+
+def _resolve_exported_preview_path(requested_path: str = "") -> Path:
+    """Resolve a file inside the current project's exported web directory."""
+    work_dir = get_working_directory()
+    exports_web_dir = (work_dir / "exports" / "web").resolve()
+    normalized = requested_path.strip("/")
+
+    candidate = _candidate_exported_preview_path(exports_web_dir, requested_path)
+    if normalized and not candidate.exists():
+        fallback = _fallback_without_language_prefix(exports_web_dir, normalized)
+        if fallback is not None and fallback.exists():
+            candidate = fallback
+
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(exports_web_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="Invalid preview path") from exc
+
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="Preview file not found")
+
+    return resolved
 
 
 # =============================================================================
@@ -474,6 +530,12 @@ async def get_groups():
     groups = []
 
     for g in groups_data:
+        group_name = g.get("group_by", "")
+        output_pattern = g.get("output_pattern") or (
+            f"{group_name}/{{id}}.html" if group_name else ""
+        )
+        index_output_pattern = g.get("index_output_pattern")
+
         # Parse index_generator if present
         index_gen_data = g.get("index_generator")
         index_generator = None
@@ -486,18 +548,28 @@ async def get_groups():
                 display_fields=index_gen_data.get("display_fields", []),
                 views=index_gen_data.get("views", []),
             )
+            if not index_output_pattern and group_name:
+                index_output_pattern = f"{group_name}/index.html"
 
         groups.append(
             GroupInfo(
-                name=g.get("group_by", ""),
-                output_pattern=g.get("output_pattern", ""),
-                index_output_pattern=g.get("index_output_pattern"),
+                name=group_name,
+                output_pattern=output_pattern,
+                index_output_pattern=index_output_pattern,
                 index_generator=index_generator,
                 widgets_count=len(g.get("widgets", [])),
             )
         )
 
     return GroupsResponse(groups=groups)
+
+
+@router.get("/preview-exported", include_in_schema=False)
+@router.get("/preview-exported/{requested_path:path}", include_in_schema=False)
+async def preview_exported_site(requested_path: str = ""):
+    """Serve exported preview files for the current instance."""
+    preview_path = _resolve_exported_preview_path(requested_path)
+    return FileResponse(preview_path)
 
 
 @router.get("/templates", response_model=TemplatesResponse)

@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useTranslation } from 'react-i18next'
 import { GripVertical, Plus, Trash2, Search, Badge as BadgeIcon, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -39,11 +40,19 @@ interface SortableFieldItemProps {
   field: IndexDisplayField
   index: number
   isSelected: boolean
+  t: (key: string) => string
   onClick: () => void
   onRemove: () => void
 }
 
-function SortableFieldItem({ field, index, isSelected, onClick, onRemove }: SortableFieldItemProps) {
+function SortableFieldItem({
+  field,
+  index,
+  isSelected,
+  t,
+  onClick,
+  onRemove,
+}: SortableFieldItemProps) {
   const {
     attributes,
     listeners,
@@ -83,33 +92,33 @@ function SortableFieldItem({ field, index, isSelected, onClick, onRemove }: Sort
       {/* Field info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{field.name || '(sans nom)'}</span>
+          <span className="font-medium truncate">{field.name || t('fields.unnamed')}</span>
 
           {/* Badges for field properties */}
           {field.searchable && (
             <Badge variant="outline" className="h-5 text-[10px] px-1.5 shrink-0">
               <Search className="h-3 w-3 mr-1" />
-              Recherche
+              {t('fields.searchableBadge')}
             </Badge>
           )}
 
           {field.inline_badge && (
             <Badge variant="outline" className="h-5 text-[10px] px-1.5 shrink-0">
               <BadgeIcon className="h-3 w-3 mr-1" />
-              Badge
+              {t('fields.badgeBadge')}
             </Badge>
           )}
 
           {field.display === 'hidden' && (
             <Badge variant="outline" className="h-5 text-[10px] px-1.5 shrink-0 text-muted-foreground">
               <EyeOff className="h-3 w-3 mr-1" />
-              Cache
+              {t('fields.hiddenBadge')}
             </Badge>
           )}
         </div>
 
         <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">
-          {field.source || '(source non definie)'}
+          {field.source || t('fields.sourceUndefined')}
         </p>
       </div>
 
@@ -144,6 +153,8 @@ export function IndexDisplayFieldsConfig({
   onRemove,
   onReorder,
 }: IndexDisplayFieldsConfigProps) {
+  const { t } = useTranslation('indexConfig')
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -167,11 +178,11 @@ export function IndexDisplayFieldsConfig({
     return (
       <div className="text-center py-6">
         <p className="text-sm text-muted-foreground mb-4">
-          Aucun champ configure. Les champs definissent les colonnes affichees dans l'index.
+          {t('fields.noFields')}
         </p>
         <Button variant="outline" size="sm" onClick={onAdd}>
           <Plus className="mr-2 h-4 w-4" />
-          Ajouter un champ
+          {t('fields.addField')}
         </Button>
       </div>
     )
@@ -180,7 +191,7 @@ export function IndexDisplayFieldsConfig({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground mb-3">
-        Cliquez sur un champ pour le modifier. Glissez-deposez pour reordonner.
+        {t('fields.instructions')}
       </p>
 
       <DndContext
@@ -199,6 +210,7 @@ export function IndexDisplayFieldsConfig({
                 field={field}
                 index={index}
                 isSelected={selectedIndex === index}
+                t={t}
                 onClick={() => onSelect(index)}
                 onRemove={() => onRemove(index)}
               />
@@ -209,7 +221,7 @@ export function IndexDisplayFieldsConfig({
 
       <Button variant="outline" size="sm" onClick={onAdd} className="mt-4">
         <Plus className="mr-2 h-4 w-4" />
-        Ajouter un champ
+        {t('fields.addField')}
       </Button>
     </div>
   )

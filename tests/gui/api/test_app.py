@@ -1,7 +1,6 @@
 """Tests for GUI API app creation."""
 
 from pathlib import Path
-from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -65,36 +64,13 @@ class TestCreateApp:
             matching_routes = [path for path in route_paths if path.startswith(prefix)]
             assert len(matching_routes) > 0, f"No routes found for prefix {prefix}"
 
-    @patch("niamoto.gui.api.app.get_working_directory")
-    def test_preview_mount_when_exports_exist(self, mock_get_work_dir, tmp_path):
-        """Test /preview mount when exports/web exists."""
-        # Create exports/web directory
-        exports_web = tmp_path / "exports" / "web"
-        exports_web.mkdir(parents=True)
-        (exports_web / "index.html").write_text("<html>Preview</html>")
-
-        mock_get_work_dir.return_value = tmp_path
-
+    def test_preview_export_route_is_available(self):
+        """Test dynamic exported preview route is included."""
         app = create_app()
 
-        # Check that /preview route exists
         route_paths = [route.path for route in app.routes]
-        assert any("/preview" in path for path in route_paths)
-
-    @patch("niamoto.gui.api.app.get_working_directory")
-    def test_preview_mount_creates_dir_when_exports_missing(
-        self, mock_get_work_dir, tmp_path
-    ):
-        """Test /preview mount auto-creates exports/web even when missing."""
-        mock_get_work_dir.return_value = tmp_path
-
-        app = create_app()
-
-        # /preview should be mounted (directory is auto-created)
-        route_paths = [route.path for route in app.routes]
-        preview_routes = [path for path in route_paths if path.startswith("/preview")]
-        assert len(preview_routes) == 1
-        assert (tmp_path / "exports" / "web").exists()
+        assert "/api/site/preview-exported" in route_paths
+        assert "/api/site/preview-exported/{requested_path:path}" in route_paths
 
     def test_static_files_mount_when_ui_build_exists(self, tmp_path, monkeypatch):
         """Test static files are mounted when UI build exists."""

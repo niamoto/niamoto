@@ -1,6 +1,5 @@
 """FastAPI application for Niamoto GUI."""
 
-import logging
 import os
 from pathlib import Path
 
@@ -34,7 +33,7 @@ from .routers import (
     pipeline,
 )
 from .context import get_working_directory
-from .services.job_file_store import JobFileStore
+from .services.job_store_runtime import resolve_job_store
 
 # Get the path to the built React app
 # Works in both source and frozen (PyInstaller) modes
@@ -107,28 +106,12 @@ def create_app() -> FastAPI:
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
     app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
-    # Initialiser le JobFileStore et détecter les jobs orphelins
-    logger = logging.getLogger(__name__)
     work_dir = get_working_directory()
     if work_dir:
-        job_store = JobFileStore(work_dir)
-        orphan = job_store.recover_on_startup()
-        if orphan:
-            logger.warning("Job orphelin récupéré au démarrage : %s", orphan["id"])
-        app.state.job_store = job_store
+        resolve_job_store(app)
     else:
         app.state.job_store = None
-
-    # Serve exported site from exports/web/ directory
-    # Always create the directory so the mount exists even before the first export
-    if work_dir:
-        exports_web_dir = work_dir / "exports" / "web"
-        exports_web_dir.mkdir(parents=True, exist_ok=True)
-        app.mount(
-            "/preview",
-            StaticFiles(directory=exports_web_dir, html=True),
-            name="exported-site",
-        )
+        app.state.job_store_work_dir = None
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():

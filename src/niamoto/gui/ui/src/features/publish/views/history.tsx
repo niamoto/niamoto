@@ -49,6 +49,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow, format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { clearExportHistory } from '@/lib/api/export'
 
 export default function PublishHistory() {
   const { t, i18n } = useTranslation('publish')
@@ -107,15 +108,22 @@ export default function PublishHistory() {
     }
   }
 
-  const handleClearHistory = () => {
-    if (showClearDialog === 'builds') {
-      clearBuildHistory()
-      toast.success(t('history.clearedBuilds', 'Build history cleared'))
-    } else if (showClearDialog === 'deploys') {
-      clearDeployHistory()
-      toast.success(t('history.clearedDeploys', 'Deployment history cleared'))
+  const handleClearHistory = async () => {
+    try {
+      if (showClearDialog === 'builds') {
+        await clearExportHistory()
+        clearBuildHistory()
+        toast.success(t('history.clearedBuilds', 'Build history cleared'))
+      } else if (showClearDialog === 'deploys') {
+        clearDeployHistory()
+        toast.success(t('history.clearedDeploys', 'Deployment history cleared'))
+      }
+    } catch (error) {
+      console.error('Failed to clear publish history:', error)
+      toast.error(t('history.clearError', 'Failed to clear history'))
+    } finally {
+      setShowClearDialog(null)
     }
-    setShowClearDialog(null)
   }
 
   return (

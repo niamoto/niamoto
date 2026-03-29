@@ -147,6 +147,10 @@
     "noField": "No field",
     "noIndexPage": "No index page",
     "noIndexPageDesc": "This group does not generate an index page. Only detail pages are created for each entity.",
+    "activatePage": "Enable this page",
+    "activating": "Enabling...",
+    "indexPageActivated": "Index page enabled",
+    "indexPageActivatedDesc": "The group index page is now available in the Site Builder.",
     "editWidgets": "Edit widgets",
     "editWidgetsDesc": "Configure widgets in Transform/Export tab",
     "open": "Open"
