@@ -626,7 +626,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
           <AlertCircle className="w-4 h-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>{t('deploy.noBuild', 'You need to generate the site first before deploying.')}</span>
-            <Button size="sm" variant="outline" onClick={() => navigate('/publish/build')}>
+            <Button size="sm" variant="outline" onClick={() => navigate('/publish')}>
               <Package className="w-4 h-4 mr-2" />
               {t('deploy.goToBuild', 'Go to Build')}
             </Button>
@@ -640,7 +640,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
           <AlertTriangle className="w-4 h-4 text-amber-500" />
           <AlertDescription className="flex items-center justify-between">
             <span>{t('deploy.staleWarning', 'The exported site is outdated. Data has changed since the last build.')}</span>
-            <Button size="sm" variant="outline" onClick={() => navigate('/publish/build')}>
+            <Button size="sm" variant="outline" onClick={() => navigate('/publish')}>
               <Package className="w-4 h-4 mr-2" />
               {t('deploy.rebuild', 'Rebuild')}
             </Button>
@@ -675,7 +675,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
 
       {/* Site Cards Grid */}
       {configuredPlatforms.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={embedded ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'grid grid-cols-1 md:grid-cols-2 gap-4'}>
           {configuredPlatforms.map(platform => {
             const meta = PLATFORMS[platform]
             const config = platformConfigs[platform] as Record<string, string>
@@ -798,10 +798,10 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                   )}
 
                   {/* Action buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      className="flex-1"
+                      className="min-w-[140px] flex-1"
                       onClick={() => handleDeploy(platform)}
                       disabled={!canDeployPlatform || isCurrentlyDeploying}
                     >
@@ -818,7 +818,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                       )}
                     </Button>
                     {lastDeploy?.deploymentUrl && (
-                      <Button size="sm" variant="outline" asChild>
+                      <Button size="sm" variant="outline" className="min-w-[120px]" asChild>
                         <a href={lastDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="w-4 h-4 mr-2" />
                           {t('deploy.viewSite', 'View Site')}

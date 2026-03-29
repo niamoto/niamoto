@@ -98,25 +98,27 @@ function getPublishStatus({
   currentDeploy,
   hasSuccessfulBuild,
   isStale,
+  t,
 }: {
   currentBuild: BuildJob | null
   currentDeploy: { status: string } | null
   hasSuccessfulBuild: boolean
   isStale: boolean
+  t: (key: string, defaultValue?: string) => string
 }) {
   if (currentDeploy?.status === 'running') {
-    return { label: 'Deploying…', variant: 'secondary' as const }
+    return { label: t('deploy.deploying', 'Deploying...'), variant: 'secondary' as const }
   }
   if (currentBuild?.status === 'running') {
-    return { label: 'Generating…', variant: 'secondary' as const }
+    return { label: t('build.building', 'Generating...'), variant: 'secondary' as const }
   }
   if (!hasSuccessfulBuild) {
-    return { label: 'Never generated', variant: 'outline' as const }
+    return { label: t('publishStatus.neverGenerated', 'Never generated'), variant: 'outline' as const }
   }
   if (isStale) {
-    return { label: 'Out of date', variant: 'secondary' as const }
+    return { label: t('publishStatus.outOfDate', 'Out of date'), variant: 'secondary' as const }
   }
-  return { label: 'Up to date', variant: 'default' as const }
+  return { label: t('publishStatus.upToDate', 'Up to date'), variant: 'default' as const }
 }
 
 function StaticSitePreview({
@@ -276,6 +278,7 @@ export default function PublishOverview() {
     currentDeploy,
     hasSuccessfulBuild,
     isStale,
+    t: (key, defaultValue) => (defaultValue ? t(key, defaultValue) : t(key)),
   })
 
   useEffect(() => {
@@ -909,7 +912,7 @@ export default function PublishOverview() {
                       </div>
                     </div>
                     <Badge variant={item.status === 'completed' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>
-                      {item.status}
+                      {t(`status.${item.status}`, item.status)}
                     </Badge>
                   </div>
                 ))}
@@ -920,7 +923,10 @@ export default function PublishOverview() {
       </div>
 
       <Sheet open={activePanel === 'destinations'} onOpenChange={(open) => !open && closePanel()}>
-        <SheetContent side="right" className="w-[92vw] max-w-5xl overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-[min(96vw,1100px)] sm:max-w-[min(96vw,1100px)] overflow-y-auto"
+        >
           <SheetHeader>
             <SheetTitle>{t('deploy.dashboard.manageDestinations', 'Manage Destinations')}</SheetTitle>
             <SheetDescription>
@@ -934,7 +940,10 @@ export default function PublishOverview() {
       </Sheet>
 
       <Sheet open={activePanel === 'history'} onOpenChange={(open) => !open && closePanel()}>
-        <SheetContent side="right" className="w-[92vw] max-w-5xl overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-[min(94vw,960px)] sm:max-w-[min(94vw,960px)] overflow-y-auto"
+        >
           <SheetHeader>
             <SheetTitle>{t('history.title', 'History')}</SheetTitle>
             <SheetDescription>

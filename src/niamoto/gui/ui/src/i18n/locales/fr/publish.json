@@ -11,6 +11,11 @@
     "cancelled": "Annulé",
     "pending": "En attente"
   },
+  "publishStatus": {
+    "neverGenerated": "Jamais généré",
+    "outOfDate": "Plus à jour",
+    "upToDate": "À jour"
+  },
   "overview": {
     "title": "Vue d'ensemble",
     "lastBuild": "Dernier Build",
