@@ -82,7 +82,7 @@ const VercelIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
 )
 
 // Platform metadata
-const PLATFORMS: Record<DeployPlatform, {
+export const PLATFORMS: Record<DeployPlatform, {
   name: string
   icon: React.ReactNode
   cardIcon: React.ReactNode
@@ -199,14 +199,14 @@ const PLATFORMS: Record<DeployPlatform, {
   },
 }
 
-const PLATFORM_ORDER: DeployPlatform[] = ['cloudflare', 'github', 'netlify', 'vercel', 'render', 'ssh']
+export const PLATFORM_ORDER: DeployPlatform[] = ['cloudflare', 'github', 'netlify', 'vercel', 'render', 'ssh']
 
 // Helper: get project display name from config
-function getProjectName(platform: DeployPlatform, config: Record<string, string>): string {
+export function getProjectName(platform: DeployPlatform, config: Record<string, string>): string {
   return config.repo || config.projectName || config.siteId || config.host || platform
 }
 
-export default function PublishDeploy() {
+export default function PublishDeploy({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation('publish')
   const navigate = useNavigate()
   const { setBreadcrumbs } = useNavigationStore()
@@ -254,11 +254,12 @@ export default function PublishDeploy() {
   }, [cleanupOrphanDeploys])
 
   useEffect(() => {
+    if (embedded) return
     setBreadcrumbs([
       { label: 'Publish', path: '/publish' },
       { label: t('deploy.title', 'Deploy') }
     ])
-  }, [setBreadcrumbs, t])
+  }, [embedded, setBreadcrumbs, t])
 
   // Health check — manual only (CDN caches make automatic checks unreliable)
   const checkHealth = useCallback(async (platform: DeployPlatform, url?: string) => {
@@ -598,18 +599,26 @@ export default function PublishDeploy() {
   const canDeployPlatform = !isDeploying && !isOffline && hasSuccessfulBuild
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{t('deploy.title', 'Deploy')}</h1>
-          <p className="text-muted-foreground">{t('deploy.description', 'Publish your site online')}</p>
+    <div className={embedded ? 'space-y-6 p-1' : 'container mx-auto py-6 space-y-6'}>
+      {embedded ? (
+        <div className="flex justify-end">
+          <Button onClick={openAddDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t('deploy.dashboard.addDeployment', 'Add a deployment')}
+          </Button>
         </div>
-        <Button onClick={openAddDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          {t('deploy.dashboard.addDeployment', 'Add a deployment')}
-        </Button>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">{t('deploy.title', 'Deploy')}</h1>
+            <p className="text-muted-foreground">{t('deploy.description', 'Publish your site online')}</p>
+          </div>
+          <Button onClick={openAddDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t('deploy.dashboard.addDeployment', 'Add a deployment')}
+          </Button>
+        </div>
+      )}
 
       {/* No Build Warning */}
       {!hasSuccessfulBuild && (

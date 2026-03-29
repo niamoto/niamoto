@@ -51,7 +51,7 @@ import { fr, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { clearExportHistory } from '@/lib/api/export'
 
-export default function PublishHistory() {
+export default function PublishHistory({ embedded = false }: { embedded?: boolean }) {
   const { t, i18n } = useTranslation('publish')
   const { setBreadcrumbs } = useNavigationStore()
 
@@ -69,11 +69,12 @@ export default function PublishHistory() {
   const dateLocale = i18n.language === 'fr' ? fr : enUS
 
   useEffect(() => {
+    if (embedded) return
     setBreadcrumbs([
       { label: 'Publish', path: '/publish' },
       { label: t('history.title', 'History') }
     ])
-  }, [setBreadcrumbs, t])
+  }, [embedded, setBreadcrumbs, t])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -127,14 +128,15 @@ export default function PublishHistory() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{t('history.title', 'History')}</h1>
-          <p className="text-muted-foreground">{t('history.description', 'View build and deployment history')}</p>
+    <div className={embedded ? 'space-y-6 p-1' : 'container mx-auto py-6 space-y-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">{t('history.title', 'History')}</h1>
+            <p className="text-muted-foreground">{t('history.description', 'View build and deployment history')}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

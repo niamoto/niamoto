@@ -22,7 +22,8 @@
     "quickActionsDescription": "Generate and deploy your site in a few clicks",
     "recentActivity": "Recent Activity",
     "noBuild": "No build performed",
-    "noDeploy": "No deployment performed"
+    "noDeploy": "No deployment performed",
+    "noActivity": "No recent activity yet"
   },
   "build": {
     "title": "Build",
@@ -41,6 +42,8 @@
     "outputPath": "Directory",
     "success": "Build completed successfully!",
     "error": "Build error",
+    "advancedOptions": "Advanced options",
+    "lastGenerated": "Last generated",
     "includeTransform": "Recompute statistics before generation",
     "phaseTransform": "Phase 1/2: Transformations",
     "phaseExport": "Phase 2/2: Export",
@@ -187,6 +190,7 @@
       "saveAndDeploy": "Save & Deploy",
       "save": "Save",
       "selectPlatform": "Choose a platform",
+      "manageDestinations": "Manage Destinations",
       "configured": "Configured",
       "deployed": "Deployed",
       "failed": "Failed",
