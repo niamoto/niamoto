@@ -2,17 +2,28 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from niamoto.common.database import Database
+from niamoto.core.imports.data_analyzer import (
+    DataCategory,
+    EnrichedColumnProfile,
+    FieldPurpose,
+)
+from niamoto.core.imports.registry import EntityKind, EntityRegistry
+from niamoto.core.imports.widget_generator import WidgetSuggestion
 from niamoto.gui.api.services.templates.suggestion_service import (
+    _REFERENCE_FIELD_SUGGESTIONS_CACHE,
     _build_reference_field_cache_key,
     _get_first_dataset_name,
     _pick_identifier_column,
     _pick_name_column,
     _resolve_entity_table,
     _should_profile_reference_field,
+    get_reference_field_suggestions,
 )
 
 
@@ -153,3 +164,292 @@ def test_build_reference_field_cache_key_tracks_project_state(monkeypatch, tmp_p
     assert key1 is not None
     assert key2 is not None
     assert key1 != key2
+
+
+def _prepare_reference_project(
+    tmp_path,
+    *,
+    frame: pd.DataFrame,
+    entity_name: str = "plots",
+    table_name: str = "entity_plots",
+    entity_config: Optional[Dict[str, Any]] = None,
+):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        "version: '1.0'\nentities:\n  references: {}\n",
+        encoding="utf-8",
+    )
+
+    db_path = project_dir / "niamoto.db"
+    db = Database(str(db_path), optimize=False)
+    frame.to_sql(table_name, db.engine, if_exists="replace", index=False)
+
+    registry = EntityRegistry(db)
+    registry.register_entity(
+        name=entity_name,
+        kind=EntityKind.REFERENCE,
+        table_name=table_name,
+        config=entity_config
+        or {
+            "schema": {
+                "id_field": "id_plot",
+                "fields": [{"name": "geo_pt", "type": "geometry"}],
+            }
+        },
+    )
+    db.close_db_session()
+    return project_dir, db_path
+
+
+def test_reference_field_suggestions_use_fast_path_without_ml(monkeypatch, tmp_path):
+    _REFERENCE_FIELD_SUGGESTIONS_CACHE.clear()
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1, 2, 3],
+                "plot": ["Plot A", "Plot B", "Plot C"],
+                "geo_pt": ["POINT(1 1)", "POINT(2 2)", "POINT(3 3)"],
+                "elevation": [100.0, 120.0, 140.0],
+                "holdridge": ["humid", "dry", "humid"],
+                "in_um": [1, 0, 1],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service._build_reference_field_cache_key",
+        lambda reference_name: ("cache-test", reference_name, "db", 1, 1),
+    )
+
+    def _fail_profile(*args, **kwargs):
+        raise AssertionError(
+            "ML profiling should not run for clear internal references"
+        )
+
+    monkeypatch.setattr(
+        "niamoto.core.imports.profiler.DataProfiler.profile_dataframe",
+        _fail_profile,
+    )
+
+    suggestions = get_reference_field_suggestions("plots")
+
+    matched_columns = {suggestion["matched_column"] for suggestion in suggestions}
+    assert matched_columns == {"elevation", "holdridge", "in_um"}
+    assert all(suggestion["source"] == "reference" for suggestion in suggestions)
+    assert all(suggestion["source_name"] == "plots" for suggestion in suggestions)
+
+
+def test_reference_field_suggestions_fallback_ml_only_on_ambiguous_columns(
+    monkeypatch, tmp_path
+):
+    _REFERENCE_FIELD_SUGGESTIONS_CACHE.clear()
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1, 2, 3],
+                "plot": ["Plot A", "Plot B", "Plot C"],
+                "elevation": [100.0, 120.0, 140.0],
+                "odd_mix": ["10", "unknown", "30"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+
+    captured_columns: List[str] = []
+
+    def _fake_profile(self, profile_df, path):
+        captured_columns.extend(profile_df.columns.tolist())
+        return SimpleNamespace(
+            columns=[
+                SimpleNamespace(
+                    name="odd_mix",
+                    dtype="object",
+                    semantic_type=None,
+                    unique_ratio=0.66,
+                    null_ratio=0.0,
+                    sample_values=["10", "unknown", "30"],
+                    confidence=0.6,
+                )
+            ]
+        )
+
+    def _fake_enrich(self, col_profile, series):
+        return EnrichedColumnProfile(
+            name=col_profile.name,
+            dtype="object",
+            semantic_type=None,
+            unique_ratio=0.66,
+            null_ratio=0.0,
+            sample_values=["10", "unknown", "30"],
+            confidence=0.7,
+            data_category=DataCategory.CATEGORICAL_HIGH_CARD,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            cardinality=3,
+        )
+
+    def _fake_generate(self, profiles, source_table="occurrences"):
+        assert [profile.name for profile in profiles] == ["odd_mix"]
+        return [
+            WidgetSuggestion(
+                id="odd_mix_top_ranking_bar_plot",
+                name="Top Odd Mix",
+                description="Most frequent values of odd_mix",
+                transformer_plugin="top_ranking",
+                widget_plugin="bar_plot",
+                widget_type="chart",
+                category="chart",
+                icon="BarChart3",
+                column="odd_mix",
+                confidence=0.7,
+                transformer_config={
+                    "source": source_table,
+                    "field": "odd_mix",
+                    "mode": "direct",
+                    "count": 10,
+                },
+                widget_params={"x_axis": "counts", "y_axis": "tops"},
+                source_name=source_table,
+            )
+        ]
+
+    monkeypatch.setattr(
+        "niamoto.core.imports.profiler.DataProfiler.profile_dataframe",
+        _fake_profile,
+    )
+    monkeypatch.setattr(
+        "niamoto.core.imports.data_analyzer.DataAnalyzer.enrich_profile",
+        _fake_enrich,
+    )
+    monkeypatch.setattr(
+        "niamoto.core.imports.widget_generator.WidgetGenerator.generate_for_columns",
+        _fake_generate,
+    )
+
+    suggestions = get_reference_field_suggestions("plots")
+
+    assert captured_columns == ["odd_mix"]
+    assert any(
+        suggestion["matched_column"] == "elevation" for suggestion in suggestions
+    )
+    assert any(suggestion["matched_column"] == "odd_mix" for suggestion in suggestions)
+
+
+def test_reference_field_suggestions_cache_skips_second_ml_pass(monkeypatch, tmp_path):
+    _REFERENCE_FIELD_SUGGESTIONS_CACHE.clear()
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1, 2, 3],
+                "plot": ["Plot A", "Plot B", "Plot C"],
+                "odd_mix": ["10", "unknown", "30"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service._build_reference_field_cache_key",
+        lambda reference_name: ("cache-test", reference_name, "db", 1, 1),
+    )
+
+    calls = {"profile": 0}
+
+    def _fake_profile(self, profile_df, path):
+        calls["profile"] += 1
+        return SimpleNamespace(
+            columns=[
+                SimpleNamespace(
+                    name="odd_mix",
+                    dtype="object",
+                    semantic_type=None,
+                    unique_ratio=0.66,
+                    null_ratio=0.0,
+                    sample_values=["10", "unknown", "30"],
+                    confidence=0.6,
+                )
+            ]
+        )
+
+    def _fake_enrich(self, col_profile, series):
+        return EnrichedColumnProfile(
+            name=col_profile.name,
+            dtype="object",
+            semantic_type=None,
+            unique_ratio=0.66,
+            null_ratio=0.0,
+            sample_values=["10", "unknown", "30"],
+            confidence=0.7,
+            data_category=DataCategory.CATEGORICAL_HIGH_CARD,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            cardinality=3,
+        )
+
+    def _fake_generate(self, profiles, source_table="occurrences"):
+        return [
+            WidgetSuggestion(
+                id="odd_mix_top_ranking_bar_plot",
+                name="Top Odd Mix",
+                description="Most frequent values of odd_mix",
+                transformer_plugin="top_ranking",
+                widget_plugin="bar_plot",
+                widget_type="chart",
+                category="chart",
+                icon="BarChart3",
+                column="odd_mix",
+                confidence=0.7,
+                transformer_config={
+                    "source": source_table,
+                    "field": "odd_mix",
+                    "mode": "direct",
+                    "count": 10,
+                },
+                widget_params={"x_axis": "counts", "y_axis": "tops"},
+                source_name=source_table,
+            )
+        ]
+
+    monkeypatch.setattr(
+        "niamoto.core.imports.profiler.DataProfiler.profile_dataframe",
+        _fake_profile,
+    )
+    monkeypatch.setattr(
+        "niamoto.core.imports.data_analyzer.DataAnalyzer.enrich_profile",
+        _fake_enrich,
+    )
+    monkeypatch.setattr(
+        "niamoto.core.imports.widget_generator.WidgetGenerator.generate_for_columns",
+        _fake_generate,
+    )
+
+    get_reference_field_suggestions("plots")
+    get_reference_field_suggestions("plots")
+
+    assert calls["profile"] == 1
