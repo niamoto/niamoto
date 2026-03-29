@@ -56,9 +56,9 @@ export function DashboardView() {
             onClick={() => {
               if (pipeline.groups.status === "stale") navigate("/groups")
               else if (pipeline.site.status === "stale")
-                navigate("/publish/build")
+                navigate("/publish")
               else if (pipeline.publication.status === "stale")
-                navigate("/publish/deploy")
+                navigate("/publish?panel=destinations")
               else navigate("/sources/import")
             }}
           >
@@ -143,7 +143,7 @@ export function DashboardView() {
           borderColor="border-l-orange-500"
           iconBgClass="bg-orange-50 dark:bg-orange-950/40"
           actionLabel={t("pipeline.action_rebuild", "Rebuild")}
-          onAction={() => navigate("/publish/build")}
+          onAction={() => navigate("/publish")}
         >
           <PublicationSummary summary={pipeline.publication.summary} />
         </StageCard>

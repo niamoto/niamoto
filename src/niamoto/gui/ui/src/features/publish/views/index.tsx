@@ -1,44 +1,76 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { type Locale, formatDistanceToNow } from 'date-fns'
+import { enUS, fr } from 'date-fns/locale'
+import {
+  AlertCircle,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  ExternalLink,
+  Globe,
+  History,
+  Loader2,
+  Monitor,
+  Package,
+  RefreshCw,
+  Send,
+  Settings2,
+  Smartphone,
+  Tablet,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { useNavigationStore } from '@/stores/navigationStore'
 import {
   usePublishStore,
   selectIsBuilding,
   selectIsDeploying,
+  type BuildJob,
+  type DeployPlatform,
 } from '@/features/publish/store/publishStore'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
-  Send,
-  Package,
-  Upload,
-  History,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Globe,
-  AlertCircle,
-  Eye,
-  EyeOff,
-  Monitor,
-  Tablet,
-  Smartphone,
-  RotateCcw,
-  PanelRightClose,
-} from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { PreviewFrame, type DeviceSize, DEVICE_DIMENSIONS } from '@/components/ui/preview-frame'
 import {
-  useSiteConfig,
-  useTemplatePreview,
   useGroups,
   useGroupIndexPreview,
+  useSiteConfig,
+  useTemplatePreview,
 } from '@/shared/hooks/useSiteConfig'
-import { formatDistanceToNow } from 'date-fns'
-import { fr, enUS } from 'date-fns/locale'
+import { usePipelineStatus } from '@/hooks/usePipelineStatus'
+import { executeExportAndWait } from '@/lib/api/export'
+import { apiClient } from '@/shared/lib/api/client'
+import PublishDeployContent, {
+  getProjectName,
+  PLATFORM_ORDER,
+  PLATFORMS,
+} from '@/features/publish/views/deploy'
+import PublishHistoryContent from '@/features/publish/views/history'
 
 function getExportedSitePreviewUrl(path: string) {
   return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
@@ -52,17 +84,49 @@ function getExportedHomePath(lang?: string, languages?: string[]) {
   return 'index.html'
 }
 
-/** Inline preview of the generated static site using a real iframe (not srcdoc). */
+function formatDateDistance(dateStr: string | undefined, locale: Locale) {
+  if (!dateStr) return '—'
+  try {
+    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale })
+  } catch {
+    return dateStr
+  }
+}
+
+function getPublishStatus({
+  currentBuild,
+  currentDeploy,
+  hasSuccessfulBuild,
+  isStale,
+}: {
+  currentBuild: BuildJob | null
+  currentDeploy: { status: string } | null
+  hasSuccessfulBuild: boolean
+  isStale: boolean
+}) {
+  if (currentDeploy?.status === 'running') {
+    return { label: 'Deploying…', variant: 'secondary' as const }
+  }
+  if (currentBuild?.status === 'running') {
+    return { label: 'Generating…', variant: 'secondary' as const }
+  }
+  if (!hasSuccessfulBuild) {
+    return { label: 'Never generated', variant: 'outline' as const }
+  }
+  if (isStale) {
+    return { label: 'Out of date', variant: 'secondary' as const }
+  }
+  return { label: 'Up to date', variant: 'default' as const }
+}
+
 function StaticSitePreview({
   device,
   onDeviceChange,
-  onClose,
   lang,
   languages,
 }: {
   device: DeviceSize
   onDeviceChange: (d: DeviceSize) => void
-  onClose: () => void
   lang?: string
   languages?: string[]
 }) {
@@ -71,7 +135,6 @@ function StaticSitePreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const dims = DEVICE_DIMENSIONS[device]
-  // Build preview URL: skip root redirect by going directly to the lang directory
   const previewUrl = getExportedSitePreviewUrl(getExportedHomePath(lang, languages))
 
   useEffect(() => {
@@ -81,43 +144,52 @@ function StaticSitePreview({
       const ch = containerRef.current.clientHeight - 32
       setScale(Math.min(cw / dims.width, ch / dims.height, 1))
     }
+
     update()
     const ro = new ResizeObserver(update)
     if (containerRef.current) ro.observe(containerRef.current)
     return () => ro.disconnect()
-  }, [dims.width, dims.height])
+  }, [dims.height, dims.width])
 
   return (
-    <div className="flex h-[600px] flex-col bg-muted/30">
-      {/* Reuse PreviewFrame header style */}
+    <div className="flex h-[640px] flex-col bg-muted/20">
       <div className="flex items-center justify-between border-b bg-background px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{t('overview.generatedSite', 'Generated site')}</span>
-          <span className="text-xs text-muted-foreground">
-            {dims.width}x{dims.height} ({Math.round(scale * 100)}%)
-          </span>
+        <div className="text-sm text-muted-foreground">
+          {dims.width}x{dims.height} ({Math.round(scale * 100)}%)
         </div>
         <div className="flex items-center gap-2">
           <ToggleGroup type="single" value={device} onValueChange={(v) => v && onDeviceChange(v as DeviceSize)} size="sm">
-            <ToggleGroupItem value="mobile" aria-label="Mobile"><Smartphone className="h-4 w-4" /></ToggleGroupItem>
-            <ToggleGroupItem value="tablet" aria-label="Tablet"><Tablet className="h-4 w-4" /></ToggleGroupItem>
-            <ToggleGroupItem value="desktop" aria-label="Desktop"><Monitor className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="mobile" aria-label="Mobile">
+              <Smartphone className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="tablet" aria-label="Tablet">
+              <Tablet className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="desktop" aria-label="Desktop">
+              <Monitor className="h-4 w-4" />
+            </ToggleGroupItem>
           </ToggleGroup>
-          <Button variant="ghost" size="sm" onClick={() => setIframeKey(k => k + 1)} title={t('common:actions.refresh', 'Refresh')}>
-            <RotateCcw className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIframeKey((current) => current + 1)}
+            title={t('common:actions.refresh', 'Refresh')}
+          >
+            <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} title={t('common:actions.close', 'Close')}>
-            <PanelRightClose className="h-4 w-4" />
+          <Button variant="outline" size="sm" asChild>
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              {t('build.openNewTab', 'Open in New Tab')}
+            </a>
           </Button>
         </div>
       </div>
-      <div ref={containerRef} className="flex-1 p-4 overflow-hidden flex items-center justify-center">
-        <div
-          className="relative flex items-center justify-center"
-          style={{ width: dims.width * scale, height: dims.height * scale }}
-        >
+
+      <div ref={containerRef} className="flex flex-1 items-center justify-center overflow-hidden p-4">
+        <div className="relative flex items-center justify-center" style={{ width: dims.width * scale, height: dims.height * scale }}>
           <div
-            className="absolute rounded-lg border bg-white shadow-sm overflow-hidden"
+            className="absolute overflow-hidden rounded-lg border bg-white shadow-sm"
             style={{
               width: dims.width,
               height: dims.height,
@@ -130,7 +202,7 @@ function StaticSitePreview({
             <iframe
               key={iframeKey}
               src={previewUrl}
-              className="w-full h-full border-0"
+              className="h-full w-full border-0"
               title="Generated site preview"
             />
           </div>
@@ -142,33 +214,261 @@ function StaticSitePreview({
 
 export default function PublishOverview() {
   const { t, i18n } = useTranslation('publish')
-  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { setBreadcrumbs } = useNavigationStore()
+  const dateLocale = i18n.language === 'fr' ? fr : enUS
+  const previewLang = i18n.language?.split('-')[0] || 'fr'
 
   const {
     currentBuild,
     currentDeploy,
     buildHistory,
     deployHistory,
+    platformConfigs,
+    preferredPlatform,
+    startBuild,
+    updateBuild,
+    completeBuild,
+    startDeploy,
+    appendDeployLog,
+    setDeploymentUrl,
+    setPreferredPlatform,
+    completeDeploy,
   } = usePublishStore()
 
   const isBuilding = usePublishStore(selectIsBuilding)
   const isDeploying = usePublishStore(selectIsDeploying)
-
   const lastBuild = buildHistory[0]
-  const lastDeploy = deployHistory[0]
-  const hasBuild = lastBuild?.status === 'completed' || buildHistory.some(b => b.status === 'completed')
-  const dateLocale = i18n.language === 'fr' ? fr : enUS
-
-  // Preview state
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const lastSuccessfulBuild = buildHistory.find((job) => job.status === 'completed') ?? null
+  const hasSuccessfulBuild = lastSuccessfulBuild !== null
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
   const [dynamicHtml, setDynamicHtml] = useState<string | null>(null)
+  const [includeTransform, setIncludeTransform] = useState(true)
+  const [showAdvancedBuild, setShowAdvancedBuild] = useState(false)
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null)
+  const [exportPath, setExportPath] = useState('exports')
+
+  const activePanel = searchParams.get('panel')
   const { data: siteConfig } = useSiteConfig()
   const { data: groupsData } = useGroups()
-  const groups = groupsData?.groups || []
+  const { data: pipelineData } = usePipelineStatus()
   const previewMutation = useTemplatePreview()
   const groupIndexMutation = useGroupIndexPreview()
+  const groups = groupsData?.groups || []
+  const isStale = pipelineData?.publication?.status === 'stale'
+
+  const configuredPlatforms = PLATFORM_ORDER.filter((platform) => Boolean(platformConfigs[platform]))
+  const primaryPlatform = configuredPlatforms.includes(preferredPlatform as DeployPlatform)
+    ? (preferredPlatform as DeployPlatform)
+    : configuredPlatforms[0]
+  const primaryPlatformConfig = primaryPlatform
+    ? (platformConfigs[primaryPlatform] as Record<string, string> | undefined)
+    : undefined
+  const primaryDeploy = primaryPlatform
+    ? deployHistory.find((job) => job.platform === primaryPlatform)
+    : undefined
+  const isPrimaryDeploying = primaryPlatform !== undefined
+    && currentDeploy?.platform === primaryPlatform
+    && isDeploying
+
+  const publishStatus = getPublishStatus({
+    currentBuild,
+    currentDeploy,
+    hasSuccessfulBuild,
+    isStale,
+  })
+
+  useEffect(() => {
+    setBreadcrumbs([{ label: t('title', 'Publish') }])
+  }, [setBreadcrumbs, t])
+
+  useEffect(() => {
+    const loadWorkingDir = async () => {
+      try {
+        const response = await apiClient.get('/config/project')
+        const workingDir = response.data.working_directory || '.'
+        setExportPath(`${workingDir}/exports`)
+      } catch (error) {
+        console.error('Failed to load working directory:', error)
+      }
+    }
+
+    void loadWorkingDir()
+  }, [])
+
+  const openPanel = (panel: 'destinations' | 'history') => {
+    const next = new URLSearchParams(searchParams)
+    next.set('panel', panel)
+    setSearchParams(next)
+  }
+
+  const closePanel = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('panel')
+    setSearchParams(next, { replace: true })
+  }
+
+  const runBuild = async () => {
+    startBuild()
+    setCurrentPhase(null)
+    const startTime = Date.now()
+
+    try {
+      const result = await executeExportAndWait(
+        { config_path: 'config/export.yml', include_transform: includeTransform },
+        (progress, message, phase) => {
+          setCurrentPhase(phase ?? null)
+          const phaseLabel = phase === 'transform'
+            ? t('build.phaseTransformLabel', 'Transformations')
+            : t('build.phaseExportLabel', 'Site generation')
+          updateBuild({ progress, message: `${phaseLabel} · ${localizeBackendMessage(message, t)}` })
+        }
+      )
+
+      if (result.result) {
+        const exports = result.result.exports || {}
+        const metrics = result.result.metrics || {}
+        const targets: { name: string; files: number }[] = []
+        let totalFiles = 0
+
+        Object.entries(exports).forEach(([name, exportData]: [string, any]) => {
+          if (exportData && exportData.data) {
+            const filesGenerated = exportData.data.files_generated || 0
+            if (filesGenerated > 0) {
+              targets.push({ name, files: filesGenerated })
+              totalFiles += filesGenerated
+            }
+          }
+        })
+
+        if (totalFiles === 0 && metrics.generated_pages) {
+          totalFiles = metrics.generated_pages
+        }
+
+        const duration = metrics.execution_time
+          ? metrics.execution_time
+          : (Date.now() - startTime) / 1000
+
+        completeBuild({
+          totalFiles,
+          duration: parseFloat(duration.toFixed(1)),
+          targets,
+        })
+
+        toast.success(t('build.success', 'Build completed successfully!'))
+      }
+    } catch (error) {
+      console.error('Build error:', error)
+      completeBuild(undefined, String(error))
+      toast.error(t('build.error', 'Build error'))
+    }
+  }
+
+  const handleDeployPrimary = async () => {
+    if (!primaryPlatform || !primaryPlatformConfig) {
+      openPanel('destinations')
+      return
+    }
+
+    if (!hasSuccessfulBuild || isPrimaryDeploying) return
+
+    const projectName = getProjectName(primaryPlatform, primaryPlatformConfig)
+    setPreferredPlatform(primaryPlatform)
+    startDeploy(primaryPlatform, projectName, primaryPlatformConfig.branch)
+
+    try {
+      const secretFields = PLATFORMS[primaryPlatform].fields.filter((field) => field.isSecret)
+
+      for (const field of secretFields) {
+        const value = primaryPlatformConfig[field.key]
+        if (value?.trim()) {
+          try {
+            await apiClient.post(`/deploy/credentials/${primaryPlatform}`, { key: field.key, value })
+          } catch {
+            appendDeployLog(`❌ Failed to save ${field.key} to keyring`)
+          }
+        }
+      }
+
+      const extra: Record<string, string> = {}
+      for (const [key, value] of Object.entries(primaryPlatformConfig)) {
+        if (
+          key !== 'projectName'
+          && key !== 'branch'
+          && !secretFields.some((field) => field.key === key)
+          && value
+        ) {
+          extra[key] = value
+        }
+      }
+
+      const response = await fetch('/api/deploy/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: primaryPlatform,
+          project_name: projectName,
+          branch: primaryPlatformConfig.branch || null,
+          extra,
+        }),
+      })
+
+      if (!response.ok || !response.body) {
+        completeDeploy(`HTTP ${response.status}: ${response.statusText}`)
+        toast.error(t('deploy.error', 'Deployment error'))
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let hasErrors = false
+      let hasSuccess = false
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+
+          if (data === 'DONE') {
+            if (hasErrors && !hasSuccess) {
+              completeDeploy('Deployment failed')
+              toast.error(t('deploy.error', 'Deployment error'))
+            } else {
+              completeDeploy()
+              toast.success(t('deploy.success', 'Deployment successful!'))
+            }
+            return
+          }
+
+          if (data.startsWith('URL: ')) {
+            setDeploymentUrl(data.substring(5))
+          } else if (data.startsWith('ERROR: ')) {
+            hasErrors = true
+            appendDeployLog(`❌ ${data.substring(7)}`)
+          } else if (data.startsWith('SUCCESS: ')) {
+            hasSuccess = true
+            appendDeployLog(`✅ ${data.substring(9)}`)
+          } else {
+            appendDeployLog(data)
+          }
+        }
+      }
+
+      completeDeploy('Stream ended unexpectedly')
+    } catch (error) {
+      console.error('Deploy error:', error)
+      completeDeploy(String(error))
+      toast.error(t('deploy.error', 'Deployment error'))
+    }
+  }
 
   const loadPagePreview = (page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
     if (!siteConfig || !page) return
@@ -176,14 +476,14 @@ export default function PublishOverview() {
       template: page.template || 'page.html',
       context: { ...(page.context || {}) },
       site: siteConfig.site as Record<string, unknown>,
-      navigation: siteConfig.navigation.map(n => ({
-        text: n.text,
-        url: n.url,
-        children: n.children,
+      navigation: siteConfig.navigation.map((item) => ({
+        text: item.text,
+        url: item.url,
+        children: item.children,
       })),
-      footer_navigation: siteConfig.footer_navigation.map(s => ({
-        title: s.title,
-        links: s.links,
+      footer_navigation: siteConfig.footer_navigation.map((section) => ({
+        title: section.title,
+        links: section.links,
       })),
       output_file: page.output_file,
       gui_lang: i18n.language?.split('-')[0] || 'fr',
@@ -194,10 +494,13 @@ export default function PublishOverview() {
 
   const loadDynamicPreview = () => {
     if (!siteConfig) return
-    const indexPage = siteConfig.static_pages.find(p =>
-      p.output_file === 'index.html' || p.name === 'index'
+    const indexPage = siteConfig.static_pages.find((page) =>
+      page.output_file === 'index.html' || page.name === 'index'
     ) || siteConfig.static_pages[0]
-    if (indexPage) loadPagePreview(indexPage)
+
+    if (indexPage) {
+      loadPagePreview(indexPage)
+    }
   }
 
   const handlePreviewLinkClick = (href: string) => {
@@ -205,20 +508,20 @@ export default function PublishOverview() {
     const normalized = href.replace(/^\//, '')
     const filename = normalized.split('/').pop() || href
 
-    // 1. Check group index pages (e.g. "taxons/index.html")
-    const groupByIndex = groups.find(g => {
-      const indexPattern = g.index_output_pattern || `${g.name}/index.html`
+    const groupByIndex = groups.find((group) => {
+      const indexPattern = group.index_output_pattern || `${group.name}/index.html`
       return normalized === indexPattern
     })
+
     if (groupByIndex) {
       groupIndexMutation.mutate({
         groupName: groupByIndex.name,
         request: {
           site: siteConfig.site as Record<string, unknown>,
-          navigation: siteConfig.navigation.map(n => ({
-            text: n.text as string,
-            url: n.url,
-            children: n.children,
+          navigation: siteConfig.navigation.map((item) => ({
+            text: item.text as string,
+            url: item.url,
+            children: item.children,
           })),
           gui_lang: i18n.language?.split('-')[0] || 'fr',
         },
@@ -228,283 +531,452 @@ export default function PublishOverview() {
       return
     }
 
-    // 2. Check group detail pages (e.g. "taxons/123.html") — can't preview individually
-    const groupByPath = groups.find(g =>
-      normalized.startsWith(`${g.name}/`) && normalized !== `${g.name}/index.html`
+    const groupByPath = groups.find((group) =>
+      normalized.startsWith(`${group.name}/`) && normalized !== `${group.name}/index.html`
     )
     if (groupByPath) return
 
-    // 3. Static pages
-    const targetPage = siteConfig.static_pages.find(p =>
-      p.output_file === normalized || p.output_file === href
-    ) || siteConfig.static_pages.find(p =>
-      p.output_file === filename
+    const targetPage = siteConfig.static_pages.find((page) =>
+      page.output_file === normalized || page.output_file === href
+    ) || siteConfig.static_pages.find((page) =>
+      page.output_file === filename
     )
+
     if (targetPage) {
       loadPagePreview(targetPage)
     }
   }
 
-  // Load dynamic preview when opened
   useEffect(() => {
-    if (previewOpen && !hasBuild && siteConfig) {
+    if (!hasSuccessfulBuild && siteConfig && dynamicHtml === null) {
       loadDynamicPreview()
     }
-  }, [previewOpen, hasBuild, siteConfig])
+  }, [dynamicHtml, hasSuccessfulBuild, siteConfig])
 
-  useEffect(() => {
-    setBreadcrumbs([
-      { label: 'Publish', path: '/publish' },
-      { label: t('overview.title', 'Overview') }
-    ])
-  }, [setBreadcrumbs, t])
-
-  const getStatusBadge = (status: string | undefined) => {
-    if (!status) return null
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {t('status.completed', 'Completed')}</Badge>
-      case 'failed':
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> {t('status.failed', 'Failed')}</Badge>
-      case 'running':
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1 animate-spin" /> {t('status.running', 'Running')}</Badge>
-      case 'cancelled':
-        return <Badge variant="outline"><AlertCircle className="w-3 h-3 mr-1" /> {t('status.cancelled', 'Cancelled')}</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: dateLocale })
-    } catch {
-      return dateStr
-    }
-  }
+  const activityItems = [
+    ...buildHistory.slice(0, 3).map((job) => ({ type: 'build' as const, ...job })),
+    ...deployHistory.slice(0, 3).map((job) => ({ type: 'deploy' as const, ...job })),
+  ]
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    .slice(0, 5)
 
   return (
     <div>
       <StalenessBanner stage="publication" />
-      <div className="container mx-auto px-6 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{t('title', 'Publish')}</h1>
-          <p className="text-muted-foreground">{t('description', 'Generate and deploy your static site')}</p>
-        </div>
-      </div>
+      <div className="container mx-auto space-y-6 px-6 py-6">
+        <Card>
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-3xl">{t('title', 'Publish')}</CardTitle>
+                <CardDescription className="mt-2 text-base">
+                  {t('description', 'Generate your site, review it, and put it online.')}
+                </CardDescription>
+              </div>
+              <Badge variant={publishStatus.variant} className="w-fit px-3 py-1 text-sm">
+                {publishStatus.label}
+              </Badge>
+            </div>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Last Build Card */}
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate('/publish/build')}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                {t('overview.lastBuild', 'Last Build')}
-              </CardTitle>
-              {getStatusBadge(currentBuild?.status || lastBuild?.status)}
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              {lastSuccessfulBuild ? (
+                <span>
+                  {t('overview.lastBuild', 'Last build')} {formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}
+                </span>
+              ) : (
+                <span>{t('overview.noBuild', 'No build performed')}</span>
+              )}
+              {primaryDeploy ? (
+                <span>
+                  {t('overview.lastDeploy', 'Last deployment')} {formatDateDistance(primaryDeploy.completedAt || primaryDeploy.startedAt, dateLocale)}
+                </span>
+              ) : (
+                <span>{t('overview.noDeploy', 'No deployment performed')}</span>
+              )}
             </div>
           </CardHeader>
-          <CardContent>
-            {isBuilding ? (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">{currentBuild?.message}</div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${currentBuild?.progress || 0}%` }}
-                  />
-                </div>
-              </div>
-            ) : lastBuild ? (
-              <div className="space-y-1">
-                <div className="text-2xl font-bold">
-                  {lastBuild.metrics?.totalFiles?.toLocaleString() || '—'} {t('files', 'fichiers')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {formatDate(lastBuild.completedAt || lastBuild.startedAt)}
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">{t('overview.noBuild', 'No build performed')}</div>
-            )}
-          </CardContent>
         </Card>
 
-        {/* Last Deploy Card */}
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate('/publish/deploy')}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                {t('overview.lastDeploy', 'Last Deployment')}
-              </CardTitle>
-              {getStatusBadge(currentDeploy?.status || lastDeploy?.status)}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isDeploying ? (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  {t('deploy.deploying', 'Deploying to')} {currentDeploy?.platform}...
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary animate-pulse" style={{ width: '60%' }} />
-                </div>
-              </div>
-            ) : lastDeploy ? (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="capitalize">{lastDeploy.platform}</Badge>
-                  {lastDeploy.deploymentUrl && (
-                    <a
-                      href={lastDeploy.deploymentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline flex items-center gap-1 text-sm"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Globe className="w-3 h-3" />
-                      {t('deploy.viewSite', 'Voir')}
-                    </a>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {formatDate(lastDeploy.completedAt || lastDeploy.startedAt)}
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">{t('overview.noDeploy', 'No deployment performed')}</div>
-            )}
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('overview.quickActions', 'Actions rapides')}</CardTitle>
-          <CardDescription>{t('overview.quickActionsDescription', 'Generate and deploy your site in a few clicks')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            <Button
-              size="lg"
-              onClick={() => navigate('/publish/build')}
-              disabled={isBuilding}
-            >
-              <Package className="w-5 h-5 mr-2" />
-              {isBuilding ? t('build.building', 'Building...') : t('build.trigger', 'Generate Site')}
-            </Button>
-
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/publish/deploy')}
-              disabled={isDeploying || (!lastBuild && !buildHistory.some(b => b.status === 'completed'))}
-            >
-              <Send className="w-5 h-5 mr-2" />
-              {isDeploying ? t('deploy.deploying', 'Deploying...') : t('deploy.trigger', 'Deploy')}
-            </Button>
-
-            <Button
-              size="lg"
-              variant={previewOpen ? 'default' : 'outline'}
-              onClick={() => setPreviewOpen(!previewOpen)}
-            >
-              {previewOpen ? <EyeOff className="w-5 h-5 mr-2" /> : <Eye className="w-5 h-5 mr-2" />}
-              {t('overview.openPreview', 'Site Preview')}
-            </Button>
-
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => navigate('/publish/history')}
-            >
-              <History className="w-5 h-5 mr-2" />
-              {t('history.title', 'History')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Site Preview */}
-      {previewOpen && (
-        <Card className="overflow-hidden">
-          {hasBuild ? (
-            // After build: show the actual generated static site in an iframe
-            <StaticSitePreview
-              device={previewDevice}
-              onDeviceChange={setPreviewDevice}
-              onClose={() => setPreviewOpen(false)}
-              lang={siteConfig?.site?.lang as string || i18n.language?.split('-')[0] || 'fr'}
-              languages={siteConfig?.site?.languages as string[] | undefined}
-            />
-          ) : (
-            // Before build: dynamic template preview
-            <PreviewFrame
-              html={dynamicHtml}
-              isLoading={previewMutation.isPending || groupIndexMutation.isPending}
-              device={previewDevice}
-              onDeviceChange={setPreviewDevice}
-              onRefresh={loadDynamicPreview}
-              onClose={() => setPreviewOpen(false)}
-              onLinkClick={handlePreviewLinkClick}
-              title={t('overview.previewDynamic', 'Dynamic preview')}
-              emptyMessage={t('overview.noPreview', 'Configure your site to see the preview')}
-              className="h-[600px]"
-            />
-          )}
-        </Card>
-      )}
-
-      {/* Recent Activity */}
-      {(buildHistory.length > 0 || deployHistory.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle>{t('overview.recentActivity', 'Recent Activity')}</CardTitle>
+            <CardTitle>{t('build.trigger', 'Generate Site')}</CardTitle>
+            <CardDescription>
+              {t('build.generationDescription', 'Create the latest version of your static site from the current data and configuration.')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {lastBuild?.status === 'failed' && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {lastBuild.error?.includes('Network Error')
+                    ? t('build.errorNetwork', 'Server connection lost during build. Please retry generation.')
+                    : lastBuild.error || t('build.error', 'Build error')}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {lastSuccessfulBuild && (
+              <div className="grid gap-3 md:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.totalFiles?.toLocaleString() || '—'}</div>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Files generated')}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.duration ?? '—'}s</div>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Generation time')}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-sm font-medium">{formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}</div>
+                    <p className="text-xs text-muted-foreground">{t('build.lastGenerated', 'Last generated')}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="truncate text-sm font-medium">{exportPath}</div>
+                    <p className="text-xs text-muted-foreground">{t('build.outputPath', 'Directory')}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {isBuilding && currentBuild ? (
+              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                {includeTransform && (
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
+                      {t('build.phaseTransform', 'Phase 1/2: Transformations')}
+                    </span>
+                    <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
+                      {t('build.phaseExport', 'Phase 2/2: Export')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span>{currentBuild.message}</span>
+                  <span>{currentBuild.progress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-primary transition-all duration-300" style={{ width: `${currentBuild.progress}%` }} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <Collapsible open={showAdvancedBuild} onOpenChange={setShowAdvancedBuild} className="w-full rounded-lg border px-4 py-3 md:max-w-xl">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-medium">
+                    {t('build.advancedOptions', 'Advanced options')}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedBuild ? 'rotate-180' : ''}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="include-transform"
+                        checked={includeTransform}
+                        onCheckedChange={(checked) => setIncludeTransform(checked === true)}
+                      />
+                      <Label htmlFor="include-transform" className="cursor-pointer text-sm">
+                        {t('build.includeTransform', 'Recompute statistics before generation')}
+                      </Label>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Button size="lg" onClick={runBuild}>
+                  {lastSuccessfulBuild ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {t('build.rebuild', 'Regenerate Site')}
+                    </>
+                  ) : (
+                    <>
+                      <Package className="mr-2 h-4 w-4" />
+                      {t('build.trigger', 'Generate Site')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('overview.openPreview', 'Preview Site')}</CardTitle>
+            <CardDescription>
+              {hasSuccessfulBuild
+                ? t('build.previewDescription', 'Preview the generated site')
+                : t('overview.previewDynamic', 'Preview the current site structure before generation')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {[...buildHistory.slice(0, 3).map(b => ({ type: 'build' as const, ...b })),
-                ...deployHistory.slice(0, 3).map(d => ({ type: 'deploy' as const, ...d }))]
-                .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-                .slice(0, 5)
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                    onClick={() => navigate(`/publish/${item.type === 'build' ? 'build' : 'deploy'}`)}
-                  >
+            {hasSuccessfulBuild ? (
+              <StaticSitePreview
+                device={previewDevice}
+                onDeviceChange={setPreviewDevice}
+                lang={siteConfig?.site?.lang as string || previewLang}
+                languages={siteConfig?.site?.languages as string[] | undefined}
+              />
+            ) : (
+              <PreviewFrame
+                html={dynamicHtml}
+                isLoading={previewMutation.isPending || groupIndexMutation.isPending}
+                device={previewDevice}
+                onDeviceChange={setPreviewDevice}
+                onRefresh={loadDynamicPreview}
+                onLinkClick={handlePreviewLinkClick}
+                title={t('overview.previewDynamic', 'Dynamic preview')}
+                emptyMessage={t('overview.noPreview', 'Generate the site to preview the final output')}
+                className="h-[640px]"
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('deploy.trigger', 'Put Online')}</CardTitle>
+            <CardDescription>
+              {t('deploy.description', 'Publish your site online using a configured destination')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!hasSuccessfulBuild && (
+              <Alert>
+                <Clock className="h-4 w-4" />
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{t('deploy.noBuild', 'You need to generate the site first before deploying.')}</span>
+                  <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                    <Package className="mr-2 h-4 w-4" />
+                    {t('build.trigger', 'Generate Site')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {isStale && hasSuccessfulBuild && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{t('deploy.staleWarning', 'The exported site is outdated. Regenerate the site before deploying.')}</span>
+                  <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {t('build.rebuild', 'Regenerate Site')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {configuredPlatforms.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-start gap-4 py-8">
+                  <div>
+                    <h3 className="font-semibold">{t('deploy.dashboard.emptyTitle', 'No publishing destination configured')}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
+                    </p>
+                  </div>
+                  <Button onClick={() => openPanel('destinations')}>
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    {t('deploy.dashboard.addDeployment', 'Set Up a Destination')}
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">
+                          {primaryPlatform ? PLATFORMS[primaryPlatform].name : t('deploy.trigger', 'Deploy')}
+                        </h3>
+                        {primaryDeploy?.status === 'completed' && (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                            {t('status.completed', 'Completed')}
+                          </Badge>
+                        )}
+                        {primaryDeploy?.status === 'failed' && (
+                          <Badge variant="destructive">
+                            <AlertCircle className="mr-1 h-3 w-3" />
+                            {t('status.failed', 'Failed')}
+                          </Badge>
+                        )}
+                        {!primaryDeploy && (
+                          <Badge variant="outline">{t('deploy.dashboard.noDeployYet', 'Never deployed')}</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {primaryPlatformConfig && primaryPlatform
+                          ? getProjectName(primaryPlatform, primaryPlatformConfig)
+                          : t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
+                      </p>
+                      {primaryDeploy && (
+                        <p className="text-sm text-muted-foreground">
+                          {t('deploy.dashboard.lastDeployAt', 'Last deployment')} {formatDateDistance(primaryDeploy.completedAt || primaryDeploy.startedAt, dateLocale)}
+                        </p>
+                      )}
+                      {primaryDeploy?.deploymentUrl && (
+                        <a
+                          href={primaryDeploy.deploymentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                        >
+                          <Globe className="h-4 w-4" />
+                          {primaryDeploy.deploymentUrl}
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={handleDeployPrimary}
+                        disabled={!hasSuccessfulBuild || isStale || isPrimaryDeploying}
+                      >
+                        {isPrimaryDeploying ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {t('deploy.deploying', 'Deploying...')}
+                          </>
+                        ) : (
+                          <>
+                            <Send className="mr-2 h-4 w-4" />
+                            {t('deploy.trigger', 'Deploy')}
+                          </>
+                        )}
+                      </Button>
+                      {primaryDeploy?.deploymentUrl && (
+                        <Button variant="outline" asChild>
+                          <a href={primaryDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            {t('deploy.viewSite', 'View Live Site')}
+                          </a>
+                        </Button>
+                      )}
+                      <Button variant="secondary" onClick={() => openPanel('destinations')}>
+                        <Settings2 className="mr-2 h-4 w-4" />
+                        {t('deploy.dashboard.manageDestinations', 'Manage Destinations')}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>{t('overview.recentActivity', 'Recent Activity')}</CardTitle>
+              <CardDescription>{t('history.description', 'Recent generations and deployments')}</CardDescription>
+            </div>
+            <Button variant="outline" onClick={() => openPanel('history')}>
+              <History className="mr-2 h-4 w-4" />
+              {t('history.title', 'View Full History')}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {activityItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t('overview.noActivity', 'No recent activity yet')}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {activityItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
                     <div className="flex items-center gap-3">
                       {item.type === 'build' ? (
-                        <Package className="w-4 h-4 text-muted-foreground" />
+                        <Package className="h-4 w-4 text-muted-foreground" />
                       ) : (
-                        <Upload className="w-4 h-4 text-muted-foreground" />
+                        <Send className="h-4 w-4 text-muted-foreground" />
                       )}
                       <div>
-                        <div className="font-medium text-sm">
+                        <div className="text-sm font-medium">
                           {item.type === 'build'
                             ? t('build.title', 'Build')
-                            : `${t('deploy.title', 'Deploy')} - ${(item as typeof deployHistory[0]).platform}`}
+                            : `${t('deploy.title', 'Deploy')} · ${item.platform}`}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {formatDate(item.completedAt || item.startedAt)}
+                          {formatDateDistance(item.completedAt || item.startedAt, dateLocale)}
                         </div>
                       </div>
                     </div>
-                    {getStatusBadge(item.status)}
+                    <Badge variant={item.status === 'completed' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>
+                      {item.status}
+                    </Badge>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
-    </div>
+      </div>
+
+      <Sheet open={activePanel === 'destinations'} onOpenChange={(open) => !open && closePanel()}>
+        <SheetContent side="right" className="w-[92vw] max-w-5xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t('deploy.dashboard.manageDestinations', 'Manage Destinations')}</SheetTitle>
+            <SheetDescription>
+              {t('deploy.description', 'Configure and manage where your site is published.')}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            <PublishDeployContent embedded />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={activePanel === 'history'} onOpenChange={(open) => !open && closePanel()}>
+        <SheetContent side="right" className="w-[92vw] max-w-5xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t('history.title', 'History')}</SheetTitle>
+            <SheetDescription>
+              {t('history.description', 'View build and deployment history')}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            <PublishHistoryContent embedded />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
+}
+
+function localizeBackendMessage(
+  message: string,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  if (message.startsWith('transform:')) {
+    const parts = message.split(':')
+    const group = (parts[1] || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+    const widget = (parts[2] || '').replace(/_/g, ' ')
+    const item = parts[3] || ''
+    if (item) {
+      return t('build.progress.transformItem', { group, widget, item, defaultValue: `${group} · ${item} · ${widget}` })
+    }
+    return t('build.progress.transform', { group, widget, defaultValue: `${group} · ${widget}` })
+  }
+  if (message.startsWith('export.generating:')) {
+    const pct = message.split(':')[1] || ''
+    return t('build.progress.generating', { pct, defaultValue: `Génération en cours... (${pct}%)` })
+  }
+  if (message.startsWith('export.done:')) {
+    const parts = message.split(':')
+    return t('build.progress.exportDone', { name: parts[1] || '', count: parts[2] || '', defaultValue: `Export ${parts[1]} terminé (${parts[2]})` })
+  }
+  if (message === 'transform.running') {
+    return t('build.progress.transformRunning', { defaultValue: 'Transformations en cours...' })
+  }
+  if (message === 'export.starting') {
+    return t('build.progress.exportStarting', { defaultValue: 'Generating site...' })
+  }
+  return message
 }
