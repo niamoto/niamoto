@@ -258,6 +258,52 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         shape_ids = [item["shape_id"] for item in result]
         self.assertEqual(shape_ids, ["1", "2", "3"])
 
+    def test_get_group_data_with_boolean_filter_values_as_strings(self):
+        """Boolean JSON values should match string filters from config files."""
+        self.mock_db.has_table.return_value = True
+        self.mock_db.fetch_all.return_value = [
+            {
+                "plots_id": 1,
+                "general_info_plots_field_aggregator_info_grid": {
+                    "in_um": {"value": False},
+                    "plot": {"value": "A"},
+                },
+            },
+            {
+                "plots_id": 2,
+                "general_info_plots_field_aggregator_info_grid": {
+                    "in_um": {"value": True},
+                    "plot": {"value": "B"},
+                },
+            },
+        ]
+
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="plot",
+                    source="general_info_plots_field_aggregator_info_grid.plot.value",
+                    label="Plot",
+                    type="text",
+                )
+            ],
+            filters=[
+                IndexGeneratorFilterConfig(
+                    field="general_info_plots_field_aggregator_info_grid.in_um.value",
+                    operator="in",
+                    values=["True", "False"],
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        result = self.plugin._get_group_data("plots", config)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["plots_id"], "1")
+        self.assertEqual(result[1]["plots_id"], "2")
+
     def test_get_group_data_table_not_exists(self):
         """Test error handling when table doesn't exist."""
         self.mock_db.has_table.return_value = False

@@ -2,13 +2,14 @@
 
 import os
 import time
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from niamoto.gui.api.context import (
     reload_project_from_desktop_config,
     get_working_directory,
     get_database_path,
 )
+from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 
@@ -47,7 +48,7 @@ async def get_runtime_mode():
 
 
 @router.post("/reload-project")
-async def reload_project():
+async def reload_project(request: Request):
     """
     Reload the current project from Tauri desktop config.
 
@@ -60,6 +61,12 @@ async def reload_project():
         - success: Whether the reload was successful
     """
     project_path = reload_project_from_desktop_config()
+
+    if project_path:
+        resolve_job_store(request.app)
+    else:
+        request.app.state.job_store = None
+        request.app.state.job_store_work_dir = None
 
     # It's valid to have no project selected (Welcome Screen case)
     return {

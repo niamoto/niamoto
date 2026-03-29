@@ -82,6 +82,7 @@ import { cn } from '@/lib/utils'
 import {
   useSiteConfig,
   useUpdateSiteConfig,
+  useUpdateGroupIndexConfig,
   useGroups,
   useTemplates,
   useTemplatePreview,
@@ -786,12 +787,13 @@ interface SiteBuilderProps {
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
-  const { t, i18n } = useTranslation(['site', 'common'])
+  const { t, i18n } = useTranslation(['site', 'common', 'indexConfig'])
   // Data fetching
   const { data: siteConfig, isLoading, error, refetch } = useSiteConfig()
   const { data: groupsData, isLoading: groupsLoading } = useGroups()
   const { data: templatesData } = useTemplates()
   const updateMutation = useUpdateSiteConfig()
+  const updateGroupIndexMutation = useUpdateGroupIndexConfig()
 
   // Local editing state
   const [editedSite, setEditedSite] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
@@ -1109,6 +1111,37 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     })
   }
 
+  const handleEnableGroupIndexPage = async (groupName: string) => {
+    try {
+      await updateGroupIndexMutation.mutateAsync({
+        groupName,
+        config: {
+          enabled: true,
+          template: '_group_index.html',
+          page_config: {
+            title: t('indexConfig:defaultTitle', { groupBy: groupName }),
+            description: '',
+            items_per_page: 24,
+          },
+          filters: [],
+          display_fields: [],
+          views: [
+            { type: 'grid', default: true },
+            { type: 'list', default: false },
+          ],
+        },
+      })
+
+      toast.success(t('groupViewer.indexPageActivated'), {
+        description: t('groupViewer.indexPageActivatedDesc'),
+      })
+    } catch (err) {
+      toast.error(t('common:status.error'), {
+        description: err instanceof Error ? err.message : t('messages.saveFailed'),
+      })
+    }
+  }
+
   // Get current page for preview
   // For appearance preview, use the first available page
   const currentPage = selection?.type === 'page'
@@ -1262,6 +1295,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               <GroupPageViewer
                 group={currentGroup}
                 onBack={() => setSelection(null)}
+                onEnableIndexPage={() => handleEnableGroupIndexPage(currentGroup.name)}
+                isEnablingIndexPage={updateGroupIndexMutation.isPending}
               />
             </div>
           </ScrollArea>

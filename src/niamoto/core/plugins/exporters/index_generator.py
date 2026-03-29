@@ -81,6 +81,26 @@ class IndexGeneratorPlugin(ExporterPlugin):
             return "_group_index.html"
         return template_name
 
+    def _normalize_filter_value(self, value: Any) -> Any:
+        """Normalize values so config filters match JSON/native DB values."""
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered == "true":
+                return True
+            if lowered == "false":
+                return False
+            if lowered in {"null", "none"}:
+                return None
+
+            try:
+                if "." in lowered:
+                    return float(lowered)
+                return int(lowered)
+            except ValueError:
+                return value
+
+        return value
+
     def _extract_field_value(
         self, item: Dict[str, Any], field: IndexGeneratorDisplayField
     ) -> Any:
@@ -168,13 +188,22 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 if config.filters:
                     include_item = True
                     for filter_config in config.filters:
-                        filter_value = self._get_nested_value(item, filter_config.field)
+                        filter_value = self._normalize_filter_value(
+                            self._get_nested_value(item, filter_config.field)
+                        )
+                        normalized_values = [
+                            self._normalize_filter_value(v)
+                            for v in filter_config.values
+                        ]
                         if filter_config.operator == "in":
-                            if filter_value not in filter_config.values:
+                            if filter_value not in normalized_values:
                                 include_item = False
                                 break
                         elif filter_config.operator == "equals":
-                            if filter_value != filter_config.values[0]:
+                            expected = (
+                                normalized_values[0] if normalized_values else None
+                            )
+                            if filter_value != expected:
                                 include_item = False
                                 break
 

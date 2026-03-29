@@ -20,6 +20,7 @@ from niamoto.gui.api.context import (
     get_working_directory,
 )
 from niamoto.gui.api.services.job_file_store import JobFileStore
+from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 
 logger = logging.getLogger(__name__)
 
@@ -72,11 +73,11 @@ class ExportMetrics(BaseModel):
 
 
 def _get_job_store(request: Request) -> JobFileStore:
-    """Récupère le JobFileStore depuis app.state."""
-    store = getattr(request.app.state, "job_store", None)
-    if store is None:
-        raise HTTPException(status_code=500, detail="JobFileStore non initialisé")
-    return store
+    """Resolve the project-scoped JobFileStore for the current request."""
+    try:
+        return resolve_job_store(request.app)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"JobFileStore unavailable: {exc}")
 
 
 def _job_to_status(job: dict) -> dict:
@@ -428,6 +429,9 @@ async def list_export_jobs(http_request: Request):
                 "completed_at": active.get("completed_at"),
                 "progress": active["progress"],
                 "message": active.get("message", ""),
+                "phase": active.get("phase"),
+                "result": active.get("result"),
+                "error": active.get("error"),
             }
         )
 
@@ -441,6 +445,9 @@ async def list_export_jobs(http_request: Request):
                     "completed_at": entry.get("completed_at"),
                     "progress": entry.get("progress", 100),
                     "message": entry.get("message", ""),
+                    "phase": entry.get("phase"),
+                    "result": entry.get("result"),
+                    "error": entry.get("error"),
                 }
             )
 
@@ -461,6 +468,14 @@ async def cancel_export_job(job_id: str, http_request: Request):
     raise HTTPException(
         status_code=501, detail=f"Annulation non implémentée en v1 (job {job_id})"
     )
+
+
+@router.delete("/history")
+async def clear_export_history(http_request: Request):
+    """Clear persisted export history for the current project."""
+    job_store = _get_job_store(http_request)
+    removed = job_store.clear_history(job_type="export")
+    return {"removed": removed}
 
 
 @router.get("/config")

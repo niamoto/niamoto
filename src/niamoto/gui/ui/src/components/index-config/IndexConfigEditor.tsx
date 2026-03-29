@@ -216,7 +216,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
       <div className={cn('flex flex-col items-center justify-center py-12', className)}>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="mt-4 text-sm text-muted-foreground">
-          Chargement de la configuration...
+          {t('loading')}
         </p>
       </div>
     )
@@ -227,15 +227,15 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
       {/* Header with save button */}
       <div className="shrink-0 flex items-center justify-between p-4 border-b bg-muted/30">
         <div>
-          <h2 className="text-lg font-semibold">Index Configuration</h2>
+          <h2 className="text-lg font-semibold">{t('title')}</h2>
           <p className="text-sm text-muted-foreground">
-            Configure the index page for the group "{groupBy}"
+            {t('groupDescription', { groupBy })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {isDirty && (
             <Badge variant="outline" className="text-xs">
-              Modifications non sauvegardees
+              {t('status.unsavedChanges')}
             </Badge>
           )}
           {config.enabled && (
@@ -262,12 +262,12 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                 {detecting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Detection...
+                    {t('actions.detecting')}
                   </>
                 ) : (
                   <>
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Auto-detecter
+                    {t('actions.autoDetect')}
                   </>
                 )}
               </Button>
@@ -280,7 +280,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             disabled={!isDirty || saving}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Annuler
+            {t('common:actions.cancel')}
           </Button>
           <Button
             size="sm"
@@ -290,12 +290,12 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             {saving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sauvegarde...
+                {t('actions.saving')}
               </>
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Sauvegarder
+                {t('common:actions.save')}
               </>
             )}
           </Button>
@@ -306,17 +306,22 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
       <AlertDialog open={showAutoDetectConfirm} onOpenChange={setShowAutoDetectConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remplacer la configuration existante ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('replaceExisting')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Une configuration existe deja avec {config.display_fields.length} champ(s)
-              {(config.filters?.length ?? 0) > 0 && ` et ${config.filters?.length} filtre(s)`}.
-              L'auto-detection va remplacer ces parametres par de nouvelles suggestions.
+              {(config.filters?.length ?? 0) > 0
+                ? t('confirm.replaceDescriptionWithFilters', {
+                    fieldCount: config.display_fields.length,
+                    filterCount: config.filters?.length ?? 0,
+                  })
+                : t('confirm.replaceDescription', {
+                    fieldCount: config.display_fields.length,
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleAutoDetectConfirm}>
-              Remplacer
+              {t('actions.replace')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -327,7 +332,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
         <Alert className="mx-4 mt-4 border-success/50 bg-success/10">
           <CheckCircle2 className="h-4 w-4 text-success" />
           <AlertDescription className="text-success">
-            Configuration sauvegardee avec succes
+            {t('status.saveSuccess')}
           </AlertDescription>
         </Alert>
       )}
@@ -349,11 +354,11 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Activer la page d'index</Label>
+                  <Label className="text-base">{t('toggle.label')}</Label>
                   <p className="text-sm text-muted-foreground">
                     {detecting
-                      ? 'Detection automatique des champs en cours...'
-                      : 'Genere une page listant toutes les entites du groupe'
+                      ? t('toggle.descriptionDetecting')
+                      : t('toggle.description')
                     }
                   </p>
                 </div>
@@ -381,9 +386,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                       <Settings2 className="h-4 w-4 text-blue-600" />
                     </div>
                     <div className="text-left">
-                      <span className="font-medium">Parametres de page</span>
+                      <span className="font-medium">{t('sections.page.title')}</span>
                       <p className="text-xs text-muted-foreground font-normal">
-                        Titre, description, pagination
+                        {t('sections.page.description')}
                       </p>
                     </div>
                   </div>
@@ -434,9 +439,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                       <Filter className="h-4 w-4 text-amber-600" />
                     </div>
                     <div className="text-left">
-                      <span className="font-medium">Filtres</span>
+                      <span className="font-medium">{t('sections.filters.title')}</span>
                       <p className="text-xs text-muted-foreground font-normal">
-                        Filtrer les entites affichees
+                        {t('sections.filters.description')}
                         {(config.filters?.length ?? 0) > 0 && (
                           <Badge variant="secondary" className="ml-2 h-5 px-1.5">
                             {config.filters?.length}
@@ -464,9 +469,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                       <LayoutList className="h-4 w-4 text-emerald-600" />
                     </div>
                     <div className="text-left">
-                      <span className="font-medium">Champs affiches</span>
+                      <span className="font-medium">{t('sections.fields.title')}</span>
                       <p className="text-xs text-muted-foreground font-normal">
-                        Colonnes visibles dans la liste
+                        {t('sections.fields.description')}
                         {config.display_fields.length > 0 && (
                           <Badge variant="secondary" className="ml-2 h-5 px-1.5">
                             {config.display_fields.length}
@@ -496,9 +501,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                       <Eye className="h-4 w-4 text-violet-600" />
                     </div>
                     <div className="text-left">
-                      <span className="font-medium">Modes d'affichage</span>
+                      <span className="font-medium">{t('sections.views.title')}</span>
                       <p className="text-xs text-muted-foreground font-normal">
-                        Grille et/ou liste
+                        {t('sections.views.description')}
                       </p>
                     </div>
                   </div>
@@ -507,9 +512,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                   <div className="space-y-4">
                     <div className="flex items-center justify-between py-2">
                       <div className="space-y-0.5">
-                        <Label>Affichage en grille</Label>
+                        <Label>{t('views.grid.label')}</Label>
                         <p className="text-xs text-muted-foreground">
-                          Affiche les entites dans une grille de cartes
+                          {t('views.grid.description')}
                         </p>
                       </div>
                       <Switch
@@ -526,9 +531,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
 
                     <div className="flex items-center justify-between py-2">
                       <div className="space-y-0.5">
-                        <Label>Affichage en liste</Label>
+                        <Label>{t('views.list.label')}</Label>
                         <p className="text-xs text-muted-foreground">
-                          Affiche les entites dans une liste tabulaire
+                          {t('views.list.description')}
                         </p>
                       </div>
                       <Switch
@@ -545,7 +550,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
 
                     {(config.views?.length ?? 0) > 1 && (
                       <div className="space-y-2 pt-2 border-t">
-                        <Label>Mode par defaut</Label>
+                        <Label>{t('views.defaultLabel')}</Label>
                         <div className="flex gap-2">
                           {config.views?.map((view, index) => (
                             <Button

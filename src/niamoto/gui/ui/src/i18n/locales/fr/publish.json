@@ -243,6 +243,7 @@
     "confirmClearDeploys": "Êtes-vous sûr de vouloir effacer l'historique des déploiements ? Cette action est irréversible.",
     "clearedBuilds": "Historique des builds effacé",
     "clearedDeploys": "Historique des déploiements effacé",
+    "clearError": "Impossible d'effacer l'historique",
     "noBuildsYet": "Aucun build effectué",
     "noDeploysYet": "Aucun déploiement effectué",
     "buildDetails": "Détails du build",

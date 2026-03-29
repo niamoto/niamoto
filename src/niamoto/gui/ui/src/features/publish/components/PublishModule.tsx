@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { usePublishStore } from '@/features/publish/store/publishStore'
+import { usePublishBootstrap } from '@/features/publish/hooks/usePublishBootstrap'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
 import { PublishTree, type PublishSelection } from './PublishTree'
 
@@ -54,6 +55,7 @@ export function PublishModule() {
   const navigate = useNavigate()
   const { t } = useTranslation('publish')
   const { setBreadcrumbs } = useNavigationStore()
+  usePublishBootstrap()
 
   const { buildHistory, deployHistory } = usePublishStore()
   const lastBuild = buildHistory[0]

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.services.job_file_store import JobFileStore
+from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 
 logger = logging.getLogger(__name__)
 
@@ -294,8 +295,9 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
 @router.get("/status", response_model=PipelineStatusResponse)
 async def get_pipeline_status(http_request: Request):
     """Return freshness status for every pipeline stage."""
-    job_store: Optional[JobFileStore] = http_request.app.state.job_store
-    if job_store is None:
+    try:
+        job_store: Optional[JobFileStore] = resolve_job_store(http_request.app)
+    except Exception:
         return PipelineStatusResponse(
             data=StageStatus(status="never_run"),
             groups=StageStatus(status="never_run"),

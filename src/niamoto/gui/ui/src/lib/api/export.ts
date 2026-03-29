@@ -29,6 +29,18 @@ export interface ExportStatus {
   error?: string | null
 }
 
+export interface ExportJobListItem {
+  job_id: string
+  status: string
+  started_at: string
+  completed_at?: string | null
+  progress: number
+  message: string
+  phase?: string | null
+  result?: ExportStatus['result']
+  error?: string | null
+}
+
 export interface ExportMetrics {
   total_exports: number
   completed_exports: number
@@ -68,16 +80,14 @@ export async function getExportStatus(jobId: string): Promise<ExportStatus> {
  * List all export jobs
  */
 export async function listExportJobs(): Promise<{
-  jobs: Array<{
-    job_id: string
-    status: string
-    started_at: string
-    completed_at?: string | null
-    progress: number
-    message: string
-  }>
+  jobs: ExportJobListItem[]
 }> {
   const response = await apiClient.get('/export/jobs')
+  return response.data
+}
+
+export async function clearExportHistory(): Promise<{ removed: number }> {
+  const response = await apiClient.delete('/export/history')
   return response.data
 }
 

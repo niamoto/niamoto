@@ -265,6 +265,21 @@ async function fetchGroups(): Promise<GroupsResponse> {
   return response.data
 }
 
+async function updateGroupIndexConfig(
+  groupName: string,
+  config: GroupIndexConfig
+): Promise<GroupIndexConfig> {
+  try {
+    const response = await apiClient.put<GroupIndexConfig>(
+      `/config/export/${encodeURIComponent(groupName)}/index-generator`,
+      config
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Update failed'))
+  }
+}
+
 export interface FileContentResponse {
   content: string
   path: string
@@ -332,6 +347,18 @@ export function useUpdateSiteConfig() {
     mutationFn: updateSiteConfig,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-config'] })
+    },
+  })
+}
+
+export function useUpdateGroupIndexConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ groupName, config }: { groupName: string; config: GroupIndexConfig }) =>
+      updateGroupIndexConfig(groupName, config),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-groups'] })
     },
   })
 }

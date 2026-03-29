@@ -425,6 +425,8 @@ class TestPublicationPipeline:
         assert group_pages, f"No {group} pages generated in {web_output}"
 
         preview_target = group_pages[0].relative_to(web_output).as_posix()
-        preview_response = test_client.get(f"/preview/{preview_target}")
+        preview_response = test_client.get(
+            f"/api/site/preview-exported/{preview_target}"
+        )
         assert preview_response.status_code == 200, preview_response.text
         assert "<html" in preview_response.text.lower()

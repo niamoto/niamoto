@@ -8,6 +8,7 @@
  * - Auto-detect fields from data
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const API_BASE = '/api/config'
 
@@ -201,10 +202,22 @@ export function createDefaultDisplayField(partial: Partial<IndexDisplayField> = 
  * Hook for managing index generator configuration
  */
 export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
+  const { t } = useTranslation('indexConfig')
   const [serverConfig, setServerConfig] = useState<IndexGeneratorConfig | null>(null)
   const [localConfig, setLocalConfig] = useState<IndexGeneratorConfig>(DEFAULT_CONFIG)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const buildDefaultConfig = useCallback(
+    (): IndexGeneratorConfig => ({
+      ...DEFAULT_CONFIG,
+      page_config: {
+        ...DEFAULT_CONFIG.page_config,
+        title: t('defaultTitle', { groupBy }),
+      },
+    }),
+    [groupBy, t]
+  )
 
   // Fetch config from server
   const fetchConfig = useCallback(async () => {
@@ -217,7 +230,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
       if (response.status === 404) {
         // No config exists yet, use defaults
         setServerConfig(null)
-        setLocalConfig({ ...DEFAULT_CONFIG, page_config: { ...DEFAULT_CONFIG.page_config, title: `Liste des ${groupBy}` } })
+        setLocalConfig(buildDefaultConfig())
         setLoading(false)
         return
       }
@@ -234,7 +247,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     } finally {
       setLoading(false)
     }
-  }, [groupBy])
+  }, [buildDefaultConfig, groupBy])
 
   useEffect(() => {
     fetchConfig()
@@ -353,9 +366,9 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     if (serverConfig) {
       setLocalConfig(serverConfig)
     } else {
-      setLocalConfig({ ...DEFAULT_CONFIG, page_config: { ...DEFAULT_CONFIG.page_config, title: `Liste des ${groupBy}` } })
+      setLocalConfig(buildDefaultConfig())
     }
-  }, [serverConfig, groupBy])
+  }, [buildDefaultConfig, serverConfig])
 
   // Fetch suggestions from auto-detection
   const fetchSuggestions = useCallback(async (): Promise<IndexFieldSuggestions | null> => {

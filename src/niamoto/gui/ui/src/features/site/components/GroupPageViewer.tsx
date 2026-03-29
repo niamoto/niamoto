@@ -9,7 +9,7 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2 } from 'lucide-react'
+import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,9 +19,16 @@ import type { GroupInfo } from '@/shared/hooks/useSiteConfig'
 interface GroupPageViewerProps {
   group: GroupInfo
   onBack: () => void
+  onEnableIndexPage?: () => void
+  isEnablingIndexPage?: boolean
 }
 
-export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
+export function GroupPageViewer({
+  group,
+  onBack,
+  onEnableIndexPage,
+  isEnablingIndexPage = false,
+}: GroupPageViewerProps) {
   const { t } = useTranslation(['site', 'common'])
   const hasIndex = group.index_generator?.enabled
   const indexConfig = group.index_generator
@@ -217,6 +224,22 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {t('groupViewer.noIndexPageDesc')}
             </p>
+            {onEnableIndexPage && (
+              <Button
+                className="mt-4"
+                onClick={onEnableIndexPage}
+                disabled={isEnablingIndexPage}
+              >
+                {isEnablingIndexPage ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('groupViewer.activating')}
+                  </>
+                ) : (
+                  t('groupViewer.activatePage')
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

@@ -244,6 +244,52 @@ class JobFileStore:
             self._history_path.write_text("\n".join(kept) + "\n")
             return removed
 
+    def clear_history(self, job_type: str | None = None) -> int:
+        """Supprime l'historique, optionnellement filtré par type de job."""
+        with self._lock:
+            removed = 0
+
+            active = self._read_active()
+            if (
+                active
+                and active["status"] in TERMINAL_STATUSES
+                and (job_type is None or active.get("type") == job_type)
+            ):
+                self._active_path.unlink(missing_ok=True)
+                removed += 1
+
+            if not self._history_path.exists():
+                return removed
+
+            lines = self._history_path.read_text().strip().splitlines()
+            if not lines:
+                self._history_path.unlink(missing_ok=True)
+                return removed
+
+            if job_type is None:
+                self._history_path.unlink(missing_ok=True)
+                return removed + len(lines)
+
+            kept: list[str] = []
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    kept.append(line)
+                    continue
+
+                if entry.get("type") == job_type:
+                    removed += 1
+                    continue
+                kept.append(line)
+
+            if kept:
+                self._history_path.write_text("\n".join(kept) + "\n")
+            else:
+                self._history_path.unlink(missing_ok=True)
+
+            return removed
+
     # --- Internals ---
 
     def _read_active(self) -> dict | None:

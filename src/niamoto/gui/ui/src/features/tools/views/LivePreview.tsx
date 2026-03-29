@@ -6,6 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 type ViewportSize = 'mobile' | 'tablet' | 'desktop'
 
+function getExportedSitePreviewUrl(path: string) {
+  return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
+}
+
 export function LivePreview() {
   const { t } = useTranslation(['tools', 'common'])
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop')
@@ -17,7 +21,7 @@ export function LivePreview() {
   }
 
   const handleOpenNewTab = () => {
-    window.open('/preview/index.html', '_blank')
+    window.open(getExportedSitePreviewUrl('index.html'), '_blank')
   }
 
   const getIframeWidth = () => {
@@ -119,7 +123,7 @@ export function LivePreview() {
               <div style={{ width: getIframeWidth(), transition: 'width 0.3s ease' }}>
                 <iframe
                   key={iframeKey}
-                  src="/preview/index.html"
+                  src={getExportedSitePreviewUrl('index.html')}
                   className="w-full h-[700px] border-0 bg-white"
                   title="Site exporté"
                   sandbox="allow-scripts allow-same-origin allow-popups allow-forms"

@@ -18,6 +18,7 @@ from niamoto.gui.api.context import (
     get_working_directory,
 )
 from niamoto.gui.api.services.job_file_store import JobFileStore
+from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +89,11 @@ def get_transform_config(config_path: str) -> Dict[str, Any]:
 
 
 def _get_job_store(request: Request) -> JobFileStore:
-    """Récupère le JobFileStore depuis app.state."""
-    store = getattr(request.app.state, "job_store", None)
-    if store is None:
-        raise HTTPException(status_code=500, detail="JobFileStore non initialisé")
-    return store
+    """Resolve the project-scoped JobFileStore for the current request."""
+    try:
+        return resolve_job_store(request.app)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"JobFileStore unavailable: {exc}")
 
 
 async def execute_transform_background(

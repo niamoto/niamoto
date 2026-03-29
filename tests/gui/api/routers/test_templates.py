@@ -275,6 +275,50 @@ class TestTemplatesEndpoints:
         assert source["relation"]["key"] == "taxon_ref_custom"
         assert source["relation"]["ref_key"] == "taxons_id"
 
+    def test_generate_config_spatial_does_not_invent_dataset_relation(
+        self, client, test_work_dir
+    ):
+        """Spatial references must not create an implicit occurrences->shapes join."""
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["references"]["shapes"] = {
+            "kind": "spatial",
+            "connector": {
+                "type": "file_multi_feature",
+                "sources": [
+                    {
+                        "name": "Mines",
+                        "path": "imports/mines.gpkg",
+                        "layer": "emprises_mines_ERMINES",
+                        "name_field": "region",
+                    }
+                ],
+            },
+        }
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "shape_info",
+                        "plugin": "field_aggregator",
+                        "config": {"field": "name"},
+                    }
+                ],
+                "group_by": "shapes",
+                "reference_kind": "spatial",
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["sources"] == []
+
     def test_save_config_requires_body(self, client):
         """Test POST /api/templates/save-config requires request body."""
         response = client.post("/api/templates/save-config", json={})

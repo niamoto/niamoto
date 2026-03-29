@@ -28,11 +28,24 @@ import { executeExportAndWait } from '@/lib/api/export'
 import { apiClient } from '@/shared/lib/api/client'
 import { useProgressiveCounter } from '@/shared/hooks/useProgressiveCounter'
 
+function getExportedSitePreviewUrl(path: string) {
+  return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
+}
+
+function getExportedHomePath(lang?: string, languages?: string[]) {
+  const uniqueLanguages = Array.from(new Set((languages || []).filter(Boolean)))
+  if (uniqueLanguages.length > 1 && lang) {
+    return `${lang}/index.html`
+  }
+  return 'index.html'
+}
+
 export default function PublishBuild() {
   const { t, i18n } = useTranslation('publish')
   const navigate = useNavigate()
   const { setBreadcrumbs } = useNavigationStore()
   const previewLang = i18n.language?.split('-')[0] || 'fr'
+  const [siteLanguages, setSiteLanguages] = useState<string[] | undefined>(undefined)
 
   const {
     currentBuild,
@@ -76,6 +89,19 @@ export default function PublishBuild() {
       }
     }
     loadWorkingDir()
+  }, [])
+
+  useEffect(() => {
+    const loadSiteLanguages = async () => {
+      try {
+        const response = await apiClient.get('/site/config')
+        setSiteLanguages(response.data.site?.languages)
+      } catch (error) {
+        console.error('Failed to load site languages:', error)
+        setSiteLanguages(undefined)
+      }
+    }
+    loadSiteLanguages()
   }, [])
 
   const runBuild = async () => {
@@ -297,7 +323,10 @@ export default function PublishBuild() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => window.open(`/preview/${previewLang}/`, '_blank')} className="flex-1">
+                <Button
+                  onClick={() => window.open(getExportedSitePreviewUrl(getExportedHomePath(previewLang, siteLanguages)), '_blank')}
+                  className="flex-1"
+                >
                   <Globe className="w-4 h-4 mr-2" />
                   {t('build.preview', 'View site')}
                 </Button>
@@ -372,7 +401,11 @@ export default function PublishBuild() {
                 <CardTitle>{t('build.previewTitle', 'Site Preview')}</CardTitle>
                 <CardDescription>{t('build.previewDescription', 'Preview of the generated site')}</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => window.open(`/preview/${previewLang}/`, '_blank')}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(getExportedSitePreviewUrl(getExportedHomePath(previewLang, siteLanguages)), '_blank')}
+              >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 {t('build.openNewTab', 'Nouvel onglet')}
               </Button>
@@ -382,7 +415,7 @@ export default function PublishBuild() {
             <div className="rounded-lg border overflow-hidden">
               <iframe
                 key={lastBuild?.completedAt ?? ''}
-                src={`/preview/${previewLang}/index.html`}
+                src={getExportedSitePreviewUrl(getExportedHomePath(previewLang, siteLanguages))}
                 className="w-full h-[80vh] border-0"
                 title={t('build.previewTitle', 'Site Preview')}
                 sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
