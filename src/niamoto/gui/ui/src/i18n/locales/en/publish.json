@@ -11,6 +11,11 @@
     "cancelled": "Cancelled",
     "pending": "Pending"
   },
+  "publishStatus": {
+    "neverGenerated": "Never generated",
+    "outOfDate": "Out of date",
+    "upToDate": "Up to date"
+  },
   "overview": {
     "title": "Overview",
     "lastBuild": "Last Build",
