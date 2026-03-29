@@ -6,6 +6,7 @@ Bundles the entire Python application with all dependencies
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import copy_metadata
 
 # Base directories
 # PyInstaller runs from project root, so paths are relative to that
@@ -46,6 +47,13 @@ if models_dir.exists():
             datas.append((str(file), 'models'))
 else:
     print(f"[WARN] No models directory found at {models_dir}")
+
+# Include wheel metadata required at runtime by some geo/scientific packages.
+# PyInstaller does not always collect these dist-info directories automatically.
+for package_name in [
+    'shapely',
+]:
+    datas += copy_metadata(package_name)
 
 # CRITICAL: Include React build (src/niamoto/gui/ui/dist)
 ui_dist = NIAMOTO_SRC / 'gui' / 'ui' / 'dist'
@@ -137,7 +145,12 @@ hiddenimports = [
     'scipy',
     'scipy.sparse',
     'scipy.special',
+    'scipy.stats',
     'joblib',
+
+    # Required by scipy/numpy internals
+    'unittest',
+    'unittest.mock',
 ]
 
 # Binaries - additional binary dependencies
