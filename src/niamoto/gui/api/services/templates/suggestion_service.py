@@ -18,8 +18,17 @@ from niamoto.common.table_resolver import (
     quote_identifier,
     resolve_entity_table as shared_resolve_entity_table,
 )
+from niamoto.core.imports.data_analyzer import (
+    DataCategory,
+    EnrichedColumnProfile,
+    FieldPurpose,
+)
+from niamoto.core.imports.template_suggester import (
+    TemplateSuggester,
+    TemplateSuggestion,
+)
+from niamoto.core.imports.widget_generator import WidgetGenerator, WidgetSuggestion
 from niamoto.gui.api.context import get_database_path, get_working_directory
-from niamoto.core.imports.widget_generator import WidgetGenerator
 from niamoto.core.imports.class_object_suggester import suggest_widgets_for_source
 
 logger = logging.getLogger(__name__)
@@ -40,6 +49,26 @@ _REFERENCE_FIELD_SKIP_SUBSTRINGS = ("created", "updated", "geometry", "geom", "_
 _REFERENCE_FIELD_SUGGESTIONS_CACHE: Dict[
     Tuple[str, str, str, int, int], List[Dict[str, Any]]
 ] = {}
+_FAST_REFERENCE_CATEGORY_WIDGETS: Dict[DataCategory, List[Tuple[str, str, bool]]] = {
+    DataCategory.NUMERIC_CONTINUOUS: [
+        ("binned_distribution", "bar_plot", True),
+        ("statistical_summary", "radial_gauge", False),
+    ],
+    DataCategory.NUMERIC_DISCRETE: [
+        ("binned_distribution", "bar_plot", True),
+        ("statistical_summary", "radial_gauge", False),
+    ],
+    DataCategory.CATEGORICAL: [
+        ("categorical_distribution", "donut_chart", True),
+        ("top_ranking", "bar_plot", False),
+    ],
+    DataCategory.CATEGORICAL_HIGH_CARD: [
+        ("top_ranking", "bar_plot", True),
+    ],
+    DataCategory.BOOLEAN: [
+        ("binary_counter", "donut_chart", True),
+    ],
+}
 
 
 def _get_path_mtime_ns(path: Path) -> int:
@@ -98,6 +127,373 @@ def _should_profile_reference_field(column_name: str, series: pd.Series) -> bool
         return False
 
     return True
+
+
+def _safe_registry_get(registry: Any, entity_name: str) -> Optional[Any]:
+    """Return registry metadata when available, swallowing lookup errors."""
+    if registry is None:
+        return None
+    try:
+        return registry.get(entity_name)
+    except Exception:
+        return None
+
+
+def _is_internal_registry_reference(entity_meta: Any, entity_table: str) -> bool:
+    """Return whether the resolved table is an internal Niamoto reference table."""
+    if entity_meta is None:
+        return False
+
+    kind_value = str(getattr(entity_meta, "kind", "")).lower()
+    table_name = str(getattr(entity_meta, "table_name", "") or "")
+    if kind_value not in {"reference", "entitykind.reference"}:
+        return False
+    if not entity_table or entity_table != table_name:
+        return False
+    return entity_table.startswith("entity_")
+
+
+def _extract_reference_metadata_signals(
+    *,
+    reference_name: str,
+    columns: List[str],
+    entity_meta: Any,
+    reference_config: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Collect lightweight hints from import config and registry metadata."""
+    config = getattr(entity_meta, "config", {}) if entity_meta is not None else {}
+    if not isinstance(config, dict):
+        config = {}
+
+    schema = config.get("schema", {})
+    if not isinstance(schema, dict):
+        schema = {}
+    ref_schema = reference_config.get("schema", {})
+    if not isinstance(ref_schema, dict):
+        ref_schema = {}
+
+    id_field = (
+        schema.get("id_field")
+        or ref_schema.get("id_field")
+        or _pick_identifier_column(columns, entity_name=reference_name)
+        or "id"
+    )
+
+    derived = config.get("derived", {})
+    if not isinstance(derived, dict):
+        derived = {}
+
+    label_fields = {
+        str(field)
+        for field in [
+            derived.get("external_name_field"),
+            _pick_name_column(columns, id_field, reference_name) if columns else None,
+        ]
+        if field
+    }
+
+    geometry_fields = {
+        str(field.get("name"))
+        for field in schema.get("fields", [])
+        if isinstance(field, dict) and str(field.get("type", "")).lower() == "geometry"
+    }
+    geometry_fields.update(
+        str(field.get("name"))
+        for field in ref_schema.get("fields", [])
+        if isinstance(field, dict) and str(field.get("type", "")).lower() == "geometry"
+    )
+
+    technical_fields = {
+        str(field)
+        for field in [
+            id_field,
+            derived.get("external_id_field"),
+        ]
+        if field
+    }
+
+    return {
+        "id_field": id_field,
+        "label_fields": label_fields,
+        "geometry_fields": geometry_fields,
+        "technical_fields": technical_fields,
+    }
+
+
+def _coerce_reference_series_numeric(series: pd.Series) -> Tuple[pd.Series, float]:
+    """Attempt numeric coercion and return both values and success ratio."""
+    non_null = series.dropna()
+    if non_null.empty:
+        return pd.Series(dtype="float64"), 0.0
+
+    coerced = pd.to_numeric(non_null, errors="coerce")
+    success_ratio = float(coerced.notna().mean())
+    return coerced.dropna(), success_ratio
+
+
+def _is_boolean_like(series: pd.Series) -> bool:
+    """Return whether the column behaves like a boolean."""
+    non_null = series.dropna()
+    if non_null.empty:
+        return False
+
+    lowered_values = {str(value).strip().lower() for value in non_null}
+    boolean_tokens = {
+        "0",
+        "1",
+        "true",
+        "false",
+        "yes",
+        "no",
+        "oui",
+        "non",
+        "y",
+        "n",
+        "t",
+        "f",
+    }
+    return len(lowered_values) <= 2 and lowered_values.issubset(boolean_tokens)
+
+
+def _classify_reference_column_fast(
+    *,
+    column_name: str,
+    series: pd.Series,
+    metadata_signals: Dict[str, Any],
+) -> Optional[DataCategory]:
+    """Classify a reference-table column with a lightweight heuristic."""
+    non_null = series.dropna()
+    if non_null.empty:
+        return None
+
+    distinct_count = int(non_null.nunique())
+    unique_ratio = distinct_count / len(non_null)
+
+    if _is_boolean_like(non_null):
+        return DataCategory.BOOLEAN
+
+    numeric_non_null = non_null
+    numeric_ratio = 0.0
+    if pd.api.types.is_numeric_dtype(series):
+        numeric_ratio = 1.0
+    else:
+        numeric_non_null, numeric_ratio = _coerce_reference_series_numeric(non_null)
+
+    if numeric_ratio >= 0.95:
+        if numeric_non_null.empty:
+            return None
+        if distinct_count <= 2:
+            return DataCategory.BOOLEAN
+
+        integer_like = (numeric_non_null % 1 == 0).all()
+        if integer_like and distinct_count <= 12:
+            return DataCategory.NUMERIC_DISCRETE
+        return DataCategory.NUMERIC_CONTINUOUS
+
+    if 0.2 <= numeric_ratio < 0.95:
+        return None
+
+    if distinct_count <= 20 or unique_ratio <= 0.4:
+        return DataCategory.CATEGORICAL
+    return DataCategory.CATEGORICAL_HIGH_CARD
+
+
+def _should_skip_reference_fast_path(
+    *,
+    column_name: str,
+    series: pd.Series,
+    metadata_signals: Dict[str, Any],
+) -> bool:
+    """Return whether the column should be ignored instead of sent to fallback ML."""
+    if not _should_profile_reference_field(column_name, series):
+        return True
+    if column_name in metadata_signals["geometry_fields"]:
+        return True
+    if column_name in metadata_signals["label_fields"]:
+        return True
+    if column_name in metadata_signals["technical_fields"]:
+        return True
+    return False
+
+
+def _build_fast_enriched_profile(
+    *,
+    column_name: str,
+    series: pd.Series,
+    category: DataCategory,
+) -> EnrichedColumnProfile:
+    """Create a lightweight EnrichedColumnProfile without running ML profiling."""
+    non_null = series.dropna()
+    numeric_non_null = non_null
+    if not pd.api.types.is_numeric_dtype(series):
+        coerced, numeric_ratio = _coerce_reference_series_numeric(non_null)
+        if numeric_ratio >= 0.95:
+            numeric_non_null = coerced
+
+    value_range = None
+    if (
+        category
+        in {
+            DataCategory.NUMERIC_CONTINUOUS,
+            DataCategory.NUMERIC_DISCRETE,
+        }
+        and not numeric_non_null.empty
+    ):
+        value_range = (
+            float(numeric_non_null.min()),
+            float(numeric_non_null.max()),
+        )
+
+    suggested_labels = None
+    if category in {DataCategory.CATEGORICAL, DataCategory.CATEGORICAL_HIGH_CARD}:
+        suggested_labels = [str(value) for value in non_null.astype(str).unique()[:10]]
+
+    sample_values = [value for value in non_null.head(10).tolist()]
+    if suggested_labels:
+        sample_values = suggested_labels
+
+    field_purpose = (
+        FieldPurpose.MEASUREMENT
+        if category in {DataCategory.NUMERIC_CONTINUOUS, DataCategory.NUMERIC_DISCRETE}
+        else FieldPurpose.CLASSIFICATION
+    )
+
+    return EnrichedColumnProfile(
+        name=column_name,
+        dtype=str(series.dtype),
+        semantic_type=None,
+        unique_ratio=(non_null.nunique() / len(non_null)) if len(non_null) else 0.0,
+        null_ratio=1 - (len(non_null) / len(series)) if len(series) else 1.0,
+        sample_values=sample_values,
+        confidence=0.8,
+        data_category=category,
+        field_purpose=field_purpose,
+        suggested_bins=None,
+        suggested_labels=suggested_labels,
+        cardinality=int(non_null.nunique()) if len(non_null) else 0,
+        value_range=value_range,
+    )
+
+
+def _generate_fast_reference_widget_suggestions(
+    *,
+    reference_name: str,
+    profiles: List[EnrichedColumnProfile],
+) -> List[TemplateSuggestion]:
+    """Generate TemplateSuggestion objects from fast classified profiles."""
+    generator = WidgetGenerator()
+    suggester = TemplateSuggester()
+    template_suggestions: List[TemplateSuggestion] = []
+
+    for profile in profiles:
+        combos = _FAST_REFERENCE_CATEGORY_WIDGETS.get(profile.data_category, [])
+        column_suggestions: List[WidgetSuggestion] = []
+        for transformer_name, widget_name, is_primary in combos:
+            suggestion = generator._create_suggestion(
+                profile=profile,
+                transformer_name=transformer_name,
+                widget_name=widget_name,
+                source_table=reference_name,
+                is_primary=is_primary,
+                match_score=1.0,
+            )
+            if suggestion is not None:
+                column_suggestions.append(suggestion)
+
+        suggestion_ids = [suggestion.id for suggestion in column_suggestions]
+        for suggestion in column_suggestions:
+            suggestion.alternatives = [
+                suggestion_id
+                for suggestion_id in suggestion_ids
+                if suggestion_id != suggestion.id
+            ]
+            template_suggestions.append(
+                suggester._convert_widget_suggestion(suggestion)
+            )
+
+    template_suggestions = [
+        suggestion
+        for suggestion in template_suggestions
+        if suggestion.confidence >= TemplateSuggester.MIN_CONFIDENCE
+    ]
+    template_suggestions.sort(
+        key=lambda suggestion: (
+            -suggestion.confidence,
+            not suggestion.is_recommended,
+            suggestion.name,
+        )
+    )
+    return template_suggestions
+
+
+def _merge_reference_template_suggestions(
+    *,
+    reference_name: str,
+    heuristic_suggestions: List[TemplateSuggestion],
+    ml_suggestions: List[TemplateSuggestion],
+) -> List[Dict[str, Any]]:
+    """Merge heuristic and ML suggestions while preferring heuristic duplicates."""
+    merged: Dict[str, TemplateSuggestion] = {}
+    for suggestion in heuristic_suggestions:
+        merged[suggestion.template_id] = suggestion
+    for suggestion in ml_suggestions:
+        merged.setdefault(suggestion.template_id, suggestion)
+
+    ordered = sorted(
+        merged.values(),
+        key=lambda suggestion: (
+            -suggestion.confidence,
+            not suggestion.is_recommended,
+            suggestion.name,
+        ),
+    )
+    result: List[Dict[str, Any]] = []
+    for suggestion in ordered:
+        suggestion_dict = suggestion.to_dict()
+        suggestion_dict["source"] = "reference"
+        suggestion_dict["source_name"] = reference_name
+        result.append(suggestion_dict)
+    return result
+
+
+def _generate_reference_suggestions_via_ml(
+    *,
+    entity_table: str,
+    reference_name: str,
+    profile_df: pd.DataFrame,
+) -> List[TemplateSuggestion]:
+    """Run the existing ML-backed suggestion pipeline for a DataFrame subset."""
+    from niamoto.core.imports.data_analyzer import DataAnalyzer
+    from niamoto.core.imports.profiler import DataProfiler
+
+    if profile_df.empty:
+        return []
+
+    profiler = DataProfiler()
+    dataset_profile = profiler.profile_dataframe(profile_df, Path(entity_table))
+
+    analyzer = DataAnalyzer()
+    enriched_profiles = []
+    for col_profile in dataset_profile.columns:
+        if col_profile.name in profile_df.columns:
+            enriched = analyzer.enrich_profile(
+                col_profile, profile_df[col_profile.name]
+            )
+            enriched_profiles.append(enriched)
+
+    if not enriched_profiles:
+        return []
+
+    generator = WidgetGenerator()
+    widget_suggestions = generator.generate_for_columns(
+        enriched_profiles, source_table=reference_name
+    )
+
+    suggester = TemplateSuggester()
+    return [
+        suggester._convert_widget_suggestion(widget_suggestion)
+        for widget_suggestion in widget_suggestions
+    ]
 
 
 def _load_import_config() -> Dict[str, Any]:
@@ -955,13 +1351,7 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
     Returns:
         List of widget suggestions in dict format
     """
-    from pathlib import Path
-
     from niamoto.common.database import Database
-    from niamoto.core.imports.data_analyzer import DataAnalyzer
-    from niamoto.core.imports.profiler import DataProfiler
-    from niamoto.core.imports.template_suggester import TemplateSuggester
-    from niamoto.core.imports.widget_generator import WidgetGenerator
 
     db_path = get_database_path()
     if not db_path:
@@ -1000,43 +1390,71 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
         if not profile_columns:
             return []
 
-        profile_df = sample_df[profile_columns].copy()
+        entity_meta = _safe_registry_get(registry, reference_name)
+        import_config = _load_import_config()
+        reference_config = _get_reference_config(reference_name, import_config)
 
-        # Use standard pipeline: profile → enrich → generate
-        profiler = DataProfiler()
-        dataset_profile = profiler.profile_dataframe(profile_df, Path(entity_table))
+        heuristic_suggestions: List[TemplateSuggestion] = []
+        ml_suggestions: List[TemplateSuggestion] = []
 
-        analyzer = DataAnalyzer()
-        enriched_profiles = []
-        for col_profile in dataset_profile.columns:
-            if col_profile.name in profile_df.columns:
-                enriched = analyzer.enrich_profile(
-                    col_profile, profile_df[col_profile.name]
+        if _is_internal_registry_reference(entity_meta, entity_table):
+            metadata_signals = _extract_reference_metadata_signals(
+                reference_name=reference_name,
+                columns=profile_columns,
+                entity_meta=entity_meta,
+                reference_config=reference_config,
+            )
+            fast_profiles: List[EnrichedColumnProfile] = []
+            ml_candidate_columns: List[str] = []
+
+            for column in profile_columns:
+                if _should_skip_reference_fast_path(
+                    column_name=column,
+                    series=sample_df[column],
+                    metadata_signals=metadata_signals,
+                ):
+                    continue
+                category = _classify_reference_column_fast(
+                    column_name=column,
+                    series=sample_df[column],
+                    metadata_signals=metadata_signals,
                 )
-                enriched_profiles.append(enriched)
+                if category is None:
+                    ml_candidate_columns.append(column)
+                    continue
 
-        if not enriched_profiles:
-            return []
+                fast_profiles.append(
+                    _build_fast_enriched_profile(
+                        column_name=column,
+                        series=sample_df[column],
+                        category=category,
+                    )
+                )
 
-        # Generate suggestions via WidgetGenerator (same as occurrence-based)
-        generator = WidgetGenerator()
-        widget_suggestions = generator.generate_for_columns(
-            enriched_profiles, source_table=reference_name
+            if fast_profiles:
+                heuristic_suggestions = _generate_fast_reference_widget_suggestions(
+                    reference_name=reference_name,
+                    profiles=fast_profiles,
+                )
+
+            if ml_candidate_columns:
+                ml_suggestions = _generate_reference_suggestions_via_ml(
+                    entity_table=entity_table,
+                    reference_name=reference_name,
+                    profile_df=sample_df[ml_candidate_columns].copy(),
+                )
+        else:
+            ml_suggestions = _generate_reference_suggestions_via_ml(
+                entity_table=entity_table,
+                reference_name=reference_name,
+                profile_df=sample_df[profile_columns].copy(),
+            )
+
+        result = _merge_reference_template_suggestions(
+            reference_name=reference_name,
+            heuristic_suggestions=heuristic_suggestions,
+            ml_suggestions=ml_suggestions,
         )
-
-        # Convert to TemplateSuggestion format via TemplateSuggester
-        suggester = TemplateSuggester()
-        template_suggestions = [
-            suggester._convert_widget_suggestion(ws) for ws in widget_suggestions
-        ]
-
-        # Mark as reference source and convert to dicts
-        result = []
-        for ts in template_suggestions:
-            d = ts.to_dict()
-            d["source"] = "reference"
-            d["source_name"] = reference_name
-            result.append(d)
 
         if cache_key is not None:
             _REFERENCE_FIELD_SUGGESTIONS_CACHE[cache_key] = copy.deepcopy(result)
