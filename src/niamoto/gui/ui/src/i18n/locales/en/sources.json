@@ -296,9 +296,52 @@
     "importedWorkspace": "Imported workspace",
     "workspaceTitle": "Explore what your import made available",
     "workspaceDescription": "Aggregation groups are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these groups, then inspect the supporting sources when you need more detail.",
+    "emptyState": {
+      "badge": "Data workspace",
+      "title": "Import your data",
+      "description": "Start by adding your CSV, taxonomy, and spatial files. Niamoto will analyze them and help you configure the project.",
+      "dropzoneTitle": "Drop files to begin",
+      "dropzoneDescription": "CSV, GeoPackage, GeoJSON, TIFF, and related support files.",
+      "openWorkspace": "Open import workspace",
+      "points": {
+        "detect": "We detect datasets, references, and layers automatically.",
+        "review": "You can review the proposed configuration before import.",
+        "update": "You can add or update files later from the same workspace."
+      }
+    },
+    "missionControl": {
+      "title": "Imported data",
+      "description": "Verify imported data, enrich references, and prepare the static pages you will configure next.",
+      "verify": {
+        "title": "Verify data",
+        "description": "Check imported values, taxonomy consistency, and spatial coverage before building pages.",
+        "issues": "{{count}} items to review",
+        "noIssues": "No issue detected",
+        "openChecks": "Open checks"
+      },
+      "enrich": {
+        "title": "Enrich references",
+        "description": "Configure and run external enrichment directly from the data workspace.",
+        "summary": "{{configured}} configured · {{total}} available",
+        "empty": "No enrichment-capable references are available in this workspace."
+      },
+      "prepare": {
+        "title": "Prepare static pages",
+        "description": "Move into Groups to choose widgets, sources, and index pages for each group.",
+        "summary": "{{count}} groups available"
+      },
+      "supportingSourcesDescription": "Raw datasets and imported layers remain available for direct inspection, updates, and configuration changes."
+    },
     "needsAttention": "Needs attention",
     "aggregationGroupsTitle": "Aggregation groups",
     "aggregationGroupsDescription": "These groups now structure the pages, navigation, and enrichment workflows you can build from this import.",
+    "groupOverview": {
+      "title": "Groups overview",
+      "description": "Keep the imported groups visible, but focus each one on its current status and the next useful action.",
+      "reviewSummary": "{{count}} need review",
+      "enrichmentSummary": "{{count}} have enrichment available",
+      "readySummary": "{{count}} ready for pages"
+    },
     "supportingSourcesTitle": "Supporting sources",
     "supportingSourcesDescription": "Datasets and imported layers remain available for direct inspection, updates, and configuration changes.",
     "datasetFallbackDescription": "Raw source data available for direct exploration.",
@@ -320,12 +363,16 @@
       "retry": "Retry",
       "open": "Open",
       "explore": "Explore",
+      "review": "Review",
+      "details": "Details",
       "openGroup": "Open group",
+      "openGroups": "Open Groups",
       "editConfig": "Edit config",
       "updateFile": "Update file",
       "updateLayer": "Update file",
       "addSource": "Add source",
       "enrichNow": "Enrich now",
+      "configureEnrichment": "Configure enrichment",
       "manageEnrichment": "Manage enrichment"
     },
     "kinds": {
@@ -353,6 +400,13 @@
       "enrichmentAvailable": "Enrichment available",
       "enrichmentEnabled": "Enrichment enabled"
     },
+    "groupStatus": {
+      "needsReview": "Needs review",
+      "enrichmentAvailable": "Enrichment available",
+      "enrichmentConfigured": "Enrichment configured",
+      "readyForPages": "Ready for pages",
+      "reviewCount": "{{count}} items to review"
+    },
     "nextStep": {
       "label": "Recommended next step",
       "readyLabel": "Ready to explore",
@@ -362,6 +416,11 @@
       "enrichmentConfiguredDescription": "Review or refine the API enrichment settings before regenerating pages and widgets from this group.",
       "exploreTitle": "This group is ready to use",
       "exploreDescription": "You can explore this imported reference directly or open its generated group page when you are ready."
+    },
+    "enrichment": {
+      "sheetTitle": "Enrichment · {{name}}",
+      "sheetFallbackTitle": "Enrichment",
+      "sheetDescription": "Configure and run external enrichment without leaving the data workspace."
     },
     "editor": {
       "loadingConfig": "Loading configuration…",

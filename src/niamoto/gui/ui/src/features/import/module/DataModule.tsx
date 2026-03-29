@@ -11,19 +11,18 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Database, Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
 import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { DataTree, type DataSelection } from './DataTree'
 import { ImportWizard } from '@/features/import/components/ImportWizard'
 import { ImportDashboard } from '@/features/import/components/dashboard/ImportDashboard'
+import { SourcesEmptyState } from '@/features/import/components/dashboard/SourcesEmptyState'
 import { DatasetDetailPanel } from '@/features/import/components/panels/DatasetDetailPanel'
 import { ReferenceDetailPanel } from '@/features/import/components/panels/ReferenceDetailPanel'
 import { useDatasets } from '@/hooks/useDatasets'
 import { useReferences } from '@/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
+import type { UploadedFileInfo } from '@/features/import/api/upload'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,6 +59,7 @@ export function DataModule() {
   const [selection, setSelection] = useState<DataSelection>(() =>
     selectionFromLocation(location.pathname)
   )
+  const showSidebar = selection.type !== 'overview'
 
   // Sync selection from URL on navigation (back/forward)
   useEffect(() => {
@@ -165,32 +165,22 @@ export function DataModule() {
 
         if (!hasData) {
           return (
-            <div className="flex items-center justify-center h-full p-6">
-              <Card className="max-w-md text-center">
-                <CardHeader>
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                    <Database className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <CardTitle>{t('dashboard.noData', 'No data')}</CardTitle>
-                  <CardDescription>
-                    {t(
-                      'dashboard.noDataHint',
-                      'Importez vos données pour commencer à explorer et analyser.'
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => handleSelect({ type: 'import' })}
-                    size="lg"
-                    className="gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    {t('dashboard.importData', 'Import data')}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <SourcesEmptyState
+              onFilesReady={(files: UploadedFileInfo[], paths: string[]) =>
+                navigate('/sources/import', {
+                  state: {
+                    autoStart: true,
+                    filePaths: paths,
+                    uploadedFiles: files.map((file) => ({
+                      name: file.filename,
+                      path: file.path,
+                      size: file.size,
+                    })),
+                  },
+                })
+              }
+              onOpenImportWorkspace={() => handleSelect({ type: 'import' })}
+            />
           )
         }
 
@@ -199,10 +189,8 @@ export function DataModule() {
             <ImportDashboard
               onExploreEntity={(name) => handleSelect({ type: 'dataset', name })}
               onExploreReference={(name) => handleSelect({ type: 'reference', name })}
+              onOpenGroups={() => navigate('/groups')}
               onOpenGroup={(name) => navigate(`/groups/${encodeURIComponent(name)}`)}
-              onEnrich={(name) =>
-                navigate(`/sources/reference/${encodeURIComponent(name)}?tab=enrichment`)
-              }
               onReimport={() => handleSelect({ type: 'import' })}
             />
           </div>
@@ -218,20 +206,26 @@ export function DataModule() {
   return (
     <>
       <StalenessBanner stage="data" />
-      <ModuleLayout
-        sidebar={
-          <DataTree
-            datasets={datasets}
-            references={references}
-            datasetsLoading={datasetsLoading}
-            referencesLoading={referencesLoading}
-            selection={selection}
-            onSelect={handleSelect}
-          />
-        }
-      >
-        {renderContent()}
-      </ModuleLayout>
+      {showSidebar ? (
+        <ModuleLayout
+          sidebar={
+            <DataTree
+              datasets={datasets}
+              references={references}
+              datasetsLoading={datasetsLoading}
+              referencesLoading={referencesLoading}
+              selection={selection}
+              onSelect={handleSelect}
+            />
+          }
+        >
+          {renderContent()}
+        </ModuleLayout>
+      ) : (
+        <div className="flex h-full flex-col overflow-hidden">
+          <div className="flex-1 overflow-auto">{renderContent()}</div>
+        </div>
+      )}
     </>
   )
 }

@@ -7,9 +7,9 @@
  * 3. Execute import with progress
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Upload,
@@ -49,7 +49,9 @@ type ImportPhase =
 export function ImportWizard() {
   const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
+  const autoStartedRef = useRef(false)
 
   const [phase, setPhase] = useState<ImportPhase>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +60,14 @@ export function ImportWizard() {
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; path: string; size?: number }>>([])
   const autoConfigureJob = useAutoConfigureJob()
   const importJob = useImportJob()
+
+  const incomingState = location.state as
+    | {
+        autoStart?: boolean
+        filePaths?: string[]
+        uploadedFiles?: Array<{ name: string; path: string; size?: number }>
+      }
+    | null
 
   const runAutoConfigure = useCallback(
     async (paths: string[]) => {
@@ -210,6 +220,21 @@ export function ImportWizard() {
       resetToIdle()
     }
   }
+
+  useEffect(() => {
+    if (
+      phase === 'idle' &&
+      !autoStartedRef.current &&
+      incomingState?.autoStart &&
+      incomingState.filePaths &&
+      incomingState.filePaths.length > 0
+    ) {
+      autoStartedRef.current = true
+      setUploadedFiles(incomingState.uploadedFiles ?? [])
+      void runAutoConfigure(incomingState.filePaths)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [incomingState, location.pathname, navigate, phase, runAutoConfigure])
 
   useEffect(() => {
     if (phase === 'importing' && configResult && importJob.state.status === 'idle') {

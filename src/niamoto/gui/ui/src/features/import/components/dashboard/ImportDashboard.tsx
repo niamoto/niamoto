@@ -1,11 +1,11 @@
 /**
- * ImportDashboard - Post-import workspace focused on aggregation groups.
+ * ImportDashboard - Durable post-import workspace for the Data module.
  *
- * The page intentionally mirrors the pre-import review:
- * - aggregation groups first
- * - supporting sources second
- * - analysis tools visible but secondary
- * - config editing kept in side sheets
+ * The page is intentionally organized around the three real jobs users have
+ * after import:
+ * - verify imported data
+ * - enrich references
+ * - prepare static pages
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -14,14 +14,21 @@ import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   AlertTriangle,
+  ArrowRight,
   Download,
   FileBarChart2,
   GitBranch,
+  Globe2,
+  Layers3,
   Map as MapIcon,
+  Network,
   RefreshCw,
+  Search,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react'
 import { useDatasets, type DatasetInfo } from '@/hooks/useDatasets'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
@@ -30,10 +37,10 @@ import type {
   ReferenceConfig,
 } from '@/features/import/components/editors/EntityConfigEditor'
 import { apiClient } from '@/shared/lib/api/client'
-import { AggregationGroupCard } from './AggregationGroupCard'
 import { AnalysisToolSheet } from './AnalysisToolSheet'
-import { DataCompletenessView } from './DataCompletenessView'
 import { DashboardConfigEditorSheet } from './DashboardConfigEditorSheet'
+import { DataCompletenessView } from './DataCompletenessView'
+import { EnrichmentWorkspaceSheet } from './EnrichmentWorkspaceSheet'
 import { GeoCoverageView } from './GeoCoverageView'
 import { SupportingSourceCard } from './SupportingSourceCard'
 import { TaxonomicConsistencyView } from './TaxonomicConsistencyView'
@@ -59,13 +66,12 @@ interface ImportSummary {
 interface ImportDashboardProps {
   onExploreEntity?: (name: string) => void
   onExploreReference?: (name: string) => void
+  onOpenGroups?: () => void
   onOpenGroup?: (name: string) => void
-  onEnrich?: (refName: string, targetTab?: 'config' | 'enrichment') => void
   onReimport?: () => void
 }
 
 type ToolKey = 'completeness' | 'validation' | 'taxonomy' | 'coverage'
-type TranslateFn = (key: string, options?: Record<string, unknown>) => string
 
 type EditingState =
   | {
@@ -82,42 +88,189 @@ type EditingState =
     }
   | null
 
-function getAggregationKindLabel(
-  t: TranslateFn,
-  kind: ReferenceInfo['kind']
-) {
+type GroupStatusKey =
+  | 'needsReview'
+  | 'enrichmentAvailable'
+  | 'enrichmentConfigured'
+  | 'readyForPages'
+
+interface DashboardGroup extends ReferenceInfo {
+  metrics?: {
+    row_count: number
+    column_count: number
+  }
+  columnNames: string[]
+  issueCount: number
+}
+
+function getGroupIcon(kind?: ReferenceInfo['kind']) {
   switch (kind) {
     case 'hierarchical':
-      return t('dashboard.kinds.taxonomic')
+      return GitBranch
     case 'spatial':
-      return t('dashboard.kinds.spatial')
+      return Globe2
     default:
-      return t('dashboard.kinds.reference')
+      return Network
   }
 }
 
-function getAggregationDescription(
-  t: TranslateFn,
+function getAggregationKindLabel(
+  t: (key: string, defaultValue?: string) => string,
   kind: ReferenceInfo['kind']
 ) {
   switch (kind) {
     case 'hierarchical':
-      return t('dashboard.aggregationDescriptions.hierarchical')
+      return t('dashboard.kinds.taxonomic', 'Taxonomic')
     case 'spatial':
-      return t('dashboard.aggregationDescriptions.spatial')
+      return t('dashboard.kinds.spatial', 'Spatial')
     default:
-      return t('dashboard.aggregationDescriptions.generic')
+      return t('dashboard.kinds.reference', 'Reference')
   }
+}
+
+function getGroupStatus(group: DashboardGroup): GroupStatusKey {
+  if (group.issueCount > 0) return 'needsReview'
+  if (group.can_enrich && !group.enrichment_enabled) return 'enrichmentAvailable'
+  if (group.enrichment_enabled) return 'enrichmentConfigured'
+  return 'readyForPages'
+}
+
+function statusBadgeVariant(status: GroupStatusKey) {
+  switch (status) {
+    case 'needsReview':
+      return 'secondary' as const
+    case 'enrichmentConfigured':
+      return 'default' as const
+    default:
+      return 'outline' as const
+  }
+}
+
+interface CompactGroupOverviewItemProps {
+  group: DashboardGroup
+  t: (key: string, defaultValue?: string, options?: Record<string, unknown>) => string
+  onExploreReference?: (name: string) => void
+  onOpenGroup?: (name: string) => void
+  onOpenEnrichment?: (reference: ReferenceInfo) => void
+}
+
+function CompactGroupOverviewItem({
+  group,
+  t,
+  onExploreReference,
+  onOpenGroup,
+  onOpenEnrichment,
+}: CompactGroupOverviewItemProps) {
+  const Icon = getGroupIcon(group.kind)
+  const status = getGroupStatus(group)
+  const statusLabel = t(
+    `dashboard.groupStatus.${status}`,
+    {
+      needsReview: 'Needs review',
+      enrichmentAvailable: 'Enrichment available',
+      enrichmentConfigured: 'Enrichment configured',
+      readyForPages: 'Ready for pages',
+    }[status]
+  )
+
+  const primaryAction =
+    status === 'needsReview'
+      ? {
+          label: t('dashboard.actions.review', 'Review'),
+          onClick: () => onExploreReference?.(group.name),
+          disabled: !onExploreReference,
+        }
+      : status === 'enrichmentAvailable' || status === 'enrichmentConfigured'
+        ? {
+            label:
+              status === 'enrichmentConfigured'
+                ? t('dashboard.actions.manageEnrichment', 'Manage enrichment')
+                : t('dashboard.actions.configureEnrichment', 'Configure enrichment'),
+            onClick: () => onOpenEnrichment?.(group),
+            disabled: !onOpenEnrichment,
+          }
+        : {
+            label: t('dashboard.actions.openGroup', 'Open group'),
+            onClick: () => onOpenGroup?.(group.name),
+            disabled: !onOpenGroup,
+          }
+
+  return (
+    <Card className="border-border/70">
+      <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <Icon className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold">{group.name}</h3>
+                <Badge variant="outline">
+                  {getAggregationKindLabel(t, group.kind)}
+                </Badge>
+                <Badge variant={statusBadgeVariant(status)}>{statusLabel}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{group.table_name}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span>
+              {t('dashboard.rows', '{{count}} rows', {
+                count: group.metrics?.row_count ?? group.entity_count ?? 0,
+              })}
+            </span>
+            <span className="text-muted-foreground/60">•</span>
+            <span>
+              {t('dashboard.fields', '{{count}} fields', {
+                count: group.metrics?.column_count ?? group.schema_fields?.length ?? 0,
+              })}
+            </span>
+            {group.issueCount > 0 && (
+              <>
+                <span className="text-muted-foreground/60">•</span>
+                <span>
+                  {t('dashboard.groupStatus.reviewCount', '{{count}} items to review', {
+                    count: group.issueCount,
+                  })}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
+            {primaryAction.label}
+          </Button>
+          {status !== 'needsReview' && onExploreReference && (
+            <Button variant="ghost" onClick={() => onExploreReference(group.name)}>
+              <Search className="mr-2 h-4 w-4" />
+              {t('dashboard.actions.details', 'Details')}
+            </Button>
+          )}
+          {status !== 'readyForPages' && onOpenGroup && (
+            <Button variant="ghost" onClick={() => onOpenGroup(group.name)}>
+              {t('dashboard.actions.openGroup', 'Open group')}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function ImportDashboard({
   onExploreEntity,
   onExploreReference,
+  onOpenGroups,
   onOpenGroup,
-  onEnrich,
   onReimport,
 }: ImportDashboardProps) {
   const { t } = useTranslation('sources')
+  const tt = (key: string, defaultValue: string, options?: Record<string, unknown>) =>
+    t(key, { defaultValue, ...(options ?? {}) })
   const queryClient = useQueryClient()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
@@ -126,6 +279,8 @@ export function ImportDashboard({
   const [editingState, setEditingState] = useState<EditingState>(null)
   const [editorError, setEditorError] = useState<string | null>(null)
   const [savingConfig, setSavingConfig] = useState(false)
+  const [activeEnrichmentReference, setActiveEnrichmentReference] =
+    useState<ReferenceInfo | null>(null)
   const { data: referencesData } = useReferences()
   const { data: datasetsData } = useDatasets()
 
@@ -198,17 +353,24 @@ export function ImportDashboard({
     [datasets]
   )
 
-  const aggregationGroups = references.map((reference) => {
-    const metrics =
-      referenceMetrics.get(reference.table_name) || referenceMetrics.get(reference.name)
+  const aggregationGroups = useMemo<DashboardGroup[]>(
+    () =>
+      references.map((reference) => {
+        const metrics =
+          referenceMetrics.get(reference.table_name) || referenceMetrics.get(reference.name)
+        const issueCount = (summary?.alerts ?? []).filter(
+          (alert) => alert.entity === reference.name || alert.entity === reference.table_name
+        ).length
 
-    return {
-      ...reference,
-      metrics,
-      columnNames: reference.schema_fields?.map((field) => field.name) ?? [],
-      canAddSource: reference.kind === 'spatial',
-    }
-  })
+        return {
+          ...reference,
+          metrics,
+          issueCount,
+          columnNames: reference.schema_fields?.map((field) => field.name) ?? [],
+        }
+      }),
+    [referenceMetrics, references, summary?.alerts]
+  )
 
   const supportingSources = [
     ...datasets.map((dataset) => ({
@@ -240,25 +402,21 @@ export function ImportDashboard({
       key: 'completeness' as const,
       icon: FileBarChart2,
       title: t('dashboard.tools.fieldAvailability.title'),
-      description: t('dashboard.tools.fieldAvailability.description'),
     },
     {
       key: 'validation' as const,
       icon: ShieldAlert,
       title: t('dashboard.tools.validation.title'),
-      description: t('dashboard.tools.validation.description'),
     },
     {
       key: 'taxonomy' as const,
       icon: GitBranch,
       title: t('dashboard.tools.taxonomy.title'),
-      description: t('dashboard.tools.taxonomy.description'),
     },
     {
       key: 'coverage' as const,
       icon: MapIcon,
       title: t('dashboard.tools.coverage.title'),
-      description: t('dashboard.tools.coverage.description'),
     },
   ]
 
@@ -323,41 +481,7 @@ export function ImportDashboard({
         detectedColumns: datasetColumnsMap.get(dataset.name) ?? [],
       })
     } catch (err) {
-      setEditorError(
-        err instanceof Error ? err.message : t('dashboard.errors.loadConfig')
-      )
-    }
-  }
-
-  const openReferenceEditor = async (reference: ReferenceInfo) => {
-    setEditorError(null)
-    setEditingState({
-      entityType: 'reference',
-      name: reference.name,
-      config: null,
-      detectedColumns: referenceColumnsMap.get(reference.name) ?? [],
-    })
-
-    try {
-      const response = await apiClient.get<ReferenceConfig>(
-        `/config/references/${encodeURIComponent(reference.name)}/config`
-      )
-      const config = response.data
-      const detectedColumns =
-        config.connector?.type === 'derived' && config.connector?.source
-          ? datasetColumnsMap.get(config.connector.source) ?? []
-          : referenceColumnsMap.get(reference.name) ?? []
-
-      setEditingState({
-        entityType: 'reference',
-        name: reference.name,
-        config,
-        detectedColumns,
-      })
-    } catch (err) {
-      setEditorError(
-        err instanceof Error ? err.message : t('dashboard.errors.loadConfig')
-      )
+      setEditorError(err instanceof Error ? err.message : t('dashboard.errors.loadConfig'))
     }
   }
 
@@ -370,42 +494,20 @@ export function ImportDashboard({
     setSavingConfig(true)
     setEditorError(null)
     try {
-      await apiClient.put(
-        `/config/datasets/${encodeURIComponent(name)}/config`,
-        config
-      )
-
+      await apiClient.put(`/config/datasets/${encodeURIComponent(name)}/config`, config)
       await queryClient.invalidateQueries({ queryKey: ['datasets'] })
       await fetchSummary()
       closeEditor()
     } catch (err) {
-      setEditorError(
-        err instanceof Error ? err.message : t('dashboard.errors.saveConfig')
-      )
+      setEditorError(err instanceof Error ? err.message : t('dashboard.errors.saveConfig'))
     } finally {
       setSavingConfig(false)
     }
   }
 
-  const persistReferenceConfig = async (name: string, config: ReferenceConfig) => {
-    setSavingConfig(true)
-    setEditorError(null)
-    try {
-      await apiClient.put(
-        `/config/references/${encodeURIComponent(name)}/config`,
-        config
-      )
-
-      await queryClient.invalidateQueries({ queryKey: ['references'] })
-      await fetchSummary()
-      closeEditor()
-    } catch (err) {
-      setEditorError(
-        err instanceof Error ? err.message : t('dashboard.errors.saveConfig')
-      )
-    } finally {
-      setSavingConfig(false)
-    }
+  const refreshReferencesAndSummary = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['references'] })
+    await fetchSummary()
   }
 
   if (loading) {
@@ -435,18 +537,37 @@ export function ImportDashboard({
     return null
   }
 
+  const issueCount = summary.alerts.length
+  const enrichableGroups = aggregationGroups.filter((group) => group.can_enrich)
+  const configuredEnrichmentCount = enrichableGroups.filter(
+    (group) => group.enrichment_enabled
+  ).length
+  const reviewGroups = aggregationGroups.filter(
+    (group) => getGroupStatus(group) === 'needsReview'
+  )
+  const enrichmentGroups = aggregationGroups.filter(
+    (group) => getGroupStatus(group) === 'enrichmentAvailable'
+  )
+  const readyForPagesGroups = aggregationGroups.filter(
+    (group) => getGroupStatus(group) === 'readyForPages' || getGroupStatus(group) === 'enrichmentConfigured'
+  )
+  const defaultVerifyTool: ToolKey = issueCount > 0 ? 'validation' : 'completeness'
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-3xl space-y-2">
-          <Badge variant="outline" className="rounded-full">
-            {t('dashboard.importedWorkspace')}
-          </Badge>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {t('dashboard.workspaceTitle')}
+            {t(
+              'dashboard.missionControl.title',
+              'Turn imported data into a working project'
+            )}
           </h1>
           <p className="text-sm leading-6 text-muted-foreground">
-            {t('dashboard.workspaceDescription')}
+            {t(
+              'dashboard.missionControl.description',
+              'Verify imported data, enrich references, and prepare the static pages you will configure next.'
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -463,38 +584,204 @@ export function ImportDashboard({
         </div>
       </section>
 
-      <section className="rounded-xl border bg-muted/20 p-4">
-        <div className="mb-4 flex flex-col gap-1">
-          <h2 className="text-sm font-semibold">{t('dashboard.toolsBandTitle')}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t('dashboard.toolsBandDescription')}
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {toolCards.map((tool) => {
-            const Icon = tool.icon
-            return (
-              <button
-                key={tool.key}
-                type="button"
-                onClick={() => setActiveTool(tool.key)}
-                className="rounded-xl border bg-background px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">{tool.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {tool.description}
-                    </div>
-                  </div>
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card className="border-border/70">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <ShieldAlert className="h-5 w-5 text-primary" />
                 </div>
-              </button>
-            )
-          })}
-        </div>
+                <div>
+                  <CardTitle className="text-lg">
+                    {t('dashboard.missionControl.verify.title', 'Verify data')}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(
+                      'dashboard.missionControl.verify.description',
+                      'Check imported values, taxonomy consistency, and spatial coverage before building pages.'
+                    )}
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant={issueCount > 0 ? 'secondary' : 'outline'}>
+                {issueCount > 0
+                  ? tt(
+                      'dashboard.missionControl.verify.issues',
+                      '{{count}} items to review',
+                      { count: issueCount }
+                    )
+                  : tt('dashboard.missionControl.verify.noIssues', 'No issue detected')}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {toolCards.map((tool) => {
+                const Icon = tool.icon
+                return (
+                  <Button
+                    key={tool.key}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTool(tool.key)}
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {tool.title}
+                  </Button>
+                )
+              })}
+            </div>
+
+            <Button onClick={() => setActiveTool(defaultVerifyTool)}>
+              {t('dashboard.missionControl.verify.openChecks', 'Open checks')}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">
+                    {t('dashboard.missionControl.enrich.title', 'Enrich references')}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(
+                      'dashboard.missionControl.enrich.description',
+                      'Configure and run external enrichment directly from the data workspace.'
+                    )}
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="outline">
+                {tt(
+                  'dashboard.missionControl.enrich.summary',
+                  '{{configured}} configured · {{total}} available',
+                  {
+                    configured: configuredEnrichmentCount,
+                    total: enrichableGroups.length,
+                  }
+                )}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {enrichableGroups.length > 0 ? (
+              <div className="space-y-3">
+                {enrichableGroups.slice(0, 3).map((group) => {
+                  const status = group.enrichment_enabled
+                    ? t('dashboard.groupStatus.enrichmentConfigured', 'Enrichment configured')
+                    : t('dashboard.groupStatus.enrichmentAvailable', 'Enrichment available')
+
+                  return (
+                    <div
+                      key={group.name}
+                      className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-medium">{group.name}</div>
+                        <div className="text-sm text-muted-foreground">{status}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveEnrichmentReference(group)}
+                      >
+                        {group.enrichment_enabled
+                          ? t('dashboard.actions.manageEnrichment', 'Manage enrichment')
+                          : t('dashboard.actions.configureEnrichment', 'Configure enrichment')}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  'dashboard.missionControl.enrich.empty',
+                  'No enrichment-capable references are available in this workspace.'
+                )}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <Layers3 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">
+                    {t(
+                      'dashboard.missionControl.prepare.title',
+                      'Prepare static pages'
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(
+                      'dashboard.missionControl.prepare.description',
+                      'Move into Groups to choose widgets, sources, and index pages for each group.'
+                    )}
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="outline">
+                {tt(
+                  'dashboard.missionControl.prepare.summary',
+                  '{{count}} groups available',
+                  {
+                    count: aggregationGroups.length,
+                  }
+                )}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {aggregationGroups.slice(0, 3).map((group) => {
+                const status = getGroupStatus(group)
+                return (
+                  <button
+                    key={group.name}
+                    type="button"
+                    onClick={() => onOpenGroup?.(group.name)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-muted/20"
+                    disabled={!onOpenGroup}
+                  >
+                    <div className="space-y-1">
+                      <div className="font-medium">{group.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {t(
+                          `dashboard.groupStatus.${status}`,
+                          {
+                            needsReview: 'Needs review',
+                            enrichmentAvailable: 'Enrichment available',
+                            enrichmentConfigured: 'Enrichment configured',
+                            readyForPages: 'Ready for pages',
+                          }[status]
+                        )}
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                )
+              })}
+            </div>
+
+            {onOpenGroups && (
+              <Button onClick={onOpenGroups}>
+                {t('dashboard.actions.openGroups', 'Open Groups')}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {summary.alerts.length > 0 && (
@@ -532,114 +819,149 @@ export function ImportDashboard({
 
       <section className="space-y-4">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{t('dashboard.aggregationGroupsTitle')}</h2>
+          <h2 className="text-lg font-semibold">
+            {t('dashboard.groupOverview.title', 'Groups overview')}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            {t('dashboard.aggregationGroupsDescription')}
+            {t(
+              'dashboard.groupOverview.description',
+              'Keep the imported groups visible, but focus each one on its current status and the next useful action.'
+            )}
           </p>
         </div>
 
-        <div className="space-y-4">
-          {aggregationGroups.map((group) => {
-            return (
-              <AggregationGroupCard
-                key={group.name}
-                group={group}
-                kindLabel={getAggregationKindLabel(t, group.kind)}
-                description={group.description || getAggregationDescription(t, group.kind)}
-                rowsLabel={t('dashboard.rows', { count: group.metrics?.row_count ?? group.entity_count ?? 0 })}
-                fieldsLabel={t('dashboard.fields', { count: group.metrics?.column_count ?? group.schema_fields?.length ?? 0 })}
-                roleLabel={
-                  group.kind === 'spatial'
-                    ? t('dashboard.card.spatialReference')
-                    : group.kind === 'hierarchical'
-                      ? t('dashboard.card.taxonomicReference')
-                      : t('dashboard.card.genericReference')
-                }
-                fieldPreviewLabel={t('dashboard.card.fieldPreview')}
-                importedLabel={t('dashboard.importedState')}
-                enrichmentEnabledLabel={t('dashboard.badges.enrichmentEnabled')}
-                enrichmentAvailableLabel={t('dashboard.badges.enrichmentAvailable')}
-                nextStepLabel={t('dashboard.nextStep.label')}
-                enrichmentTitle={t('dashboard.nextStep.enrichmentTitle')}
-                enrichmentDescription={t('dashboard.nextStep.enrichmentDescription')}
-                enrichmentConfiguredTitle={t('dashboard.nextStep.enrichmentConfiguredTitle')}
-                enrichmentConfiguredDescription={t('dashboard.nextStep.enrichmentConfiguredDescription')}
-                readyLabel={t('dashboard.nextStep.readyLabel')}
-                exploreTitle={t('dashboard.nextStep.exploreTitle')}
-                exploreDescription={t('dashboard.nextStep.exploreDescription')}
-                exploreAction={t('dashboard.actions.explore')}
-                editConfigAction={t('dashboard.actions.editConfig')}
-                addSourceAction={t('dashboard.actions.addSource')}
-                openGroupAction={t('dashboard.actions.openGroup')}
-                enrichAction={t('dashboard.actions.enrichNow')}
-                manageEnrichmentAction={t('dashboard.actions.manageEnrichment')}
-                onExplore={onExploreReference}
-                onEdit={() => void openReferenceEditor(group)}
-                onAddSource={group.canAddSource && onReimport ? onReimport : undefined}
-                onOpenGroup={onOpenGroup}
-                onEnrich={onEnrich}
-              />
-            )
-          })}
-        </div>
-      </section>
+        {(reviewGroups.length > 0 || enrichmentGroups.length > 0 || readyForPagesGroups.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {reviewGroups.length > 0 && (
+              <Badge variant="secondary">
+                {tt('dashboard.groupOverview.reviewSummary', '{{count}} need review', {
+                  count: reviewGroups.length,
+                })}
+              </Badge>
+            )}
+            {enrichmentGroups.length > 0 && (
+              <Badge variant="outline">
+                {tt(
+                  'dashboard.groupOverview.enrichmentSummary',
+                  '{{count}} have enrichment available',
+                  {
+                    count: enrichmentGroups.length,
+                  }
+                )}
+              </Badge>
+            )}
+            {readyForPagesGroups.length > 0 && (
+              <Badge variant="outline">
+                {tt(
+                  'dashboard.groupOverview.readySummary',
+                  '{{count}} ready for pages',
+                  {
+                    count: readyForPagesGroups.length,
+                  }
+                )}
+              </Badge>
+            )}
+          </div>
+        )}
 
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{t('dashboard.supportingSourcesTitle')}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t('dashboard.supportingSourcesDescription')}
-          </p>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {supportingSources.map((entity) => (
-            <SupportingSourceCard
-              key={`${entity.type}:${entity.name}`}
-              entity={entity}
-              datasetLabel={t('dashboard.kinds.dataset')}
-              layerLabel={t('dashboard.kinds.layer')}
-              rowsLabel={t('dashboard.rows', { count: entity.rowCount })}
-              fieldsLabel={t('dashboard.fields', { count: entity.columnCount })}
-              fallbackDescription={
-                entity.type === 'dataset'
-                  ? t('dashboard.datasetFallbackDescription')
-                  : t('dashboard.layerFallbackDescription')
+        <div className="space-y-3">
+          {aggregationGroups.map((group) => (
+            <CompactGroupOverviewItem
+              key={group.name}
+              group={group}
+              t={(key, defaultValue, options) =>
+                t(key, { defaultValue, ...(options ?? {}) })
               }
-              editConfigAction={entity.type === 'dataset' ? t('dashboard.actions.editConfig') : undefined}
-              exploreAction={entity.type === 'dataset' ? t('dashboard.actions.explore') : undefined}
-              updateAction={
-                entity.type === 'dataset'
-                  ? t('dashboard.actions.updateFile')
-                  : t('dashboard.actions.updateLayer')
-              }
-              onEdit={
-                entity.type === 'dataset'
-                  ? () => {
-                      const dataset = datasets.find((item) => item.name === entity.name)
-                      if (dataset) {
-                        void openDatasetEditor(dataset)
-                      }
-                    }
-                  : undefined
-              }
-              onExplore={
-                entity.type === 'dataset' && onExploreEntity
-                  ? () => onExploreEntity(entity.name)
-                  : undefined
-              }
-              onUpdate={onReimport}
+              onExploreReference={onExploreReference}
+              onOpenGroup={onOpenGroup}
+              onOpenEnrichment={(reference) => setActiveEnrichmentReference(reference)}
             />
           ))}
         </div>
       </section>
+
+      {supportingSources.length > 0 && (
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">
+              {t('dashboard.supportingSourcesTitle')}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t(
+                'dashboard.missionControl.supportingSourcesDescription',
+                'Raw datasets and imported layers remain available for direct inspection, updates, and configuration changes.'
+              )}
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {supportingSources.map((entity) => (
+              <SupportingSourceCard
+                key={`${entity.type}:${entity.name}`}
+                entity={entity}
+                datasetLabel={t('dashboard.kinds.dataset')}
+                layerLabel={t('dashboard.kinds.layer')}
+                rowsLabel={t('dashboard.rows', { count: entity.rowCount })}
+                fieldsLabel={t('dashboard.fields', { count: entity.columnCount })}
+                fallbackDescription={
+                  entity.type === 'dataset'
+                    ? t('dashboard.datasetFallbackDescription')
+                    : t('dashboard.layerFallbackDescription')
+                }
+                editConfigAction={
+                  entity.type === 'dataset' ? t('dashboard.actions.editConfig') : undefined
+                }
+                exploreAction={
+                  entity.type === 'dataset' ? t('dashboard.actions.explore') : undefined
+                }
+                updateAction={
+                  entity.type === 'dataset'
+                    ? t('dashboard.actions.updateFile')
+                    : t('dashboard.actions.updateLayer')
+                }
+                onEdit={
+                  entity.type === 'dataset'
+                    ? () => {
+                        const dataset = datasets.find((item) => item.name === entity.name)
+                        if (dataset) {
+                          void openDatasetEditor(dataset)
+                        }
+                      }
+                    : undefined
+                }
+                onExplore={
+                  entity.type === 'dataset' && onExploreEntity
+                    ? () => onExploreEntity(entity.name)
+                    : undefined
+                }
+                onUpdate={onReimport}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <AnalysisToolSheet
         open={activeTool !== null}
         title={toolMeta?.title}
         description={toolMeta?.description}
         content={toolMeta?.content}
+        tools={toolCards.map((tool) => ({
+          key: tool.key,
+          title: tool.title,
+        }))}
+        activeTool={activeTool}
+        onSelectTool={(toolKey) => setActiveTool(toolKey as ToolKey)}
         onOpenChange={(open) => !open && setActiveTool(null)}
+      />
+
+      <EnrichmentWorkspaceSheet
+        open={activeEnrichmentReference !== null}
+        reference={activeEnrichmentReference}
+        onOpenChange={(open) => !open && setActiveEnrichmentReference(null)}
+        onConfigSaved={() => {
+          void refreshReferencesAndSummary()
+        }}
       />
 
       <DashboardConfigEditorSheet
@@ -666,7 +988,7 @@ export function ImportDashboard({
         savingLabel={t('dashboard.editor.savingConfig')}
         onClose={closeEditor}
         onDatasetSave={(name, updated) => persistDatasetConfig(name, updated)}
-        onReferenceSave={(name, updated) => persistReferenceConfig(name, updated)}
+        onReferenceSave={async (_name, _updated) => undefined}
       />
     </div>
   )
