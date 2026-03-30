@@ -18,6 +18,9 @@ mod commands;
 
 use commands::ConfigState;
 
+const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
+const SERVER_POLL_INTERVAL_MS: u64 = 500;
+
 /// Shared state to track the FastAPI server process
 struct ServerState {
     process: Mutex<Option<Child>>,
@@ -95,55 +98,53 @@ fn launch_fastapi_server(
 fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
     let html = format!(
         r#"
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    font-family: system-ui, -apple-system, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                }}
-                .container {{
-                    text-align: center;
-                    padding: 40px;
-                }}
-                .spinner {{
-                    border: 4px solid rgba(255, 255, 255, 0.3);
-                    border-radius: 50%;
-                    border-top: 4px solid white;
-                    width: 60px;
-                    height: 60px;
-                    animation: spin 1s linear infinite;
-                    margin: 0 auto 30px;
-                }}
-                @keyframes spin {{
-                    0% {{ transform: rotate(0deg); }}
-                    100% {{ transform: rotate(360deg); }}
-                }}
-                h1 {{
-                    font-size: 28px;
-                    margin-bottom: 15px;
-                }}
-                p {{
-                    font-size: 16px;
-                    opacity: 0.9;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="spinner"></div>
-                <h1>Niamoto</h1>
-                <p>{}</p>
-            </div>
-        </body>
-        </html>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                -webkit-app-region: drag;
+                user-select: none;
+                cursor: move;
+            }}
+            .container {{
+                text-align: center;
+                padding: 40px;
+                max-width: 640px;
+            }}
+            .spinner {{
+                border: 4px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                border-top: 4px solid white;
+                width: 60px;
+                height: 60px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 30px;
+            }}
+            @keyframes spin {{
+                0% {{ transform: rotate(0deg); }}
+                100% {{ transform: rotate(360deg); }}
+            }}
+            h1 {{
+                font-size: 28px;
+                margin-bottom: 15px;
+            }}
+            p {{
+                font-size: 16px;
+                opacity: 0.9;
+            }}
+        </style>
+        <div class="container">
+            <div class="spinner"></div>
+            <h1>Niamoto</h1>
+            <p>{}</p>
+        </div>
         "#,
         message
     );
@@ -155,53 +156,50 @@ fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
 fn show_error_screen(window: &tauri::WebviewWindow, error: &str) {
     let html = format!(
         r#"
-        <html>
-        <head>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    font-family: system-ui, -apple-system, sans-serif;
-                    background: #1a1a1a;
-                    color: white;
-                }}
-                .container {{
-                    text-align: center;
-                    padding: 40px;
-                    max-width: 600px;
-                }}
-                .error-icon {{
-                    font-size: 72px;
-                    margin-bottom: 20px;
-                }}
-                h1 {{
-                    font-size: 28px;
-                    margin-bottom: 15px;
-                    color: #ff6b6b;
-                }}
-                p {{
-                    font-size: 16px;
-                    line-height: 1.6;
-                    opacity: 0.9;
-                    background: rgba(255, 255, 255, 0.1);
-                    padding: 20px;
-                    border-radius: 8px;
-                    font-family: monospace;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="error-icon">⚠️</div>
-                <h1>Failed to Start Server</h1>
-                <p>{}</p>
-            </div>
-        </body>
-        </html>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+                background: #1a1a1a;
+                color: white;
+                -webkit-app-region: drag;
+                user-select: none;
+                cursor: move;
+            }}
+            .container {{
+                text-align: center;
+                padding: 40px;
+                max-width: 600px;
+            }}
+            .error-icon {{
+                font-size: 72px;
+                margin-bottom: 20px;
+            }}
+            h1 {{
+                font-size: 28px;
+                margin-bottom: 15px;
+                color: #ff6b6b;
+            }}
+            p {{
+                font-size: 16px;
+                line-height: 1.6;
+                opacity: 0.9;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 20px;
+                border-radius: 8px;
+                font-family: monospace;
+            }}
+        </style>
+        <div class="container">
+            <div class="error-icon">⚠️</div>
+            <h1>Failed to Start Server</h1>
+            <p>{}</p>
+        </div>
         "#,
         error.replace("<", "&lt;").replace(">", "&gt;")
     );
@@ -295,7 +293,7 @@ pub fn run() {
                     );
                     eprintln!("{}", error_msg);
                     show_error_screen(&window, &error_msg);
-                    return Err(e.into());
+                    return Ok(());
                 }
             };
 
@@ -307,27 +305,39 @@ pub fn run() {
             println!("Waiting for server to be ready...");
             show_loading_status(&window, "Waiting for server to be ready...");
 
-            let max_attempts = 60; // 30 seconds (500ms * 60)
+            let max_attempts = (SERVER_STARTUP_TIMEOUT_SECS * 1000 / SERVER_POLL_INTERVAL_MS) as u32;
             let mut attempts = 0;
 
             while !is_server_ready(port) && attempts < max_attempts {
-                thread::sleep(Duration::from_millis(500));
+                thread::sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS));
                 attempts += 1;
 
                 if attempts % 10 == 0 {
                     println!("Still waiting... ({}/{})", attempts, max_attempts);
                     show_loading_status(
                         &window,
-                        &format!("Still waiting... ({}/{}s)", attempts / 2, max_attempts / 2),
+                        &format!(
+                            "Still waiting... ({}/{}s)",
+                            attempts as u64 * SERVER_POLL_INTERVAL_MS / 1000,
+                            SERVER_STARTUP_TIMEOUT_SECS
+                        ),
                     );
                 }
             }
 
             if attempts >= max_attempts {
-                let error_msg = "Server failed to start after 30 seconds.\n\nCheck that all dependencies are installed.";
+                let error_msg = format!(
+                    "Server failed to start after {} seconds.\n\nThe packaged backend may still be starting up or may be missing dependencies.",
+                    SERVER_STARTUP_TIMEOUT_SECS
+                );
                 eprintln!("{}", error_msg);
-                show_error_screen(&window, error_msg);
-                return Err(error_msg.into());
+                let state: State<ServerState> = app.state();
+                if let Some(mut process) = state.process.lock().unwrap().take() {
+                    let _ = process.kill();
+                    let _ = process.wait();
+                }
+                show_error_screen(&window, &error_msg);
+                return Ok(());
             }
 
             println!("✓ Server ready on http://127.0.0.1:{}", port);
