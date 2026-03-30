@@ -116,6 +116,10 @@
     "configSaved": "Configuration saved",
     "configSavedDesc": "Changes have been applied to export.yml",
     "saveFailed": "Save failed",
+    "homePageExists": "A home page already exists",
+    "homePageExistsDesc": "Use the existing home page or remove it before creating another one.",
+    "homePageDuplicateBlocked": "The home page cannot be duplicated",
+    "homePageDuplicateBlockedDesc": "Create a standard page instead if you want to start from scratch.",
     "loadingConfig": "Loading configuration...",
     "loadError": "Error loading: {{error}}",
     "retry": "Retry"
@@ -163,6 +167,7 @@
     "pageName": "Page name",
     "pageNameHint": "Internal identifier (no spaces)",
     "outputFile": "Output file",
+    "outputFileLockedHome": "The home page always exports to index.html.",
     "pageConfig": "Page configuration",
     "templateFormDesc": "Dedicated form for template {{template}}",
     "content": "Content",
