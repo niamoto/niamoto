@@ -15,6 +15,163 @@ from ..context import get_working_directory
 router = APIRouter()
 
 _LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
+_ROOT_INDEX_TEMPLATE = "index.html"
+_ROOT_INDEX_OUTPUT = "index.html"
+
+
+def _normalize_output_alias(output_file: str | None) -> str | None:
+    if not output_file:
+        return None
+    return output_file.strip().lstrip("/")
+
+
+def _is_root_index_page(page: dict[str, Any]) -> bool:
+    return page.get("template") == _ROOT_INDEX_TEMPLATE
+
+
+def _normalize_static_pages(
+    static_pages: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    normalized_pages: list[dict[str, Any]] = []
+    output_aliases: dict[str, str] = {}
+
+    for page in static_pages:
+        normalized_page = dict(page)
+        current_output = _normalize_output_alias(
+            str(normalized_page.get("output_file", ""))
+        )
+
+        if _is_root_index_page(normalized_page):
+            normalized_page["output_file"] = _ROOT_INDEX_OUTPUT
+            if current_output and current_output != _ROOT_INDEX_OUTPUT:
+                output_aliases[current_output] = _ROOT_INDEX_OUTPUT
+        elif current_output is not None:
+            normalized_page["output_file"] = current_output
+
+        normalized_pages.append(normalized_page)
+
+    return normalized_pages, output_aliases
+
+
+def _normalize_link_url(url: str | None, output_aliases: dict[str, str]) -> str | None:
+    if not url:
+        return url
+
+    normalized = _normalize_output_alias(url)
+    if not normalized:
+        return url
+
+    replacement = output_aliases.get(normalized)
+    if not replacement:
+        return url
+
+    return f"/{replacement}" if url.startswith("/") else replacement
+
+
+def _normalize_navigation_items(
+    items: list[dict[str, Any]], output_aliases: dict[str, str]
+) -> list[dict[str, Any]]:
+    normalized_items: list[dict[str, Any]] = []
+
+    for item in items:
+        normalized_item = dict(item)
+        normalized_item["url"] = _normalize_link_url(item.get("url"), output_aliases)
+
+        children = item.get("children")
+        if children:
+            normalized_item["children"] = _normalize_navigation_items(
+                children, output_aliases
+            )
+
+        normalized_items.append(normalized_item)
+
+    return normalized_items
+
+
+def _normalize_footer_sections(
+    sections: list[dict[str, Any]], output_aliases: dict[str, str]
+) -> list[dict[str, Any]]:
+    normalized_sections: list[dict[str, Any]] = []
+
+    for section in sections:
+        normalized_section = dict(section)
+        links = []
+        for link in section.get("links", []):
+            normalized_link = dict(link)
+            normalized_link["url"] = _normalize_link_url(
+                link.get("url"), output_aliases
+            )
+            links.append(normalized_link)
+        normalized_section["links"] = links
+        normalized_sections.append(normalized_section)
+
+    return normalized_sections
+
+
+def _validate_static_pages(static_pages: list[dict[str, Any]]) -> None:
+    root_index_pages = [page for page in static_pages if _is_root_index_page(page)]
+    if len(root_index_pages) > 1:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Only one page can use the index.html template. "
+                "Update the existing home page or remove it first."
+            ),
+        )
+
+    seen_outputs: set[str] = set()
+    duplicates: set[str] = set()
+    for page in static_pages:
+        output_file = _normalize_output_alias(str(page.get("output_file", "")))
+        if not output_file:
+            continue
+        if output_file in seen_outputs:
+            duplicates.add(output_file)
+        seen_outputs.add(output_file)
+
+    if duplicates:
+        duplicate_list = ", ".join(sorted(duplicates))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Duplicate output_file values are not allowed: {duplicate_list}",
+        )
+
+
+def _get_legacy_home_output_file() -> str | None:
+    export_config = _get_export_config()
+    exports = export_config.get("exports", [])
+    web_pages = _find_web_pages_export(exports)
+    if not web_pages:
+        return None
+
+    static_pages = web_pages.get("static_pages", [])
+    for page in static_pages:
+        if not _is_root_index_page(page):
+            continue
+        output_file = _normalize_output_alias(str(page.get("output_file", "")))
+        if output_file and output_file != _ROOT_INDEX_OUTPUT:
+            return output_file
+
+    return None
+
+
+def _fallback_legacy_home_page(exports_web_dir: Path, normalized: str) -> Path | None:
+    legacy_home_output = _get_legacy_home_output_file()
+    if not legacy_home_output:
+        return None
+
+    if not normalized or normalized == _ROOT_INDEX_OUTPUT:
+        return exports_web_dir / legacy_home_output
+
+    parts = normalized.split("/", 1)
+    if (
+        len(parts) == 2
+        and _LANGUAGE_PREFIX_RE.match(parts[0])
+        and parts[1] == _ROOT_INDEX_OUTPUT
+    ):
+        return exports_web_dir / parts[0] / legacy_home_output
+
+    return None
 
 
 def _candidate_exported_preview_path(
@@ -52,10 +209,18 @@ def _resolve_exported_preview_path(requested_path: str = "") -> Path:
     normalized = requested_path.strip("/")
 
     candidate = _candidate_exported_preview_path(exports_web_dir, requested_path)
-    if normalized and not candidate.exists():
-        fallback = _fallback_without_language_prefix(exports_web_dir, normalized)
-        if fallback is not None and fallback.exists():
-            candidate = fallback
+    if not candidate.exists():
+        if normalized:
+            fallback = _fallback_without_language_prefix(exports_web_dir, normalized)
+            if fallback is not None and fallback.exists():
+                candidate = fallback
+
+        if not candidate.exists():
+            legacy_home_fallback = _fallback_legacy_home_page(
+                exports_web_dir, normalized
+            )
+            if legacy_home_fallback is not None and legacy_home_fallback.exists():
+                candidate = legacy_home_fallback
 
     resolved = candidate.resolve()
     try:
@@ -408,9 +573,15 @@ async def get_site_config():
 
     params = web_pages.get("params", {})
     site_config = params.get("site", {})
-    navigation = params.get("navigation", [])
-    footer_navigation = params.get("footer_navigation", [])
-    static_pages = web_pages.get("static_pages", [])
+    raw_navigation = params.get("navigation", [])
+    raw_footer_navigation = params.get("footer_navigation", [])
+    raw_static_pages = web_pages.get("static_pages", [])
+    static_pages, output_aliases = _normalize_static_pages(raw_static_pages)
+    _validate_static_pages(static_pages)
+    navigation = _normalize_navigation_items(raw_navigation, output_aliases)
+    footer_navigation = _normalize_footer_sections(
+        raw_footer_navigation, output_aliases
+    )
 
     # Convert raw dicts to models
     site = SiteSettings(**site_config) if site_config else SiteSettings()
@@ -469,13 +640,6 @@ async def update_site_config(update: SiteConfigUpdate):
     # Update params
     params = web_pages.setdefault("params", {})
     params["site"] = update.site.model_dump(exclude_none=True)
-    params["navigation"] = [
-        item.model_dump(exclude_none=True) for item in update.navigation
-    ]
-    params["footer_navigation"] = [
-        section.model_dump(exclude_none=True) for section in update.footer_navigation
-    ]
-
     if update.template_dir:
         params["template_dir"] = update.template_dir
     if update.output_dir:
@@ -484,7 +648,7 @@ async def update_site_config(update: SiteConfigUpdate):
         params["copy_assets_from"] = update.copy_assets_from
 
     # Update static pages
-    static_pages_data = []
+    raw_static_pages_data = []
     for page in update.static_pages:
         page_dict = {
             "name": page.name,
@@ -495,8 +659,19 @@ async def update_site_config(update: SiteConfigUpdate):
             context_dict = page.context.model_dump(exclude_none=True)
             if context_dict:
                 page_dict["context"] = context_dict
-        static_pages_data.append(page_dict)
+        raw_static_pages_data.append(page_dict)
 
+    static_pages_data, output_aliases = _normalize_static_pages(raw_static_pages_data)
+    _validate_static_pages(static_pages_data)
+
+    params["navigation"] = _normalize_navigation_items(
+        [item.model_dump(exclude_none=True) for item in update.navigation],
+        output_aliases,
+    )
+    params["footer_navigation"] = _normalize_footer_sections(
+        [section.model_dump(exclude_none=True) for section in update.footer_navigation],
+        output_aliases,
+    )
     web_pages["static_pages"] = static_pages_data
 
     # Save configuration

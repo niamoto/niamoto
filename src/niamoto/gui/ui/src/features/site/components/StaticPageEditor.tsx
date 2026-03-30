@@ -31,6 +31,9 @@ import {
   useTemplates,
   type StaticPage,
   type NavigationItem,
+  ROOT_INDEX_OUTPUT_FILE,
+  ROOT_INDEX_TEMPLATE,
+  isRootIndexTemplate,
 } from '@/shared/hooks/useSiteConfig'
 import {
   hasTemplateForm,
@@ -54,6 +57,7 @@ interface StaticPageEditorProps {
   onChange: (page: StaticPage) => void
   onDelete?: () => void
   onBack: () => void
+  hasExistingIndexPage?: boolean
   // Navigation linking
   navigation?: NavigationItem[]
   onUpdateNavigation?: (nav: NavigationItem[]) => void
@@ -64,6 +68,7 @@ export function StaticPageEditor({
   onChange,
   onDelete,
   onBack,
+  hasExistingIndexPage = false,
   navigation = [],
   onUpdateNavigation,
 }: StaticPageEditorProps) {
@@ -77,6 +82,11 @@ export function StaticPageEditor({
 
   // All templates (default + project)
   const allTemplates = templatesData?.templates ?? []
+  const isIndexPage = isRootIndexTemplate(editedPage.template)
+  const availableTemplates = allTemplates.filter(
+    (template) =>
+      template.name !== ROOT_INDEX_TEMPLATE || isIndexPage || !hasExistingIndexPage
+  )
 
   // Navigation linking helpers
   const pageUrl = `/${editedPage.output_file}`
@@ -155,7 +165,34 @@ export function StaticPageEditor({
     setEditedPage((prev) => ({
       ...prev,
       name,
-      output_file: `${slug || 'page'}.html`,
+      output_file: isRootIndexTemplate(prev.template)
+        ? ROOT_INDEX_OUTPUT_FILE
+        : `${slug || 'page'}.html`,
+    }))
+  }
+
+  const handleTemplateChange = (template: string) => {
+    if (template === ROOT_INDEX_TEMPLATE && hasExistingIndexPage && !isIndexPage) {
+      toast.error(t('messages.homePageExists'), {
+        description: t('messages.homePageExistsDesc'),
+      })
+      return
+    }
+
+    const slug = editedPage.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+
+    setEditedPage((prev) => ({
+      ...prev,
+      template,
+      output_file:
+        template === ROOT_INDEX_TEMPLATE
+          ? ROOT_INDEX_OUTPUT_FILE
+          : prev.output_file === ROOT_INDEX_OUTPUT_FILE
+            ? `${slug || 'page'}.html`
+            : prev.output_file,
     }))
   }
 
@@ -224,7 +261,14 @@ export function StaticPageEditor({
                     onChange={(e) => updateField('output_file', e.target.value)}
                     placeholder="methodology.html"
                     className="font-mono"
+                    readOnly={isIndexPage}
+                    disabled={isIndexPage}
                   />
+                  {isIndexPage && (
+                    <p className="text-xs text-muted-foreground">
+                      {t('pageEditor.outputFileLockedHome')}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -233,8 +277,8 @@ export function StaticPageEditor({
                 <Label>{t('groupViewer.template')}</Label>
                 <TemplateSelect
                   value={editedPage.template}
-                  onChange={(v) => updateField('template', v)}
-                  templates={allTemplates}
+                  onChange={handleTemplateChange}
+                  templates={availableTemplates}
                   disabled={templatesLoading}
                 />
               </div>

@@ -115,6 +115,10 @@
     "configSaved": "Configuration sauvegardée",
     "configSavedDesc": "Les modifications ont été appliquées à export.yml",
     "saveFailed": "Échec de la sauvegarde",
+    "homePageExists": "Une page d'accueil existe déjà",
+    "homePageExistsDesc": "Utilisez la page d'accueil existante ou supprimez-la avant d'en créer une autre.",
+    "homePageDuplicateBlocked": "La page d'accueil ne peut pas être dupliquée",
+    "homePageDuplicateBlockedDesc": "Créez une nouvelle page standard si vous souhaitez partir de zéro.",
     "loadingConfig": "Chargement de la configuration...",
     "loadError": "Erreur lors du chargement : {{error}}",
     "retry": "Réessayer"
@@ -162,6 +166,7 @@
     "pageName": "Nom de la page",
     "pageNameHint": "Identifiant interne (sans espaces)",
     "outputFile": "Fichier de sortie",
+    "outputFileLockedHome": "La page d'accueil exporte toujours vers index.html.",
     "pageConfig": "Configuration de la page",
     "templateFormDesc": "Formulaire dédié pour le template {{template}}",
     "content": "Contenu",

@@ -100,6 +100,29 @@ export interface StaticPage {
   context?: StaticPageContext | null
 }
 
+export const ROOT_INDEX_TEMPLATE = 'index.html'
+export const ROOT_INDEX_OUTPUT_FILE = 'index.html'
+
+export function isRootIndexTemplate(template?: string | null): boolean {
+  return template === ROOT_INDEX_TEMPLATE
+}
+
+export function isRootIndexPage(page: Pick<StaticPage, 'template' | 'output_file'>): boolean {
+  return isRootIndexTemplate(page.template) || page.output_file === ROOT_INDEX_OUTPUT_FILE
+}
+
+export function getCanonicalStaticPageOutputFile(
+  page: Pick<StaticPage, 'template' | 'output_file'>
+): string {
+  return isRootIndexTemplate(page.template) ? ROOT_INDEX_OUTPUT_FILE : page.output_file
+}
+
+export function hasRootIndexPage(
+  pages: Array<Pick<StaticPage, 'template' | 'output_file'>>
+): boolean {
+  return pages.some((page) => isRootIndexTemplate(page.template))
+}
+
 export interface SiteConfigResponse {
   site: SiteSettings
   navigation: NavigationItem[]
@@ -108,6 +131,55 @@ export interface SiteConfigResponse {
   template_dir: string
   output_dir: string
   copy_assets_from: string[]
+}
+
+function normalizePageUrl(url: string | undefined, aliases: Map<string, string>): string | undefined {
+  if (!url) return url
+
+  const normalized = url.replace(/^\/+/, '')
+  const replacement = aliases.get(normalized)
+  if (!replacement) return url
+
+  return url.startsWith('/') ? `/${replacement}` : replacement
+}
+
+function normalizeSiteConfig(config: SiteConfigResponse): SiteConfigResponse {
+  const aliases = new Map<string, string>()
+  const staticPages = config.static_pages.map((page) => {
+    const normalizedOutputFile = getCanonicalStaticPageOutputFile(page)
+    if (page.output_file !== normalizedOutputFile) {
+      aliases.set(page.output_file.replace(/^\/+/, ''), normalizedOutputFile)
+    }
+
+    return {
+      ...page,
+      output_file: normalizedOutputFile,
+    }
+  })
+
+  const navigation = config.navigation.map((item) => ({
+    ...item,
+    url: normalizePageUrl(item.url, aliases),
+    children: item.children?.map((child) => ({
+      ...child,
+      url: normalizePageUrl(child.url, aliases),
+    })),
+  }))
+
+  const footerNavigation = config.footer_navigation.map((section) => ({
+    ...section,
+    links: section.links.map((link) => ({
+      ...link,
+      url: normalizePageUrl(link.url, aliases) || link.url,
+    })),
+  }))
+
+  return {
+    ...config,
+    navigation,
+    footer_navigation: footerNavigation,
+    static_pages: staticPages,
+  }
 }
 
 export interface SiteConfigUpdate {
@@ -191,7 +263,7 @@ export interface FilesResponse {
 
 async function fetchSiteConfig(): Promise<SiteConfigResponse> {
   const response = await apiClient.get<SiteConfigResponse>(`${API_BASE}/config`)
-  return response.data
+  return normalizeSiteConfig(response.data)
 }
 
 async function updateSiteConfig(

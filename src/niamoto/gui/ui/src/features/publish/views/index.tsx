@@ -498,7 +498,7 @@ export default function PublishOverview() {
   const loadDynamicPreview = () => {
     if (!siteConfig) return
     const indexPage = siteConfig.static_pages.find((page) =>
-      page.output_file === 'index.html' || page.name === 'index'
+      page.template === 'index.html' || page.output_file === 'index.html' || page.name === 'index'
     ) || siteConfig.static_pages[0]
 
     if (indexPage) {

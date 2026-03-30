@@ -125,3 +125,175 @@ class TestSiteGroups:
                 response = client.get("/api/site/preview-exported/en/index.html")
                 assert response.status_code == 200, response.text
                 assert "single-language-site" in response.text
+
+    def test_get_site_config_normalizes_legacy_home_page(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "navigation": [{"text": "Home", "url": "/Home.html"}],
+                                "footer_navigation": [
+                                    {
+                                        "title": "Footer",
+                                        "links": [
+                                            {
+                                                "text": "Home",
+                                                "url": "/Home.html",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                            "static_pages": [
+                                {
+                                    "name": "Home",
+                                    "template": "index.html",
+                                    "output_file": "Home.html",
+                                }
+                            ],
+                            "groups": [],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.get("/api/site/config")
+                assert response.status_code == 200, response.text
+
+            data = response.json()
+            assert data["static_pages"][0]["output_file"] == "index.html"
+            assert data["navigation"][0]["url"] == "/index.html"
+            assert data["footer_navigation"][0]["links"][0]["url"] == "/index.html"
+
+    def test_update_site_config_normalizes_home_output_and_links(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(config_dir / "export.yml", {"exports": []})
+
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [{"text": "Home", "url": "/Home.html"}],
+                "footer_navigation": [
+                    {
+                        "title": "Footer",
+                        "links": [{"text": "Home", "url": "/Home.html"}],
+                    }
+                ],
+                "static_pages": [
+                    {
+                        "name": "Home",
+                        "template": "index.html",
+                        "output_file": "Home.html",
+                    }
+                ],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.put("/api/site/config", json=payload)
+                assert response.status_code == 200, response.text
+
+            saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
+            web_pages = saved_config["exports"][0]
+            assert web_pages["static_pages"][0]["output_file"] == "index.html"
+            assert web_pages["params"]["navigation"][0]["url"] == "/index.html"
+            assert (
+                web_pages["params"]["footer_navigation"][0]["links"][0]["url"]
+                == "/index.html"
+            )
+
+    def test_update_site_config_rejects_multiple_home_templates(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(config_dir / "export.yml", {"exports": []})
+
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [],
+                "footer_navigation": [],
+                "static_pages": [
+                    {
+                        "name": "Home",
+                        "template": "index.html",
+                        "output_file": "index.html",
+                    },
+                    {
+                        "name": "Accueil bis",
+                        "template": "index.html",
+                        "output_file": "second-home.html",
+                    },
+                ],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.put("/api/site/config", json=payload)
+                assert response.status_code == 422, response.text
+                assert "Only one page can use the index.html template" in response.text
+
+    def test_preview_exported_site_falls_back_to_legacy_home_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            exports = project / "exports" / "web"
+            exports.mkdir(parents=True, exist_ok=True)
+            (exports / "Home.html").write_text("legacy-home", encoding="utf-8")
+
+            _write_config(
+                project / "config" / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {},
+                            "static_pages": [
+                                {
+                                    "name": "Home",
+                                    "template": "index.html",
+                                    "output_file": "Home.html",
+                                }
+                            ],
+                            "groups": [],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.get("/api/site/preview-exported/index.html")
+                assert response.status_code == 200, response.text
+                assert "legacy-home" in response.text

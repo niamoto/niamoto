@@ -96,6 +96,11 @@ import {
   type GroupInfo,
   DEFAULT_SITE_SETTINGS,
   DEFAULT_STATIC_PAGE,
+  ROOT_INDEX_OUTPUT_FILE,
+  ROOT_INDEX_TEMPLATE,
+  getCanonicalStaticPageOutputFile,
+  hasRootIndexPage,
+  isRootIndexTemplate,
 } from '@/shared/hooks/useSiteConfig'
 import { SiteConfigForm } from './SiteConfigForm'
 import { ThemeConfigForm } from './ThemeConfigForm'
@@ -912,6 +917,19 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     )
   }, [siteConfig, editedSite, editedNavigation, editedFooterNavigation, editedPages])
 
+  const hasExistingHomePage = useMemo(
+    () => hasRootIndexPage(editedPages),
+    [editedPages]
+  )
+
+  const availableNewPageTemplates = useMemo(() => {
+    const templates = templatesData?.templates ?? []
+    if (!hasExistingHomePage) {
+      return templates
+    }
+    return templates.filter((template) => template.name !== ROOT_INDEX_TEMPLATE)
+  }, [hasExistingHomePage, templatesData])
+
   // Save handler
   const handleSave = async () => {
     if (!siteConfig) return
@@ -945,8 +963,17 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
   // Create page after template selection
   const handleTemplateSelected = (templateName: string) => {
+    if (templateName === ROOT_INDEX_TEMPLATE && hasExistingHomePage) {
+      toast.error(t('messages.homePageExists'), {
+        description: t('messages.homePageExistsDesc'),
+      })
+      return
+    }
+
     // Generate unique page name based on template
-    const baseName = templateName.replace('.html', '')
+    const baseName = templateName === ROOT_INDEX_TEMPLATE
+      ? 'home'
+      : templateName.replace('.html', '')
     const existingNames = new Set(editedPages.map((p) => p.name))
 
     let pageName = baseName
@@ -959,7 +986,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     const newPage: StaticPage = {
       ...DEFAULT_STATIC_PAGE,
       name: pageName,
-      output_file: `${pageName}.html`,
+      output_file:
+        templateName === ROOT_INDEX_TEMPLATE
+          ? ROOT_INDEX_OUTPUT_FILE
+          : `${pageName}.html`,
       template: templateName,
     }
     setEditedPages([...editedPages, newPage])
@@ -985,6 +1015,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
   // Create page from navigation builder (inline creation)
   const handleCreatePageFromNavigation = async (pageName: string, templateName: string): Promise<StaticPage | null> => {
+    if (templateName === ROOT_INDEX_TEMPLATE && hasExistingHomePage) {
+      toast.error(t('messages.homePageExists'), {
+        description: t('messages.homePageExistsDesc'),
+      })
+      return null
+    }
+
     // Ensure unique page name
     const existingNames = new Set(editedPages.map((p) => p.name))
     let finalName = pageName
@@ -997,7 +1034,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     const newPage: StaticPage = {
       ...DEFAULT_STATIC_PAGE,
       name: finalName,
-      output_file: `${finalName}.html`,
+      output_file:
+        templateName === ROOT_INDEX_TEMPLATE
+          ? ROOT_INDEX_OUTPUT_FILE
+          : `${finalName}.html`,
       template: templateName,
     }
 
@@ -1013,12 +1053,29 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   // Update page (handles name changes)
   const handleUpdatePage = (updatedPage: StaticPage) => {
     const oldName = selection?.id
+    const normalizedPage = {
+      ...updatedPage,
+      output_file: getCanonicalStaticPageOutputFile(updatedPage),
+    }
+
+    if (
+      isRootIndexTemplate(normalizedPage.template) &&
+      editedPages.some(
+        (page) => page.name !== oldName && isRootIndexTemplate(page.template)
+      )
+    ) {
+      toast.error(t('messages.homePageExists'), {
+        description: t('messages.homePageExistsDesc'),
+      })
+      return
+    }
+
     setEditedPages((pages) =>
-      pages.map((p) => (p.name === oldName ? updatedPage : p))
+      pages.map((p) => (p.name === oldName ? normalizedPage : p))
     )
     // Update selection if name changed
-    if (oldName && updatedPage.name !== oldName) {
-      setSelection({ type: 'page', id: updatedPage.name })
+    if (oldName && normalizedPage.name !== oldName) {
+      setSelection({ type: 'page', id: normalizedPage.name })
     }
   }
 
@@ -1079,6 +1136,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
   // Duplicate a page
   const handleDuplicatePage = (page: StaticPage) => {
+    if (isRootIndexTemplate(page.template)) {
+      toast.error(t('messages.homePageDuplicateBlocked'), {
+        description: t('messages.homePageDuplicateBlockedDesc'),
+      })
+      return
+    }
+
     const existingNames = new Set(editedPages.map((p) => p.name))
     let newName = `${page.name}-copy`
     let counter = 1
@@ -1230,17 +1294,17 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         return (
           <ScrollArea className="h-full">
             <div className="p-6">
-              <NavigationBuilder
-                items={editedNavigation}
-                onChange={setEditedNavigation}
-                staticPages={editedPages}
-                groups={groups}
-                templates={templatesData?.templates ?? []}
-                onCreatePage={handleCreatePageFromNavigation}
-                title={t('builder.mainMenu')}
-                description={t('navigation.mainDescription')}
-                allowSubmenus={true}
-              />
+                <NavigationBuilder
+                  items={editedNavigation}
+                  onChange={setEditedNavigation}
+                  staticPages={editedPages}
+                  groups={groups}
+                  templates={availableNewPageTemplates}
+                  onCreatePage={handleCreatePageFromNavigation}
+                  title={t('builder.mainMenu')}
+                  description={t('navigation.mainDescription')}
+                  allowSubmenus={true}
+                />
             </div>
           </ScrollArea>
         )
@@ -1276,6 +1340,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             onChange={handleUpdatePage}
             onDelete={() => handleDeletePage(page.name)}
             onBack={() => setSelection(null)}
+            hasExistingIndexPage={editedPages.some(
+              (candidate) =>
+                candidate.name !== page.name && isRootIndexTemplate(candidate.template)
+            )}
             navigation={editedNavigation}
             onUpdateNavigation={setEditedNavigation}
           />
@@ -1305,7 +1373,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       case 'new-page':
         return (
           <TemplateList
-            templates={templatesData?.templates ?? []}
+            templates={availableNewPageTemplates}
             onSelect={handleTemplateSelected}
             onBack={() => setSelection(null)}
           />
