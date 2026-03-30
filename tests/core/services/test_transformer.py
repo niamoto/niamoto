@@ -610,6 +610,65 @@ class TestTransformerService:
         assert "DROP TABLE IF EXISTS plots__staging" in drop_sql
         assert "plots" not in transformer_service._table_buffers
 
+    @patch("niamoto.core.services.compatibility.CSVSchemaReader.read_schema")
+    @patch("niamoto.core.imports.source_registry.TransformSourceRegistry")
+    def test_persist_transform_source_schemas_registers_file_sources(
+        self,
+        mock_registry_class,
+        mock_read_schema,
+        transformer_service,
+        tmp_path,
+    ):
+        imports_dir = tmp_path / "imports"
+        imports_dir.mkdir(parents=True, exist_ok=True)
+        source_file = imports_dir / "raw_plot_stats.csv"
+        source_file.write_text("id,plot_id\n1,P1\n", encoding="utf-8")
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        transformer_service.config.config_dir = str(config_dir)
+        mock_read_schema.return_value = (
+            [
+                {"name": "id", "type": "integer"},
+                {"name": "plot_id", "type": "string"},
+            ],
+            None,
+        )
+
+        registry_instance = Mock()
+        mock_registry_class.return_value = registry_instance
+
+        transformer_service._persist_transform_source_schemas(
+            [
+                {
+                    "group_by": "plots",
+                    "sources": [
+                        {
+                            "name": "plot_stats",
+                            "data": "imports/raw_plot_stats.csv",
+                            "grouping": "plots",
+                            "relation": {"plugin": "stats_loader", "key": "id"},
+                        }
+                    ],
+                }
+            ]
+        )
+
+        mock_read_schema.assert_called_once_with(source_file.resolve())
+        registry_instance.register_source.assert_called_once_with(
+            name="plot_stats",
+            path="imports/raw_plot_stats.csv",
+            grouping="plots",
+            config={
+                "schema": {
+                    "fields": [
+                        {"name": "id", "type": "integer"},
+                        {"name": "plot_id", "type": "string"},
+                    ]
+                }
+            },
+        )
+
     @patch("niamoto.core.services.transformer.CLI_CONTEXT", False)
     def test_transform_data_simple_mode(self, transformer_service, mock_db):
         """Test transform_data in simple mode (no CLI context).

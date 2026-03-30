@@ -39,6 +39,7 @@ Daily development workflow scripts.
 | `bench_preview.py` | Benchmark preview engine (P50/P95/P99 latency) |
 | `bench_pipeline.py` | Benchmark sequential `transform` and `export` on a staged instance |
 | `evaluate_pipeline.py` | Diagnostic tool for data profiling + suggestions |
+| `run_import_check_lab.py` | Run a regression matrix for impact-check lab scenarios |
 
 **Common usage:**
 ```bash
@@ -53,6 +54,9 @@ uv run python scripts/dev/bench_preview.py --base-url http://localhost:8000
 
 # Benchmark transform/export on niamoto-subset
 uv run python scripts/dev/bench_pipeline.py --instance test-instance/niamoto-subset
+
+# Run the impact-check regression lab on niamoto-subset
+uv run python scripts/dev/run_import_check_lab.py --instance test-instance/niamoto-subset
 
 # Evaluate suggestion pipeline on a CSV
 uv run python scripts/dev/evaluate_pipeline.py path/to/data.csv
