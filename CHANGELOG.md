@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.11.0] - 2026-03-30
+
+### Features
+
+- Extend pre-import impact checks with data compatibility analysis
+- Add iOS and Android icon sets
+- Replace logo with new N lettermark design
+
+### Performance
+
+- Speed up reference field suggestions
+
+### Bug Fixes
+
+- Enforce canonical home page export
+- Improve desktop startup recovery
+- Add unittest to PyInstaller hidden imports
+- Polish publish workflow panels
+- Stabilize publish previews and history
+- Harden import and widget flows
+- Harden import summary navigation
+- Stabilize GUI startup context
+- Preserve enrichment tab state in onboarding UI
+- Make PyInstaller install portable in CI
+- Restore binary build packaging
+
+### Refactoring
+
+- Redesign sources workspace
+- Simplify publish workflow
+
+### Documentation
+
+- Add sources mission control design
+- Add publish UI simplification design
+
 ## [v0.10.0] - 2026-03-28
 
 ### Features
