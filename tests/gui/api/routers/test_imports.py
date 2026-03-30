@@ -158,3 +158,93 @@ def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path)
     assert job["errors"]
     assert job["events"][-1]["kind"] == "error"
     assert "Import failed" in job["events"][-1]["message"]
+
+
+def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    class FakeCompatibilityService:
+        def __init__(self, working_directory):
+            self.working_directory = working_directory
+
+        def resolve_entity(self, filename: str):
+            assert filename == "geo.gpkg"
+            return "geo"
+
+        def check_compatibility(self, entity_name: str, file_path: str):
+            assert entity_name == "geo"
+            assert file_path == "imports/geo.gpkg"
+            return SimpleNamespace(
+                entity_name="geo",
+                matched_columns=[],
+                impacts=[],
+                error=None,
+                skipped_reason="Not supported in V1 (GPKG)",
+                has_blockers=False,
+                has_warnings=False,
+                has_opportunities=False,
+            )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(
+        "niamoto.core.services.compatibility.CompatibilityService",
+        FakeCompatibilityService,
+    )
+
+    response = asyncio.run(
+        imports.impact_check(imports.ImpactCheckRequest(file_path="imports/geo.gpkg"))
+    )
+
+    assert response.entity_name == "geo"
+    assert response.skipped_reason == "Not supported in V1 (GPKG)"
+    assert response.error is None
+    assert response.impacts == []
+
+
+def test_impact_check_returns_info_message(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    class FakeCompatibilityService:
+        def __init__(self, working_directory):
+            self.working_directory = working_directory
+
+        def resolve_entity(self, filename: str):
+            assert filename == "raw_plot_stats.csv"
+            return "plot_stats"
+
+        def check_compatibility(self, entity_name: str, file_path: str):
+            assert entity_name == "plot_stats"
+            assert file_path == "imports/raw_plot_stats.csv"
+            return SimpleNamespace(
+                entity_name="plot_stats",
+                matched_columns=[],
+                impacts=[],
+                error=None,
+                skipped_reason=None,
+                info_message="First check for auxiliary source",
+                has_blockers=False,
+                has_warnings=False,
+                has_opportunities=False,
+            )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(
+        "niamoto.core.services.compatibility.CompatibilityService",
+        FakeCompatibilityService,
+    )
+
+    response = asyncio.run(
+        imports.impact_check(
+            imports.ImpactCheckRequest(file_path="imports/raw_plot_stats.csv")
+        )
+    )
+
+    assert response.entity_name == "plot_stats"
+    assert response.info_message == "First check for auxiliary source"
+    assert response.error is None

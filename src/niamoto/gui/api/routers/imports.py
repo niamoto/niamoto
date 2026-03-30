@@ -957,3 +957,92 @@ async def process_generic_import_entity(
             entity_name,
             e,
         )
+
+
+# ---------------------------------------------------------------------------
+# Pre-Import Impact Check
+# ---------------------------------------------------------------------------
+
+
+class ImpactCheckRequest(BaseModel):
+    file_path: str  # relative to project root
+
+
+class ImpactItemResponse(BaseModel):
+    column: str
+    level: str
+    detail: str
+    referenced_in: List[str] = []
+    old_type: Optional[str] = None
+    new_type: Optional[str] = None
+
+
+class ColumnMatchResponse(BaseModel):
+    name: str
+    old_type: str
+    new_type: str
+
+
+class ImpactCheckResponse(BaseModel):
+    entity_name: Optional[str] = None
+    matched_columns: List[ColumnMatchResponse] = []
+    impacts: List[ImpactItemResponse] = []
+    error: Optional[str] = None
+    skipped_reason: Optional[str] = None
+    info_message: Optional[str] = None
+    has_blockers: bool = False
+    has_warnings: bool = False
+    has_opportunities: bool = False
+
+
+@router.post("/impact-check", response_model=ImpactCheckResponse)
+async def impact_check(request: ImpactCheckRequest):
+    """Check compatibility between a source file and existing configuration.
+
+    Resolves the entity from the file path basename, then runs the impact
+    check against import.yml + transform.yml.
+    """
+    from pathlib import Path
+
+    from ..context import get_working_directory
+    from niamoto.core.services.compatibility import CompatibilityService
+
+    work_dir = get_working_directory()
+
+    # Path validation FIRST
+    resolved = (work_dir / request.file_path).resolve()
+    if not resolved.is_relative_to(work_dir.resolve()):
+        raise HTTPException(status_code=400, detail="Path outside project directory")
+
+    service = CompatibilityService(work_dir)
+    filename = Path(request.file_path).name
+    entity_name = service.resolve_entity(filename)
+
+    if entity_name is None:
+        return ImpactCheckResponse()
+
+    report = service.check_compatibility(entity_name, request.file_path)
+    return ImpactCheckResponse(
+        entity_name=report.entity_name,
+        matched_columns=[
+            ColumnMatchResponse(name=m.name, old_type=m.old_type, new_type=m.new_type)
+            for m in report.matched_columns
+        ],
+        impacts=[
+            ImpactItemResponse(
+                column=i.column,
+                level=i.level.value,
+                detail=i.detail,
+                referenced_in=i.referenced_in,
+                old_type=i.old_type,
+                new_type=i.new_type,
+            )
+            for i in report.impacts
+        ],
+        error=report.error,
+        skipped_reason=report.skipped_reason,
+        info_message=getattr(report, "info_message", None),
+        has_blockers=report.has_blockers,
+        has_warnings=report.has_warnings,
+        has_opportunities=report.has_opportunities,
+    )

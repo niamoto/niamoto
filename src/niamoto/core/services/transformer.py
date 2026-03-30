@@ -3,6 +3,7 @@
 from typing import Dict, Any, List, Optional, Callable
 import logging
 import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -77,8 +78,6 @@ class TransformerService:
         self.plugin_loader = PluginLoader()
 
         # Get project path for cascade resolution
-        from pathlib import Path
-
         project_path = Path(Config.get_niamoto_home())
 
         # Load all plugins (system, user, project) using cascade resolution
@@ -94,8 +93,6 @@ class TransformerService:
         Properly initialises all fields and loads plugins via cascade,
         but reuses an existing Database connection and skips CLI setup.
         """
-        from pathlib import Path
-
         svc = cls.__new__(cls)
         svc.db = db
         svc.config = Config(config_dir, create_default=False)
@@ -340,6 +337,7 @@ class TransformerService:
 
         # Filter configurations
         configs = self._filter_configs(group_by)
+        transform_succeeded = False
         try:
             self.db.enable_connection_reuse()
             if self.use_cli_integration and ProgressManager:
@@ -354,6 +352,7 @@ class TransformerService:
                 results = self._process_configs_simple(
                     configs, csv_file, recreate_table, progress_callback
                 )
+            transform_succeeded = True
         except Exception as e:
             if self.transform_metrics:
                 self.transform_metrics.add_error(str(e))
@@ -363,6 +362,8 @@ class TransformerService:
                 for group_name in list(self._table_buffers.keys()):
                     recreate = self._table_flush_modes.get(group_name, True)
                     self._flush_group_table(group_name, recreate)
+                if transform_succeeded:
+                    self._persist_transform_source_schemas(configs)
                 if getattr(self.db, "is_duckdb", False):
                     logger.info("Running DuckDB checkpoint after transformations")
                     self.db.optimize_database()
@@ -1030,6 +1031,59 @@ class TransformerService:
             )
 
         return data_sources
+
+    def _persist_transform_source_schemas(self, configs: List[Dict[str, Any]]) -> None:
+        """Persist observed schemas for file-based transform sources."""
+
+        from niamoto.core.imports.source_registry import TransformSourceRegistry
+        from niamoto.core.services.compatibility import CSVSchemaReader
+
+        config_dir = getattr(self.config, "config_dir", None)
+        if not isinstance(config_dir, (str, Path)):
+            return
+
+        project_root = Path(config_dir).parent
+        registry = TransformSourceRegistry(self.db)
+        seen_sources: set[str] = set()
+
+        for group_config in configs:
+            for source in group_config.get("sources", []):
+                source_name = source.get("name", "")
+                source_path = source.get("data", "")
+                grouping = source.get("grouping", "")
+
+                if (
+                    not source_name
+                    or not source_path
+                    or "/" not in source_path
+                    or source_name in seen_sources
+                ):
+                    continue
+
+                resolved_path = (project_root / source_path).resolve()
+                if not resolved_path.exists():
+                    logger.debug(
+                        "Skipping transform source baseline for missing file: %s",
+                        resolved_path,
+                    )
+                    continue
+
+                fields, error = CSVSchemaReader.read_schema(resolved_path)
+                if error:
+                    logger.warning(
+                        "Failed to persist transform source baseline for %s: %s",
+                        source_name,
+                        error,
+                    )
+                    continue
+
+                registry.register_source(
+                    name=source_name,
+                    path=source_path,
+                    grouping=grouping,
+                    config={"schema": {"fields": fields}},
+                )
+                seen_sources.add(source_name)
 
     def _create_group_table(
         self, group_by: str, widgets_config: Dict[str, Any], recreate_table: bool = True
