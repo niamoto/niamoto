@@ -3,7 +3,7 @@
  *
  * Displays:
  * - Static pages section
- * - Group pages section (from export.yml groups)
+ * - Collection pages section (from export.yml groups)
  * - Selection for editing
  */
 

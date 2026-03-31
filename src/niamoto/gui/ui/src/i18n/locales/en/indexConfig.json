@@ -2,7 +2,7 @@
   "title": "Index Configuration",
   "description": "Configure index display",
   "defaultTitle": "List of {{groupBy}}",
-  "groupDescription": "Configure the index page for the group \"{{groupBy}}\"",
+  "collectionDescription": "Configure the index page for the collection \"{{groupBy}}\"",
   "loading": "Loading configuration...",
   "pageSettings": {
     "title": "Title",
@@ -29,7 +29,7 @@
   },
   "toggle": {
     "label": "Enable index page",
-    "description": "Generates a page listing all entities in the group",
+    "description": "Generates a page listing all entities in the collection",
     "descriptionDetecting": "Automatic field detection in progress..."
   },
   "sections": {

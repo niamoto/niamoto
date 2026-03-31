@@ -197,7 +197,7 @@ function SiteTree({
       <ScrollArea className="flex-1">
         <Accordion
           type="multiple"
-          defaultValue={['pages', 'navigation', 'settings', 'groups']}
+          defaultValue={['pages', 'navigation', 'settings', 'collections']}
           className="px-2 py-2"
         >
           {/* Pages Section - EN PREMIER */}
@@ -343,12 +343,12 @@ function SiteTree({
             </AccordionContent>
           </AccordionItem>
 
-          {/* Groups Section */}
-          <AccordionItem value="groups" className="border-none">
+          {/* Collections Section */}
+          <AccordionItem value="collections" className="border-none">
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
                 <Folder className="h-4 w-4 text-amber-600" />
-                {t('tree.groups')}
+                {t('tree.collections')}
                 {groupsLoading ? (
                   <Loader2 className="h-3 w-3 animate-spin ml-auto" />
                 ) : (

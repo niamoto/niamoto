@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import type { FreshnessStatus } from "@/hooks/usePipelineStatus"
 import { cn } from "@/lib/utils"
 
-export function GroupsSummary({
+export function CollectionsSummary({
   items,
 }: {
   items: Array<{ name: string; status: FreshnessStatus }>
@@ -26,12 +26,12 @@ export function GroupsSummary({
       )}
     >
       {allFresh
-        ? t("pipeline.summary.groups_ratio", "{{fresh}}/{{total}} up to date", {
+        ? t("pipeline.summary.collections_ratio", "{{fresh}}/{{total}} up to date", {
             fresh: freshCount,
             total,
           })
         : t(
-            "pipeline.summary.groups_stale_ratio",
+            "pipeline.summary.collections_stale_ratio",
             "{{stale}}/{{total}} need recomputing",
             { stale: staleCount, total },
           )}

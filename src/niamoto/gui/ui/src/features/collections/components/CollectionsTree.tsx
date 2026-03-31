@@ -1,8 +1,8 @@
 /**
- * GroupsTree - Sidebar tree navigation for the Groups module
+ * CollectionsTree - Sidebar tree navigation for the Collections module
  *
  * Displays a "Vue d'ensemble" overview button followed by an accordion
- * listing all reference groups with kind badges and entity counts.
+ * listing all reference collections with kind badges and entity counts.
  * Follows the SiteTree pattern from SiteBuilder.tsx.
  */
 
@@ -22,34 +22,34 @@ import type { ReferenceInfo } from '@/hooks/useReferences'
 // TYPES
 // =============================================================================
 
-export type GroupsSelection =
+export type CollectionsSelection =
   | { type: 'overview' }
   | { type: 'api-settings' }
-  | { type: 'group'; name: string }
+  | { type: 'collection'; name: string }
 
-interface GroupsTreeProps {
+interface CollectionsTreeProps {
   references: ReferenceInfo[]
   referencesLoading: boolean
-  selection: GroupsSelection
-  onSelect: (selection: GroupsSelection) => void
+  selection: CollectionsSelection
+  onSelect: (selection: CollectionsSelection) => void
 }
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
-export function GroupsTree({
+export function CollectionsTree({
   references,
   referencesLoading,
   selection,
   onSelect,
-}: GroupsTreeProps) {
+}: CollectionsTreeProps) {
   const { t } = useTranslation(['sources', 'common'])
 
-  const isSelected = (type: GroupsSelection['type'], name?: string) => {
+  const isSelected = (type: CollectionsSelection['type'], name?: string) => {
     if (selection.type !== type) return false
-    if (type === 'group' && name !== undefined) {
-      return selection.type === 'group' && selection.name === name
+    if (type === 'collection' && name !== undefined) {
+      return selection.type === 'collection' && selection.name === name
     }
     return true
   }
@@ -68,21 +68,21 @@ export function GroupsTree({
           onClick={() => onSelect({ type: 'overview' })}
         >
           <Layers className="h-4 w-4" />
-          {t('groups.overview', 'Overview')}
+          {t('collections.overview', 'Overview')}
         </button>
       </div>
 
-      {/* Groups accordion */}
+      {/* Collections accordion */}
       <Accordion
         type="multiple"
-        defaultValue={['groups']}
+        defaultValue={['collections']}
         className="px-2 py-2"
       >
-        <AccordionItem value="groups" className="border-none">
+        <AccordionItem value="collections" className="border-none">
           <AccordionTrigger className="py-2 text-sm hover:no-underline">
             <span className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
-              {t('groups.title', 'Groups')}
+              {t('collections.title', 'Collections')}
               {referencesLoading ? (
                 <Loader2 className="ml-auto h-3 w-3 animate-spin" />
               ) : (
@@ -101,7 +101,7 @@ export function GroupsTree({
                 </div>
               ) : references.length === 0 ? (
                 <p className="px-2 py-1.5 text-xs italic text-muted-foreground">
-                  {t('groups.noGroups', 'No groups')}
+                  {t('collections.noCollections', 'No collections')}
                 </p>
               ) : (
                 references.map((ref, index) => (
@@ -109,11 +109,11 @@ export function GroupsTree({
                     key={`${ref.name}-${index}`}
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                      isSelected('group', ref.name)
+                      isSelected('collection', ref.name)
                         ? 'bg-primary/10 text-primary'
                         : 'hover:bg-muted/50'
                     )}
-                    onClick={() => onSelect({ type: 'group', name: ref.name })}
+                    onClick={() => onSelect({ type: 'collection', name: ref.name })}
                   >
                     <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
                     <span className="flex-1 truncate text-left">
@@ -146,7 +146,7 @@ export function GroupsTree({
           onClick={() => onSelect({ type: 'api-settings' })}
         >
           <FileCode className="h-4 w-4" />
-          {t('groups.apiSettings', 'API settings')}
+          {t('collections.apiSettings', 'API settings')}
         </button>
       </div>
     </div>

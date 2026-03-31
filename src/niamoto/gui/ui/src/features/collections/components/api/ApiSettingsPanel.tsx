@@ -16,7 +16,7 @@ import {
   useUpdateApiExportTargetSettings,
   type ApiExportTargetSummary,
   type ApiExportTargetSettings,
-} from '@/features/groups/hooks/useApiExportConfigs'
+} from '@/features/collections/hooks/useApiExportConfigs'
 
 function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
   const { t } = useTranslation(['sources', 'common'])
@@ -49,14 +49,14 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
     try {
       await saveMutation.mutateAsync(localSettings)
       toast.success(
-        t('groupPanel.api.globalConfigSaved', { exportName: target.name })
+        t('collectionPanel.api.globalConfigSaved', { exportName: target.name })
       )
       await refetch()
     } catch (mutationError) {
       toast.error(
         mutationError instanceof Error
           ? mutationError.message
-          : t('groupPanel.api.saveFailed')
+          : t('collectionPanel.api.saveFailed')
       )
     }
   }
@@ -84,7 +84,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
         <CardHeader>
           <CardTitle>{target.name}</CardTitle>
           <CardDescription className="text-destructive">
-            {error instanceof Error ? error.message : t('groupPanel.api.loadFailed')}
+            {error instanceof Error ? error.message : t('collectionPanel.api.loadFailed')}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -95,7 +95,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
   const outputDir = (localSettings.params as Record<string, string>)?.output_dir ?? ''
   const summaryParts = [
     outputDir ? `→ ${outputDir}` : '',
-    t('groupPanel.api.groupsCount', { count: activeGroups.length }),
+    t('collectionPanel.api.groupsCount', { count: activeGroups.length }),
   ].filter(Boolean)
 
   return (
@@ -106,11 +106,11 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
             <div className="flex items-center gap-2">
               <CardTitle className="text-base">{target.name}</CardTitle>
               <Badge variant="secondary" className="text-[10px]">
-                {t('groupPanel.api.groupsCount', { count: activeGroups.length })}
+                {t('collectionPanel.api.groupsCount', { count: activeGroups.length })}
               </Badge>
               {isDirty && (
                 <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
-                  {t('groupPanel.api.unsaved')}
+                  {t('collectionPanel.api.unsaved')}
                 </Badge>
               )}
             </div>
@@ -120,7 +120,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <Label className="text-sm">{t('groupPanel.api.enabledGlobally')}</Label>
+            <Label className="text-sm">{t('collectionPanel.api.enabledGlobally')}</Label>
             <Switch
               checked={localSettings.enabled}
               onCheckedChange={(enabled) =>
@@ -172,7 +172,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
         {activeGroups.length > 0 && (
           <div className="rounded-lg border border-dashed p-3">
             <p className="mb-2 text-xs font-medium text-muted-foreground">
-              {t('groupPanel.api.groupsCount', { count: activeGroups.length })}
+              {t('collectionPanel.api.groupsCount', { count: activeGroups.length })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {activeGroups.map((g) => (
@@ -210,7 +210,7 @@ export function ApiSettingsPanel() {
   if (error) {
     return (
       <div className="rounded-lg border border-dashed p-6 text-sm text-destructive">
-        {error instanceof Error ? error.message : t('groupPanel.api.loadFailed')}
+        {error instanceof Error ? error.message : t('collectionPanel.api.loadFailed')}
       </div>
     )
   }
@@ -218,15 +218,15 @@ export function ApiSettingsPanel() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold">{t('groupPanel.api.globalSettings')}</h1>
+        <h1 className="text-2xl font-bold">{t('collectionPanel.api.globalSettings')}</h1>
         <p className="mt-1 text-muted-foreground">
-          {t('groupPanel.api.globalSettingsDescription')}
+          {t('collectionPanel.api.globalSettingsDescription')}
         </p>
       </div>
 
       {!targets || targets.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-          {t('groupPanel.api.empty')}
+          {t('collectionPanel.api.empty')}
         </div>
       ) : (
         targets.map((target) => (

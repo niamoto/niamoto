@@ -1,5 +1,6 @@
 # Niamoto
 test-instance/
+.superpowers/
 
 # Database files (test artifacts)
 *.db

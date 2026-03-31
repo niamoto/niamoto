@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { StageCard } from "./StageCard"
 import { DataSummary } from "./summaries/DataSummary"
-import { GroupsSummary } from "./summaries/GroupsSummary"
+import { CollectionsSummary } from "./summaries/CollectionsSummary"
 import { SiteSummary } from "./summaries/SiteSummary"
 import { PublicationSummary } from "./summaries/PublicationSummary"
 
@@ -104,7 +104,7 @@ export function DashboardView() {
 
         <StageCard
           icon={<Layers className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
-          title={t("sidebar.nav.groups", "Groups")}
+          title={t("sidebar.nav.collections", "Collections")}
           stage={pipeline.groups}
           path="/groups"
           borderColor="border-l-amber-500"
@@ -112,7 +112,7 @@ export function DashboardView() {
           actionLabel={t("pipeline.action_recalculate", "Recalculate")}
           onAction={() => navigate("/groups")}
         >
-          <GroupsSummary
+          <CollectionsSummary
             items={
               pipeline.groups.items?.map((item) => ({
                 name: item.name,

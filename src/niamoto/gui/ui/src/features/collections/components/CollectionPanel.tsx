@@ -1,26 +1,22 @@
 /**
- * Group Panel - Widget Configuration for a Reference
+ * Collection Panel - Configuration for a Reference
  *
- * Three tabs (Option A: Hybride):
- * - Sources de donnees: Configure data sources (occurrences + stats files)
- * - Contenu: Widget management with contextual panel (list + layout/details)
+ * Three tabs:
+ * - Blocs: Widget management with contextual panel (list + layout/details)
  * - Liste: Index/listing page configuration
+ * - Export: API export configuration
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
+import { Package, Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
-import { useSources, useRemoveSource } from '@/features/groups/hooks/useSources'
-import { SourcesList } from '@/features/groups/components/sources/SourcesList'
-import { AddSourceDialog } from '@/features/groups/components/sources/AddSourceDialog'
-import { ApiExportsTab } from '@/features/groups/components/api/ApiExportsTab'
+import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
 import { useConfiguredWidgets } from '@/components/widgets'
@@ -33,13 +29,13 @@ import {
 } from '@/lib/api/transform'
 import { getActiveExportJob } from '@/lib/api/export'
 
-interface GroupPanelProps {
+interface CollectionPanelProps {
   reference: ReferenceInfo
 }
 
-export function GroupPanel({ reference }: GroupPanelProps) {
+export function CollectionPanel({ reference }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const [activeTab, setActiveTab] = useState('sources')
+  const [activeTab, setActiveTab] = useState('content')
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
 
   // Transform job state
@@ -55,9 +51,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
-    hierarchical: t('groupPanel.kinds.hierarchical'),
-    generic: t('groupPanel.kinds.flat'),
-    spatial: t('groupPanel.kinds.spatial'),
+    hierarchical: t('collectionPanel.kinds.hierarchical'),
+    generic: t('collectionPanel.kinds.flat'),
+    spatial: t('collectionPanel.kinds.spatial'),
   }
 
   // Stop any active polling
@@ -91,9 +87,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
           setTransformMessage('')
           if (status.status === 'completed') {
             setLastRun(status)
-            toast.success(t('groupPanel.transform.successToast', { name: reference.name }))
+            toast.success(t('collectionPanel.transform.successToast', { name: reference.name }))
           } else {
-            toast.error(status.error || t('groupPanel.transform.failedToast'))
+            toast.error(status.error || t('collectionPanel.transform.failedToast'))
           }
         }
       } catch {
@@ -118,7 +114,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       })
       .catch(() => {})
 
-    // Check if a transform is already running for THIS group
+    // Check if a transform is already running for THIS collection
     getActiveTransformJob()
       .then((job) => {
         if (cancelledRef.current) return
@@ -130,7 +126,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       })
       .catch(() => {})
 
-    // Check if an export or transform on another group is running (disable button)
+    // Check if an export or transform on another collection is running (disable button)
     getActiveExportJob()
       .then((job) => {
         if (cancelledRef.current) return
@@ -138,7 +134,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       })
       .catch(() => {})
 
-    // Also disable if a transform is running on a different group
+    // Also disable if a transform is running on a different collection
     getActiveTransformJob()
       .then((job) => {
         if (cancelledRef.current) return
@@ -156,14 +152,14 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 
   const runTransform = useCallback(async () => {
     if (configuredIds.length === 0) {
-      toast.error(t('groupPanel.transform.noWidgetsConfigured'))
+      toast.error(t('collectionPanel.transform.noWidgetsConfigured'))
       return
     }
 
     ownedByRunTransformRef.current = true
     setIsTransforming(true)
     setTransformProgress(0)
-    setTransformMessage(t('groupPanel.transform.starting'))
+    setTransformMessage(t('collectionPanel.transform.starting'))
 
     try {
       const result = await executeTransformAndWait(
@@ -174,9 +170,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
         }
       )
       setLastRun(result)
-      toast.success(t('groupPanel.transform.successToast', { name: reference.name }))
+      toast.success(t('collectionPanel.transform.successToast', { name: reference.name }))
     } catch (error) {
-      toast.error(t('groupPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }))
+      toast.error(t('collectionPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }))
     } finally {
       ownedByRunTransformRef.current = false
       setIsTransforming(false)
@@ -192,9 +188,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   const cannotRunWithoutWidgets = !widgetsLoading && configuredIds.length === 0
   const runButtonDisabled = isTransforming || exportRunning || widgetsLoading || cannotRunWithoutWidgets
   const runButtonTitle = exportRunning
-    ? t('groupPanel.transform.exportRunning')
+    ? t('collectionPanel.transform.exportRunning')
     : cannotRunWithoutWidgets
-      ? t('groupPanel.transform.noWidgetsTooltip')
+      ? t('collectionPanel.transform.noWidgetsTooltip')
       : undefined
 
   return (
@@ -245,12 +241,12 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               {isTransforming ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('groupPanel.transform.running', { progress: transformProgress })}
+                  {t('collectionPanel.transform.running', { progress: transformProgress })}
                 </>
               ) : (
                 <>
                   <Play className="mr-2 h-4 w-4" />
-                  {t('groupPanel.transform.trigger')}
+                  {t('collectionPanel.transform.trigger')}
                 </>
               )}
             </Button>
@@ -266,46 +262,35 @@ export function GroupPanel({ reference }: GroupPanelProps) {
         )}
       </div>
 
-      {/* Tabs - Option A: Hybride (3 onglets) */}
+      {/* Tabs - 3 tabs: Blocs / Liste / Export */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="border-b px-6">
           <TabsList className="h-10 w-fit gap-1 bg-muted/50 p-1 rounded-lg">
-            <TabsTrigger
-              value="sources"
-              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-            >
-              <Database className="mr-2 h-4 w-4" />
-              {t('groupPanel.tabs.sources')}
-            </TabsTrigger>
             <TabsTrigger
               value="content"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <LayoutGrid className="mr-2 h-4 w-4" />
-              {t('groupPanel.tabs.content')}
+              {t('collectionPanel.tabs.blocks')}
             </TabsTrigger>
             <TabsTrigger
               value="index"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <ListOrdered className="mr-2 h-4 w-4" />
-              {t('groupPanel.tabs.index')}
+              {t('collectionPanel.tabs.list')}
             </TabsTrigger>
             <TabsTrigger
               value="api"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <FileCode className="mr-2 h-4 w-4" />
-              {t('groupPanel.tabs.api')}
+              {t('collectionPanel.tabs.export')}
             </TabsTrigger>
           </TabsList>
         </div>
 
         {/* Tab Content */}
-        <TabsContent value="sources" className="flex-1 m-0 p-6 overflow-auto">
-          <SourcesTab reference={reference} />
-        </TabsContent>
-
         <TabsContent value="content" className="flex-1 m-0 overflow-hidden">
           <ContentTab reference={reference} />
         </TabsContent>
@@ -322,123 +307,6 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   )
 }
 
-function SourcesTab({ reference }: { reference: ReferenceInfo }) {
-  const { t } = useTranslation(['sources', 'common'])
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
-
-  // Fetch configured sources
-  const { data: sourcesData, isLoading: sourcesLoading } = useSources(reference.name)
-  const sources = sourcesData?.sources ?? []
-
-  // Remove source mutation
-  const removeMutation = useRemoveSource(reference.name)
-
-  const handleRemoveSource = (sourceName: string) => {
-    removeMutation.mutate(sourceName)
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-medium">{t('groupPanel.sourcesTab.title')}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t('groupPanel.sourcesTab.description', { name: reference.name })}
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Primary source - occurrences */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('groupPanel.sourcesTab.primarySource')}</CardTitle>
-            <CardDescription>
-              {t('groupPanel.sourcesTab.primarySourceDesc')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md bg-muted p-3">
-              <p className="font-mono text-sm">{t('groupPanel.sourcesTab.occurrences')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t('groupPanel.sourcesTab.relation')}: {reference.kind === 'hierarchical' ? t('groupPanel.sourcesTab.nestedSet') : t('groupPanel.sourcesTab.directReference')}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pre-calculated sources */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">{t('groupPanel.sourcesTab.precomputed')}</CardTitle>
-              <CardDescription>
-                {t('groupPanel.sourcesTab.precomputedDesc')}
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddDialogOpen(true)}
-            >
-              <Plus className="mr-1 h-3 w-3" />
-              {t('common:actions.add')}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {sourcesLoading ? (
-              <div className="flex min-h-[60px] items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <SourcesList
-                sources={sources}
-                onRemove={handleRemoveSource}
-                isRemoving={removeMutation.isPending}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Schema fields */}
-      {reference.schema_fields.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('groupPanel.sourcesTab.schemaFields')}</CardTitle>
-            <CardDescription>
-              {t('groupPanel.sourcesTab.schemaFieldsDesc')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 md:grid-cols-3">
-              {reference.schema_fields.map((field) => (
-                <div
-                  key={field.name}
-                  className="flex items-center justify-between rounded-md bg-muted p-2"
-                >
-                  <span className="font-mono text-sm">{field.name}</span>
-                  {field.type && (
-                    <Badge variant="outline" className="text-xs">
-                      {field.type}
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Add Source Dialog */}
-      <AddSourceDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
-        referenceName={reference.name}
-        onSuccess={() => setAddDialogOpen(false)}
-      />
-    </div>
-  )
-}
-
 function IndexTab({ reference }: { reference: ReferenceInfo }) {
   return (
     <div className="h-[calc(100vh-280px)]">
@@ -450,10 +318,10 @@ function IndexTab({ reference }: { reference: ReferenceInfo }) {
 function formatRelativeTime(isoDate: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(isoDate).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return t('groupPanel.relativeTime.justNow')
-  if (minutes < 60) return t('groupPanel.relativeTime.minutesAgo', { count: minutes })
+  if (minutes < 1) return t('collectionPanel.relativeTime.justNow')
+  if (minutes < 60) return t('collectionPanel.relativeTime.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return t('groupPanel.relativeTime.hoursAgo', { count: hours })
+  if (hours < 24) return t('collectionPanel.relativeTime.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return t('groupPanel.relativeTime.daysAgo', { count: days })
+  return t('collectionPanel.relativeTime.daysAgo', { count: days })
 }

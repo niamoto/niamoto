@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/collapsible'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ConfiguredSource } from '@/features/groups/hooks/useSources'
+import type { ConfiguredSource } from '@/features/collections/hooks/useSources'
 
 interface SourcesListProps {
   sources: ConfiguredSource[]

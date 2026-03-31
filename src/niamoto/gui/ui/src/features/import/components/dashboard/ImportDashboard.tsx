@@ -94,7 +94,7 @@ type GroupStatusKey =
   | 'enrichmentConfigured'
   | 'readyForPages'
 
-interface DashboardGroup extends ReferenceInfo {
+interface DashboardCollection extends ReferenceInfo {
   metrics?: {
     row_count: number
     column_count: number
@@ -103,7 +103,7 @@ interface DashboardGroup extends ReferenceInfo {
   issueCount: number
 }
 
-function getGroupIcon(kind?: ReferenceInfo['kind']) {
+function getCollectionIcon(kind?: ReferenceInfo['kind']) {
   switch (kind) {
     case 'hierarchical':
       return GitBranch
@@ -128,10 +128,10 @@ function getAggregationKindLabel(
   }
 }
 
-function getGroupStatus(group: DashboardGroup): GroupStatusKey {
-  if (group.issueCount > 0) return 'needsReview'
-  if (group.can_enrich && !group.enrichment_enabled) return 'enrichmentAvailable'
-  if (group.enrichment_enabled) return 'enrichmentConfigured'
+function getCollectionStatus(collection: DashboardCollection): GroupStatusKey {
+  if (collection.issueCount > 0) return 'needsReview'
+  if (collection.can_enrich && !collection.enrichment_enabled) return 'enrichmentAvailable'
+  if (collection.enrichment_enabled) return 'enrichmentConfigured'
   return 'readyForPages'
 }
 
@@ -146,25 +146,25 @@ function statusBadgeVariant(status: GroupStatusKey) {
   }
 }
 
-interface CompactGroupOverviewItemProps {
-  group: DashboardGroup
+interface CompactCollectionOverviewItemProps {
+  collection: DashboardCollection
   t: (key: string, defaultValue?: string, options?: Record<string, unknown>) => string
   onExploreReference?: (name: string) => void
   onOpenGroup?: (name: string) => void
   onOpenEnrichment?: (reference: ReferenceInfo) => void
 }
 
-function CompactGroupOverviewItem({
-  group,
+function CompactCollectionOverviewItem({
+  collection,
   t,
   onExploreReference,
   onOpenGroup,
   onOpenEnrichment,
-}: CompactGroupOverviewItemProps) {
-  const Icon = getGroupIcon(group.kind)
-  const status = getGroupStatus(group)
+}: CompactCollectionOverviewItemProps) {
+  const Icon = getCollectionIcon(collection.kind)
+  const status = getCollectionStatus(collection)
   const statusLabel = t(
-    `dashboard.groupStatus.${status}`,
+    `dashboard.collectionStatus.${status}`,
     {
       needsReview: 'Needs review',
       enrichmentAvailable: 'Enrichment available',
@@ -177,7 +177,7 @@ function CompactGroupOverviewItem({
     status === 'needsReview'
       ? {
           label: t('dashboard.actions.review', 'Review'),
-          onClick: () => onExploreReference?.(group.name),
+          onClick: () => onExploreReference?.(collection.name),
           disabled: !onExploreReference,
         }
       : status === 'enrichmentAvailable' || status === 'enrichmentConfigured'
@@ -186,12 +186,12 @@ function CompactGroupOverviewItem({
               status === 'enrichmentConfigured'
                 ? t('dashboard.actions.manageEnrichment', 'Manage enrichment')
                 : t('dashboard.actions.configureEnrichment', 'Configure enrichment'),
-            onClick: () => onOpenEnrichment?.(group),
+            onClick: () => onOpenEnrichment?.(collection),
             disabled: !onOpenEnrichment,
           }
         : {
-            label: t('dashboard.actions.openGroup', 'Open group'),
-            onClick: () => onOpenGroup?.(group.name),
+            label: t('dashboard.actions.openCollection', 'Open collection'),
+            onClick: () => onOpenGroup?.(collection.name),
             disabled: !onOpenGroup,
           }
 
@@ -205,34 +205,34 @@ function CompactGroupOverviewItem({
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold">{group.name}</h3>
+                <h3 className="text-base font-semibold">{collection.name}</h3>
                 <Badge variant="outline">
-                  {getAggregationKindLabel(t, group.kind)}
+                  {getAggregationKindLabel(t, collection.kind)}
                 </Badge>
                 <Badge variant={statusBadgeVariant(status)}>{statusLabel}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground">{group.table_name}</p>
+              <p className="text-sm text-muted-foreground">{collection.table_name}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span>
               {t('dashboard.rows', '{{count}} rows', {
-                count: group.metrics?.row_count ?? group.entity_count ?? 0,
+                count: collection.metrics?.row_count ?? collection.entity_count ?? 0,
               })}
             </span>
             <span className="text-muted-foreground/60">•</span>
             <span>
               {t('dashboard.fields', '{{count}} fields', {
-                count: group.metrics?.column_count ?? group.schema_fields?.length ?? 0,
+                count: collection.metrics?.column_count ?? collection.schema_fields?.length ?? 0,
               })}
             </span>
-            {group.issueCount > 0 && (
+            {collection.issueCount > 0 && (
               <>
                 <span className="text-muted-foreground/60">•</span>
                 <span>
-                  {t('dashboard.groupStatus.reviewCount', '{{count}} items to review', {
-                    count: group.issueCount,
+                  {t('dashboard.collectionStatus.reviewCount', '{{count}} items to review', {
+                    count: collection.issueCount,
                   })}
                 </span>
               </>
@@ -245,14 +245,14 @@ function CompactGroupOverviewItem({
             {primaryAction.label}
           </Button>
           {status !== 'needsReview' && onExploreReference && (
-            <Button variant="ghost" onClick={() => onExploreReference(group.name)}>
+            <Button variant="ghost" onClick={() => onExploreReference(collection.name)}>
               <Search className="mr-2 h-4 w-4" />
               {t('dashboard.actions.details', 'Details')}
             </Button>
           )}
           {status !== 'readyForPages' && onOpenGroup && (
-            <Button variant="ghost" onClick={() => onOpenGroup(group.name)}>
-              {t('dashboard.actions.openGroup', 'Open group')}
+            <Button variant="ghost" onClick={() => onOpenGroup(collection.name)}>
+              {t('dashboard.actions.openCollection', 'Open collection')}
             </Button>
           )}
         </div>
@@ -353,7 +353,7 @@ export function ImportDashboard({
     [datasets]
   )
 
-  const aggregationGroups = useMemo<DashboardGroup[]>(
+  const aggregationCollections = useMemo<DashboardCollection[]>(
     () =>
       references.map((reference) => {
         const metrics =
@@ -538,18 +538,18 @@ export function ImportDashboard({
   }
 
   const issueCount = summary.alerts.length
-  const enrichableGroups = aggregationGroups.filter((group) => group.can_enrich)
+  const enrichableGroups = aggregationCollections.filter((group) => group.can_enrich)
   const configuredEnrichmentCount = enrichableGroups.filter(
     (group) => group.enrichment_enabled
   ).length
-  const reviewGroups = aggregationGroups.filter(
-    (group) => getGroupStatus(group) === 'needsReview'
+  const reviewCollections = aggregationCollections.filter(
+    (collection) => getCollectionStatus(collection) === 'needsReview'
   )
-  const enrichmentGroups = aggregationGroups.filter(
-    (group) => getGroupStatus(group) === 'enrichmentAvailable'
+  const enrichmentCollections = aggregationCollections.filter(
+    (collection) => getCollectionStatus(collection) === 'enrichmentAvailable'
   )
-  const readyForPagesGroups = aggregationGroups.filter(
-    (group) => getGroupStatus(group) === 'readyForPages' || getGroupStatus(group) === 'enrichmentConfigured'
+  const readyForPagesCollections = aggregationCollections.filter(
+    (collection) => getCollectionStatus(collection) === 'readyForPages' || getCollectionStatus(collection) === 'enrichmentConfigured'
   )
   const defaultVerifyTool: ToolKey = issueCount > 0 ? 'validation' : 'completeness'
 
@@ -675,8 +675,8 @@ export function ImportDashboard({
               <div className="space-y-3">
                 {enrichableGroups.slice(0, 3).map((group) => {
                   const status = group.enrichment_enabled
-                    ? t('dashboard.groupStatus.enrichmentConfigured', 'Enrichment configured')
-                    : t('dashboard.groupStatus.enrichmentAvailable', 'Enrichment available')
+                    ? t('dashboard.collectionStatus.enrichmentConfigured', 'Enrichment configured')
+                    : t('dashboard.collectionStatus.enrichmentAvailable', 'Enrichment available')
 
                   return (
                     <div
@@ -727,7 +727,7 @@ export function ImportDashboard({
                   <CardDescription>
                     {t(
                       'dashboard.missionControl.prepare.description',
-                      'Move into Groups to choose widgets, sources, and index pages for each group.'
+                      'Move into Collections to choose widgets, sources, and index pages for each collection.'
                     )}
                   </CardDescription>
                 </div>
@@ -735,9 +735,9 @@ export function ImportDashboard({
               <Badge variant="outline">
                 {tt(
                   'dashboard.missionControl.prepare.summary',
-                  '{{count}} groups available',
+                  '{{count}} collections available',
                   {
-                    count: aggregationGroups.length,
+                    count: aggregationCollections.length,
                   }
                 )}
               </Badge>
@@ -745,8 +745,8 @@ export function ImportDashboard({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              {aggregationGroups.slice(0, 3).map((group) => {
-                const status = getGroupStatus(group)
+              {aggregationCollections.slice(0, 3).map((group) => {
+                const status = getCollectionStatus(group)
                 return (
                   <button
                     key={group.name}
@@ -759,7 +759,7 @@ export function ImportDashboard({
                       <div className="font-medium">{group.name}</div>
                       <div className="text-sm text-muted-foreground">
                         {t(
-                          `dashboard.groupStatus.${status}`,
+                          `dashboard.collectionStatus.${status}`,
                           {
                             needsReview: 'Needs review',
                             enrichmentAvailable: 'Enrichment available',
@@ -777,7 +777,7 @@ export function ImportDashboard({
 
             {onOpenGroups && (
               <Button onClick={onOpenGroups}>
-                {t('dashboard.actions.openGroups', 'Open Groups')}
+                {t('dashboard.actions.openCollections', 'Open Collections')}
               </Button>
             )}
           </CardContent>
@@ -820,43 +820,43 @@ export function ImportDashboard({
       <section className="space-y-4">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">
-            {t('dashboard.groupOverview.title', 'Groups overview')}
+            {t('dashboard.collectionOverview.title', 'Collections overview')}
           </h2>
           <p className="text-sm text-muted-foreground">
             {t(
-              'dashboard.groupOverview.description',
-              'Keep the imported groups visible, but focus each one on its current status and the next useful action.'
+              'dashboard.collectionOverview.description',
+              'Keep the imported collections visible, but focus each one on its current status and the next useful action.'
             )}
           </p>
         </div>
 
-        {(reviewGroups.length > 0 || enrichmentGroups.length > 0 || readyForPagesGroups.length > 0) && (
+        {(reviewCollections.length > 0 || enrichmentCollections.length > 0 || readyForPagesCollections.length > 0) && (
           <div className="flex flex-wrap gap-2">
-            {reviewGroups.length > 0 && (
+            {reviewCollections.length > 0 && (
               <Badge variant="secondary">
-                {tt('dashboard.groupOverview.reviewSummary', '{{count}} need review', {
-                  count: reviewGroups.length,
+                {tt('dashboard.collectionOverview.reviewSummary', '{{count}} need review', {
+                  count: reviewCollections.length,
                 })}
               </Badge>
             )}
-            {enrichmentGroups.length > 0 && (
+            {enrichmentCollections.length > 0 && (
               <Badge variant="outline">
                 {tt(
-                  'dashboard.groupOverview.enrichmentSummary',
+                  'dashboard.collectionOverview.enrichmentSummary',
                   '{{count}} have enrichment available',
                   {
-                    count: enrichmentGroups.length,
+                    count: enrichmentCollections.length,
                   }
                 )}
               </Badge>
             )}
-            {readyForPagesGroups.length > 0 && (
+            {readyForPagesCollections.length > 0 && (
               <Badge variant="outline">
                 {tt(
-                  'dashboard.groupOverview.readySummary',
+                  'dashboard.collectionOverview.readySummary',
                   '{{count}} ready for pages',
                   {
-                    count: readyForPagesGroups.length,
+                    count: readyForPagesCollections.length,
                   }
                 )}
               </Badge>
@@ -865,10 +865,10 @@ export function ImportDashboard({
         )}
 
         <div className="space-y-3">
-          {aggregationGroups.map((group) => (
-            <CompactGroupOverviewItem
-              key={group.name}
-              group={group}
+          {aggregationCollections.map((collection) => (
+            <CompactCollectionOverviewItem
+              key={collection.name}
+              collection={collection}
               t={(key, defaultValue, options) =>
                 t(key, { defaultValue, ...(options ?? {}) })
               }

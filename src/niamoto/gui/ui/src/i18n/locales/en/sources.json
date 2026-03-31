@@ -255,24 +255,24 @@
     "analysisInProgress": "Analysis in progress...",
     "runSpatialAnalysis": "Run spatial analysis"
   },
-  "groups": {
-    "title": "Groups",
-    "description": "Configure widgets and transformations for each reference group.",
+  "collections": {
+    "title": "Collections",
+    "description": "Configure widgets and transformations for each reference collection.",
     "apiSettings": "API settings",
-    "noGroups": "No groups available",
-    "noGroupsHint": "Import references first to configure their widgets.",
+    "noCollections": "No collections available",
+    "noCollectionsHint": "Import references first to configure their widgets.",
     "importData": "Import data",
     "table": "Table",
-    "notFound": "Group not found",
-    "notFoundDesc": "Group \"{{name}}\" does not exist.",
-    "backToGroups": "Back to groups",
+    "notFound": "Collection not found",
+    "notFoundDesc": "Collection \"{{name}}\" does not exist.",
+    "backToCollections": "Back to collections",
     "overview": "Overview",
     "widgets": "Widgets",
     "index": "Index",
     "noIndex": "No index configured",
-    "noGroupsConfigured": "No groups configured",
+    "noCollectionsConfigured": "No collections configured",
     "configureInExport": "Configure in export settings",
-    "groupsDefinedInExport": "Groups defined in export configuration"
+    "collectionsDefinedInExport": "Collections defined in export configuration"
   },
   "tree": {
     "datasets": "Datasets",
@@ -289,14 +289,14 @@
   },
   "dashboard": {
     "title": "Imported data",
-    "description": "Explore the aggregation groups and supporting sources now available in your workspace.",
+    "description": "Explore the aggregation collections and supporting sources now available in your workspace.",
     "noData": "No data imported",
     "noDataHint": "Start by importing your data files to inspect their structure and begin exploring them.",
     "importData": "Import data",
     "import": "Import",
     "importedWorkspace": "Imported workspace",
     "workspaceTitle": "Explore what your import made available",
-    "workspaceDescription": "Aggregation groups are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these groups, then inspect the supporting sources when you need more detail.",
+    "workspaceDescription": "Aggregation collections are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these collections, then inspect the supporting sources when you need more detail.",
     "emptyState": {
       "badge": "Data workspace",
       "title": "Import your data",
@@ -328,17 +328,17 @@
       },
       "prepare": {
         "title": "Prepare static pages",
-        "description": "Move into Groups to choose widgets, sources, and index pages for each group.",
-        "summary": "{{count}} groups available"
+        "description": "Move into Collections to choose widgets, sources, and index pages for each collection.",
+        "summary": "{{count}} collections available"
       },
       "supportingSourcesDescription": "Raw datasets and imported layers remain available for direct inspection, updates, and configuration changes."
     },
     "needsAttention": "Needs attention",
-    "aggregationGroupsTitle": "Aggregation groups",
-    "aggregationGroupsDescription": "These groups now structure the pages, navigation, and enrichment workflows you can build from this import.",
-    "groupOverview": {
-      "title": "Groups overview",
-      "description": "Keep the imported groups visible, but focus each one on its current status and the next useful action.",
+    "aggregationCollectionsTitle": "Aggregation collections",
+    "aggregationCollectionsDescription": "These collections now structure the pages, navigation, and enrichment workflows you can build from this import.",
+    "collectionOverview": {
+      "title": "Collections overview",
+      "description": "Keep the imported collections visible, but focus each one on its current status and the next useful action.",
       "reviewSummary": "{{count}} need review",
       "enrichmentSummary": "{{count}} have enrichment available",
       "readySummary": "{{count}} ready for pages"
@@ -366,8 +366,8 @@
       "explore": "Explore",
       "review": "Review",
       "details": "Details",
-      "openGroup": "Open group",
-      "openGroups": "Open Groups",
+      "openCollection": "Open collection",
+      "openCollections": "Open Collections",
       "editConfig": "Edit config",
       "updateFile": "Update file",
       "updateLayer": "Update file",
@@ -384,9 +384,9 @@
       "layer": "Layer"
     },
     "aggregationDescriptions": {
-      "hierarchical": "Use this group to navigate a hierarchy of related entities and generate structured pages from it.",
-      "spatial": "Use this group to organize observations by mapped areas or geographic zones.",
-      "generic": "Use this group as a stable reference around which related observations can be aggregated."
+      "hierarchical": "Use this collection to navigate a hierarchy of related entities and generate structured pages from it.",
+      "spatial": "Use this collection to organize observations by mapped areas or geographic zones.",
+      "generic": "Use this collection as a stable reference around which related observations can be aggregated."
     },
     "card": {
       "rows": "Rows",
@@ -401,7 +401,7 @@
       "enrichmentAvailable": "Enrichment available",
       "enrichmentEnabled": "Enrichment enabled"
     },
-    "groupStatus": {
+    "collectionStatus": {
       "needsReview": "Needs review",
       "enrichmentAvailable": "Enrichment available",
       "enrichmentConfigured": "Enrichment configured",
@@ -414,9 +414,9 @@
       "enrichmentTitle": "Enrich this reference from external APIs",
       "enrichmentDescription": "Use API enrichment to extend this reference with additional external data before you generate pages or widgets from it.",
       "enrichmentConfiguredTitle": "This reference already has an enrichment workflow",
-      "enrichmentConfiguredDescription": "Review or refine the API enrichment settings before regenerating pages and widgets from this group.",
-      "exploreTitle": "This group is ready to use",
-      "exploreDescription": "You can explore this imported reference directly or open its generated group page when you are ready."
+      "enrichmentConfiguredDescription": "Review or refine the API enrichment settings before regenerating pages and widgets from this collection.",
+      "exploreTitle": "This collection is ready to use",
+      "exploreDescription": "You can explore this imported reference directly or open its generated collection page when you are ready."
     },
     "enrichment": {
       "sheetTitle": "Enrichment · {{name}}",
@@ -438,7 +438,7 @@
       },
       "taxonomy": {
         "title": "Taxonomy checks",
-        "description": "Inspect hierarchy consistency and spot structural issues in taxonomic groups."
+        "description": "Inspect hierarchy consistency and spot structural issues in taxonomic collections."
       },
       "coverage": {
         "title": "Spatial coverage",
@@ -604,12 +604,12 @@
       "genericErrorTitle": "Error"
     }
   },
-  "groupPanel": {
+  "collectionPanel": {
     "tabs": {
       "sources": "Data sources",
-      "content": "Content",
-      "index": "List",
-      "api": "API"
+      "blocks": "Blocks",
+      "list": "List",
+      "export": "Export"
     },
     "kinds": {
       "hierarchical": "Hierarchical",
@@ -618,7 +618,7 @@
     },
     "sourcesTab": {
       "title": "Data sources",
-      "description": "Configure data sources for the \"{{name}}\" group.",
+      "description": "Configure data sources for the \"{{name}}\" collection.",
       "primarySource": "Primary source",
       "primarySourceDesc": "Data table linked to this reference",
       "occurrences": "occurrences",
@@ -649,36 +649,36 @@
     },
     "api": {
       "title": "Static API exports",
-      "description": "Configure JSON and standards-based exports for the \"{{groupBy}}\" group.",
+      "description": "Configure JSON and standards-based exports for the \"{{groupBy}}\" collection.",
       "globalSettings": "Global API settings",
       "globalSettingsDescription": "Manage the shared settings of static JSON export targets here.",
-      "enabledForGroup": "Enabled for this group",
+      "enabledForGroup": "Enabled for this collection",
       "enabledGlobally": "Enabled globally",
-      "disabledForGroup": "This export is not enabled for this group yet. Enable it to manage its JSON or standards output.",
+      "disabledForGroup": "This export is not enabled for this collection yet. Enable it to manage its JSON or standards output.",
       "globallyDisabled": "Global target disabled",
       "unsaved": "Unsaved changes",
       "empty": "No static API export targets are configured in export.yml.",
       "loadFailed": "Failed to load the API configuration.",
       "saveFailed": "Failed to save the API configuration.",
-      "groupConfigSaved": "{{exportName}} saved for group {{groupBy}}",
+      "groupConfigSaved": "{{exportName}} saved for collection {{groupBy}}",
       "globalConfigSaved": "{{exportName}} saved",
-      "targetDescription": "Manage the \"{{exportName}}\" output for the \"{{groupBy}}\" group.",
+      "targetDescription": "Manage the \"{{exportName}}\" output for the \"{{groupBy}}\" collection.",
       "globalTargetDescription": "Manage the shared settings for the \"{{exportName}}\" target.",
-      "groupsCount_one": "{{count}} group",
-      "groupsCount_other": "{{count}} groups",
+      "collectionsCount_one": "{{count}} collection",
+      "collectionsCount_other": "{{count}} collections",
       "dataSource": "Data source",
-      "dataSourcePlaceholder": "Leave empty to use the current group",
+      "dataSourcePlaceholder": "Leave empty to use the current collection",
       "dataSourceHelp": "Optional. Overrides the logical source used by this export.",
       "passThrough": "Export all transformed data",
-      "passThroughHelp": "When enabled, the detail JSON files reuse the group's transformed payload directly.",
+      "passThroughHelp": "When enabled, the detail JSON files reuse the collection's transformed payload directly.",
       "detailFields": "Detail JSON fields",
       "detailFieldsHelp": "Describe the fields to expose in detail files when pass-through is disabled.",
       "indexFields": "Index JSON fields",
-      "indexFieldsHelp": "Choose the fields exported in the index file for this group.",
+      "indexFieldsHelp": "Choose the fields exported in the index file for this collection.",
       "transformerParams": "Transformer parameters",
       "dwcMapping": "Darwin Core mapping",
       "dwcMappingHelp": "Map each Darwin Core term to a static value, a data reference, or a generator.",
-      "dwcReferenceHelp": "Use @source.field for occurrence fields and @taxon.field for current group data.",
+      "dwcReferenceHelp": "Use @source.field for occurrence fields and @taxon.field for current collection data.",
       "mappingTermFallback": "Term {{index}}",
       "moveMappingUp": "Move mapping up",
       "moveMappingDown": "Move mapping down",
@@ -721,7 +721,7 @@
         "generatorParams": "Generator params (JSON)"
       },
       "jsonOverrides": "Advanced format options",
-      "jsonOverridesHelp": "Optional JSON settings that override the global target values for this group.",
+      "jsonOverridesHelp": "Optional JSON settings that override the global target values for this collection.",
       "fieldCount": "{{count}} fields",
       "termCount": "{{count}} terms",
       "sectionDefault": "default",
@@ -729,23 +729,23 @@
         "simplePassThrough": "Simple JSON export — all transformed data. {{count}} entries.",
         "simpleFields": "JSON export — {{fieldCount}} selected fields. {{count}} entries.",
         "dwc": "Darwin Core (GBIF) — {{termCount}} mapped terms. {{count}} entries.",
-        "disabled": "This export is disabled for this group."
+        "disabled": "This export is disabled for this collection."
       },
       "sectionHelp": {
-        "indexFields": "These fields appear in the listing file for the \"{{groupBy}}\" group.",
-        "detailFields": "Each entry in the \"{{groupBy}}\" group gets its own JSON file with this data.",
+        "indexFields": "These fields appear in the listing file for the \"{{groupBy}}\" collection.",
+        "detailFields": "Each entry in the \"{{groupBy}}\" collection gets its own JSON file with this data.",
         "dwcMapping": "Darwin Core is the international standard for sharing biodiversity data with GBIF and other networks.",
         "advancedOptions": "JSON formatting, data source override, and other technical settings."
       },
       "wizard": {
         "title": "Add an export format",
-        "description": "Configure a new export for the \"{{groupBy}}\" group.",
+        "description": "Configure a new export for the \"{{groupBy}}\" collection.",
         "addFormat": "Add an export format",
         "stepType": "Type",
         "stepContent": "Content",
         "stepConfirm": "Confirm",
-        "existingTargets": "Existing targets (not yet active for this group)",
-        "activateDescription": "Activate this existing export for the current group",
+        "existingTargets": "Existing targets (not yet active for this collection)",
+        "activateDescription": "Activate this existing export for the current collection",
         "createNew": "Create a new format",
         "simpleTitle": "Simple JSON export",
         "simpleDescription": "Publish all your transformed data as-is",
@@ -756,12 +756,12 @@
         "targetNameHelp": "Lowercase letters, numbers and underscores only (3-31 chars)",
         "nameExists": "A target named \"{{name}}\" already exists",
         "dwcAutoMapping": "The Darwin Core mapping will be pre-filled with standard defaults. You can adjust it after creation.",
-        "confirmActivate": "Activate the \"{{name}}\" export for the \"{{groupBy}}\" group with default settings.",
-        "confirmCreate": "Create a new \"{{template}}\" export named \"{{name}}\" for the \"{{groupBy}}\" group.",
+        "confirmActivate": "Activate the \"{{name}}\" export for the \"{{groupBy}}\" collection with default settings.",
+        "confirmCreate": "Create a new \"{{template}}\" export named \"{{name}}\" for the \"{{groupBy}}\" collection.",
         "activate": "Activate",
         "create": "Create export",
-        "activated": "\"{{name}}\" activated for group {{groupBy}}",
-        "created": "\"{{name}}\" created for group {{groupBy}}"
+        "activated": "\"{{name}}\" activated for collection {{groupBy}}",
+        "created": "\"{{name}}\" created for collection {{groupBy}}"
       }
     }
   },
