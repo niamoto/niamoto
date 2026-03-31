@@ -705,6 +705,21 @@
         "staticValueRequired": "A static value is required for \"{{term}}\".",
         "invalidGeneratorParams": "Invalid generator params for \"{{term}}\". {{message}}"
       },
+      "fieldMappings": {
+        "addField": "Add field",
+        "suggestions": "Suggestions",
+        "field": "Field",
+        "moveUp": "Move field up",
+        "moveDown": "Move field down",
+        "remove": "Remove field",
+        "outputField": "Output field",
+        "mode": "Mode",
+        "sourceField": "Source field",
+        "generatorMode": "Generator",
+        "sourcePath": "Source path",
+        "generatorName": "Generator",
+        "generatorParams": "Generator params (JSON)"
+      },
       "jsonOverrides": "Advanced format options",
       "jsonOverridesHelp": "Optional JSON settings that override the global target values for this group.",
       "fieldCount": "{{count}} fields",

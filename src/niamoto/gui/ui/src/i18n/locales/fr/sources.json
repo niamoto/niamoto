@@ -705,6 +705,21 @@
         "staticValueRequired": "Une valeur statique est requise pour \"{{term}}\".",
         "invalidGeneratorParams": "Les paramètres du générateur sont invalides pour \"{{term}}\". {{message}}"
       },
+      "fieldMappings": {
+        "addField": "Ajouter un champ",
+        "suggestions": "Suggestions",
+        "field": "Champ",
+        "moveUp": "Déplacer vers le haut",
+        "moveDown": "Déplacer vers le bas",
+        "remove": "Supprimer le champ",
+        "outputField": "Champ de sortie",
+        "mode": "Mode",
+        "sourceField": "Champ source",
+        "generatorMode": "Générateur",
+        "sourcePath": "Chemin source",
+        "generatorName": "Générateur",
+        "generatorParams": "Paramètres du générateur (JSON)"
+      },
       "jsonOverrides": "Options de format avancées",
       "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour ce groupe.",
       "fieldCount": "{{count}} champs",

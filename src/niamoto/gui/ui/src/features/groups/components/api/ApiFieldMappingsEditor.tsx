@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 
 import type { ApiExportFieldSuggestion } from '@/features/groups/hooks/useApiExportConfigs'
 
-interface ApiFieldMappingsEditorProps {
+export interface ApiFieldMappingsEditorProps {
   value?: Array<Record<string, unknown>>
   onChange: (value: Array<Record<string, unknown>>) => void
   suggestions?: ApiExportFieldSuggestion[]
@@ -49,7 +50,7 @@ function parseRows(value: Array<Record<string, unknown>> = []): ApiFieldMappingR
         paramsText: generatorConfig.params
           ? JSON.stringify(generatorConfig.params, null, 2)
           : '',
-      }
+      } satisfies ApiFieldMappingRow
     }
 
     return {
@@ -58,7 +59,7 @@ function parseRows(value: Array<Record<string, unknown>> = []): ApiFieldMappingR
       source: typeof rawConfig === 'string' ? rawConfig : '',
       generator: '',
       paramsText: '',
-    }
+    } satisfies ApiFieldMappingRow
   })
 }
 
@@ -69,32 +70,21 @@ function serializeRows(rows: ApiFieldMappingRow[]): {
   const serialized: Array<Record<string, unknown>> = []
 
   for (const row of rows) {
-    if (!row.outputName.trim()) {
-      continue
-    }
+    if (!row.outputName.trim()) continue
 
     if (row.mode === 'generator') {
-      let params: Record<string, unknown> | undefined
+      const entry: Record<string, unknown> = { generator: row.generator.trim() }
       if (row.paramsText.trim()) {
         try {
-          params = JSON.parse(row.paramsText) as Record<string, unknown>
-        } catch (error) {
+          entry.params = JSON.parse(row.paramsText)
+        } catch {
           return {
-            value: serialized,
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Invalid JSON in generator params',
+            value: [],
+            error: `Invalid JSON in params for "${row.outputName}"`,
           }
         }
       }
-
-      serialized.push({
-        [row.outputName]: {
-          generator: row.generator.trim(),
-          ...(params ? { params } : {}),
-        },
-      })
+      serialized.push({ [row.outputName]: entry })
       continue
     }
 
@@ -123,6 +113,7 @@ export function ApiFieldMappingsEditor({
   title,
   description,
 }: ApiFieldMappingsEditorProps) {
+  const { t } = useTranslation('sources')
   const [rows, setRows] = useState<ApiFieldMappingRow[]>(() =>
     value.length > 0 ? parseRows(value) : [createEmptyRow()]
   )
@@ -185,24 +176,37 @@ export function ApiFieldMappingsEditor({
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
-      <div className="space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold">{title}</h3>
-            <p className="text-sm text-muted-foreground">{description}</p>
+      {(title || description) && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              {title && <h3 className="text-sm font-semibold">{title}</h3>}
+              {description && (
+                <p className="text-sm text-muted-foreground">{description}</p>
+              )}
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => addRow()}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('groupPanel.api.fieldMappings.addField')}
+            </Button>
           </div>
+        </div>
+      )}
+
+      {!title && !description && (
+        <div className="flex justify-end">
           <Button type="button" variant="outline" size="sm" onClick={() => addRow()}>
             <Plus className="mr-2 h-4 w-4" />
-            Add field
+            {t('groupPanel.api.fieldMappings.addField')}
           </Button>
         </div>
-      </div>
+      )}
 
       {availableSuggestions.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5" />
-            Suggestions
+            {t('groupPanel.api.fieldMappings.suggestions')}
           </div>
           <div className="flex flex-wrap gap-2">
             {availableSuggestions.slice(0, 12).map((suggestion) => (
@@ -233,7 +237,7 @@ export function ApiFieldMappingsEditor({
           <div key={`${index}-${row.outputName}-${row.generator}`} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <Badge variant="outline">
-                {row.outputName || `Field ${index + 1}`}
+                {row.outputName || `${t('groupPanel.api.fieldMappings.field')} ${index + 1}`}
               </Badge>
               <div className="flex items-center gap-1">
                 <Button
@@ -243,6 +247,7 @@ export function ApiFieldMappingsEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, -1)}
                   disabled={index === 0}
+                  aria-label={t('groupPanel.api.fieldMappings.moveUp')}
                 >
                   <ChevronUp className="h-4 w-4" />
                 </Button>
@@ -253,6 +258,7 @@ export function ApiFieldMappingsEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, 1)}
                   disabled={index === rows.length - 1}
+                  aria-label={t('groupPanel.api.fieldMappings.moveDown')}
                 >
                   <ChevronDown className="h-4 w-4" />
                 </Button>
@@ -262,6 +268,7 @@ export function ApiFieldMappingsEditor({
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
                   onClick={() => removeRow(index)}
+                  aria-label={t('groupPanel.api.fieldMappings.remove')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -270,7 +277,7 @@ export function ApiFieldMappingsEditor({
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
-                <Label>Output field</Label>
+                <Label>{t('groupPanel.api.fieldMappings.outputField')}</Label>
                 <Input
                   value={row.outputName}
                   onChange={(event) =>
@@ -281,7 +288,7 @@ export function ApiFieldMappingsEditor({
               </div>
 
               <div className="space-y-1">
-                <Label>Mode</Label>
+                <Label>{t('groupPanel.api.fieldMappings.mode')}</Label>
                 <Select
                   value={row.mode}
                   onValueChange={(nextMode: 'source' | 'generator') =>
@@ -305,15 +312,19 @@ export function ApiFieldMappingsEditor({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="source">Source field</SelectItem>
-                    <SelectItem value="generator">Generator</SelectItem>
+                    <SelectItem value="source">
+                      {t('groupPanel.api.fieldMappings.sourceField')}
+                    </SelectItem>
+                    <SelectItem value="generator">
+                      {t('groupPanel.api.fieldMappings.generatorMode')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {row.mode === 'source' ? (
                 <div className="space-y-1">
-                  <Label>Source path</Label>
+                  <Label>{t('groupPanel.api.fieldMappings.sourcePath')}</Label>
                   <Input
                     value={row.source}
                     onChange={(event) => updateRow(index, 'source', event.target.value)}
@@ -322,7 +333,7 @@ export function ApiFieldMappingsEditor({
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <Label>Generator</Label>
+                  <Label>{t('groupPanel.api.fieldMappings.generatorName')}</Label>
                   <Input
                     value={row.generator}
                     onChange={(event) =>
@@ -336,7 +347,7 @@ export function ApiFieldMappingsEditor({
 
             {row.mode === 'generator' && (
               <div className="mt-3 space-y-1">
-                <Label>Generator params (JSON)</Label>
+                <Label>{t('groupPanel.api.fieldMappings.generatorParams')}</Label>
                 <Textarea
                   value={row.paramsText}
                   onChange={(event) =>

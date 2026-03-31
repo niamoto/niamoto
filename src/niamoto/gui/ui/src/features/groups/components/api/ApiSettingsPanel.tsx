@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Loader2, RotateCcw, Save } from 'lucide-react'
+import { ExternalLink, Loader2, RotateCcw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { JsonSchemaForm } from '@/components/forms'
@@ -19,6 +20,7 @@ import {
 
 function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
   const { t } = useTranslation(['sources', 'common'])
+  const navigate = useNavigate()
   const {
     data: serverSettings,
     isLoading,
@@ -27,6 +29,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
   } = useApiExportTargetSettings(target.name)
   const saveMutation = useUpdateApiExportTargetSettings(target.name)
   const [localSettings, setLocalSettings] = useState<ApiExportTargetSettings | null>(null)
+  const [resetCounter, setResetCounter] = useState(0)
 
   useEffect(() => {
     if (serverSettings) {
@@ -39,11 +42,10 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
     localSettings !== null &&
     JSON.stringify(serverSettings) !== JSON.stringify(localSettings)
 
-  const handleSave = async () => {
-    if (!localSettings) {
-      return
-    }
+  const activeGroups = target.groups.filter((g) => g.enabled)
 
+  const handleSave = async () => {
+    if (!localSettings) return
     try {
       await saveMutation.mutateAsync(localSettings)
       toast.success(
@@ -59,11 +61,18 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
     }
   }
 
+  const handleReset = () => {
+    if (serverSettings) {
+      setLocalSettings(serverSettings)
+      setResetCounter((c) => c + 1)
+    }
+  }
+
   if (isLoading || !localSettings) {
     return (
       <Card>
-        <CardContent className="flex min-h-[200px] items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardContent className="flex min-h-[120px] items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     )
@@ -82,28 +91,31 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
     )
   }
 
+  // Build a short summary
+  const outputDir = (localSettings.params as Record<string, string>)?.output_dir ?? ''
+  const summaryParts = [
+    outputDir ? `→ ${outputDir}` : '',
+    t('groupPanel.api.groupsCount', { count: activeGroups.length }),
+  ].filter(Boolean)
+
   return (
     <Card>
-      <CardHeader className="border-b bg-muted/20">
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <CardTitle className="text-base">{target.name}</CardTitle>
-              <Badge variant="outline">
-                {t('groupPanel.api.groupsCount', {
-                  count: target.group_names.length,
-                })}
+              <Badge variant="secondary" className="text-[10px]">
+                {t('groupPanel.api.groupsCount', { count: activeGroups.length })}
               </Badge>
               {isDirty && (
-                <Badge variant="outline">
+                <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
                   {t('groupPanel.api.unsaved')}
                 </Badge>
               )}
             </div>
-            <CardDescription>
-              {t('groupPanel.api.globalTargetDescription', {
-                exportName: target.name,
-              })}
+            <CardDescription className="text-xs">
+              {summaryParts.join(' · ')}
             </CardDescription>
           </div>
 
@@ -120,34 +132,32 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLocalSettings(serverSettings ?? null)}
-            disabled={!isDirty || saveMutation.isPending}
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            {t('common:actions.reset')}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={!isDirty || saveMutation.isPending}
-          >
-            {saveMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            {t('common:actions.save')}
-          </Button>
-        </div>
+        {isDirty && (
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              disabled={saveMutation.isPending}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              {t('common:actions.reset')}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {t('common:actions.save')}
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
-      <CardContent className="p-6">
+      <CardContent className="space-y-4 pt-0">
         <JsonSchemaForm
-          key={`${target.name}-${JSON.stringify(serverSettings?.params ?? {})}`}
+          key={`settings-${target.name}-${resetCounter}`}
           pluginId="json_api_exporter"
           showTitle={false}
           initialValues={localSettings.params}
@@ -157,6 +167,29 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
             )
           }
         />
+
+        {/* Groups using this target */}
+        {activeGroups.length > 0 && (
+          <div className="rounded-lg border border-dashed p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {t('groupPanel.api.groupsCount', { count: activeGroups.length })}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {activeGroups.map((g) => (
+                <Button
+                  key={g.group_by}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs"
+                  onClick={() => navigate(`/groups/${g.group_by}`)}
+                >
+                  {g.group_by}
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
