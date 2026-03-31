@@ -20,8 +20,8 @@ interface ApiFieldMappingsEditorProps {
   value?: Array<Record<string, unknown>>
   onChange: (value: Array<Record<string, unknown>>) => void
   suggestions?: ApiExportFieldSuggestion[]
-  title: string
-  description: string
+  title?: string
+  description?: string
 }
 
 interface ApiFieldMappingRow {

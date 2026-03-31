@@ -2,11 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const API_BASE = '/api/config/export/api-targets'
 
+export interface ApiExportGroupEntry {
+  group_by: string
+  enabled: boolean
+}
+
 export interface ApiExportTargetSummary {
   name: string
   enabled: boolean
   exporter: string
   group_names: string[]
+  groups: ApiExportGroupEntry[]
   params: Record<string, unknown>
 }
 
@@ -111,6 +117,34 @@ async function fetchApiExportSuggestions(
     `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}/suggestions`
   )
   return readJson<ApiExportSuggestions>(response)
+}
+
+export interface ApiExportTargetCreate {
+  name: string
+  template: 'simple' | 'dwc' | 'manual'
+  params?: Record<string, unknown>
+}
+
+async function createApiExportTarget(
+  body: ApiExportTargetCreate
+): Promise<ApiExportTargetSummary> {
+  const response = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return readJson<ApiExportTargetSummary>(response)
+}
+
+export function useCreateApiExportTarget() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: ApiExportTargetCreate) => createApiExportTarget(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-export-targets'] })
+    },
+  })
 }
 
 export function useApiExportTargets() {

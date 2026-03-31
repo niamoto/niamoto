@@ -705,8 +705,51 @@
         "staticValueRequired": "Une valeur statique est requise pour \"{{term}}\".",
         "invalidGeneratorParams": "Les paramètres du générateur sont invalides pour \"{{term}}\". {{message}}"
       },
-      "jsonOverrides": "Surcharges JSON par groupe",
-      "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour ce groupe."
+      "jsonOverrides": "Options de format avancées",
+      "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour ce groupe.",
+      "fieldCount": "{{count}} champs",
+      "termCount": "{{count}} termes",
+      "sectionDefault": "par défaut",
+      "exportSummary": {
+        "simplePassThrough": "Export JSON simple — toutes les données transformées. {{count}} entrées.",
+        "simpleFields": "Export JSON — {{fieldCount}} champs sélectionnés. {{count}} entrées.",
+        "dwc": "Darwin Core (GBIF) — {{termCount}} termes mappés. {{count}} entrées.",
+        "disabled": "Cet export est désactivé pour ce groupe."
+      },
+      "sectionHelp": {
+        "indexFields": "Ces champs apparaissent dans le fichier index du groupe « {{groupBy}} ».",
+        "detailFields": "Chaque entrée du groupe « {{groupBy}} » aura son propre fichier JSON avec ces données.",
+        "dwcMapping": "Le standard Darwin Core permet de partager vos données avec GBIF et d'autres réseaux de biodiversité.",
+        "advancedOptions": "Formatage JSON, source de données, et autres paramètres techniques."
+      },
+      "wizard": {
+        "title": "Ajouter un format d'export",
+        "description": "Configurer un nouvel export pour le groupe « {{groupBy}} ».",
+        "addFormat": "Ajouter un format d'export",
+        "stepType": "Type",
+        "stepContent": "Contenu",
+        "stepConfirm": "Confirmer",
+        "existingTargets": "Targets existants (pas encore actifs pour ce groupe)",
+        "activateDescription": "Activer cet export existant pour le groupe courant",
+        "createNew": "Créer un nouveau format",
+        "simpleTitle": "Export JSON simple",
+        "simpleDescription": "Publier toutes vos données transformées telles quelles",
+        "dwcTitle": "Darwin Core (GBIF)",
+        "dwcDescription": "Standard international de partage de données de biodiversité",
+        "manualTitle": "Configuration manuelle",
+        "manualDescription": "Contrôle total sur les champs et le format",
+        "targetName": "Nom de l'export",
+        "targetNamePlaceholder": "mon_export",
+        "targetNameHelp": "Lettres minuscules, chiffres et underscores uniquement (3-31 car.)",
+        "nameExists": "Un target nommé « {{name}} » existe déjà",
+        "dwcAutoMapping": "Le mapping Darwin Core sera pré-rempli avec les valeurs par défaut. Vous pourrez l'ajuster après la création.",
+        "confirmActivate": "Activer l'export « {{name}} » pour le groupe « {{groupBy}} » avec les paramètres par défaut.",
+        "confirmCreate": "Créer un nouvel export « {{template}} » nommé « {{name}} » pour le groupe « {{groupBy}} ».",
+        "activate": "Activer",
+        "create": "Créer l'export",
+        "activated": "« {{name}} » activé pour le groupe {{groupBy}}",
+        "created": "« {{name}} » créé pour le groupe {{groupBy}}"
+      }
     }
   },
   "autoConfig": {
