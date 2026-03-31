@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Package, Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
+import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -204,101 +204,90 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b bg-background px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Package className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">{reference.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                {reference.entity_count ?? '?'} {t('reference.entities')}
-                <span className="mx-2">·</span>
-                <Badge variant="outline" className="text-xs">
-                  {kindLabels[reference.kind] || reference.kind}
-                </Badge>
-                {reference.description && (
-                  <>
-                    <span className="mx-2">·</span>
-                    {reference.description}
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Transform button */}
-          <div className="flex items-center gap-3">
-            {lastRunLabel && !isTransforming && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                {lastRun?.status === 'completed' ? (
-                  <CheckCircle className="h-3 w-3 text-green-500" />
-                ) : lastRun?.status === 'failed' ? (
-                  <XCircle className="h-3 w-3 text-destructive" />
-                ) : null}
-                {lastRunLabel}
-              </span>
-            )}
-            <Button
-              size="sm"
-              onClick={runTransform}
-              disabled={runButtonDisabled}
-              title={runButtonTitle}
-            >
-              {isTransforming ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('collectionPanel.transform.running', { progress: transformProgress })}
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" />
-                  {t('collectionPanel.transform.trigger')}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Progress bar during transform */}
-        {isTransforming && (
-          <div className="mt-3 space-y-1">
-            <Progress value={transformProgress} className="h-2" />
-            <p className="text-xs text-muted-foreground">{transformMessage}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs - 3 tabs: Blocs / Liste / Export */}
+      {/* Compact toolbar: tabs + actions in one row */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between border-b px-6">
-          <TabsList className="h-10 w-fit gap-1 bg-muted/50 p-1 rounded-lg">
+        <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
+          {/* Tabs */}
+          <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">
             <TabsTrigger
               value="content"
-              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
             >
-              <LayoutGrid className="mr-2 h-4 w-4" />
+              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.blocks')}
             </TabsTrigger>
             <TabsTrigger
               value="index"
-              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
             >
-              <ListOrdered className="mr-2 h-4 w-4" />
+              <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.list')}
             </TabsTrigger>
             <TabsTrigger
               value="api"
-              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
             >
-              <FileCode className="mr-2 h-4 w-4" />
+              <FileCode className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.export')}
             </TabsTrigger>
           </TabsList>
+
+          {/* Sources dialog */}
           <SourcesDialog reference={reference} />
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Info: entity count + kind */}
+          <span className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground">
+            {reference.entity_count ?? '?'} {t('reference.entities')}
+            <span>·</span>
+            <Badge variant="outline" className="text-[10px] py-0">
+              {kindLabels[reference.kind] || reference.kind}
+            </Badge>
+          </span>
+
+          {/* Last run status */}
+          {lastRunLabel && !isTransforming && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              {lastRun?.status === 'completed' ? (
+                <CheckCircle className="h-3 w-3 text-green-500" />
+              ) : lastRun?.status === 'failed' ? (
+                <XCircle className="h-3 w-3 text-destructive" />
+              ) : null}
+              {lastRunLabel}
+            </span>
+          )}
+
+          {/* Transform button */}
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={runTransform}
+            disabled={runButtonDisabled}
+            title={runButtonTitle}
+          >
+            {isTransforming ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                {transformProgress}%
+              </>
+            ) : (
+              <>
+                <Play className="mr-1.5 h-3.5 w-3.5" />
+                {t('collectionPanel.transform.trigger')}
+              </>
+            )}
+          </Button>
         </div>
+
+        {/* Progress bar during transform */}
+        {isTransforming && (
+          <div className="px-4 py-1 border-b">
+            <Progress value={transformProgress} className="h-1.5" />
+            <p className="text-[10px] text-muted-foreground mt-0.5">{transformMessage}</p>
+          </div>
+        )}
 
         {/* Tab Content */}
         <TabsContent value="content" className="flex-1 m-0 overflow-hidden">

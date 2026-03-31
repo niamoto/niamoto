@@ -169,10 +169,10 @@ export function ContentTab({ reference }: ContentTabProps) {
     <div className="h-full flex flex-col">
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Panel - Widget List */}
-        <ResizablePanel defaultSize={30} minSize={20} maxSize={45}>
+        <ResizablePanel defaultSize={28} minSize={15} maxSize={40}>
           <div className="h-full flex flex-col border-r">
             {/* Header with Add button */}
-            <div className="p-3 border-b flex items-center justify-between gap-2">
+            <div className="px-2 py-1.5 border-b flex items-center justify-between gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="gap-1">
@@ -195,12 +195,12 @@ export function ContentTab({ reference }: ContentTabProps) {
             </div>
 
             {/* Search */}
-            <div className="p-3 border-b">
+            <div className="px-2 py-1.5 border-b">
               <Input
                 placeholder={t('common:actions.search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8"
+                className="h-7 text-xs"
               />
             </div>
 
@@ -230,7 +230,7 @@ export function ContentTab({ reference }: ContentTabProps) {
         </ResizableHandle>
 
         {/* Right Panel - Contextual */}
-        <ResizablePanel defaultSize={70} minSize={55}>
+        <ResizablePanel defaultSize={72} minSize={55}>
           <ContentRightPanel
             selectedWidget={selectedWidget}
             allWidgets={configuredWidgets}
