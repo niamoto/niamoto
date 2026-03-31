@@ -10,36 +10,22 @@
  * sub-components handle display.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Settings,
-  Palette,
-  Navigation,
-  FileText,
-  Folder,
-  Lock,
   Loader2,
   Save,
   AlertCircle,
   Eye,
   EyeOff,
-  Link2,
 } from 'lucide-react'
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type DeviceSize } from '@/components/ui/preview-frame'
 import {
@@ -53,13 +39,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import {
   useFileContent,
   useGroupIndexPreview,
-  type NavigationItem,
-  type FooterSection,
-  type GroupInfo,
   isRootIndexTemplate,
 } from '@/shared/hooks/useSiteConfig'
 import { LanguageProvider } from '@/shared/contexts/LanguageContext'
@@ -72,250 +54,13 @@ import { FooterSectionsEditor } from './FooterSectionsEditor'
 import { StaticPageEditor } from './StaticPageEditor'
 import { TemplateList } from './TemplateList'
 import { GroupPageViewer } from './GroupPageViewer'
-import { PagesOverview, getTemplateIcon, isPageInNavigation } from './PagesOverview'
+import { PagesOverview } from './PagesOverview'
 import { SitePreview, GroupIndexPreviewPanel } from './SiteBuilderPreview'
+import { UnifiedSiteTree } from './UnifiedSiteTree'
 
-// State hook
-import { useSiteBuilderState, type Selection, type SelectionType } from '../hooks/useSiteBuilderState'
-
-// =============================================================================
-// SITE TREE COMPONENT (will be replaced by UnifiedSiteTree in Phase B)
-// =============================================================================
-
-interface SiteTreeProps {
-  navigation: NavigationItem[]
-  footerNavigation: FooterSection[]
-  pages: import('@/shared/hooks/useSiteConfig').StaticPage[]
-  groups: GroupInfo[]
-  groupsLoading: boolean
-  selection: Selection | null
-  onSelect: (selection: Selection) => void
-  onAddPage: () => void
-}
-
-function SiteTree({
-  navigation,
-  footerNavigation,
-  pages,
-  groups,
-  groupsLoading,
-  selection,
-  onSelect,
-  onAddPage,
-}: SiteTreeProps) {
-  const { t } = useTranslation(['site', 'common'])
-  const isSelected = (type: SelectionType, id?: string) => {
-    if (!selection) return false
-    if (selection.type !== type) return false
-    if (id !== undefined) return selection.id === id
-    return true
-  }
-
-  return (
-    <div className="flex h-full flex-col">
-      <ScrollArea className="flex-1">
-        <Accordion
-          type="multiple"
-          defaultValue={['pages', 'navigation', 'settings', 'collections']}
-          className="px-2 py-2"
-        >
-          {/* Pages Section */}
-          <AccordionItem value="pages" className="border-none">
-            <AccordionTrigger className="py-2 text-sm hover:no-underline">
-              <span className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Pages
-                <Badge variant="secondary" className="ml-auto text-[10px]">
-                  {pages.length}
-                </Badge>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="space-y-1 pl-6">
-                {pages.length === 0 ? (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.noPages')}
-                  </p>
-                ) : (
-                  pages.map((page, index) => {
-                    const Icon = getTemplateIcon(page.template)
-                    const pageUrl = `/${page.output_file}`
-                    const inMainNav = isPageInNavigation(pageUrl, navigation)
-                    const inFooterNav = footerNavigation.some(s => s.links.some(l => l.url === pageUrl))
-                    const isLinked = inMainNav || inFooterNav
-
-                    return (
-                      <button
-                        key={`${page.name}-${index}`}
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                          isSelected('page', page.name)
-                            ? 'bg-primary/10 text-primary'
-                            : 'hover:bg-muted/50'
-                        )}
-                        onClick={() => onSelect({ type: 'page', id: page.name })}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate flex-1 text-left">{page.name}</span>
-                        {isLinked && (
-                          <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        )}
-                      </button>
-                    )
-                  })
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-xs text-muted-foreground hover:text-foreground"
-                  onClick={onAddPage}
-                >
-                  {t('pages.addPage')}
-                </Button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Navigation Section */}
-          <AccordionItem value="navigation" className="border-none">
-            <AccordionTrigger className="py-2 text-sm hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Navigation className="h-4 w-4" />
-                Navigation
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="space-y-1 pl-6">
-                <button
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('navigation')
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-muted/50'
-                  )}
-                  onClick={() => onSelect({ type: 'navigation' })}
-                >
-                  <span className="flex items-center gap-2">
-                    <Navigation className="h-4 w-4" />
-                    {t('tree.mainMenu')}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {navigation.length}
-                  </Badge>
-                </button>
-                <button
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('footer')
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-muted/50'
-                  )}
-                  onClick={() => onSelect({ type: 'footer' })}
-                >
-                  <span className="flex items-center gap-2">
-                    <Navigation className="h-4 w-4" />
-                    {t('tree.footerMenu')}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {footerNavigation.length}
-                  </Badge>
-                </button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Settings Section */}
-          <AccordionItem value="settings" className="border-none">
-            <AccordionTrigger className="py-2 text-sm hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                {t('tree.settings')}
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="space-y-1 pl-6">
-                <button
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('general')
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-muted/50'
-                  )}
-                  onClick={() => onSelect({ type: 'general' })}
-                >
-                  <Settings className="h-4 w-4" />
-                  {t('tree.general')}
-                </button>
-                <button
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('appearance')
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-muted/50'
-                  )}
-                  onClick={() => onSelect({ type: 'appearance' })}
-                >
-                  <Palette className="h-4 w-4" />
-                  {t('tree.appearance')}
-                </button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Collections Section */}
-          <AccordionItem value="collections" className="border-none">
-            <AccordionTrigger className="py-2 text-sm hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Folder className="h-4 w-4 text-amber-600" />
-                {t('tree.collections')}
-                {groupsLoading ? (
-                  <Loader2 className="h-3 w-3 animate-spin ml-auto" />
-                ) : (
-                  <Badge variant="secondary" className="ml-auto text-[10px]">
-                    {groups.length}
-                  </Badge>
-                )}
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="space-y-1 pl-6">
-                {groupsLoading ? (
-                  <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {t('common:status.loading')}
-                  </div>
-                ) : groups.length === 0 ? (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.noCollections')}
-                  </p>
-                ) : (
-                  groups.map((group, index) => (
-                    <button
-                      key={`${group.name}-${index}`}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                        isSelected('group', group.name)
-                          ? 'bg-primary/10 text-primary'
-                          : 'hover:bg-muted/50'
-                      )}
-                      onClick={() => onSelect({ type: 'group', id: group.name })}
-                    >
-                      <Lock className="h-3 w-3 text-muted-foreground" />
-                      <span className="truncate flex-1 text-left">{group.name}/</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {group.widgets_count}w
-                      </Badge>
-                    </button>
-                  ))
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </ScrollArea>
-    </div>
-  )
-}
+// Hooks
+import { useSiteBuilderState } from '../hooks/useSiteBuilderState'
+import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
 
 // =============================================================================
 // MAIN SITE BUILDER COMPONENT
@@ -328,6 +73,16 @@ interface SiteBuilderProps {
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
   const state = useSiteBuilderState(initialSection)
+
+  // Unified tree (Phase B: read-only projection from edited state)
+  const unifiedTree = useMemo(() => {
+    resetIdCounter()
+    return buildUnifiedTree(
+      state.editedNavigation,
+      state.editedPages,
+      state.groups,
+    )
+  }, [state.editedNavigation, state.editedPages, state.groups])
 
   // Preview state
   const currentGroupForPreview = state.selection?.type === 'group'
@@ -650,20 +405,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
       {/* Main Content */}
       <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-        {/* Left Panel - Tree */}
+        {/* Left Panel - Unified Tree */}
         <ResizablePanel id="tree" order={0} defaultSize={15} minSize={12} maxSize={25}>
-          <ScrollArea className="h-full">
-            <SiteTree
-              navigation={state.editedNavigation}
-              footerNavigation={state.editedFooterNavigation}
-              pages={state.editedPages}
-              groups={state.groups}
-              groupsLoading={state.groupsLoading}
-              selection={state.selection}
-              onSelect={state.setSelection}
-              onAddPage={state.handleAddPage}
-            />
-          </ScrollArea>
+          <UnifiedSiteTree
+            items={unifiedTree}
+            selection={state.selection}
+            onSelect={state.setSelection}
+          />
         </ResizablePanel>
 
         <ResizableHandle withHandle />

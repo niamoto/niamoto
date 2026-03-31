@@ -175,18 +175,18 @@ Remplacer le panneau gauche (arbre accordion) par la liste unifiée. Pas encore 
 
 ### B1. Hook `useUnifiedSiteTree`
 
-- [ ] Créer `features/site/hooks/useUnifiedSiteTree.ts`
-- [ ] Type `UnifiedTreeItem` (voir section D1)
-- [ ] `buildUnifiedTree(navigation, staticPages, groups) → UnifiedTreeItem[]` :
+- [x] Créer `features/site/hooks/useUnifiedSiteTree.ts`
+- [x] Type `UnifiedTreeItem` (voir section D1)
+- [x] `buildUnifiedTree(navigation, staticPages, groups) → UnifiedTreeItem[]` :
   1. Parcourir `navigation[]` en ordre
   2. Pour chaque item : matcher par URL avec `staticPages` ou `groups` → créer `UnifiedTreeItem` avec le bon type
   3. Les enfants de nav items → `children[]` de l'item parent
   4. Pages orphelines (dans `staticPages` mais pas dans `navigation`) → items `visible: false` en fin de liste
   5. Collections non-référencées dans la nav → items `visible: false`, avec `hasIndex: !!group.index_output_pattern`
-- [ ] `decomposeUnifiedTree(tree) → { navigation: NavigationItem[], staticPages: StaticPage[] }` :
+- [x] `decomposeUnifiedTree(tree) → { navigation: NavigationItem[], staticPages: StaticPage[] }` :
   1. Items `visible: true` au root + leurs children → `navigation[]` avec `text`, `url`, `children`
   2. Tous les items `type: 'page'` → `staticPages[]` dans l'ordre de l'arbre
-- [ ] Tests unitaires du round-trip :
+- [ ] Tests unitaires du round-trip (à faire en Phase C quand l'arbre devient source de vérité) :
   - Config vide → arbre vide → config vide
   - Config avec nav + pages matchées → arbre → décompose → identique
   - Config avec pages orphelines → arbre avec section hors-menu → décompose → pages préservées
@@ -195,8 +195,8 @@ Remplacer le panneau gauche (arbre accordion) par la liste unifiée. Pas encore 
 
 ### B2. Composant `UnifiedSiteTree` (lecture seule)
 
-- [ ] Créer `features/site/components/UnifiedSiteTree.tsx`
-- [ ] Affiche la liste issue de `buildUnifiedTree()`
+- [x] Créer `features/site/components/UnifiedSiteTree.tsx`
+- [x] Affiche la liste issue de `buildUnifiedTree()`
 - [ ] Pour chaque item :
   - Icône selon le type (`FileText` page, `Layers` collection, `ExternalLink` externe)
   - Label : nom de page, nom de collection, ou texte du lien
@@ -209,7 +209,7 @@ Remplacer le panneau gauche (arbre accordion) par la liste unifiée. Pas encore 
 
 ### B3. Intégrer dans SiteBuilder
 
-- [ ] Dans `SiteBuilder.tsx` :
+- [x] Dans `SiteBuilder.tsx` :
   - Remplacer l'accordion `SiteTree` (panneau gauche) par `<UnifiedSiteTree>`
   - Mapper la sélection d'un `UnifiedTreeItem` vers le type `Selection` existant (`SiteBuilder.tsx:118-122` — `{ type: SelectionType, id?: string }`) :
     - `type: 'page'` → `{ type: 'page', id: item.pageRef }`
@@ -220,14 +220,14 @@ Remplacer le panneau gauche (arbre accordion) par la liste unifiée. Pas encore 
 
 ### B4. i18n vue unifiée
 
-- [ ] Nouvelles clés dans `en/site.json` et `fr/site.json` :
+- [x] Nouvelles clés dans `en/site.json` et `fr/site.json` :
   - `unifiedTree.notInMenu` — "Not in menu" / "Hors menu"
   - `unifiedTree.noIndexPage` — "Index page not configured" / "Page d'index non configurée"
   - `unifiedTree.enableIndex` — "Enable index page" / "Activer la page d'index"
 
 ### B5. Validation vue read-only
 
-- [ ] `pnpm build` compile
+- [x] `pnpm build` compile
 - [ ] L'arbre affiche toutes les pages, collections et liens externes
 - [ ] Les pages orphelines apparaissent dans "Hors menu"
 - [ ] Les collections sans index sont grisées

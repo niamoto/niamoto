@@ -14,6 +14,13 @@
     "noCollections": "Aucune collection",
     "addElement": "Ajouter"
   },
+  "unifiedTree": {
+    "notInMenu": "Hors menu",
+    "noIndexPage": "Page d'index non configurée",
+    "enableIndex": "Activer la page d'index",
+    "inMenu": "Dans le menu",
+    "hidden": "Masqué"
+  },
   "pages": {
     "title": "Pages",
     "subtitle": "Gérez les pages statiques et visualisez les collections",
