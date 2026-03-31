@@ -54,9 +54,7 @@ export function ModuleLayout({
           minSize={30}
           className="overflow-hidden"
         >
-          <ScrollArea className="h-full">
-            {children}
-          </ScrollArea>
+          {children}
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

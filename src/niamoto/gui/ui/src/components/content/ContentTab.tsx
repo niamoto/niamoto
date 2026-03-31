@@ -193,7 +193,8 @@ export function ContentTab({ reference }: ContentTabProps) {
           onCollapse={() => setIsCollapsed(true)}
           onExpand={() => setIsCollapsed(false)}
         >
-          <div className="h-full flex flex-col overflow-hidden">
+          <div className="relative h-full">
+          <div className="absolute inset-0 flex flex-col">
             {/* Header with Add button + collapse toggle */}
             <div className="px-2 py-1.5 border-b flex items-center gap-1">
               <DropdownMenu>
@@ -231,20 +232,23 @@ export function ContentTab({ reference }: ContentTabProps) {
             </div>
 
             {/* Widget List */}
-            <WidgetListPanel
-              widgets={filteredWidgets}
-              selectedId={selectedWidgetId}
-              loading={configuredWidgetsLoading || (hasConfiguredWidgets && widgetsLoading)}
-              onSelect={handleSelectWidget}
-              onDelete={handleDeleteWidget}
-              onDuplicate={handleDuplicateWidget}
-              onReorder={handleReorderWidgets}
-            />
+            <div className="flex-1 min-h-0">
+              <WidgetListPanel
+                widgets={filteredWidgets}
+                selectedId={selectedWidgetId}
+                loading={configuredWidgetsLoading || (hasConfiguredWidgets && widgetsLoading)}
+                onSelect={handleSelectWidget}
+                onDelete={handleDeleteWidget}
+                onDuplicate={handleDuplicateWidget}
+                onReorder={handleReorderWidgets}
+              />
+            </div>
 
             {/* Footer */}
-            <div className="p-2 border-t text-xs text-muted-foreground text-center">
+            <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
               {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''} configure{configuredWidgets.length !== 1 ? 's' : ''}
             </div>
+          </div>
           </div>
         </ResizablePanel>
 
@@ -253,36 +257,39 @@ export function ContentTab({ reference }: ContentTabProps) {
 
         {/* Right Panel - Contextual */}
         <ResizablePanel defaultSize={72} minSize={55}>
-          {/* Collapsed toolbar: toggle + add widget */}
-          {isCollapsed && (
-            <div className="flex items-center gap-1 border-b px-2 py-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                    {t('widgets:actions.addFromSuggestions')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                    {t('widgets:actions.addCombinedWidget')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                    {t('widgets:modal.custom')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <span className="text-xs text-muted-foreground ml-1">
-                {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
-          <ContentRightPanel
+          <div className="relative h-full">
+          <div className="absolute inset-0 flex flex-col">
+            {/* Collapsed toolbar: toggle + add widget */}
+            {isCollapsed && (
+              <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
+                      {t('widgets:actions.addFromSuggestions')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
+                      {t('widgets:actions.addCombinedWidget')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
+                      {t('widgets:modal.custom')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <span className="text-xs text-muted-foreground ml-1">
+                  {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+            <div className="flex-1 min-h-0">
+              <ContentRightPanel
             selectedWidget={selectedWidget}
             allWidgets={configuredWidgets}
             groupBy={reference.name}
@@ -293,6 +300,9 @@ export function ContentTab({ reference }: ContentTabProps) {
             onDeleteWidget={handleDeleteWidget}
             onLayoutSaved={refetchWidgets}
           />
+            </div>
+          </div>
+          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
 
