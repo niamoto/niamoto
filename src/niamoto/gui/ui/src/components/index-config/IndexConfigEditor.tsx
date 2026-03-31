@@ -229,7 +229,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
         <div>
           <h2 className="text-lg font-semibold">{t('title')}</h2>
           <p className="text-sm text-muted-foreground">
-            {t('groupDescription', { groupBy })}
+            {t('collectionDescription', { groupBy })}
           </p>
         </div>
         <div className="flex items-center gap-2">

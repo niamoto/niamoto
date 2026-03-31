@@ -274,7 +274,7 @@ export function StaticPageEditor({
 
               {/* Template selection */}
               <div className="space-y-2">
-                <Label>{t('groupViewer.template')}</Label>
+                <Label>{t('collectionViewer.template')}</Label>
                 <TemplateSelect
                   value={editedPage.template}
                   onChange={handleTemplateChange}
