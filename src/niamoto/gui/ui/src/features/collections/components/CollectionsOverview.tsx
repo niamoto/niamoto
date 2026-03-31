@@ -57,7 +57,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
   }
 
   // Format last run
-  const lastRunLabel = lastRunAt ? formatRelativeTime(lastRunAt) : null
+  const lastRunLabel = lastRunAt ? formatRelativeTime(lastRunAt, t) : null
 
   return (
     <Card
@@ -231,13 +231,13 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
 // HELPERS
 // =============================================================================
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(isoDate).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return "< 1 min"
-  if (minutes < 60) return `${minutes} min`
+  if (minutes < 1) return t('collectionPanel.relativeTime.justNow')
+  if (minutes < 60) return t('collectionPanel.relativeTime.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
+  if (hours < 24) return t('collectionPanel.relativeTime.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `${days}d`
+  return t('collectionPanel.relativeTime.daysAgo', { count: days })
 }
