@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileJson, Leaf, Loader2, Settings, Zap } from 'lucide-react'
+import { FileJson, Leaf, Loader2, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -18,10 +18,11 @@ import {
   useApiExportTargets,
   useCreateApiExportTarget,
   useUpdateApiExportGroupConfig,
+  updateApiExportGroupConfig,
   type ApiExportTargetSummary,
 } from '@/features/groups/hooks/useApiExportConfigs'
 
-type Template = 'simple' | 'dwc' | 'manual'
+type Template = 'simple' | 'dwc'
 type WizardStep = 'type' | 'content' | 'confirm'
 
 interface AddExportWizardProps {
@@ -155,37 +156,17 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
           name: targetName,
           template: selectedTemplate,
         })
-        // Now activate for this group
-        const response = await fetch(
-          `/api/config/export/api-targets/${encodeURIComponent(created.name)}/groups/${encodeURIComponent(groupBy)}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              enabled: true,
-              group_by: groupBy,
-              detail: { pass_through: true },
-              index: { fields: [] },
-              ...(selectedTemplate === 'dwc'
-                ? {
-                    transformer_plugin: 'niamoto_to_dwc_occurrence',
-                    transformer_params: {
-                      occurrence_list_source: 'occurrences',
-                      occurrence_table: 'occurrences',
-                      taxonomy_entity: groupBy,
-                      taxon_id_column: 'id_taxonref',
-                      taxon_id_field: 'id',
-                      mapping: {},
-                    },
-                  }
-                : {}),
-            }),
-          }
-        )
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ detail: 'Unknown error' }))
-          throw new Error(err.detail)
-        }
+        // Activate for this group — backend injects DwC defaults when
+        // transformer_plugin is set, so we only send the plugin name.
+        await updateApiExportGroupConfig(created.name, groupBy, {
+          enabled: true,
+          group_by: groupBy,
+          detail: { pass_through: true },
+          index: { fields: [] },
+          ...(selectedTemplate === 'dwc'
+            ? { transformer_plugin: 'niamoto_to_dwc_occurrence' }
+            : {}),
+        })
         toast.success(
           t('groupPanel.api.wizard.created', { name: targetName, groupBy })
         )
@@ -273,21 +254,6 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('groupPanel.api.wizard.dwcDescription')}
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                  onClick={() => handleSelectTemplate('manual')}
-                >
-                  <Settings className="h-5 w-5 shrink-0 text-gray-500" />
-                  <div>
-                    <div className="text-sm font-medium">
-                      {t('groupPanel.api.wizard.manualTitle')}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('groupPanel.api.wizard.manualDescription')}
                     </div>
                   </div>
                 </button>

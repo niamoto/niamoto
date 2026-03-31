@@ -62,7 +62,7 @@ function buildDefaultLocalConfig(config: ApiExportGroupConfig): ApiExportGroupCo
 }
 
 /** Generate a natural language summary for this export. */
-function useExportSummary(
+function formatExportSummary(
   config: ApiExportGroupConfig | null,
   suggestions: ReturnType<typeof useApiExportSuggestions>['data'],
   t: (key: string, opts?: Record<string, unknown>) => string
@@ -120,7 +120,7 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
   const isDwcTransformer =
     localConfig?.transformer_plugin === 'niamoto_to_dwc_occurrence'
 
-  const summary = useExportSummary(localConfig, suggestionsQuery.data, t)
+  const summary = formatExportSummary(localConfig, suggestionsQuery.data, t)
 
   const updateLocalConfig = (
     updater: (current: ApiExportGroupConfig) => ApiExportGroupConfig

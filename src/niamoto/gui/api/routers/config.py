@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Literal, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
 import yaml
@@ -102,16 +102,12 @@ def _default_dwc_transformer_params(group_by: str) -> Dict[str, Any]:
 
 def _build_default_api_group_config(export_name: str, group_by: str) -> Dict[str, Any]:
     """Build the default group payload returned to the UI."""
-    group: Dict[str, Any] = {
+    return {
         "enabled": False,
         "group_by": group_by,
         "detail": {"pass_through": True},
         "index": {"fields": []},
     }
-    if export_name == "dwc_occurrence_json":
-        group["transformer_plugin"] = "niamoto_to_dwc_occurrence"
-        group["transformer_params"] = _default_dwc_transformer_params(group_by)
-    return group
 
 
 def _validate_export_config_or_raise(export_config: Dict[str, Any]) -> None:
@@ -2060,7 +2056,9 @@ class ApiExportTargetCreate(BaseModel):
     """Create a new JSON API export target."""
 
     name: str = Field(..., pattern=r"^[a-z][a-z0-9_]{2,30}$")
-    template: str = Field(..., description="simple, dwc, or manual")
+    template: Literal["simple", "dwc"] = Field(
+        ..., description="Export template: simple JSON or Darwin Core"
+    )
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -2153,15 +2151,10 @@ async def create_api_export_target(
                 "index_output_pattern": "all_{group}_dwc.json",
                 **body.params,
             }
-        elif body.template == "manual":
-            new_target["params"] = {
-                "output_dir": f"exports/{body.name}",
-                **body.params,
-            }
         else:
             raise HTTPException(
                 status_code=422,
-                detail=f"Unknown template '{body.template}'. Use: simple, dwc, manual",
+                detail=f"Unknown template '{body.template}'. Use: simple, dwc",
             )
 
         export_config.setdefault("exports", []).append(new_target)
@@ -2318,8 +2311,7 @@ async def update_api_export_group_config(
 
         next_group.setdefault("detail", {"pass_through": True})
 
-        if export_name == "dwc_occurrence_json":
-            next_group.setdefault("transformer_plugin", "niamoto_to_dwc_occurrence")
+        if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
             next_group.setdefault(
                 "transformer_params", _default_dwc_transformer_params(group_by)
             )

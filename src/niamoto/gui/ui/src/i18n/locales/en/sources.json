@@ -751,8 +751,6 @@
         "simpleDescription": "Publish all your transformed data as-is",
         "dwcTitle": "Darwin Core (GBIF)",
         "dwcDescription": "International biodiversity data sharing standard",
-        "manualTitle": "Manual configuration",
-        "manualDescription": "Full control over fields and format",
         "targetName": "Export name",
         "targetNamePlaceholder": "my_export",
         "targetNameHelp": "Lowercase letters, numbers and underscores only (3-31 chars)",

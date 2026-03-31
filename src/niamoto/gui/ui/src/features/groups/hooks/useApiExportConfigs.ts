@@ -93,7 +93,7 @@ async function fetchApiExportGroupConfig(
   return readJson<ApiExportGroupConfig>(response)
 }
 
-async function updateApiExportGroupConfig(
+export async function updateApiExportGroupConfig(
   exportName: string,
   groupBy: string,
   config: ApiExportGroupConfig
