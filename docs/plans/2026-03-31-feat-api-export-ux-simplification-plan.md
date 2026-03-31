@@ -300,21 +300,21 @@ Replace all hardcoded English strings ("Output field", "Mode", "Source field", e
 
 ### Functional Requirements
 
-- [ ] API tab shows compact cards with natural language summary for each configured export
-- [ ] Cards have collapsible sections organized in two tiers (main + advanced dimmed)
-- [ ] Status badges on collapsed sections show current config without expanding
-- [ ] Wizard (Dialog modal) allows adding exports: activate existing OR create new (simple/DwC/manual)
-- [ ] Wizard validates target name uniqueness and format
-- [ ] Toggle OFF sets `enabled: false` instead of deleting group data
-- [ ] Toggle OFF → ON restores previous configuration
+- [x] API tab shows compact cards with natural language summary for each configured export
+- [x] Cards have collapsible sections organized in two tiers (main + advanced dimmed)
+- [x] Status badges on collapsed sections show current config without expanding
+- [x] Wizard (Dialog modal) allows adding exports: activate existing OR create new (simple/DwC/manual)
+- [x] Wizard validates target name uniqueness and format
+- [x] Toggle OFF sets `enabled: false` instead of deleting group data
+- [x] Toggle OFF → ON restores previous configuration
 - [ ] Dirty state warning when navigating away with unsaved changes
-- [ ] API Settings page has summaries and collapsible sections
-- [ ] Bidirectional links between group cards and API Settings
-- [ ] All UI labels use domain vocabulary (not technical jargon)
-- [ ] Inline help at top of each expanded section
-- [ ] All strings in i18n (en + fr), including ApiFieldMappingsEditor
-- [ ] `data_source` override is wired in `json_api_exporter.py` (not a no-op)
-- [ ] `JsonSchemaForm` correctly resets visible inputs when Reset is clicked (key-based remount)
+- [x] API Settings page has summaries and collapsible sections
+- [x] Bidirectional links between group cards and API Settings
+- [x] All UI labels use domain vocabulary (not technical jargon)
+- [x] Inline help at top of each expanded section
+- [x] All strings in i18n (en + fr), including ApiFieldMappingsEditor
+- [x] `data_source` override is wired in `json_api_exporter.py` (not a no-op)
+- [x] `JsonSchemaForm` correctly resets visible inputs when Reset is clicked (key-based remount)
 
 ### Non-Functional Requirements
 
