@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GripVertical, PanelLeft, Plus } from 'lucide-react'
+import { PanelLeft, Plus } from 'lucide-react'
 import type { ImperativePanelHandle } from 'react-resizable-panels'
 import {
   ResizableHandle,
@@ -193,12 +193,9 @@ export function ContentTab({ reference }: ContentTabProps) {
           onCollapse={() => setIsCollapsed(true)}
           onExpand={() => setIsCollapsed(false)}
         >
-          <div className="h-full flex flex-col border-r">
+          <div className="h-full flex flex-col overflow-hidden">
             {/* Header with Add button + collapse toggle */}
             <div className="px-2 py-1.5 border-b flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={togglePanel} title="Hide widget list">
-                <PanelLeft className="h-4 w-4" />
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="gap-1">
@@ -218,6 +215,9 @@ export function ContentTab({ reference }: ContentTabProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
+                <PanelLeft className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Search */}
@@ -248,12 +248,8 @@ export function ContentTab({ reference }: ContentTabProps) {
           </div>
         </ResizablePanel>
 
-        {/* Resize Handle with collapse/expand toggle */}
-        <ResizableHandle className="w-2 flex items-center justify-center group">
-          <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
-            <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        </ResizableHandle>
+        {/* Resize Handle */}
+        <ResizableHandle />
 
         {/* Right Panel - Contextual */}
         <ResizablePanel defaultSize={72} minSize={55}>
