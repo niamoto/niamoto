@@ -160,7 +160,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
             variant="outline"
             size="sm"
             className="flex-1 text-xs"
-            onClick={() => onSelect({ type: 'collection', name: reference.name }, 'export')}
+            onClick={() => onSelect({ type: 'collection', name: reference.name }, 'api')}
           >
             <FileCode className="mr-1 h-3 w-3" />
             {t('collectionPanel.tabs.export')}
