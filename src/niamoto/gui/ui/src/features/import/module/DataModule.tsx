@@ -12,7 +12,6 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
-import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { DataTree, type DataSelection } from './DataTree'
 import { ImportWizard } from '@/features/import/components/ImportWizard'
 import { ImportDashboard } from '@/features/import/components/dashboard/ImportDashboard'
@@ -205,7 +204,6 @@ export function DataModule() {
 
   return (
     <>
-      <StalenessBanner stage="data" />
       {showSidebar ? (
         <ModuleLayout
           sidebar={

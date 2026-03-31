@@ -21,7 +21,7 @@ export function OnboardingView() {
     },
     {
       number: 2,
-      title: t("pipeline.onboarding.step2", "Configure groups"),
+      title: t("pipeline.onboarding.step2", "Configure collections"),
       description: t(
         "pipeline.onboarding.step2_desc",
         "Choose widgets and statistics to compute",

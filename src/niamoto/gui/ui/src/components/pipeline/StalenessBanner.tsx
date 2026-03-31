@@ -33,17 +33,17 @@ const stageConfig: Record<PipelineStage, {
 }> = {
   data: {
     staleKey: 'pipeline.data_stale',
-    staleFallback: 'Data imported — groups need recomputing',
+    staleFallback: 'Data imported — collections need recomputing',
     freshKey: 'pipeline.data_fresh',
     freshFallback: 'Data up to date',
     actionKey: 'pipeline.action_transform',
-    actionFallback: 'Recompute groups',
+    actionFallback: 'Recompute collections',
   },
   groups: {
-    staleKey: 'pipeline.groups_stale',
+    staleKey: 'pipeline.collections_stale',
     staleFallback: 'Stale calculations — data changed since last computation',
-    freshKey: 'pipeline.groups_fresh',
-    freshFallback: 'All groups are up to date',
+    freshKey: 'pipeline.collections_fresh',
+    freshFallback: 'All collections are up to date',
     actionKey: 'pipeline.action_recalculate',
     actionFallback: 'Recompute',
   },
@@ -57,7 +57,7 @@ const stageConfig: Record<PipelineStage, {
   },
   publication: {
     staleKey: 'pipeline.publication_stale',
-    staleFallback: 'Groups recomputed — site needs rebuilding',
+    staleFallback: 'Collections recomputed — site needs rebuilding',
     freshKey: 'pipeline.publication_fresh',
     freshFallback: 'Site generated and up to date',
     actionKey: 'pipeline.action_rebuild',
@@ -108,7 +108,7 @@ export function StalenessBanner({ stage, onAction, actionLabel, className }: Sta
   } else {
     message = t(config.staleKey, config.staleFallback)
     if (stage === 'groups' && staleCount > 0) {
-      message = t('pipeline.groups_stale_count', '{{count}} group(s) need recomputing', { count: staleCount })
+      message = t('pipeline.collections_stale_count', '{{count}} collection(s) need recomputing', { count: staleCount })
     }
   }
 

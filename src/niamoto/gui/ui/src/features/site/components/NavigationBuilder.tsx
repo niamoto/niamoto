@@ -325,7 +325,7 @@ function NavItemEditor({
               {availablePages.filter((p) => p.type === 'group').length > 0 && (
                 <div className="border-t p-2">
                   <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                    {t('navigation.groupPages')}
+                    {t('navigation.collectionPages')}
                   </p>
                   {availablePages
                     .filter((p) => p.type === 'group')
