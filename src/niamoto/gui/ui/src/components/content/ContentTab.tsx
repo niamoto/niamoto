@@ -6,9 +6,10 @@
  * - Widget selected: Shows widget detail panel (preview + params + YAML)
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GripVertical, Plus } from 'lucide-react'
+import { GripVertical, PanelLeft, Plus } from 'lucide-react'
+import type { ImperativePanelHandle } from 'react-resizable-panels'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -165,14 +166,39 @@ export function ContentTab({ reference }: ContentTabProps) {
     setSelectedWidgetId(null)
   }, [refetchWidgets])
 
+  const leftPanelRef = useRef<ImperativePanelHandle>(null)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const togglePanel = useCallback(() => {
+    const panel = leftPanelRef.current
+    if (!panel) return
+    if (isCollapsed) {
+      panel.expand()
+    } else {
+      panel.collapse()
+    }
+  }, [isCollapsed])
+
   return (
     <div className="h-full flex flex-col">
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Panel - Widget List */}
-        <ResizablePanel defaultSize={28} minSize={15} maxSize={40}>
+        <ResizablePanel
+          ref={leftPanelRef}
+          defaultSize={28}
+          minSize={15}
+          maxSize={40}
+          collapsible
+          collapsedSize={0}
+          onCollapse={() => setIsCollapsed(true)}
+          onExpand={() => setIsCollapsed(false)}
+        >
           <div className="h-full flex flex-col border-r">
-            {/* Header with Add button */}
-            <div className="px-2 py-1.5 border-b flex items-center justify-between gap-2">
+            {/* Header with Add button + collapse toggle */}
+            <div className="px-2 py-1.5 border-b flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={togglePanel} title="Hide widget list">
+                <PanelLeft className="h-4 w-4" />
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="gap-1">
@@ -222,7 +248,7 @@ export function ContentTab({ reference }: ContentTabProps) {
           </div>
         </ResizablePanel>
 
-        {/* Resize Handle */}
+        {/* Resize Handle with collapse/expand toggle */}
         <ResizableHandle className="w-2 flex items-center justify-center group">
           <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
             <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -231,6 +257,35 @@ export function ContentTab({ reference }: ContentTabProps) {
 
         {/* Right Panel - Contextual */}
         <ResizablePanel defaultSize={72} minSize={55}>
+          {/* Collapsed toolbar: toggle + add widget */}
+          {isCollapsed && (
+            <div className="flex items-center gap-1 border-b px-2 py-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
+                    {t('widgets:actions.addFromSuggestions')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
+                    {t('widgets:actions.addCombinedWidget')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
+                    {t('widgets:modal.custom')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="text-xs text-muted-foreground ml-1">
+                {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
           <ContentRightPanel
             selectedWidget={selectedWidget}
             allWidgets={configuredWidgets}
