@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
-import type { ApiExportFieldSuggestion } from '@/features/groups/hooks/useApiExportConfigs'
+import type { ApiExportFieldSuggestion } from '@/features/collections/hooks/useApiExportConfigs'
 
 export interface ApiFieldMappingsEditorProps {
   value?: Array<Record<string, unknown>>
@@ -187,7 +187,7 @@ export function ApiFieldMappingsEditor({
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => addRow()}>
               <Plus className="mr-2 h-4 w-4" />
-              {t('groupPanel.api.fieldMappings.addField')}
+              {t('collectionPanel.api.fieldMappings.addField')}
             </Button>
           </div>
         </div>
@@ -197,7 +197,7 @@ export function ApiFieldMappingsEditor({
         <div className="flex justify-end">
           <Button type="button" variant="outline" size="sm" onClick={() => addRow()}>
             <Plus className="mr-2 h-4 w-4" />
-            {t('groupPanel.api.fieldMappings.addField')}
+            {t('collectionPanel.api.fieldMappings.addField')}
           </Button>
         </div>
       )}
@@ -206,7 +206,7 @@ export function ApiFieldMappingsEditor({
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5" />
-            {t('groupPanel.api.fieldMappings.suggestions')}
+            {t('collectionPanel.api.fieldMappings.suggestions')}
           </div>
           <div className="flex flex-wrap gap-2">
             {availableSuggestions.slice(0, 12).map((suggestion) => (
@@ -237,7 +237,7 @@ export function ApiFieldMappingsEditor({
           <div key={`${index}-${row.outputName}-${row.generator}`} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <Badge variant="outline">
-                {row.outputName || `${t('groupPanel.api.fieldMappings.field')} ${index + 1}`}
+                {row.outputName || `${t('collectionPanel.api.fieldMappings.field')} ${index + 1}`}
               </Badge>
               <div className="flex items-center gap-1">
                 <Button
@@ -247,7 +247,7 @@ export function ApiFieldMappingsEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, -1)}
                   disabled={index === 0}
-                  aria-label={t('groupPanel.api.fieldMappings.moveUp')}
+                  aria-label={t('collectionPanel.api.fieldMappings.moveUp')}
                 >
                   <ChevronUp className="h-4 w-4" />
                 </Button>
@@ -258,7 +258,7 @@ export function ApiFieldMappingsEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, 1)}
                   disabled={index === rows.length - 1}
-                  aria-label={t('groupPanel.api.fieldMappings.moveDown')}
+                  aria-label={t('collectionPanel.api.fieldMappings.moveDown')}
                 >
                   <ChevronDown className="h-4 w-4" />
                 </Button>
@@ -268,7 +268,7 @@ export function ApiFieldMappingsEditor({
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
                   onClick={() => removeRow(index)}
-                  aria-label={t('groupPanel.api.fieldMappings.remove')}
+                  aria-label={t('collectionPanel.api.fieldMappings.remove')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -277,7 +277,7 @@ export function ApiFieldMappingsEditor({
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
-                <Label>{t('groupPanel.api.fieldMappings.outputField')}</Label>
+                <Label>{t('collectionPanel.api.fieldMappings.outputField')}</Label>
                 <Input
                   value={row.outputName}
                   onChange={(event) =>
@@ -288,7 +288,7 @@ export function ApiFieldMappingsEditor({
               </div>
 
               <div className="space-y-1">
-                <Label>{t('groupPanel.api.fieldMappings.mode')}</Label>
+                <Label>{t('collectionPanel.api.fieldMappings.mode')}</Label>
                 <Select
                   value={row.mode}
                   onValueChange={(nextMode: 'source' | 'generator') =>
@@ -313,10 +313,10 @@ export function ApiFieldMappingsEditor({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="source">
-                      {t('groupPanel.api.fieldMappings.sourceField')}
+                      {t('collectionPanel.api.fieldMappings.sourceField')}
                     </SelectItem>
                     <SelectItem value="generator">
-                      {t('groupPanel.api.fieldMappings.generatorMode')}
+                      {t('collectionPanel.api.fieldMappings.generatorMode')}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -324,7 +324,7 @@ export function ApiFieldMappingsEditor({
 
               {row.mode === 'source' ? (
                 <div className="space-y-1">
-                  <Label>{t('groupPanel.api.fieldMappings.sourcePath')}</Label>
+                  <Label>{t('collectionPanel.api.fieldMappings.sourcePath')}</Label>
                   <Input
                     value={row.source}
                     onChange={(event) => updateRow(index, 'source', event.target.value)}
@@ -333,7 +333,7 @@ export function ApiFieldMappingsEditor({
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <Label>{t('groupPanel.api.fieldMappings.generatorName')}</Label>
+                  <Label>{t('collectionPanel.api.fieldMappings.generatorName')}</Label>
                   <Input
                     value={row.generator}
                     onChange={(event) =>
@@ -347,7 +347,7 @@ export function ApiFieldMappingsEditor({
 
             {row.mode === 'generator' && (
               <div className="mt-3 space-y-1">
-                <Label>{t('groupPanel.api.fieldMappings.generatorParams')}</Label>
+                <Label>{t('collectionPanel.api.fieldMappings.generatorParams')}</Label>
                 <Textarea
                   value={row.paramsText}
                   onChange={(event) =>

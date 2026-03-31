@@ -21,7 +21,7 @@ import {
   useUpdateApiExportGroupConfig,
   updateApiExportGroupConfig,
   type ApiExportTargetSummary,
-} from '@/features/groups/hooks/useApiExportConfigs'
+} from '@/features/collections/hooks/useApiExportConfigs'
 
 type Template = 'simple' | 'dwc'
 type WizardStep = 'type' | 'content' | 'confirm'
@@ -38,9 +38,9 @@ const NAME_PATTERN = /^[a-z][a-z0-9_]{2,30}$/
 function Stepper({ step }: { step: WizardStep }) {
   const { t } = useTranslation('sources')
   const steps: { key: WizardStep; label: string }[] = [
-    { key: 'type', label: t('groupPanel.api.wizard.stepType') },
-    { key: 'content', label: t('groupPanel.api.wizard.stepContent') },
-    { key: 'confirm', label: t('groupPanel.api.wizard.stepConfirm') },
+    { key: 'type', label: t('collectionPanel.api.wizard.stepType') },
+    { key: 'content', label: t('collectionPanel.api.wizard.stepContent') },
+    { key: 'confirm', label: t('collectionPanel.api.wizard.stepConfirm') },
   ]
   const currentIdx = steps.findIndex((s) => s.key === step)
 
@@ -111,11 +111,11 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
 
   const validateName = (name: string): boolean => {
     if (!NAME_PATTERN.test(name)) {
-      setNameError(t('groupPanel.api.wizard.targetNameHelp'))
+      setNameError(t('collectionPanel.api.wizard.targetNameHelp'))
       return false
     }
     if (targets?.some((t) => t.name === name)) {
-      setNameError(t('groupPanel.api.wizard.nameExists', { name }))
+      setNameError(t('collectionPanel.api.wizard.nameExists', { name }))
       return false
     }
     setNameError(null)
@@ -150,7 +150,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
           index: { fields: [] },
         })
         toast.success(
-          t('groupPanel.api.wizard.activated', { name: selectedExisting.name, groupBy })
+          t('collectionPanel.api.wizard.activated', { name: selectedExisting.name, groupBy })
         )
       } else if (selectedTemplate) {
         // Create new target then activate for group
@@ -175,12 +175,12 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
           queryKey: ['api-export-group', created.name, groupBy],
         })
         toast.success(
-          t('groupPanel.api.wizard.created', { name: targetName, groupBy })
+          t('collectionPanel.api.wizard.created', { name: targetName, groupBy })
         )
       }
       handleClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('groupPanel.api.saveFailed'))
+      toast.error(err instanceof Error ? err.message : t('collectionPanel.api.saveFailed'))
     }
   }
 
@@ -190,9 +190,9 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('groupPanel.api.wizard.title')}</DialogTitle>
+          <DialogTitle>{t('collectionPanel.api.wizard.title')}</DialogTitle>
           <DialogDescription>
-            {t('groupPanel.api.wizard.description', { groupBy })}
+            {t('collectionPanel.api.wizard.description', { groupBy })}
           </DialogDescription>
         </DialogHeader>
 
@@ -205,7 +205,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
             {availableExistingTargets.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t('groupPanel.api.wizard.existingTargets')}
+                  {t('collectionPanel.api.wizard.existingTargets')}
                 </p>
                 <div className="space-y-2">
                   {availableExistingTargets.map((target) => (
@@ -219,7 +219,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                       <div>
                         <div className="text-sm font-medium">{target.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {t('groupPanel.api.wizard.activateDescription')}
+                          {t('collectionPanel.api.wizard.activateDescription')}
                         </div>
                       </div>
                     </button>
@@ -231,7 +231,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
             {/* Create new section */}
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('groupPanel.api.wizard.createNew')}
+                {t('collectionPanel.api.wizard.createNew')}
               </p>
               <div className="space-y-2">
                 <button
@@ -242,10 +242,10 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                   <FileJson className="h-5 w-5 shrink-0 text-blue-500" />
                   <div>
                     <div className="text-sm font-medium">
-                      {t('groupPanel.api.wizard.simpleTitle')}
+                      {t('collectionPanel.api.wizard.simpleTitle')}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {t('groupPanel.api.wizard.simpleDescription')}
+                      {t('collectionPanel.api.wizard.simpleDescription')}
                     </div>
                   </div>
                 </button>
@@ -257,10 +257,10 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                   <Leaf className="h-5 w-5 shrink-0 text-green-600" />
                   <div>
                     <div className="text-sm font-medium">
-                      {t('groupPanel.api.wizard.dwcTitle')}
+                      {t('collectionPanel.api.wizard.dwcTitle')}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {t('groupPanel.api.wizard.dwcDescription')}
+                      {t('collectionPanel.api.wizard.dwcDescription')}
                     </div>
                   </div>
                 </button>
@@ -273,26 +273,26 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
         {step === 'content' && selectedTemplate && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>{t('groupPanel.api.wizard.targetName')}</Label>
+              <Label>{t('collectionPanel.api.wizard.targetName')}</Label>
               <Input
                 value={targetName}
                 onChange={(e) => {
                   setTargetName(e.target.value)
                   setNameError(null)
                 }}
-                placeholder={t('groupPanel.api.wizard.targetNamePlaceholder')}
+                placeholder={t('collectionPanel.api.wizard.targetNamePlaceholder')}
                 autoFocus
               />
               {nameError && <p className="text-xs text-destructive">{nameError}</p>}
               <p className="text-xs text-muted-foreground">
-                {t('groupPanel.api.wizard.targetNameHelp')}
+                {t('collectionPanel.api.wizard.targetNameHelp')}
               </p>
             </div>
 
             {selectedTemplate === 'dwc' && (
               <div className="rounded-lg border bg-green-50 p-3 dark:bg-green-950/20">
                 <p className="text-sm text-green-800 dark:text-green-200">
-                  {t('groupPanel.api.wizard.dwcAutoMapping')}
+                  {t('collectionPanel.api.wizard.dwcAutoMapping')}
                 </p>
               </div>
             )}
@@ -314,11 +314,11 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
             <div className="rounded-lg border bg-muted/30 p-4">
               <p className="text-sm">
                 {selectedExisting
-                  ? t('groupPanel.api.wizard.confirmActivate', {
+                  ? t('collectionPanel.api.wizard.confirmActivate', {
                       name: selectedExisting.name,
                       groupBy,
                     })
-                  : t('groupPanel.api.wizard.confirmCreate', {
+                  : t('collectionPanel.api.wizard.confirmCreate', {
                       name: targetName,
                       template: selectedTemplate,
                       groupBy,
@@ -342,8 +342,8 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
               <Button onClick={handleConfirm} disabled={isPending}>
                 {isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 {selectedExisting
-                  ? t('groupPanel.api.wizard.activate')
-                  : t('groupPanel.api.wizard.create')}
+                  ? t('collectionPanel.api.wizard.activate')
+                  : t('collectionPanel.api.wizard.create')}
               </Button>
             </div>
           </div>

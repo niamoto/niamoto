@@ -16,8 +16,8 @@ const ProjectHub = lazy(() =>
 const DataModule = lazy(() =>
   import('@/features/import').then((m) => ({ default: m.DataModule }))
 )
-const GroupsModule = lazy(() =>
-  import('@/features/groups').then((m) => ({ default: m.GroupsModule }))
+const CollectionsModule = lazy(() =>
+  import('@/features/collections').then((m) => ({ default: m.CollectionsModule }))
 )
 const PublishModule = lazy(() =>
   import('@/features/publish').then((m) => ({ default: m.PublishModule }))
@@ -188,10 +188,10 @@ function App() {
               element={<Suspense fallback={<PageFallback />}><DataModule /></Suspense>}
             />
 
-            {/* Groups - Widget configuration (sidebar module) */}
+            {/* Collections - Widget configuration (sidebar module) */}
             <Route
               path="groups/*"
-              element={<Suspense fallback={<PageFallback />}><GroupsModule /></Suspense>}
+              element={<Suspense fallback={<PageFallback />}><CollectionsModule /></Suspense>}
             />
 
             {/* Site - Static site configuration */}

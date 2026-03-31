@@ -37,7 +37,7 @@ import {
   useSaveSource,
   type UploadValidationResponse,
   type ClassObjectInfo,
-} from '@/features/groups/hooks/useSources'
+} from '@/features/collections/hooks/useSources'
 
 interface AddSourceDialogProps {
   open: boolean

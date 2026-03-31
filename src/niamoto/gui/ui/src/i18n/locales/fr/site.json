@@ -9,14 +9,14 @@
     "settings": "Paramètres",
     "general": "Général",
     "appearance": "Apparence",
-    "groups": "Groupes",
+    "collections": "Collections",
     "noPages": "Aucune page",
-    "noGroups": "Aucun groupe",
+    "noCollections": "Aucune collection",
     "addElement": "Ajouter"
   },
   "pages": {
     "title": "Pages",
-    "subtitle": "Gérez les pages statiques et visualisez les groupes",
+    "subtitle": "Gérez les pages statiques et visualisez les collections",
     "addPage": "+ Ajouter une page",
     "newPage": "Nouvelle page",
     "deletePage": "Supprimer la page ?",
@@ -35,11 +35,11 @@
     "edit": "Éditer",
     "view": "Voir"
   },
-  "groups": {
-    "title": "Groupes",
+  "collections": {
+    "title": "Collections",
     "configureInExport": "Configurer dans Export",
-    "noGroupsConfigured": "Aucun groupe configuré",
-    "groupsDefinedInExport": "Les groupes sont définis dans la configuration Export",
+    "noCollectionsConfigured": "Aucune collection configurée",
+    "collectionsDefinedInExport": "Les collections sont définies dans la configuration Export",
     "widgets": "widgets",
     "index": "Index",
     "noIndex": "Pas d'index"
@@ -53,7 +53,7 @@
     "submenu": "Sous-menu",
     "menuText": "Texte du menu",
     "staticPages": "Pages statiques",
-    "groupPages": "Pages de groupes",
+    "collectionPages": "Pages de collections",
     "customUrl": "URL personnalisée",
     "noMenuConfigured": "Aucun menu configuré",
     "submenus": "sous-menu(s)",
@@ -85,8 +85,8 @@
     "selectPageForPreview": "Sélectionnez une page pour voir l'aperçu",
     "noPreviewAvailable": "Aucun aperçu disponible",
     "generatingPreview": "Génération de l'aperçu...",
-    "groupDetailPage": "Page de détail {{group}}",
-    "groupDetailPageDesc": "Affichage de l'index du groupe (les pages de détail nécessitent des données réelles)"
+    "collectionDetailPage": "Page de détail {{group}}",
+    "collectionDetailPageDesc": "Affichage de l'index de la collection (les pages de détail nécessitent des données réelles)"
   },
   "links": {
     "addLink": "Ajouter un lien",
@@ -128,8 +128,8 @@
     "tablet": "Tablette",
     "desktop": "Bureau"
   },
-  "groupViewer": {
-    "pageGroup": "Groupe de pages",
+  "collectionViewer": {
+    "pageCollection": "Collection de pages",
     "back": "Retour",
     "configuration": "Configuration",
     "outputPattern": "Pattern de sortie",
@@ -149,11 +149,11 @@
     "noFilter": "Aucun filtre",
     "noField": "Aucun champ",
     "noIndexPage": "Pas de page d'index",
-    "noIndexPageDesc": "Ce groupe ne génère pas de page d'index. Seules les pages de détail sont créées pour chaque entité.",
+    "noIndexPageDesc": "Cette collection ne génère pas de page d'index. Seules les pages de détail sont créées pour chaque entité.",
     "activatePage": "Activer cette page",
     "activating": "Activation...",
     "indexPageActivated": "Page d'index activée",
-    "indexPageActivatedDesc": "La page d'index du groupe est maintenant disponible dans le Site Builder.",
+    "indexPageActivatedDesc": "La page d'index de la collection est maintenant disponible dans le Site Builder.",
     "editWidgets": "Modifier les widgets",
     "editWidgetsDesc": "Configurez les widgets dans l'onglet Transform/Export",
     "open": "Ouvrir"
@@ -302,7 +302,7 @@
   },
   "builder": {
     "templatePreview": "Aperçu du template",
-    "groupIndexPreview": "Aperçu de l'index de groupe",
+    "collectionIndexPreview": "Aperçu de l'index de collection",
     "mainMenu": "Menu principal",
     "footerMenu": "Menu footer"
   },
