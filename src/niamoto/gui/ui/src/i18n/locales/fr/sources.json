@@ -255,24 +255,31 @@
     "analysisInProgress": "Analyse en cours...",
     "runSpatialAnalysis": "Lancer l'analyse spatiale"
   },
-  "groups": {
-    "title": "Groupes",
-    "description": "Configurez les widgets et transformations pour chaque groupe de référence.",
+  "collections": {
+    "title": "Collections",
+    "description": "Configurez les widgets et transformations pour chaque collection de référence.",
     "apiSettings": "Paramètres API",
-    "noGroups": "Aucun groupe disponible",
-    "noGroupsHint": "Importez d'abord des références pour pouvoir configurer leurs widgets.",
+    "noCollections": "Aucune collection disponible",
+    "noCollectionsHint": "Importez d'abord des références pour pouvoir configurer leurs widgets.",
     "importData": "Importer des données",
     "table": "Table",
-    "notFound": "Groupe non trouvé",
-    "notFoundDesc": "Le groupe \"{{name}}\" n'existe pas.",
-    "backToGroups": "Retour aux groupes",
+    "notFound": "Collection non trouvée",
+    "notFoundDesc": "La collection \"{{name}}\" n'existe pas.",
+    "backToCollections": "Retour aux collections",
     "overview": "Vue d'ensemble",
+    "overviewFresh": "À jour",
+    "overviewStale": "À recalculer",
+    "overviewNeverRun": "Jamais calculé",
+    "overviewBlocks": "Blocs",
+    "overviewSheets": "Fiches",
+    "overviewExports": "Exports",
+    "overviewLastRun": "Dernier calcul",
     "widgets": "Widgets",
     "index": "Index",
     "noIndex": "Aucun index configuré",
-    "noGroupsConfigured": "Aucun groupe configuré",
+    "noCollectionsConfigured": "Aucune collection configurée",
     "configureInExport": "Configurer dans les paramètres d'export",
-    "groupsDefinedInExport": "Groupes définis dans la configuration d'export"
+    "collectionsDefinedInExport": "Collections définies dans la configuration d'export"
   },
   "tree": {
     "datasets": "Jeux de données",
@@ -289,14 +296,14 @@
   },
   "dashboard": {
     "title": "Données importées",
-    "description": "Explorez les groupes d’agrégation et les sources support désormais disponibles dans votre espace de travail.",
+    "description": "Explorez les collections d’agrégation et les sources support désormais disponibles dans votre espace de travail.",
     "noData": "Aucune donnée importée",
     "noDataHint": "Commencez par importer vos fichiers de données pour inspecter leur structure et commencer à les explorer.",
     "importData": "Importer des données",
     "import": "Importer",
     "importedWorkspace": "Workspace importé",
     "workspaceTitle": "Explorez ce que cet import a mis en place",
-    "workspaceDescription": "Les groupes d’agrégation sont les points d’entrée principaux pour les pages, la navigation et l’enrichissement dans Niamoto. Commencez par eux, puis inspectez les sources support lorsque vous avez besoin de plus de détail.",
+    "workspaceDescription": "Les collections d’agrégation sont les points d’entrée principaux pour les pages, la navigation et l’enrichissement dans Niamoto. Commencez par elles, puis inspectez les sources support lorsque vous avez besoin de plus de détail.",
     "emptyState": {
       "badge": "Workspace de données",
       "title": "Importez vos données",
@@ -328,17 +335,17 @@
       },
       "prepare": {
         "title": "Préparer les pages statiques",
-        "description": "Passez dans Groupes pour choisir les widgets, sources et pages d’index de chaque groupe.",
-        "summary": "{{count}} groupes disponibles"
+        "description": "Passez dans Collections pour choisir les widgets, sources et pages d’index de chaque collection.",
+        "summary": "{{count}} collections disponibles"
       },
       "supportingSourcesDescription": "Les datasets bruts et les couches importées restent disponibles pour l’inspection, la mise à jour et les changements de configuration."
     },
     "needsAttention": "À surveiller",
-    "aggregationGroupsTitle": "Groupes d’agrégation",
-    "aggregationGroupsDescription": "Ces groupes structurent désormais les pages, la navigation et les workflows d’enrichissement que vous pouvez construire à partir de cet import.",
-    "groupOverview": {
-      "title": "Vue des groupes",
-      "description": "Gardez les groupes importés visibles, mais concentrez chaque carte sur son état actuel et la prochaine action utile.",
+    "aggregationCollectionsTitle": "Collections d’agrégation",
+    "aggregationCollectionsDescription": "Ces collections structurent désormais les pages, la navigation et les workflows d’enrichissement que vous pouvez construire à partir de cet import.",
+    "collectionOverview": {
+      "title": "Vue des collections",
+      "description": "Gardez les collections importées visibles, mais concentrez chaque carte sur son état actuel et la prochaine action utile.",
       "reviewSummary": "{{count}} à vérifier",
       "enrichmentSummary": "{{count}} avec enrichissement disponible",
       "readySummary": "{{count}} prêts pour les pages"
@@ -366,8 +373,8 @@
       "explore": "Explorer",
       "review": "Vérifier",
       "details": "Détails",
-      "openGroup": "Ouvrir le groupe",
-      "openGroups": "Ouvrir les groupes",
+      "openCollection": "Ouvrir la collection",
+      "openCollections": "Ouvrir les collections",
       "editConfig": "Modifier la config",
       "updateFile": "Mettre à jour le fichier",
       "updateLayer": "Mettre à jour le fichier",
@@ -384,9 +391,9 @@
       "layer": "Couche"
     },
     "aggregationDescriptions": {
-      "hierarchical": "Utilisez ce groupe pour naviguer dans une hiérarchie d’entités liées et générer des pages structurées à partir d’elle.",
-      "spatial": "Utilisez ce groupe pour organiser les données par zones cartographiées ou regroupements géographiques.",
-      "generic": "Utilisez ce groupe comme référence stable autour de laquelle agréger des observations liées."
+      "hierarchical": "Utilisez cette collection pour naviguer dans une hiérarchie d’entités liées et générer des pages structurées à partir d’elle.",
+      "spatial": "Utilisez cette collection pour organiser les données par zones cartographiées ou regroupements géographiques.",
+      "generic": "Utilisez cette collection comme référence stable autour de laquelle agréger des observations liées."
     },
     "card": {
       "rows": "Lignes",
@@ -401,7 +408,7 @@
       "enrichmentAvailable": "Enrichissement disponible",
       "enrichmentEnabled": "Enrichissement activé"
     },
-    "groupStatus": {
+    "collectionStatus": {
       "needsReview": "À vérifier",
       "enrichmentAvailable": "Enrichissement disponible",
       "enrichmentConfigured": "Enrichissement configuré",
@@ -414,9 +421,9 @@
       "enrichmentTitle": "Enrichir cette référence depuis des API externes",
       "enrichmentDescription": "Utilisez l’enrichissement API pour compléter cette référence avec des données externes avant de générer des pages ou des widgets à partir d’elle.",
       "enrichmentConfiguredTitle": "Cette référence dispose déjà d’un workflow d’enrichissement",
-      "enrichmentConfiguredDescription": "Revoyez ou affinez les paramètres d’enrichissement API avant de régénérer des pages et widgets à partir de ce groupe.",
-      "exploreTitle": "Ce groupe est prêt à être utilisé",
-      "exploreDescription": "Vous pouvez explorer cette référence importée directement ou ouvrir sa page de groupe générée lorsque vous êtes prêt."
+      "enrichmentConfiguredDescription": "Revoyez ou affinez les paramètres d’enrichissement API avant de régénérer des pages et widgets à partir de cette collection.",
+      "exploreTitle": "Cette collection est prête à être utilisée",
+      "exploreDescription": "Vous pouvez explorer cette référence importée directement ou ouvrir sa page de collection générée lorsque vous êtes prêt."
     },
     "enrichment": {
       "sheetTitle": "Enrichissement · {{name}}",
@@ -438,7 +445,7 @@
       },
       "taxonomy": {
         "title": "Vérifications taxonomiques",
-        "description": "Inspectez la cohérence de la hiérarchie et repérez les problèmes structurels dans les groupes taxonomiques."
+        "description": "Inspectez la cohérence de la hiérarchie et repérez les problèmes structurels dans les collections taxonomiques."
       },
       "coverage": {
         "title": "Couverture spatiale",
@@ -604,12 +611,12 @@
       "genericErrorTitle": "Erreur"
     }
   },
-  "groupPanel": {
+  "collectionPanel": {
     "tabs": {
       "sources": "Sources de données",
-      "content": "Contenu",
-      "index": "Liste",
-      "api": "API"
+      "blocks": "Blocs",
+      "list": "Liste",
+      "export": "Export"
     },
     "kinds": {
       "hierarchical": "Hiérarchique",
@@ -618,7 +625,7 @@
     },
     "sourcesTab": {
       "title": "Sources de données",
-      "description": "Configurez les sources de données pour le groupe \"{{name}}\".",
+      "description": "Configurez les sources de données pour la collection \"{{name}}\".",
       "primarySource": "Source principale",
       "primarySourceDesc": "Table de données liée à cette référence",
       "occurrences": "occurrences",
@@ -649,36 +656,36 @@
     },
     "api": {
       "title": "Exports API statiques",
-      "description": "Configurez les exports JSON et standards pour le groupe \"{{groupBy}}\".",
+      "description": "Configurez les exports JSON et standards pour la collection \"{{groupBy}}\".",
       "globalSettings": "Paramètres API globaux",
       "globalSettingsDescription": "Gérez ici les paramètres partagés des cibles d'exports JSON statiques.",
-      "enabledForGroup": "Activé pour ce groupe",
+      "enabledForGroup": "Activé pour cette collection",
       "enabledGlobally": "Activé globalement",
-      "disabledForGroup": "Cet export n'est pas activé pour ce groupe. Activez-le pour gérer sa sortie JSON ou standard.",
+      "disabledForGroup": "Cet export n'est pas activé pour cette collection. Activez-le pour gérer sa sortie JSON ou standard.",
       "globallyDisabled": "Cible globale désactivée",
       "unsaved": "Modifications non enregistrées",
       "empty": "Aucune cible d'export API statique n'est configurée dans export.yml.",
       "loadFailed": "Impossible de charger la configuration API.",
       "saveFailed": "Impossible d'enregistrer la configuration API.",
-      "groupConfigSaved": "{{exportName}} enregistré pour le groupe {{groupBy}}",
+      "groupConfigSaved": "{{exportName}} enregistré pour la collection {{groupBy}}",
       "globalConfigSaved": "{{exportName}} enregistré",
-      "targetDescription": "Réglez ici la sortie \"{{exportName}}\" pour le groupe \"{{groupBy}}\".",
+      "targetDescription": "Réglez ici la sortie \"{{exportName}}\" pour la collection \"{{groupBy}}\".",
       "globalTargetDescription": "Réglez ici les paramètres partagés de la cible \"{{exportName}}\".",
-      "groupsCount_one": "{{count}} groupe",
-      "groupsCount_other": "{{count}} groupes",
+      "collectionsCount_one": "{{count}} collection",
+      "collectionsCount_other": "{{count}} collections",
       "dataSource": "Source de données",
-      "dataSourcePlaceholder": "Laisser vide pour utiliser le groupe courant",
+      "dataSourcePlaceholder": "Laisser vide pour utiliser la collection courante",
       "dataSourceHelp": "Optionnel. Permet de surcharger la source logique utilisée par cet export.",
       "passThrough": "Exporter toutes les données transformées",
-      "passThroughHelp": "Quand activé, le JSON détail reprend directement les données transformées du groupe.",
+      "passThroughHelp": "Quand activé, le JSON détail reprend directement les données transformées de la collection.",
       "detailFields": "Champs du JSON détail",
       "detailFieldsHelp": "Décrivez ici les champs à exposer dans les fichiers détail si le mode pass-through est désactivé.",
       "indexFields": "Champs de l'index JSON",
-      "indexFieldsHelp": "Choisissez les champs exportés dans le fichier d'index pour ce groupe.",
+      "indexFieldsHelp": "Choisissez les champs exportés dans le fichier d'index pour cette collection.",
       "transformerParams": "Paramètres du transformeur",
       "dwcMapping": "Mapping Darwin Core",
       "dwcMappingHelp": "Mappez chaque terme Darwin Core vers une valeur statique, une référence de données ou un générateur.",
-      "dwcReferenceHelp": "Utilisez @source.champ pour les champs d'occurrence et @taxon.champ pour les données du groupe courant.",
+      "dwcReferenceHelp": "Utilisez @source.champ pour les champs d'occurrence et @taxon.champ pour les données de la collection courante.",
       "mappingTermFallback": "Terme {{index}}",
       "moveMappingUp": "Monter le mapping",
       "moveMappingDown": "Descendre le mapping",
@@ -721,7 +728,7 @@
         "generatorParams": "Paramètres du générateur (JSON)"
       },
       "jsonOverrides": "Options de format avancées",
-      "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour ce groupe.",
+      "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour cette collection.",
       "fieldCount": "{{count}} champs",
       "termCount": "{{count}} termes",
       "sectionDefault": "par défaut",
@@ -729,23 +736,23 @@
         "simplePassThrough": "Export JSON simple — toutes les données transformées. {{count}} entrées.",
         "simpleFields": "Export JSON — {{fieldCount}} champs sélectionnés. {{count}} entrées.",
         "dwc": "Darwin Core (GBIF) — {{termCount}} termes mappés. {{count}} entrées.",
-        "disabled": "Cet export est désactivé pour ce groupe."
+        "disabled": "Cet export est désactivé pour cette collection."
       },
       "sectionHelp": {
-        "indexFields": "Ces champs apparaissent dans le fichier index du groupe « {{groupBy}} ».",
-        "detailFields": "Chaque entrée du groupe « {{groupBy}} » aura son propre fichier JSON avec ces données.",
+        "indexFields": "Ces champs apparaissent dans le fichier index de la collection « {{groupBy}} ».",
+        "detailFields": "Chaque entrée de la collection « {{groupBy}} » aura son propre fichier JSON avec ces données.",
         "dwcMapping": "Le standard Darwin Core permet de partager vos données avec GBIF et d'autres réseaux de biodiversité.",
         "advancedOptions": "Formatage JSON, source de données, et autres paramètres techniques."
       },
       "wizard": {
         "title": "Ajouter un format d'export",
-        "description": "Configurer un nouvel export pour le groupe « {{groupBy}} ».",
+        "description": "Configurer un nouvel export pour la collection « {{groupBy}} ».",
         "addFormat": "Ajouter un format d'export",
         "stepType": "Type",
         "stepContent": "Contenu",
         "stepConfirm": "Confirmer",
-        "existingTargets": "Targets existants (pas encore actifs pour ce groupe)",
-        "activateDescription": "Activer cet export existant pour le groupe courant",
+        "existingTargets": "Targets existants (pas encore actifs pour cette collection)",
+        "activateDescription": "Activer cet export existant pour la collection courante",
         "createNew": "Créer un nouveau format",
         "simpleTitle": "Export JSON simple",
         "simpleDescription": "Publier toutes vos données transformées telles quelles",
@@ -756,12 +763,12 @@
         "targetNameHelp": "Lettres minuscules, chiffres et underscores uniquement (3-31 car.)",
         "nameExists": "Un target nommé « {{name}} » existe déjà",
         "dwcAutoMapping": "Le mapping Darwin Core sera pré-rempli avec les valeurs par défaut. Vous pourrez l'ajuster après la création.",
-        "confirmActivate": "Activer l'export « {{name}} » pour le groupe « {{groupBy}} » avec les paramètres par défaut.",
-        "confirmCreate": "Créer un nouvel export « {{template}} » nommé « {{name}} » pour le groupe « {{groupBy}} ».",
+        "confirmActivate": "Activer l'export « {{name}} » pour la collection « {{groupBy}} » avec les paramètres par défaut.",
+        "confirmCreate": "Créer un nouvel export « {{template}} » nommé « {{name}} » pour la collection « {{groupBy}} ».",
         "activate": "Activer",
         "create": "Créer l'export",
-        "activated": "« {{name}} » activé pour le groupe {{groupBy}}",
-        "created": "« {{name}} » créé pour le groupe {{groupBy}}"
+        "activated": "« {{name}} » activé pour la collection {{groupBy}}",
+        "created": "« {{name}} » créé pour la collection {{groupBy}}"
       }
     }
   },

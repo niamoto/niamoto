@@ -164,7 +164,7 @@ function serializeRows(
       if (!generator) {
         return {
           value: serialized,
-          error: t('groupPanel.api.mappingErrors.generatorRequired', { term }),
+          error: t('collectionPanel.api.mappingErrors.generatorRequired', { term }),
         }
       }
 
@@ -177,11 +177,11 @@ function serializeRows(
             value: serialized,
             error:
               error instanceof Error
-                ? t('groupPanel.api.mappingErrors.invalidGeneratorParams', {
+                ? t('collectionPanel.api.mappingErrors.invalidGeneratorParams', {
                     term,
                     message: error.message,
                   })
-                : t('groupPanel.api.mappingErrors.invalidGeneratorParams', { term }),
+                : t('collectionPanel.api.mappingErrors.invalidGeneratorParams', { term }),
           }
         }
       }
@@ -198,7 +198,7 @@ function serializeRows(
       if (!reference) {
         return {
           value: serialized,
-          error: t('groupPanel.api.mappingErrors.sourceRequired', { term }),
+          error: t('collectionPanel.api.mappingErrors.sourceRequired', { term }),
         }
       }
 
@@ -209,7 +209,7 @@ function serializeRows(
     if (!row.staticValue.trim()) {
       return {
         value: serialized,
-        error: t('groupPanel.api.mappingErrors.staticValueRequired', { term }),
+        error: t('collectionPanel.api.mappingErrors.staticValueRequired', { term }),
       }
     }
 
@@ -286,9 +286,9 @@ export function DwcMappingEditor({
     <div className="space-y-4 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold">{t('groupPanel.api.dwcMapping')}</h3>
+          <h3 className="text-sm font-semibold">{t('collectionPanel.api.dwcMapping')}</h3>
           <p className="text-sm text-muted-foreground">
-            {t('groupPanel.api.dwcMappingHelp')}
+            {t('collectionPanel.api.dwcMappingHelp')}
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addRow}>
@@ -298,7 +298,7 @@ export function DwcMappingEditor({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {t('groupPanel.api.dwcReferenceHelp')}
+        {t('collectionPanel.api.dwcReferenceHelp')}
       </p>
 
       <div className="space-y-4">
@@ -306,7 +306,7 @@ export function DwcMappingEditor({
           <div key={`${index}-${row.term}-${row.generator}`} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <Badge variant="outline">
-                {row.term || t('groupPanel.api.mappingTermFallback', { index: index + 1 })}
+                {row.term || t('collectionPanel.api.mappingTermFallback', { index: index + 1 })}
               </Badge>
               <div className="flex items-center gap-1">
                 <Button
@@ -316,7 +316,7 @@ export function DwcMappingEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, -1)}
                   disabled={index === 0}
-                  aria-label={t('groupPanel.api.moveMappingUp')}
+                  aria-label={t('collectionPanel.api.moveMappingUp')}
                 >
                   <ChevronUp className="h-4 w-4" />
                 </Button>
@@ -327,7 +327,7 @@ export function DwcMappingEditor({
                   className="h-8 w-8"
                   onClick={() => moveRow(index, 1)}
                   disabled={index === rows.length - 1}
-                  aria-label={t('groupPanel.api.moveMappingDown')}
+                  aria-label={t('collectionPanel.api.moveMappingDown')}
                 >
                   <ChevronDown className="h-4 w-4" />
                 </Button>
@@ -337,7 +337,7 @@ export function DwcMappingEditor({
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
                   onClick={() => removeRow(index)}
-                  aria-label={t('groupPanel.api.removeMapping')}
+                  aria-label={t('collectionPanel.api.removeMapping')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -346,16 +346,16 @@ export function DwcMappingEditor({
 
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>{t('groupPanel.api.dwcTerm')}</Label>
+                <Label>{t('collectionPanel.api.dwcTerm')}</Label>
                 <Input
                   value={row.term}
                   onChange={(event) => updateRow(index, 'term', event.target.value)}
-                  placeholder={t('groupPanel.api.dwcTermPlaceholder')}
+                  placeholder={t('collectionPanel.api.dwcTermPlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>{t('groupPanel.api.mappingMode')}</Label>
+                <Label>{t('collectionPanel.api.mappingMode')}</Label>
                 <Select
                   value={row.mode}
                   onValueChange={(mode: DwcMappingMode) => updateRow(index, 'mode', mode)}
@@ -365,13 +365,13 @@ export function DwcMappingEditor({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="source">
-                      {t('groupPanel.api.mappingModes.source')}
+                      {t('collectionPanel.api.mappingModes.source')}
                     </SelectItem>
                     <SelectItem value="static">
-                      {t('groupPanel.api.mappingModes.static')}
+                      {t('collectionPanel.api.mappingModes.static')}
                     </SelectItem>
                     <SelectItem value="generator">
-                      {t('groupPanel.api.mappingModes.generator')}
+                      {t('collectionPanel.api.mappingModes.generator')}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -380,22 +380,22 @@ export function DwcMappingEditor({
 
             {row.mode === 'source' && (
               <div className="mt-3 space-y-2">
-                <Label>{t('groupPanel.api.sourceReference')}</Label>
+                <Label>{t('collectionPanel.api.sourceReference')}</Label>
                 <Input
                   value={row.reference}
                   onChange={(event) => updateRow(index, 'reference', event.target.value)}
-                  placeholder={t('groupPanel.api.sourceReferencePlaceholder')}
+                  placeholder={t('collectionPanel.api.sourceReferencePlaceholder')}
                 />
               </div>
             )}
 
             {row.mode === 'static' && (
               <div className="mt-3 space-y-2">
-                <Label>{t('groupPanel.api.staticValue')}</Label>
+                <Label>{t('collectionPanel.api.staticValue')}</Label>
                 <Input
                   value={row.staticValue}
                   onChange={(event) => updateRow(index, 'staticValue', event.target.value)}
-                  placeholder={t('groupPanel.api.staticValuePlaceholder')}
+                  placeholder={t('collectionPanel.api.staticValuePlaceholder')}
                 />
               </div>
             )}
@@ -403,13 +403,13 @@ export function DwcMappingEditor({
             {row.mode === 'generator' && (
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>{t('groupPanel.api.generator')}</Label>
+                  <Label>{t('collectionPanel.api.generator')}</Label>
                   <Select
                     value={row.generator || undefined}
                     onValueChange={(generator) => updateRow(index, 'generator', generator)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={t('groupPanel.api.generatorPlaceholder')} />
+                      <SelectValue placeholder={t('collectionPanel.api.generatorPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {generatorOptions.map((generator) => (
@@ -422,12 +422,12 @@ export function DwcMappingEditor({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t('groupPanel.api.generatorParams')}</Label>
+                  <Label>{t('collectionPanel.api.generatorParams')}</Label>
                   <Textarea
                     value={row.paramsText}
                     onChange={(event) => updateRow(index, 'paramsText', event.target.value)}
                     rows={5}
-                    placeholder={t('groupPanel.api.generatorParamsPlaceholder')}
+                    placeholder={t('collectionPanel.api.generatorParamsPlaceholder')}
                   />
                 </div>
               </div>

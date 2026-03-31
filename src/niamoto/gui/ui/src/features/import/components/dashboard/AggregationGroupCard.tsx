@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-interface AggregationGroupCardProps {
+interface AggregationCollectionCardProps {
   group: {
     name: string
     table_name: string
@@ -49,7 +49,7 @@ interface AggregationGroupCardProps {
   exploreAction: string
   editConfigAction: string
   addSourceAction: string
-  openGroupAction: string
+  openCollectionAction: string
   enrichAction: string
   manageEnrichmentAction: string
   onExplore?: (name: string) => void
@@ -59,7 +59,7 @@ interface AggregationGroupCardProps {
   onEnrich?: (name: string, targetTab: 'config' | 'enrichment') => void
 }
 
-export function AggregationGroupCard({
+export function AggregationCollectionCard({
   group,
   kindLabel,
   description,
@@ -81,7 +81,7 @@ export function AggregationGroupCard({
   exploreAction,
   editConfigAction,
   addSourceAction,
-  openGroupAction,
+  openCollectionAction,
   enrichAction,
   manageEnrichmentAction,
   onExplore,
@@ -89,7 +89,7 @@ export function AggregationGroupCard({
   onAddSource,
   onOpenGroup,
   onEnrich,
-}: AggregationGroupCardProps) {
+}: AggregationCollectionCardProps) {
   const Icon =
     group.kind === 'spatial'
       ? Globe2
@@ -150,7 +150,7 @@ export function AggregationGroupCard({
               )}
               {onOpenGroup && (
                 <Button variant="ghost" onClick={() => onOpenGroup(group.name)}>
-                  {openGroupAction}
+                  {openCollectionAction}
                 </Button>
               )}
             </div>

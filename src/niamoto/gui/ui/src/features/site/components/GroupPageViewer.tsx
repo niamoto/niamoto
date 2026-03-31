@@ -43,11 +43,11 @@ export function GroupPageViewer({
           </div>
           <div>
             <h2 className="text-lg font-semibold">{group.name}/</h2>
-            <p className="text-sm text-muted-foreground">{t('groupViewer.pageGroup')}</p>
+            <p className="text-sm text-muted-foreground">{t('collectionViewer.pageCollection')}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={onBack}>
-          {t('groupViewer.back')}
+          {t('collectionViewer.back')}
         </Button>
       </div>
 
@@ -56,27 +56,27 @@ export function GroupPageViewer({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Settings2 className="h-4 w-4" />
-            {t('groupViewer.configuration')}
+            {t('collectionViewer.configuration')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('groupViewer.outputPattern')}</span>
+              <span className="text-muted-foreground">{t('collectionViewer.outputPattern')}</span>
               <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                 {group.output_pattern}
               </code>
             </div>
             {group.index_output_pattern && (
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{t('groupViewer.indexPage')}</span>
+                <span className="text-muted-foreground">{t('collectionViewer.indexPage')}</span>
                 <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                   {group.index_output_pattern}
                 </code>
               </div>
             )}
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('groupViewer.configuredWidgets')}</span>
+              <span className="text-muted-foreground">{t('collectionViewer.configuredWidgets')}</span>
               <Badge variant="secondary">{group.widgets_count}</Badge>
             </div>
           </div>
@@ -90,29 +90,29 @@ export function GroupPageViewer({
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <LayoutGrid className="h-4 w-4" />
-                {t('groupViewer.indexGenerator')}
+                {t('collectionViewer.indexGenerator')}
               </CardTitle>
               <Badge variant="default" className="bg-green-500/10 text-green-600">
-                {t('groupViewer.enabled')}
+                {t('collectionViewer.enabled')}
               </Badge>
             </div>
             <CardDescription>
-              {t('groupViewer.indexPageDesc')}
+              {t('collectionViewer.indexPageDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Page config */}
             <div className="grid gap-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{t('groupViewer.titleLabel')}</span>
+                <span className="text-muted-foreground">{t('collectionViewer.titleLabel')}</span>
                 <span>{indexConfig.page_config?.title || '-'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{t('groupViewer.itemsPerPage')}</span>
+                <span className="text-muted-foreground">{t('collectionViewer.itemsPerPage')}</span>
                 <Badge variant="outline">{indexConfig.page_config?.items_per_page || 24}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{t('groupViewer.template')}</span>
+                <span className="text-muted-foreground">{t('collectionViewer.template')}</span>
                 <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                   {indexConfig.template}
                 </code>
@@ -125,7 +125,7 @@ export function GroupPageViewer({
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{t('groupViewer.filters')}</span>
+                <span className="text-sm font-medium">{t('collectionViewer.filters')}</span>
                 <Badge variant="secondary" className="text-xs">
                   {indexConfig.filters?.length || 0}
                 </Badge>
@@ -155,7 +155,7 @@ export function GroupPageViewer({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground italic">{t('groupViewer.noFilter')}</p>
+                <p className="text-xs text-muted-foreground italic">{t('collectionViewer.noFilter')}</p>
               )}
             </div>
 
@@ -165,7 +165,7 @@ export function GroupPageViewer({
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <List className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{t('groupViewer.displayFields')}</span>
+                <span className="text-sm font-medium">{t('collectionViewer.displayFields')}</span>
                 <Badge variant="secondary" className="text-xs">
                   {indexConfig.display_fields?.length || 0}
                 </Badge>
@@ -180,13 +180,13 @@ export function GroupPageViewer({
                     >
                       {field.label || field.name}
                       {field.searchable && (
-                        <span className="ml-1 text-[10px] text-blue-500">{t('groupViewer.search')}</span>
+                        <span className="ml-1 text-[10px] text-blue-500">{t('collectionViewer.search')}</span>
                       )}
                     </Badge>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground italic">{t('groupViewer.noField')}</p>
+                <p className="text-xs text-muted-foreground italic">{t('collectionViewer.noField')}</p>
               )}
             </div>
 
@@ -196,7 +196,7 @@ export function GroupPageViewer({
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <Eye className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{t('groupViewer.displayModes')}</span>
+                <span className="text-sm font-medium">{t('collectionViewer.displayModes')}</span>
               </div>
               <div className="flex gap-2">
                 {indexConfig.views?.map((view, idx) => (
@@ -206,7 +206,7 @@ export function GroupPageViewer({
                     className="capitalize"
                   >
                     {view.type}
-                    {view.default && <span className="ml-1 text-[10px]">({t('groupViewer.default')})</span>}
+                    {view.default && <span className="ml-1 text-[10px]">({t('collectionViewer.default')})</span>}
                   </Badge>
                 ))}
               </div>
@@ -220,9 +220,9 @@ export function GroupPageViewer({
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 text-center">
             <LayoutGrid className="mb-3 h-10 w-10 text-muted-foreground/50" />
-            <h3 className="font-medium">{t('groupViewer.noIndexPage')}</h3>
+            <h3 className="font-medium">{t('collectionViewer.noIndexPage')}</h3>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
-              {t('groupViewer.noIndexPageDesc')}
+              {t('collectionViewer.noIndexPageDesc')}
             </p>
             {onEnableIndexPage && (
               <Button
@@ -233,10 +233,10 @@ export function GroupPageViewer({
                 {isEnablingIndexPage ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('groupViewer.activating')}
+                    {t('collectionViewer.activating')}
                   </>
                 ) : (
-                  t('groupViewer.activatePage')
+                  t('collectionViewer.activatePage')
                 )}
               </Button>
             )}
@@ -250,15 +250,15 @@ export function GroupPageViewer({
           <div className="flex items-center gap-3">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">{t('groupViewer.editWidgets')}</p>
+              <p className="text-sm font-medium">{t('collectionViewer.editWidgets')}</p>
               <p className="text-xs text-muted-foreground">
-                {t('groupViewer.editWidgetsDesc')}
+                {t('collectionViewer.editWidgetsDesc')}
               </p>
             </div>
           </div>
           <Button variant="outline" size="sm" asChild>
             <a href={`/flow?tab=export&group=${group.name}`}>
-              {t('groupViewer.open')}
+              {t('collectionViewer.open')}
               <ExternalLink className="ml-2 h-3 w-3" />
             </a>
           </Button>

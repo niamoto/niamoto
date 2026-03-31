@@ -1,13 +1,13 @@
 /**
- * GroupsModule - Orchestrator for the Groups section
+ * CollectionsModule - Orchestrator for the Collections section
  *
  * Sidebar + content layout using ModuleLayout.
  * Reads URL to determine initial selection:
  *   /groups       -> overview
- *   /groups/:name -> group detail
+ *   /groups/:name -> collection detail
  *
- * Overview shows a card grid of all reference groups.
- * Group detail delegates to GroupPanel.
+ * Overview shows a card grid of all reference collections.
+ * Collection detail delegates to CollectionPanel.
  */
 
 import { useState, useEffect } from 'react'
@@ -16,31 +16,23 @@ import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
-import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
-import { GroupsTree, type GroupsSelection } from './GroupsTree'
-import { GroupPanel } from './GroupPanel'
+import { CollectionsTree, type CollectionsSelection } from './CollectionsTree'
+import { CollectionPanel } from './CollectionPanel'
+import { CollectionsOverview } from './CollectionsOverview'
 import { ApiSettingsPanel } from './api/ApiSettingsPanel'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Layers, ArrowRight } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 // =============================================================================
 // URL HELPERS
 // =============================================================================
 
-function selectionFromPath(pathname: string): GroupsSelection {
+function selectionFromPath(pathname: string): CollectionsSelection {
   if (pathname === '/groups/api-settings') {
     return { type: 'api-settings' }
   }
   const match = pathname.match(/^\/groups\/(.+)$/)
   if (match) {
-    return { type: 'group', name: decodeURIComponent(match[1]) }
+    return { type: 'collection', name: decodeURIComponent(match[1]) }
   }
   return { type: 'overview' }
 }
@@ -49,7 +41,7 @@ function selectionFromPath(pathname: string): GroupsSelection {
 // COMPONENT
 // =============================================================================
 
-export function GroupsModule() {
+export function CollectionsModule() {
   const { t } = useTranslation(['sources', 'common'])
   const location = useLocation()
   const navigate = useNavigate()
@@ -59,9 +51,10 @@ export function GroupsModule() {
   const references = referencesData?.references ?? []
 
   // Selection state — initialized from URL
-  const [selection, setSelection] = useState<GroupsSelection>(() =>
+  const [selection, setSelection] = useState<CollectionsSelection>(() =>
     selectionFromPath(location.pathname)
   )
+  const [initialTab, setInitialTab] = useState<string | undefined>()
 
   // Sync selection when URL changes externally (e.g. browser back/forward)
   useEffect(() => {
@@ -70,8 +63,9 @@ export function GroupsModule() {
   }, [location.pathname])
 
   // Update URL when selection changes
-  const handleSelect = (newSelection: GroupsSelection) => {
+  const handleSelect = (newSelection: CollectionsSelection, tab?: string) => {
     setSelection(newSelection)
+    setInitialTab(tab)
     if (newSelection.type === 'overview') {
       navigate('/groups')
     } else if (newSelection.type === 'api-settings') {
@@ -84,13 +78,13 @@ export function GroupsModule() {
   // Update breadcrumbs
   useEffect(() => {
     const crumbs: { label: string; path?: string }[] = [
-      { label: t('groups.title', 'Groups'), path: '/groups' },
+      { label: t('collections.title', 'Collections'), path: '/groups' },
     ]
 
-    if (selection.type === 'group') {
+    if (selection.type === 'collection') {
       crumbs.push({ label: selection.name })
     } else if (selection.type === 'api-settings') {
-      crumbs.push({ label: t('groups.apiSettings', 'API settings') })
+      crumbs.push({ label: t('collections.apiSettings', 'API settings') })
     }
 
     setBreadcrumbs(crumbs)
@@ -113,6 +107,11 @@ export function GroupsModule() {
       )
     }
 
+    // API settings — always accessible regardless of collections
+    if (selection.type === 'api-settings') {
+      return <ApiSettingsPanel />
+    }
+
     // Empty state
     if (references.length === 0) {
       return (
@@ -120,84 +119,46 @@ export function GroupsModule() {
           <div className="max-w-md text-center">
             <Layers className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
             <h2 className="text-lg font-medium">
-              {t('groups.noGroups', 'No groups')}
+              {t('collections.noCollections', 'No collections')}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              {t('groups.noGroupsHint', "Import data to create groups.")}
+              {t('collections.noCollectionsHint', "Import data to create collections.")}
             </p>
             <button
               className="mt-4 text-primary hover:underline"
               onClick={() => navigate('/sources/import')}
             >
-              {t('groups.importData', 'Import data')}
+              {t('collections.importData', 'Import data')}
             </button>
           </div>
         </div>
       )
     }
 
-    // Overview — card grid
+    // Overview — enriched card grid
     if (selection.type === 'overview') {
       return (
-        <div className="space-y-6 p-6">
-          <div>
-            <h1 className="text-2xl font-bold">{t('groups.title', 'Groups')}</h1>
-            <p className="mt-1 text-muted-foreground">
-              {t('groups.description', 'Configure widgets and data sources for each group.')}
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {references.map((ref) => (
-              <Card
-                key={ref.name}
-                className="cursor-pointer transition-colors hover:border-primary"
-                onClick={() => handleSelect({ type: 'group', name: ref.name })}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{ref.name}</CardTitle>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <CardDescription>
-                    {t('groups.table', 'Table')}: {ref.table_name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{ref.kind}</Badge>
-                    {ref.entity_count !== undefined && (
-                      <Badge variant="secondary">
-                        {ref.entity_count} {t('reference.entities', 'entities')}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+        <CollectionsOverview
+          references={references}
+          onSelect={handleSelect}
+        />
       )
-    }
-
-    // Group detail
-    if (selection.type === 'api-settings') {
-      return <ApiSettingsPanel />
     }
 
     const reference = references.find((r) => r.name === selection.name)
     if (reference) {
-      return <GroupPanel reference={reference} />
+      return <CollectionPanel reference={reference} initialTab={initialTab} />
     }
 
-    // Group not found
+    // Collection not found
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <h2 className="text-lg font-medium">
-            {t('groups.notFound', 'Group not found')}
+            {t('collections.notFound', 'Collection not found')}
           </h2>
           <p className="mt-1 text-muted-foreground">
-            {t('groups.notFoundDesc', "Le groupe « {{name}} » n'existe pas.", {
+            {t('collections.notFoundDesc', "La collection « {{name}} » n'existe pas.", {
               name: selection.name,
             })}
           </p>
@@ -205,7 +166,7 @@ export function GroupsModule() {
             className="mt-4 text-primary hover:underline"
             onClick={() => handleSelect({ type: 'overview' })}
           >
-            {t('groups.backToGroups', 'Back to groups')}
+            {t('collections.backToCollections', 'Back to collections')}
           </button>
         </div>
       </div>
@@ -217,20 +178,17 @@ export function GroupsModule() {
   // ---------------------------------------------------------------------------
 
   return (
-    <>
-      <StalenessBanner stage="groups" />
-      <ModuleLayout
-        sidebar={
-          <GroupsTree
-            references={references}
-            referencesLoading={isLoading}
-            selection={selection}
-            onSelect={handleSelect}
-          />
-        }
-      >
+    <ModuleLayout
+      sidebar={
+        <CollectionsTree
+          references={references}
+          referencesLoading={isLoading}
+          selection={selection}
+          onSelect={handleSelect}
+        />
+      }
+    >
         {renderContent()}
       </ModuleLayout>
-    </>
   )
 }

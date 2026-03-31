@@ -32,7 +32,7 @@ import {
   useUpdateApiExportGroupConfig,
   type ApiExportGroupConfig,
   type ApiExportTargetSummary,
-} from '@/features/groups/hooks/useApiExportConfigs'
+} from '@/features/collections/hooks/useApiExportConfigs'
 
 import { ApiFieldMappingsEditor } from './ApiFieldMappingsEditor'
 import { DwcMappingEditor } from './DwcMappingEditor'
@@ -68,7 +68,7 @@ function formatExportSummary(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string {
   if (!config) return ''
-  if (!config.enabled) return t('groupPanel.api.exportSummary.disabled')
+  if (!config.enabled) return t('collectionPanel.api.exportSummary.disabled')
 
   const count = suggestions?.total_entities ?? 0
   const isDwc = config.transformer_plugin === 'niamoto_to_dwc_occurrence'
@@ -77,15 +77,15 @@ function formatExportSummary(
     const termCount = Object.keys(
       (config.transformer_params?.mapping as Record<string, unknown>) ?? {}
     ).length
-    return t('groupPanel.api.exportSummary.dwc', { termCount, count })
+    return t('collectionPanel.api.exportSummary.dwc', { termCount, count })
   }
 
   if (config.detail?.pass_through !== false) {
-    return t('groupPanel.api.exportSummary.simplePassThrough', { count })
+    return t('collectionPanel.api.exportSummary.simplePassThrough', { count })
   }
 
   const fieldCount = config.detail?.fields?.length ?? 0
-  return t('groupPanel.api.exportSummary.simpleFields', { fieldCount, count })
+  return t('collectionPanel.api.exportSummary.simpleFields', { fieldCount, count })
 }
 
 export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
@@ -133,14 +133,14 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
     try {
       await saveMutation.mutateAsync(localConfig)
       toast.success(
-        t('groupPanel.api.groupConfigSaved', { exportName: exportTarget.name, groupBy })
+        t('collectionPanel.api.groupConfigSaved', { exportName: exportTarget.name, groupBy })
       )
       await refetch()
     } catch (mutationError) {
       toast.error(
         mutationError instanceof Error
           ? mutationError.message
-          : t('groupPanel.api.saveFailed')
+          : t('collectionPanel.api.saveFailed')
       )
     }
   }
@@ -168,7 +168,7 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
         <CardHeader>
           <div className="text-sm font-medium">{exportTarget.name}</div>
           <p className="text-xs text-destructive">
-            {error instanceof Error ? error.message : t('groupPanel.api.loadFailed')}
+            {error instanceof Error ? error.message : t('collectionPanel.api.loadFailed')}
           </p>
         </CardHeader>
       </Card>
@@ -196,17 +196,17 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
               <span className="text-sm font-semibold">{exportTarget.name}</span>
               {localConfig.enabled && (
                 <Badge variant="success" className="text-[10px]">
-                  {t('groupPanel.api.enabledForGroup')}
+                  {t('collectionPanel.api.enabledForGroup')}
                 </Badge>
               )}
               {!exportTarget.enabled && (
                 <Badge variant="outline" className="text-[10px]">
-                  {t('groupPanel.api.globallyDisabled')}
+                  {t('collectionPanel.api.globallyDisabled')}
                 </Badge>
               )}
               {isDirty && (
                 <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
-                  {t('groupPanel.api.unsaved')}
+                  {t('collectionPanel.api.unsaved')}
                 </Badge>
               )}
             </div>
@@ -255,18 +255,18 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                 <div className="flex items-center gap-2">
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
                   <span className="font-medium">
-                    {t('groupPanel.api.indexFields')}
+                    {t('collectionPanel.api.indexFields')}
                   </span>
                   <Badge variant="secondary" className="text-[10px]">
                     {indexFieldCount > 0
-                      ? t('groupPanel.api.fieldCount', { count: indexFieldCount })
-                      : t('groupPanel.api.sectionDefault')}
+                      ? t('collectionPanel.api.fieldCount', { count: indexFieldCount })
+                      : t('collectionPanel.api.sectionDefault')}
                   </Badge>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-3 pb-3">
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {t('groupPanel.api.sectionHelp.indexFields', {
+                  {t('collectionPanel.api.sectionHelp.indexFields', {
                     groupBy,
                   })}
                 </p>
@@ -290,12 +290,12 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                   <div className="flex items-center gap-2">
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
                     <span className="font-medium">
-                      {t('groupPanel.api.detailFields')}
+                      {t('collectionPanel.api.detailFields')}
                     </span>
                     <Badge variant="secondary" className="text-[10px]">
                       {isPassThrough
-                        ? t('groupPanel.api.passThrough')
-                        : t('groupPanel.api.fieldCount', {
+                        ? t('collectionPanel.api.passThrough')
+                        : t('collectionPanel.api.fieldCount', {
                             count: localConfig.detail?.fields?.length ?? 0,
                           })}
                     </Badge>
@@ -303,10 +303,10 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                 </AccordionTrigger>
                 <AccordionContent className="px-3 pb-3">
                   <p className="mb-3 text-xs text-muted-foreground">
-                    {t('groupPanel.api.sectionHelp.detailFields', { groupBy })}
+                    {t('collectionPanel.api.sectionHelp.detailFields', { groupBy })}
                   </p>
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <Label className="text-sm">{t('groupPanel.api.passThrough')}</Label>
+                    <Label className="text-sm">{t('collectionPanel.api.passThrough')}</Label>
                     <Switch
                       checked={localConfig.detail?.pass_through ?? true}
                       onCheckedChange={(passThrough) =>
@@ -320,7 +320,7 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                   {!isPassThrough && (
                     <JsonField
                       name={`${exportTarget.name}-${groupBy}-detail-fields`}
-                      label={t('groupPanel.api.detailFields')}
+                      label={t('collectionPanel.api.detailFields')}
                       value={localConfig.detail?.fields}
                       onChange={(value) =>
                         updateLocalConfig((current) => ({
@@ -346,18 +346,18 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                   <div className="flex items-center gap-2">
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
                     <span className="font-medium">
-                      {t('groupPanel.api.dwcMapping')}
+                      {t('collectionPanel.api.dwcMapping')}
                     </span>
                     <Badge variant="secondary" className="text-[10px]">
                       {dwcTermCount > 0
-                        ? t('groupPanel.api.termCount', { count: dwcTermCount })
-                        : t('groupPanel.api.sectionDefault')}
+                        ? t('collectionPanel.api.termCount', { count: dwcTermCount })
+                        : t('collectionPanel.api.sectionDefault')}
                     </Badge>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-3 pb-3">
                   <p className="mb-3 text-xs text-muted-foreground">
-                    {t('groupPanel.api.sectionHelp.dwcMapping')}
+                    {t('collectionPanel.api.sectionHelp.dwcMapping')}
                   </p>
                   <DwcMappingEditor
                     value={
@@ -391,7 +391,7 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                   <div className="flex items-center gap-2">
                     <Settings className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="font-medium text-muted-foreground">
-                      {t('groupPanel.api.transformerParams')}
+                      {t('collectionPanel.api.transformerParams')}
                     </span>
                   </div>
                 </AccordionTrigger>
@@ -429,16 +429,16 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                 <div className="flex items-center gap-2">
                   <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="font-medium text-muted-foreground">
-                    {t('groupPanel.api.jsonOverrides')}
+                    {t('collectionPanel.api.jsonOverrides')}
                   </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 px-3 pb-3">
                 <p className="text-xs text-muted-foreground">
-                  {t('groupPanel.api.sectionHelp.advancedOptions')}
+                  {t('collectionPanel.api.sectionHelp.advancedOptions')}
                 </p>
                 <div className="space-y-2">
-                  <Label>{t('groupPanel.api.dataSource')}</Label>
+                  <Label>{t('collectionPanel.api.dataSource')}</Label>
                   <Input
                     value={localConfig.data_source || ''}
                     onChange={(event) =>
@@ -447,16 +447,16 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
                         data_source: event.target.value || undefined,
                       }))
                     }
-                    placeholder={t('groupPanel.api.dataSourcePlaceholder')}
+                    placeholder={t('collectionPanel.api.dataSourcePlaceholder')}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {t('groupPanel.api.dataSourceHelp')}
+                    {t('collectionPanel.api.dataSourceHelp')}
                   </p>
                 </div>
                 <JsonField
                   name={`${exportTarget.name}-${groupBy}-json-options`}
-                  label={t('groupPanel.api.jsonOverrides')}
-                  description={t('groupPanel.api.jsonOverridesHelp')}
+                  label={t('collectionPanel.api.jsonOverrides')}
+                  description={t('collectionPanel.api.jsonOverridesHelp')}
                   value={localConfig.json_options}
                   onChange={(value) =>
                     updateLocalConfig((current) => ({

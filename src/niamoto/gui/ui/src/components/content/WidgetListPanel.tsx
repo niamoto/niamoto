@@ -330,7 +330,7 @@ export function WidgetListPanel({
 
   return (
     <>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="h-full">
         <div className="p-2">
           <DndContext
             sensors={sensors}

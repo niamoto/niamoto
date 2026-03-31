@@ -197,7 +197,7 @@ function SiteTree({
       <ScrollArea className="flex-1">
         <Accordion
           type="multiple"
-          defaultValue={['pages', 'navigation', 'settings', 'groups']}
+          defaultValue={['pages', 'navigation', 'settings', 'collections']}
           className="px-2 py-2"
         >
           {/* Pages Section - EN PREMIER */}
@@ -343,12 +343,12 @@ function SiteTree({
             </AccordionContent>
           </AccordionItem>
 
-          {/* Groups Section */}
-          <AccordionItem value="groups" className="border-none">
+          {/* Collections Section */}
+          <AccordionItem value="collections" className="border-none">
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
                 <Folder className="h-4 w-4 text-amber-600" />
-                {t('tree.groups')}
+                {t('tree.collections')}
                 {groupsLoading ? (
                   <Loader2 className="h-3 w-3 animate-spin ml-auto" />
                 ) : (
@@ -367,7 +367,7 @@ function SiteTree({
                   </div>
                 ) : groups.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.noGroups')}
+                    {t('tree.noCollections')}
                   </p>
                 ) : (
                   groups.map((group, index) => (
@@ -580,14 +580,14 @@ function PagesOverview({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Folder className="h-4 w-4 text-amber-600" />
-              <h3 className="font-medium">{t('groups.title')}</h3>
+              <h3 className="font-medium">{t('collections.title')}</h3>
               <Badge variant="secondary" className="text-xs">
                 {groups.length}
               </Badge>
             </div>
             <Button variant="link" size="sm" className="text-xs" asChild>
               <a href="/flow?tab=export">
-                {t('groups.configureInExport')}
+                {t('collections.configureInExport')}
                 <ExternalLinkIcon className="h-3 w-3 ml-1" />
               </a>
             </Button>
@@ -598,10 +598,10 @@ function PagesOverview({
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Folder className="h-10 w-10 text-muted-foreground/50 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {t('groups.noGroupsConfigured')}
+                  {t('collections.noCollectionsConfigured')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t('groups.groupsDefinedInExport')}
+                  {t('collections.collectionsDefinedInExport')}
                 </p>
               </CardContent>
             </Card>
@@ -628,17 +628,17 @@ function PagesOverview({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Badge variant="outline" className="text-xs">
-                            {group.widgets_count} {t('groups.widgets')}
+                            {group.widgets_count} {t('collections.widgets')}
                           </Badge>
                           {hasIndex ? (
                             <span className="flex items-center gap-1 text-xs text-green-600">
                               <div className="h-2 w-2 rounded-full bg-green-500" />
-                              {t('groups.index')}
+                              {t('collections.index')}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
                               <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                              {t('groups.noIndex')}
+                              {t('collections.noIndex')}
                             </span>
                           )}
                         </div>
@@ -1196,8 +1196,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         },
       })
 
-      toast.success(t('groupViewer.indexPageActivated'), {
-        description: t('groupViewer.indexPageActivatedDesc'),
+      toast.success(t('collectionViewer.indexPageActivated'), {
+        description: t('collectionViewer.indexPageActivatedDesc'),
       })
     } catch (err) {
       toast.error(t('common:status.error'), {
@@ -1409,8 +1409,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     if (groupByPath) {
       // Navigate to the group view - detail pages can't be previewed individually
       setSelection({ type: 'group', id: groupByPath.name })
-      toast.info(t('preview.groupDetailPage', { group: groupByPath.name }), {
-        description: t('preview.groupDetailPageDesc'),
+      toast.info(t('preview.collectionDetailPage', { group: groupByPath.name }), {
+        description: t('preview.collectionDetailPageDesc'),
       })
       return
     }

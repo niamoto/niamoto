@@ -10,14 +10,14 @@
     "settings": "Settings",
     "general": "General",
     "appearance": "Appearance",
-    "groups": "Groups",
+    "collections": "Collections",
     "noPages": "No pages",
-    "noGroups": "No groups",
+    "noCollections": "No collections",
     "addElement": "Add"
   },
   "pages": {
     "title": "Pages",
-    "subtitle": "Manage static pages and view groups",
+    "subtitle": "Manage static pages and view collections",
     "addPage": "+ Add page",
     "newPage": "New page",
     "deletePage": "Delete page?",
@@ -36,11 +36,11 @@
     "edit": "Edit",
     "view": "View"
   },
-  "groups": {
-    "title": "Groups",
+  "collections": {
+    "title": "Collections",
     "configureInExport": "Configure in Export",
-    "noGroupsConfigured": "No groups configured",
-    "groupsDefinedInExport": "Groups are defined in Export configuration",
+    "noCollectionsConfigured": "No collections configured",
+    "collectionsDefinedInExport": "Collections are defined in Export configuration",
     "widgets": "widgets",
     "index": "Index",
     "noIndex": "No index"
@@ -54,7 +54,7 @@
     "submenu": "Submenu",
     "menuText": "Menu text",
     "staticPages": "Static pages",
-    "groupPages": "Group pages",
+    "collectionPages": "Collection pages",
     "customUrl": "Custom URL",
     "noMenuConfigured": "No menu configured",
     "submenus": "submenu(s)",
@@ -86,8 +86,8 @@
     "selectPageForPreview": "Select a page to see preview",
     "noPreviewAvailable": "No preview available",
     "generatingPreview": "Generating preview...",
-    "groupDetailPage": "{{group}} detail page",
-    "groupDetailPageDesc": "Showing group index (detail pages require actual data)"
+    "collectionDetailPage": "{{group}} detail page",
+    "collectionDetailPageDesc": "Showing collection index (detail pages require actual data)"
   },
   "links": {
     "addLink": "Add link",
@@ -129,8 +129,8 @@
     "tablet": "Tablet",
     "desktop": "Desktop"
   },
-  "groupViewer": {
-    "pageGroup": "Page group",
+  "collectionViewer": {
+    "pageCollection": "Page collection",
     "back": "Back",
     "configuration": "Configuration",
     "outputPattern": "Output pattern",
@@ -150,11 +150,11 @@
     "noFilter": "No filter",
     "noField": "No field",
     "noIndexPage": "No index page",
-    "noIndexPageDesc": "This group does not generate an index page. Only detail pages are created for each entity.",
+    "noIndexPageDesc": "This collection does not generate an index page. Only detail pages are created for each entity.",
     "activatePage": "Enable this page",
     "activating": "Enabling...",
     "indexPageActivated": "Index page enabled",
-    "indexPageActivatedDesc": "The group index page is now available in the Site Builder.",
+    "indexPageActivatedDesc": "The collection index page is now available in the Site Builder.",
     "editWidgets": "Edit widgets",
     "editWidgetsDesc": "Configure widgets in Transform/Export tab",
     "open": "Open"
@@ -303,7 +303,7 @@
   },
   "builder": {
     "templatePreview": "Template preview",
-    "groupIndexPreview": "Group index preview",
+    "collectionIndexPreview": "Collection index preview",
     "mainMenu": "Main menu",
     "footerMenu": "Footer menu"
   },

@@ -75,7 +75,7 @@ export function MainLayout() {
 
           <main
             className={cn(
-              'flex-1 overflow-auto bg-background',
+              'flex-1 overflow-hidden bg-background',
               'transition-all duration-200'
             )}
           >
