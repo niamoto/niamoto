@@ -19,6 +19,7 @@ import { ModuleLayout } from '@/components/layout/ModuleLayout'
 import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { GroupsTree, type GroupsSelection } from './GroupsTree'
 import { GroupPanel } from './GroupPanel'
+import { ApiSettingsPanel } from './api/ApiSettingsPanel'
 import {
   Card,
   CardContent,
@@ -34,6 +35,9 @@ import { Layers, ArrowRight } from 'lucide-react'
 // =============================================================================
 
 function selectionFromPath(pathname: string): GroupsSelection {
+  if (pathname === '/groups/api-settings') {
+    return { type: 'api-settings' }
+  }
   const match = pathname.match(/^\/groups\/(.+)$/)
   if (match) {
     return { type: 'group', name: decodeURIComponent(match[1]) }
@@ -70,6 +74,8 @@ export function GroupsModule() {
     setSelection(newSelection)
     if (newSelection.type === 'overview') {
       navigate('/groups')
+    } else if (newSelection.type === 'api-settings') {
+      navigate('/groups/api-settings')
     } else {
       navigate(`/groups/${encodeURIComponent(newSelection.name)}`)
     }
@@ -83,6 +89,8 @@ export function GroupsModule() {
 
     if (selection.type === 'group') {
       crumbs.push({ label: selection.name })
+    } else if (selection.type === 'api-settings') {
+      crumbs.push({ label: t('groups.apiSettings', 'API settings') })
     }
 
     setBreadcrumbs(crumbs)
@@ -172,6 +180,10 @@ export function GroupsModule() {
     }
 
     // Group detail
+    if (selection.type === 'api-settings') {
+      return <ApiSettingsPanel />
+    }
+
     const reference = references.find((r) => r.name === selection.name)
     if (reference) {
       return <GroupPanel reference={reference} />
