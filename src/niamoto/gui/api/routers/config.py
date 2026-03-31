@@ -2031,6 +2031,13 @@ async def update_index_generator(
 # =============================================================================
 
 
+class ApiExportGroupEntry(BaseModel):
+    """Minimal info about a group inside a target."""
+
+    group_by: str
+    enabled: bool = True
+
+
 class ApiExportTargetSummary(BaseModel):
     """Summary for a JSON API export target."""
 
@@ -2038,6 +2045,7 @@ class ApiExportTargetSummary(BaseModel):
     enabled: bool = True
     exporter: str = "json_api_exporter"
     group_names: List[str] = Field(default_factory=list)
+    groups: List[ApiExportGroupEntry] = Field(default_factory=list)
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -2045,6 +2053,14 @@ class ApiExportTargetSettingsUpdate(BaseModel):
     """Target-level static API settings."""
 
     enabled: bool = True
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiExportTargetCreate(BaseModel):
+    """Create a new JSON API export target."""
+
+    name: str = Field(..., pattern=r"^[a-z][a-z0-9_]{2,30}$")
+    template: str = Field(..., description="simple, dwc, or manual")
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -2075,6 +2091,14 @@ async def list_api_export_targets() -> List[ApiExportTargetSummary]:
                     for group in export_entry.get("groups", []) or []
                     if group.get("group_by")
                 ],
+                groups=[
+                    ApiExportGroupEntry(
+                        group_by=group.get("group_by", ""),
+                        enabled=group.get("enabled", True),
+                    )
+                    for group in export_entry.get("groups", []) or []
+                    if group.get("group_by")
+                ],
                 params=deepcopy(export_entry.get("params", {}) or {}),
             )
             for export_entry in _list_api_export_targets(export_config)
@@ -2082,6 +2106,81 @@ async def list_api_export_targets() -> List[ApiExportTargetSummary]:
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error listing API export targets: {str(e)}"
+        )
+
+
+@router.post("/export/api-targets", response_model=ApiExportTargetSummary)
+async def create_api_export_target(
+    body: ApiExportTargetCreate,
+) -> ApiExportTargetSummary:
+    """Create a new JSON API export target from a template."""
+    import re
+
+    try:
+        if not re.match(r"^[a-z][a-z0-9_]{2,30}$", body.name):
+            raise HTTPException(
+                status_code=422,
+                detail="Name must be 3-31 lowercase chars (letters, digits, underscores)",
+            )
+
+        export_config = _load_export_config()
+        if _find_api_export_target(export_config, body.name):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Target '{body.name}' already exists",
+            )
+
+        # Build new target from template
+        new_target: Dict[str, Any] = {
+            "name": body.name,
+            "exporter": "json_api_exporter",
+            "enabled": True,
+            "groups": [],
+            "params": {},
+        }
+
+        if body.template == "simple":
+            new_target["params"] = {
+                "output_dir": f"exports/{body.name}",
+                "detail_output_pattern": "{group}/{id}.json",
+                "index_output_pattern": "all_{group}.json",
+                **body.params,
+            }
+        elif body.template == "dwc":
+            new_target["params"] = {
+                "output_dir": f"exports/{body.name}",
+                "detail_output_pattern": "{group}/{id}_dwc.json",
+                "index_output_pattern": "all_{group}_dwc.json",
+                **body.params,
+            }
+        elif body.template == "manual":
+            new_target["params"] = {
+                "output_dir": f"exports/{body.name}",
+                **body.params,
+            }
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown template '{body.template}'. Use: simple, dwc, manual",
+            )
+
+        export_config.setdefault("exports", []).append(new_target)
+        _validate_export_config_or_raise(export_config)
+        _save_export_config(export_config)
+
+        return ApiExportTargetSummary(
+            name=body.name,
+            enabled=True,
+            exporter="json_api_exporter",
+            group_names=[],
+            groups=[],
+            params=new_target["params"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error creating API export target: {str(e)}"
         )
 
 
@@ -2162,7 +2261,7 @@ async def get_api_export_group_config(
             if group is not None
             else _build_default_api_group_config(export_name, group_by)
         )
-        payload["enabled"] = group is not None
+        payload["enabled"] = group is not None and group.get("enabled", True)
         payload.setdefault("group_by", group_by)
         payload.setdefault("detail", {"pass_through": True})
         payload.setdefault("index", {"fields": []})
@@ -2192,12 +2291,15 @@ async def update_api_export_group_config(
         existing_group = _find_target_group(export_target, group_by)
 
         if not config.enabled:
-            export_target["groups"] = [
-                group for group in groups if group.get("group_by") != group_by
-            ]
+            if existing_group:
+                existing_group["enabled"] = False
+            else:
+                groups.append({"group_by": group_by, "enabled": False})
             _validate_export_config_or_raise(export_config)
             _save_export_config(export_config)
-            return _build_default_api_group_config(export_name, group_by)
+            result = deepcopy(existing_group or {"group_by": group_by})
+            result["enabled"] = False
+            return result
 
         next_group: Dict[str, Any] = {"group_by": group_by}
         payload = config.model_dump(exclude_none=True)

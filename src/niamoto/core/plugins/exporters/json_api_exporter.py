@@ -114,6 +114,7 @@ class GroupConfig(BaseModel):
     """Configuration for a data group."""
 
     group_by: str
+    enabled: bool = True
     data_source: Optional[str] = None
     detail: Optional[DetailConfig] = Field(default_factory=lambda: DetailConfig())
     index: Optional[IndexConfig] = None
@@ -288,8 +289,8 @@ class JsonApiExporter(ExporterPlugin):
             output_dir = Path(params.output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Process each group
-            groups_to_process = target_config.groups or []
+            # Process each group (skip disabled groups)
+            groups_to_process = [g for g in (target_config.groups or []) if g.enabled]
             if group_filter:
                 groups_to_process = [
                     g for g in groups_to_process if g.group_by == group_filter
@@ -756,8 +757,8 @@ class JsonApiExporter(ExporterPlugin):
     ) -> List[Dict[str, Any]]:
         """Fetch data for a group from the repository."""
         try:
-            # Use group_name as table name (assumes table exists with same name)
-            table_name = group_name
+            # Use data_source as table name (falls back to group_name for compat)
+            table_name = data_source or group_name
 
             # Query all data from the table
             from sqlalchemy import text
