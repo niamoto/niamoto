@@ -225,10 +225,10 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header with save button */}
-      <div className="shrink-0 flex items-center justify-between p-4 border-b bg-muted/30">
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b">
         <div>
-          <h2 className="text-lg font-semibold">{t('title')}</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-base font-medium">{t('title')}</h2>
+          <p className="text-xs text-muted-foreground">
             {t('collectionDescription', { groupBy })}
           </p>
         </div>

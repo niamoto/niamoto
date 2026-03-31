@@ -203,9 +203,10 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
       : undefined
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative h-full">
+    <div className="absolute inset-0 flex flex-col">
       {/* Compact toolbar: tabs + actions in one row */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
           {/* Tabs */}
           <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">
@@ -290,25 +291,26 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
         )}
 
         {/* Tab Content */}
-        <TabsContent value="content" className="flex-1 m-0 overflow-hidden">
+        <TabsContent value="content" className="flex-1 min-h-0 m-0 overflow-hidden">
           <ContentTab reference={reference} />
         </TabsContent>
 
-        <TabsContent value="index" className="flex-1 m-0 p-6 overflow-auto">
+        <TabsContent value="index" className="flex-1 min-h-0 m-0 overflow-auto">
           <IndexTab reference={reference} />
         </TabsContent>
 
-        <TabsContent value="api" className="flex-1 m-0 p-6 overflow-auto">
+        <TabsContent value="api" className="flex-1 min-h-0 m-0 overflow-hidden">
           <ApiExportsTab groupBy={reference.name} />
         </TabsContent>
       </Tabs>
+    </div>
     </div>
   )
 }
 
 function IndexTab({ reference }: { reference: ReferenceInfo }) {
   return (
-    <div className="h-[calc(100vh-280px)]">
+    <div className="h-full">
       <IndexConfigEditor groupBy={reference.name} />
     </div>
   )

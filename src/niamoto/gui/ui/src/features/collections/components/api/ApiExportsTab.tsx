@@ -41,12 +41,12 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col h-full">
+      {/* Header — fixed */}
+      <div className="shrink-0 flex items-center justify-between gap-4 px-6 py-3 border-b">
         <div>
-          <h2 className="text-lg font-medium">{t('collectionPanel.api.title')}</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-base font-medium">{t('collectionPanel.api.title')}</h2>
+          <p className="text-xs text-muted-foreground">
             {t('collectionPanel.api.description', { groupBy })}
           </p>
         </div>
@@ -60,38 +60,41 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
         </Button>
       </div>
 
-      {/* Export cards */}
-      {groupTargets.map((target) => (
-        <ExportCard
-          key={`${target.name}-${groupBy}`}
-          exportTarget={target}
+      {/* Scrollable content */}
+      <div className="flex-1 min-h-0 overflow-auto p-6 space-y-4">
+        {/* Export cards */}
+        {groupTargets.map((target) => (
+          <ExportCard
+            key={`${target.name}-${groupBy}`}
+            exportTarget={target}
+            groupBy={groupBy}
+          />
+        ))}
+
+        {/* Empty state */}
+        {groupTargets.length === 0 && !targets?.length && (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            {t('collectionPanel.api.empty')}
+          </div>
+        )}
+
+        {/* Add export button */}
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed p-5 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+          onClick={() => setWizardOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          {t('collectionPanel.api.wizard.addFormat')}
+        </button>
+
+        {/* Wizard dialog */}
+        <AddExportWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
           groupBy={groupBy}
         />
-      ))}
-
-      {/* Empty state */}
-      {groupTargets.length === 0 && !targets?.length && (
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {t('collectionPanel.api.empty')}
-        </div>
-      )}
-
-      {/* Add export button */}
-      <button
-        type="button"
-        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed p-5 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-        onClick={() => setWizardOpen(true)}
-      >
-        <Plus className="h-4 w-4" />
-        {t('collectionPanel.api.wizard.addFormat')}
-      </button>
-
-      {/* Wizard dialog */}
-      <AddExportWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        groupBy={groupBy}
-      />
+      </div>
     </div>
   )
 }
