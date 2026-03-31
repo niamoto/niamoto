@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid, Play, CheckCircle, XCircle } from 'lucide-react'
+import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +20,7 @@ import { toast } from 'sonner'
 import { useSources, useRemoveSource } from '@/features/groups/hooks/useSources'
 import { SourcesList } from '@/features/groups/components/sources/SourcesList'
 import { AddSourceDialog } from '@/features/groups/components/sources/AddSourceDialog'
+import { ApiExportsTab } from '@/features/groups/components/api/ApiExportsTab'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
 import { useConfiguredWidgets } from '@/components/widgets'
@@ -290,6 +291,13 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               <ListOrdered className="mr-2 h-4 w-4" />
               {t('groupPanel.tabs.index')}
             </TabsTrigger>
+            <TabsTrigger
+              value="api"
+              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+            >
+              <FileCode className="mr-2 h-4 w-4" />
+              {t('groupPanel.tabs.api')}
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -304,6 +312,10 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 
         <TabsContent value="index" className="flex-1 m-0 p-6 overflow-auto">
           <IndexTab reference={reference} />
+        </TabsContent>
+
+        <TabsContent value="api" className="flex-1 m-0 p-6 overflow-auto">
+          <ApiExportsTab groupBy={reference.name} />
         </TabsContent>
       </Tabs>
     </div>

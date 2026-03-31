@@ -40,6 +40,7 @@ interface JsonSchemaFormProps {
   showTitle?: boolean;
   availableFields?: string[]; // For field-select widgets
   initialValues?: Record<string, any>; // Initial values to populate the form
+  hiddenFields?: string[];
 }
 
 interface PluginSchema {
@@ -76,6 +77,38 @@ interface FieldSchema {
   allOf?: any[];
 }
 
+const pluginSchemaCache = new Map<string, PluginSchema>();
+const pluginSchemaRequests = new Map<string, Promise<PluginSchema>>();
+
+async function loadPluginSchema(pluginId: string): Promise<PluginSchema> {
+  const cachedSchema = pluginSchemaCache.get(pluginId);
+  if (cachedSchema) {
+    return cachedSchema;
+  }
+
+  const inFlightRequest = pluginSchemaRequests.get(pluginId);
+  if (inFlightRequest) {
+    return inFlightRequest;
+  }
+
+  const request = fetch(`/api/plugins/${pluginId}/schema`)
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schema: ${response.statusText}`);
+      }
+
+      const data: PluginSchema = await response.json();
+      pluginSchemaCache.set(pluginId, data);
+      return data;
+    })
+    .finally(() => {
+      pluginSchemaRequests.delete(pluginId);
+    });
+
+  pluginSchemaRequests.set(pluginId, request);
+  return request;
+}
+
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   pluginId,
   pluginType: _pluginType, // unused but kept for interface compatibility
@@ -87,15 +120,25 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   className = '',
   showTitle = true,
   availableFields = [],
-  initialValues = {}
+  initialValues = {},
+  hiddenFields = []
 }) => {
   const [schema, setSchema] = useState<PluginSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const hiddenFieldSet = useMemo(() => new Set(hiddenFields), [hiddenFields]);
 
   // Track if we've initialized with initialValues
   const initializedRef = React.useRef(false);
+
+  const filterHiddenValues = React.useCallback(
+    (values: Record<string, any>) =>
+      Object.fromEntries(
+        Object.entries(values).filter(([key]) => !hiddenFieldSet.has(key))
+      ),
+    [hiddenFieldSet]
+  );
 
   // Fetch schema from API (only when pluginId changes)
   useEffect(() => {
@@ -105,28 +148,26 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         setError(null);
         initializedRef.current = false;
 
-        const response = await fetch(`/api/plugins/${pluginId}/schema`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch schema: ${response.statusText}`);
-        }
-
-        const data: PluginSchema = await response.json();
+        const data = await loadPluginSchema(pluginId);
         setSchema(data);
 
         // Initialize form data with defaults
         if (data.schema?.properties) {
           const defaults: Record<string, any> = {};
           Object.entries(data.schema.properties).forEach(([key, field]) => {
+            if (hiddenFieldSet.has(key)) {
+              return;
+            }
             const fieldSchema = field as FieldSchema;
             if (fieldSchema.default !== undefined) {
               defaults[key] = fieldSchema.default;
             }
           });
           // Merge: defaults first, then initialValues override
-          setFormData({ ...defaults, ...initialValues });
+          setFormData({ ...defaults, ...filterHiddenValues(initialValues) });
           initializedRef.current = true;
         } else if (Object.keys(initialValues).length > 0) {
-          setFormData(initialValues);
+          setFormData(filterHiddenValues(initialValues));
           initializedRef.current = true;
         }
       } catch (err) {
@@ -143,17 +184,18 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
   // Update form data when initialValues change (after initial load)
   useEffect(() => {
-    if (schema && !loading && Object.keys(initialValues).length > 0) {
+    const visibleInitialValues = filterHiddenValues(initialValues);
+    if (schema && !loading && Object.keys(visibleInitialValues).length > 0) {
       // Only update if values are different to avoid loops
-      const hasNewValues = Object.keys(initialValues).some(
-        key => initialValues[key] !== formData[key]
+      const hasNewValues = Object.keys(visibleInitialValues).some(
+        key => visibleInitialValues[key] !== formData[key]
       );
       if (hasNewValues && !initializedRef.current) {
-        setFormData(prev => ({ ...prev, ...initialValues }));
+        setFormData(prev => ({ ...prev, ...visibleInitialValues }));
         initializedRef.current = true;
       }
     }
-  }, [initialValues, schema, loading]);
+  }, [filterHiddenValues, formData, initialValues, loading, schema]);
 
   // Handle field changes
   const handleFieldChange = (fieldName: string, value: any) => {
@@ -176,19 +218,47 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     return refName ? schema.schema.$defs[refName] : null;
   };
 
+  const resolveFieldSchema = (fieldSchema: FieldSchema): FieldSchema => {
+    const schemaWithRef = fieldSchema as FieldSchema & { $ref?: string };
+
+    if (schemaWithRef.$ref) {
+      const resolved = resolveRef(schemaWithRef.$ref);
+      if (resolved) {
+        const { $ref: _ignoredRef, ...rest } = schemaWithRef;
+        return { ...resolved, ...rest };
+      }
+    }
+
+    if (fieldSchema.allOf?.length === 1 && fieldSchema.allOf[0]?.$ref) {
+      const resolved = resolveRef(fieldSchema.allOf[0].$ref);
+      if (resolved) {
+        return {
+          ...resolved,
+          ...fieldSchema,
+          allOf: undefined,
+        };
+      }
+    }
+
+    return fieldSchema;
+  };
+
   // Render a single field based on its schema
   const renderField = (fieldName: string, fieldSchema: FieldSchema, required: boolean = false) => {
+    const resolvedFieldSchema = resolveFieldSchema(fieldSchema);
 
     // Get UI widget type from json_schema_extra or directly from fieldSchema
     // Pydantic places ui:widget directly in the schema, not nested in json_schema_extra
-    const uiWidget = fieldSchema.json_schema_extra?.['ui:widget'] || (fieldSchema as any)['ui:widget'];
+    const uiWidget =
+      resolvedFieldSchema.json_schema_extra?.['ui:widget'] ||
+      (resolvedFieldSchema as any)['ui:widget'];
     const fieldValue = form ? form.watch(fieldName) : formData[fieldName];
 
     // Common props for all fields
     const commonProps = {
       name: fieldName,
-      label: fieldSchema.title || fieldName,
-      description: fieldSchema.description,
+      label: resolvedFieldSchema.title || fieldName,
+      description: resolvedFieldSchema.description,
       value: fieldValue,
       onChange: (value: any) => handleFieldChange(fieldName, value),
       required,
@@ -210,16 +280,16 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <NumberField
               key={fieldName}
               {...commonProps}
-              min={fieldSchema.minimum}
-              max={fieldSchema.maximum}
+              min={resolvedFieldSchema.minimum}
+              max={resolvedFieldSchema.maximum}
             />
           );
 
         case 'select':
           // Options can be in json_schema_extra['ui:options'] or directly in fieldSchema['ui:options']
-          const options = fieldSchema.json_schema_extra?.['ui:options'] ||
-                         (fieldSchema as any)['ui:options'] ||
-                         fieldSchema.enum?.map(val => ({ value: val, label: val })) || [];
+          const options = resolvedFieldSchema.json_schema_extra?.['ui:options'] ||
+                         (resolvedFieldSchema as any)['ui:options'] ||
+                         resolvedFieldSchema.enum?.map(val => ({ value: val, label: val })) || [];
           return (
             <SelectField
               key={fieldName}
@@ -241,7 +311,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'entity-select':
-          const entityKind = fieldSchema.json_schema_extra?.['ui:entity-filter']?.kind;
+          const entityKind = resolvedFieldSchema.json_schema_extra?.['ui:entity-filter']?.kind;
           return (
             <EntitySelectField
               key={fieldName}
@@ -252,8 +322,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'class-object-select':
-          const coSource = fieldSchema.json_schema_extra?.['ui:source'] || (fieldSchema as any)['ui:source'];
-          const coMultiple = fieldSchema.json_schema_extra?.['ui:multiple'] || (fieldSchema as any)['ui:multiple'];
+          const coSource = resolvedFieldSchema.json_schema_extra?.['ui:source'] || (resolvedFieldSchema as any)['ui:source'];
+          const coMultiple = resolvedFieldSchema.json_schema_extra?.['ui:multiple'] || (resolvedFieldSchema as any)['ui:multiple'];
           return (
             <ClassObjectSelectField
               key={fieldName}
@@ -265,7 +335,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'transform-source-select':
-          const sourceGroupBy = fieldSchema.json_schema_extra?.['ui:groupBy'];
+          const sourceGroupBy = resolvedFieldSchema.json_schema_extra?.['ui:groupBy'];
           return (
             <TransformSourceSelectField
               key={fieldName}
@@ -281,32 +351,32 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               key={fieldName}
               {...commonProps}
               groupBy={groupBy}
-              minItems={fieldSchema.minItems}
-              maxItems={fieldSchema.maxItems}
+              minItems={resolvedFieldSchema.minItems}
+              maxItems={resolvedFieldSchema.maxItems}
             />
           );
 
         case 'array':
-          const itemWidget = fieldSchema.json_schema_extra?.['ui:item-widget'];
+          const itemWidget = resolvedFieldSchema.json_schema_extra?.['ui:item-widget'];
 
           // Determine the item type based on the items schema
           let itemType = itemWidget || 'text';
-          let resolvedItemSchema = fieldSchema.items;
+          let resolvedItemSchema = resolvedFieldSchema.items;
 
 
-          if (!itemWidget && fieldSchema.items) {
+          if (!itemWidget && resolvedFieldSchema.items) {
             // Check if items reference a $def (object type)
-            if (fieldSchema.items.$ref) {
+            if (resolvedFieldSchema.items.$ref) {
               itemType = 'object';
               // Resolve the reference
-              const resolved = resolveRef(fieldSchema.items.$ref);
+              const resolved = resolveRef(resolvedFieldSchema.items.$ref);
               if (resolved) {
                 resolvedItemSchema = resolved;
               }
-            } else if (fieldSchema.items.type === 'object' || fieldSchema.items.properties) {
+            } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
               itemType = 'object';
-            } else if (fieldSchema.items.type) {
-              itemType = fieldSchema.items.type;
+            } else if (resolvedFieldSchema.items.type) {
+              itemType = resolvedFieldSchema.items.type;
             }
           }
 
@@ -317,8 +387,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               {...commonProps}
               itemType={itemType}
               itemSchema={resolvedItemSchema}
-              minItems={fieldSchema.minItems}
-              maxItems={fieldSchema.maxItems}
+              minItems={resolvedFieldSchema.minItems}
+              maxItems={resolvedFieldSchema.maxItems}
               availableFields={itemWidget === 'field-select' ? availableFields : undefined}
             />
           );
@@ -337,7 +407,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <ObjectField
               key={fieldName}
               {...commonProps}
-              properties={fieldSchema.properties || {}}
+              properties={resolvedFieldSchema.properties || {}}
             />
           );
 
@@ -349,8 +419,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
         case 'file-select':
         case 'file-picker':
-          const fileAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
-          const fileBasePath = fieldSchema.json_schema_extra?.['ui:basePath'] || (fieldSchema as any)['ui:basePath'] || 'imports/';
+          const fileAccept = resolvedFieldSchema.json_schema_extra?.['ui:accept'] || (resolvedFieldSchema as any)['ui:accept'] || 'all';
+          const fileBasePath = resolvedFieldSchema.json_schema_extra?.['ui:basePath'] || (resolvedFieldSchema as any)['ui:basePath'] || 'imports/';
           return (
             <FilePickerField
               key={fieldName}
@@ -361,7 +431,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'layer-select':
-          const layerAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
+          const layerAccept = resolvedFieldSchema.json_schema_extra?.['ui:accept'] || (resolvedFieldSchema as any)['ui:accept'] || 'all';
           return (
             <LayerSelectField
               key={fieldName}
@@ -380,16 +450,18 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     }
 
     // Fallback based on JSON schema type
-    const fieldType = Array.isArray(fieldSchema.type) ? fieldSchema.type[0] : fieldSchema.type;
+    const fieldType = Array.isArray(resolvedFieldSchema.type)
+      ? resolvedFieldSchema.type[0]
+      : resolvedFieldSchema.type;
 
     switch (fieldType) {
       case 'string':
-        if (fieldSchema.enum) {
+        if (resolvedFieldSchema.enum) {
           return (
             <SelectField
               key={fieldName}
               {...commonProps}
-              options={fieldSchema.enum.map(val => ({ value: val, label: val }))}
+              options={resolvedFieldSchema.enum.map(val => ({ value: val, label: val }))}
             />
           );
         }
@@ -398,12 +470,12 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       case 'number':
       case 'integer':
         return (
-          <NumberField
-            key={fieldName}
-            {...commonProps}
-            min={fieldSchema.minimum}
-            max={fieldSchema.maximum}
-          />
+            <NumberField
+              key={fieldName}
+              {...commonProps}
+              min={resolvedFieldSchema.minimum}
+              max={resolvedFieldSchema.maximum}
+            />
         );
 
       case 'boolean':
@@ -411,28 +483,28 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
       case 'array':
         // Check if it's a simple string array (tags)
-        if (fieldSchema.items?.type === 'string' && !fieldSchema.items.enum) {
+        if (resolvedFieldSchema.items?.type === 'string' && !resolvedFieldSchema.items.enum) {
           return <TagsField key={fieldName} {...commonProps} />;
         }
 
         // Determine the item type based on the items schema
         let itemType = 'text';
-        let resolvedItemSchema = fieldSchema.items;
+        let resolvedItemSchema = resolvedFieldSchema.items;
 
 
-        if (fieldSchema.items) {
+        if (resolvedFieldSchema.items) {
           // Check if items reference a $def (object type)
-          if (fieldSchema.items.$ref) {
+          if (resolvedFieldSchema.items.$ref) {
             itemType = 'object';
             // Resolve the reference
-            const resolved = resolveRef(fieldSchema.items.$ref);
+            const resolved = resolveRef(resolvedFieldSchema.items.$ref);
             if (resolved) {
               resolvedItemSchema = resolved;
             }
-          } else if (fieldSchema.items.type === 'object' || fieldSchema.items.properties) {
+          } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
             itemType = 'object';
-          } else if (fieldSchema.items.type) {
-            itemType = fieldSchema.items.type;
+          } else if (resolvedFieldSchema.items.type) {
+            itemType = resolvedFieldSchema.items.type;
           }
         }
 
@@ -443,21 +515,21 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             {...commonProps}
             itemType={itemType}
             itemSchema={resolvedItemSchema}
-            minItems={fieldSchema.minItems}
-            maxItems={fieldSchema.maxItems}
+            minItems={resolvedFieldSchema.minItems}
+            maxItems={resolvedFieldSchema.maxItems}
           />
         );
 
       case 'object':
         // Check if it's a Dict[str, str] (additionalProperties with string type)
-        if (fieldSchema.additionalProperties?.type === 'string') {
+        if (resolvedFieldSchema.additionalProperties?.type === 'string') {
           return <KeyValuePairsField key={fieldName} {...commonProps} />;
         }
         return (
           <ObjectField
             key={fieldName}
             {...commonProps}
-            properties={fieldSchema.properties || {}}
+            properties={resolvedFieldSchema.properties || {}}
           />
         );
 
@@ -527,7 +599,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       return null;
     }
 
-    const fields = Object.entries(properties).map(([fieldName, fieldSchema]) => {
+    const fields = Object.entries(properties)
+      .filter(([fieldName]) => !hiddenFieldSet.has(fieldName))
+      .map(([fieldName, fieldSchema]) => {
       const field = fieldSchema as FieldSchema;
       const isRequired = required.includes(fieldName);
 
@@ -536,10 +610,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           {renderField(fieldName, field, isRequired)}
         </div>
       );
-    });
+      });
 
     return <div className="space-y-4">{fields}</div>;
-  }, [schema, formData, form, readOnly, availableFields]);
+  }, [schema, formData, form, readOnly, availableFields, hiddenFieldSet]);
 
   // Loading state
   if (loading) {

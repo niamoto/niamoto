@@ -31,6 +31,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
     """Transform Niamoto data to Darwin Core Occurrence format."""
 
     config_model = NiamotoDwCConfig
+    param_schema = DwcTransformerParams
 
     def __init__(self, db: Any, registry=None):
         """Initialize the transformer."""

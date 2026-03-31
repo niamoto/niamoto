@@ -1,9 +1,10 @@
 """Configuration management API endpoints for reading and updating YAML configs."""
 
+from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Literal, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import yaml
 import shutil
 from datetime import datetime
@@ -18,6 +19,7 @@ from niamoto.gui.api.services.templates.config_service import (
     find_export_group as _find_export_group_impl,
     find_or_create_transform_group as _find_or_create_transform_group_impl,
 )
+from niamoto.core.plugins.models import ExportConfig as ExportConfigModel
 
 router = APIRouter()
 
@@ -55,6 +57,68 @@ def _find_export_group(
 ) -> Optional[Dict[str, Any]]:
     """Find export group by group_by value using centralized service."""
     return _find_export_group_impl(export_config, group_by)
+
+
+def _list_api_export_targets(export_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """List export targets backed by the JSON API exporter."""
+    return [
+        export_entry
+        for export_entry in export_config.get("exports", [])
+        if export_entry.get("exporter") == "json_api_exporter"
+    ]
+
+
+def _find_api_export_target(
+    export_config: Dict[str, Any], export_name: str
+) -> Optional[Dict[str, Any]]:
+    """Find a JSON API export target by name."""
+    for export_entry in _list_api_export_targets(export_config):
+        if export_entry.get("name") == export_name:
+            return export_entry
+    return None
+
+
+def _find_target_group(
+    export_target: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a group configuration inside a specific export target."""
+    for group in export_target.get("groups", []) or []:
+        if group.get("group_by") == group_by:
+            return group
+    return None
+
+
+def _default_dwc_transformer_params(group_by: str) -> Dict[str, Any]:
+    """Provide safe defaults when enabling a new DwC target for a group."""
+    return {
+        "occurrence_list_source": "occurrences",
+        "occurrence_table": "occurrences",
+        "taxonomy_entity": group_by,
+        "taxon_id_column": "id_taxonref",
+        "taxon_id_field": "id",
+        "mapping": {},
+    }
+
+
+def _build_default_api_group_config(export_name: str, group_by: str) -> Dict[str, Any]:
+    """Build the default group payload returned to the UI."""
+    return {
+        "enabled": False,
+        "group_by": group_by,
+        "detail": {"pass_through": True},
+        "index": {"fields": []},
+    }
+
+
+def _validate_export_config_or_raise(export_config: Dict[str, Any]) -> None:
+    """Validate export.yml against typed exporter models."""
+    try:
+        ExportConfigModel.model_validate(export_config)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid export configuration: {str(exc)}",
+        ) from exc
 
 
 def _is_known_reference(group_by: str) -> bool:
@@ -1959,6 +2023,330 @@ async def update_index_generator(
 
 
 # =============================================================================
+# Static API Export Configuration Endpoints
+# =============================================================================
+
+
+class ApiExportGroupEntry(BaseModel):
+    """Minimal info about a group inside a target."""
+
+    group_by: str
+    enabled: bool = True
+
+
+class ApiExportTargetSummary(BaseModel):
+    """Summary for a JSON API export target."""
+
+    name: str
+    enabled: bool = True
+    exporter: str = "json_api_exporter"
+    group_names: List[str] = Field(default_factory=list)
+    groups: List[ApiExportGroupEntry] = Field(default_factory=list)
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiExportTargetSettingsUpdate(BaseModel):
+    """Target-level static API settings."""
+
+    enabled: bool = True
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiExportTargetCreate(BaseModel):
+    """Create a new JSON API export target."""
+
+    name: str = Field(..., pattern=r"^[a-z][a-z0-9_]{2,30}$")
+    template: Literal["simple", "dwc"] = Field(
+        ..., description="Export template: simple JSON or Darwin Core"
+    )
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiExportGroupConfigUpdate(BaseModel):
+    """Per-group configuration for a static API export target."""
+
+    enabled: bool = True
+    data_source: Optional[str] = None
+    detail: Optional[Dict[str, Any]] = None
+    index: Optional[Dict[str, Any]] = None
+    json_options: Optional[Dict[str, Any]] = None
+    transformer_plugin: Optional[str] = None
+    transformer_params: Optional[Dict[str, Any]] = None
+
+
+@router.get("/export/api-targets", response_model=List[ApiExportTargetSummary])
+async def list_api_export_targets() -> List[ApiExportTargetSummary]:
+    """List all configured static API export targets."""
+    try:
+        export_config = _load_export_config()
+        return [
+            ApiExportTargetSummary(
+                name=export_entry.get("name", ""),
+                enabled=export_entry.get("enabled", True),
+                exporter=export_entry.get("exporter", "json_api_exporter"),
+                group_names=[
+                    group.get("group_by")
+                    for group in export_entry.get("groups", []) or []
+                    if group.get("group_by")
+                ],
+                groups=[
+                    ApiExportGroupEntry(
+                        group_by=group.get("group_by", ""),
+                        enabled=group.get("enabled", True),
+                    )
+                    for group in export_entry.get("groups", []) or []
+                    if group.get("group_by")
+                ],
+                params=deepcopy(export_entry.get("params", {}) or {}),
+            )
+            for export_entry in _list_api_export_targets(export_config)
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error listing API export targets: {str(e)}"
+        )
+
+
+@router.post("/export/api-targets", response_model=ApiExportTargetSummary)
+async def create_api_export_target(
+    body: ApiExportTargetCreate,
+) -> ApiExportTargetSummary:
+    """Create a new JSON API export target from a template."""
+    import re
+
+    try:
+        if not re.match(r"^[a-z][a-z0-9_]{2,30}$", body.name):
+            raise HTTPException(
+                status_code=422,
+                detail="Name must be 3-31 lowercase chars (letters, digits, underscores)",
+            )
+
+        export_config = _load_export_config()
+        if _find_api_export_target(export_config, body.name):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Target '{body.name}' already exists",
+            )
+
+        # Build new target from template
+        new_target: Dict[str, Any] = {
+            "name": body.name,
+            "exporter": "json_api_exporter",
+            "enabled": True,
+            "groups": [],
+            "params": {},
+        }
+
+        if body.template == "simple":
+            new_target["params"] = {
+                "output_dir": f"exports/{body.name}",
+                "detail_output_pattern": "{group}/{id}.json",
+                "index_output_pattern": "all_{group}.json",
+                **body.params,
+            }
+        elif body.template == "dwc":
+            new_target["params"] = {
+                "output_dir": f"exports/{body.name}",
+                "detail_output_pattern": "{group}/{id}_dwc.json",
+                "index_output_pattern": "all_{group}_dwc.json",
+                **body.params,
+            }
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown template '{body.template}'. Use: simple, dwc",
+            )
+
+        export_config.setdefault("exports", []).append(new_target)
+        _validate_export_config_or_raise(export_config)
+        _save_export_config(export_config)
+
+        return ApiExportTargetSummary(
+            name=body.name,
+            enabled=True,
+            exporter="json_api_exporter",
+            group_names=[],
+            groups=[],
+            params=new_target["params"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error creating API export target: {str(e)}"
+        )
+
+
+@router.get("/export/api-targets/{export_name}/settings")
+async def get_api_export_target_settings(export_name: str) -> Dict[str, Any]:
+    """Get global settings for a static API export target."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404, detail=f"API export target '{export_name}' not found"
+            )
+
+        return {
+            "name": export_name,
+            "enabled": export_target.get("enabled", True),
+            "params": deepcopy(export_target.get("params", {}) or {}),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting API export target settings: {str(e)}",
+        )
+
+
+@router.put("/export/api-targets/{export_name}/settings")
+async def update_api_export_target_settings(
+    export_name: str, config: ApiExportTargetSettingsUpdate
+) -> Dict[str, Any]:
+    """Update target-level settings for a static API export target."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404, detail=f"API export target '{export_name}' not found"
+            )
+
+        export_target["enabled"] = config.enabled
+        export_target["params"] = config.params
+
+        _validate_export_config_or_raise(export_config)
+        _save_export_config(export_config)
+
+        return {
+            "name": export_name,
+            "enabled": export_target.get("enabled", True),
+            "params": deepcopy(export_target.get("params", {}) or {}),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating API export target settings: {str(e)}",
+        )
+
+
+@router.get("/export/api-targets/{export_name}/groups/{group_by}")
+async def get_api_export_group_config(
+    export_name: str, group_by: str
+) -> Dict[str, Any]:
+    """Get per-group settings for a specific static API export target."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404, detail=f"API export target '{export_name}' not found"
+            )
+
+        group = _find_target_group(export_target, group_by)
+        payload = (
+            deepcopy(group)
+            if group is not None
+            else _build_default_api_group_config(export_name, group_by)
+        )
+        payload["enabled"] = group is not None and group.get("enabled", True)
+        payload.setdefault("group_by", group_by)
+        payload.setdefault("detail", {"pass_through": True})
+        payload.setdefault("index", {"fields": []})
+        return payload
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting API group config: {str(e)}"
+        )
+
+
+@router.put("/export/api-targets/{export_name}/groups/{group_by}")
+async def update_api_export_group_config(
+    export_name: str, group_by: str, config: ApiExportGroupConfigUpdate
+) -> Dict[str, Any]:
+    """Update per-group settings for a static API export target."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404, detail=f"API export target '{export_name}' not found"
+            )
+
+        groups = export_target.setdefault("groups", [])
+        existing_group = _find_target_group(export_target, group_by)
+
+        if not config.enabled:
+            if existing_group:
+                existing_group["enabled"] = False
+            else:
+                groups.append({"group_by": group_by, "enabled": False})
+            _validate_export_config_or_raise(export_config)
+            _save_export_config(export_config)
+            result = deepcopy(existing_group or {"group_by": group_by})
+            result["enabled"] = False
+            return result
+
+        next_group: Dict[str, Any] = {"group_by": group_by}
+        payload = config.model_dump(exclude_none=True)
+        payload.pop("enabled", None)
+
+        for key in (
+            "data_source",
+            "detail",
+            "index",
+            "json_options",
+            "transformer_plugin",
+            "transformer_params",
+        ):
+            if key in payload:
+                next_group[key] = payload[key]
+
+        next_group.setdefault("detail", {"pass_through": True})
+
+        # If no transformer_plugin was specified, inherit from existing
+        # sibling groups in the same target (e.g. activating a DwC target
+        # for a new group should copy the transformer from its siblings).
+        if "transformer_plugin" not in next_group:
+            for sibling in groups:
+                sibling_plugin = sibling.get("transformer_plugin")
+                if sibling_plugin and sibling.get("group_by") != group_by:
+                    next_group["transformer_plugin"] = sibling_plugin
+                    break
+
+        if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
+            next_group.setdefault(
+                "transformer_params", _default_dwc_transformer_params(group_by)
+            )
+
+        if existing_group is None:
+            export_target["groups"].append(next_group)
+        else:
+            existing_group.clear()
+            existing_group.update(next_group)
+
+        _validate_export_config_or_raise(export_config)
+        _save_export_config(export_config)
+
+        response = deepcopy(next_group)
+        response["enabled"] = True
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error updating API group config: {str(e)}"
+        )
+
+
+# =============================================================================
 # Index Generator Field Suggestions
 # =============================================================================
 
@@ -1996,6 +2384,20 @@ class IndexFieldSuggestions(BaseModel):
     display_fields: List[SuggestedDisplayField]
     filters: List[SuggestedFilter]
     total_entities: int
+
+
+@router.get("/export/api-targets/{export_name}/groups/{group_by}/suggestions")
+async def suggest_api_export_index_fields(
+    export_name: str, group_by: str
+) -> IndexFieldSuggestions:
+    """Reuse index field suggestions for static API export indexes."""
+    export_config = _load_export_config()
+    export_target = _find_api_export_target(export_config, export_name)
+    if not export_target:
+        raise HTTPException(
+            status_code=404, detail=f"API export target '{export_name}' not found"
+        )
+    return await suggest_index_fields(group_by)
 
 
 def _extract_json_paths(
