@@ -258,6 +258,7 @@
   "groups": {
     "title": "Groups",
     "description": "Configure widgets and transformations for each reference group.",
+    "apiSettings": "API settings",
     "noGroups": "No groups available",
     "noGroupsHint": "Import references first to configure their widgets.",
     "importData": "Import data",
@@ -607,7 +608,8 @@
     "tabs": {
       "sources": "Data sources",
       "content": "Content",
-      "index": "List"
+      "index": "List",
+      "api": "API"
     },
     "kinds": {
       "hierarchical": "Hierarchical",
@@ -644,6 +646,67 @@
       "minutesAgo": "{{count}} min ago",
       "hoursAgo": "{{count}}h ago",
       "daysAgo": "{{count}}d ago"
+    },
+    "api": {
+      "title": "Static API exports",
+      "description": "Configure JSON and standards-based exports for the \"{{groupBy}}\" group.",
+      "globalSettings": "Global API settings",
+      "globalSettingsDescription": "Manage the shared settings of static JSON export targets here.",
+      "enabledForGroup": "Enabled for this group",
+      "enabledGlobally": "Enabled globally",
+      "disabledForGroup": "This export is not enabled for this group yet. Enable it to manage its JSON or standards output.",
+      "globallyDisabled": "Global target disabled",
+      "unsaved": "Unsaved changes",
+      "empty": "No static API export targets are configured in export.yml.",
+      "loadFailed": "Failed to load the API configuration.",
+      "saveFailed": "Failed to save the API configuration.",
+      "groupConfigSaved": "{{exportName}} saved for group {{groupBy}}",
+      "globalConfigSaved": "{{exportName}} saved",
+      "targetDescription": "Manage the \"{{exportName}}\" output for the \"{{groupBy}}\" group.",
+      "globalTargetDescription": "Manage the shared settings for the \"{{exportName}}\" target.",
+      "groupsCount_one": "{{count}} group",
+      "groupsCount_other": "{{count}} groups",
+      "dataSource": "Data source",
+      "dataSourcePlaceholder": "Leave empty to use the current group",
+      "dataSourceHelp": "Optional. Overrides the logical source used by this export.",
+      "passThrough": "Export all transformed data",
+      "passThroughHelp": "When enabled, the detail JSON files reuse the group's transformed payload directly.",
+      "detailFields": "Detail JSON fields",
+      "detailFieldsHelp": "Describe the fields to expose in detail files when pass-through is disabled.",
+      "indexFields": "Index JSON fields",
+      "indexFieldsHelp": "Choose the fields exported in the index file for this group.",
+      "transformerParams": "Transformer parameters",
+      "dwcMapping": "Darwin Core mapping",
+      "dwcMappingHelp": "Map each Darwin Core term to a static value, a data reference, or a generator.",
+      "dwcReferenceHelp": "Use @source.field for occurrence fields and @taxon.field for current group data.",
+      "mappingTermFallback": "Term {{index}}",
+      "moveMappingUp": "Move mapping up",
+      "moveMappingDown": "Move mapping down",
+      "removeMapping": "Remove mapping",
+      "dwcTerm": "Darwin Core term",
+      "dwcTermPlaceholder": "occurrenceID",
+      "mappingMode": "Value mode",
+      "mappingModes": {
+        "source": "Source reference",
+        "static": "Static value",
+        "generator": "Generator"
+      },
+      "sourceReference": "Source reference",
+      "sourceReferencePlaceholder": "@source.id",
+      "staticValue": "Static value",
+      "staticValuePlaceholder": "Occurrence",
+      "generator": "Generator",
+      "generatorPlaceholder": "Select a generator",
+      "generatorParams": "Generator params (JSON)",
+      "generatorParamsPlaceholder": "{\n  \"source_field\": \"@source.id\"\n}",
+      "mappingErrors": {
+        "generatorRequired": "A generator is required for \"{{term}}\".",
+        "sourceRequired": "A source reference is required for \"{{term}}\".",
+        "staticValueRequired": "A static value is required for \"{{term}}\".",
+        "invalidGeneratorParams": "Invalid generator params for \"{{term}}\". {{message}}"
+      },
+      "jsonOverrides": "Per-group JSON overrides",
+      "jsonOverridesHelp": "Optional JSON settings that override the global target values for this group."
     }
   },
   "autoConfig": {

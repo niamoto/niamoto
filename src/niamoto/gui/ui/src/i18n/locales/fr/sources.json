@@ -258,6 +258,7 @@
   "groups": {
     "title": "Groupes",
     "description": "Configurez les widgets et transformations pour chaque groupe de référence.",
+    "apiSettings": "Paramètres API",
     "noGroups": "Aucun groupe disponible",
     "noGroupsHint": "Importez d'abord des références pour pouvoir configurer leurs widgets.",
     "importData": "Importer des données",
@@ -607,7 +608,8 @@
     "tabs": {
       "sources": "Sources de données",
       "content": "Contenu",
-      "index": "Liste"
+      "index": "Liste",
+      "api": "API"
     },
     "kinds": {
       "hierarchical": "Hiérarchique",
@@ -644,6 +646,67 @@
       "minutesAgo": "il y a {{count}} min",
       "hoursAgo": "il y a {{count}}h",
       "daysAgo": "il y a {{count}}j"
+    },
+    "api": {
+      "title": "Exports API statiques",
+      "description": "Configurez les exports JSON et standards pour le groupe \"{{groupBy}}\".",
+      "globalSettings": "Paramètres API globaux",
+      "globalSettingsDescription": "Gérez ici les paramètres partagés des cibles d'exports JSON statiques.",
+      "enabledForGroup": "Activé pour ce groupe",
+      "enabledGlobally": "Activé globalement",
+      "disabledForGroup": "Cet export n'est pas activé pour ce groupe. Activez-le pour gérer sa sortie JSON ou standard.",
+      "globallyDisabled": "Cible globale désactivée",
+      "unsaved": "Modifications non enregistrées",
+      "empty": "Aucune cible d'export API statique n'est configurée dans export.yml.",
+      "loadFailed": "Impossible de charger la configuration API.",
+      "saveFailed": "Impossible d'enregistrer la configuration API.",
+      "groupConfigSaved": "{{exportName}} enregistré pour le groupe {{groupBy}}",
+      "globalConfigSaved": "{{exportName}} enregistré",
+      "targetDescription": "Réglez ici la sortie \"{{exportName}}\" pour le groupe \"{{groupBy}}\".",
+      "globalTargetDescription": "Réglez ici les paramètres partagés de la cible \"{{exportName}}\".",
+      "groupsCount_one": "{{count}} groupe",
+      "groupsCount_other": "{{count}} groupes",
+      "dataSource": "Source de données",
+      "dataSourcePlaceholder": "Laisser vide pour utiliser le groupe courant",
+      "dataSourceHelp": "Optionnel. Permet de surcharger la source logique utilisée par cet export.",
+      "passThrough": "Exporter toutes les données transformées",
+      "passThroughHelp": "Quand activé, le JSON détail reprend directement les données transformées du groupe.",
+      "detailFields": "Champs du JSON détail",
+      "detailFieldsHelp": "Décrivez ici les champs à exposer dans les fichiers détail si le mode pass-through est désactivé.",
+      "indexFields": "Champs de l'index JSON",
+      "indexFieldsHelp": "Choisissez les champs exportés dans le fichier d'index pour ce groupe.",
+      "transformerParams": "Paramètres du transformeur",
+      "dwcMapping": "Mapping Darwin Core",
+      "dwcMappingHelp": "Mappez chaque terme Darwin Core vers une valeur statique, une référence de données ou un générateur.",
+      "dwcReferenceHelp": "Utilisez @source.champ pour les champs d'occurrence et @taxon.champ pour les données du groupe courant.",
+      "mappingTermFallback": "Terme {{index}}",
+      "moveMappingUp": "Monter le mapping",
+      "moveMappingDown": "Descendre le mapping",
+      "removeMapping": "Supprimer le mapping",
+      "dwcTerm": "Terme Darwin Core",
+      "dwcTermPlaceholder": "occurrenceID",
+      "mappingMode": "Mode de valeur",
+      "mappingModes": {
+        "source": "Référence source",
+        "static": "Valeur statique",
+        "generator": "Générateur"
+      },
+      "sourceReference": "Référence source",
+      "sourceReferencePlaceholder": "@source.id",
+      "staticValue": "Valeur statique",
+      "staticValuePlaceholder": "Occurrence",
+      "generator": "Générateur",
+      "generatorPlaceholder": "Sélectionnez un générateur",
+      "generatorParams": "Paramètres du générateur (JSON)",
+      "generatorParamsPlaceholder": "{\n  \"source_field\": \"@source.id\"\n}",
+      "mappingErrors": {
+        "generatorRequired": "Un générateur est requis pour \"{{term}}\".",
+        "sourceRequired": "Une référence source est requise pour \"{{term}}\".",
+        "staticValueRequired": "Une valeur statique est requise pour \"{{term}}\".",
+        "invalidGeneratorParams": "Les paramètres du générateur sont invalides pour \"{{term}}\". {{message}}"
+      },
+      "jsonOverrides": "Surcharges JSON par groupe",
+      "jsonOverridesHelp": "Options JSON optionnelles qui remplacent les valeurs globales pour ce groupe."
     }
   },
   "autoConfig": {

@@ -173,6 +173,8 @@ class JsonApiExporterParams(BasePluginParams):
 class JsonApiExporter(ExporterPlugin):
     """Generates static JSON API files based on the export configuration."""
 
+    param_schema = JsonApiExporterParams
+
     def __init__(self, db: Database, registry=None):
         """Initialize the exporter with database connection."""
         super().__init__(db, registry)
