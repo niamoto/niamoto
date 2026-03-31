@@ -2311,6 +2311,16 @@ async def update_api_export_group_config(
 
         next_group.setdefault("detail", {"pass_through": True})
 
+        # If no transformer_plugin was specified, inherit from existing
+        # sibling groups in the same target (e.g. activating a DwC target
+        # for a new group should copy the transformer from its siblings).
+        if "transformer_plugin" not in next_group:
+            for sibling in groups:
+                sibling_plugin = sibling.get("transformer_plugin")
+                if sibling_plugin and sibling.get("group_by") != group_by:
+                    next_group["transformer_plugin"] = sibling_plugin
+                    break
+
         if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
             next_group.setdefault(
                 "transformer_params", _default_dwc_transformer_params(group_by)

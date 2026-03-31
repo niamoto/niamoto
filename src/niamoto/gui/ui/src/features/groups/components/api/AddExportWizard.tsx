@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useApiExportTargets,
   useCreateApiExportTarget,
@@ -74,6 +75,7 @@ function Stepper({ step }: { step: WizardStep }) {
 
 export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizardProps) {
   const { t } = useTranslation(['sources', 'common'])
+  const queryClient = useQueryClient()
   const { data: targets } = useApiExportTargets()
   const createTarget = useCreateApiExportTarget()
 
@@ -166,6 +168,11 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
           ...(selectedTemplate === 'dwc'
             ? { transformer_plugin: 'niamoto_to_dwc_occurrence' }
             : {}),
+        })
+        // Invalidate cache so the tab reflects the new group immediately
+        await queryClient.invalidateQueries({ queryKey: ['api-export-targets'] })
+        await queryClient.invalidateQueries({
+          queryKey: ['api-export-group', created.name, groupBy],
         })
         toast.success(
           t('groupPanel.api.wizard.created', { name: targetName, groupBy })
