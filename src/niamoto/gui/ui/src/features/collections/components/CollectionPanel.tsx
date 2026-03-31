@@ -31,11 +31,12 @@ import { getActiveExportJob } from '@/lib/api/export'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
+  initialTab?: string
 }
 
-export function CollectionPanel({ reference }: CollectionPanelProps) {
+export function CollectionPanel({ reference, initialTab }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const [activeTab, setActiveTab] = useState('content')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
 
   // Transform job state

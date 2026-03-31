@@ -19,16 +19,9 @@ import { ModuleLayout } from '@/components/layout/ModuleLayout'
 import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { CollectionsTree, type CollectionsSelection } from './CollectionsTree'
 import { CollectionPanel } from './CollectionPanel'
+import { CollectionsOverview } from './CollectionsOverview'
 import { ApiSettingsPanel } from './api/ApiSettingsPanel'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Layers, ArrowRight } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 // =============================================================================
 // URL HELPERS
@@ -62,6 +55,7 @@ export function CollectionsModule() {
   const [selection, setSelection] = useState<CollectionsSelection>(() =>
     selectionFromPath(location.pathname)
   )
+  const [initialTab, setInitialTab] = useState<string | undefined>()
 
   // Sync selection when URL changes externally (e.g. browser back/forward)
   useEffect(() => {
@@ -70,8 +64,9 @@ export function CollectionsModule() {
   }, [location.pathname])
 
   // Update URL when selection changes
-  const handleSelect = (newSelection: CollectionsSelection) => {
+  const handleSelect = (newSelection: CollectionsSelection, tab?: string) => {
     setSelection(newSelection)
+    setInitialTab(tab)
     if (newSelection.type === 'overview') {
       navigate('/groups')
     } else if (newSelection.type === 'api-settings') {
@@ -136,46 +131,13 @@ export function CollectionsModule() {
       )
     }
 
-    // Overview — card grid
+    // Overview — enriched card grid
     if (selection.type === 'overview') {
       return (
-        <div className="space-y-6 p-6">
-          <div>
-            <h1 className="text-2xl font-bold">{t('collections.title', 'Collections')}</h1>
-            <p className="mt-1 text-muted-foreground">
-              {t('collections.description', 'Configure blocks and data sources for each collection.')}
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {references.map((ref) => (
-              <Card
-                key={ref.name}
-                className="cursor-pointer transition-colors hover:border-primary"
-                onClick={() => handleSelect({ type: 'collection', name: ref.name })}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{ref.name}</CardTitle>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <CardDescription>
-                    {t('collections.table', 'Table')}: {ref.table_name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{ref.kind}</Badge>
-                    {ref.entity_count !== undefined && (
-                      <Badge variant="secondary">
-                        {ref.entity_count} {t('reference.entities', 'entities')}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+        <CollectionsOverview
+          references={references}
+          onSelect={handleSelect}
+        />
       )
     }
 
@@ -186,7 +148,7 @@ export function CollectionsModule() {
 
     const reference = references.find((r) => r.name === selection.name)
     if (reference) {
-      return <CollectionPanel reference={reference} />
+      return <CollectionPanel reference={reference} initialTab={initialTab} />
     }
 
     // Collection not found
