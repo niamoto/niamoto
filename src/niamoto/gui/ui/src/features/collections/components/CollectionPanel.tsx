@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
+import { SourcesDialog } from '@/features/collections/components/sources/SourcesDialog'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
 import { useConfiguredWidgets } from '@/components/widgets'
@@ -265,7 +266,7 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
 
       {/* Tabs - 3 tabs: Blocs / Liste / Export */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="border-b px-6">
+        <div className="flex items-center justify-between border-b px-6">
           <TabsList className="h-10 w-fit gap-1 bg-muted/50 p-1 rounded-lg">
             <TabsTrigger
               value="content"
@@ -289,6 +290,7 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
               {t('collectionPanel.tabs.export')}
             </TabsTrigger>
           </TabsList>
+          <SourcesDialog reference={reference} />
         </div>
 
         {/* Tab Content */}

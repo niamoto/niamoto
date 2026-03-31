@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { Layers, Loader2, ArrowRight, FileCode } from 'lucide-react'
+import { Layers, Loader2, ArrowRight } from 'lucide-react'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 
 // =============================================================================
@@ -135,20 +135,6 @@ export function CollectionsTree({
         </AccordionItem>
       </Accordion>
 
-      <div className="mt-auto px-2 pb-3">
-        <button
-          className={cn(
-            'flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
-            isSelected('api-settings')
-              ? 'bg-primary/10 text-primary'
-              : 'hover:bg-muted/50'
-          )}
-          onClick={() => onSelect({ type: 'api-settings' })}
-        >
-          <FileCode className="h-4 w-4" />
-          {t('collections.apiSettings', 'API settings')}
-        </button>
-      </div>
     </div>
   )
 }
