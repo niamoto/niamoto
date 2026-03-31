@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
-import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { CollectionsTree, type CollectionsSelection } from './CollectionsTree'
 import { CollectionPanel } from './CollectionPanel'
 import { CollectionsOverview } from './CollectionsOverview'
@@ -179,20 +178,17 @@ export function CollectionsModule() {
   // ---------------------------------------------------------------------------
 
   return (
-    <>
-      <StalenessBanner stage="groups" />
-      <ModuleLayout
-        sidebar={
-          <CollectionsTree
-            references={references}
-            referencesLoading={isLoading}
-            selection={selection}
-            onSelect={handleSelect}
-          />
-        }
-      >
+    <ModuleLayout
+      sidebar={
+        <CollectionsTree
+          references={references}
+          referencesLoading={isLoading}
+          selection={selection}
+          onSelect={handleSelect}
+        />
+      }
+    >
         {renderContent()}
       </ModuleLayout>
-    </>
   )
 }

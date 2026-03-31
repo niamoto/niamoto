@@ -54,7 +54,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 import { PreviewFrame, type DeviceSize, DEVICE_DIMENSIONS } from '@/components/ui/preview-frame'
 import {
   useGroups,
@@ -565,7 +564,6 @@ export default function PublishOverview() {
 
   return (
     <div>
-      <StalenessBanner stage="publication" />
       <div className="container mx-auto space-y-6 px-6 py-6">
         <Card>
           <CardHeader className="space-y-4">
