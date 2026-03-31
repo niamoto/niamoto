@@ -43,7 +43,7 @@ export function GroupPageViewer({
           </div>
           <div>
             <h2 className="text-lg font-semibold">{group.name}/</h2>
-            <p className="text-sm text-muted-foreground">{t('collectionViewer.pageGroup')}</p>
+            <p className="text-sm text-muted-foreground">{t('collectionViewer.pageCollection')}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={onBack}>

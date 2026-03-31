@@ -40,6 +40,13 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
 
+  // Sync active tab when initialTab changes (e.g. from overview shortcuts)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [initialTab])
+
   // Transform job state
   const [isTransforming, setIsTransforming] = useState(false)
   const [transformProgress, setTransformProgress] = useState(0)

@@ -598,10 +598,10 @@ function PagesOverview({
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Folder className="h-10 w-10 text-muted-foreground/50 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {t('collections.noGroupsConfigured')}
+                  {t('collections.noCollectionsConfigured')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t('collections.groupsDefinedInExport')}
+                  {t('collections.collectionsDefinedInExport')}
                 </p>
               </CardContent>
             </Card>

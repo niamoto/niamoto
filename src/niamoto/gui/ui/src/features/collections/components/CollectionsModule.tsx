@@ -108,6 +108,11 @@ export function CollectionsModule() {
       )
     }
 
+    // API settings — always accessible regardless of collections
+    if (selection.type === 'api-settings') {
+      return <ApiSettingsPanel />
+    }
+
     // Empty state
     if (references.length === 0) {
       return (
@@ -139,11 +144,6 @@ export function CollectionsModule() {
           onSelect={handleSelect}
         />
       )
-    }
-
-    // Collection detail
-    if (selection.type === 'api-settings') {
-      return <ApiSettingsPanel />
     }
 
     const reference = references.find((r) => r.name === selection.name)
