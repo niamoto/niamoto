@@ -55,33 +55,6 @@ exports:
         en: Methodology
       url: /methodology.html
     - text:
-        fr: Arbres
-        en: Trees
-      url: /trees.html
-      children:
-      - text:
-          fr: Explorer les données
-          en: Explore the data
-        url: /taxons/index.html
-    - text:
-        fr: Peuplements
-        en: Plots
-      url: /plots.html
-      children:
-      - text:
-          fr: Explorer les données
-          en: Explore the data
-        url: /plots/index.html
-    - text:
-        fr: Forêt
-        en: Forest
-      url: /forests.html
-      children:
-      - text:
-          fr: Explorer les données
-          en: Explore the data
-        url: /shapes/index.html
-    - text:
         fr: Ressources
         en: Resources
       url: /resources.html
@@ -94,6 +67,35 @@ exports:
           fr: Bibliographie
           en: Bibliography
         url: /bibliography.html
+    - text:
+        fr: Peuplements
+        en: Plots
+      url: /plots.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /plots/index.html
+    - text:
+        fr: Arbres
+        en: Trees
+      url: /trees.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /taxons/index.html
+    - text:
+        fr: Forêt
+        en: Forest
+      url: /forests.html
+      children:
+      - text:
+          fr: Explorer les données
+          en: Explore the data
+        url: /shapes/index.html
+    - text: article
+      url: /article.html
     footer_navigation:
     - title:
         fr: Projet
@@ -140,6 +142,7 @@ exports:
       - text: GitHub
         url: https://github.com/niamoto/niamoto
         external: true
+    copy_assets_from: []
   static_pages:
   - name: home
     template: index.html
@@ -212,24 +215,6 @@ exports:
     context:
       content_source: templates/content/methodology.md
       title: Méthodo
-  - name: trees
-    template: page.html
-    output_file: trees.html
-    context:
-      content_source: templates/content/trees.md
-      title: Présentation des arbres
-  - name: plots
-    template: page.html
-    output_file: plots.html
-    context:
-      content_source: templates/content/plots.md
-      title: Présentation des peuplements
-  - name: forests
-    template: page.html
-    output_file: forests.html
-    context:
-      content_source: templates/content/forests.md
-      title: Présentation de la forêt
   - name: resources
     template: page.html
     output_file: resources.html
@@ -313,6 +298,27 @@ exports:
         label: Conférences
       - id: other
         label: Autres
+  - name: plots
+    template: page.html
+    output_file: plots.html
+    context:
+      content_source: templates/content/plots.md
+      title: Présentation des peuplements
+  - name: trees
+    template: page.html
+    output_file: trees.html
+    context:
+      content_source: templates/content/trees.md
+      title: Présentation des arbres
+  - name: forests
+    template: page.html
+    output_file: forests.html
+    context:
+      content_source: templates/content/forests.md
+      title: Présentation de la forêt
+  - name: article
+    template: article.html
+    output_file: article.html
   groups:
   - group_by: taxons
     output_pattern: taxons/{id}.html

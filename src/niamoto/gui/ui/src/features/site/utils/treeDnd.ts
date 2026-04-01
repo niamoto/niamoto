@@ -126,12 +126,13 @@ export function applyDragMove(
   const activeFlatItems = [activeFlat, ...flat.filter(f => f.parentId === activeId)]
   const flatWithout = flat.filter(f => f.item.id !== activeId && f.parentId !== activeId)
 
-  // Find where to insert
+  // Find where to insert — direction determines before vs after
   const overIndex = flatWithout.findIndex(f => f.item.id === overId)
   if (overIndex === -1) return tree
 
-  // Insert after the over item
-  const insertIndex = overIndex + 1
+  const overOriginalIndex = flat.findIndex(f => f.item.id === overId)
+  const isDraggingDown = activeIndex < overOriginalIndex
+  const insertIndex = isDraggingDown ? overIndex + 1 : overIndex
 
   // Rebuild: assign new parentId and depth based on projection
   const newFlat: FlatItem[] = [
