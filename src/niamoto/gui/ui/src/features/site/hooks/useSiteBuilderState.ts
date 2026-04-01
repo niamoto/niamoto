@@ -135,19 +135,46 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   // Groups from API (read-only)
   const groups: GroupInfo[] = groupsData?.groups ?? []
 
-  // Sync local state from API data
+  // Sync local state from API data — only when siteConfig changes (not groups)
   useEffect(() => {
     if (siteConfig) {
       setEditedSite(siteConfig.site)
       setEditedFooterNavigation(siteConfig.footer_navigation || [])
       setAllPages(siteConfig.static_pages)
-      // Build unified tree from API data
       resetIdCounter()
       setUnifiedTree(
         buildUnifiedTree(siteConfig.navigation, siteConfig.static_pages, groups)
       )
     }
-  }, [siteConfig, groups])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- groups excluded intentionally:
+    // re-syncing on groups change would discard unsaved tree edits
+  }, [siteConfig])
+
+  // When groups change (e.g. after enabling index page), update hasIndex on existing
+  // tree items without discarding unsaved edits (reorder, toggles, external links)
+  useEffect(() => {
+    if (groups.length === 0) return
+    setUnifiedTree(prev => {
+      const groupMap = new Map(groups.map(g => [g.name, g]))
+      const updateItem = (item: UnifiedTreeItem): UnifiedTreeItem => {
+        if (item.type === 'collection' && item.collectionRef) {
+          const group = groupMap.get(item.collectionRef)
+          if (group) {
+            const newHasIndex = !!group.index_output_pattern
+            if (item.hasIndex !== newHasIndex) {
+              return {
+                ...item,
+                hasIndex: newHasIndex,
+                url: group.index_output_pattern ? `/${group.index_output_pattern}` : item.url,
+              }
+            }
+          }
+        }
+        return { ...item, children: item.children.map(updateItem) }
+      }
+      return prev.map(updateItem)
+    })
+  }, [groups])
 
   // ---------------------------------------------------------------------------
   // Derived state from tree + allPages
@@ -341,26 +368,28 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       pages.map((p) => (p.name === oldName ? normalizedPage : p))
     )
 
-    // Update tree item label and refs if name changed
+    // Update tree item refs — preserve label (custom menu text) unless
+    // the label was the old page name (meaning no custom text was set)
     if (oldName) {
+      const updatePageItem = (item: UnifiedTreeItem): UnifiedTreeItem => {
+        if (item.type !== 'page' || item.pageRef !== oldName) return item
+        const labelWasPageName = item.label === oldName
+        return {
+          ...item,
+          // Only update label if it matched the old page name (no custom text)
+          label: labelWasPageName ? normalizedPage.name : item.label,
+          pageRef: normalizedPage.name,
+          url: `/${normalizedPage.output_file}`,
+          template: normalizedPage.template,
+        }
+      }
+
       setUnifiedTree(prev =>
         prev.map(item => {
-          if (item.type === 'page' && item.pageRef === oldName) {
-            return {
-              ...item,
-              label: normalizedPage.name,
-              pageRef: normalizedPage.name,
-              url: `/${normalizedPage.output_file}`,
-              template: normalizedPage.template,
-            }
-          }
+          const updated = updatePageItem(item)
           return {
-            ...item,
-            children: item.children.map(child =>
-              child.type === 'page' && child.pageRef === oldName
-                ? { ...child, label: normalizedPage.name, pageRef: normalizedPage.name, url: `/${normalizedPage.output_file}`, template: normalizedPage.template }
-                : child
-            ),
+            ...updated,
+            children: updated.children.map(updatePageItem),
           }
         })
       )

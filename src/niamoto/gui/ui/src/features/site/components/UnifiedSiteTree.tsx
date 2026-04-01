@@ -156,13 +156,14 @@ function SortableTreeItem({
         </button>
       )}
 
-      {/* Main clickable area */}
+      {/* Main clickable area — always clickable even when drag is disabled
+           (collections without index open GroupPageViewer to enable index) */}
       <button
         className="flex items-center gap-2 flex-1 min-w-0"
-        onClick={disabled ? undefined : onSelect}
+        onClick={onSelect}
       >
         {getItemIcon(item)}
-        <span className={cn('truncate text-left', disabled && 'text-muted-foreground')}>
+        <span className={cn('truncate text-left', disabled && 'text-muted-foreground/70')}>
           {getItemLabel(item)}
           {item.type === 'collection' && '/'}
         </span>
@@ -331,6 +332,8 @@ export function UnifiedSiteTree({
     : null
 
   // Render a hidden (non-draggable) item
+  // Collections without index are visually dimmed but still clickable
+  // (opens GroupPageViewer where the user can enable the index page)
   const renderHiddenItem = (item: UnifiedTreeItem) => {
     const isCollectionWithoutIndex = item.type === 'collection' && !item.hasIndex
 
@@ -341,21 +344,25 @@ export function UnifiedSiteTree({
           'group flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors',
           isItemSelected(item)
             ? 'bg-primary/10 text-primary'
-            : isCollectionWithoutIndex
-              ? 'opacity-50'
-              : 'hover:bg-muted/50',
+            : 'hover:bg-muted/50',
         )}
       >
         <button
           className="flex items-center gap-2 flex-1 min-w-0"
-          onClick={isCollectionWithoutIndex ? undefined : () => onSelect(mapItemToSelection(item))}
+          onClick={() => onSelect(mapItemToSelection(item))}
         >
           {getItemIcon(item)}
-          <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground')}>
+          <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground/70')}>
             {getItemLabel(item)}
             {item.type === 'collection' && '/'}
           </span>
+          {isCollectionWithoutIndex && (
+            <span className="text-[10px] text-muted-foreground/50 shrink-0">
+              {t('unifiedTree.noIndexPage')}
+            </span>
+          )}
         </button>
+        {/* Toggle visibility: only for items that can be made visible */}
         {onToggleVisibility && !isCollectionWithoutIndex && (
           <button
             className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
