@@ -130,6 +130,24 @@
     "startFromScratch": "Start from scratch",
     "applied": "Site template applied"
   },
+  "wizard": {
+    "title": "Site setup",
+    "step1": "Choose a template",
+    "step2": "Review structure",
+    "step2Desc": "Adjust pages and menu before saving",
+    "step3": "Customize theme",
+    "step3Desc": "Set colors and logo",
+    "step4": "Preview",
+    "step4Desc": "Check the result before saving",
+    "skip": "Skip",
+    "skipAll": "Skip setup",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Create site",
+    "reconfigure": "Reconfigure",
+    "reconfigureWarning": "This will replace your current site configuration",
+    "stepOf": "Step {{current}} of {{total}}"
+  },
   "layout": {
     "addWidgetsHint": "Add widgets using the \"Add widget\" button in the left panel."
   },

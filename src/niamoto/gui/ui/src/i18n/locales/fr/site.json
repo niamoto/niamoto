@@ -129,6 +129,24 @@
     "startFromScratch": "Partir de zéro",
     "applied": "Modèle de site appliqué"
   },
+  "wizard": {
+    "title": "Configuration du site",
+    "step1": "Choisir un modèle",
+    "step2": "Vérifier la structure",
+    "step2Desc": "Ajustez les pages et le menu avant de sauvegarder",
+    "step3": "Personnaliser le thème",
+    "step3Desc": "Couleurs et logo",
+    "step4": "Aperçu",
+    "step4Desc": "Vérifiez le résultat avant de sauvegarder",
+    "skip": "Passer",
+    "skipAll": "Passer la configuration",
+    "next": "Suivant",
+    "back": "Retour",
+    "finish": "Créer le site",
+    "reconfigure": "Reconfigurer",
+    "reconfigureWarning": "Cela remplacera votre configuration actuelle",
+    "stepOf": "Étape {{current}} sur {{total}}"
+  },
   "layout": {
     "addWidgetsHint": "Ajoutez des widgets en utilisant le bouton \"Ajouter un widget\" dans le panneau de gauche."
   },

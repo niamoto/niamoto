@@ -208,13 +208,37 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
   const availableNewPageTemplates = useMemo(() => {
     const templates = templatesData?.templates ?? []
-    if (!hasExistingHomePage) return templates
-    return templates.filter((template) => template.name !== ROOT_INDEX_TEMPLATE)
-  }, [hasExistingHomePage, templatesData])
+    const filtered = hasExistingHomePage
+      ? templates.filter((template) => template.name !== ROOT_INDEX_TEMPLATE)
+      : templates
+    // Smart default: templates not yet used appear first
+    const usedTemplates = new Set(allPages.map(p => p.template))
+    return [...filtered].sort((a, b) => {
+      const aUsed = usedTemplates.has(a.name) ? 1 : 0
+      const bUsed = usedTemplates.has(b.name) ? 1 : 0
+      return aUsed - bUsed
+    })
+  }, [hasExistingHomePage, templatesData, allPages])
 
   // ---------------------------------------------------------------------------
   // Save — decompose tree → API format
   // ---------------------------------------------------------------------------
+
+  /** Save with explicit payload (used by wizard auto-save) */
+  const saveConfig = async (data: {
+    site: SiteSettings
+    navigation: import('@/shared/hooks/useSiteConfig').NavigationItem[]
+    footer_navigation: FooterSection[]
+    static_pages: StaticPage[]
+  }) => {
+    if (!siteConfig) return
+    await updateMutation.mutateAsync({
+      ...data,
+      template_dir: siteConfig.template_dir,
+      output_dir: siteConfig.output_dir,
+      copy_assets_from: siteConfig.copy_assets_from,
+    })
+  }
 
   const handleSave = async () => {
     if (!siteConfig) return
@@ -683,6 +707,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
     // Page handlers
     handleSave,
+    saveConfig,
     handleAddPage,
     handleTemplateSelected,
     handleCreatePageFromNavigation,

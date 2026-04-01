@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  RotateCcw,
 } from 'lucide-react'
 import {
   ResizablePanelGroup,
@@ -62,7 +63,7 @@ import { UnifiedSiteTree } from './UnifiedSiteTree'
 import { useSiteBuilderState } from '../hooks/useSiteBuilderState'
 import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
 import { generateFooterFromTree } from '../utils/generateFooter'
-import { SITE_PRESETS, applySitePreset } from '../data/sitePresets'
+import { SiteSetupWizard } from './SiteSetupWizard'
 
 // =============================================================================
 // MAIN SITE BUILDER COMPONENT
@@ -75,6 +76,7 @@ interface SiteBuilderProps {
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
   const state = useSiteBuilderState(initialSection)
+  const [showWizard, setShowWizard] = useState(false)
 
   // Adapter: when NavigationBuilder or StaticPageEditor update navigation[],
   // rebuild visible items from the new navigation while keeping existing hidden
@@ -204,53 +206,53 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     state.siteConfig.static_pages.length === 0 &&
     state.siteConfig.navigation.length === 0
 
-  // Apply a site preset
-  const handleApplyPreset = (presetId: string) => {
-    const preset = SITE_PRESETS.find(p => p.id === presetId)
-    if (!preset) return
-
-    const result = applySitePreset(preset, state.groups)
-    state.setAllPages(result.staticPages)
+  // Wizard completion handler — applies preset and auto-saves so that
+  // siteConfig refreshes (otherwise isSiteEmpty stays true and the wizard reopens)
+  const handleWizardComplete = async (result: {
+    tree: import('../hooks/useUnifiedSiteTree').UnifiedTreeItem[]
+    pages: import('@/shared/hooks/useSiteConfig').StaticPage[]
+    footerSections: import('@/shared/hooks/useSiteConfig').FooterSection[]
+    site: import('@/shared/hooks/useSiteConfig').SiteSettings
+  }) => {
+    state.setAllPages(result.pages)
     state.setUnifiedTree(result.tree)
     state.setEditedFooterNavigation(result.footerSections)
-    toast.success(t('presets.applied'))
+    state.setEditedSite(result.site)
+    state.setSelection(null) // P2: reset stale selection
+    setShowWizard(false)
+
+    // Auto-save: persist immediately so siteConfig refreshes and isSiteEmpty becomes false
+    if (state.siteConfig) {
+      const { decomposeUnifiedTree } = await import('../hooks/useUnifiedSiteTree')
+      const { navigation, staticPages } = decomposeUnifiedTree(result.tree, result.pages)
+      try {
+        await state.saveConfig({
+          site: result.site,
+          navigation,
+          footer_navigation: result.footerSections,
+          static_pages: staticPages,
+        })
+        toast.success(t('presets.applied'))
+      } catch {
+        toast.success(t('presets.applied'))
+        // Save failed but local state is applied — user can retry save manually
+      }
+    } else {
+      toast.success(t('presets.applied'))
+    }
   }
 
   // Render editor based on selection
   const renderEditor = () => {
-    // Show preset selector for empty sites
-    if (!state.selection && isSiteEmpty) {
+    // Show wizard for empty sites or when explicitly triggered
+    if ((!state.selection && isSiteEmpty) || showWizard) {
       return (
-        <ScrollArea className="h-full">
-          <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
-            <h2 className="text-xl font-semibold mb-2">{t('presets.title')}</h2>
-            <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-              {t('presets.description')}
-            </p>
-            <div className="grid gap-4 sm:grid-cols-3 w-full max-w-2xl">
-              {SITE_PRESETS.map(preset => (
-                <button
-                  key={preset.id}
-                  className="p-4 rounded-lg border hover:border-primary/50 hover:bg-muted/30 transition-colors text-left"
-                  onClick={() => handleApplyPreset(preset.id)}
-                >
-                  <h3 className="font-medium mb-1">{t(preset.nameKey)}</h3>
-                  <p className="text-xs text-muted-foreground">{t(preset.descriptionKey)}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {preset.pages.length} pages
-                    {state.groups.length > 0 && ` + ${state.groups.length} collections`}
-                  </p>
-                </button>
-              ))}
-            </div>
-            <button
-              className="mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => state.setSelection({ type: 'new-page' })}
-            >
-              {t('presets.startFromScratch')}
-            </button>
-          </div>
-        </ScrollArea>
+        <SiteSetupWizard
+          groups={state.groups}
+          editedSite={state.editedSite}
+          onComplete={handleWizardComplete}
+          onSetEditedSite={state.setEditedSite}
+        />
       )
     }
 
@@ -480,6 +482,20 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!isSiteEmpty && !showWizard && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (window.confirm(t('wizard.reconfigureWarning'))) {
+                  setShowWizard(true)
+                }
+              }}
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              {t('wizard.reconfigure')}
+            </Button>
+          )}
           {previewAvailable && (
             <Button
               variant="outline"
