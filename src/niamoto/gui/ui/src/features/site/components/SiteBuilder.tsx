@@ -10,7 +10,7 @@
  * sub-components handle display.
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -74,15 +74,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
   const state = useSiteBuilderState(initialSection)
 
-  // Unified tree (Phase B: read-only projection from edited state)
-  const unifiedTree = useMemo(() => {
+  // Adapter: when NavigationBuilder or StaticPageEditor update navigation[],
+  // rebuild the unified tree from the new navigation + current pages + groups
+  const handleNavigationChange = (newNavigation: import('@/shared/hooks/useSiteConfig').NavigationItem[]) => {
     resetIdCounter()
-    return buildUnifiedTree(
-      state.editedNavigation,
-      state.editedPages,
-      state.groups,
-    )
-  }, [state.editedNavigation, state.editedPages, state.groups])
+    state.setUnifiedTree(buildUnifiedTree(newNavigation, state.allPages, state.groups))
+  }
 
   // Preview state
   const currentGroupForPreview = state.selection?.type === 'group'
@@ -239,7 +236,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             <div className="p-6">
                 <NavigationBuilder
                   items={state.editedNavigation}
-                  onChange={state.setEditedNavigation}
+                  onChange={handleNavigationChange}
                   staticPages={state.editedPages}
                   groups={state.groups}
                   templates={state.availableNewPageTemplates}
@@ -288,7 +285,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 candidate.name !== page.name && isRootIndexTemplate(candidate.template)
             )}
             navigation={state.editedNavigation}
-            onUpdateNavigation={state.setEditedNavigation}
+            onUpdateNavigation={handleNavigationChange}
           />
         )
       }
@@ -322,6 +319,43 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             onBack={() => state.setSelection(null)}
           />
         )
+
+      case 'external-link': {
+        const linkItem = state.unifiedTree
+          .flatMap(i => [i, ...i.children])
+          .find(i => i.type === 'external-link' && i.id === state.selection?.id)
+        if (!linkItem) return null
+        const linkLabel = typeof linkItem.label === 'string' ? linkItem.label : ''
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold">{t('navigation.editLink')}</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium">{t('navigation.linkText')}</label>
+                  <input
+                    type="text"
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                    value={linkLabel}
+                    onChange={(e) => state.updateExternalLink(linkItem.id, e.target.value, linkItem.url ?? '')}
+                    placeholder="Link text"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">URL</label>
+                  <input
+                    type="url"
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                    value={linkItem.url ?? ''}
+                    onChange={(e) => state.updateExternalLink(linkItem.id, linkLabel, e.target.value)}
+                    placeholder="https://"
+                  />
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        )
+      }
 
       default:
         return null
@@ -408,9 +442,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         {/* Left Panel - Unified Tree */}
         <ResizablePanel id="tree" order={0} defaultSize={15} minSize={12} maxSize={25}>
           <UnifiedSiteTree
-            items={unifiedTree}
+            items={state.unifiedTree}
             selection={state.selection}
             onSelect={state.setSelection}
+            onToggleVisibility={state.toggleItemVisibility}
+            onAddPage={state.handleAddPage}
+            onAddExternalLink={state.addExternalLink}
+            onRemoveExternalLink={state.removeExternalLink}
           />
         </ResizablePanel>
 

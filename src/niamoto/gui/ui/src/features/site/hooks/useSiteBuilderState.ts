@@ -1,12 +1,12 @@
 /**
  * useSiteBuilderState - State management hook for the Site Builder
  *
- * Manages all edited state (site settings, navigation, footer, pages),
- * change detection, save logic, and page CRUD handlers.
- * Extracted from SiteBuilder.tsx for cleaner separation of concerns.
+ * Phase C: unified tree is the source of truth for page structure.
+ * editedSite and editedFooterNavigation remain separate (independent concerns).
+ * On save, decomposeUnifiedTree() reconstructs navigation[] + static_pages[] for the API.
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -16,7 +16,6 @@ import {
   useGroups,
   useTemplates,
   type SiteSettings,
-  type NavigationItem,
   type FooterSection,
   type StaticPage,
   type SiteConfigUpdate,
@@ -29,13 +28,65 @@ import {
   hasRootIndexPage,
   isRootIndexTemplate,
 } from '@/shared/hooks/useSiteConfig'
+import {
+  type UnifiedTreeItem,
+  buildUnifiedTree,
+  decomposeUnifiedTree,
+  resetIdCounter,
+} from './useUnifiedSiteTree'
 
-export type SelectionType = 'general' | 'appearance' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page'
+export type SelectionType = 'general' | 'appearance' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page' | 'external-link'
 
 export interface Selection {
   type: SelectionType
   id?: string
 }
+
+// =============================================================================
+// TREE MUTATION HELPERS
+// =============================================================================
+
+/** Find and update an item in the tree (shallow: root + children only) */
+function updateTreeItem(
+  tree: UnifiedTreeItem[],
+  id: string,
+  updater: (item: UnifiedTreeItem) => UnifiedTreeItem,
+): UnifiedTreeItem[] {
+  return tree.map(item => {
+    if (item.id === id) return updater(item)
+    if (item.children.length > 0) {
+      return { ...item, children: updateTreeItem(item.children, id, updater) }
+    }
+    return item
+  })
+}
+
+/** Remove an item from the tree by id */
+function removeTreeItem(tree: UnifiedTreeItem[], id: string): UnifiedTreeItem[] {
+  return tree
+    .filter(item => item.id !== id)
+    .map(item => ({
+      ...item,
+      children: removeTreeItem(item.children, id),
+    }))
+}
+
+/** Find an item in the tree by a predicate */
+function findTreeItem(
+  tree: UnifiedTreeItem[],
+  predicate: (item: UnifiedTreeItem) => boolean,
+): UnifiedTreeItem | null {
+  for (const item of tree) {
+    if (predicate(item)) return item
+    const found = findTreeItem(item.children, predicate)
+    if (found) return found
+  }
+  return null
+}
+
+// =============================================================================
+// HOOK
+// =============================================================================
 
 export function useSiteBuilderState(initialSection: string = 'pages') {
   const { t, i18n } = useTranslation(['site', 'common', 'indexConfig'])
@@ -47,11 +98,13 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   const updateMutation = useUpdateSiteConfig()
   const updateGroupIndexMutation = useUpdateGroupIndexConfig()
 
-  // Local editing state
+  // ---------------------------------------------------------------------------
+  // Source of truth: unified tree + allPages + editedSite + editedFooterNavigation
+  // ---------------------------------------------------------------------------
+  const [unifiedTree, setUnifiedTree] = useState<UnifiedTreeItem[]>([])
+  const [allPages, setAllPages] = useState<StaticPage[]>([])
   const [editedSite, setEditedSite] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
-  const [editedNavigation, setEditedNavigation] = useState<NavigationItem[]>([])
   const [editedFooterNavigation, setEditedFooterNavigation] = useState<FooterSection[]>([])
-  const [editedPages, setEditedPages] = useState<StaticPage[]>([])
 
   // Delete confirmation dialog state
   const [pageToDelete, setPageToDelete] = useState<string | null>(null)
@@ -82,15 +135,33 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   // Groups from API (read-only)
   const groups: GroupInfo[] = groupsData?.groups ?? []
 
-  // Sync local state with fetched data
+  // Sync local state from API data
   useEffect(() => {
     if (siteConfig) {
       setEditedSite(siteConfig.site)
-      setEditedNavigation(siteConfig.navigation)
       setEditedFooterNavigation(siteConfig.footer_navigation || [])
-      setEditedPages(siteConfig.static_pages)
+      setAllPages(siteConfig.static_pages)
+      // Build unified tree from API data
+      resetIdCounter()
+      setUnifiedTree(
+        buildUnifiedTree(siteConfig.navigation, siteConfig.static_pages, groups)
+      )
     }
-  }, [siteConfig])
+  }, [siteConfig, groups])
+
+  // ---------------------------------------------------------------------------
+  // Derived state from tree + allPages
+  // ---------------------------------------------------------------------------
+
+  /** Decompose tree for API compatibility (navigation[] + static_pages[]) */
+  const decomposed = useMemo(
+    () => decomposeUnifiedTree(unifiedTree, allPages),
+    [unifiedTree, allPages],
+  )
+
+  /** editedNavigation and editedPages derived from tree (for backward compat with sub-components) */
+  const editedNavigation = decomposed.navigation
+  const editedPages = decomposed.staticPages
 
   // Check for unsaved changes
   const hasChanges = useMemo(() => {
@@ -104,27 +175,30 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   }, [siteConfig, editedSite, editedNavigation, editedFooterNavigation, editedPages])
 
   const hasExistingHomePage = useMemo(
-    () => hasRootIndexPage(editedPages),
-    [editedPages]
+    () => hasRootIndexPage(allPages),
+    [allPages]
   )
 
   const availableNewPageTemplates = useMemo(() => {
     const templates = templatesData?.templates ?? []
-    if (!hasExistingHomePage) {
-      return templates
-    }
+    if (!hasExistingHomePage) return templates
     return templates.filter((template) => template.name !== ROOT_INDEX_TEMPLATE)
   }, [hasExistingHomePage, templatesData])
 
-  // Save handler
+  // ---------------------------------------------------------------------------
+  // Save — decompose tree → API format
+  // ---------------------------------------------------------------------------
+
   const handleSave = async () => {
     if (!siteConfig) return
 
+    const { navigation, staticPages } = decomposeUnifiedTree(unifiedTree, allPages)
+
     const update: SiteConfigUpdate = {
       site: editedSite,
-      navigation: editedNavigation,
+      navigation,
       footer_navigation: editedFooterNavigation,
-      static_pages: editedPages,
+      static_pages: staticPages,
       template_dir: siteConfig.template_dir,
       output_dir: siteConfig.output_dir,
       copy_assets_from: siteConfig.copy_assets_from,
@@ -142,12 +216,14 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     }
   }
 
-  // Show template list for adding new page
+  // ---------------------------------------------------------------------------
+  // Page CRUD — mutate both allPages and unifiedTree
+  // ---------------------------------------------------------------------------
+
   const handleAddPage = () => {
     setSelection({ type: 'new-page' })
   }
 
-  // Create page after template selection
   const handleTemplateSelected = (templateName: string) => {
     if (templateName === ROOT_INDEX_TEMPLATE && hasExistingHomePage) {
       toast.error(t('messages.homePageExists'), {
@@ -159,7 +235,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     const baseName = templateName === ROOT_INDEX_TEMPLATE
       ? 'home'
       : templateName.replace('.html', '')
-    const existingNames = new Set(editedPages.map((p) => p.name))
+    const existingNames = new Set(allPages.map((p) => p.name))
 
     let pageName = baseName
     let counter = 1
@@ -177,27 +253,34 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
           : `${pageName}.html`,
       template: templateName,
     }
-    setEditedPages([...editedPages, newPage])
-    setSelection({ type: 'page', id: newPage.name })
 
+    // Add to allPages
+    setAllPages(prev => [...prev, newPage])
+
+    // Add to tree as visible item at end of menu section
+    const newTreeItem: UnifiedTreeItem = {
+      id: `page-new-${Date.now()}`,
+      type: 'page',
+      label: newPage.name,
+      visible: true,
+      pageRef: newPage.name,
+      url: `/${newPage.output_file}`,
+      template: newPage.template,
+      children: [],
+    }
+    setUnifiedTree(prev => {
+      // Insert before hidden items
+      const menuItems = prev.filter(i => i.visible)
+      const hiddenItems = prev.filter(i => !i.visible)
+      return [...menuItems, newTreeItem, ...hiddenItems]
+    })
+
+    setSelection({ type: 'page', id: newPage.name })
     toast.success(t('pages.pageCreated'), {
       description: t('pages.pageCreatedDesc', { name: newPage.name }),
-      action: {
-        label: t('navigation.addToMenu'),
-        onClick: () => {
-          setEditedNavigation((nav) => [
-            ...nav,
-            { text: newPage.name, url: `/${newPage.output_file}` },
-          ])
-          toast.success(t('navigation.linkAdded'), {
-            description: t('navigation.linkAddedDesc'),
-          })
-        },
-      },
     })
   }
 
-  // Create page from navigation builder (inline creation)
   const handleCreatePageFromNavigation = async (pageName: string, templateName: string): Promise<StaticPage | null> => {
     if (templateName === ROOT_INDEX_TEMPLATE && hasExistingHomePage) {
       toast.error(t('messages.homePageExists'), {
@@ -206,7 +289,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       return null
     }
 
-    const existingNames = new Set(editedPages.map((p) => p.name))
+    const existingNames = new Set(allPages.map((p) => p.name))
     let finalName = pageName
     let counter = 1
     while (existingNames.has(finalName)) {
@@ -224,7 +307,8 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       template: templateName,
     }
 
-    setEditedPages((pages) => [...pages, newPage])
+    setAllPages((pages) => [...pages, newPage])
+    // The nav builder will handle the tree item via its own callback
 
     toast.success(t('pages.pageCreated'), {
       description: t('pages.pageCreatedDesc', { name: finalName }),
@@ -233,7 +317,6 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     return newPage
   }
 
-  // Update page (handles name changes)
   const handleUpdatePage = (updatedPage: StaticPage) => {
     const oldName = selection?.id
     const normalizedPage = {
@@ -243,7 +326,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
     if (
       isRootIndexTemplate(normalizedPage.template) &&
-      editedPages.some(
+      allPages.some(
         (page) => page.name !== oldName && isRootIndexTemplate(page.template)
       )
     ) {
@@ -253,29 +336,56 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       return
     }
 
-    setEditedPages((pages) =>
+    // Update allPages
+    setAllPages((pages) =>
       pages.map((p) => (p.name === oldName ? normalizedPage : p))
     )
+
+    // Update tree item label and refs if name changed
+    if (oldName) {
+      setUnifiedTree(prev =>
+        prev.map(item => {
+          if (item.type === 'page' && item.pageRef === oldName) {
+            return {
+              ...item,
+              label: normalizedPage.name,
+              pageRef: normalizedPage.name,
+              url: `/${normalizedPage.output_file}`,
+              template: normalizedPage.template,
+            }
+          }
+          return {
+            ...item,
+            children: item.children.map(child =>
+              child.type === 'page' && child.pageRef === oldName
+                ? { ...child, label: normalizedPage.name, pageRef: normalizedPage.name, url: `/${normalizedPage.output_file}`, template: normalizedPage.template }
+                : child
+            ),
+          }
+        })
+      )
+    }
+
     if (oldName && normalizedPage.name !== oldName) {
       setSelection({ type: 'page', id: normalizedPage.name })
     }
   }
 
-  // Delete page - opens confirmation dialog
   const handleDeletePage = (pageName: string) => {
     setPageToDelete(pageName)
   }
 
-  // Confirm delete page (with auto-save)
   const confirmDeletePage = async () => {
     if (!pageToDelete || !siteConfig) return
 
-    const pageObj = editedPages.find((p) => p.name === pageToDelete)
+    const pageObj = allPages.find((p) => p.name === pageToDelete)
     if (!pageObj) return
 
-    const newPages = editedPages.filter((p) => p.name !== pageToDelete)
+    // Compute new state
+    const newAllPages = allPages.filter((p) => p.name !== pageToDelete)
+    const treeItem = findTreeItem(unifiedTree, i => i.type === 'page' && i.pageRef === pageToDelete)
+    const newTree = treeItem ? removeTreeItem(unifiedTree, treeItem.id) : unifiedTree
     const pageUrl = `/${pageObj.output_file}`
-    const newNavigation = editedNavigation.filter((item) => item.url !== pageUrl)
     const newFooterNavigation = editedFooterNavigation.map((section) => ({
       ...section,
       links: section.links.filter((link) => link.url !== pageUrl),
@@ -284,16 +394,19 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     setPageToDelete(null)
     setSelection(null)
 
-    setEditedPages(newPages)
-    setEditedNavigation(newNavigation)
+    // Update local state
+    setAllPages(newAllPages)
+    setUnifiedTree(newTree)
     setEditedFooterNavigation(newFooterNavigation)
 
+    // Persist — decompose tree for API
+    const { navigation, staticPages } = decomposeUnifiedTree(newTree, newAllPages)
     try {
       await updateMutation.mutateAsync({
         site: editedSite,
-        navigation: newNavigation,
+        navigation,
         footer_navigation: newFooterNavigation,
-        static_pages: newPages,
+        static_pages: staticPages,
         template_dir: siteConfig.template_dir,
         output_dir: siteConfig.output_dir,
         copy_assets_from: siteConfig.copy_assets_from,
@@ -302,8 +415,9 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
         description: t('pages.pageDeletedDesc'),
       })
     } catch (err) {
-      setEditedPages(editedPages)
-      setEditedNavigation(editedNavigation)
+      // Revert on error
+      setAllPages(allPages)
+      setUnifiedTree(unifiedTree)
       setEditedFooterNavigation(editedFooterNavigation)
       toast.error(t('common:status.error'), {
         description: err instanceof Error ? err.message : t('messages.saveFailed'),
@@ -311,7 +425,6 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     }
   }
 
-  // Duplicate a page
   const handleDuplicatePage = (page: StaticPage) => {
     if (isRootIndexTemplate(page.template)) {
       toast.error(t('messages.homePageDuplicateBlocked'), {
@@ -320,7 +433,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       return
     }
 
-    const existingNames = new Set(editedPages.map((p) => p.name))
+    const existingNames = new Set(allPages.map((p) => p.name))
     let newName = `${page.name}-copy`
     let counter = 1
     while (existingNames.has(newName)) {
@@ -334,23 +447,118 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       output_file: `${newName}.html`,
     }
 
-    setEditedPages((pages) => [...pages, newPage])
+    setAllPages((pages) => [...pages, newPage])
+
+    // Add as hidden item (not in menu by default)
+    const newTreeItem: UnifiedTreeItem = {
+      id: `page-dup-${Date.now()}`,
+      type: 'page',
+      label: newName,
+      visible: false,
+      pageRef: newName,
+      url: `/${newPage.output_file}`,
+      template: newPage.template,
+      children: [],
+    }
+    setUnifiedTree(prev => [...prev, newTreeItem])
+
     setSelection({ type: 'page', id: newName })
     toast.success(t('pages.pageDuplicated'), {
       description: t('pages.pageDuplicatedDesc', { name: newName }),
     })
   }
 
-  // Add page to main navigation
   const handleAddPageToNavigation = (page: StaticPage) => {
-    setEditedNavigation((nav) => [
-      ...nav,
-      { text: page.name, url: `/${page.output_file}` },
-    ])
+    // Find the tree item for this page and make it visible
+    const item = findTreeItem(unifiedTree, i => i.type === 'page' && i.pageRef === page.name)
+    if (item) {
+      setUnifiedTree(prev => {
+        const updated = updateTreeItem(prev, item.id, i => ({ ...i, visible: true }))
+        // Move from hidden to end of menu section
+        const menuItems = updated.filter(i => i.visible)
+        const hiddenItems = updated.filter(i => !i.visible)
+        return [...menuItems, ...hiddenItems]
+      })
+    }
     toast.success(t('navigation.linkAdded'), {
       description: t('navigation.linkAddedDesc'),
     })
   }
+
+  // ---------------------------------------------------------------------------
+  // Page ↔ menu helpers (for StaticPageEditor)
+  // ---------------------------------------------------------------------------
+
+  const isPageInMenu = useCallback((pageName: string): boolean => {
+    const item = findTreeItem(unifiedTree, i => i.type === 'page' && i.pageRef === pageName)
+    return item?.visible ?? false
+  }, [unifiedTree])
+
+  const togglePageInMenu = useCallback((pageName: string) => {
+    const item = findTreeItem(unifiedTree, i => i.type === 'page' && i.pageRef === pageName)
+    if (!item) return
+
+    setUnifiedTree(prev => {
+      const updated = updateTreeItem(prev, item.id, i => ({ ...i, visible: !i.visible }))
+      // Re-sort: menu items first, then hidden
+      const menuItems = updated.filter(i => i.visible)
+      const hiddenItems = updated.filter(i => !i.visible)
+      return [...menuItems, ...hiddenItems]
+    })
+
+    if (item.visible) {
+      toast.success(t('navigation.linkRemoved'))
+    } else {
+      toast.success(t('navigation.linkAdded'))
+    }
+  }, [unifiedTree, t])
+
+  // ---------------------------------------------------------------------------
+  // Tree mutations (for UnifiedSiteTree component)
+  // ---------------------------------------------------------------------------
+
+  const toggleItemVisibility = useCallback((itemId: string) => {
+    setUnifiedTree(prev => {
+      const updated = updateTreeItem(prev, itemId, i => ({ ...i, visible: !i.visible }))
+      const menuItems = updated.filter(i => i.visible)
+      const hiddenItems = updated.filter(i => !i.visible)
+      return [...menuItems, ...hiddenItems]
+    })
+  }, [])
+
+  const addExternalLink = useCallback(() => {
+    const newItem: UnifiedTreeItem = {
+      id: `link-${Date.now()}`,
+      type: 'external-link',
+      label: '',
+      visible: true,
+      url: 'https://',
+      children: [],
+    }
+    setUnifiedTree(prev => {
+      const menuItems = prev.filter(i => i.visible)
+      const hiddenItems = prev.filter(i => !i.visible)
+      return [...menuItems, newItem, ...hiddenItems]
+    })
+    setSelection({ type: 'external-link', id: newItem.id })
+  }, [])
+
+  const removeExternalLink = useCallback((itemId: string) => {
+    setUnifiedTree(prev => removeTreeItem(prev, itemId))
+    setSelection(null)
+  }, [])
+
+  const updateExternalLink = useCallback((itemId: string, label: string, url: string) => {
+    setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({
+      ...item,
+      label,
+      url,
+    })))
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // Group index page
+  // ---------------------------------------------------------------------------
 
   const handleEnableGroupIndexPage = async (groupName: string) => {
     try {
@@ -383,6 +591,10 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Return
+  // ---------------------------------------------------------------------------
+
   return {
     // Data fetching state
     siteConfig,
@@ -393,15 +605,20 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     groups,
     availableNewPageTemplates,
 
-    // Edited state
+    // Source of truth
+    unifiedTree,
+    setUnifiedTree,
+    allPages,
+
+    // Derived (backward compat for sub-components that still need arrays)
+    editedNavigation,
+    editedPages,
+
+    // Independent state
     editedSite,
     setEditedSite,
-    editedNavigation,
-    setEditedNavigation,
     editedFooterNavigation,
     setEditedFooterNavigation,
-    editedPages,
-    setEditedPages,
 
     // UI state
     selection,
@@ -415,7 +632,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     isSaving: updateMutation.isPending,
     isEnablingIndexPage: updateGroupIndexMutation.isPending,
 
-    // Handlers
+    // Page handlers
     handleSave,
     handleAddPage,
     handleTemplateSelected,
@@ -426,6 +643,16 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     handleDuplicatePage,
     handleAddPageToNavigation,
     handleEnableGroupIndexPage,
+
+    // Page ↔ menu (for StaticPageEditor)
+    isPageInMenu,
+    togglePageInMenu,
+
+    // Tree mutations (for UnifiedSiteTree)
+    toggleItemVisibility,
+    addExternalLink,
+    removeExternalLink,
+    updateExternalLink,
 
     // i18n
     i18nLanguage: i18n.language,
