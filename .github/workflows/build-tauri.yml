@@ -59,7 +59,7 @@ jobs:
           pip install uv
           uv venv
           uv pip install -e .
-          uv pip install pyinstaller==${PYINSTALLER_VERSION}
+          uv pip install pyinstaller==${{ env.PYINSTALLER_VERSION }}
 
       - name: Build Python binary (PyInstaller)
         run: uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm

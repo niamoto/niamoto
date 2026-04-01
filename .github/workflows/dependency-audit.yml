@@ -20,3 +20,6 @@ jobs:
       - uses: actions-rust-lang/audit@v1
         with:
           workingDirectory: src-tauri
+          # Only fail on actual vulnerabilities, not unmaintained warnings
+          # (Tauri has many unmaintained transitive deps like gtk3-rs, unic)
+          denyWarnings: false
