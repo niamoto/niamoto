@@ -77,6 +77,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
   const state = useSiteBuilderState(initialSection)
   const [showWizard, setShowWizard] = useState(false)
+  const [wizardDismissed, setWizardDismissed] = useState(false)
 
   // Adapter: when NavigationBuilder or StaticPageEditor update navigation[],
   // rebuild visible items from the new navigation while keeping existing hidden
@@ -218,8 +219,9 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     state.setUnifiedTree(result.tree)
     state.setEditedFooterNavigation(result.footerSections)
     state.setEditedSite(result.site)
-    state.setSelection(null) // P2: reset stale selection
+    state.setSelection(null)
     setShowWizard(false)
+    setWizardDismissed(true)
 
     // Auto-save: persist immediately so siteConfig refreshes and isSiteEmpty becomes false
     if (state.siteConfig) {
@@ -244,8 +246,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
   // Render editor based on selection
   const renderEditor = () => {
-    // Show wizard for empty sites or when explicitly triggered
-    if ((!state.selection && isSiteEmpty) || showWizard) {
+    // Show wizard for empty sites (unless dismissed) or when explicitly triggered
+    if ((!state.selection && isSiteEmpty && !wizardDismissed) || showWizard) {
       return (
         <SiteSetupWizard
           groups={state.groups}
