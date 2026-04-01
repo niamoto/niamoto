@@ -484,9 +484,7 @@
       "structural_alert": "Structural alert",
       "enrichment_available": "Enrichment available",
       "enrichment_configured": "Enrichment configured",
-      "imported": "Imported",
-      "enrichmentConfigured": "Enrichment configured",
-      "enrichmentAvailable": "Enrichment available"
+      "imported": "Imported"
     },
     "summaryStatus": {
       "structural_alert": "Review needed",

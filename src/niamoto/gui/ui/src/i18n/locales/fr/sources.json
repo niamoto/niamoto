@@ -484,9 +484,7 @@
       "structural_alert": "Alerte structurelle",
       "enrichment_available": "Enrichissement disponible",
       "enrichment_configured": "Enrichissement configuré",
-      "imported": "Importé",
-      "enrichmentConfigured": "Enrichissement configuré",
-      "enrichmentAvailable": "Enrichissement disponible"
+      "imported": "Importé"
     },
     "summaryStatus": {
       "structural_alert": "Revue nécessaire",

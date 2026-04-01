@@ -125,6 +125,7 @@ export function DataModule() {
     }
 
     setBreadcrumbs(crumbs)
+    return () => setBreadcrumbs([])
   }, [selection, setBreadcrumbs, t])
 
   // ---------------------------------------------------------------------------

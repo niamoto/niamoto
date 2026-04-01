@@ -11,6 +11,7 @@ interface MetricCardProps {
   onClick?: () => void
   variant?: MetricCardVariant
   actionLabel?: string
+  ariaLabel?: string
 }
 
 function variantClassName(variant: MetricCardVariant) {
@@ -31,6 +32,7 @@ export function MetricCard({
   onClick,
   variant = 'default',
   actionLabel,
+  ariaLabel,
 }: MetricCardProps) {
   const isInteractive = typeof onClick === 'function'
 
@@ -49,6 +51,7 @@ export function MetricCard({
             'flex w-full flex-col items-start gap-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20',
             !isInteractive && 'cursor-default'
           )}
+          aria-label={ariaLabel ?? `${label}: ${value}`}
           onClick={onClick}
           disabled={!isInteractive}
         >

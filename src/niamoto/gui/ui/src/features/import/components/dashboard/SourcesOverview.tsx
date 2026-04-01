@@ -17,6 +17,7 @@ import { DashboardConfigEditorSheet } from './DashboardConfigEditorSheet'
 import { EnrichmentWorkspaceSheet } from './EnrichmentWorkspaceSheet'
 import { MetricCard } from './MetricCard'
 import { SourceRow } from './SourceRow'
+import type { EditingState } from './dashboardConfigEditorTypes'
 import { useDatasets, type DatasetInfo } from '@/hooks/useDatasets'
 import { useImportSummaryDetailed } from '@/hooks/useImportSummaryDetailed'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
@@ -25,21 +26,6 @@ import type {
   DatasetConfig,
   ReferenceConfig,
 } from '@/features/import/components/editors/EntityConfigEditor'
-
-type EditingState =
-  | {
-      entityType: 'dataset'
-      name: string
-      config: DatasetConfig | null
-      detectedColumns: string[]
-    }
-  | {
-      entityType: 'reference'
-      name: string
-      config: ReferenceConfig | null
-      detectedColumns: string[]
-    }
-  | null
 
 type ReferenceStatus = 'structural_alert' | 'enrichment_available' | 'enrichment_configured' | 'imported'
 
@@ -74,7 +60,7 @@ export function SourcesOverview({
 }: SourcesOverviewProps) {
   const { t } = useTranslation('sources')
   const queryClient = useQueryClient()
-  const { data: summary, isLoading, error, refetch } = useImportSummaryDetailed()
+  const { data: summary, isLoading, error } = useImportSummaryDetailed()
   const { data: referencesData } = useReferences()
   const { data: datasetsData } = useDatasets()
 
@@ -84,6 +70,14 @@ export function SourcesOverview({
   const [editingState, setEditingState] = useState<EditingState>(null)
   const [editorError, setEditorError] = useState<string | null>(null)
   const [savingConfig, setSavingConfig] = useState(false)
+
+  const alertsByEntity = useMemo(() => {
+    const grouped = new Map<string, number>()
+    for (const alert of summary?.alerts ?? []) {
+      grouped.set(alert.entity, (grouped.get(alert.entity) ?? 0) + 1)
+    }
+    return grouped
+  }, [summary?.alerts])
 
   const entityMetrics = useMemo(
     () => new Map(summary?.entities.map((entity) => [entity.name, entity]) ?? []),
@@ -104,9 +98,9 @@ export function SourcesOverview({
   const availableEnrichmentCount = enrichableReferences.length - configuredEnrichmentCount
 
   const collectionSummary = references.map((reference) => {
-    const issueCount = (summary?.alerts ?? []).filter(
-      (alert) => alert.entity === reference.name || alert.entity === reference.table_name
-    ).length
+    const issueCount =
+      (alertsByEntity.get(reference.name) ?? 0) +
+      (alertsByEntity.get(reference.table_name) ?? 0)
     const status = getReferenceStatus(reference, issueCount)
     return `${reference.name} (${t(`dashboard.summaryStatus.${status}`, {
       defaultValue: reference.name,
@@ -161,11 +155,11 @@ export function SourcesOverview({
           : null
 
   const refreshAll = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['datasets'] })
-    await queryClient.invalidateQueries({ queryKey: ['references'] })
-    await queryClient.invalidateQueries({ queryKey: ['import-summary-light'] })
-    await queryClient.invalidateQueries({ queryKey: ['import-summary-detailed'] })
-    await refetch()
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['datasets'] }),
+      queryClient.invalidateQueries({ queryKey: ['references'] }),
+      queryClient.invalidateQueries({ queryKey: ['import-summary'] }),
+    ])
   }
 
   const openDatasetEditor = async (dataset: DatasetInfo) => {
@@ -197,6 +191,20 @@ export function SourcesOverview({
     setEditorError(null)
     try {
       await apiClient.put(`/config/datasets/${encodeURIComponent(name)}/config`, config)
+      await refreshAll()
+      setEditingState(null)
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : t('dashboard.errors.saveConfig'))
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
+  const persistReferenceConfig = async (name: string, config: ReferenceConfig) => {
+    setSavingConfig(true)
+    setEditorError(null)
+    try {
+      await apiClient.put(`/config/references/${encodeURIComponent(name)}/config`, config)
       await refreshAll()
       setEditingState(null)
     } catch (err) {
@@ -252,6 +260,7 @@ export function SourcesOverview({
           sublabel={t('dashboard.readiness.metrics.rowsSublabel', 'Across {{count}} sources', {
             count: sourceCount,
           })}
+          ariaLabel={t('dashboard.readiness.metrics.rowsLabel', 'Rows imported')}
         />
         <MetricCard
           value={alertCount}
@@ -266,6 +275,7 @@ export function SourcesOverview({
           variant={alertCount > 0 ? 'warning' : 'default'}
           onClick={onOpenVerification}
           actionLabel={t('dashboard.actions.openVerification', 'Open verification')}
+          ariaLabel={t('dashboard.actions.openVerification', 'Open verification')}
         />
         <MetricCard
           value={configuredEnrichmentCount > 0 ? configuredEnrichmentCount : enrichableReferences.length}
@@ -282,6 +292,7 @@ export function SourcesOverview({
           variant={configuredEnrichmentCount > 0 || enrichableReferences.length > 0 ? 'success' : 'default'}
           onClick={onOpenEnrichment}
           actionLabel={t('dashboard.actions.openEnrichment', 'Open enrichment')}
+          ariaLabel={t('dashboard.actions.openEnrichment', 'Open enrichment')}
         />
       </section>
 
@@ -332,9 +343,9 @@ export function SourcesOverview({
           {references.map((reference) => {
             const metrics =
               entityMetrics.get(reference.table_name) ?? entityMetrics.get(reference.name)
-            const issueCount = summary.alerts.filter(
-              (alert) => alert.entity === reference.name || alert.entity === reference.table_name
-            ).length
+            const issueCount =
+              (alertsByEntity.get(reference.name) ?? 0) +
+              (alertsByEntity.get(reference.table_name) ?? 0)
             const status = getReferenceStatus(reference, issueCount)
             const statusVariant =
               status === 'structural_alert'
@@ -544,7 +555,7 @@ export function SourcesOverview({
           setEditorError(null)
         }}
         onDatasetSave={(name, updated) => persistDatasetConfig(name, updated)}
-        onReferenceSave={async () => undefined}
+        onReferenceSave={(name, updated) => persistReferenceConfig(name, updated)}
       />
     </div>
   )

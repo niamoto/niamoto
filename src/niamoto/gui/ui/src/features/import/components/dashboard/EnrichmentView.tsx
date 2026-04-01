@@ -14,7 +14,7 @@ export function EnrichmentView() {
   const { t } = useTranslation('sources')
   const queryClient = useQueryClient()
   const { data: referencesData, isLoading, error } = useReferences()
-  const { data: summary, refetch: refetchSummary } = useImportSummaryDetailed()
+  const { data: summary } = useImportSummaryDetailed()
   const [activeReference, setActiveReference] = useState<ReferenceInfo | null>(null)
 
   const references = referencesData?.references ?? []
@@ -101,8 +101,8 @@ export function EnrichmentView() {
                         </Badge>
                         <Badge variant={reference.enrichment_enabled ? 'secondary' : 'default'}>
                           {reference.enrichment_enabled
-                            ? t('dashboard.status.enrichmentConfigured', 'Enrichment configured')
-                            : t('dashboard.status.enrichmentAvailable', 'Enrichment available')}
+                            ? t('dashboard.status.enrichment_configured', 'Enrichment configured')
+                            : t('dashboard.status.enrichment_available', 'Enrichment available')}
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -137,10 +137,10 @@ export function EnrichmentView() {
         reference={activeReference}
         onOpenChange={(open) => !open && setActiveReference(null)}
         onConfigSaved={async () => {
-          await queryClient.invalidateQueries({ queryKey: ['references'] })
-          await queryClient.invalidateQueries({ queryKey: ['import-summary-light'] })
-          await queryClient.invalidateQueries({ queryKey: ['import-summary-detailed'] })
-          await refetchSummary()
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['references'] }),
+            queryClient.invalidateQueries({ queryKey: ['import-summary'] }),
+          ])
         }}
       />
     </div>

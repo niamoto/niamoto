@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 type SourceRowBadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
 
 interface SourceRowAction {
+  id?: string
   label: string
   icon?: LucideIcon
   onClick: () => void
@@ -58,11 +59,11 @@ export function SourceRow({
       </div>
 
       <div className="flex flex-wrap gap-2 lg:justify-end">
-        {actions.map((action) => {
+        {actions.map((action, index) => {
           const ActionIcon = action.icon
           return (
             <Button
-              key={action.label}
+              key={action.id ?? `${action.label}-${index}`}
               type="button"
               variant={action.variant ?? 'ghost'}
               size="sm"
