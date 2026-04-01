@@ -44,37 +44,6 @@ export function flattenTree(
 }
 
 // =============================================================================
-// UNFLATTEN: flat array → tree (rebuild from parentId relationships)
-// =============================================================================
-
-export function buildTreeFromFlat(flatItems: FlatItem[]): UnifiedTreeItem[] {
-  const itemMap = new Map<string, UnifiedTreeItem>()
-  const roots: UnifiedTreeItem[] = []
-
-  // First pass: create all items with empty children
-  for (const flat of flatItems) {
-    itemMap.set(flat.item.id, { ...flat.item, children: [] })
-  }
-
-  // Second pass: attach children to parents
-  for (const flat of flatItems) {
-    const item = itemMap.get(flat.item.id)!
-    if (flat.parentId === null) {
-      roots.push(item)
-    } else {
-      const parent = itemMap.get(flat.parentId)
-      if (parent) {
-        parent.children.push(item)
-      } else {
-        roots.push(item) // orphan fallback
-      }
-    }
-  }
-
-  return roots
-}
-
-// =============================================================================
 // PROJECTION: determine target depth + parent from drag position
 // =============================================================================
 
@@ -86,11 +55,6 @@ export interface Projection {
 
 /**
  * Calculate where an item should be placed based on horizontal offset.
- *
- * @param flatItems - The current flattened tree
- * @param activeId - The item being dragged
- * @param overId - The item being dragged over
- * @param offsetLeft - Horizontal pixel offset from drag start
  */
 export function getProjection(
   flatItems: FlatItem[],
@@ -133,16 +97,14 @@ export function getProjection(
 }
 
 // =============================================================================
-// APPLY MOVE: reorder the flat array after a drag
+// APPLY MOVE: reorder using the flat representation, then rebuild
 // =============================================================================
 
 /**
- * Move an item in the flat array, then rebuild the tree.
+ * Move an item in the tree based on a DnD projection.
  *
- * @param tree - Current tree
- * @param activeId - Item being dragged
- * @param overId - Item being dragged over
- * @param projection - Target depth and parent
+ * Strategy: work on the flattened visible items to compute the new order,
+ * then rebuild the tree and append hidden items unchanged.
  */
 export function applyDragMove(
   tree: UnifiedTreeItem[],
@@ -150,70 +112,78 @@ export function applyDragMove(
   overId: string,
   projection: Projection,
 ): UnifiedTreeItem[] {
-  // Remove the dragged item from the tree
-  const draggedItem = findItemInTree(tree, activeId)
-  if (!draggedItem) return tree
+  // Separate visible (menu) and hidden items
+  const visibleItems = tree.filter(i => i.visible)
+  const hiddenItems = tree.filter(i => !i.visible)
 
-  const treeWithoutDragged = removeFromTree(tree, activeId)
+  // Flatten visible items
+  const flat = flattenTree(visibleItems)
 
-  // Insert at the new position
-  if (projection.parentId) {
-    // Insert as child of parent
-    return insertAsChild(treeWithoutDragged, projection.parentId, draggedItem, overId)
-  } else {
-    // Insert at root level
-    return insertAtRoot(treeWithoutDragged, draggedItem, overId)
+  // Remove the active item from the flat list
+  const activeIndex = flat.findIndex(f => f.item.id === activeId)
+  if (activeIndex === -1) return tree
+  const activeFlat = flat[activeIndex]
+  const activeFlatItems = [activeFlat, ...flat.filter(f => f.parentId === activeId)]
+  const flatWithout = flat.filter(f => f.item.id !== activeId && f.parentId !== activeId)
+
+  // Find where to insert
+  const overIndex = flatWithout.findIndex(f => f.item.id === overId)
+  if (overIndex === -1) return tree
+
+  // Insert after the over item
+  const insertIndex = overIndex + 1
+
+  // Rebuild: assign new parentId and depth based on projection
+  const newFlat: FlatItem[] = [
+    ...flatWithout.slice(0, insertIndex),
+    {
+      ...activeFlat,
+      parentId: projection.parentId,
+      depth: projection.depth,
+    },
+    // If the active item had children and is being moved to root, keep them
+    ...(projection.depth === 0
+      ? activeFlatItems.filter(f => f.item.id !== activeId).map(f => ({
+          ...f,
+          parentId: activeId,
+          depth: 1,
+        }))
+      : [] // Nesting under parent: children dropped (MAX_DEPTH enforced)
+    ),
+    ...flatWithout.slice(insertIndex),
+  ]
+
+  // Rebuild tree from flat
+  const newVisible = buildTreeFromFlat(newFlat)
+  return [...newVisible, ...hiddenItems]
+}
+
+/**
+ * Rebuild a tree from a flat array using parentId relationships.
+ */
+function buildTreeFromFlat(flatItems: FlatItem[]): UnifiedTreeItem[] {
+  const itemMap = new Map<string, UnifiedTreeItem>()
+  const roots: UnifiedTreeItem[] = []
+
+  // First pass: create all items with empty children
+  for (const flat of flatItems) {
+    itemMap.set(flat.item.id, { ...flat.item, children: [] })
   }
-}
 
-// Helpers
-
-function findItemInTree(items: UnifiedTreeItem[], id: string): UnifiedTreeItem | null {
-  for (const item of items) {
-    if (item.id === id) return { ...item, children: [...item.children] }
-    const found = findItemInTree(item.children, id)
-    if (found) return found
-  }
-  return null
-}
-
-function removeFromTree(items: UnifiedTreeItem[], id: string): UnifiedTreeItem[] {
-  return items
-    .filter(item => item.id !== id)
-    .map(item => ({
-      ...item,
-      children: removeFromTree(item.children, id),
-    }))
-}
-
-function insertAtRoot(tree: UnifiedTreeItem[], item: UnifiedTreeItem, overId: string): UnifiedTreeItem[] {
-  const overIndex = tree.findIndex(i => i.id === overId)
-  // Preserve existing children when inserting at root
-  if (overIndex === -1) {
-    return [...tree, item]
-  }
-  const result = [...tree]
-  result.splice(overIndex + 1, 0, item)
-  return result
-}
-
-function insertAsChild(tree: UnifiedTreeItem[], parentId: string, item: UnifiedTreeItem, overId: string): UnifiedTreeItem[] {
-  return tree.map(treeItem => {
-    if (treeItem.id === parentId) {
-      const children = [...treeItem.children]
-      const overIndex = children.findIndex(c => c.id === overId)
-      // When nesting under a parent, detach children to respect MAX_DEPTH=1
-      const itemWithoutChildren = { ...item, children: [] }
-      if (overIndex === -1) {
-        children.push(itemWithoutChildren)
+  // Second pass: attach children to parents
+  for (const flat of flatItems) {
+    const item = itemMap.get(flat.item.id)!
+    if (flat.parentId === null) {
+      roots.push(item)
+    } else {
+      const parent = itemMap.get(flat.parentId)
+      if (parent) {
+        parent.children.push(item)
       } else {
-        children.splice(overIndex + 1, 0, itemWithoutChildren)
+        roots.push(item) // orphan fallback
       }
-      return { ...treeItem, children }
     }
-    return {
-      ...treeItem,
-      children: insertAsChild(treeItem.children, parentId, item, overId),
-    }
-  })
+  }
+
+  return roots
 }

@@ -392,6 +392,14 @@ export function UnifiedSiteTree({
   }
 
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
     <div className="flex h-full flex-col">
       <ScrollArea className="flex-1">
         <div className="px-2 py-2 space-y-1">
@@ -435,14 +443,6 @@ export function UnifiedSiteTree({
               {t('tree.noPages')}
             </p>
           ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
-            >
               <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
                 {flatMenuItems.map(flatItem => {
                   const { item } = flatItem
@@ -477,22 +477,6 @@ export function UnifiedSiteTree({
                   )
                 })}
               </SortableContext>
-
-              {/* Drag overlay */}
-              <DragOverlay>
-                {activeItem && (
-                  <SortableTreeItem
-                    flatItem={activeItem}
-                    isSelected={false}
-                    onSelect={() => {}}
-                    isOverlay
-                    projectedDepth={projection?.depth}
-                    lang={displayLang}
-                    fallbackLang={defaultLang}
-                  />
-                )}
-              </DragOverlay>
-            </DndContext>
           )}
 
           {/* Action buttons */}
@@ -536,6 +520,21 @@ export function UnifiedSiteTree({
           )}
         </div>
       </ScrollArea>
+      {/* Drag overlay — outside ScrollArea to avoid clipping */}
+      <DragOverlay>
+        {activeItem && (
+          <SortableTreeItem
+            flatItem={activeItem}
+            isSelected={false}
+            onSelect={() => {}}
+            isOverlay
+            projectedDepth={projection?.depth}
+            lang={displayLang}
+            fallbackLang={defaultLang}
+          />
+        )}
+      </DragOverlay>
     </div>
+    </DndContext>
   )
 }
