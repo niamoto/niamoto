@@ -79,6 +79,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const state = useSiteBuilderState(initialSection)
   const [showWizard, setShowWizard] = useState(false)
   const [wizardDismissed, setWizardDismissed] = useState(false)
+  const [overviewPreview, setOverviewPreview] = useState(false)
 
   // Adapter: when NavigationBuilder or StaticPageEditor update navigation[],
   // rebuild the full tree. External links cannot be hidden (P1-a fix), so
@@ -257,6 +258,34 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     }
 
     if (!state.selection) {
+      const hasPages = state.editedPages.length > 0
+      const homePage = state.editedPages.find(p => p.output_file === 'index.html') || state.editedPages[0]
+
+      // Overview with preview toggle
+      if (overviewPreview && hasPages && homePage) {
+        return (
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b px-4 py-2">
+              <h2 className="text-sm font-medium">{t('preview.title')}</h2>
+              <Button variant="ghost" size="sm" onClick={() => setOverviewPreview(false)}>
+                {t('pages.title')}
+              </Button>
+            </div>
+            <div className="flex-1">
+              <SitePreview
+                page={homePage}
+                site={state.editedSite}
+                navigation={state.editedNavigation}
+                footerNavigation={state.editedFooterNavigation}
+                device={previewDevice}
+                onDeviceChange={setPreviewDevice}
+                onLinkClick={handlePreviewLinkClick}
+              />
+            </div>
+          </div>
+        )
+      }
+
       return (
         <PagesOverview
           staticPages={state.editedPages}
@@ -269,6 +298,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           onDeletePage={state.handleDeletePage}
           onDuplicatePage={state.handleDuplicatePage}
           onAddToNavigation={state.handleAddPageToNavigation}
+          onPreview={hasPages ? () => setOverviewPreview(true) : undefined}
         />
       )
     }

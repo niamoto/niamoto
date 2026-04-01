@@ -21,6 +21,7 @@ import {
   List,
   Newspaper,
   ScrollText,
+  Eye,
   type LucideIcon,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -97,6 +98,7 @@ export interface PagesOverviewProps {
   onDeletePage: (pageName: string) => void
   onDuplicatePage: (page: StaticPage) => void
   onAddToNavigation: (page: StaticPage) => void
+  onPreview?: () => void
 }
 
 export function PagesOverview({
@@ -110,6 +112,7 @@ export function PagesOverview({
   onDeletePage,
   onDuplicatePage,
   onAddToNavigation,
+  onPreview,
 }: PagesOverviewProps) {
   const { t } = useTranslation(['site', 'common'])
 
@@ -129,10 +132,18 @@ export function PagesOverview({
               {t('pages.subtitle')}
             </p>
           </div>
-          <Button onClick={onAddPage}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('pages.newPage')}
-          </Button>
+          <div className="flex items-center gap-2">
+            {onPreview && (
+              <Button variant="outline" onClick={onPreview}>
+                <Eye className="h-4 w-4 mr-2" />
+                {t('preview.title')}
+              </Button>
+            )}
+            <Button onClick={onAddPage}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('pages.newPage')}
+            </Button>
+          </div>
         </div>
 
         {/* Static Pages Section */}
