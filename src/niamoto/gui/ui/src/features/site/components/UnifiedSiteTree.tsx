@@ -78,11 +78,16 @@ function getItemIcon(item: UnifiedTreeItem) {
 }
 
 /** Resolve a LocalizedString to a display string in the given language */
-export function resolveLabel(label: import('@/components/ui/localized-input').LocalizedString | undefined, lang?: string): string {
+export function resolveLabel(
+  label: import('@/components/ui/localized-input').LocalizedString | undefined,
+  lang?: string,
+  fallbackLang?: string,
+): string {
   if (!label) return '—'
   if (typeof label === 'string') return label
   if (typeof label === 'object' && label !== null) {
     if (lang && label[lang]) return label[lang]
+    if (fallbackLang && label[fallbackLang]) return label[fallbackLang]
     const values = Object.values(label)
     return (values[0] as string) || '—'
   }
@@ -104,6 +109,7 @@ interface SortableTreeItemProps {
   isOverlay?: boolean
   projectedDepth?: number
   lang?: string
+  fallbackLang?: string
 }
 
 function SortableTreeItem({
@@ -117,6 +123,7 @@ function SortableTreeItem({
   isOverlay,
   projectedDepth,
   lang,
+  fallbackLang,
 }: SortableTreeItemProps) {
   const { item } = flatItem
   const depth = projectedDepth ?? flatItem.depth
@@ -170,7 +177,7 @@ function SortableTreeItem({
       >
         {getItemIcon(item)}
         <span className={cn('truncate text-left', disabled && 'text-muted-foreground/70')}>
-          {resolveLabel(item.label, lang)}
+          {resolveLabel(item.label, lang, fallbackLang)}
           {item.type === 'collection' && '/'}
         </span>
       </button>
@@ -362,7 +369,7 @@ export function UnifiedSiteTree({
         >
           {getItemIcon(item)}
           <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground/70')}>
-            {resolveLabel(item.label, displayLang)}
+            {resolveLabel(item.label, displayLang, defaultLang)}
             {item.type === 'collection' && '/'}
           </span>
           {isCollectionWithoutIndex && (
@@ -465,6 +472,7 @@ export function UnifiedSiteTree({
                           : undefined
                       }
                       lang={displayLang}
+                      fallbackLang={defaultLang}
                     />
                   )
                 })}
@@ -480,6 +488,7 @@ export function UnifiedSiteTree({
                     isOverlay
                     projectedDepth={projection?.depth}
                     lang={displayLang}
+                    fallbackLang={defaultLang}
                   />
                 )}
               </DragOverlay>

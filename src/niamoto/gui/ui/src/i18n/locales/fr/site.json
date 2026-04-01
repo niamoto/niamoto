@@ -83,7 +83,9 @@
     "linkRemoved": "Lien supprimé",
     "removedFromMain": "Retiré du menu principal",
     "removedFromFooter": "Retiré du menu footer",
-    "notLinked": "Non lié à un menu"
+    "notLinked": "Non lié à un menu",
+    "removeWithSubmenusBlocked": "Impossible de retirer cet élément du menu",
+    "removeWithSubmenusBlockedDesc": "Retire ou déplace d'abord ses sous-menus."
   },
   "preview": {
     "title": "Aperçu",

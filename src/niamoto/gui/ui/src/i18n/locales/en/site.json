@@ -84,7 +84,9 @@
     "linkRemoved": "Link removed",
     "removedFromMain": "Removed from main menu",
     "removedFromFooter": "Removed from footer menu",
-    "notLinked": "Not linked to a menu"
+    "notLinked": "Not linked to a menu",
+    "removeWithSubmenusBlocked": "Cannot remove this menu item",
+    "removeWithSubmenusBlockedDesc": "Remove or move its submenus first."
   },
   "preview": {
     "title": "Preview",

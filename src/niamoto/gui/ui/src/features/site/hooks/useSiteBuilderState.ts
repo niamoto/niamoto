@@ -682,13 +682,20 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({ ...item, label })))
   }, [])
 
-  /** Remove a menu occurrence. If other visible occurrences exist for the same
-   *  page/collection, just delete this node. Otherwise hide it (move to hidden section). */
+  /** Remove a menu occurrence. Items with submenus cannot be removed from the
+   *  contextual editors because that would drop the whole branch. */
   const removeMenuItem = useCallback((itemId: string) => {
-    setUnifiedTree(prev => {
-      const item = findTreeItem(prev, i => i.id === itemId)
-      if (!item) return prev
+    const item = findTreeItem(unifiedTree, i => i.id === itemId)
+    if (!item) return
 
+    if (item.children.length > 0) {
+      toast.error(t('navigation.removeWithSubmenusBlocked'), {
+        description: t('navigation.removeWithSubmenusBlockedDesc'),
+      })
+      return
+    }
+
+    setUnifiedTree(prev => {
       // Count other visible occurrences of the same page or collection
       const ref = item.pageRef || item.collectionRef
       const hasOtherVisible = ref ? !!findTreeItem(prev, i =>
@@ -710,7 +717,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       const hiddenItems = treeWithout.filter(i => !i.visible)
       return [...menuItems, hiddenItem, ...hiddenItems]
     })
-  }, [])
+  }, [unifiedTree, t])
 
   /** Add a page to the menu as a visible item. */
   const addPageToMenu = useCallback((pageName: string) => {
