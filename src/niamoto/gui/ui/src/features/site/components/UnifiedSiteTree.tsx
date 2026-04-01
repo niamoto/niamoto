@@ -439,7 +439,7 @@ export function UnifiedSiteTree({
                       isSelected={isItemSelected(item)}
                       onSelect={() => onSelect(mapItemToSelection(item))}
                       onToggleVisibility={
-                        onToggleVisibility && !isCollectionWithoutIndex
+                        onToggleVisibility && !isCollectionWithoutIndex && item.type !== 'external-link'
                           ? () => onToggleVisibility(item.id)
                           : undefined
                       }

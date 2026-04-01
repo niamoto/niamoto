@@ -80,15 +80,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const [wizardDismissed, setWizardDismissed] = useState(false)
 
   // Adapter: when NavigationBuilder or StaticPageEditor update navigation[],
-  // rebuild visible items from the new navigation while keeping existing hidden
-  // items intact (hidden external links only live in the tree, not in navigation[])
+  // rebuild the full tree. External links cannot be hidden (P1-a fix), so
+  // all external links are in navigation[] and the rebuild is lossless.
+  // Hidden pages/collections survive via their backing stores (allPages, groups).
   const handleNavigationChange = (newNavigation: import('@/shared/hooks/useSiteConfig').NavigationItem[]) => {
     resetIdCounter()
-    const freshVisible = buildUnifiedTree(newNavigation, state.allPages, state.groups)
-      .filter(item => item.visible)
-    // Keep hidden items from the current tree unchanged
-    const currentHidden = state.unifiedTree.filter(item => !item.visible)
-    state.setUnifiedTree([...freshVisible, ...currentHidden])
+    state.setUnifiedTree(buildUnifiedTree(newNavigation, state.allPages, state.groups))
   }
 
   // Preview state

@@ -6,7 +6,7 @@
  * On save, decomposeUnifiedTree() reconstructs navigation[] + static_pages[] for the API.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -135,25 +135,42 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   // Groups from API (read-only)
   const groups: GroupInfo[] = groupsData?.groups ?? []
 
-  // Sync local state from API data — only when siteConfig changes (not groups)
-  useEffect(() => {
-    if (siteConfig) {
-      setEditedSite(siteConfig.site)
-      setEditedFooterNavigation(siteConfig.footer_navigation || [])
-      setAllPages(siteConfig.static_pages)
-      resetIdCounter()
-      setUnifiedTree(
-        buildUnifiedTree(siteConfig.navigation, siteConfig.static_pages, groups)
-      )
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- groups excluded intentionally:
-    // re-syncing on groups change would discard unsaved tree edits
-  }, [siteConfig])
+  // Sync local state from API data.
+  // First load: wait for groups to avoid misclassifying collections as external links.
+  // Subsequent siteConfig changes (after save): rebuild immediately.
+  // Groups-only changes (after enabling index): patch hasIndex without full rebuild.
+  const prevSiteConfigRef = useRef(siteConfig)
+  const initialBuildDone = useRef(false)
 
-  // When groups change (e.g. after enabling index page), update hasIndex on existing
-  // tree items without discarding unsaved edits (reorder, toggles, external links)
   useEffect(() => {
-    if (groups.length === 0) return
+    if (!siteConfig) return
+
+    const siteConfigChanged = siteConfig !== prevSiteConfigRef.current
+    prevSiteConfigRef.current = siteConfig
+
+    if (!initialBuildDone.current) {
+      // First build: wait for groups to be loaded
+      if (groupsLoading) return
+      initialBuildDone.current = true
+    } else if (!siteConfigChanged) {
+      // After initial build, only rebuild if siteConfig actually changed
+      // (avoids discarding edits when groupsLoading toggles)
+      return
+    }
+
+    setEditedSite(siteConfig.site)
+    setEditedFooterNavigation(siteConfig.footer_navigation || [])
+    setAllPages(siteConfig.static_pages)
+    resetIdCounter()
+    setUnifiedTree(
+      buildUnifiedTree(siteConfig.navigation, siteConfig.static_pages, groups)
+    )
+  }, [siteConfig, groupsLoading])
+
+  // When groups change (e.g. after enabling index page), patch hasIndex on existing
+  // tree items without discarding unsaved edits
+  useEffect(() => {
+    if (!initialBuildDone.current || groups.length === 0) return
     setUnifiedTree(prev => {
       const groupMap = new Map(groups.map(g => [g.name, g]))
       const updateItem = (item: UnifiedTreeItem): UnifiedTreeItem => {
@@ -572,19 +589,21 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
   const toggleItemVisibility = useCallback((itemId: string) => {
     setUnifiedTree(prev => {
-      // Find the item and its current visibility
       const item = findTreeItem(prev, i => i.id === itemId)
       if (!item) return prev
+
+      // External links cannot be hidden (they have no backing store outside navigation[]).
+      // They can only be deleted.
+      if (item.type === 'external-link') return prev
 
       const willBeHidden = item.visible
 
       if (willBeHidden) {
-        // Hiding: remove from its current position (may be nested) and add to root as hidden
+        // Hiding: remove from current position and add to root hidden section.
+        // Children are preserved so showing it again restores the submenu.
         const treeWithout = removeTreeItem(prev, itemId)
-        const hiddenItem = { ...item, visible: false, children: [] }
-        // Also promote any children to root hidden items
-        const promotedChildren = item.children.map(c => ({ ...c, visible: false, children: [] as UnifiedTreeItem[] }))
-        const roots = [...treeWithout, hiddenItem, ...promotedChildren]
+        const hiddenItem = { ...item, visible: false }
+        const roots = [...treeWithout, hiddenItem]
         const menuItems = roots.filter(i => i.visible)
         const hiddenItems = roots.filter(i => !i.visible)
         return [...menuItems, ...hiddenItems]
