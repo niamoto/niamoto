@@ -34,7 +34,10 @@ export function useAppUpdater() {
       }
     } catch (err) {
       console.error('Update check failed:', err)
-      setState({ status: 'idle' })
+      setState({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'Update check failed',
+      })
     }
   }, [isDesktop])
 
@@ -44,13 +47,18 @@ export function useAppUpdater() {
 
     setState(prev => ({ ...prev, status: 'downloading', progress: 0 }))
     try {
+      let downloaded = 0
+      let total = 0
+
       await update.downloadAndInstall((event) => {
-        if (event.event === 'Progress') {
-          const { contentLength, chunkLength } = event.data as { contentLength?: number; chunkLength: number }
-          if (contentLength) {
+        if (event.event === 'Started') {
+          total = (event.data as { contentLength?: number }).contentLength ?? 0
+        } else if (event.event === 'Progress') {
+          downloaded += (event.data as { chunkLength: number }).chunkLength
+          if (total > 0) {
             setState(prev => ({
               ...prev,
-              progress: Math.round((chunkLength / contentLength) * 100),
+              progress: Math.min(100, Math.round((downloaded / total) * 100)),
             }))
           }
         }

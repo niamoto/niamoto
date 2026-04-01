@@ -329,6 +329,23 @@ pub fn run() {
                 eprintln!("{}", error_msg);
                 let state: State<ServerState> = app.state();
                 if let Some(mut process) = state.process.lock().unwrap().take() {
+                    let pid = process.id();
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(&["/F", "/T", "/PID", &pid.to_string()])
+                            .output();
+                    }
+
+                    #[cfg(unix)]
+                    {
+                        unsafe {
+                            libc::kill(-(pid as i32), libc::SIGTERM);
+                        }
+                        thread::sleep(Duration::from_millis(500));
+                    }
+
                     let _ = process.kill();
                     let _ = process.wait();
                 }
