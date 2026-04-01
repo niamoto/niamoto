@@ -30,8 +30,6 @@ chrono = { version = "0.4", features = ["serde"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 window-vibrancy = "0.7"
-cocoa = "0.26"
-objc = "0.2"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libc = "0.2"
