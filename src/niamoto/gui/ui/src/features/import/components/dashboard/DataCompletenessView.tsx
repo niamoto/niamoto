@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -50,6 +51,7 @@ interface DataCompletenessViewProps {
 }
 
 export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
+  const { t } = useTranslation('sources')
   const [selectedEntity, setSelectedEntity] = useState<string>(
     entities[0]?.name || ''
   )
@@ -99,12 +101,17 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
       <div className="flex items-center gap-4">
         <Select value={selectedEntity} onValueChange={setSelectedEntity}>
           <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select entity" />
+            <SelectValue
+              placeholder={t('dashboard.completeness.selectEntity', 'Select entity')}
+            />
           </SelectTrigger>
           <SelectContent>
             {entities.map((e) => (
               <SelectItem key={e.name} value={e.name}>
-                {e.name} ({e.row_count.toLocaleString()} rows)
+                {t('dashboard.completeness.entityOption', '{{name}} ({{count}} rows)', {
+                  name: e.name,
+                  count: e.row_count,
+                })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -112,7 +119,9 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
 
         {completeness && (
           <Badge variant="outline" className="ml-auto">
-            Average fill rate: {Math.round(completeness.overall_completeness * 100)}%
+            {t('dashboard.completeness.averageFillRate', 'Average fill rate: {{value}}%', {
+              value: Math.round(completeness.overall_completeness * 100),
+            })}
           </Badge>
         )}
       </div>
@@ -122,7 +131,7 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
         <CardHeader className="py-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <BarChart3 className="h-4 w-4" />
-            Field availability
+            {t('dashboard.completeness.fieldAvailability', 'Field availability')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -160,10 +169,20 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
                         <p>
                           <strong>{col.column}</strong> ({col.type})
                         </p>
-                        <p>Total: {col.total_count.toLocaleString()}</p>
-                        <p>Non-null: {col.non_null_count.toLocaleString()}</p>
-                        <p>Null: {col.null_count.toLocaleString()}</p>
-                        <p>Unique values: {col.unique_count.toLocaleString()}</p>
+                        <p>
+                          {t('dashboard.completeness.total', 'Total')}: {col.total_count.toLocaleString()}
+                        </p>
+                        <p>
+                          {t('dashboard.completeness.nonNull', 'Non-null')}:{' '}
+                          {col.non_null_count.toLocaleString()}
+                        </p>
+                        <p>
+                          {t('dashboard.completeness.null', 'Null')}: {col.null_count.toLocaleString()}
+                        </p>
+                        <p>
+                          {t('dashboard.completeness.uniqueValues', 'Unique values')}:{' '}
+                          {col.unique_count.toLocaleString()}
+                        </p>
                       </div>
                     </TooltipContent>
                   </Tooltip>
@@ -171,14 +190,19 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
               </div>
             </TooltipProvider>
           ) : (
-            <p className="text-sm text-muted-foreground">Select an entity to inspect field availability</p>
+            <p className="text-sm text-muted-foreground">
+              {t(
+                'dashboard.completeness.selectEntityHint',
+                'Select an entity to inspect field availability'
+              )}
+            </p>
           )}
         </CardContent>
       </Card>
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>Fill rate:</span>
+        <span>{t('dashboard.completeness.fillRate', 'Fill rate:')}</span>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-red-400" />
           <span>&lt;40%</span>
