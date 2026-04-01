@@ -42,7 +42,18 @@
     ],
     "externalBin": [
       "bin/niamoto"
-    ]
+    ],
+    "createUpdaterArtifacts": true
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/niamoto/niamoto/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }

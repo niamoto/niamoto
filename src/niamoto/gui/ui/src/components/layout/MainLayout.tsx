@@ -5,6 +5,7 @@ import { TopBar } from './TopBar'
 import { BreadcrumbNav } from './BreadcrumbNav'
 import { CommandPalette } from './CommandPalette'
 import { DesktopTitlebar } from './DesktopTitlebar'
+import { UpdateBanner } from '@/shared/desktop/updater/UpdateBanner'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { usePlatform } from '@/shared/hooks/usePlatform'
@@ -65,6 +66,7 @@ export function MainLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {isDesktop && <DesktopTitlebar />}
+      {isDesktop && <UpdateBanner />}
 
       <div className="flex flex-1 overflow-hidden">
         <NavigationSidebar />

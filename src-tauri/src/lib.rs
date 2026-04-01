@@ -215,6 +215,7 @@ fn show_error_screen(window: &tauri::WebviewWindow, error: &str) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
         .manage(ServerState {
             process: Mutex::new(None),
         })
@@ -245,6 +246,10 @@ pub fn run() {
                     .expect("Failed to apply vibrancy effect");
                 println!("✓ Applied macOS vibrancy with rounded corners");
             }
+
+            // Register updater plugin (desktop only)
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
 
             let app_handle = app.handle().clone();
 
