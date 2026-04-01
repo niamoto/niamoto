@@ -103,11 +103,16 @@ export function getProjection(
     return { depth: 0, parentId: null, overId }
   }
 
+  const activeFlat = flatItems.find(f => f.item.id === activeId)
   const overItem = flatItems[overIndex]
+
+  // Items with children cannot be nested (would violate MAX_DEPTH=1)
+  const activeHasChildren = activeFlat ? activeFlat.item.children.length > 0 : false
+  const maxAllowedDepth = activeHasChildren ? 0 : MAX_DEPTH
 
   // Calculate projected depth from horizontal offset
   const depthFromOffset = Math.round(offsetLeft / INDENTATION_WIDTH)
-  const projectedDepth = Math.max(0, Math.min(depthFromOffset + overItem.depth, MAX_DEPTH))
+  const projectedDepth = Math.max(0, Math.min(depthFromOffset + overItem.depth, maxAllowedDepth))
 
   // Determine parent based on projected depth
   let parentId: string | null = null

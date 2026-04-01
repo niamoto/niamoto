@@ -548,10 +548,29 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
   const toggleItemVisibility = useCallback((itemId: string) => {
     setUnifiedTree(prev => {
-      const updated = updateTreeItem(prev, itemId, i => ({ ...i, visible: !i.visible }))
-      const menuItems = updated.filter(i => i.visible)
-      const hiddenItems = updated.filter(i => !i.visible)
-      return [...menuItems, ...hiddenItems]
+      // Find the item and its current visibility
+      const item = findTreeItem(prev, i => i.id === itemId)
+      if (!item) return prev
+
+      const willBeHidden = item.visible
+
+      if (willBeHidden) {
+        // Hiding: remove from its current position (may be nested) and add to root as hidden
+        const treeWithout = removeTreeItem(prev, itemId)
+        const hiddenItem = { ...item, visible: false, children: [] }
+        // Also promote any children to root hidden items
+        const promotedChildren = item.children.map(c => ({ ...c, visible: false, children: [] as UnifiedTreeItem[] }))
+        const roots = [...treeWithout, hiddenItem, ...promotedChildren]
+        const menuItems = roots.filter(i => i.visible)
+        const hiddenItems = roots.filter(i => !i.visible)
+        return [...menuItems, ...hiddenItems]
+      } else {
+        // Showing: update visibility in place, then repartition roots
+        const updated = updateTreeItem(prev, itemId, i => ({ ...i, visible: true }))
+        const menuItems = updated.filter(i => i.visible)
+        const hiddenItems = updated.filter(i => !i.visible)
+        return [...menuItems, ...hiddenItems]
+      }
     })
   }, [])
 
