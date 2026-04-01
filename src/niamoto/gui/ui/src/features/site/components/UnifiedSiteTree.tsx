@@ -49,6 +49,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useLanguages } from '@/shared/contexts/LanguageContext'
 import type { UnifiedTreeItem } from '../hooks/useUnifiedSiteTree'
 import { getTemplateIcon } from './PagesOverview'
 import type { Selection, SelectionType } from '../hooks/useSiteBuilderState'
@@ -76,10 +77,13 @@ function getItemIcon(item: UnifiedTreeItem) {
   return <ExternalLink className="h-4 w-4 shrink-0 text-blue-500" />
 }
 
-function getItemLabel(item: UnifiedTreeItem): string {
-  if (typeof item.label === 'string') return item.label
-  if (typeof item.label === 'object' && item.label !== null) {
-    const values = Object.values(item.label)
+/** Resolve a LocalizedString to a display string in the given language */
+export function resolveLabel(label: import('@/components/ui/localized-input').LocalizedString | undefined, lang?: string): string {
+  if (!label) return '—'
+  if (typeof label === 'string') return label
+  if (typeof label === 'object' && label !== null) {
+    if (lang && label[lang]) return label[lang]
+    const values = Object.values(label)
     return (values[0] as string) || '—'
   }
   return '—'
@@ -99,6 +103,7 @@ interface SortableTreeItemProps {
   disabledReason?: string
   isOverlay?: boolean
   projectedDepth?: number
+  lang?: string
 }
 
 function SortableTreeItem({
@@ -111,6 +116,7 @@ function SortableTreeItem({
   disabledReason,
   isOverlay,
   projectedDepth,
+  lang,
 }: SortableTreeItemProps) {
   const { item } = flatItem
   const depth = projectedDepth ?? flatItem.depth
@@ -164,7 +170,7 @@ function SortableTreeItem({
       >
         {getItemIcon(item)}
         <span className={cn('truncate text-left', disabled && 'text-muted-foreground/70')}>
-          {getItemLabel(item)}
+          {resolveLabel(item.label, lang)}
           {item.type === 'collection' && '/'}
         </span>
       </button>
@@ -242,6 +248,7 @@ export function UnifiedSiteTree({
   onRemoveExternalLink,
 }: UnifiedSiteTreeProps) {
   const { t } = useTranslation(['site', 'common'])
+  const { defaultLang } = useLanguages()
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
@@ -353,7 +360,7 @@ export function UnifiedSiteTree({
         >
           {getItemIcon(item)}
           <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground/70')}>
-            {getItemLabel(item)}
+            {resolveLabel(item.label, defaultLang)}
             {item.type === 'collection' && '/'}
           </span>
           {isCollectionWithoutIndex && (
@@ -455,6 +462,7 @@ export function UnifiedSiteTree({
                           ? projection.depth
                           : undefined
                       }
+                      lang={defaultLang}
                     />
                   )
                 })}
@@ -469,6 +477,7 @@ export function UnifiedSiteTree({
                     onSelect={() => {}}
                     isOverlay
                     projectedDepth={projection?.depth}
+                    lang={defaultLang}
                   />
                 )}
               </DragOverlay>

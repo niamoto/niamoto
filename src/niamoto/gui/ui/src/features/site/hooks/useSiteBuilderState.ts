@@ -639,13 +639,119 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     setSelection(null)
   }, [])
 
-  const updateExternalLink = useCallback((itemId: string, label: string, url: string) => {
+  const updateExternalLink = useCallback((itemId: string, label: import('@/components/ui/localized-input').LocalizedString, url: string) => {
     setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({
       ...item,
       label,
       url,
     })))
   }, [])
+
+  // ---------------------------------------------------------------------------
+  // Menu label helpers (for StaticPageEditor / GroupPageViewer)
+  // ---------------------------------------------------------------------------
+
+  /** Find all tree items referencing a given page (by pageRef). A page can appear multiple times (root + submenus). */
+  const findMenuRefsForPage = useCallback((pageName: string): UnifiedTreeItem[] => {
+    const results: UnifiedTreeItem[] = []
+    const walk = (items: UnifiedTreeItem[]) => {
+      for (const item of items) {
+        if (item.type === 'page' && item.pageRef === pageName && item.visible) results.push(item)
+        walk(item.children)
+      }
+    }
+    walk(unifiedTree)
+    return results
+  }, [unifiedTree])
+
+  /** Find all tree items referencing a given collection (by collectionRef). */
+  const findMenuRefsForCollection = useCallback((groupName: string): UnifiedTreeItem[] => {
+    const results: UnifiedTreeItem[] = []
+    const walk = (items: UnifiedTreeItem[]) => {
+      for (const item of items) {
+        if (item.type === 'collection' && item.collectionRef === groupName && item.visible) results.push(item)
+        walk(item.children)
+      }
+    }
+    walk(unifiedTree)
+    return results
+  }, [unifiedTree])
+
+  /** Update the label of a specific tree item by id. */
+  const updateMenuItemLabel = useCallback((itemId: string, label: import('@/components/ui/localized-input').LocalizedString) => {
+    setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({ ...item, label })))
+  }, [])
+
+  /** Remove a tree item from the menu (sets visible: false and moves to hidden section). */
+  const removeMenuItem = useCallback((itemId: string) => {
+    setUnifiedTree(prev => {
+      const item = findTreeItem(prev, i => i.id === itemId)
+      if (!item) return prev
+      const treeWithout = removeTreeItem(prev, itemId)
+      const hiddenItem = { ...item, visible: false }
+      const menuItems = treeWithout.filter(i => i.visible)
+      const hiddenItems = treeWithout.filter(i => !i.visible)
+      return [...menuItems, hiddenItem, ...hiddenItems]
+    })
+  }, [])
+
+  /** Add a page to the menu as a visible item. */
+  const addPageToMenu = useCallback((pageName: string) => {
+    const page = allPages.find(p => p.name === pageName)
+    if (!page) return
+    setUnifiedTree(prev => {
+      // If the page is already in the tree as hidden, make it visible
+      const existing = findTreeItem(prev, i => i.type === 'page' && i.pageRef === pageName && !i.visible)
+      if (existing) {
+        const updated = updateTreeItem(prev, existing.id, i => ({ ...i, visible: true }))
+        const menuItems = updated.filter(i => i.visible)
+        const hiddenItems = updated.filter(i => !i.visible)
+        return [...menuItems, ...hiddenItems]
+      }
+      // Otherwise create a new visible item
+      const newItem: UnifiedTreeItem = {
+        id: `page-menu-${Date.now()}`,
+        type: 'page',
+        label: page.name,
+        visible: true,
+        pageRef: page.name,
+        url: `/${page.output_file}`,
+        template: page.template,
+        children: [],
+      }
+      const menuItems = prev.filter(i => i.visible)
+      const hiddenItems = prev.filter(i => !i.visible)
+      return [...menuItems, newItem, ...hiddenItems]
+    })
+  }, [allPages])
+
+  /** Add a collection to the menu as a visible item. */
+  const addCollectionToMenu = useCallback((groupName: string) => {
+    const group = groups.find(g => g.name === groupName)
+    if (!group || !group.index_output_pattern) return
+    setUnifiedTree(prev => {
+      const existing = findTreeItem(prev, i => i.type === 'collection' && i.collectionRef === groupName && !i.visible)
+      if (existing) {
+        const updated = updateTreeItem(prev, existing.id, i => ({ ...i, visible: true }))
+        const menuItems = updated.filter(i => i.visible)
+        const hiddenItems = updated.filter(i => !i.visible)
+        return [...menuItems, ...hiddenItems]
+      }
+      const newItem: UnifiedTreeItem = {
+        id: `collection-menu-${Date.now()}`,
+        type: 'collection',
+        label: group.name,
+        visible: true,
+        collectionRef: group.name,
+        url: `/${group.index_output_pattern}`,
+        hasIndex: true,
+        children: [],
+      }
+      const menuItems = prev.filter(i => i.visible)
+      const hiddenItems = prev.filter(i => !i.visible)
+      return [...menuItems, newItem, ...hiddenItems]
+    })
+  }, [groups])
 
   // ---------------------------------------------------------------------------
   // Group index page
@@ -740,6 +846,14 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     // Page ↔ menu (for StaticPageEditor)
     isPageInMenu,
     togglePageInMenu,
+
+    // Menu label helpers (for StaticPageEditor / GroupPageViewer)
+    findMenuRefsForPage,
+    findMenuRefsForCollection,
+    updateMenuItemLabel,
+    removeMenuItem,
+    addPageToMenu,
+    addCollectionToMenu,
 
     // Tree mutations (for UnifiedSiteTree)
     toggleItemVisibility,

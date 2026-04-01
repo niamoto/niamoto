@@ -40,6 +40,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
+import { LocalizedInput } from '@/components/ui/localized-input'
 import {
   useFileContent,
   useGroupIndexPreview,
@@ -359,8 +360,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               (candidate) =>
                 candidate.name !== page.name && isRootIndexTemplate(candidate.template)
             )}
-            navigation={state.editedNavigation}
-            onUpdateNavigation={handleNavigationChange}
+            menuRefs={state.findMenuRefsForPage(page.name).map(item => ({ id: item.id, label: item.label }))}
+            onUpdateMenuLabel={state.updateMenuItemLabel}
+            onRemoveMenuItem={state.removeMenuItem}
+            onAddToMenu={() => state.addPageToMenu(page.name)}
           />
         )
       }
@@ -381,6 +384,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 onBack={() => state.setSelection(null)}
                 onEnableIndexPage={() => state.handleEnableGroupIndexPage(currentGroup.name)}
                 isEnablingIndexPage={state.isEnablingIndexPage}
+                menuRefs={state.findMenuRefsForCollection(currentGroup.name).map(item => ({ id: item.id, label: item.label }))}
+                onUpdateMenuLabel={state.updateMenuItemLabel}
+                onRemoveMenuItem={state.removeMenuItem}
+                onAddToMenu={() => state.addCollectionToMenu(currentGroup.name)}
               />
             </div>
           </ScrollArea>
@@ -400,7 +407,6 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           .flatMap(i => [i, ...i.children])
           .find(i => i.type === 'external-link' && i.id === state.selection?.id)
         if (!linkItem) return null
-        const linkLabel = typeof linkItem.label === 'string' ? linkItem.label : ''
         return (
           <ScrollArea className="h-full">
             <div className="p-6 space-y-4">
@@ -408,13 +414,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium">{t('navigation.linkText')}</label>
-                  <input
-                    type="text"
-                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                    value={linkLabel}
-                    onChange={(e) => state.updateExternalLink(linkItem.id, e.target.value, linkItem.url ?? '')}
-                    placeholder="Link text"
-                  />
+                  <div className="mt-1">
+                    <LocalizedInput
+                      value={linkItem.label}
+                      onChange={(val) => state.updateExternalLink(linkItem.id, val ?? '', linkItem.url ?? '')}
+                      placeholder="Link text"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium">URL</label>
@@ -422,7 +428,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                     type="url"
                     className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
                     value={linkItem.url ?? ''}
-                    onChange={(e) => state.updateExternalLink(linkItem.id, linkLabel, e.target.value)}
+                    onChange={(e) => state.updateExternalLink(linkItem.id, linkItem.label, e.target.value)}
                     placeholder="https://"
                   />
                 </div>
