@@ -1,14 +1,32 @@
 /**
- * UnifiedSiteTree - Unified page + navigation tree
+ * UnifiedSiteTree - Unified page + navigation tree with drag-and-drop
  *
  * Displays pages, collections, and external links in a single list.
- * Items in the menu appear first, followed by a "Not in menu" section.
- *
- * Phase C: toggle visibility, add/remove items, selection
- * Phase C3 (next): drag-and-drop with nesting
+ * Menu items are draggable with 1-level nesting support.
+ * Hidden items appear in a "Not in menu" section (not draggable).
  */
 
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+  DragOverlay,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   Layers,
   ExternalLink,
@@ -19,6 +37,7 @@ import {
   EyeOff,
   Plus,
   Trash2,
+  GripVertical,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +52,14 @@ import { cn } from '@/lib/utils'
 import type { UnifiedTreeItem } from '../hooks/useUnifiedSiteTree'
 import { getTemplateIcon } from './PagesOverview'
 import type { Selection, SelectionType } from '../hooks/useSiteBuilderState'
+import {
+  flattenTree,
+  getProjection,
+  applyDragMove,
+  INDENTATION_WIDTH,
+  type FlatItem,
+  type Projection,
+} from '../utils/treeDnd'
 
 // =============================================================================
 // HELPERS
@@ -59,33 +86,76 @@ function getItemLabel(item: UnifiedTreeItem): string {
 }
 
 // =============================================================================
-// TREE ITEM ROW
+// SORTABLE TREE ITEM
 // =============================================================================
 
-interface TreeItemRowProps {
-  item: UnifiedTreeItem
-  depth: number
+interface SortableTreeItemProps {
+  flatItem: FlatItem
   isSelected: boolean
   onSelect: () => void
   onToggleVisibility?: () => void
   onDelete?: () => void
   disabled?: boolean
   disabledReason?: string
+  isOverlay?: boolean
+  projectedDepth?: number
 }
 
-function TreeItemRow({ item, depth, isSelected, onSelect, onToggleVisibility, onDelete, disabled, disabledReason }: TreeItemRowProps) {
+function SortableTreeItem({
+  flatItem,
+  isSelected,
+  onSelect,
+  onToggleVisibility,
+  onDelete,
+  disabled,
+  disabledReason,
+  isOverlay,
+  projectedDepth,
+}: SortableTreeItemProps) {
+  const { item } = flatItem
+  const depth = projectedDepth ?? flatItem.depth
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled })
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    paddingLeft: `${4 + depth * INDENTATION_WIDTH}px`,
+  }
+
   const row = (
     <div
+      ref={setNodeRef}
+      style={isOverlay ? { paddingLeft: `${4 + depth * INDENTATION_WIDTH}px` } : style}
       className={cn(
-        'group flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors',
-        isSelected
+        'group flex w-full items-center gap-1 rounded-md px-1 py-1 text-sm transition-colors',
+        isOverlay && 'bg-background shadow-md border rounded-md',
+        isSelected && !isOverlay
           ? 'bg-primary/10 text-primary'
           : disabled
             ? 'opacity-50'
             : 'hover:bg-muted/50',
       )}
-      style={{ paddingLeft: `${8 + depth * 16}px` }}
     >
+      {/* Drag handle */}
+      {!disabled && (
+        <button
+          className="shrink-0 p-0.5 cursor-grab active:cursor-grabbing touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground/40" />
+        </button>
+      )}
+
       {/* Main clickable area */}
       <button
         className="flex items-center gap-2 flex-1 min-w-0"
@@ -105,12 +175,11 @@ function TreeItemRow({ item, depth, isSelected, onSelect, onToggleVisibility, on
         </Badge>
       )}
 
-      {/* Toggle visibility button */}
+      {/* Toggle visibility */}
       {onToggleVisibility && !disabled && (
         <button
           className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
           onClick={(e) => { e.stopPropagation(); onToggleVisibility() }}
-          title={item.visible ? 'Remove from menu' : 'Add to menu'}
         >
           {item.visible ? (
             <Eye className="h-3 w-3 text-muted-foreground" />
@@ -120,7 +189,7 @@ function TreeItemRow({ item, depth, isSelected, onSelect, onToggleVisibility, on
         </button>
       )}
 
-      {/* Delete button (external links only) */}
+      {/* Delete (external links) */}
       {onDelete && (
         <button
           className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
@@ -136,12 +205,8 @@ function TreeItemRow({ item, depth, isSelected, onSelect, onToggleVisibility, on
     return (
       <TooltipProvider delayDuration={300}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            {row}
-          </TooltipTrigger>
-          <TooltipContent side="right" className="text-xs">
-            {disabledReason}
-          </TooltipContent>
+          <TooltipTrigger asChild>{row}</TooltipTrigger>
+          <TooltipContent side="right" className="text-xs">{disabledReason}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     )
@@ -159,6 +224,7 @@ interface UnifiedSiteTreeProps {
   selection: Selection | null
   onSelect: (selection: Selection) => void
   onToggleVisibility?: (itemId: string) => void
+  onTreeChange?: (newTree: UnifiedTreeItem[]) => void
   onAddPage?: () => void
   onAddExternalLink?: () => void
   onRemoveExternalLink?: (itemId: string) => void
@@ -169,11 +235,16 @@ export function UnifiedSiteTree({
   selection,
   onSelect,
   onToggleVisibility,
+  onTreeChange,
   onAddPage,
   onAddExternalLink,
   onRemoveExternalLink,
 }: UnifiedSiteTreeProps) {
   const { t } = useTranslation(['site', 'common'])
+
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const [offsetLeft, setOffsetLeft] = useState(0)
 
   const isSelected = (type: SelectionType, id?: string) => {
     if (!selection) return false
@@ -182,8 +253,59 @@ export function UnifiedSiteTree({
     return true
   }
 
+  // Split visible (menu) and hidden items
   const menuItems = items.filter(item => item.visible)
   const hiddenItems = items.filter(item => !item.visible)
+
+  // Flatten menu items for DnD (hidden items are not draggable)
+  const flatMenuItems = useMemo(() => flattenTree(menuItems), [menuItems])
+  const sortableIds = useMemo(() => flatMenuItems.map(f => f.item.id), [flatMenuItems])
+
+  // Projection for drop indicator
+  const projection = useMemo<Projection | null>(() => {
+    if (!activeId || !overId) return null
+    return getProjection(flatMenuItems, activeId, overId, offsetLeft)
+  }, [flatMenuItems, activeId, overId, offsetLeft])
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id))
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over, delta } = event
+    setOverId(over ? String(over.id) : null)
+    setOffsetLeft(delta.x)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id && projection && onTreeChange) {
+      const newTree = applyDragMove(
+        items,
+        String(active.id),
+        String(over.id),
+        projection,
+      )
+      onTreeChange(newTree)
+    }
+
+    setActiveId(null)
+    setOverId(null)
+    setOffsetLeft(0)
+  }
+
+  const handleDragCancel = () => {
+    setActiveId(null)
+    setOverId(null)
+    setOffsetLeft(0)
+  }
 
   const mapItemToSelection = (item: UnifiedTreeItem): Selection => {
     switch (item.type) {
@@ -203,33 +325,44 @@ export function UnifiedSiteTree({
     return false
   }
 
-  const renderItem = (item: UnifiedTreeItem, depth: number = 0) => {
+  // Active drag item for overlay
+  const activeItem = activeId
+    ? flatMenuItems.find(f => f.item.id === activeId)
+    : null
+
+  // Render a hidden (non-draggable) item
+  const renderHiddenItem = (item: UnifiedTreeItem) => {
     const isCollectionWithoutIndex = item.type === 'collection' && !item.hasIndex
 
     return (
-      <div key={item.id}>
-        <TreeItemRow
-          item={item}
-          depth={depth}
-          isSelected={isItemSelected(item)}
-          onSelect={() => onSelect(mapItemToSelection(item))}
-          onToggleVisibility={
-            onToggleVisibility && !isCollectionWithoutIndex
-              ? () => onToggleVisibility(item.id)
-              : undefined
-          }
-          onDelete={
-            item.type === 'external-link' && onRemoveExternalLink
-              ? () => onRemoveExternalLink(item.id)
-              : undefined
-          }
-          disabled={isCollectionWithoutIndex}
-          disabledReason={isCollectionWithoutIndex ? t('unifiedTree.noIndexPage') : undefined}
-        />
-        {item.children.length > 0 && (
-          <div>
-            {item.children.map(child => renderItem(child, depth + 1))}
-          </div>
+      <div
+        key={item.id}
+        className={cn(
+          'group flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors',
+          isItemSelected(item)
+            ? 'bg-primary/10 text-primary'
+            : isCollectionWithoutIndex
+              ? 'opacity-50'
+              : 'hover:bg-muted/50',
+        )}
+      >
+        <button
+          className="flex items-center gap-2 flex-1 min-w-0"
+          onClick={isCollectionWithoutIndex ? undefined : () => onSelect(mapItemToSelection(item))}
+        >
+          {getItemIcon(item)}
+          <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground')}>
+            {getItemLabel(item)}
+            {item.type === 'collection' && '/'}
+          </span>
+        </button>
+        {onToggleVisibility && !isCollectionWithoutIndex && (
+          <button
+            className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+            onClick={() => onToggleVisibility(item.id)}
+          >
+            <EyeOff className="h-3 w-3 text-muted-foreground/50" />
+          </button>
         )}
       </div>
     )
@@ -239,14 +372,12 @@ export function UnifiedSiteTree({
     <div className="flex h-full flex-col">
       <ScrollArea className="flex-1">
         <div className="px-2 py-2 space-y-1">
-          {/* Settings / Appearance / Footer buttons */}
+          {/* Settings / Appearance / Footer */}
           <div className="space-y-1 mb-3 pb-3 border-b">
             <button
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                isSelected('general')
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-muted/50'
+                isSelected('general') ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
               )}
               onClick={() => onSelect({ type: 'general' })}
             >
@@ -256,9 +387,7 @@ export function UnifiedSiteTree({
             <button
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                isSelected('appearance')
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-muted/50'
+                isSelected('appearance') ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
               )}
               onClick={() => onSelect({ type: 'appearance' })}
             >
@@ -268,9 +397,7 @@ export function UnifiedSiteTree({
             <button
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                isSelected('footer')
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-muted/50'
+                isSelected('footer') ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
               )}
               onClick={() => onSelect({ type: 'footer' })}
             >
@@ -279,15 +406,66 @@ export function UnifiedSiteTree({
             </button>
           </div>
 
-          {/* Menu items */}
+          {/* Draggable menu items */}
           {menuItems.length === 0 && hiddenItems.length === 0 ? (
             <p className="px-2 py-4 text-xs text-muted-foreground italic text-center">
               {t('tree.noPages')}
             </p>
           ) : (
-            <>
-              {menuItems.map(item => renderItem(item))}
-            </>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                {flatMenuItems.map(flatItem => {
+                  const { item } = flatItem
+                  const isCollectionWithoutIndex = item.type === 'collection' && !item.hasIndex
+
+                  return (
+                    <SortableTreeItem
+                      key={item.id}
+                      flatItem={flatItem}
+                      isSelected={isItemSelected(item)}
+                      onSelect={() => onSelect(mapItemToSelection(item))}
+                      onToggleVisibility={
+                        onToggleVisibility && !isCollectionWithoutIndex
+                          ? () => onToggleVisibility(item.id)
+                          : undefined
+                      }
+                      onDelete={
+                        item.type === 'external-link' && onRemoveExternalLink
+                          ? () => onRemoveExternalLink(item.id)
+                          : undefined
+                      }
+                      disabled={isCollectionWithoutIndex}
+                      disabledReason={isCollectionWithoutIndex ? t('unifiedTree.noIndexPage') : undefined}
+                      projectedDepth={
+                        activeId && projection && item.id === overId
+                          ? projection.depth
+                          : undefined
+                      }
+                    />
+                  )
+                })}
+              </SortableContext>
+
+              {/* Drag overlay */}
+              <DragOverlay>
+                {activeItem && (
+                  <SortableTreeItem
+                    flatItem={activeItem}
+                    isSelected={false}
+                    onSelect={() => {}}
+                    isOverlay
+                    projectedDepth={projection?.depth}
+                  />
+                )}
+              </DragOverlay>
+            </DndContext>
           )}
 
           {/* Action buttons */}
@@ -326,7 +504,7 @@ export function UnifiedSiteTree({
                 </span>
                 <div className="h-px flex-1 bg-border" />
               </div>
-              {hiddenItems.map(item => renderItem(item))}
+              {hiddenItems.map(item => renderHiddenItem(item))}
             </>
           )}
         </div>

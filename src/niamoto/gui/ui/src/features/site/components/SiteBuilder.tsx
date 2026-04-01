@@ -515,6 +515,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             selection={state.selection}
             onSelect={state.setSelection}
             onToggleVisibility={state.toggleItemVisibility}
+            onTreeChange={state.setUnifiedTree}
             onAddPage={state.handleAddPage}
             onAddExternalLink={state.addExternalLink}
             onRemoveExternalLink={state.removeExternalLink}
