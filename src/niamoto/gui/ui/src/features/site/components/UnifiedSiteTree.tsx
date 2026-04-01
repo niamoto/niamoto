@@ -247,8 +247,10 @@ export function UnifiedSiteTree({
   onAddExternalLink,
   onRemoveExternalLink,
 }: UnifiedSiteTreeProps) {
-  const { t } = useTranslation(['site', 'common'])
+  const { t, i18n } = useTranslation(['site', 'common'])
   const { defaultLang } = useLanguages()
+  // Use GUI language for display, fallback to site's default language
+  const displayLang = i18n.language?.split('-')[0] || defaultLang
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
@@ -360,7 +362,7 @@ export function UnifiedSiteTree({
         >
           {getItemIcon(item)}
           <span className={cn('truncate text-left', isCollectionWithoutIndex && 'text-muted-foreground/70')}>
-            {resolveLabel(item.label, defaultLang)}
+            {resolveLabel(item.label, displayLang)}
             {item.type === 'collection' && '/'}
           </span>
           {isCollectionWithoutIndex && (
@@ -462,7 +464,7 @@ export function UnifiedSiteTree({
                           ? projection.depth
                           : undefined
                       }
-                      lang={defaultLang}
+                      lang={displayLang}
                     />
                   )
                 })}
@@ -477,7 +479,7 @@ export function UnifiedSiteTree({
                     onSelect={() => {}}
                     isOverlay
                     projectedDepth={projection?.depth}
-                    lang={defaultLang}
+                    lang={displayLang}
                   />
                 )}
               </DragOverlay>

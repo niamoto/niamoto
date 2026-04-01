@@ -682,13 +682,30 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({ ...item, label })))
   }, [])
 
-  /** Remove a tree item from the menu (sets visible: false and moves to hidden section). */
+  /** Remove a menu occurrence. If other visible occurrences exist for the same
+   *  page/collection, just delete this node. Otherwise hide it (move to hidden section). */
   const removeMenuItem = useCallback((itemId: string) => {
     setUnifiedTree(prev => {
       const item = findTreeItem(prev, i => i.id === itemId)
       if (!item) return prev
+
+      // Count other visible occurrences of the same page or collection
+      const ref = item.pageRef || item.collectionRef
+      const hasOtherVisible = ref ? !!findTreeItem(prev, i =>
+        i.id !== itemId && i.visible &&
+        ((item.type === 'page' && i.pageRef === ref) ||
+         (item.type === 'collection' && i.collectionRef === ref))
+      ) : false
+
       const treeWithout = removeTreeItem(prev, itemId)
-      const hiddenItem = { ...item, visible: false }
+
+      if (hasOtherVisible) {
+        // Other occurrences exist — just delete this node, no hidden copy
+        return treeWithout
+      }
+
+      // Last occurrence — hide instead of delete (preserves the item)
+      const hiddenItem = { ...item, visible: false, children: [] }
       const menuItems = treeWithout.filter(i => i.visible)
       const hiddenItems = treeWithout.filter(i => !i.visible)
       return [...menuItems, hiddenItem, ...hiddenItems]
