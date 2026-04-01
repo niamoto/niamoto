@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import {
+  fetchImportSummary,
+  importSummaryQueryKey,
+  type ImportSummaryDetailed,
+} from '@/hooks/useImportSummaryDetailed'
 
 interface ImportSummaryLight {
   alert_count: number
@@ -9,13 +13,13 @@ interface ImportSummaryLight {
 }
 
 export function useImportSummary(enabled = true) {
-  return useQuery<ImportSummaryLight>({
-    queryKey: ['import-summary-light'],
-    queryFn: async () => {
-      const res = await axios.get('/api/stats/summary')
-      const entities = res.data.entities ?? []
+  return useQuery<ImportSummaryDetailed, Error, ImportSummaryLight>({
+    queryKey: importSummaryQueryKey,
+    queryFn: fetchImportSummary,
+    select: (data: ImportSummaryDetailed) => {
+      const entities = data.entities ?? []
       return {
-        alert_count: res.data.alerts?.length ?? 0,
+        alert_count: data.alerts?.length ?? 0,
         dataset_count: entities.filter((entity: { entity_type: string }) => entity.entity_type === 'dataset').length,
         reference_count: entities.filter((entity: { entity_type: string }) => entity.entity_type === 'reference').length,
         layer_count: entities.filter((entity: { entity_type: string }) => entity.entity_type === 'layer').length,

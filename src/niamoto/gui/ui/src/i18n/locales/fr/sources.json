@@ -253,7 +253,12 @@
     "spatialAnalysis": "Analyse spatiale",
     "spatialAnalysisDescription": "Lancez une analyse spatiale pour vérifier la couverture des occurrences par les shapes importées (utilise les géométries, peut prendre du temps).",
     "analysisInProgress": "Analyse en cours...",
-    "runSpatialAnalysis": "Lancer l'analyse spatiale"
+    "runSpatialAnalysis": "Lancer l'analyse spatiale",
+    "errors": {
+      "loadCoverage": "Impossible de charger les données de couverture",
+      "analysis": "Échec de l’analyse",
+      "distribution": "Impossible de charger la répartition"
+    }
   },
   "collections": {
     "title": "Collections",
@@ -296,6 +301,7 @@
   },
   "dashboard": {
     "title": "Données importées",
+    "overviewNav": "Vue d’ensemble",
     "description": "Explorez les collections d’agrégation et les sources support désormais disponibles dans votre espace de travail.",
     "noData": "Aucune donnée importée",
     "noDataHint": "Commencez par importer vos fichiers de données pour inspecter leur structure et commencer à les explorer.",
@@ -370,6 +376,8 @@
       "reimport": "Réimporter",
       "retry": "Réessayer",
       "open": "Ouvrir",
+      "openVerification": "Ouvrir la vérification",
+      "openEnrichment": "Ouvrir l’enrichissement",
       "explore": "Explorer",
       "review": "Vérifier",
       "details": "Détails",
@@ -430,9 +438,108 @@
       "sheetFallbackTitle": "Enrichissement",
       "sheetDescription": "Configurez et lancez l’enrichissement externe sans quitter le workspace de données."
     },
+    "verification": {
+      "title": "Outils de vérification",
+      "description": "Lancez des contrôles ciblés sur les données importées avant de construire les pages.",
+      "disclaimer": "Ces outils sont des diagnostics, pas un score global unique de qualité.",
+      "noEntities": "Aucune entité importée n’est encore disponible."
+    },
+    "enrichmentView": {
+      "title": "Enrichissement API",
+      "description": "Configurez l’enrichissement externe pour les références compatibles.",
+      "empty": "Aucune référence enrichissable n’est actuellement disponible.",
+      "unavailable": "Aucun enrichissement disponible pour : {{names}}",
+      "configuredCount": "{{count}} configuré(s)",
+      "availableCount": "{{count}} disponible(s)"
+    },
+    "readiness": {
+      "title": "Données importées",
+      "caption": "Les contrôles détaillés sont dans Vérification. Cette vue ne résume que les signaux structurels calculés automatiquement.",
+      "layersTitle": "Couches",
+      "collectionsTitle": "Collections · {{count}} détectée(s)",
+      "moreCollections": " · +{{count}} de plus",
+      "datasetMetrics": "{{rows}} · {{fields}}",
+      "layerMetrics": "{{rows}} · {{fields}}",
+      "referenceMetrics": "{{rows}} · {{fields}}",
+      "nextStep": {
+        "reviewTitle": "Commencez par revoir les alertes connues",
+        "reviewDescription": "{{count}} alerte(s) structurelle(s) ont été détectées dans les sources importées. Passez par Vérification avant de configurer les pages ou l’enrichissement.",
+        "enrichmentTitle": "Configurez l’enrichissement là où il apporte vraiment quelque chose",
+        "enrichmentDescription": "{{count}} référence(s) peuvent être enrichies depuis des API externes. Configurez-les maintenant, ou poursuivez directement vers les collections.",
+        "collectionsTitle": "Les collections sont prêtes à être configurées",
+        "collectionsDescription": "Vos références importées définissent déjà des collections. Ouvrez-les quand vous êtes prêt à configurer pages, widgets et navigation."
+      },
+      "metrics": {
+        "rowsLabel": "Lignes importées",
+        "rowsSublabel": "Réparties sur {{count}} sources",
+        "alertsLabel": "Alertes connues",
+        "alertsDetected": "{{count}} détectée(s)",
+        "alertsNone": "Aucune détectée",
+        "enrichmentLabel": "Enrichissement",
+        "enrichmentConfigured": "{{count}} configuré(s)",
+        "enrichmentAvailable": "{{count}} disponible(s)"
+      }
+    },
+    "status": {
+      "structural_alert": "Alerte structurelle",
+      "enrichment_available": "Enrichissement disponible",
+      "enrichment_configured": "Enrichissement configuré",
+      "imported": "Importé"
+    },
+    "summaryStatus": {
+      "structural_alert": "Revue nécessaire",
+      "enrichment_available": "Enrichissement disponible",
+      "enrichment_configured": "Enrichissement configuré",
+      "imported": "Importé"
+    },
+    "referenceKinds": {
+      "hierarchical": "Hiérarchique",
+      "generic": "Générique",
+      "spatial": "Spatial"
+    },
     "editor": {
       "loadingConfig": "Chargement de la configuration…",
       "savingConfig": "Sauvegarde de la configuration…"
+    },
+    "completeness": {
+      "selectEntity": "Sélectionner une entité",
+      "entityOption": "{{name}} ({{count}} lignes)",
+      "averageFillRate": "Taux de remplissage moyen : {{value}}%",
+      "fieldAvailability": "Disponibilité des champs",
+      "total": "Total",
+      "nonNull": "Non null",
+      "null": "Null",
+      "uniqueValues": "Valeurs uniques",
+      "selectEntityHint": "Sélectionnez une entité pour inspecter la disponibilité des champs",
+      "fillRate": "Taux de remplissage :"
+    },
+    "taxonomy": {
+      "errors": {
+        "load": "Impossible de charger les données taxonomiques"
+      },
+      "empty": {
+        "title": "Aucune donnée taxonomique trouvée",
+        "description": "Importez une référence taxonomique pour voir l’analyse de hiérarchie"
+      },
+      "metrics": {
+        "totalTaxa": "Taxons totaux",
+        "hierarchyLevels": "Niveaux hiérarchiques",
+        "orphans": "Orphelins",
+        "duplicates": "Doublons"
+      },
+      "consistent": "La hiérarchie taxonomique est cohérente : aucun orphelin ni doublon détecté.",
+      "sections": {
+        "hierarchyLevels": "Niveaux hiérarchiques",
+        "duplicateNames": "Noms dupliqués"
+      },
+      "levelTaxa": "{{count}} taxons",
+      "levelOrphans": "{{count}} orphelin(s)",
+      "noHierarchyLevels": "Aucun niveau hiérarchique détecté",
+      "table": {
+        "name": "Nom",
+        "occurrences": "Occurrences"
+      },
+      "showingFirstDuplicates": "Affichage des {{count}} premiers doublons"
     },
     "tools": {
       "fieldAvailability": {

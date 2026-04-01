@@ -16,9 +16,17 @@ import {
 } from '@/components/ui/accordion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Database, BookOpen, Upload, Loader2, Table2 } from 'lucide-react'
+import {
+  BookOpen,
+  Database,
+  LayoutDashboard,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  Table2,
+  Upload,
+} from 'lucide-react'
 import type { DatasetInfo } from '@/hooks/useDatasets'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 
@@ -28,6 +36,8 @@ import type { ReferenceInfo } from '@/hooks/useReferences'
 
 export type DataSelection =
   | { type: 'overview' }
+  | { type: 'verification' }
+  | { type: 'enrichment' }
   | { type: 'dataset'; name: string }
   | { type: 'reference'; name: string }
   | { type: 'import' }
@@ -39,6 +49,7 @@ interface DataTreeProps {
   referencesLoading: boolean
   selection: DataSelection
   onSelect: (selection: DataSelection) => void
+  hasImportedData: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +63,7 @@ export function DataTree({
   referencesLoading,
   selection,
   onSelect,
+  hasImportedData,
 }: DataTreeProps) {
   const { t } = useTranslation(['sources', 'common'])
 
@@ -64,11 +76,63 @@ export function DataTree({
   return (
     <div className="flex h-full flex-col">
       <ScrollArea className="flex-1">
-        <Accordion
-          type="multiple"
-          defaultValue={['datasets', 'references', 'import']}
-          className="px-2 py-2"
-        >
+        <div className="px-2 pt-2">
+          <button
+            className={cn(
+              'flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
+              isSelected('overview') ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
+            )}
+            onClick={() => onSelect({ type: 'overview' })}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            {t('dashboard.overviewNav', 'Overview')}
+          </button>
+
+          <button
+            className={cn(
+              'mt-1 flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
+              isSelected('import') ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
+            )}
+            onClick={() => onSelect({ type: 'import' })}
+          >
+            <Upload className="h-4 w-4" />
+            {t('tree.importData', 'Import data')}
+          </button>
+
+          <button
+            className={cn(
+              'mt-1 flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
+              isSelected('verification')
+                ? 'bg-primary/10 text-primary'
+                : 'hover:bg-muted/50',
+              !hasImportedData && 'cursor-not-allowed opacity-50'
+            )}
+            onClick={() => hasImportedData && onSelect({ type: 'verification' })}
+            disabled={!hasImportedData}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {t('dashboard.verification.title', 'Verification tools')}
+          </button>
+
+          <button
+            className={cn(
+              'mt-1 flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
+              isSelected('enrichment')
+                ? 'bg-primary/10 text-primary'
+                : 'hover:bg-muted/50',
+              !hasImportedData && 'cursor-not-allowed opacity-50'
+            )}
+            onClick={() => hasImportedData && onSelect({ type: 'enrichment' })}
+            disabled={!hasImportedData}
+          >
+            <Sparkles className="h-4 w-4" />
+            {t('dashboard.enrichmentView.title', 'API enrichment')}
+          </button>
+        </div>
+
+        <div className="mx-4 my-2 h-px bg-border" />
+
+        <Accordion type="multiple" defaultValue={['datasets', 'references']} className="px-2 py-2">
           {/* Datasets Section */}
           <AccordionItem value="datasets" className="border-none">
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
@@ -174,31 +238,6 @@ export function DataTree({
             </AccordionContent>
           </AccordionItem>
 
-          {/* Import Section */}
-          <AccordionItem value="import" className="border-none">
-            <AccordionTrigger className="py-2 text-sm hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                {t('tree.import', 'Import')}
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="space-y-1 pl-6">
-                <Button
-                  variant={isSelected('import') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'w-full justify-start text-sm',
-                    isSelected('import') && 'bg-primary/10 text-primary'
-                  )}
-                  onClick={() => onSelect({ type: 'import' })}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {t('tree.importData', 'Import data')}
-                </Button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
         </Accordion>
       </ScrollArea>
     </div>

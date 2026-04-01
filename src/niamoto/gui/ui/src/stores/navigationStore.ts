@@ -63,6 +63,8 @@ export const routeLabels: Record<string, string> = {
   '/': 'Home',
   '/sources': 'Data',
   '/sources/import': 'Import',
+  '/sources/verification': 'Verification',
+  '/sources/enrichment': 'Enrichment',
   '/sources/dataset': 'Dataset',
   '/sources/reference': 'Reference',
   '/groups': 'Collections',
