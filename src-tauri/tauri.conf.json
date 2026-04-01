@@ -32,7 +32,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["dmg", "app", "deb", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -50,10 +50,7 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGNjMwRDhDNEQ0QTE1QkIKUldTN0ZVcE5qQTFqN3hGTWJ4ZG5DaUxmM3NieEE3VVc3Z1VxWjR2TUt0dWZxN0NMQm4xc3JiMzAK",
       "endpoints": [
         "https://github.com/niamoto/niamoto/releases/latest/download/latest.json"
-      ],
-      "windows": {
-        "installMode": "passive"
-      }
+      ]
     }
   }
 }
