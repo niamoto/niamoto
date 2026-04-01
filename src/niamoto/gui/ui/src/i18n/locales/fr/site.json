@@ -113,7 +113,21 @@
     "linkText": "Texte du lien",
     "selectUrl": "Choisir une cible",
     "customUrl": "URL personnalisée",
-    "externalLink": "Lien externe (nouvel onglet)"
+    "externalLink": "Lien externe (nouvel onglet)",
+    "regenerate": "Regénérer depuis la structure",
+    "regenerated": "Footer regénéré depuis la structure du site"
+  },
+  "presets": {
+    "title": "Choisir un modèle de site",
+    "description": "Démarrez avec une structure pré-configurée, puis personnalisez-la selon vos besoins.",
+    "minimal": "Minimaliste",
+    "minimalDesc": "Accueil + collections uniquement",
+    "scientific": "Scientifique",
+    "scientificDesc": "Projet de recherche avec méthodologie, équipe, bibliographie",
+    "complete": "Complet",
+    "completeDesc": "Site institutionnel complet avec toutes les pages",
+    "startFromScratch": "Partir de zéro",
+    "applied": "Modèle de site appliqué"
   },
   "layout": {
     "addWidgetsHint": "Ajoutez des widgets en utilisant le bouton \"Ajouter un widget\" dans le panneau de gauche."

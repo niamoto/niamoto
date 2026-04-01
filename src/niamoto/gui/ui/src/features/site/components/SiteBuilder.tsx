@@ -61,6 +61,8 @@ import { UnifiedSiteTree } from './UnifiedSiteTree'
 // Hooks
 import { useSiteBuilderState } from '../hooks/useSiteBuilderState'
 import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
+import { generateFooterFromTree } from '../utils/generateFooter'
+import { SITE_PRESETS, applySitePreset } from '../data/sitePresets'
 
 // =============================================================================
 // MAIN SITE BUILDER COMPONENT
@@ -192,8 +194,61 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     toast.warning(t('common:messages.pageNotFound', { href }))
   }
 
+  // Check if site is empty (condition on API data, not local state)
+  const isSiteEmpty = state.siteConfig &&
+    state.siteConfig.static_pages.length === 0 &&
+    state.siteConfig.navigation.length === 0
+
+  // Apply a site preset
+  const handleApplyPreset = (presetId: string) => {
+    const preset = SITE_PRESETS.find(p => p.id === presetId)
+    if (!preset) return
+
+    const result = applySitePreset(preset, state.groups)
+    state.setAllPages(result.staticPages)
+    state.setUnifiedTree(result.tree)
+    state.setEditedFooterNavigation(result.footerSections)
+    toast.success(t('presets.applied'))
+  }
+
   // Render editor based on selection
   const renderEditor = () => {
+    // Show preset selector for empty sites
+    if (!state.selection && isSiteEmpty) {
+      return (
+        <ScrollArea className="h-full">
+          <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
+            <h2 className="text-xl font-semibold mb-2">{t('presets.title')}</h2>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
+              {t('presets.description')}
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3 w-full max-w-2xl">
+              {SITE_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  className="p-4 rounded-lg border hover:border-primary/50 hover:bg-muted/30 transition-colors text-left"
+                  onClick={() => handleApplyPreset(preset.id)}
+                >
+                  <h3 className="font-medium mb-1">{t(preset.nameKey)}</h3>
+                  <p className="text-xs text-muted-foreground">{t(preset.descriptionKey)}</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {preset.pages.length} pages
+                    {state.groups.length > 0 && ` + ${state.groups.length} collections`}
+                  </p>
+                </button>
+              ))}
+            </div>
+            <button
+              className="mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => state.setSelection({ type: 'new-page' })}
+            >
+              {t('presets.startFromScratch')}
+            </button>
+          </div>
+        </ScrollArea>
+      )
+    }
+
     if (!state.selection) {
       return (
         <PagesOverview
@@ -253,6 +308,20 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         return (
           <ScrollArea className="h-full">
             <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">{t('tree.footerMenu')}</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const generated = generateFooterFromTree(state.unifiedTree, state.editedSite)
+                    state.setEditedFooterNavigation(generated)
+                    toast.success(t('footer.regenerated'))
+                  }}
+                >
+                  {t('footer.regenerate')}
+                </Button>
+              </div>
               <FooterSectionsEditor
                 sections={state.editedFooterNavigation}
                 onChange={state.setEditedFooterNavigation}

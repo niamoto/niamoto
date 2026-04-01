@@ -609,6 +609,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     unifiedTree,
     setUnifiedTree,
     allPages,
+    setAllPages,
 
     // Derived (backward compat for sub-components that still need arrays)
     editedNavigation,

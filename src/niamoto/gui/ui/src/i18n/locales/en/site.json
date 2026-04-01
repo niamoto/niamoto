@@ -114,7 +114,21 @@
     "linkText": "Link text",
     "selectUrl": "Select a target",
     "customUrl": "Custom URL",
-    "externalLink": "External link (new tab)"
+    "externalLink": "External link (new tab)",
+    "regenerate": "Regenerate from structure",
+    "regenerated": "Footer regenerated from site structure"
+  },
+  "presets": {
+    "title": "Choose a site template",
+    "description": "Start with a pre-configured site structure, then customize it to your needs.",
+    "minimal": "Minimal",
+    "minimalDesc": "Homepage + collections only",
+    "scientific": "Scientific",
+    "scientificDesc": "Research project with methodology, team, bibliography",
+    "complete": "Complete",
+    "completeDesc": "Full institutional site with all pages",
+    "startFromScratch": "Start from scratch",
+    "applied": "Site template applied"
   },
   "layout": {
     "addWidgetsHint": "Add widgets using the \"Add widget\" button in the left panel."
