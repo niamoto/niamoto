@@ -183,11 +183,12 @@ function removeFromTree(items: UnifiedTreeItem[], id: string): UnifiedTreeItem[]
 
 function insertAtRoot(tree: UnifiedTreeItem[], item: UnifiedTreeItem, overId: string): UnifiedTreeItem[] {
   const overIndex = tree.findIndex(i => i.id === overId)
+  // Preserve existing children when inserting at root
   if (overIndex === -1) {
-    return [...tree, { ...item, children: [] }]
+    return [...tree, item]
   }
   const result = [...tree]
-  result.splice(overIndex + 1, 0, { ...item, children: [] })
+  result.splice(overIndex + 1, 0, item)
   return result
 }
 
@@ -196,10 +197,12 @@ function insertAsChild(tree: UnifiedTreeItem[], parentId: string, item: UnifiedT
     if (treeItem.id === parentId) {
       const children = [...treeItem.children]
       const overIndex = children.findIndex(c => c.id === overId)
+      // When nesting under a parent, detach children to respect MAX_DEPTH=1
+      const itemWithoutChildren = { ...item, children: [] }
       if (overIndex === -1) {
-        children.push({ ...item, children: [] })
+        children.push(itemWithoutChildren)
       } else {
-        children.splice(overIndex + 1, 0, { ...item, children: [] })
+        children.splice(overIndex + 1, 0, itemWithoutChildren)
       }
       return { ...treeItem, children }
     }
