@@ -100,7 +100,11 @@ export function GeoCoverageView() {
         const result = await response.json()
         setQuickData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load coverage data')
+        setError(
+          err instanceof Error
+            ? err.message
+            : t('geoCoverage.errors.loadCoverage', 'Failed to load coverage data')
+        )
       } finally {
         setLoading(false)
       }
@@ -125,7 +129,11 @@ export function GeoCoverageView() {
       const result = await response.json()
       setAnalysisResult(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('geoCoverage.errors.analysis', 'Analysis failed')
+      )
     } finally {
       setAnalyzing(false)
     }
@@ -146,7 +154,11 @@ export function GeoCoverageView() {
       setDistribution(result)
       setShowDistribution(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load distribution')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('geoCoverage.errors.distribution', 'Failed to load distribution')
+      )
     } finally {
       setLoadingDistribution(false)
     }

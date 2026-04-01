@@ -2,7 +2,9 @@
  * DataModule - Orchestrator for the Data (Sources) module
  *
  * Manages sidebar tree + content panel layout:
- * - Overview: ImportDashboard with exploration-oriented data stats
+ * - Overview: SourcesOverview with readiness-oriented source summary
+ * - Verification: Dedicated diagnostics workspace
+ * - Enrichment: Dedicated API enrichment workspace
  * - Dataset detail: DatasetDetailPanel
  * - Reference detail: ReferenceDetailPanel
  * - Import wizard: ImportWizard
@@ -14,11 +16,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
 import { DataTree, type DataSelection } from './DataTree'
 import { ImportWizard } from '@/features/import/components/ImportWizard'
-import { ImportDashboard } from '@/features/import/components/dashboard/ImportDashboard'
+import { EnrichmentView } from '@/features/import/components/dashboard/EnrichmentView'
 import { SourcesEmptyState } from '@/features/import/components/dashboard/SourcesEmptyState'
+import { SourcesOverview } from '@/features/import/components/dashboard/SourcesOverview'
+import { VerificationView } from '@/features/import/components/dashboard/VerificationView'
 import { DatasetDetailPanel } from '@/features/import/components/panels/DatasetDetailPanel'
 import { ReferenceDetailPanel } from '@/features/import/components/panels/ReferenceDetailPanel'
 import { useDatasets } from '@/hooks/useDatasets'
+import { useImportSummary } from '@/hooks/useImportSummary'
 import { useReferences } from '@/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
@@ -29,6 +34,8 @@ import type { UploadedFileInfo } from '@/features/import/api/upload'
 
 function selectionFromLocation(pathname: string): DataSelection {
   if (pathname === '/sources/import') return { type: 'import' }
+  if (pathname === '/sources/verification') return { type: 'verification' }
+  if (pathname === '/sources/enrichment') return { type: 'enrichment' }
 
   const datasetMatch = pathname.match(/^\/sources\/dataset\/(.+)$/)
   if (datasetMatch) return { type: 'dataset', name: decodeURIComponent(datasetMatch[1]) }
@@ -51,14 +58,16 @@ export function DataModule() {
 
   const { data: datasetsData, isLoading: datasetsLoading } = useDatasets()
   const { data: referencesData, isLoading: referencesLoading } = useReferences()
+  const { data: importSummary } = useImportSummary()
 
   const datasets = datasetsData?.datasets ?? []
   const references = referencesData?.references ?? []
+  const layerCount = importSummary?.layer_count ?? 0
+  const hasImportedData = datasets.length > 0 || references.length > 0 || layerCount > 0
 
   const [selection, setSelection] = useState<DataSelection>(() =>
     selectionFromLocation(location.pathname)
   )
-  const showSidebar = selection.type !== 'overview'
 
   // Sync selection from URL on navigation (back/forward)
   useEffect(() => {
@@ -77,6 +86,12 @@ export function DataModule() {
         break
       case 'import':
         navigate('/sources/import')
+        break
+      case 'verification':
+        navigate('/sources/verification')
+        break
+      case 'enrichment':
+        navigate('/sources/enrichment')
         break
       case 'overview':
       default:
@@ -100,6 +115,12 @@ export function DataModule() {
         break
       case 'import':
         crumbs.push({ label: t('common:breadcrumb.import', 'Import') })
+        break
+      case 'verification':
+        crumbs.push({ label: t('dashboard.verification.title', 'Verification tools') })
+        break
+      case 'enrichment':
+        crumbs.push({ label: t('dashboard.enrichmentView.title', 'API enrichment') })
         break
     }
 
@@ -158,11 +179,15 @@ export function DataModule() {
       case 'import':
         return <ImportWizard />
 
+      case 'verification':
+        return <VerificationView />
+
+      case 'enrichment':
+        return <EnrichmentView />
+
       case 'overview':
       default: {
-        const hasData = datasets.length > 0 || references.length > 0
-
-        if (!hasData) {
+        if (!hasImportedData) {
           return (
             <SourcesEmptyState
               onFilesReady={(files: UploadedFileInfo[], paths: string[]) =>
@@ -185,12 +210,14 @@ export function DataModule() {
 
         return (
           <div className="p-6">
-            <ImportDashboard
-              onExploreEntity={(name) => handleSelect({ type: 'dataset', name })}
+            <SourcesOverview
+              onExploreDataset={(name) => handleSelect({ type: 'dataset', name })}
               onExploreReference={(name) => handleSelect({ type: 'reference', name })}
               onOpenGroups={() => navigate('/groups')}
               onOpenGroup={(name) => navigate(`/groups/${encodeURIComponent(name)}`)}
               onReimport={() => handleSelect({ type: 'import' })}
+              onOpenVerification={() => handleSelect({ type: 'verification' })}
+              onOpenEnrichment={() => handleSelect({ type: 'enrichment' })}
             />
           </div>
         )
@@ -203,27 +230,20 @@ export function DataModule() {
   // ---------------------------------------------------------------------------
 
   return (
-    <>
-      {showSidebar ? (
-        <ModuleLayout
-          sidebar={
-            <DataTree
-              datasets={datasets}
-              references={references}
-              datasetsLoading={datasetsLoading}
-              referencesLoading={referencesLoading}
-              selection={selection}
-              onSelect={handleSelect}
-            />
-          }
-        >
-          {renderContent()}
-        </ModuleLayout>
-      ) : (
-        <div className="flex h-full flex-col overflow-hidden">
-          <div className="flex-1 overflow-auto">{renderContent()}</div>
-        </div>
-      )}
-    </>
+    <ModuleLayout
+      sidebar={
+        <DataTree
+          datasets={datasets}
+          references={references}
+          datasetsLoading={datasetsLoading}
+          referencesLoading={referencesLoading}
+          selection={selection}
+          onSelect={handleSelect}
+          hasImportedData={hasImportedData}
+        />
+      }
+    >
+      {renderContent()}
+    </ModuleLayout>
   )
 }

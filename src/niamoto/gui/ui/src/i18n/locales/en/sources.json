@@ -253,7 +253,12 @@
     "spatialAnalysis": "Spatial analysis",
     "spatialAnalysisDescription": "Run a spatial analysis to check the coverage of occurrences by imported shapes (uses geometries, may take time).",
     "analysisInProgress": "Analysis in progress...",
-    "runSpatialAnalysis": "Run spatial analysis"
+    "runSpatialAnalysis": "Run spatial analysis",
+    "errors": {
+      "loadCoverage": "Failed to load coverage data",
+      "analysis": "Analysis failed",
+      "distribution": "Failed to load distribution"
+    }
   },
   "collections": {
     "title": "Collections",
@@ -296,6 +301,7 @@
   },
   "dashboard": {
     "title": "Imported data",
+    "overviewNav": "Overview",
     "description": "Explore the aggregation collections and supporting sources now available in your workspace.",
     "noData": "No data imported",
     "noDataHint": "Start by importing your data files to inspect their structure and begin exploring them.",
@@ -370,6 +376,8 @@
       "reimport": "Re-import",
       "retry": "Retry",
       "open": "Open",
+      "openVerification": "Open Verification",
+      "openEnrichment": "Open Enrichment",
       "explore": "Explore",
       "review": "Review",
       "details": "Details",
@@ -430,9 +438,110 @@
       "sheetFallbackTitle": "Enrichment",
       "sheetDescription": "Configure and run external enrichment without leaving the data workspace."
     },
+    "verification": {
+      "title": "Verification tools",
+      "description": "Run focused checks on imported data before building pages.",
+      "disclaimer": "These tools are diagnostics, not a single global quality score.",
+      "noEntities": "No imported entities are available yet."
+    },
+    "enrichmentView": {
+      "title": "API enrichment",
+      "description": "Configure external enrichment for compatible references.",
+      "empty": "No enrichable references are currently available.",
+      "unavailable": "No enrichment available for: {{names}}",
+      "configuredCount": "{{count}} configured",
+      "availableCount": "{{count}} available"
+    },
+    "readiness": {
+      "title": "Imported data",
+      "caption": "Detailed checks live in Verification. The overview only summarizes automatically computed structural signals.",
+      "layersTitle": "Layers",
+      "collectionsTitle": "Collections · {{count}} detected",
+      "moreCollections": " · +{{count}} more",
+      "datasetMetrics": "{{rows}} · {{fields}}",
+      "layerMetrics": "{{rows}} · {{fields}}",
+      "referenceMetrics": "{{rows}} · {{fields}}",
+      "nextStep": {
+        "reviewTitle": "Review known alerts first",
+        "reviewDescription": "{{count}} structural alerts were detected in imported sources. Start in Verification before configuring pages or enrichment.",
+        "enrichmentTitle": "Configure enrichment where it adds value",
+        "enrichmentDescription": "{{count}} reference(s) can be enriched from external APIs. Configure them now, or continue directly to collections.",
+        "collectionsTitle": "Collections are ready to configure",
+        "collectionsDescription": "Your imported references already define collections. Open them when you are ready to configure pages, widgets, and navigation."
+      },
+      "metrics": {
+        "rowsLabel": "Rows imported",
+        "rowsSublabel": "Across {{count}} sources",
+        "alertsLabel": "Known alerts",
+        "alertsDetected": "{{count}} detected",
+        "alertsNone": "None detected",
+        "enrichmentLabel": "Enrichment",
+        "enrichmentConfigured": "{{count}} configured",
+        "enrichmentAvailable": "{{count}} available"
+      }
+    },
+    "status": {
+      "structural_alert": "Structural alert",
+      "enrichment_available": "Enrichment available",
+      "enrichment_configured": "Enrichment configured",
+      "imported": "Imported",
+      "enrichmentConfigured": "Enrichment configured",
+      "enrichmentAvailable": "Enrichment available"
+    },
+    "summaryStatus": {
+      "structural_alert": "Review needed",
+      "enrichment_available": "Enrichment available",
+      "enrichment_configured": "Enrichment configured",
+      "imported": "Imported"
+    },
+    "referenceKinds": {
+      "hierarchical": "Hierarchical",
+      "generic": "Generic",
+      "spatial": "Spatial"
+    },
     "editor": {
       "loadingConfig": "Loading configuration…",
       "savingConfig": "Saving configuration…"
+    },
+    "completeness": {
+      "selectEntity": "Select entity",
+      "entityOption": "{{name}} ({{count}} rows)",
+      "averageFillRate": "Average fill rate: {{value}}%",
+      "fieldAvailability": "Field availability",
+      "total": "Total",
+      "nonNull": "Non-null",
+      "null": "Null",
+      "uniqueValues": "Unique values",
+      "selectEntityHint": "Select an entity to inspect field availability",
+      "fillRate": "Fill rate:"
+    },
+    "taxonomy": {
+      "errors": {
+        "load": "Failed to load taxonomy data"
+      },
+      "empty": {
+        "title": "No taxonomy data found",
+        "description": "Import a taxonomic reference to see hierarchy analysis"
+      },
+      "metrics": {
+        "totalTaxa": "Total taxa",
+        "hierarchyLevels": "Hierarchy levels",
+        "orphans": "Orphans",
+        "duplicates": "Duplicates"
+      },
+      "consistent": "Taxonomy hierarchy is consistent - no orphans or duplicates detected.",
+      "sections": {
+        "hierarchyLevels": "Hierarchy levels",
+        "duplicateNames": "Duplicate names"
+      },
+      "levelTaxa": "{{count}} taxa",
+      "levelOrphans": "{{count}} orphans",
+      "noHierarchyLevels": "No hierarchy levels detected",
+      "table": {
+        "name": "Name",
+        "occurrences": "Occurrences"
+      },
+      "showingFirstDuplicates": "Showing first {{count}} duplicates"
     },
     "tools": {
       "fieldAvailability": {
