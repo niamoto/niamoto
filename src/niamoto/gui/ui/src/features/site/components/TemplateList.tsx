@@ -10,6 +10,28 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+
+// Template thumbnail imports (static SVGs for offline support)
+import indexThumb from '../assets/templates/index-thumbnail.svg'
+import pageThumb from '../assets/templates/page-thumbnail.svg'
+import teamThumb from '../assets/templates/team-thumbnail.svg'
+import contactThumb from '../assets/templates/contact-thumbnail.svg'
+import bibliographyThumb from '../assets/templates/bibliography-thumbnail.svg'
+import resourcesThumb from '../assets/templates/resources-thumbnail.svg'
+import glossaryThumb from '../assets/templates/glossary-thumbnail.svg'
+
+const TEMPLATE_THUMBNAILS: Record<string, string> = {
+  'index.html': indexThumb,
+  'page.html': pageThumb,
+  'article.html': pageThumb, // reuse page wireframe
+  'documentation.html': pageThumb,
+  'team.html': teamThumb,
+  'contact.html': contactThumb,
+  'resources.html': resourcesThumb,
+  'bibliography.html': bibliographyThumb,
+  'glossary.html': glossaryThumb,
+}
+
 import {
   Home,
   FileText,
@@ -214,6 +236,8 @@ export function TemplateList({ templates, onSelect, onBack }: TemplateListProps)
                 {items.map(({ name, config }) => {
                   const Icon = config.icon
 
+                  const thumbnail = TEMPLATE_THUMBNAILS[name]
+
                   return (
                     <button
                       key={name}
@@ -223,9 +247,17 @@ export function TemplateList({ templates, onSelect, onBack }: TemplateListProps)
                         'hover:bg-muted/80 active:bg-muted'
                       )}
                     >
-                      <div className={cn('p-2 rounded-md bg-muted', config.colorClass)}>
-                        <Icon className="h-4 w-4" />
-                      </div>
+                      {thumbnail ? (
+                        <img
+                          src={thumbnail}
+                          alt=""
+                          className="h-10 w-14 rounded border bg-white object-contain shrink-0"
+                        />
+                      ) : (
+                        <div className={cn('p-2 rounded-md bg-muted', config.colorClass)}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">
                           {name.replace('.html', '')}

@@ -15,6 +15,13 @@
     "noCollections": "No collections",
     "addElement": "Add"
   },
+  "unifiedTree": {
+    "notInMenu": "Not in menu",
+    "noIndexPage": "Index page not configured",
+    "enableIndex": "Enable index page",
+    "inMenu": "In menu",
+    "hidden": "Hidden"
+  },
   "pages": {
     "title": "Pages",
     "subtitle": "Manage static pages and view collections",
@@ -77,7 +84,9 @@
     "linkRemoved": "Link removed",
     "removedFromMain": "Removed from main menu",
     "removedFromFooter": "Removed from footer menu",
-    "notLinked": "Not linked to a menu"
+    "notLinked": "Not linked to a menu",
+    "removeWithSubmenusBlocked": "Cannot remove this menu item",
+    "removeWithSubmenusBlockedDesc": "Remove or move its submenus first."
   },
   "preview": {
     "title": "Preview",
@@ -107,7 +116,39 @@
     "linkText": "Link text",
     "selectUrl": "Select a target",
     "customUrl": "Custom URL",
-    "externalLink": "External link (new tab)"
+    "externalLink": "External link (new tab)",
+    "regenerate": "Regenerate from structure",
+    "regenerated": "Footer regenerated from site structure"
+  },
+  "presets": {
+    "title": "Choose a site template",
+    "description": "Start with a pre-configured site structure, then customize it to your needs.",
+    "minimal": "Minimal",
+    "minimalDesc": "Homepage + collections only",
+    "scientific": "Scientific",
+    "scientificDesc": "Research project with methodology, team, bibliography",
+    "complete": "Complete",
+    "completeDesc": "Full institutional site with all pages",
+    "startFromScratch": "Start from scratch",
+    "applied": "Site template applied"
+  },
+  "wizard": {
+    "title": "Site setup",
+    "step1": "Choose a template",
+    "step2": "Review structure",
+    "step2Desc": "Adjust pages and menu before saving",
+    "step3": "Customize theme",
+    "step3Desc": "Set colors and logo",
+    "step4": "Preview",
+    "step4Desc": "Check the result before saving",
+    "skip": "Skip",
+    "skipAll": "Skip setup",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Create site",
+    "reconfigure": "Reconfigure",
+    "reconfigureWarning": "This will replace your current site configuration",
+    "stepOf": "Step {{current}} of {{total}}"
   },
   "layout": {
     "addWidgetsHint": "Add widgets using the \"Add widget\" button in the left panel."

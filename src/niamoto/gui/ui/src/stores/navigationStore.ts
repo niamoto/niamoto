@@ -68,7 +68,7 @@ export const routeLabels: Record<string, string> = {
   '/groups': 'Collections',
   '/site': 'Site',
   '/site/pages': 'Pages',
-  '/site/navigation': 'Navigation',
+  // '/site/navigation' removed — redirects to /site/pages
   '/site/general': 'Settings',
   '/site/appearance': 'Appearance',
   '/publish': 'Publish',

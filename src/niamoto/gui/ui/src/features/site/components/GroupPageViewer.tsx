@@ -9,18 +9,29 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2, Loader2 } from 'lucide-react'
+import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2, Loader2, Menu, Plus, X } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import type { GroupInfo } from '@/shared/hooks/useSiteConfig'
+
+interface MenuRef {
+  id: string
+  label: LocalizedString
+}
 
 interface GroupPageViewerProps {
   group: GroupInfo
   onBack: () => void
   onEnableIndexPage?: () => void
   isEnablingIndexPage?: boolean
+  // Menu linking
+  menuRefs?: MenuRef[]
+  onUpdateMenuLabel?: (itemId: string, label: LocalizedString) => void
+  onRemoveMenuItem?: (itemId: string) => void
+  onAddToMenu?: () => void
 }
 
 export function GroupPageViewer({
@@ -28,6 +39,10 @@ export function GroupPageViewer({
   onBack,
   onEnableIndexPage,
   isEnablingIndexPage = false,
+  menuRefs = [],
+  onUpdateMenuLabel,
+  onRemoveMenuItem,
+  onAddToMenu,
 }: GroupPageViewerProps) {
   const { t } = useTranslation(['site', 'common'])
   const hasIndex = group.index_generator?.enabled
@@ -82,6 +97,54 @@ export function GroupPageViewer({
           </div>
         </CardContent>
       </Card>
+
+      {/* Menu linking (only for collections with index) */}
+      {hasIndex && (onAddToMenu || menuRefs.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Menu className="h-4 w-4" />
+              {t('navigation.menuLinks')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {menuRefs.length > 0 ? (
+              <div className="space-y-2">
+                {menuRefs.map(ref => (
+                  <div key={ref.id} className="flex items-center gap-2">
+                    <LocalizedInput
+                      value={ref.label}
+                      onChange={(val) => onUpdateMenuLabel?.(ref.id, val ?? '')}
+                      placeholder={group.name}
+                      className="flex-1"
+                    />
+                    {onRemoveMenuItem && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 hover:bg-destructive/10"
+                        onClick={() => onRemoveMenuItem(ref.id)}
+                      >
+                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : onAddToMenu ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                onClick={onAddToMenu}
+              >
+                <Plus className="h-3 w-3" />
+                {t('navigation.addToMainMenu')}
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Index generator */}
       {hasIndex && indexConfig && (
