@@ -52,13 +52,23 @@ import {
   type GlossaryPageContext,
 } from './forms'
 
+interface MenuRef {
+  id: string
+  label: import('@/components/ui/localized-input').LocalizedString
+}
+
 interface StaticPageEditorProps {
   page: StaticPage
   onChange: (page: StaticPage) => void
   onDelete?: () => void
   onBack: () => void
   hasExistingIndexPage?: boolean
-  // Navigation linking
+  // Menu linking (Phase C: unified tree helpers)
+  menuRefs?: MenuRef[]
+  onUpdateMenuLabel?: (itemId: string, label: import('@/components/ui/localized-input').LocalizedString) => void
+  onRemoveMenuItem?: (itemId: string) => void
+  onAddToMenu?: () => void
+  // Legacy navigation linking (backward compat with NavigationBuilder)
   navigation?: NavigationItem[]
   onUpdateNavigation?: (nav: NavigationItem[]) => void
 }
@@ -69,6 +79,10 @@ export function StaticPageEditor({
   onDelete,
   onBack,
   hasExistingIndexPage = false,
+  menuRefs = [],
+  onUpdateMenuLabel,
+  onRemoveMenuItem,
+  onAddToMenu,
   navigation = [],
   onUpdateNavigation,
 }: StaticPageEditorProps) {
@@ -283,31 +297,75 @@ export function StaticPageEditor({
                 />
               </div>
 
-              {/* Navigation linking */}
-              {onUpdateNavigation && (
+              {/* Menu occurrences (unified tree helpers) */}
+              {(onAddToMenu || menuRefs.length > 0) && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Menu className="h-4 w-4" />
+                    {t('navigation.menuLinks')}
+                  </Label>
+                  {menuRefs.length > 0 ? (
+                    <div className="space-y-2">
+                      {menuRefs.map(ref => (
+                        <div key={ref.id} className="flex items-center gap-2">
+                          <LocalizedInput
+                            value={ref.label}
+                            onChange={(val) => onUpdateMenuLabel?.(ref.id, val ?? '')}
+                            placeholder={editedPage.name}
+                            className="flex-1"
+                          />
+                          {onRemoveMenuItem && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 hover:bg-destructive/10"
+                              onClick={() => onRemoveMenuItem(ref.id)}
+                            >
+                              <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : onAddToMenu ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      onClick={onAddToMenu}
+                    >
+                      <Plus className="h-3 w-3" />
+                      {t('navigation.addToMainMenu')}
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">
+                      {t('navigation.notLinked')}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Legacy navigation linking (NavigationBuilder compat) */}
+              {!onAddToMenu && onUpdateNavigation && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Menu className="h-4 w-4" />
                     {t('navigation.menuLinks')}
                   </Label>
                   <div className="flex flex-wrap gap-2">
-                    {/* Main navigation status/action */}
                     {inMainNav ? (
                       <div className="flex items-center gap-1 rounded-full bg-primary/10 pl-3 pr-1 py-1 text-sm">
                         <Navigation className="h-3 w-3 text-primary" />
                         <span className="text-primary">{t('navigation.mainMenu')}</span>
-                        {onUpdateNavigation != null && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 rounded-full hover:bg-destructive/20"
-                            onClick={handleRemoveFromMainNav}
-                          >
-                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 rounded-full hover:bg-destructive/20"
+                          onClick={handleRemoveFromMainNav}
+                        >
+                          <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                        </Button>
                       </div>
-                    ) : onUpdateNavigation != null && (
+                    ) : (
                       <Button
                         variant="outline"
                         size="sm"
@@ -317,13 +375,6 @@ export function StaticPageEditor({
                         <Plus className="h-3 w-3" />
                         {t('navigation.addToMainMenu')}
                       </Button>
-                    )}
-
-                    {/* No links indicator */}
-                    {!inMainNav && !onUpdateNavigation && (
-                      <span className="text-sm text-muted-foreground italic">
-                        {t('navigation.notLinked')}
-                      </span>
                     )}
                   </div>
                 </div>

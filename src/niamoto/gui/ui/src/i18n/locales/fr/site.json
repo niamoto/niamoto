@@ -14,6 +14,13 @@
     "noCollections": "Aucune collection",
     "addElement": "Ajouter"
   },
+  "unifiedTree": {
+    "notInMenu": "Hors menu",
+    "noIndexPage": "Page d'index non configurée",
+    "enableIndex": "Activer la page d'index",
+    "inMenu": "Dans le menu",
+    "hidden": "Masqué"
+  },
   "pages": {
     "title": "Pages",
     "subtitle": "Gérez les pages statiques et visualisez les collections",
@@ -76,7 +83,9 @@
     "linkRemoved": "Lien supprimé",
     "removedFromMain": "Retiré du menu principal",
     "removedFromFooter": "Retiré du menu footer",
-    "notLinked": "Non lié à un menu"
+    "notLinked": "Non lié à un menu",
+    "removeWithSubmenusBlocked": "Impossible de retirer cet élément du menu",
+    "removeWithSubmenusBlockedDesc": "Retire ou déplace d'abord ses sous-menus."
   },
   "preview": {
     "title": "Aperçu",
@@ -106,7 +115,39 @@
     "linkText": "Texte du lien",
     "selectUrl": "Choisir une cible",
     "customUrl": "URL personnalisée",
-    "externalLink": "Lien externe (nouvel onglet)"
+    "externalLink": "Lien externe (nouvel onglet)",
+    "regenerate": "Regénérer depuis la structure",
+    "regenerated": "Footer regénéré depuis la structure du site"
+  },
+  "presets": {
+    "title": "Choisir un modèle de site",
+    "description": "Démarrez avec une structure pré-configurée, puis personnalisez-la selon vos besoins.",
+    "minimal": "Minimaliste",
+    "minimalDesc": "Accueil + collections uniquement",
+    "scientific": "Scientifique",
+    "scientificDesc": "Projet de recherche avec méthodologie, équipe, bibliographie",
+    "complete": "Complet",
+    "completeDesc": "Site institutionnel complet avec toutes les pages",
+    "startFromScratch": "Partir de zéro",
+    "applied": "Modèle de site appliqué"
+  },
+  "wizard": {
+    "title": "Configuration du site",
+    "step1": "Choisir un modèle",
+    "step2": "Vérifier la structure",
+    "step2Desc": "Ajustez les pages et le menu avant de sauvegarder",
+    "step3": "Personnaliser le thème",
+    "step3Desc": "Couleurs et logo",
+    "step4": "Aperçu",
+    "step4Desc": "Vérifiez le résultat avant de sauvegarder",
+    "skip": "Passer",
+    "skipAll": "Passer la configuration",
+    "next": "Suivant",
+    "back": "Retour",
+    "finish": "Créer le site",
+    "reconfigure": "Reconfigurer",
+    "reconfigureWarning": "Cela remplacera votre configuration actuelle",
+    "stepOf": "Étape {{current}} sur {{total}}"
   },
   "layout": {
     "addWidgetsHint": "Ajoutez des widgets en utilisant le bouton \"Ajouter un widget\" dans le panneau de gauche."
