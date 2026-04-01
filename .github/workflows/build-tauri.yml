@@ -83,12 +83,15 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
 
       - name: Install frontend deps
         run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: cd src/niamoto/gui/ui && pnpm run build
 
       # --- Rust + Tauri ---
       - uses: dtolnay/rust-toolchain@stable

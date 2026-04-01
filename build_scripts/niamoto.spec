@@ -6,7 +6,7 @@ Bundles the entire Python application with all dependencies
 
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 # Base directories
 # PyInstaller runs from project root, so paths are relative to that
@@ -54,6 +54,9 @@ for package_name in [
     'shapely',
 ]:
     datas += copy_metadata(package_name)
+
+# Include pyproj coordinate reference data (proj.db)
+datas += collect_data_files('pyproj')
 
 # CRITICAL: Include React build (src/niamoto/gui/ui/dist)
 ui_dist = NIAMOTO_SRC / 'gui' / 'ui' / 'dist'
@@ -205,7 +208,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,  # Don't strip - causes issues with numpy/pandas on Linux and DLL issues on Windows
-    upx=True,  # Compress with UPX
+    upx=False,  # Disabled: UPX triggers antivirus false positives on Windows
     upx_exclude=[
         # Exclude Python DLL and critical libraries from UPX to avoid corruption
         'python*.dll',
@@ -213,7 +216,7 @@ exe = EXE(
         'msvcp*.dll',
         'api-ms-win-*.dll',
     ],
-    runtime_tmpdir=None,
+    runtime_tmpdir=None if sys.platform != 'win32' else os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'niamoto'),
     console=True,  # Keep console for debugging
     disable_windowed_traceback=False,
     target_arch=None,

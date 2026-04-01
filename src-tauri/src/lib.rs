@@ -87,6 +87,14 @@ fn launch_fastapi_server(
         println!("No project selected - running in standalone mode");
     }
 
+    // On Unix, start the sidecar in its own process group
+    // so we can kill the entire group on shutdown
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+
     // Launch the server
     let child = command.spawn()?;
 
@@ -355,13 +363,34 @@ pub fn run() {
 
             Ok(())
         })
-        // Clean shutdown of FastAPI server
+        // Clean shutdown of FastAPI server — kill the entire process tree
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 println!("Window close requested, killing server...");
                 let state: State<ServerState> = window.state();
                 if let Some(mut process) = state.process.lock().unwrap().take() {
-                    println!("Killing FastAPI server (PID: {})", process.id());
+                    let pid = process.id();
+                    println!("Killing FastAPI server (PID: {})", pid);
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        // Kill the entire process tree on Windows
+                        let _ = std::process::Command::new("taskkill")
+                            .args(&["/F", "/T", "/PID", &pid.to_string()])
+                            .output();
+                    }
+
+                    #[cfg(unix)]
+                    {
+                        // Kill the process group on Unix
+                        unsafe {
+                            libc::kill(-(pid as i32), libc::SIGTERM);
+                        }
+                        // Brief wait for graceful shutdown
+                        thread::sleep(Duration::from_millis(500));
+                    }
+
+                    // Fallback: force kill the direct child
                     let _ = process.kill();
                     let _ = process.wait();
                 };
