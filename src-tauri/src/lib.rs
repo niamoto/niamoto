@@ -100,60 +100,28 @@ fn launch_fastapi_server(
 
 /// Show a loading screen with status message
 fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
-    let html = format!(
+    let js = format!(
         r#"
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                font-family: system-ui, -apple-system, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                -webkit-app-region: drag;
-                user-select: none;
-                cursor: move;
-            }}
-            .container {{
-                text-align: center;
-                padding: 40px;
-                max-width: 640px;
-            }}
-            .spinner {{
-                border: 4px solid rgba(255, 255, 255, 0.3);
-                border-radius: 50%;
-                border-top: 4px solid white;
-                width: 60px;
-                height: 60px;
-                animation: spin 1s linear infinite;
-                margin: 0 auto 30px;
-            }}
-            @keyframes spin {{
-                0% {{ transform: rotate(0deg); }}
-                100% {{ transform: rotate(360deg); }}
-            }}
-            h1 {{
-                font-size: 28px;
-                margin-bottom: 15px;
-            }}
-            p {{
-                font-size: 16px;
-                opacity: 0.9;
-            }}
-        </style>
-        <div class="container">
-            <div class="spinner"></div>
-            <h1>Niamoto</h1>
-            <p>{}</p>
-        </div>
+        document.body.style.cssText = 'margin:0;padding:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#18181b;user-select:none;';
+        document.body.setAttribute('data-tauri-drag-region', '');
+        document.body.innerHTML = `
+            <div data-tauri-drag-region style="text-align:center;padding:40px;pointer-events:none;">
+                <div style="border:3px solid rgba(0,0,0,0.08);border-radius:50%;border-top:3px solid #71717a;width:32px;height:32px;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>
+                <h1 style="font-size:20px;font-weight:500;margin:0 0 8px;color:#18181b;">{}</h1>
+                <p style="font-size:13px;margin:0;color:#a1a1aa;">{}</p>
+            </div>
+        `;
+        if (!document.getElementById('_spin')) {{
+            var s = document.createElement('style');
+            s.id = '_spin';
+            s.textContent = '@keyframes spin {{ 0% {{ transform:rotate(0deg) }} 100% {{ transform:rotate(360deg) }} }}';
+            document.head.appendChild(s);
+        }}
         "#,
-        message
+        "Niamoto", message
     );
 
-    let _ = window.eval(&format!("document.body.innerHTML = `{}`", html.replace("`", "\\`")));
+    let _ = window.eval(&js);
 }
 
 /// Show an error screen
@@ -251,12 +219,11 @@ pub fn run() {
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
 
-            let app_handle = app.handle().clone();
-
-            // Show loading screen
+            // Show loading screen immediately — setup must return fast
+            // so the Tauri event loop can render the window
             show_loading_status(&window, "Starting server...");
 
-            // Get the current project from config
+            // Gather config before spawning the background thread
             let config_state: State<ConfigState> = app.state();
             let niamoto_home = {
                 let config = config_state.config.lock().unwrap();
@@ -269,102 +236,103 @@ pub fn run() {
                 println!("No project selected - running in standalone mode");
             }
 
-            // 1. Find a free port
             let port = find_free_port();
             println!("Selected port: {}", port);
 
-            // 2. Launch the FastAPI server
-            println!("Launching FastAPI server...");
+            let app_handle = app.handle().clone();
+            let window_clone = window.clone();
 
-            let server_process = match launch_fastapi_server(
-                &app_handle,
-                port,
-                niamoto_home.as_deref(),
-            ) {
-                Ok(process) => process,
-                Err(e) => {
+            // Spawn sidecar startup in a background thread so the loading screen renders
+            thread::spawn(move || {
+                // Launch the FastAPI server
+                println!("Launching FastAPI server...");
+
+                let server_process = match launch_fastapi_server(
+                    &app_handle,
+                    port,
+                    niamoto_home.as_deref(),
+                ) {
+                    Ok(process) => process,
+                    Err(e) => {
+                        let error_msg = format!(
+                            "Failed to launch server: {}\n\nMake sure the application was built correctly.",
+                            e
+                        );
+                        eprintln!("{}", error_msg);
+                        show_error_screen(&window_clone, &error_msg);
+                        return;
+                    }
+                };
+
+                // Store the process handle for cleanup
+                let server_state = app_handle.state::<ServerState>();
+                *server_state.process.lock().unwrap() = Some(server_process);
+
+                // Poll for server readiness
+                println!("Waiting for server to be ready...");
+                show_loading_status(&window_clone, "Waiting for server to be ready...");
+
+                let max_attempts = (SERVER_STARTUP_TIMEOUT_SECS * 1000 / SERVER_POLL_INTERVAL_MS) as u32;
+                let mut attempts = 0;
+
+                while !is_server_ready(port) && attempts < max_attempts {
+                    thread::sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS));
+                    attempts += 1;
+
+                    if attempts % 10 == 0 {
+                        println!("Still waiting... ({}/{})", attempts, max_attempts);
+                        show_loading_status(
+                            &window_clone,
+                            &format!(
+                                "Still waiting... ({}/{}s)",
+                                attempts as u64 * SERVER_POLL_INTERVAL_MS / 1000,
+                                SERVER_STARTUP_TIMEOUT_SECS
+                            ),
+                        );
+                    }
+                }
+
+                if attempts >= max_attempts {
                     let error_msg = format!(
-                        "Failed to launch server: {}\n\nMake sure the application was built correctly.",
-                        e
+                        "Server failed to start after {} seconds.\n\nThe packaged backend may still be starting up or may be missing dependencies.",
+                        SERVER_STARTUP_TIMEOUT_SECS
                     );
                     eprintln!("{}", error_msg);
-                    show_error_screen(&window, &error_msg);
-                    return Ok(());
-                }
-            };
+                    let server_state = app_handle.state::<ServerState>();
+                    if let Some(mut process) = server_state.process.lock().unwrap().take() {
+                        let pid = process.id();
 
-            // Store the process handle for cleanup later
-            let state: State<ServerState> = app.state();
-            *state.process.lock().unwrap() = Some(server_process);
-
-            // 3. Wait for the server to be ready (max 30 seconds)
-            println!("Waiting for server to be ready...");
-            show_loading_status(&window, "Waiting for server to be ready...");
-
-            let max_attempts = (SERVER_STARTUP_TIMEOUT_SECS * 1000 / SERVER_POLL_INTERVAL_MS) as u32;
-            let mut attempts = 0;
-
-            while !is_server_ready(port) && attempts < max_attempts {
-                thread::sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS));
-                attempts += 1;
-
-                if attempts % 10 == 0 {
-                    println!("Still waiting... ({}/{})", attempts, max_attempts);
-                    show_loading_status(
-                        &window,
-                        &format!(
-                            "Still waiting... ({}/{}s)",
-                            attempts as u64 * SERVER_POLL_INTERVAL_MS / 1000,
-                            SERVER_STARTUP_TIMEOUT_SECS
-                        ),
-                    );
-                }
-            }
-
-            if attempts >= max_attempts {
-                let error_msg = format!(
-                    "Server failed to start after {} seconds.\n\nThe packaged backend may still be starting up or may be missing dependencies.",
-                    SERVER_STARTUP_TIMEOUT_SECS
-                );
-                eprintln!("{}", error_msg);
-                let state: State<ServerState> = app.state();
-                if let Some(mut process) = state.process.lock().unwrap().take() {
-                    let pid = process.id();
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = std::process::Command::new("taskkill")
-                            .args(&["/F", "/T", "/PID", &pid.to_string()])
-                            .output();
-                    }
-
-                    #[cfg(unix)]
-                    {
-                        unsafe {
-                            libc::kill(-(pid as i32), libc::SIGTERM);
+                        #[cfg(target_os = "windows")]
+                        {
+                            let _ = std::process::Command::new("taskkill")
+                                .args(&["/F", "/T", "/PID", &pid.to_string()])
+                                .output();
                         }
-                        thread::sleep(Duration::from_millis(500));
+
+                        #[cfg(unix)]
+                        {
+                            unsafe {
+                                libc::kill(-(pid as i32), libc::SIGTERM);
+                            }
+                            thread::sleep(Duration::from_millis(500));
+                        }
+
+                        let _ = process.kill();
+                        let _ = process.wait();
                     }
-
-                    let _ = process.kill();
-                    let _ = process.wait();
+                    show_error_screen(&window_clone, &error_msg);
+                    return;
                 }
-                show_error_screen(&window, &error_msg);
-                return Ok(());
-            }
 
-            println!("✓ Server ready on http://127.0.0.1:{}", port);
+                println!("✓ Server ready on http://127.0.0.1:{}", port);
 
-            // 4. Load the URL in the main window
-            let url = format!("http://127.0.0.1:{}", port);
-            println!("Loading URL: {}", url);
+                // Navigate to the server URL
+                let url = format!("http://127.0.0.1:{}", port);
+                println!("Loading URL: {}", url);
+                let _ = window_clone.eval(&format!("window.location.replace('{}')", url));
 
-            // Navigate to the server URL
-            window
-                .eval(&format!("window.location.replace('{}')", url))
-                .expect("Failed to load URL in webview");
-
-            println!("✓ Niamoto Desktop ready!");
+                println!("✓ Niamoto Desktop ready!");
+            });
 
             Ok(())
         })

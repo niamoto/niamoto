@@ -49,6 +49,22 @@ jobs:
             libappindicator3-dev librsvg2-dev patchelf \
             gdal-bin libgdal-dev libproj-dev
 
+      # --- Frontend (must run before PyInstaller so dist/ is included) ---
+      - name: Enable pnpm
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: cd src/niamoto/gui/ui && pnpm run build
+
       # --- Python sidecar ---
       - uses: actions/setup-python@v6
         with:
@@ -76,22 +92,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/bin
           Copy-Item dist/niamoto.exe src-tauri/bin/niamoto-${{ matrix.target }}.exe
-
-      # --- Frontend ---
-      - name: Enable pnpm
-        run: corepack enable
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
-
-      - name: Install frontend deps
-        run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        run: cd src/niamoto/gui/ui && pnpm run build
 
       # --- Rust + Tauri ---
       - uses: dtolnay/rust-toolchain@stable
