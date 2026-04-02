@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Command, Search, User, HelpCircle, Menu, WifiOff } from 'lucide-react'
+import { Command, Search, HelpCircle, Menu, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
@@ -133,34 +133,9 @@ export function TopBar({ className }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* User menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{t('user.account', 'My Account')}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              {t('user.settings', 'Settings')}
-            </DropdownMenuItem>
-            <DropdownMenuItem className="md:hidden">
-              <Globe className="mr-2 h-4 w-4" />
-              {t('user.language', 'Language')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              {t('user.logout', 'Log out')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )
 }
 
-// Import missing icons
-import { FileText, Settings, Globe } from 'lucide-react'
+import { FileText } from 'lucide-react'

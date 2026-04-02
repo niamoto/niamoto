@@ -10,7 +10,8 @@ export interface UpdateInfo {
 
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
 const INITIAL_DELAY_MS = 5000
-const APP_VERSION = '__APP_VERSION__' // replaced by Vite define
+declare const __APP_VERSION__: string
+const APP_VERSION = __APP_VERSION__
 
 export function useAppUpdater() {
   const { isDesktop } = useRuntimeMode()
