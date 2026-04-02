@@ -76,7 +76,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               key={item.id}
               to={item.path}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-theme-md px-3 py-2.5 text-sm font-medium transition-theme-fast',
                 'hover:bg-accent hover:text-accent-foreground',
                 active && 'bg-accent text-accent-foreground',
                 !active && 'text-muted-foreground',
@@ -97,7 +97,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
       {!isCompact && (
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="mx-3 mb-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="mx-3 mb-2 flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-theme-fast"
         >
           <Command className="h-3 w-3" />
           <span>K</span>
@@ -113,7 +113,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               to="/tools/settings"
               className={({ isActive: active }) =>
                 cn(
-                  'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex w-full items-center gap-2 rounded-theme-sm px-3 py-2 text-sm transition-theme-fast',
                   'hover:bg-accent hover:text-accent-foreground',
                   active && 'bg-accent text-accent-foreground font-medium'
                 )
@@ -129,7 +129,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               to="/tools/settings"
               className={({ isActive: active }) =>
                 cn(
-                  'flex h-8 w-8 items-center justify-center rounded-md transition-colors mx-auto',
+                  'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',
                   'hover:bg-accent hover:text-accent-foreground',
                   active && 'bg-accent text-accent-foreground'
                 )

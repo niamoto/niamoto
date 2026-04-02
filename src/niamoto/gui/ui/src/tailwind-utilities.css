@@ -247,4 +247,13 @@
   .ease-theme {
     transition-timing-function: var(--transition-easing);
   }
+
+  /* ========================================
+   * CARTOGRAPHIC UTILITIES
+   * ======================================== */
+  [data-theme-style="cartographic"] .bg-dot-grid {
+    background-image: radial-gradient(circle, currentColor 0.5px, transparent 0.5px);
+    background-size: 12px 12px;
+    color: oklch(from var(--border) l c h / 0.3);
+  }
 }
