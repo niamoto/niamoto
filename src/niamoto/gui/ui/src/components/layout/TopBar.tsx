@@ -3,7 +3,7 @@ import { Command, Search, User, HelpCircle, Menu, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
-import { LanguageSwitcher, ProjectSwitcher } from '@/components/common'
+import { ProjectSwitcher } from '@/components/common'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import {
@@ -104,11 +104,6 @@ export function TopBar({ className }: TopBarProps) {
             <ProjectSwitcher />
           </div>
         )}
-
-        {/* Language switcher */}
-        <div className="hidden md:block">
-          <LanguageSwitcher />
-        </div>
 
         {/* Notifications */}
         <NotificationDropdown />

@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, Database, Palette, Bell, Shield, Save } from 'lucide-react'
+import { Settings as SettingsIcon, Database, Palette, Bell, Shield, Save, Info, RefreshCw, Download, Check, Loader2 } from 'lucide-react'
+import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,6 +19,8 @@ import { ThemeSwitcher } from '@/components/theme'
 
 export function Settings() {
   const { t } = useTranslation()
+  const { isDesktop } = useRuntimeMode()
+  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate } = useAppUpdater()
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -117,6 +121,65 @@ export function Settings() {
               </div>
             </CardContent>
           </Card>
+          {isDesktop && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Info className="h-5 w-5" />
+                {t('settings.about', 'About')}
+              </CardTitle>
+              <CardDescription>
+                {t('settings.about_desc', 'Application version and updates')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>{t('settings.current_version', 'Current version')}</Label>
+                  <p className="text-sm font-mono text-muted-foreground">v{appVersion}</p>
+                </div>
+                {status === 'available' && updateVersion && (
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-green-600">v{updateVersion} disponible</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {status === 'available' ? (
+                  <Button onClick={installUpdate} size="sm">
+                    <Download className="mr-2 h-4 w-4" />
+                    Installer v{updateVersion}
+                  </Button>
+                ) : status === 'downloading' ? (
+                  <Button disabled size="sm">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Installation en cours...
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={checkForUpdate}
+                    disabled={status === 'checking'}
+                  >
+                    {status === 'checking' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    {t('settings.check_updates', 'Check for updates')}
+                  </Button>
+                )}
+                {status === 'idle' && (
+                  <p className="flex items-center text-sm text-muted-foreground">
+                    <Check className="mr-1 h-4 w-4 text-green-500" />
+                    {t('settings.up_to_date', 'Up to date')}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          )}
         </TabsContent>
 
         {/* Database Settings */}
