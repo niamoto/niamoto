@@ -98,19 +98,20 @@ fn launch_fastapi_server(
     Ok(child)
 }
 
+/// Icon PNG encoded as base64 (src-tauri/icons/128x128.png)
+const ICON_BASE64: &str = include_str!("../icons/icon_base64.txt");
+
 /// Show a loading screen with status message
 fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
     let js = format!(
         r#"
         document.body.style.cssText = 'margin:0;padding:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#18181b;user-select:none;';
         document.body.setAttribute('data-tauri-drag-region', '');
-        document.body.innerHTML = `
-            <div data-tauri-drag-region style="text-align:center;padding:40px;pointer-events:none;">
-                <div style="border:3px solid rgba(0,0,0,0.08);border-radius:50%;border-top:3px solid #71717a;width:32px;height:32px;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>
-                <h1 style="font-size:20px;font-weight:500;margin:0 0 8px;color:#18181b;">{}</h1>
-                <p style="font-size:13px;margin:0;color:#a1a1aa;">{}</p>
-            </div>
-        `;
+        document.body.innerHTML = '<div data-tauri-drag-region style="text-align:center;padding:40px;pointer-events:none;">'
+            + '<img src="data:image/png;base64,{icon}" style="width:128px;height:128px;margin:0 auto 32px;display:block;border-radius:16px;" />'
+            + '<div style="border:2px solid rgba(0,0,0,0.06);border-radius:50%;border-top:2px solid #a1a1aa;width:24px;height:24px;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>'
+            + '<p style="font-size:13px;margin:0;color:#a1a1aa;">{msg}</p>'
+            + '</div>';
         if (!document.getElementById('_spin')) {{
             var s = document.createElement('style');
             s.id = '_spin';
@@ -118,7 +119,8 @@ fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
             document.head.appendChild(s);
         }}
         "#,
-        "Niamoto", message
+        icon = ICON_BASE64.trim(),
+        msg = message,
     );
 
     let _ = window.eval(&js);
