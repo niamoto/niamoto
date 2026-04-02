@@ -173,6 +173,10 @@ a = Analysis(
         # Exclude heavy unused packages
         'matplotlib',
         'fiona',
+        # Typing-only tooling pulled by sqlalchemy[mypy] in dev.
+        'mypy',
+        'mypyc',
+        'mypy_extensions',
         # Testing frameworks
         'pytest',
         'pytest_mock',

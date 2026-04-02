@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12, <4"
 
 [options]
-exclude-newer = "2026-03-24T09:26:39.825375Z"
+exclude-newer = "2026-03-25T18:34:30.568985Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -979,7 +979,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "shapely" },
-    { name = "sqlalchemy", extra = ["mypy"] },
+    { name = "sqlalchemy" },
     { name = "topojson" },
     { name = "unidecode" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1007,6 +1007,7 @@ dev = [
     { name = "sphinx" },
     { name = "sphinx-markdown-builder" },
     { name = "sphinxcontrib-napoleon" },
+    { name = "sqlalchemy", extra = ["mypy"] },
     { name = "types-click" },
     { name = "types-pluggy" },
     { name = "types-pyyaml" },
@@ -1075,7 +1076,8 @@ requires-dist = [
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.2.6" },
     { name = "sphinx-markdown-builder", marker = "extra == 'dev'", specifier = ">=0.6.6" },
     { name = "sphinxcontrib-napoleon", marker = "extra == 'dev'", specifier = ">=0.7" },
-    { name = "sqlalchemy", extras = ["mypy"], specifier = ">=2.0.44" },
+    { name = "sqlalchemy", specifier = ">=2.0.44" },
+    { name = "sqlalchemy", extras = ["mypy"], marker = "extra == 'dev'", specifier = ">=2.0.44" },
     { name = "topojson", specifier = ">=1.9" },
     { name = "types-click", marker = "extra == 'dev'", specifier = ">=7.1.8" },
     { name = "types-pluggy", marker = "extra == 'dev'", specifier = ">=1.2.0.2" },

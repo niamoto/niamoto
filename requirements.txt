@@ -87,10 +87,6 @@ more-itertools==10.8.0
     # via
     #   jaraco-classes
     #   jaraco-functools
-mypy==1.15.0
-    # via sqlalchemy
-mypy-extensions==1.0.0
-    # via mypy
 narwhals==1.37.1
     # via plotly
 numpy==2.4.3
@@ -181,7 +177,6 @@ topojson==1.9
 typing-extensions==4.15.0
     # via
     #   fastapi
-    #   mypy
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
