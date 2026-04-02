@@ -91,16 +91,70 @@
       "built_in": "in {{seconds}}s"
     },
     "onboarding": {
-      "title": "Welcome to Niamoto",
-      "subtitle": "Follow these steps to set up your ecological data portal.",
-      "step1": "Import your data",
-      "step1_desc": "CSV files, taxonomy, shapefiles",
-      "step2": "Configure collections",
-      "step2_desc": "Choose widgets and statistics to calculate",
-      "step3": "Customize the site",
-      "step3_desc": "Pages, navigation, appearance",
-      "step4": "Publish",
-      "step4_desc": "Build and deploy the website"
+      "title": "Start your project",
+      "subtitle": "Begin by importing your data. You can then configure collections and publish your portal.",
+      "required": "Required step",
+      "import_title": "Import your data",
+      "import_description": "Add your source files to initialize the project: CSVs, taxonomies, geographic layers, and other reference tables.",
+      "open_import": "Open import",
+      "site_title": "Prepare the site",
+      "optional": "Optional",
+      "site_description": "You can already prepare pages, navigation, and portal structure while the data is arriving.",
+      "open_site": "Open site builder",
+      "unlock_title": "What comes next",
+      "unlock_description": "Collections and publishing will become available after the first data import."
+    }
+  },
+  "project": {
+    "none_selected": "No project",
+    "switching": "Switching project...",
+    "recent_projects": "Recent projects",
+    "no_recent": "No recent projects",
+    "create_new": "Create New Project...",
+    "open_other": "Open Other Project..."
+  },
+  "welcome": {
+    "subtitle": "Ecological data platform",
+    "create_project": "Create New Project",
+    "open_project": "Open Project",
+    "recent_projects": "Recent Projects",
+    "projects": "projects",
+    "unavailable": "Unavailable",
+    "remove_from_list": "Remove from list",
+    "auto_load": "Auto-load last project on startup",
+    "all_recent_projects_unavailable": "Your recent projects are no longer available. Create a new project or open another folder to continue.",
+    "some_recent_projects_unavailable": "Some recent projects are no longer available. You can remove them from the list or open another folder."
+  },
+  "wizard": {
+    "title": "Create New Project",
+    "subtitle": "Set up a new Niamoto project",
+    "project_name": "Project Name",
+    "project_location": "Location",
+    "browse": "Browse...",
+    "full_path": "Full path",
+    "review": "Review your project",
+    "name_label": "Name",
+    "location_label": "Project path",
+    "will_create": "The following project structure will be created:",
+    "creating": "Creating...",
+    "create": "Create Project",
+    "name_hint": "This will be the folder name. Use letters, numbers, dashes, or underscores.",
+    "location_hint": "Parent directory where the project folder will be created",
+    "step": {
+      "details": "Project details",
+      "confirm": "Confirmation"
+    },
+    "structure": {
+      "db": "Project database directory",
+      "config": "Configuration files",
+      "imports": "Source data files",
+      "exports": "Generated outputs",
+      "logs": "Application logs"
+    },
+    "error": {
+      "name_required": "Project name is required",
+      "location_required": "Location is required",
+      "invalid_name": "Project name can only contain letters, numbers, dashes and underscores"
     }
   },
   "actions": {
@@ -134,6 +188,11 @@
     "duplicate": "Duplicate",
     "preview": "Preview",
     "refresh": "Refresh"
+  },
+  "dates": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "days_ago": "{{count}} days ago"
   },
   "status": {
     "loading": "Loading...",

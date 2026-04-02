@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { reloadDesktopProject } from '@/shared/desktop/projectReload';
 import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
 
 // Tauri types
@@ -30,12 +31,13 @@ interface WelcomeScreenState {
 export function useWelcomeScreen() {
   const {
     currentProject,
+    hasInvalidCurrentProject,
     recentProjects,
+    invalidProjects,
     loading: projectsLoading,
     isTauri,
     switchProject,
     browseProject,
-    validateProject,
     removeProject,
     reload: reloadProjects,
   } = useProjectSwitcher();
@@ -75,43 +77,46 @@ export function useWelcomeScreen() {
       try {
         // Get app settings
         const settings = await invoke<AppSettings>('get_app_settings');
+        const unavailableProjectMessage =
+          'The last project you opened is no longer available. Remove it from the list or open another folder.';
+        const lastProject = recentProjects[0] ?? null;
+        const lastProjectInvalid = lastProject
+          ? invalidProjects.has(lastProject.path)
+          : false;
+        const currentProjectValid = currentProject !== null;
 
-        let showWelcome = true;
+        let showWelcome = !currentProjectValid;
+        let error: string | null = null;
 
         // Check if we should auto-load the last project
-        if (settings.auto_load_last_project && recentProjects.length > 0) {
-          const lastProject = recentProjects[0];
-          const isValid = await validateProject(lastProject.path);
-
-          if (isValid) {
-            // Project is valid - check if already loaded
-            if (currentProject === lastProject.path) {
-              // Already loaded, don't show welcome
-              showWelcome = false;
-            } else {
-              // Need to load it - switchProject will reload the page
-              try {
-                await switchProject(lastProject.path);
-                // Page will reload, so we won't reach here
-                return;
-              } catch {
-                // Failed to auto-load, show welcome screen
-                showWelcome = true;
-              }
+        if (settings.auto_load_last_project && lastProject) {
+          if (lastProjectInvalid) {
+            error = unavailableProjectMessage;
+          } else if (currentProject === lastProject.path) {
+            showWelcome = false;
+          } else {
+            try {
+              await switchProject(lastProject.path);
+              return;
+            } catch {
+              showWelcome = true;
             }
           }
-          // If invalid, we'll show welcome screen
         }
 
-        // If we have a current project, don't show welcome
-        if (currentProject) {
+        if (hasInvalidCurrentProject) {
+          error = unavailableProjectMessage;
+          showWelcome = true;
+        }
+
+        if (currentProjectValid) {
           showWelcome = false;
         }
 
         setState({
           showWelcome,
           loading: false,
-          error: null,
+          error,
           settings,
         });
       } catch (err) {
@@ -131,9 +136,10 @@ export function useWelcomeScreen() {
     projectsLoading,
     recentProjects,
     currentProject,
+    hasInvalidCurrentProject,
+    invalidProjects,
     invoke,
     switchProject,
-    validateProject,
   ]);
 
   // Create a new project
@@ -142,14 +148,10 @@ export function useWelcomeScreen() {
       try {
         const projectPath = await invoke<string>('create_project', { name, location });
 
-        // Reload project on server
-        const response = await fetch('/api/health/reload-project', {
-          method: 'POST',
+        await reloadDesktopProject({
+          allowStates: ['loaded'],
+          expectedProject: projectPath,
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to reload project on server');
-        }
 
         // Reload the page to show the new project
         window.location.reload();
@@ -229,6 +231,7 @@ export function useWelcomeScreen() {
     error: state.error,
     settings: state.settings,
     recentProjects,
+    invalidProjects,
     isTauri,
 
     // Actions

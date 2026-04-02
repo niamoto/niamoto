@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { reloadDesktopProject } from '@/shared/desktop/projectReload';
 
 // Tauri types (will be available when running in Tauri)
 declare global {
@@ -17,13 +18,21 @@ export interface ProjectEntry {
   last_accessed: string;
 }
 
+interface RecentProjectStatus {
+  path: string;
+  valid: boolean;
+}
+
 /**
  * Hook to manage project switching in desktop mode
  * Uses Tauri commands to interact with the Rust backend
  */
 export function useProjectSwitcher() {
+  const [storedCurrentProject, setStoredCurrentProject] = useState<string | null>(null);
   const [currentProject, setCurrentProject] = useState<string | null>(null);
+  const [hasInvalidCurrentProject, setHasInvalidCurrentProject] = useState(false);
   const [recentProjects, setRecentProjects] = useState<ProjectEntry[]>([]);
+  const [invalidProjects, setInvalidProjects] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,12 +61,36 @@ export function useProjectSwitcher() {
       setLoading(true);
       setError(null);
 
-      const [current, recent] = await Promise.all([
+      const [current, recent, validationResults] = await Promise.all([
         invoke<string | null>('get_current_project'),
         invoke<ProjectEntry[]>('get_recent_projects'),
+        invoke<RecentProjectStatus[]>('validate_recent_projects'),
       ]);
 
-      setCurrentProject(current);
+      const invalid = new Set(
+        validationResults
+          .filter((project) => !project.valid)
+          .map((project) => project.path)
+      );
+
+      let currentProjectInvalid = false;
+      if (current) {
+        currentProjectInvalid = invalid.has(current);
+
+        if (!currentProjectInvalid) {
+          try {
+            await invoke<boolean>('validate_project', { path: current });
+          } catch {
+            currentProjectInvalid = true;
+            invalid.add(current);
+          }
+        }
+      }
+
+      setStoredCurrentProject(current);
+      setHasInvalidCurrentProject(currentProjectInvalid);
+      setInvalidProjects(invalid);
+      setCurrentProject(currentProjectInvalid ? null : current);
       setRecentProjects(recent);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -79,17 +112,18 @@ export function useProjectSwitcher() {
         setLoading(true);
         setError(null);
 
+        if (invalidProjects.has(projectPath)) {
+          throw new Error('This project is no longer available');
+        }
+
         // Step 1: Save the new project to desktop config
         await invoke('set_current_project', { path: projectPath });
 
         // Step 2: Tell the FastAPI server to reload from desktop config
-        const response = await fetch('/api/health/reload-project', {
-          method: 'POST',
+        await reloadDesktopProject({
+          allowStates: ['loaded'],
+          expectedProject: projectPath,
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to reload project on server');
-        }
 
         // Step 3: Reload the page to refresh the UI with new project data
         window.location.reload();
@@ -102,7 +136,7 @@ export function useProjectSwitcher() {
         setLoading(false);
       }
     },
-    [isTauri, invoke]
+    [invalidProjects, isTauri, invoke]
   );
 
   // Remove a project from recent list
@@ -165,8 +199,11 @@ export function useProjectSwitcher() {
   }, [loadProjects]);
 
   return {
+    storedCurrentProject,
     currentProject,
+    hasInvalidCurrentProject,
     recentProjects,
+    invalidProjects,
     loading,
     error,
     isTauri,

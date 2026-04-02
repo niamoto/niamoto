@@ -55,6 +55,22 @@ fn resolve_sidecar_path(
     app_handle: &tauri::AppHandle,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let exe_name = sidecar_exe_name();
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let project_root = manifest_dir
+        .parent()
+        .ok_or("Failed to resolve project root from Cargo manifest")?;
+
+    // In development, prefer the repository virtualenv so the desktop app
+    // always runs against the current Python code and frontend build.
+    let venv_sidecar = if cfg!(target_os = "windows") {
+        project_root.join(".venv").join("Scripts").join(exe_name)
+    } else {
+        project_root.join(".venv").join("bin").join(exe_name)
+    };
+
+    if cfg!(debug_assertions) && venv_sidecar.exists() {
+        return Ok(venv_sidecar);
+    }
 
     // Release bundles ship the PyInstaller onedir sidecar inside Tauri resources.
     if let Ok(resource_dir) = app_handle.path().resource_dir() {
@@ -68,16 +84,7 @@ fn resolve_sidecar_path(
         }
     }
 
-    // Development runs launch directly from the repository virtualenv.
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let project_root = manifest_dir
-        .parent()
-        .ok_or("Failed to resolve project root from Cargo manifest")?;
-    let venv_sidecar = if cfg!(target_os = "windows") {
-        project_root.join(".venv").join("Scripts").join(exe_name)
-    } else {
-        project_root.join(".venv").join("bin").join(exe_name)
-    };
+    // Fallback for environments where the bundled sidecar is not present.
     if venv_sidecar.exists() {
         return Ok(venv_sidecar);
     }
@@ -344,6 +351,7 @@ pub fn run() {
             commands::set_current_project,
             commands::remove_recent_project,
             commands::browse_project_folder,
+            commands::validate_recent_projects,
             commands::validate_project,
             commands::get_niamoto_home,
             commands::get_app_settings,

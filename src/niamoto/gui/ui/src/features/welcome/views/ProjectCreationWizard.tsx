@@ -6,10 +6,10 @@ import {
   FolderOpen,
   Check,
   Loader2,
-  Database,
-  FileText,
   FolderTree,
+  HardDrive,
   Settings,
+  FileText,
 } from 'lucide-react';
 import niamotoLogo from '@/assets/niamoto_logo.png';
 import { Button } from '@/components/ui/button';
@@ -39,12 +39,20 @@ const STEPS = [
   { id: 'confirm', title: 'Confirmation' },
 ];
 
-// Structure files to be created
+// High-level project structure shown during onboarding.
 const PROJECT_STRUCTURE = [
-  { icon: Database, name: 'db/', description: 'Database storage (DuckDB)' },
-  { icon: Settings, name: 'config/', description: 'Configuration files (YAML)' },
+  {
+    icon: HardDrive,
+    name: 'db/',
+    description: 'Project database directory',
+  },
+  { icon: Settings, name: 'config/', description: 'Configuration files' },
   { icon: FolderTree, name: 'imports/', description: 'Source data files' },
-  { icon: FolderTree, name: 'exports/', description: 'Generated outputs' },
+  {
+    icon: FolderTree,
+    name: 'exports/',
+    description: 'Generated outputs',
+  },
   { icon: FileText, name: 'logs/', description: 'Application logs' },
 ];
 
@@ -137,9 +145,9 @@ export default function ProjectCreationWizard({
       {/* Window titlebar with controls */}
       <DesktopTitlebar title="Niamoto - New Project" />
 
-      {/* Main content - centered */}
-      <div className="flex flex-1 flex-col items-center justify-center p-8">
-      <div className="w-full max-w-xl">
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+      <div className="mx-auto w-full max-w-xl">
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="mb-6 flex items-center justify-center">
@@ -284,7 +292,7 @@ export default function ProjectCreationWizard({
                     </div>
                     <div className="flex flex-col gap-1">
                       <dt className="text-muted-foreground">
-                        {t('wizard.location_label', 'Location')}:
+                        {t('wizard.location_label', 'Project path')}:
                       </dt>
                       <dd className="font-medium font-mono text-xs break-all">
                         {fullProjectPath}
@@ -298,7 +306,7 @@ export default function ProjectCreationWizard({
                   <p className="text-sm text-muted-foreground mb-3">
                     {t(
                       'wizard.will_create',
-                      'The following structure will be created:'
+                      'The following project structure will be created:'
                     )}
                   </p>
                   <div className="space-y-2">
@@ -337,8 +345,8 @@ export default function ProjectCreationWizard({
           <Button variant="outline" onClick={handleBack} disabled={state.creating}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             {state.step === 0
-              ? t('common.cancel', 'Cancel')
-              : t('common.back', 'Back')}
+              ? t('actions.cancel', 'Cancel')
+              : t('actions.previous', 'Back')}
           </Button>
 
           {state.step === 0 ? (
@@ -346,7 +354,7 @@ export default function ProjectCreationWizard({
               onClick={handleNext}
               className="btn-interactive bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
             >
-              {t('common.next', 'Next')}
+              {t('actions.next', 'Next')}
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
