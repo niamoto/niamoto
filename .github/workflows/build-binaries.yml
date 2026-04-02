@@ -178,61 +178,32 @@ jobs:
           cat > release_notes.md << 'EOF'
           # Niamoto v${{ steps.get_version.outputs.VERSION }}
 
-          ## 📦 Download Instructions
+          ## Desktop App
 
-          Download the appropriate binary for your platform:
+          Native desktop application with built-in auto-updater (DMG, MSI, DEB).
+          Desktop bundles are built automatically and will appear here shortly after this release.
 
-          ### macOS
-          - **All Macs (Apple Silicon & Intel)**: `niamoto-macos-arm64.tar.gz`
-            - Apple Silicon: native performance
-            - Intel Macs: runs via Rosetta 2 (automatic translation)
+          ## CLI Binaries
 
-          ```bash
-          # Extract and make executable
-          tar -xzf niamoto-macos-arm64.tar.gz
-          chmod +x niamoto
+          Standalone command-line binaries — no Python required:
 
-          # Run
-          ./niamoto gui --instance my-project/
-          ```
-
-          ### Linux
-          - **x86_64**: `niamoto-linux-x86_64.tar.gz`
+          | Platform | Download |
+          |----------|----------|
+          | macOS (Apple Silicon & Intel) | `niamoto-macos-arm64.tar.gz` |
+          | Linux x86_64 | `niamoto-linux-x86_64.tar.gz` |
+          | Windows x86_64 | `niamoto-windows-x86_64.zip` |
 
           ```bash
-          # Extract and make executable
-          tar -xzf niamoto-linux-x86_64.tar.gz
-          chmod +x niamoto
-
-          # Run
+          # macOS / Linux
+          tar -xzf niamoto-<platform>.tar.gz && chmod +x niamoto
           ./niamoto gui --instance my-project/
-          ```
 
-          ### Windows
-          - **x86_64**: `niamoto-windows-x86_64.zip`
-
-          ```powershell
-          # Extract and run
+          # Windows
           Expand-Archive niamoto-windows-x86_64.zip
           .\niamoto.exe gui --instance my-project\
           ```
 
-          ## ✨ No Python Required!
-
-          These are standalone binaries with everything included:
-          - Python runtime
-          - All dependencies (FastAPI, DuckDB, pandas, etc.)
-          - React UI
-          - ML models
-
-          ## 🔧 Quick Start
-
-          1. Download the binary for your platform
-          2. Extract the archive
-          3. Run `./niamoto gui --instance <your-project-path>`
-          4. Open http://localhost:8080 in your browser
-
-          ## 📚 Documentation
+          ## Documentation
 
           Full documentation at https://github.com/niamoto/niamoto
           EOF
