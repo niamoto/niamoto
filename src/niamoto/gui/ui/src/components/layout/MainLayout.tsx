@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom'
+import { PageTransition } from '@/components/motion/PageTransition'
 import { useEffect } from 'react'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
@@ -81,7 +82,9 @@ export function MainLayout() {
               'transition-all duration-200'
             )}
           >
-            <Outlet />
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
           </main>
         </div>
       </div>
