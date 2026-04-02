@@ -91,16 +91,70 @@
       "built_in": "en {{seconds}}s"
     },
     "onboarding": {
-      "title": "Bienvenue sur Niamoto",
-      "subtitle": "Suivez ces étapes pour configurer votre portail de données écologiques.",
-      "step1": "Importer vos données",
-      "step1_desc": "Fichiers CSV, taxonomie, shapefile",
-      "step2": "Configurer les collections",
-      "step2_desc": "Choisir les widgets et statistiques à calculer",
-      "step3": "Personnaliser le site",
-      "step3_desc": "Pages, navigation, apparence",
-      "step4": "Publier",
-      "step4_desc": "Construire et déployer le site web"
+      "title": "Commencer votre projet",
+      "subtitle": "Commencez par importer vos données. Vous pourrez ensuite configurer les collections et publier votre portail.",
+      "required": "Étape requise",
+      "import_title": "Importer vos données",
+      "import_description": "Ajoutez vos fichiers sources pour initialiser le projet : CSV, taxonomies, couches géographiques et autres tables de référence.",
+      "open_import": "Ouvrir l’import",
+      "site_title": "Préparer le site",
+      "optional": "Optionnel",
+      "site_description": "Vous pouvez déjà préparer les pages, la navigation et la structure du portail pendant que les données arrivent.",
+      "open_site": "Ouvrir le site builder",
+      "unlock_title": "Ce qui viendra ensuite",
+      "unlock_description": "Les collections et la publication seront disponibles après l’import des premières données."
+    }
+  },
+  "project": {
+    "none_selected": "Aucun projet",
+    "switching": "Changement de projet...",
+    "recent_projects": "Projets récents",
+    "no_recent": "Aucun projet récent",
+    "create_new": "Créer un nouveau projet...",
+    "open_other": "Ouvrir un autre projet..."
+  },
+  "welcome": {
+    "subtitle": "Plateforme de données écologiques",
+    "create_project": "Créer un nouveau projet",
+    "open_project": "Ouvrir un projet",
+    "recent_projects": "Projets récents",
+    "projects": "projets",
+    "unavailable": "Indisponible",
+    "remove_from_list": "Retirer de la liste",
+    "auto_load": "Charger automatiquement le dernier projet au démarrage",
+    "all_recent_projects_unavailable": "Vos projets récents ne sont plus disponibles. Créez un nouveau projet ou ouvrez un autre dossier pour continuer.",
+    "some_recent_projects_unavailable": "Certains projets récents ne sont plus disponibles. Vous pouvez les retirer de la liste ou ouvrir un autre dossier."
+  },
+  "wizard": {
+    "title": "Créer un nouveau projet",
+    "subtitle": "Configurer un nouveau projet Niamoto",
+    "project_name": "Nom du projet",
+    "project_location": "Emplacement",
+    "browse": "Parcourir...",
+    "full_path": "Chemin complet",
+    "review": "Vérifiez votre projet",
+    "name_label": "Nom",
+    "location_label": "Chemin du projet",
+    "will_create": "La structure de projet suivante sera créée :",
+    "creating": "Création...",
+    "create": "Créer le projet",
+    "name_hint": "Ce sera le nom du dossier. Utilisez des lettres, chiffres, tirets ou underscores.",
+    "location_hint": "Répertoire parent dans lequel le dossier du projet sera créé",
+    "step": {
+      "details": "Détails du projet",
+      "confirm": "Confirmation"
+    },
+    "structure": {
+      "db": "Répertoire de base de données du projet",
+      "config": "Fichiers de configuration",
+      "imports": "Fichiers source",
+      "exports": "Sorties générées",
+      "logs": "Journaux de l’application"
+    },
+    "error": {
+      "name_required": "Le nom du projet est requis",
+      "location_required": "L’emplacement est requis",
+      "invalid_name": "Le nom du projet ne peut contenir que des lettres, chiffres, tirets et underscores"
     }
   },
   "actions": {
@@ -134,6 +188,11 @@
     "duplicate": "Dupliquer",
     "preview": "Aperçu",
     "refresh": "Actualiser"
+  },
+  "dates": {
+    "today": "Aujourd’hui",
+    "yesterday": "Hier",
+    "days_ago": "il y a {{count}} jours"
   },
   "status": {
     "loading": "Chargement...",

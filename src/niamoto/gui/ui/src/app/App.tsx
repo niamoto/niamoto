@@ -3,8 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
+import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
+import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
+import { useProjectCreationStore } from '@/stores/projectCreationStore'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/features/welcome/views'))
@@ -78,6 +81,10 @@ const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
   const [initialized, setInitialized] = useState(!isTauri)
+  const [bootFallbackToWelcome, setBootFallbackToWelcome] = useState(false)
+  const [bootError, setBootError] = useState<string | null>(null)
+  const projectCreationOpen = useProjectCreationStore((state) => state.isOpen)
+  const closeProjectCreation = useProjectCreationStore((state) => state.close)
 
   const {
     showWelcome,
@@ -85,6 +92,7 @@ function App() {
     error: welcomeError,
     settings,
     recentProjects,
+    invalidProjects,
     isTauri: isTauriMode,
     createProject,
     openProject,
@@ -95,7 +103,7 @@ function App() {
   } = useWelcomeScreen()
 
   useEffect(() => {
-    if (!isTauri) return
+    if (!isTauriMode || initialized || welcomeLoading) return
     if (showWelcome) {
       setInitialized(true)
       return
@@ -103,22 +111,31 @@ function App() {
 
     const initializeProject = async () => {
       try {
-        const response = await fetch('/api/health/reload-project', {
-          method: 'POST',
+        const result = await reloadDesktopProject({
+          allowStates: ['loaded', 'welcome', 'invalid-project'],
         })
 
-        if (response.ok) {
+        if (result.state === 'loaded') {
           await refetchProjectInfo()
+          setBootFallbackToWelcome(false)
+          setBootError(null)
+        } else {
+          setBootFallbackToWelcome(true)
+          setBootError(result.message)
         }
       } catch (err) {
         console.error('Failed to initialize project:', err)
+        setBootFallbackToWelcome(true)
+        setBootError(
+          err instanceof Error ? err.message : 'Failed to initialize project'
+        )
       } finally {
         setInitialized(true)
       }
     }
 
     initializeProject()
-  }, [refetchProjectInfo, showWelcome])
+  }, [initialized, isTauriMode, refetchProjectInfo, showWelcome, welcomeLoading])
 
   useEffect(() => {
     if (projectInfo?.name) {
@@ -127,6 +144,11 @@ function App() {
       document.title = 'Niamoto'
     }
   }, [projectInfo?.name])
+
+  const handleCreateProject = async (name: string, location: string) => {
+    closeProjectCreation()
+    return createProject(name, location)
+  }
 
   if (isTauriMode && welcomeLoading) {
     return (
@@ -138,7 +160,7 @@ function App() {
     )
   }
 
-  if (isTauriMode && showWelcome) {
+  if (isTauriMode && (showWelcome || bootFallbackToWelcome)) {
     return (
       <ThemeProvider>
         <Suspense
@@ -150,8 +172,9 @@ function App() {
         >
           <WelcomeScreen
             recentProjects={recentProjects}
+            invalidProjects={invalidProjects}
             settings={settings}
-            error={welcomeError}
+            error={bootError ?? welcomeError}
             onOpenProject={openProject}
             onBrowseProject={browseAndOpen}
             onCreateProject={createProject}
@@ -177,6 +200,15 @@ function App() {
   return (
     <ThemeProvider>
       <Toaster position="bottom-right" richColors />
+      {isTauriMode && projectCreationOpen && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <ProjectCreationWizard
+            onComplete={handleCreateProject}
+            onCancel={closeProjectCreation}
+            onBrowseFolder={browseFolder}
+          />
+        </div>
+      )}
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>

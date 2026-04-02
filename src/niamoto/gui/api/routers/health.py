@@ -10,8 +10,10 @@ from niamoto.gui.api.context import (
     get_database_path,
 )
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
+from niamoto.gui.startup_logging import log_desktop_startup
 
 router = APIRouter(prefix="/api/health", tags=["health"])
+_first_health_logged = False
 
 
 @router.get("")
@@ -21,6 +23,11 @@ async def health_check():
 
     Used by the Tauri desktop app to verify the FastAPI server is ready.
     """
+    global _first_health_logged
+    if not _first_health_logged:
+        log_desktop_startup("health endpoint returned first successful response")
+        _first_health_logged = True
+
     return {"status": "ok", "message": "Niamoto API is running"}
 
 
@@ -60,18 +67,21 @@ async def reload_project(request: Request):
         - project: The newly loaded project path (null if no project selected)
         - success: Whether the reload was successful
     """
-    project_path = reload_project_from_desktop_config()
+    reload_result = reload_project_from_desktop_config()
 
-    if project_path:
+    if reload_result.state == "loaded":
         resolve_job_store(request.app)
     else:
         request.app.state.job_store = None
         request.app.state.job_store_work_dir = None
 
-    # It's valid to have no project selected (Welcome Screen case)
     return {
-        "success": True,
-        "project": str(project_path) if project_path else None,
+        "success": reload_result.state != "invalid-project",
+        "state": reload_result.state,
+        "project": (
+            str(reload_result.project_path) if reload_result.project_path else None
+        ),
+        "message": reload_result.message,
     }
 
 

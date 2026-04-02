@@ -46,8 +46,8 @@ pub struct ProjectEntry {
 impl AppConfig {
     /// Get the path to the desktop config file (~/.niamoto/desktop-config.json)
     fn config_path() -> Result<PathBuf, String> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| "Could not determine home directory".to_string())?;
+        let home =
+            dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
 
         let niamoto_dir = home.join(".niamoto");
 
@@ -87,8 +87,7 @@ impl AppConfig {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-        fs::write(&config_path, json)
-            .map_err(|e| format!("Failed to write config file: {}", e))?;
+        fs::write(&config_path, json).map_err(|e| format!("Failed to write config file: {}", e))?;
 
         Ok(())
     }

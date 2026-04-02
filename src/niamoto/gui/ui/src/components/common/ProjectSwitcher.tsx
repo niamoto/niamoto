@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, Check, ChevronDown, X, AlertCircle } from 'lucide-react';
+import { FolderOpen, Check, ChevronDown, X, AlertCircle, AlertTriangle, Plus } from 'lucide-react';
 import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,18 +12,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { useProjectCreationStore } from '@/stores/projectCreationStore';
 
 export function ProjectSwitcher() {
   const { t } = useTranslation();
   const {
     currentProject,
     recentProjects,
+    invalidProjects,
     loading,
     error,
     switchProject,
     removeProject,
     browseProject,
   } = useProjectSwitcher();
+  const openProjectCreation = useProjectCreationStore((state) => state.open);
 
   const [switching, setSwitching] = useState(false);
 
@@ -106,39 +109,61 @@ export function ProjectSwitcher() {
             {t('project.no_recent', 'No recent projects')}
           </div>
         ) : (
-          recentProjects.map((project) => (
-            <DropdownMenuItem
-              key={project.path}
-              onClick={() => handleSwitchProject(project.path)}
-              className="flex items-center justify-between gap-2 cursor-pointer"
-            >
-              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                <span className="text-sm font-medium truncate">
-                  {project.name}
-                </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {project.path}
-                </span>
-              </div>
+          recentProjects.map((project) => {
+            const isInvalid = invalidProjects.has(project.path);
 
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {currentProject === project.path && (
-                  <Check className="h-4 w-4 text-primary" />
+            return (
+              <DropdownMenuItem
+                key={project.path}
+                onClick={() => {
+                  if (!isInvalid) {
+                    handleSwitchProject(project.path);
+                  }
+                }}
+                className={cn(
+                  'flex items-center justify-between gap-2',
+                  isInvalid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={(e) => handleRemoveProject(e, project.path)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            </DropdownMenuItem>
-          ))
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium">
+                    {project.name}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {project.path}
+                  </span>
+                </div>
+
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  {isInvalid && (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  )}
+                  {!isInvalid && currentProject === project.path && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn('h-6 w-6', isInvalid && 'opacity-100')}
+                    onClick={(e) => handleRemoveProject(e, project.path)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </DropdownMenuItem>
+            );
+          })
         )}
 
         <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => openProjectCreation()}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          {t('project.create_new', 'Create New Project...')}
+        </DropdownMenuItem>
 
         <DropdownMenuItem
           className="cursor-pointer"
