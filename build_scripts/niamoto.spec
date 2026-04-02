@@ -15,6 +15,7 @@ import os
 ROOT_DIR = Path(SPECPATH).parent  # SPECPATH is the directory containing this .spec file
 SRC_DIR = ROOT_DIR / 'src'
 NIAMOTO_SRC = SRC_DIR / 'niamoto'
+BUILD_MODE = os.environ.get('NIAMOTO_PYINSTALLER_MODE', 'onefile').strip().lower()
 
 # Collect all Niamoto data files (YAML, templates, static files)
 datas = []
@@ -201,13 +202,7 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
+common_exe_kwargs = dict(
     name='niamoto',
     debug=False,
     bootloader_ignore_signals=False,
@@ -227,3 +222,42 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+if BUILD_MODE == 'onedir':
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='niamoto',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        console=True,
+        disable_windowed_traceback=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=False,
+        upx_exclude=common_exe_kwargs['upx_exclude'],
+        name='niamoto',
+    )
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        [],
+        **common_exe_kwargs,
+    )

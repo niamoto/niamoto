@@ -10,8 +10,10 @@ from niamoto.gui.api.context import (
     get_database_path,
 )
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
+from niamoto.gui.startup_logging import log_desktop_startup
 
 router = APIRouter(prefix="/api/health", tags=["health"])
+_first_health_logged = False
 
 
 @router.get("")
@@ -21,6 +23,11 @@ async def health_check():
 
     Used by the Tauri desktop app to verify the FastAPI server is ready.
     """
+    global _first_health_logged
+    if not _first_health_logged:
+        log_desktop_startup("health endpoint returned first successful response")
+        _first_health_logged = True
+
     return {"status": "ok", "message": "Niamoto API is running"}
 
 

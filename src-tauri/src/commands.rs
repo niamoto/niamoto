@@ -33,10 +33,7 @@ pub fn get_recent_projects(state: State<ConfigState>) -> Result<Vec<ProjectEntry
 
 /// Set the current project
 #[tauri::command]
-pub fn set_current_project(
-    path: String,
-    state: State<ConfigState>,
-) -> Result<(), String> {
+pub fn set_current_project(path: String, state: State<ConfigState>) -> Result<(), String> {
     let project_path = PathBuf::from(&path);
 
     // Validate first
@@ -50,10 +47,7 @@ pub fn set_current_project(
 
 /// Remove a project from recent projects
 #[tauri::command]
-pub fn remove_recent_project(
-    path: String,
-    state: State<ConfigState>,
-) -> Result<(), String> {
+pub fn remove_recent_project(path: String, state: State<ConfigState>) -> Result<(), String> {
     let project_path = PathBuf::from(&path);
 
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
@@ -68,7 +62,8 @@ pub async fn browse_project_folder(app: tauri::AppHandle) -> Result<Option<Strin
     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
     // Open folder picker dialog
-    let folder = app.dialog()
+    let folder = app
+        .dialog()
         .file()
         .set_title("Select Niamoto Project Folder")
         .blocking_pick_folder();
@@ -76,7 +71,9 @@ pub async fn browse_project_folder(app: tauri::AppHandle) -> Result<Option<Strin
     match folder {
         Some(file_path) => {
             // Convert FilePath to PathBuf
-            let path = file_path.into_path().map_err(|e| format!("Failed to convert path: {}", e))?;
+            let path = file_path
+                .into_path()
+                .map_err(|e| format!("Failed to convert path: {}", e))?;
             let path_str = path.to_string_lossy().to_string();
 
             // Validate the selected folder

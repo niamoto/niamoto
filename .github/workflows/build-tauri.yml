@@ -78,20 +78,23 @@ jobs:
           uv pip install pyinstaller==${{ env.PYINSTALLER_VERSION }}
 
       - name: Build Python binary (PyInstaller)
-        run: uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+        run: NIAMOTO_PYINSTALLER_MODE=onedir uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
 
-      - name: Place sidecar binary (Unix)
+      - name: Place sidecar resources (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          mkdir -p src-tauri/bin
-          cp dist/niamoto src-tauri/bin/niamoto-${{ matrix.target }}
+          rm -rf src-tauri/resources/sidecar/${{ matrix.target }}
+          mkdir -p src-tauri/resources/sidecar/${{ matrix.target }}
+          cp -R dist/niamoto src-tauri/resources/sidecar/${{ matrix.target }}/niamoto
+          chmod +x src-tauri/resources/sidecar/${{ matrix.target }}/niamoto/niamoto
 
-      - name: Place sidecar binary (Windows)
+      - name: Place sidecar resources (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/bin
-          Copy-Item dist/niamoto.exe src-tauri/bin/niamoto-${{ matrix.target }}.exe
+          Remove-Item -Recurse -Force src-tauri/resources/sidecar/${{ matrix.target }} -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path src-tauri/resources/sidecar/${{ matrix.target }}
+          Copy-Item dist/niamoto -Destination src-tauri/resources/sidecar/${{ matrix.target }}/niamoto -Recurse
 
       # --- Rust + Tauri ---
       - uses: dtolnay/rust-toolchain@stable

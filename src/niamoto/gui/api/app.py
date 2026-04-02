@@ -2,10 +2,13 @@
 
 import os
 from pathlib import Path
+import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
+from niamoto.gui.startup_logging import log_desktop_startup
 
 from .routers import (
     config,
@@ -35,6 +38,9 @@ from .routers import (
 from .context import get_working_directory
 from .services.job_store_runtime import resolve_job_store
 
+APP_IMPORT_STARTED = time.perf_counter()
+log_desktop_startup("app.py import started")
+
 # Get the path to the built React app
 # Works in both source and frozen (PyInstaller) modes
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
@@ -42,6 +48,9 @@ UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    create_app_started = time.perf_counter()
+    log_desktop_startup("create_app() started")
+
     app = FastAPI(
         title="Niamoto GUI API",
         description="API for Niamoto visual configuration interface",
@@ -74,6 +83,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.on_event("startup")
+    async def _log_startup_event() -> None:
+        log_desktop_startup("FastAPI startup event fired")
 
     # Include API routers FIRST (before static files)
     app.include_router(health.router)  # Health check endpoint for Tauri
@@ -137,8 +150,14 @@ def create_app() -> FastAPI:
         # Mount SPA handler last, so API routes take precedence
         app.mount("/", SPAStaticFiles(directory=UI_BUILD_DIR, html=True), name="spa")
 
+    log_desktop_startup(
+        f"create_app() completed in {time.perf_counter() - create_app_started:.3f}s"
+    )
     return app
 
 
 # Create the app instance
 app = create_app()
+log_desktop_startup(
+    f"module-level FastAPI app created in {time.perf_counter() - APP_IMPORT_STARTED:.3f}s"
+)
