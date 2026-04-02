@@ -277,3 +277,11 @@ export function getSystemMode(): 'light' | 'dark' {
 
 export { laboratoryTheme } from './presets/laboratory'
 export { forestTheme } from './presets/forest'
+export { frondTheme } from './presets/frond'
+export { slateTheme } from './presets/slate'
+export { frostTheme } from './presets/frost'
+export { mistTheme } from './presets/mist'
+export { lapisTheme } from './presets/lapis'
+export { tidalTheme } from './presets/tidal'
+export { basaltTheme } from './presets/basalt'
+export { inkTheme } from './presets/ink'

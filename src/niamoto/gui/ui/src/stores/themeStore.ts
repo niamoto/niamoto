@@ -17,9 +17,25 @@ import {
   getSystemMode,
   laboratoryTheme,
   forestTheme,
+  frondTheme,
+  slateTheme,
+  frostTheme,
+  mistTheme,
+  lapisTheme,
+  tidalTheme,
+  basaltTheme,
+  inkTheme,
 } from '@/themes'
 
 // Register all built-in themes
+registerTheme(frondTheme)     // Brand default
+registerTheme(slateTheme)
+registerTheme(frostTheme)
+registerTheme(mistTheme)
+registerTheme(lapisTheme)
+registerTheme(tidalTheme)
+registerTheme(basaltTheme)
+registerTheme(inkTheme)
 registerTheme(laboratoryTheme)
 registerTheme(forestTheme)
 
