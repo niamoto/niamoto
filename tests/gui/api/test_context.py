@@ -1,5 +1,6 @@
 """Tests for GUI API context module."""
 
+import json
 import os
 import pytest
 from pathlib import Path
@@ -313,3 +314,61 @@ class TestGetConfigPath:
         context.set_working_directory(dir2)
         result2 = context.get_config_path("test.yml")
         assert result2 == dir2 / "config" / "test.yml"
+
+
+class TestReloadProjectFromDesktopConfig:
+    """Test desktop config reload behavior."""
+
+    def test_missing_desktop_config_returns_welcome_and_clears_working_directory(
+        self, tmp_path, monkeypatch
+    ):
+        previous_project = tmp_path / "previous-project"
+        previous_project.mkdir()
+        context.set_working_directory(previous_project)
+
+        monkeypatch.setattr(context.Path, "home", staticmethod(lambda: tmp_path))
+
+        result = context.reload_project_from_desktop_config()
+
+        assert result.state == "welcome"
+        assert result.project_path is None
+        assert context._working_directory is None
+
+    def test_invalid_project_returns_invalid_state_and_clears_working_directory(
+        self, tmp_path, monkeypatch
+    ):
+        previous_project = tmp_path / "previous-project"
+        previous_project.mkdir()
+        context.set_working_directory(previous_project)
+
+        desktop_config_dir = tmp_path / ".niamoto"
+        desktop_config_dir.mkdir()
+        invalid_project_path = tmp_path / "missing-project"
+        (desktop_config_dir / "desktop-config.json").write_text(
+            json.dumps({"current_project": str(invalid_project_path)})
+        )
+
+        monkeypatch.setattr(context.Path, "home", staticmethod(lambda: tmp_path))
+
+        result = context.reload_project_from_desktop_config()
+
+        assert result.state == "invalid-project"
+        assert result.project_path is None
+        assert context._working_directory is None
+
+    def test_valid_project_updates_working_directory(self, tmp_path, monkeypatch):
+        desktop_config_dir = tmp_path / ".niamoto"
+        desktop_config_dir.mkdir()
+        project_dir = tmp_path / "niamoto-project"
+        (project_dir / "db").mkdir(parents=True)
+        (desktop_config_dir / "desktop-config.json").write_text(
+            json.dumps({"current_project": str(project_dir)})
+        )
+
+        monkeypatch.setattr(context.Path, "home", staticmethod(lambda: tmp_path))
+
+        result = context.reload_project_from_desktop_config()
+
+        assert result.state == "loaded"
+        assert result.project_path == project_dir
+        assert context._working_directory == project_dir

@@ -266,8 +266,5 @@ export function getSystemMode(): 'light' | 'dark' {
 // RE-EXPORTS
 // ============================================================================
 
-export { herbariumTheme } from './presets/herbarium'
 export { laboratoryTheme } from './presets/laboratory'
-export { fieldTheme } from './presets/field'
 export { forestTheme } from './presets/forest'
-export { neutralTheme } from './presets/neutral'

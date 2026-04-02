@@ -59,13 +59,9 @@ cleanup() {
 
 trap cleanup INT TERM
 
-# Step 1: Prepare Tauri binaries
-echo -e "${BLUE}📦 Step 1: Preparing Tauri binaries...${NC}"
-./build_scripts/prepare_tauri_bins.sh
-
-# Step 2: Start Vite dev server
+# Step 1: Start Vite dev server
 echo ""
-echo -e "${BLUE}⚛️  Step 2: Starting Vite dev server...${NC}"
+echo -e "${BLUE}⚛️  Step 1: Starting Vite dev server...${NC}"
 cd src/niamoto/gui/ui
 pnpm run dev &
 VITE_PID=$!
@@ -83,10 +79,10 @@ fi
 
 echo -e "${GREEN}✓ Vite is ready on http://localhost:5173${NC}"
 
-# Step 3: Start Tauri
+# Step 2: Start Tauri
 cd "$PROJECT_ROOT"
 echo ""
-echo -e "${BLUE}🦀 Step 3: Starting Tauri...${NC}"
+echo -e "${BLUE}🦀 Step 2: Starting Tauri...${NC}"
 echo -e "${YELLOW}This will open the Niamoto Desktop window${NC}"
 echo ""
 

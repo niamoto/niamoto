@@ -79,52 +79,8 @@ echo -e "${GREEN}✓ Rust/Cargo found${NC}"
 
 echo ""
 
-# Step 2: Build Python bundle with PyInstaller
-echo -e "${BLUE}🐍 Step 2: Building Python bundle with PyInstaller...${NC}"
-echo "This may take several minutes..."
-
-"${PYINSTALLER_CMD[@]}" build_scripts/niamoto.spec --clean --noconfirm
-
-if [ ! -f "dist/niamoto" ] && [ ! -f "dist/niamoto.exe" ]; then
-    echo -e "${RED}❌ PyInstaller build failed${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Python bundle created${NC}"
-echo ""
-
-# Step 3: Copy Python bundle to Tauri bin directory
-echo -e "${BLUE}📦 Step 3: Copying Python bundle to Tauri...${NC}"
-
-mkdir -p src-tauri/bin
-
-# Determine target triple for Tauri externalBin
-if [ "$OS" == "windows" ]; then
-    TARGET="x86_64-pc-windows-msvc"
-    cp dist/niamoto.exe src-tauri/bin/niamoto-${TARGET}.exe
-    echo -e "${GREEN}✓ Copied niamoto-${TARGET}.exe${NC}"
-elif [ "$OS" == "linux" ]; then
-    TARGET="x86_64-unknown-linux-gnu"
-    cp dist/niamoto src-tauri/bin/niamoto-${TARGET}
-    chmod +x src-tauri/bin/niamoto-${TARGET}
-    echo -e "${GREEN}✓ Copied niamoto-${TARGET}${NC}"
-else
-    # macOS - detect architecture
-    ARCH=$(uname -m)
-    if [ "$ARCH" == "arm64" ]; then
-        TARGET="aarch64-apple-darwin"
-    else
-        TARGET="x86_64-apple-darwin"
-    fi
-    cp dist/niamoto src-tauri/bin/niamoto-${TARGET}
-    chmod +x src-tauri/bin/niamoto-${TARGET}
-    echo -e "${GREEN}✓ Copied niamoto-${TARGET}${NC}"
-fi
-
-echo ""
-
-# Step 4: Build React frontend
-echo -e "${BLUE}⚛️  Step 4: Building React frontend...${NC}"
+# Step 2: Build React frontend
+echo -e "${BLUE}⚛️  Step 2: Building React frontend...${NC}"
 
 cd src/niamoto/gui/ui
 
@@ -143,6 +99,46 @@ fi
 echo -e "${GREEN}✓ React build created${NC}"
 
 cd ../../../..
+echo ""
+
+# Step 3: Build Python sidecar bundle with PyInstaller onedir mode
+echo -e "${BLUE}🐍 Step 3: Building Python sidecar bundle...${NC}"
+echo "This may take several minutes..."
+
+NIAMOTO_PYINSTALLER_MODE=onedir "${PYINSTALLER_CMD[@]}" build_scripts/niamoto.spec --clean --noconfirm
+
+if [ ! -d "dist/niamoto" ]; then
+    echo -e "${RED}❌ PyInstaller onedir build failed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Python sidecar directory created${NC}"
+echo ""
+
+# Step 4: Copy sidecar directory into Tauri resources
+echo -e "${BLUE}📦 Step 4: Copying Python sidecar into Tauri resources...${NC}"
+
+if [ "$OS" == "windows" ]; then
+    TARGET="x86_64-pc-windows-msvc"
+elif [ "$OS" == "linux" ]; then
+    TARGET="x86_64-unknown-linux-gnu"
+else
+    ARCH=$(uname -m)
+    if [ "$ARCH" == "arm64" ]; then
+        TARGET="aarch64-apple-darwin"
+    else
+        TARGET="x86_64-apple-darwin"
+    fi
+fi
+
+RESOURCE_DIR="src-tauri/resources/sidecar/${TARGET}"
+rm -rf "${RESOURCE_DIR}"
+mkdir -p "${RESOURCE_DIR}"
+cp -R dist/niamoto "${RESOURCE_DIR}/niamoto"
+if [ "$OS" != "windows" ]; then
+    chmod +x "${RESOURCE_DIR}/niamoto/niamoto"
+fi
+echo -e "${GREEN}✓ Copied sidecar to ${RESOURCE_DIR}/niamoto${NC}"
 echo ""
 
 # Step 5: Build Tauri app

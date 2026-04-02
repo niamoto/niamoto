@@ -4,17 +4,29 @@ This module provides utilities to access the Niamoto working directory
 and database path in a consistent way across all API endpoints.
 """
 
+from dataclasses import dataclass
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 import yaml
 
 logger = logging.getLogger(__name__)
 
 # Store the working directory set at GUI startup
 _working_directory: Optional[Path] = None
+
+ReloadProjectState = Literal["loaded", "welcome", "invalid-project"]
+
+
+@dataclass(frozen=True)
+class DesktopProjectReloadResult:
+    """Result of reloading the desktop project from the Tauri config."""
+
+    state: ReloadProjectState
+    project_path: Optional[Path]
+    message: Optional[str] = None
 
 
 def set_working_directory(path: Path) -> None:
@@ -125,24 +137,34 @@ def get_config_path(config_file: str) -> Path:
     return work_dir / "config" / config_file
 
 
-def reload_project_from_desktop_config() -> Optional[Path]:
+def _is_valid_desktop_project_path(path: Path) -> bool:
+    """Return whether a desktop project path matches the minimal project shape."""
+    return path.exists() and path.is_dir() and path.joinpath("db").exists()
+
+
+def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
     """Reload the current project from Tauri desktop config.
 
     This reads ~/.niamoto/desktop-config.json to get the current project
     and updates the global working directory.
 
     Returns:
-        The new project path if successfully loaded, None otherwise
+        A structured result describing the resulting desktop state.
     """
     global _working_directory
 
     # Get path to desktop config
     home = Path.home()
     desktop_config_path = home / ".niamoto" / "desktop-config.json"
+    _working_directory = None
 
     if not desktop_config_path.exists():
         logger.warning(f"Desktop config not found at {desktop_config_path}")
-        return None
+        return DesktopProjectReloadResult(
+            state="welcome",
+            project_path=None,
+            message="No desktop project selected.",
+        )
 
     try:
         with open(desktop_config_path, "r") as f:
@@ -151,19 +173,37 @@ def reload_project_from_desktop_config() -> Optional[Path]:
         current_project = config.get("current_project")
         if not current_project:
             logger.warning("No current_project in desktop config")
-            _working_directory = None
-            return None
+            return DesktopProjectReloadResult(
+                state="welcome",
+                project_path=None,
+                message="No desktop project selected.",
+            )
 
         project_path = Path(current_project)
-        if not project_path.exists():
-            logger.error(f"Project path does not exist: {project_path}")
-            return None
+        if not _is_valid_desktop_project_path(project_path):
+            logger.error(f"Project path is invalid: {project_path}")
+            return DesktopProjectReloadResult(
+                state="invalid-project",
+                project_path=None,
+                message=(
+                    "The selected desktop project is no longer available. "
+                    "Open another project or remove it from the recent list."
+                ),
+            )
 
         # Update the global working directory
         _working_directory = project_path
         logger.info(f"Reloaded project from desktop config: {project_path}")
-        return project_path
+        return DesktopProjectReloadResult(
+            state="loaded",
+            project_path=project_path,
+            message=None,
+        )
 
     except Exception as e:
         logger.error(f"Error reading desktop config: {e}")
-        return None
+        return DesktopProjectReloadResult(
+            state="invalid-project",
+            project_path=None,
+            message="Failed to read the desktop project configuration.",
+        )

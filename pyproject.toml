@@ -36,7 +36,7 @@ dependencies = [
     # ---------------------
     # SQLAlchemy - Comprehensive database toolkit for Python.
     # Documentation: https://www.sqlalchemy.org/
-    "sqlalchemy[mypy]>=2.0.44",
+    "sqlalchemy>=2.0.44",
     # ---------------------
     # Geospatial libraries
     # ---------------------
@@ -192,6 +192,9 @@ dev = [
     # mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
     # Documentation: http://mypy-lang.org/
     "mypy>=1.18.0",
+    # SQLAlchemy typing helpers stay in dev-only dependencies; the desktop runtime
+    # does not need mypy or its compiled mypyc payload.
+    "sqlalchemy[mypy]>=2.0.44",
 
     # ----------------------------
     # Development Utilities

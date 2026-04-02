@@ -9,6 +9,7 @@ import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useJobPolling } from '@/hooks/useJobPolling'
+import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
 import { cn } from '@/lib/utils'
 
 export function MainLayout() {
@@ -18,6 +19,7 @@ export function MainLayout() {
 
   usePlatform()
   useJobPolling()
+  useAppUpdater()
 
   // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {

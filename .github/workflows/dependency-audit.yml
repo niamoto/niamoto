@@ -1,0 +1,25 @@
+name: Rust Dependency Audit
+
+on:
+  pull_request:
+    paths:
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+
+jobs:
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/audit@v1
+        with:
+          workingDirectory: src-tauri
+          # Only fail on actual vulnerabilities, not unmaintained warnings
+          # (Tauri has many unmaintained transitive deps like gtk3-rs, unic)
+          denyWarnings: false

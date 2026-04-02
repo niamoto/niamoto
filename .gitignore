@@ -144,6 +144,8 @@ AGENTS.md
 src-tauri/target/
 src-tauri/gen/
 src-tauri/bin/niamoto*
+src-tauri/resources/sidecar/*
+!src-tauri/resources/sidecar/.gitkeep
 .gitnexus
 data/gold_set.json
 data/silver/

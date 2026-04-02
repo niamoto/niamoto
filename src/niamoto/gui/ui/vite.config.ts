@@ -1,12 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Read version from tauri.conf.json (single source of truth)
+const tauriConf = JSON.parse(readFileSync(path.resolve(__dirname, '../../../../src-tauri/tauri.conf.json'), 'utf-8'))
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    '__APP_VERSION__': JSON.stringify(tauriConf.version),
+  },
   plugins: [react()],
   resolve: {
     alias: {

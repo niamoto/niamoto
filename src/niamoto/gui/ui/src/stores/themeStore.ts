@@ -15,18 +15,12 @@ import {
   getAllThemes,
   applyTheme,
   getSystemMode,
-  herbariumTheme,
   laboratoryTheme,
-  fieldTheme,
   forestTheme,
-  neutralTheme,
 } from '@/themes'
 
 // Register all built-in themes
-registerTheme(neutralTheme)  // Register first as default option
-registerTheme(herbariumTheme)
 registerTheme(laboratoryTheme)
-registerTheme(fieldTheme)
 registerTheme(forestTheme)
 
 interface ThemeStore {

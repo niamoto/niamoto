@@ -4,7 +4,7 @@ This guide explains how Niamoto can be distributed as standalone binaries for mu
 
 ## 🎯 Overview
 
-Niamoto can be packaged as a single executable file that includes:
+Niamoto can be packaged as a standalone desktop sidecar that includes:
 - Python runtime
 - All dependencies (FastAPI, DuckDB, pandas, geopandas, etc.)
 - React GUI (pre-built)
@@ -15,12 +15,12 @@ Niamoto can be packaged as a single executable file that includes:
 
 ## 📦 Supported Platforms
 
-| Platform | Architecture | Binary Name | Size |
+| Platform | Architecture | Sidecar Layout | Size |
 |----------|--------------|-------------|------|
-| macOS | Apple Silicon (M1/M2/M3/M4) | `niamoto` | ~135 MB |
-| macOS | Intel (x86_64) | `niamoto` | ~135 MB |
-| Linux | x86_64 | `niamoto` | ~135 MB |
-| Windows | x86_64 | `niamoto.exe` | ~135 MB |
+| macOS | Apple Silicon (M1/M2/M3/M4) | `dist/niamoto/niamoto` | ~135 MB |
+| macOS | Intel (x86_64) | `dist/niamoto/niamoto` | ~135 MB |
+| Linux | x86_64 | `dist/niamoto/niamoto` | ~135 MB |
+| Windows | x86_64 | `dist/niamoto/niamoto.exe` | ~135 MB |
 
 ## 🏗️ Build Methods
 
@@ -32,10 +32,10 @@ Build for your current platform:
 # Install PyInstaller
 pip install pyinstaller==6.19.0
 
-# Build the binary
-pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+# Build the sidecar directory
+NIAMOTO_PYINSTALLER_MODE=onedir pyinstaller build_scripts/niamoto.spec --clean --noconfirm
 
-# Result in dist/niamoto (or dist/niamoto.exe on Windows)
+# Result in dist/niamoto/
 ```
 
 **Use case**: Testing, development, or distribution on a single platform.
@@ -121,22 +121,22 @@ All standard Niamoto CLI commands work:
    - Python interpreter
    - All Python packages
    - Data files (models, UI)
-   - Into a single executable
+   - Into a standalone directory
 
 2. **On Launch**:
-   - Binary extracts to temporary directory (`/tmp/_MEI...`)
-   - Runs the Niamoto CLI with all dependencies
-   - Cleans up on exit
+   - Tauri launches the bundled sidecar executable directly from app resources
+   - The sidecar starts the Niamoto CLI with all dependencies
+   - No onefile extraction step is required at startup
 
 3. **Bundle Structure**:
    ```
-   niamoto (executable)
-   └─ Contains:
-      ├─ Python 3.12 runtime
-      ├─ niamoto/ (package)
-      ├─ models/ (ML models)
-      ├─ niamoto/gui/ui/dist/ (React build)
-      └─ All dependencies
+   dist/niamoto/
+   ├─ niamoto(.exe)
+   ├─ _internal/
+   ├─ niamoto/ (package data)
+   ├─ models/ (ML models)
+   ├─ niamoto/gui/ui/dist/ (React build)
+   └─ All dependencies
    ```
 
 ### Build Configuration

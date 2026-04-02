@@ -378,20 +378,51 @@ a,
   outline-offset: 2px;
 }
 
-/* Remove focus outline from contenteditable/editor areas and command palette input */
+/* Remove focus outline from contenteditable/editor areas, command palette input,
+   and Radix triggers (they manage focus via Tailwind ring utilities;
+   Radix restores focus on close which can falsely trigger :focus-visible) */
 [data-platform="macos"] [contenteditable]:focus-visible,
 [data-platform="macos"] .tiptap:focus-visible,
 [data-platform="macos"] .ProseMirror:focus-visible,
 [data-platform="macos"] [data-slot="command-input"]:focus-visible,
+[data-platform="macos"] [data-slot="dropdown-menu-trigger"]:focus-visible,
+[data-platform="macos"] [data-slot="popover-trigger"]:focus-visible,
+[data-platform="macos"] [data-slot="select-trigger"]:focus-visible,
+[data-platform="macos"] [data-slot="dialog-trigger"]:focus-visible,
+[data-platform="macos"] [data-slot="sheet-trigger"]:focus-visible,
 [data-platform="windows"] [contenteditable]:focus-visible,
 [data-platform="windows"] .tiptap:focus-visible,
 [data-platform="windows"] .ProseMirror:focus-visible,
 [data-platform="windows"] [data-slot="command-input"]:focus-visible,
+[data-platform="windows"] [data-slot="dropdown-menu-trigger"]:focus-visible,
+[data-platform="windows"] [data-slot="popover-trigger"]:focus-visible,
+[data-platform="windows"] [data-slot="select-trigger"]:focus-visible,
+[data-platform="windows"] [data-slot="dialog-trigger"]:focus-visible,
+[data-platform="windows"] [data-slot="sheet-trigger"]:focus-visible,
 [data-platform="linux"] [contenteditable]:focus-visible,
 [data-platform="linux"] .tiptap:focus-visible,
 [data-platform="linux"] .ProseMirror:focus-visible,
-[data-platform="linux"] [data-slot="command-input"]:focus-visible {
+[data-platform="linux"] [data-slot="command-input"]:focus-visible,
+[data-platform="linux"] [data-slot="dropdown-menu-trigger"]:focus-visible,
+[data-platform="linux"] [data-slot="popover-trigger"]:focus-visible,
+[data-platform="linux"] [data-slot="select-trigger"]:focus-visible,
+[data-platform="linux"] [data-slot="dialog-trigger"]:focus-visible,
+[data-platform="linux"] [data-slot="sheet-trigger"]:focus-visible {
   outline: none;
+}
+
+/* Suppress Tailwind focus ring (box-shadow) on Radix popup triggers.
+   Radix restores focus on close via .focus() which can falsely trigger
+   :focus-visible even for mouse interactions. */
+:is(
+  [data-slot="dropdown-menu-trigger"],
+  [data-slot="popover-trigger"],
+  [data-slot="select-trigger"],
+  [data-slot="dialog-trigger"],
+  [data-slot="sheet-trigger"]
+):focus-visible {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
 }
 
 /* ============================================
