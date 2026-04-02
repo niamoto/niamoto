@@ -43,8 +43,8 @@ interface ThemeStore {
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
-      // Initial state
-      themeId: 'forest',
+      // Initial state — frond is the default for fresh installs
+      themeId: 'frond',
       mode: 'system',
 
       // Getters
@@ -111,10 +111,19 @@ export const useThemeStore = create<ThemeStore>()(
   )
 )
 
+// Default theme id used for fresh installs and invalid persisted values
+const DEFAULT_THEME_ID = 'frond'
+
 // Initialize theme on module load
 if (typeof window !== 'undefined') {
-  // Apply theme immediately
   const state = useThemeStore.getState()
+
+  // Validate persisted theme — fall back to default if missing or removed
+  if (!getTheme(state.themeId)) {
+    state.setTheme(DEFAULT_THEME_ID)
+  }
+
+  // Apply theme immediately
   state.applyCurrentTheme()
 
   // Listen for system theme changes

@@ -120,7 +120,16 @@ export interface ThemeMetadata {
   inspiration: string
   tags: string[]
   // Style category for visual distinction
-  style: 'classic' | 'scientific' | 'organic' | 'natural'
+  style:
+    | 'classic'
+    | 'scientific'
+    | 'organic'
+    | 'natural'
+    | 'minimal'
+    | 'vitreous'
+    | 'cartographic'
+    | 'editorial'
+    | 'brand'
 }
 
 export interface Theme extends ThemeMetadata {
