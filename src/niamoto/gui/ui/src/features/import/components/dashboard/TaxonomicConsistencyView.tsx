@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,6 +42,7 @@ interface TaxonomyConsistency {
 }
 
 export function TaxonomicConsistencyView() {
+  const { t } = useTranslation('sources')
   const [data, setData] = useState<TaxonomyConsistency | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +58,11 @@ export function TaxonomicConsistencyView() {
         const result = await response.json()
         setData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load taxonomy data')
+        setError(
+          err instanceof Error
+            ? err.message
+            : t('dashboard.taxonomy.errors.load', 'Failed to load taxonomy data')
+        )
       } finally {
         setLoading(false)
       }
@@ -92,9 +98,14 @@ export function TaxonomicConsistencyView() {
       <Card>
         <CardContent className="py-12 text-center">
           <GitBranch className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <p className="text-muted-foreground">No taxonomy data found</p>
+          <p className="text-muted-foreground">
+            {t('dashboard.taxonomy.empty.title', 'No taxonomy data found')}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Import a taxonomic reference to see hierarchy analysis
+            {t(
+              'dashboard.taxonomy.empty.description',
+              'Import a taxonomic reference to see hierarchy analysis'
+            )}
           </p>
         </CardContent>
       </Card>
@@ -116,7 +127,9 @@ export function TaxonomicConsistencyView() {
                 <div className="text-xl font-bold">
                   {data.total_taxa.toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground">Total taxa</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('dashboard.taxonomy.metrics.totalTaxa', 'Total taxa')}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -128,7 +141,9 @@ export function TaxonomicConsistencyView() {
               <Layers className="h-4 w-4 text-blue-500" />
               <div>
                 <div className="text-xl font-bold">{data.hierarchy_depth}</div>
-                <p className="text-xs text-muted-foreground">Hierarchy levels</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('dashboard.taxonomy.metrics.hierarchyLevels', 'Hierarchy levels')}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -144,7 +159,9 @@ export function TaxonomicConsistencyView() {
               )}
               <div>
                 <div className="text-xl font-bold">{totalOrphans}</div>
-                <p className="text-xs text-muted-foreground">Orphans</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('dashboard.taxonomy.metrics.orphans', 'Orphans')}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -160,7 +177,9 @@ export function TaxonomicConsistencyView() {
               )}
               <div>
                 <div className="text-xl font-bold">{data.duplicate_names.length}</div>
-                <p className="text-xs text-muted-foreground">Duplicates</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('dashboard.taxonomy.metrics.duplicates', 'Duplicates')}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -172,7 +191,10 @@ export function TaxonomicConsistencyView() {
         <Alert className="border-green-300 bg-green-50">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-700">
-            Taxonomy hierarchy is consistent - no orphans or duplicates detected.
+            {t(
+              'dashboard.taxonomy.consistent',
+              'Taxonomy hierarchy is consistent - no orphans or duplicates detected.'
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -182,7 +204,7 @@ export function TaxonomicConsistencyView() {
         <CardHeader className="py-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <GitBranch className="h-4 w-4" />
-            Hierarchy Levels
+            {t('dashboard.taxonomy.sections.hierarchyLevels', 'Hierarchy levels')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -198,11 +220,15 @@ export function TaxonomicConsistencyView() {
                       <span className="font-medium capitalize">{level.level}</span>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">
-                          {level.count.toLocaleString()} taxa
+                          {t('dashboard.taxonomy.levelTaxa', '{{count}} taxa', {
+                            count: level.count,
+                          })}
                         </Badge>
                         {level.orphan_count > 0 && (
                           <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-                            {level.orphan_count} orphans
+                            {t('dashboard.taxonomy.levelOrphans', '{{count}} orphans', {
+                              count: level.orphan_count,
+                            })}
                           </Badge>
                         )}
                       </div>
@@ -222,7 +248,10 @@ export function TaxonomicConsistencyView() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No hierarchy levels detected
+              {t(
+                'dashboard.taxonomy.noHierarchyLevels',
+                'No hierarchy levels detected'
+              )}
             </p>
           )}
         </CardContent>
@@ -234,15 +263,18 @@ export function TaxonomicConsistencyView() {
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Copy className="h-4 w-4 text-yellow-500" />
-              Duplicate Names ({data.duplicate_names.length})
+              {t('dashboard.taxonomy.sections.duplicateNames', 'Duplicate names')} (
+              {data.duplicate_names.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Occurrences</TableHead>
+                  <TableHead>{t('dashboard.taxonomy.table.name', 'Name')}</TableHead>
+                  <TableHead className="text-right">
+                    {t('dashboard.taxonomy.table.occurrences', 'Occurrences')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -258,7 +290,9 @@ export function TaxonomicConsistencyView() {
             </Table>
             {data.duplicate_names.length > 10 && (
               <p className="text-xs text-muted-foreground mt-2">
-                +{data.duplicate_names.length - 10} more duplicates
+                {t('dashboard.taxonomy.showingFirstDuplicates', 'Showing first {{count}} duplicates', {
+                  count: 10,
+                })}
               </p>
             )}
           </CardContent>
