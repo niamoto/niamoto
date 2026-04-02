@@ -33,11 +33,9 @@ export function useAppUpdater() {
         setState({ status: 'idle' })
       }
     } catch (err) {
-      console.error('Update check failed:', err)
-      setState({
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Update check failed',
-      })
+      // Network errors and 404 (no release yet) are not user-facing errors
+      console.warn('Update check skipped:', err)
+      setState({ status: 'idle' })
     }
   }, [isDesktop])
 
