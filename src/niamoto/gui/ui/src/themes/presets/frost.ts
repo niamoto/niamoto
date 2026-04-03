@@ -83,7 +83,7 @@ export const frostTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(1 0 0)',
 
     // Sidebar — Subtle frosted panel
-    sidebar: 'oklch(0.90 0.008 270)',
+    sidebar: 'oklch(0.97 0.005 270)',
     sidebarForeground: 'oklch(0.15 0 0)',
     sidebarPrimary: 'oklch(0.52 0.18 255)',
     sidebarPrimaryForeground: 'oklch(1 0 0)',

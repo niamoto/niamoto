@@ -26,7 +26,7 @@ export function OnboardingView() {
           </p>
         </div>
 
-        <CardEntrance>
+        <CardEntrance className="space-y-6">
           <CardEntranceItem>
             <Card className="border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-background to-background shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/20">
               <CardContent className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">

@@ -83,7 +83,7 @@ export const slateTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Barely tinted neutral
-    sidebar: 'oklch(0.91 0.002 265)',
+    sidebar: 'oklch(0.97 0.002 265)',
     sidebarForeground: 'oklch(0.13 0.02 260)',
     sidebarPrimary: 'oklch(0.20 0.02 260)',
     sidebarPrimaryForeground: 'oklch(0.98 0 0)',

@@ -61,7 +61,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
 
   return (
     <Card
-      className="cursor-pointer transition-all hover:border-primary hover:shadow-sm"
+      className="flex h-full cursor-pointer flex-col transition-all hover:border-primary hover:shadow-sm"
       onClick={() => onSelect({ type: 'collection', name: reference.name })}
     >
       <CardHeader className="pb-3">
@@ -95,7 +95,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-1 flex-col space-y-4">
         {/* Counters */}
         <div className="grid grid-cols-3 gap-2">
           <CounterBox
@@ -137,7 +137,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
         )}
 
         {/* Shortcut buttons */}
-        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-auto flex gap-2" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="default"
             size="sm"

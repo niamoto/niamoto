@@ -38,7 +38,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   return (
     <div
       className={cn(
-        'flex h-full flex-col border-r bg-background transition-all duration-200',
+        'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
         isCompact ? 'w-16' : 'w-52',
         className
       )}

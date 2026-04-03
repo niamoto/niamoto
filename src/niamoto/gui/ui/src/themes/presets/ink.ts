@@ -83,7 +83,7 @@ export const inkTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.99 0 0)',
 
     // Sidebar — Slightly off-white
-    sidebar: 'oklch(0.93 0.003 90)',
+    sidebar: 'oklch(0.98 0.003 90)',
     sidebarForeground: 'oklch(0.15 0 0)',
     sidebarPrimary: 'oklch(0.15 0 0)',
     sidebarPrimaryForeground: 'oklch(0.99 0.005 90)',

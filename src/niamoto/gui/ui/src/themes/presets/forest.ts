@@ -83,7 +83,7 @@ export const forestTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar - Forest edge
-    sidebar: 'oklch(0.90 0.020 145)',
+    sidebar: 'oklch(0.97 0.015 145)',
     sidebarForeground: 'oklch(0.18 0.04 145)',
     sidebarPrimary: 'oklch(0.42 0.12 145)',
     sidebarPrimaryForeground: 'oklch(0.98 0.005 145)',
