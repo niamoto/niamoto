@@ -120,7 +120,16 @@ export interface ThemeMetadata {
   inspiration: string
   tags: string[]
   // Style category for visual distinction
-  style: 'classic' | 'scientific' | 'organic' | 'natural'
+  style:
+    | 'classic'
+    | 'scientific'
+    | 'organic'
+    | 'natural'
+    | 'minimal'
+    | 'vitreous'
+    | 'cartographic'
+    | 'editorial'
+    | 'brand'
 }
 
 export interface Theme extends ThemeMetadata {
@@ -268,3 +277,11 @@ export function getSystemMode(): 'light' | 'dark' {
 
 export { laboratoryTheme } from './presets/laboratory'
 export { forestTheme } from './presets/forest'
+export { frondTheme } from './presets/frond'
+export { slateTheme } from './presets/slate'
+export { frostTheme } from './presets/frost'
+export { mistTheme } from './presets/mist'
+export { lapisTheme } from './presets/lapis'
+export { tidalTheme } from './presets/tidal'
+export { basaltTheme } from './presets/basalt'
+export { inkTheme } from './presets/ink'

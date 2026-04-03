@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const apiPort = process.env.NIAMOTO_DESKTOP_API_PORT ?? '8080'
+const apiTarget = `http://127.0.0.1:${apiPort}`
 
 // Read version from tauri.conf.json (single source of truth)
 const tauriConf = JSON.parse(readFileSync(path.resolve(__dirname, '../../../../src-tauri/tauri.conf.json'), 'utf-8'))
@@ -23,11 +25,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/preview': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

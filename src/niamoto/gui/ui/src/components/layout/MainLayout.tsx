@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom'
+import { PageTransition } from '@/components/motion/PageTransition'
 import { useEffect } from 'react'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
@@ -16,8 +17,8 @@ export function MainLayout() {
   const location = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
   const { isDesktop } = useRuntimeMode()
+  const { isMac } = usePlatform()
 
-  usePlatform()
   useJobPolling()
   useAppUpdater()
 
@@ -65,25 +66,24 @@ export function MainLayout() {
   }, [])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      {isDesktop && <DesktopTitlebar />}
+    <div className="flex h-screen overflow-hidden">
+      <NavigationSidebar />
 
-      <div className="flex flex-1 overflow-hidden">
-        <NavigationSidebar />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {isDesktop && !isMac && <DesktopTitlebar />}
+        <TopBar />
+        <BreadcrumbNav />
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <TopBar />
-          <BreadcrumbNav />
-
-          <main
-            className={cn(
-              'flex-1 overflow-hidden bg-background',
-              'transition-all duration-200'
-            )}
-          >
+        <main
+          className={cn(
+            'flex-1 overflow-hidden bg-background',
+            'transition-all duration-200'
+          )}
+        >
+          <PageTransition>
             <Outlet />
-          </main>
-        </div>
+          </PageTransition>
+        </main>
       </div>
 
       <CommandPalette />

@@ -83,13 +83,13 @@ export const forestTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar - Forest edge
-    sidebar: 'oklch(0.96 0.012 145)',
+    sidebar: 'oklch(0.97 0.015 145)',
     sidebarForeground: 'oklch(0.18 0.04 145)',
     sidebarPrimary: 'oklch(0.42 0.12 145)',
     sidebarPrimaryForeground: 'oklch(0.98 0.005 145)',
     sidebarAccent: 'oklch(0.92 0.025 145)',
     sidebarAccentForeground: 'oklch(0.25 0.06 145)',
-    sidebarBorder: 'oklch(0.92 0.018 145)',
+    sidebarBorder: 'oklch(0.84 0.015 145)',
     sidebarRing: 'oklch(0.55 0.12 145)',
 
     // Typography - Rounded, organic
@@ -174,13 +174,13 @@ export const forestTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.12 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.14 0.035 145)',
+    sidebar: 'oklch(0.10 0.03 145)',
     sidebarForeground: 'oklch(0.92 0.015 145)',
     sidebarPrimary: 'oklch(0.65 0.15 145)',
     sidebarPrimaryForeground: 'oklch(0.12 0.03 145)',
     sidebarAccent: 'oklch(0.22 0.04 145)',
     sidebarAccentForeground: 'oklch(0.88 0.02 145)',
-    sidebarBorder: 'oklch(0.26 0.03 145)',
+    sidebarBorder: 'oklch(0.20 0.025 145)',
     sidebarRing: 'oklch(0.65 0.15 145)',
 
     // Typography

@@ -18,6 +18,7 @@ use commands::ConfigState;
 
 const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
 const SERVER_POLL_INTERVAL_MS: u64 = 500;
+const DEV_API_PORT: u16 = 8080;
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -156,6 +157,24 @@ fn find_free_port() -> u16 {
         .local_addr()
         .expect("Failed to get local address")
         .port()
+}
+
+fn desktop_hot_reload_enabled() -> bool {
+    cfg!(debug_assertions)
+        && std::env::var("NIAMOTO_TAURI_DEV_UI")
+            .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .unwrap_or(false)
+}
+
+fn desktop_api_port() -> u16 {
+    if desktop_hot_reload_enabled() {
+        std::env::var("NIAMOTO_DESKTOP_API_PORT")
+            .ok()
+            .and_then(|value| value.parse::<u16>().ok())
+            .unwrap_or(DEV_API_PORT)
+    } else {
+        find_free_port()
+    }
 }
 
 /// Check if the FastAPI server is responding on the given port
@@ -414,7 +433,8 @@ pub fn run() {
                 );
             }
 
-            let port = find_free_port();
+            let hot_reload_enabled = desktop_hot_reload_enabled();
+            let port = desktop_api_port();
             println!("Selected port: {}", port);
             write_startup_log(
                 &startup_log_path,
@@ -422,6 +442,15 @@ pub fn run() {
                 "rust",
                 &format!("selected port {port}"),
             );
+            if hot_reload_enabled {
+                println!("Desktop hot reload mode enabled via Vite dev server");
+                write_startup_log(
+                    &startup_log_path,
+                    &startup_session,
+                    "rust",
+                    "desktop hot reload mode enabled",
+                );
+            }
 
             let app_handle = app.handle().clone();
             let window_clone = window.clone();
@@ -569,17 +598,34 @@ pub fn run() {
                     ),
                 );
 
-                // Navigate to the server URL
-                let url = format!("http://127.0.0.1:{}", port);
-                println!("Loading URL: {}", url);
-                let _ = window_clone.eval(&format!("window.location.replace('{}')", url));
+                if hot_reload_enabled {
+                    println!("Reloading Tauri dev window to restore Vite HMR");
+                    let _ = window_clone.eval("window.location.reload()");
+                    write_startup_log(
+                        &startup_log_path_for_thread,
+                        &startup_session_for_thread,
+                        "rust",
+                        "reloaded Tauri dev window to restore Vite HMR",
+                    );
+                } else {
+                    // Navigate to the server URL
+                    let url = format!("http://127.0.0.1:{}", port);
+                    println!("Loading URL: {}", url);
+                    let _ = window_clone.eval(&format!("window.location.replace('{}')", url));
+                    write_startup_log(
+                        &startup_log_path_for_thread,
+                        &startup_session_for_thread,
+                        "rust",
+                        &format!("window navigated to backend after {:.3}s", startup_started.elapsed().as_secs_f64()),
+                    );
+                }
 
                 println!("✓ Niamoto Desktop ready!");
                 write_startup_log(
                     &startup_log_path_for_thread,
                     &startup_session_for_thread,
                     "rust",
-                    &format!("window navigated to backend after {:.3}s", startup_started.elapsed().as_secs_f64()),
+                    &format!("desktop startup completed after {:.3}s", startup_started.elapsed().as_secs_f64()),
                 );
             });
 

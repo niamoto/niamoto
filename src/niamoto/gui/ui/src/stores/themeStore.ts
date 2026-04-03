@@ -17,9 +17,25 @@ import {
   getSystemMode,
   laboratoryTheme,
   forestTheme,
+  frondTheme,
+  slateTheme,
+  frostTheme,
+  mistTheme,
+  lapisTheme,
+  tidalTheme,
+  basaltTheme,
+  inkTheme,
 } from '@/themes'
 
 // Register all built-in themes
+registerTheme(frondTheme)     // Brand default
+registerTheme(slateTheme)
+registerTheme(frostTheme)
+registerTheme(mistTheme)
+registerTheme(lapisTheme)
+registerTheme(tidalTheme)
+registerTheme(basaltTheme)
+registerTheme(inkTheme)
 registerTheme(laboratoryTheme)
 registerTheme(forestTheme)
 
@@ -43,8 +59,8 @@ interface ThemeStore {
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
-      // Initial state
-      themeId: 'forest',
+      // Initial state — frond is the default for fresh installs
+      themeId: 'frond',
       mode: 'system',
 
       // Getters
@@ -111,10 +127,19 @@ export const useThemeStore = create<ThemeStore>()(
   )
 )
 
+// Default theme id used for fresh installs and invalid persisted values
+const DEFAULT_THEME_ID = 'frond'
+
 // Initialize theme on module load
 if (typeof window !== 'undefined') {
-  // Apply theme immediately
   const state = useThemeStore.getState()
+
+  // Validate persisted theme — fall back to default if missing or removed
+  if (!getTheme(state.themeId)) {
+    state.setTheme(DEFAULT_THEME_ID)
+  }
+
+  // Apply theme immediately
   state.applyCurrentTheme()
 
   // Listen for system theme changes
