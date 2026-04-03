@@ -10,6 +10,7 @@ import { DataSummary } from "./summaries/DataSummary"
 import { CollectionsSummary } from "./summaries/CollectionsSummary"
 import { SiteSummary } from "./summaries/SiteSummary"
 import { PublicationSummary } from "./summaries/PublicationSummary"
+import { CardEntrance, CardEntranceItem } from "@/components/motion/CardEntrance"
 
 export function DashboardView() {
   const { t } = useTranslation("common")
@@ -88,91 +89,103 @@ export function DashboardView() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StageCard
-          icon={<Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
-          title={t("sidebar.nav.data", "Data")}
-          stage={pipeline.data}
-          path="/sources"
-          borderColor="border-l-blue-500"
-          iconBgClass="bg-blue-50 dark:bg-blue-950/40"
-          actionLabel={t("pipeline.action_import", "Import")}
-          onAction={() => navigate("/sources/import")}
-        >
-          <DataSummary summary={pipeline.data.summary} />
-        </StageCard>
+      <CardEntrance className="grid gap-4 sm:grid-cols-2">
+        <CardEntranceItem>
+          <StageCard
+            icon={<Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
+            title={t("sidebar.nav.data", "Data")}
+            stage={pipeline.data}
+            path="/sources"
+            borderColor="border-l-blue-500"
+            iconBgClass="bg-blue-50 dark:bg-blue-950/40"
+            actionLabel={t("pipeline.action_import", "Import")}
+            onAction={() => navigate("/sources/import")}
+          >
+            <DataSummary summary={pipeline.data.summary} />
+          </StageCard>
+        </CardEntranceItem>
 
-        <StageCard
-          icon={<Layers className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
-          title={t("sidebar.nav.collections", "Collections")}
-          stage={pipeline.groups}
-          path="/groups"
-          borderColor="border-l-amber-500"
-          iconBgClass="bg-amber-50 dark:bg-amber-950/40"
-          actionLabel={t("pipeline.action_recalculate", "Recalculate")}
-          onAction={() => navigate("/groups")}
-        >
-          <CollectionsSummary
-            items={
-              pipeline.groups.items?.map((item) => ({
-                name: item.name,
-                status: item.status,
-              })) ?? []
-            }
-          />
-        </StageCard>
+        <CardEntranceItem>
+          <StageCard
+            icon={<Layers className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
+            title={t("sidebar.nav.collections", "Collections")}
+            stage={pipeline.groups}
+            path="/groups"
+            borderColor="border-l-amber-500"
+            iconBgClass="bg-amber-50 dark:bg-amber-950/40"
+            actionLabel={t("pipeline.action_recalculate", "Recalculate")}
+            onAction={() => navigate("/groups")}
+          >
+            <CollectionsSummary
+              items={
+                pipeline.groups.items?.map((item) => ({
+                  name: item.name,
+                  status: item.status,
+                })) ?? []
+              }
+            />
+          </StageCard>
+        </CardEntranceItem>
 
-        <StageCard
-          icon={<Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
-          title={t("sidebar.nav.site", "Site")}
-          stage={pipeline.site}
-          path="/site"
-          borderColor="border-l-emerald-500"
-          iconBgClass="bg-emerald-50 dark:bg-emerald-950/40"
-          actionLabel={t("pipeline.action_configure", "Configure")}
-          onAction={() => navigate("/site/pages")}
-        >
-          <SiteSummary summary={pipeline.site.summary} />
-        </StageCard>
+        <CardEntranceItem>
+          <StageCard
+            icon={<Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+            title={t("sidebar.nav.site", "Site")}
+            stage={pipeline.site}
+            path="/site"
+            borderColor="border-l-emerald-500"
+            iconBgClass="bg-emerald-50 dark:bg-emerald-950/40"
+            actionLabel={t("pipeline.action_configure", "Configure")}
+            onAction={() => navigate("/site/pages")}
+          >
+            <SiteSummary summary={pipeline.site.summary} />
+          </StageCard>
+        </CardEntranceItem>
 
-        <StageCard
-          icon={<Send className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
-          title={t("sidebar.nav.publish", "Publish")}
-          stage={pipeline.publication}
-          path="/publish"
-          borderColor="border-l-orange-500"
-          iconBgClass="bg-orange-50 dark:bg-orange-950/40"
-          actionLabel={t("pipeline.action_rebuild", "Rebuild")}
-          onAction={() => navigate("/publish")}
-        >
-          <PublicationSummary summary={pipeline.publication.summary} />
-        </StageCard>
-      </div>
+        <CardEntranceItem>
+          <StageCard
+            icon={<Send className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
+            title={t("sidebar.nav.publish", "Publish")}
+            stage={pipeline.publication}
+            path="/publish"
+            borderColor="border-l-orange-500"
+            iconBgClass="bg-orange-50 dark:bg-orange-950/40"
+            actionLabel={t("pipeline.action_rebuild", "Rebuild")}
+            onAction={() => navigate("/publish")}
+          >
+            <PublicationSummary summary={pipeline.publication.summary} />
+          </StageCard>
+        </CardEntranceItem>
+      </CardEntrance>
 
       {pipeline.running_job && (
-        <Card className="border-blue-200 dark:border-blue-800">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-            <div className="flex-1">
-              <p className="font-medium">
-                {pipeline.running_job.type === "import" &&
-                  t("pipeline.running_import", "Import en cours...")}
-                {pipeline.running_job.type === "transform" &&
-                  t("pipeline.running_transform", "Calcul en cours...")}
-                {pipeline.running_job.type === "export" &&
-                  t("pipeline.running_export", "Construction en cours...")}
-              </p>
-              {pipeline.running_job.message && (
-                <p className="text-sm text-muted-foreground">
-                  {pipeline.running_job.message}
-                </p>
-              )}
-            </div>
-            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-              {pipeline.running_job.progress}%
-            </span>
-          </CardContent>
-        </Card>
+        <CardEntrance>
+          <CardEntranceItem>
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardContent className="flex items-center gap-3 p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                <div className="flex-1">
+                  <p className="font-medium">
+                    {pipeline.running_job.type === "import" &&
+                      t("pipeline.running_import", "Import en cours...")}
+                    {pipeline.running_job.type === "transform" &&
+                      t("pipeline.running_transform", "Calcul en cours...")}
+                    {pipeline.running_job.type === "export" &&
+                      t("pipeline.running_export", "Construction en cours...")}
+                  </p>
+                  {pipeline.running_job.message && (
+                    <p className="text-sm text-muted-foreground">
+                      {pipeline.running_job.message}
+                    </p>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                  {pipeline.running_job.progress}%
+                </span>
+              </CardContent>
+            </Card>
+          </CardEntranceItem>
+        </CardEntrance>
       )}
     </div>
   )

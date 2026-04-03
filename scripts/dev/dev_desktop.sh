@@ -11,6 +11,13 @@
 
 set -e
 
+VITE_PORT="${NIAMOTO_DESKTOP_VITE_PORT:-5173}"
+API_PORT="${NIAMOTO_DESKTOP_API_PORT:-8080}"
+VITE_HOST="${NIAMOTO_DESKTOP_VITE_HOST:-127.0.0.1}"
+VITE_URL="http://${VITE_HOST}:${VITE_PORT}"
+STARTED_VITE=0
+VITE_PID=""
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -53,40 +60,58 @@ fi
 cleanup() {
     echo ""
     echo -e "${YELLOW}⚠️  Stopping services...${NC}"
-    kill $(jobs -p) 2>/dev/null || true
+    if [[ "$STARTED_VITE" -eq 1 && -n "$VITE_PID" ]]; then
+        kill "$VITE_PID" 2>/dev/null || true
+    fi
     exit
 }
 
 trap cleanup INT TERM
 
-# Step 1: Start Vite dev server
+# Step 1: Start or reuse Vite dev server for frontend HMR
 echo ""
-echo -e "${BLUE}⚛️  Step 1: Starting Vite dev server...${NC}"
+echo -e "${BLUE}⚛️  Step 1: Checking Vite dev server...${NC}"
 cd src/niamoto/gui/ui
-pnpm run dev &
-VITE_PID=$!
 
-# Wait for Vite to be ready
-echo -e "${YELLOW}Waiting for Vite to start...${NC}"
-sleep 5
+if curl -sf "$VITE_URL" > /dev/null; then
+    echo -e "${GREEN}✓ Reusing existing Vite on $VITE_URL${NC}"
+else
+    NIAMOTO_DESKTOP_API_PORT="$API_PORT" pnpm exec vite --host "$VITE_HOST" --strictPort --port "$VITE_PORT" &
+    VITE_PID=$!
+    STARTED_VITE=1
 
-# Check if Vite is running
-if ! curl -s http://localhost:5173 > /dev/null; then
-    echo -e "${RED}❌ Vite failed to start${NC}"
-    kill $VITE_PID 2>/dev/null || true
-    exit 1
+    echo -e "${YELLOW}Waiting for Vite to start on $VITE_URL...${NC}"
+
+    for _ in {1..30}; do
+        if curl -sf "$VITE_URL" > /dev/null; then
+            break
+        fi
+        sleep 1
+    done
+
+    if ! curl -sf "$VITE_URL" > /dev/null; then
+        echo -e "${RED}❌ Vite failed to start on $VITE_URL${NC}"
+        if [[ -n "$VITE_PID" ]]; then
+            kill "$VITE_PID" 2>/dev/null || true
+        fi
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ Vite is ready on $VITE_URL${NC}"
 fi
 
-echo -e "${GREEN}✓ Vite is ready on http://localhost:5173${NC}"
+echo -e "${YELLOW}ℹ️  Frontend changes hot-reload through Vite HMR.${NC}"
+echo -e "${YELLOW}ℹ️  Backend API stays on http://127.0.0.1:${API_PORT} and is proxied by Vite.${NC}"
 
 # Step 2: Start Tauri
 cd "$PROJECT_ROOT"
 echo ""
 echo -e "${BLUE}🦀 Step 2: Starting Tauri...${NC}"
 echo -e "${YELLOW}This will open the Niamoto Desktop window${NC}"
+echo -e "${YELLOW}ℹ️  cargo tauri dev will rebuild Rust changes under src-tauri.${NC}"
 echo ""
 
-cargo tauri dev
+NIAMOTO_TAURI_DEV_UI=1 NIAMOTO_DESKTOP_API_PORT="$API_PORT" cargo tauri dev
 
 # This line is reached when Tauri exits
 cleanup

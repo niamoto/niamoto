@@ -88,7 +88,7 @@ export const laboratoryTheme: Theme = {
     sidebarPrimaryForeground: 'oklch(0.99 0 0)',
     sidebarAccent: 'oklch(0.94 0 0)',
     sidebarAccentForeground: 'oklch(0.20 0 0)',
-    sidebarBorder: 'oklch(0.90 0 0)',
+    sidebarBorder: 'oklch(0.86 0 0)',
     sidebarRing: 'oklch(0.70 0.15 175)',
 
     // Typography - Technical sans
@@ -173,13 +173,13 @@ export const laboratoryTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.10 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.12 0 0)',
+    sidebar: 'oklch(0.08 0 0)',
     sidebarForeground: 'oklch(0.92 0 0)',
     sidebarPrimary: 'oklch(0.92 0 0)',
     sidebarPrimaryForeground: 'oklch(0.10 0 0)',
     sidebarAccent: 'oklch(0.20 0 0)',
     sidebarAccentForeground: 'oklch(0.88 0 0)',
-    sidebarBorder: 'oklch(0.22 0 0)',
+    sidebarBorder: 'oklch(0.15 0 0)',
     sidebarRing: 'oklch(0.75 0.18 175)',
 
     // Typography

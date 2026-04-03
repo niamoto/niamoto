@@ -21,6 +21,10 @@
         "devtools": true,
         "decorations": true,
         "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 30
+        },
         "hiddenTitle": true
       }
     ],

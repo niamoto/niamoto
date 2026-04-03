@@ -8,13 +8,15 @@ import {
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
-import niamotoLogo from '@/assets/niamoto_logo.png'
+import { usePlatform } from '@/shared/hooks/usePlatform'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
 interface NavigationSidebarProps {
   className?: string
+  showHeader?: boolean
 }
 
-export function NavigationSidebar({ className }: NavigationSidebarProps) {
+export function NavigationSidebar({ className, showHeader = true }: NavigationSidebarProps) {
   const { t } = useTranslation('common')
   const location = useLocation()
   const {
@@ -22,6 +24,8 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
     toggleSidebar,
     setCommandPaletteOpen,
   } = useNavigationStore()
+  const { isMac } = usePlatform()
+  const { isDesktop } = useRuntimeMode()
 
   if (sidebarMode === 'hidden') {
     return null
@@ -38,32 +42,35 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   return (
     <div
       className={cn(
-        'flex h-full flex-col border-r bg-background transition-all duration-200',
-        isCompact ? 'w-16' : 'w-52',
+        'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
+        isCompact ? (isMac && isDesktop ? 'w-24' : 'w-16') : 'w-52',
         className
       )}
     >
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b px-3">
-        {!isCompact && (
-          <div className="flex items-center gap-2">
-            <img
-              src={niamotoLogo}
-              alt="Niamoto"
-              className="h-8 w-8 object-contain"
-            />
-            <span className="text-lg font-bold text-primary">Niamoto</span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          className={cn('h-8 w-8', isCompact && 'mx-auto')}
+      {showHeader && (
+        <div
+          data-tauri-drag-region={isMac && isDesktop ? true : undefined}
+          className={cn(
+            'flex items-center border-b px-3',
+            isMac && isDesktop ? 'h-14' : 'h-12',
+            isMac && isDesktop && !isCompact && 'pl-18 pr-2',
+            isMac && isDesktop && isCompact && 'justify-end pl-18 pr-2'
+          )}
         >
-          <PanelLeft className="h-4 w-4" />
-        </Button>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className={cn(
+              'no-drag ml-auto h-7 w-7 shrink-0',
+              isCompact && 'mx-0'
+            )}
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Navigation — Flat rail */}
       <nav className="flex-1 py-4 px-2 space-y-1">
@@ -76,7 +83,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               key={item.id}
               to={item.path}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-theme-md px-3 py-2.5 text-sm font-medium transition-theme-fast',
                 'hover:bg-accent hover:text-accent-foreground',
                 active && 'bg-accent text-accent-foreground',
                 !active && 'text-muted-foreground',
@@ -97,7 +104,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
       {!isCompact && (
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="mx-3 mb-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="mx-3 mb-2 flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-theme-fast"
         >
           <Command className="h-3 w-3" />
           <span>K</span>
@@ -113,7 +120,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               to="/tools/settings"
               className={({ isActive: active }) =>
                 cn(
-                  'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex w-full items-center gap-2 rounded-theme-sm px-3 py-2 text-sm transition-theme-fast',
                   'hover:bg-accent hover:text-accent-foreground',
                   active && 'bg-accent text-accent-foreground font-medium'
                 )
@@ -129,7 +136,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               to="/tools/settings"
               className={({ isActive: active }) =>
                 cn(
-                  'flex h-8 w-8 items-center justify-center rounded-md transition-colors mx-auto',
+                  'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',
                   'hover:bg-accent hover:text-accent-foreground',
                   active && 'bg-accent text-accent-foreground'
                 )

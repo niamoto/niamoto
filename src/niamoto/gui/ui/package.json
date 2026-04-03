@@ -51,6 +51,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "js-yaml": "^4.1.0",
     "lucide-react": "^0.553.0",
+    "motion": "^12.38.0",
     "novel": "^1.0.2",
     "overlayscrollbars": "^2.13.0",
     "react": "^19.1.0",
