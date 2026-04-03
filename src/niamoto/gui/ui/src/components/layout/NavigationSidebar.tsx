@@ -8,13 +8,15 @@ import {
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
-import niamotoLogo from '@/assets/niamoto_logo.png'
+import { usePlatform } from '@/shared/hooks/usePlatform'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
 interface NavigationSidebarProps {
   className?: string
+  showHeader?: boolean
 }
 
-export function NavigationSidebar({ className }: NavigationSidebarProps) {
+export function NavigationSidebar({ className, showHeader = true }: NavigationSidebarProps) {
   const { t } = useTranslation('common')
   const location = useLocation()
   const {
@@ -22,6 +24,8 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
     toggleSidebar,
     setCommandPaletteOpen,
   } = useNavigationStore()
+  const { isMac } = usePlatform()
+  const { isDesktop } = useRuntimeMode()
 
   if (sidebarMode === 'hidden') {
     return null
@@ -39,31 +43,34 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
     <div
       className={cn(
         'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
-        isCompact ? 'w-16' : 'w-52',
+        isCompact ? (isMac && isDesktop ? 'w-24' : 'w-16') : 'w-52',
         className
       )}
     >
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b px-3">
-        {!isCompact && (
-          <div className="flex items-center gap-2">
-            <img
-              src={niamotoLogo}
-              alt="Niamoto"
-              className="h-8 w-8 object-contain"
-            />
-            <span className="text-lg font-bold text-primary">Niamoto</span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          className={cn('h-8 w-8', isCompact && 'mx-auto')}
+      {showHeader && (
+        <div
+          data-tauri-drag-region={isMac && isDesktop ? true : undefined}
+          className={cn(
+            'flex items-center border-b px-3',
+            isMac && isDesktop ? 'h-14' : 'h-12',
+            isMac && isDesktop && !isCompact && 'pl-18 pr-2',
+            isMac && isDesktop && isCompact && 'justify-end pl-18 pr-2'
+          )}
         >
-          <PanelLeft className="h-4 w-4" />
-        </Button>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className={cn(
+              'no-drag ml-auto h-7 w-7 shrink-0',
+              isCompact && 'mx-0'
+            )}
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Navigation — Flat rail */}
       <nav className="flex-1 py-4 px-2 space-y-1">

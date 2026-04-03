@@ -6,6 +6,7 @@ import { useNavigationStore } from '@/stores/navigationStore'
 import { ProjectSwitcher } from '@/components/common'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
+import { usePlatform } from '@/shared/hooks/usePlatform'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,32 +27,54 @@ export function TopBar({ className }: TopBarProps) {
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode } = useNavigationStore()
   const { features } = useRuntimeMode()
   const { isOffline } = useNetworkStatus()
+  const { isMac, isDesktop } = usePlatform()
 
   return (
     <header
+      data-tauri-drag-region={isDesktop && isMac ? true : undefined}
       className={cn(
         'flex h-14 items-center justify-between border-b bg-background px-4',
         className
       )}
     >
       {/* Left section */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         {/* Mobile menu button */}
         {sidebarMode === 'hidden' && (
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarMode('full')}
-            className="lg:hidden"
+            className="no-drag lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </Button>
         )}
 
+        {/* Project switcher (desktop mode only) */}
+        {features.project_switching && (
+          <div className="no-drag hidden md:block">
+            <ProjectSwitcher />
+          </div>
+        )}
+
+        {/* Mobile search button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="no-drag md:hidden"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Right section */}
+      <div className="flex items-center gap-2">
         {/* Command palette trigger */}
         <Button
           variant="outline"
-          className="hidden w-64 justify-start text-muted-foreground md:flex"
+          className="no-drag hidden w-64 justify-start text-muted-foreground md:flex"
           onClick={() => setCommandPaletteOpen(true)}
         >
           <Search className="mr-2 h-4 w-4" />
@@ -61,24 +84,11 @@ export function TopBar({ className }: TopBarProps) {
           </kbd>
         </Button>
 
-        {/* Mobile search button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCommandPaletteOpen(true)}
-          className="md:hidden"
-        >
-          <Search className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {/* Right section */}
-      <div className="flex items-center gap-2">
         {/* Offline indicator */}
         {isOffline && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              <div className="no-drag flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                 <WifiOff className="h-4 w-4" />
                 <span className="hidden text-xs font-medium sm:inline">
                   {t('network.offline', 'Offline')}
@@ -98,20 +108,15 @@ export function TopBar({ className }: TopBarProps) {
           </Tooltip>
         )}
 
-        {/* Project switcher (desktop mode only) */}
-        {features.project_switching && (
-          <div className="hidden md:block">
-            <ProjectSwitcher />
-          </div>
-        )}
-
         {/* Notifications */}
-        <NotificationDropdown />
+        <div className="no-drag">
+          <NotificationDropdown />
+        </div>
 
         {/* Help menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="no-drag">
               <HelpCircle className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
