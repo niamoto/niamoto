@@ -83,13 +83,13 @@ export const slateTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Barely tinted neutral
-    sidebar: 'oklch(0.97 0.002 265)',
+    sidebar: 'oklch(0.91 0.002 265)',
     sidebarForeground: 'oklch(0.13 0.02 260)',
     sidebarPrimary: 'oklch(0.20 0.02 260)',
     sidebarPrimaryForeground: 'oklch(0.98 0 0)',
     sidebarAccent: 'oklch(0.94 0.004 265)',
     sidebarAccentForeground: 'oklch(0.30 0.015 260)',
-    sidebarBorder: 'oklch(0.90 0.004 265 / 0.6)',
+    sidebarBorder: 'oklch(0.85 0.003 265)',
     sidebarRing: 'oklch(0.60 0.16 255)',
 
     // Typography — Inter everywhere
@@ -174,13 +174,13 @@ export const slateTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.13 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.15 0.005 265)',
+    sidebar: 'oklch(0.09 0.005 265)',
     sidebarForeground: 'oklch(0.90 0.005 265)',
     sidebarPrimary: 'oklch(0.90 0.005 265)',
     sidebarPrimaryForeground: 'oklch(0.13 0.005 265)',
     sidebarAccent: 'oklch(0.22 0.005 265)',
     sidebarAccentForeground: 'oklch(0.85 0.005 265)',
-    sidebarBorder: 'oklch(0.26 0.005 265 / 0.6)',
+    sidebarBorder: 'oklch(0.15 0.005 265)',
     sidebarRing: 'oklch(0.65 0.16 255)',
 
     // Typography

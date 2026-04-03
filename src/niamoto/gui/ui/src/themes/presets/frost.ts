@@ -83,13 +83,13 @@ export const frostTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(1 0 0)',
 
     // Sidebar — Subtle frosted panel
-    sidebar: 'oklch(0.97 0.003 270 / 0.7)',
+    sidebar: 'oklch(0.90 0.008 270)',
     sidebarForeground: 'oklch(0.15 0 0)',
     sidebarPrimary: 'oklch(0.52 0.18 255)',
     sidebarPrimaryForeground: 'oklch(1 0 0)',
     sidebarAccent: 'oklch(0.94 0.003 270)',
     sidebarAccentForeground: 'oklch(0.30 0 0)',
-    sidebarBorder: 'oklch(1 0 0 / 0.6)',
+    sidebarBorder: 'oklch(0.84 0.006 270)',
     sidebarRing: 'oklch(0.52 0.18 255)',
 
     // Typography — Inter everywhere
@@ -174,13 +174,13 @@ export const frostTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.14 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.16 0.005 270 / 0.7)',
+    sidebar: 'oklch(0.11 0.008 270)',
     sidebarForeground: 'oklch(0.92 0 0)',
     sidebarPrimary: 'oklch(0.65 0.19 255)',
     sidebarPrimaryForeground: 'oklch(0.14 0 0)',
     sidebarAccent: 'oklch(0.22 0.005 270)',
     sidebarAccentForeground: 'oklch(0.88 0 0)',
-    sidebarBorder: 'oklch(1 0 0 / 0.08)',
+    sidebarBorder: 'oklch(0.18 0.006 270)',
     sidebarRing: 'oklch(0.65 0.19 255)',
 
     // Typography

@@ -83,13 +83,13 @@ export const tidalTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Slightly cooler than background
-    sidebar: 'oklch(0.95 0.008 240)',
+    sidebar: 'oklch(0.90 0.012 240)',
     sidebarForeground: 'oklch(0.18 0.02 240)',
     sidebarPrimary: 'oklch(0.49 0.13 200)',
     sidebarPrimaryForeground: 'oklch(0.98 0.004 230)',
     sidebarAccent: 'oklch(0.91 0.01 240)',
     sidebarAccentForeground: 'oklch(0.35 0.03 240)',
-    sidebarBorder: 'oklch(0.85 0.012 240)',
+    sidebarBorder: 'oklch(0.84 0.010 240)',
     sidebarRing: 'oklch(0.49 0.13 200)',
 
     // Typography — Inter everywhere
@@ -174,13 +174,13 @@ export const tidalTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.16 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.18 0.035 240)',
+    sidebar: 'oklch(0.12 0.03 240)',
     sidebarForeground: 'oklch(0.90 0.01 230)',
     sidebarPrimary: 'oklch(0.72 0.15 195)',
     sidebarPrimaryForeground: 'oklch(0.16 0.03 240)',
     sidebarAccent: 'oklch(0.24 0.025 240)',
     sidebarAccentForeground: 'oklch(0.88 0.01 230)',
-    sidebarBorder: 'oklch(0.30 0.025 240)',
+    sidebarBorder: 'oklch(0.18 0.025 240)',
     sidebarRing: 'oklch(0.72 0.15 195)',
 
     // Typography

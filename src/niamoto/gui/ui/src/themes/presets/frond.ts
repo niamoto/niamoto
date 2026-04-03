@@ -82,14 +82,14 @@ export const frondTheme: Theme = {
     dataSourceSecondary: 'oklch(0.47 0.12 152)',
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
-    // Sidebar — Subtle green tint
-    sidebar: 'oklch(0.95 0.010 150)',
+    // Sidebar — Noticeably darker green-tinted surface
+    sidebar: 'oklch(0.88 0.020 150)',
     sidebarForeground: 'oklch(0.20 0.02 150)',
     sidebarPrimary: 'oklch(0.47 0.12 152)',
     sidebarPrimaryForeground: 'oklch(0.98 0.005 150)',
     sidebarAccent: 'oklch(0.92 0.015 150)',
     sidebarAccentForeground: 'oklch(0.25 0.04 150)',
-    sidebarBorder: 'oklch(0.90 0.01 150 / 0.5)',
+    sidebarBorder: 'oklch(0.82 0.015 150)',
     sidebarRing: 'oklch(0.47 0.12 152)',
 
     // Typography — Inter everywhere
@@ -173,14 +173,14 @@ export const frondTheme: Theme = {
     dataSourceSecondary: 'oklch(0.65 0.16 152)',
     dataSourceSecondaryForeground: 'oklch(0.13 0 0)',
 
-    // Sidebar
-    sidebar: 'oklch(0.15 0.025 150)',
+    // Sidebar — Darker surface
+    sidebar: 'oklch(0.10 0.02 150)',
     sidebarForeground: 'oklch(0.90 0.015 150)',
     sidebarPrimary: 'oklch(0.65 0.16 152)',
     sidebarPrimaryForeground: 'oklch(0.13 0.02 150)',
     sidebarAccent: 'oklch(0.22 0.03 150)',
     sidebarAccentForeground: 'oklch(0.88 0.015 150)',
-    sidebarBorder: 'oklch(0.28 0.02 150 / 0.5)',
+    sidebarBorder: 'oklch(0.22 0.02 150)',
     sidebarRing: 'oklch(0.65 0.16 152)',
 
     // Typography

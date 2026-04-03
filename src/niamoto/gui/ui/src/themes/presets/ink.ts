@@ -83,13 +83,13 @@ export const inkTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.99 0 0)',
 
     // Sidebar — Slightly off-white
-    sidebar: 'oklch(0.97 0.003 90)',
+    sidebar: 'oklch(0.93 0.003 90)',
     sidebarForeground: 'oklch(0.15 0 0)',
     sidebarPrimary: 'oklch(0.15 0 0)',
     sidebarPrimaryForeground: 'oklch(0.99 0.005 90)',
     sidebarAccent: 'oklch(0.93 0.003 90)',
     sidebarAccentForeground: 'oklch(0.25 0 0)',
-    sidebarBorder: 'oklch(0.25 0 0 / 0.20)',
+    sidebarBorder: 'oklch(0.86 0 0)',
     sidebarRing: 'oklch(0.15 0 0)',
 
     // Typography — Inter everywhere
@@ -174,13 +174,13 @@ export const inkTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.13 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.15 0 0)',
+    sidebar: 'oklch(0.10 0 0)',
     sidebarForeground: 'oklch(0.92 0.005 90)',
     sidebarPrimary: 'oklch(0.92 0.005 90)',
     sidebarPrimaryForeground: 'oklch(0.13 0 0)',
     sidebarAccent: 'oklch(0.22 0 0)',
     sidebarAccentForeground: 'oklch(0.85 0 0)',
-    sidebarBorder: 'oklch(0.80 0 0 / 0.15)',
+    sidebarBorder: 'oklch(0.18 0 0)',
     sidebarRing: 'oklch(0.92 0.005 90)',
 
     // Typography
