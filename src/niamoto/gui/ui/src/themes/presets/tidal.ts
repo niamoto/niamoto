@@ -83,7 +83,7 @@ export const tidalTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Slightly cooler than background
-    sidebar: 'oklch(0.90 0.012 240)',
+    sidebar: 'oklch(0.97 0.008 240)',
     sidebarForeground: 'oklch(0.18 0.02 240)',
     sidebarPrimary: 'oklch(0.49 0.13 200)',
     sidebarPrimaryForeground: 'oklch(0.98 0.004 230)',

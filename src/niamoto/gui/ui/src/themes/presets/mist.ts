@@ -84,7 +84,7 @@ export const mistTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Barely-there tint
-    sidebar: 'oklch(0.88 0.010 260)',
+    sidebar: 'oklch(0.95 0.006 260)',
     sidebarForeground: 'oklch(0.18 0.01 260)',
     sidebarPrimary: 'oklch(0.59 0.16 260)',
     sidebarPrimaryForeground: 'oklch(0.98 0.003 260)',

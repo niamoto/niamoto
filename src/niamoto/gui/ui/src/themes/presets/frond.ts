@@ -83,7 +83,7 @@ export const frondTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Noticeably darker green-tinted surface
-    sidebar: 'oklch(0.88 0.020 150)',
+    sidebar: 'oklch(0.95 0.015 150)',
     sidebarForeground: 'oklch(0.20 0.02 150)',
     sidebarPrimary: 'oklch(0.47 0.12 152)',
     sidebarPrimaryForeground: 'oklch(0.98 0.005 150)',

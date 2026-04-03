@@ -84,7 +84,7 @@ export const lapisTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Faint blue tint
-    sidebar: 'oklch(0.90 0.010 250)',
+    sidebar: 'oklch(0.97 0.006 250)',
     sidebarForeground: 'oklch(0.25 0.04 270)',
     sidebarPrimary: 'oklch(0.32 0.06 275)',
     sidebarPrimaryForeground: 'oklch(0.98 0 0)',

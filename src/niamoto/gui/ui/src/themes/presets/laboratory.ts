@@ -82,7 +82,7 @@ export const laboratoryTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.99 0 0)',
 
     // Sidebar - Instrument panel
-    sidebar: 'oklch(0.92 0 0)',
+    sidebar: 'oklch(0.97 0 0)',
     sidebarForeground: 'oklch(0.12 0 0)',
     sidebarPrimary: 'oklch(0.15 0 0)',
     sidebarPrimaryForeground: 'oklch(0.99 0 0)',

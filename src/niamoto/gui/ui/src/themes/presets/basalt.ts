@@ -83,7 +83,7 @@ export const basaltTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Slightly cooler stone
-    sidebar: 'oklch(0.91 0.008 60)',
+    sidebar: 'oklch(0.97 0.006 60)',
     sidebarForeground: 'oklch(0.18 0.01 50)',
     sidebarPrimary: 'oklch(0.40 0.12 150)',
     sidebarPrimaryForeground: 'oklch(0.98 0.003 60)',
