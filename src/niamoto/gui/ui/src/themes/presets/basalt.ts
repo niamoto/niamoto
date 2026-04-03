@@ -83,13 +83,13 @@ export const basaltTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Slightly cooler stone
-    sidebar: 'oklch(0.96 0.005 60)',
+    sidebar: 'oklch(0.91 0.008 60)',
     sidebarForeground: 'oklch(0.18 0.01 50)',
     sidebarPrimary: 'oklch(0.40 0.12 150)',
     sidebarPrimaryForeground: 'oklch(0.98 0.003 60)',
     sidebarAccent: 'oklch(0.92 0.008 60)',
     sidebarAccentForeground: 'oklch(0.30 0.01 50)',
-    sidebarBorder: 'oklch(0.82 0.01 60)',
+    sidebarBorder: 'oklch(0.85 0.008 60)',
     sidebarRing: 'oklch(0.40 0.12 150)',
 
     // Typography — Inter everywhere
@@ -174,13 +174,13 @@ export const basaltTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.13 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.15 0.01 50)',
+    sidebar: 'oklch(0.10 0.01 50)',
     sidebarForeground: 'oklch(0.88 0.008 60)',
     sidebarPrimary: 'oklch(0.62 0.16 150)',
     sidebarPrimaryForeground: 'oklch(0.13 0.01 50)',
     sidebarAccent: 'oklch(0.22 0.01 50)',
     sidebarAccentForeground: 'oklch(0.85 0.008 60)',
-    sidebarBorder: 'oklch(0.28 0.01 50)',
+    sidebarBorder: 'oklch(0.18 0.01 50)',
     sidebarRing: 'oklch(0.62 0.16 150)',
 
     // Typography

@@ -84,13 +84,13 @@ export const lapisTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Faint blue tint
-    sidebar: 'oklch(0.97 0.006 250)',
+    sidebar: 'oklch(0.90 0.010 250)',
     sidebarForeground: 'oklch(0.25 0.04 270)',
     sidebarPrimary: 'oklch(0.32 0.06 275)',
     sidebarPrimaryForeground: 'oklch(0.98 0 0)',
     sidebarAccent: 'oklch(0.94 0.008 250)',
     sidebarAccentForeground: 'oklch(0.38 0.04 260)',
-    sidebarBorder: 'oklch(0.92 0.005 250 / 0.4)',
+    sidebarBorder: 'oklch(0.84 0.008 250)',
     sidebarRing: 'oklch(0.32 0.06 275)',
 
     // Typography — Inter everywhere
@@ -175,13 +175,13 @@ export const lapisTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.15 0 0)',
 
     // Sidebar — Deeper navy
-    sidebar: 'oklch(0.16 0.04 250)',
+    sidebar: 'oklch(0.13 0.04 250)',
     sidebarForeground: 'oklch(0.90 0.01 250)',
     sidebarPrimary: 'oklch(0.60 0.10 270)',
     sidebarPrimaryForeground: 'oklch(0.15 0.04 250)',
     sidebarAccent: 'oklch(0.25 0.035 250)',
     sidebarAccentForeground: 'oklch(0.85 0.01 250)',
-    sidebarBorder: 'oklch(0.28 0.03 250 / 0.4)',
+    sidebarBorder: 'oklch(0.20 0.03 250)',
     sidebarRing: 'oklch(0.60 0.10 270)',
 
     // Typography

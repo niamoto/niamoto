@@ -84,13 +84,13 @@ export const mistTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.98 0 0)',
 
     // Sidebar — Barely-there tint
-    sidebar: 'oklch(0.945 0.006 270)',
+    sidebar: 'oklch(0.88 0.010 260)',
     sidebarForeground: 'oklch(0.18 0.01 260)',
     sidebarPrimary: 'oklch(0.59 0.16 260)',
     sidebarPrimaryForeground: 'oklch(0.98 0.003 260)',
     sidebarAccent: 'oklch(0.92 0.008 260)',
     sidebarAccentForeground: 'oklch(0.35 0.02 260)',
-    sidebarBorder: 'oklch(0.88 0.006 260 / 0.03)',
+    sidebarBorder: 'oklch(0.82 0.008 260)',
     sidebarRing: 'oklch(0.59 0.16 260)',
 
     // Typography — Inter everywhere
@@ -175,13 +175,13 @@ export const mistTheme: Theme = {
     dataSourceSecondaryForeground: 'oklch(0.14 0 0)',
 
     // Sidebar
-    sidebar: 'oklch(0.16 0.012 260)',
+    sidebar: 'oklch(0.11 0.015 260)',
     sidebarForeground: 'oklch(0.88 0.008 260)',
     sidebarPrimary: 'oklch(0.68 0.16 260)',
     sidebarPrimaryForeground: 'oklch(0.14 0.01 260)',
     sidebarAccent: 'oklch(0.22 0.015 260)',
     sidebarAccentForeground: 'oklch(0.85 0.008 260)',
-    sidebarBorder: 'oklch(0.28 0.01 260 / 0.03)',
+    sidebarBorder: 'oklch(0.18 0.010 260)',
     sidebarRing: 'oklch(0.68 0.16 260)',
 
     // Typography
