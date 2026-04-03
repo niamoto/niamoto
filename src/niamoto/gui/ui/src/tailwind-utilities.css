@@ -191,6 +191,10 @@
     border-radius: var(--radius-full);
   }
 
+  .border {
+    border-width: var(--border-width);
+  }
+
   /* ========================================
    * SHADOW UTILITIES
    * ======================================== */
@@ -222,7 +226,7 @@
   }
 
   .surface-glass {
-    background-color: oklch(from var(--background) l c h / var(--surface-opacity));
+    background-color: oklch(from var(--popover) l c h / var(--surface-opacity));
     backdrop-filter: blur(var(--backdrop-blur));
   }
 
@@ -252,8 +256,11 @@
    * CARTOGRAPHIC UTILITIES
    * ======================================== */
   [data-theme-style="cartographic"] .bg-dot-grid {
-    background-image: radial-gradient(circle, currentColor 0.5px, transparent 0.5px);
+    background-image: radial-gradient(
+      circle,
+      oklch(from var(--border) l c h / 0.3) 0.5px,
+      transparent 0.5px
+    );
     background-size: 12px 12px;
-    color: oklch(from var(--border) l c h / 0.3);
   }
 }
