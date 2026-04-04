@@ -60,24 +60,17 @@ function corsHeaders(request: Request): Record<string, string> {
 
 function sanitizeMarkdown(text: string): string {
   return text
-    .replace(/@(\w)/g, '`@`$1') // escape @mentions
-    .replace(/#(\d)/g, '`#`$1') // escape #refs
+    .replace(/@(\w)/g, '@ $1')  // break @mentions
+    .replace(/#(\d)/g, '# $1')  // break #refs
+    .replace(/\[([^\]]*)\]\(/g, '\\[$1\\](') // escape markdown links
 }
 
 function generateId(): string {
-  const chars = '0123456789abcdefghijklmnopqrstuvwxyz'
-  let id = ''
-  const bytes = new Uint8Array(10)
-  crypto.getRandomValues(bytes)
-  for (const b of bytes) {
-    id += chars[b % chars.length]
-  }
-  return id
+  return crypto.randomUUID().slice(0, 12)
 }
 
 function formatDate(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return new Date().toISOString().slice(0, 10)
 }
 
 function buildIssueBody(
@@ -229,7 +222,7 @@ export default {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            title: `[${TYPE_LABEL[payload.type]}] ${payload.title}`,
+            title: `[${TYPE_LABEL[payload.type]}] ${sanitizeMarkdown(payload.title)}`,
             body: issueBody,
             labels,
           }),
@@ -237,9 +230,9 @@ export default {
       )
 
       if (!ghResponse.ok) {
-        const detail = await ghResponse.text()
+        console.error('GitHub API error:', await ghResponse.text())
         return Response.json(
-          { error: 'github_error', detail },
+          { error: 'github_error' },
           { status: 502, headers: corsHeaders(request) }
         )
       }
@@ -255,8 +248,9 @@ export default {
         { status: 201, headers: corsHeaders(request) }
       )
     } catch (err) {
+      console.error('Worker error:', err)
       return Response.json(
-        { error: 'internal_error', detail: String(err) },
+        { error: 'internal_error' },
         { status: 500, headers: corsHeaders(request) }
       )
     }

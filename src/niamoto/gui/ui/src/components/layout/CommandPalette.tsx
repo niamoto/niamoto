@@ -32,8 +32,7 @@ import {
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useTheme } from '@/hooks/use-theme'
-import { useFeedback } from '@/features/feedback'
-import { useBrowserOnline } from '@/features/feedback/hooks/useBrowserOnline'
+import { useFeedback, useBrowserOnline } from '@/features/feedback'
 
 const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,

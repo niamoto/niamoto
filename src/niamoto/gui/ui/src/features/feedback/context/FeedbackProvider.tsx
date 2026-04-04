@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode,
 } from 'react'
@@ -12,7 +13,6 @@ import { toast } from 'sonner'
 import { useScreenshot } from '../hooks/useScreenshot'
 import { useContextData } from '../hooks/useContextData'
 import { sendFeedback } from '../lib/feedback-api'
-import { redactObject } from '../lib/redact'
 import { FeedbackError, type FeedbackType, type FeedbackContext } from '../types'
 
 const COOLDOWN_SECONDS = 30
@@ -102,7 +102,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             type,
             title: title.slice(0, 200),
             description: description ? description.slice(0, 5000) : undefined,
-            context: redactObject(ctx),
+            context: ctx, // Already redacted at collection time
           },
           screenshot: includeScreenshot ? screenshot : null,
         })
@@ -137,7 +137,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     [type, screenshot, t]
   )
 
-  const value: FeedbackState = {
+  const value: FeedbackState = useMemo(() => ({
     isOpen,
     type,
     isSending,
@@ -150,7 +150,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     close,
     setType,
     send,
-  }
+  }), [
+    isOpen, type, isSending, cooldownRemaining,
+    screenshot, screenshotError, isCapturing,
+    contextData, openWithType, close, setType, send,
+  ])
 
   return (
     <FeedbackContext.Provider value={value}>

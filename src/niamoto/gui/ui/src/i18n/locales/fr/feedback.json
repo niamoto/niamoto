@@ -25,5 +25,12 @@
   "confirm_close_description": "Le contenu du formulaire sera perdu.",
   "confirm_close_cancel": "Continuer",
   "confirm_close_confirm": "Abandonner",
-  "cooldown": "Envoyé ({{seconds}}s)"
+  "cooldown": "Envoyé ({{seconds}}s)",
+  "context_theme": "Thème",
+  "context_language": "Langue",
+  "context_window": "Fenêtre",
+  "context_errors": "Erreurs",
+  "context_recent": "récente(s)",
+  "context_diagnostic": "Diagnostic",
+  "context_included": "inclus"
 }

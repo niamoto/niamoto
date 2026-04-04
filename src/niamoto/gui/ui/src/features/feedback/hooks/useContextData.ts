@@ -30,7 +30,7 @@ export function useContextData() {
     // Collect recent console errors
     const errors = getRecentErrors()
     if (errors.length > 0) {
-      context.recent_errors = redactObject(errors)
+      context.recent_errors = errors
     }
 
     // Optional diagnostic from local backend (non-blocking)
@@ -40,16 +40,17 @@ export function useContextData() {
       })
       if (response.ok) {
         const diagnostic = await response.json()
-        context.diagnostic = redactObject({
+        context.diagnostic = {
           database: diagnostic.database,
           config_files: diagnostic.config_files,
-        } as Record<string, unknown>)
+        }
       }
     } catch {
       // Backend unavailable — minimal context only
     }
 
-    return context
+    // Single redaction pass on the entire context
+    return redactObject(context)
   }, [pathname, runtimeMode, themeId, i18n.language])
 
   return { collect }

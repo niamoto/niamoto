@@ -14,6 +14,10 @@ describe('redact', () => {
     expect(redact('c:\\users\\admin\\Desktop\\file.txt')).toBe('<user>\\Desktop\\file.txt')
   })
 
+  it('redacts Linux home paths', () => {
+    expect(redact('/home/botanist/niamoto/data.csv')).toBe('<user>/niamoto/data.csv')
+  })
+
   it('redacts tilde paths', () => {
     expect(redact('~/niamoto-data/import.yml')).toBe('<home>/import.yml')
   })
