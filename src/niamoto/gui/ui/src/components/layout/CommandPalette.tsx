@@ -189,7 +189,7 @@ export function CommandPalette() {
             value="feedback:open"
             keywords={['feedback', 'bug', 'report', 'suggestion', 'question', 'signaler', 'problème']}
             onSelect={handleSelect}
-            disabled={!browserOnline}
+            disabled={!browserOnline || feedback.cooldownRemaining > 0}
           >
             <MessageSquarePlus className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">

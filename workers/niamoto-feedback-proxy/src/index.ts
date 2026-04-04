@@ -102,10 +102,12 @@ function buildIssueBody(
   body += `| Fenêtre | ${ctx.window_size} |\n`
 
   if (ctx.recent_errors && ctx.recent_errors.length > 0) {
+    // Escape backtick sequences that would break the code fence
+    const escapeCodeFence = (s: string) => s.replace(/`{3,}/g, '`` `')
     body += `\n### Erreurs console\n\`\`\`\n`
     for (const err of ctx.recent_errors.slice(0, 5)) {
-      body += `[${err.timestamp}] ${err.message}\n`
-      if (err.stack) body += `${err.stack}\n`
+      body += `[${err.timestamp}] ${escapeCodeFence(err.message)}\n`
+      if (err.stack) body += `${escapeCodeFence(err.stack)}\n`
     }
     body += `\`\`\`\n`
   }
