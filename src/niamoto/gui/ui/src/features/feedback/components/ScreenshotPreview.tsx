@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -21,9 +21,16 @@ export function ScreenshotPreview({
 }: ScreenshotPreviewProps) {
   const { t } = useTranslation('feedback')
 
-  const previewUrl = useMemo(() => {
-    if (screenshot) return URL.createObjectURL(screenshot)
-    return null
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!screenshot) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(screenshot)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
   }, [screenshot])
 
   return (

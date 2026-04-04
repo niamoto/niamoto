@@ -2,8 +2,11 @@ import type { ErrorEntry } from '../types'
 
 const BUFFER_SIZE = 10
 const buffer: ErrorEntry[] = []
+let initialized = false
 
 export function initErrorBuffer(): void {
+  if (initialized) return
+  initialized = true
   const originalError = console.error
   console.error = (...args: unknown[]) => {
     pushEntry(args.map(String).join(' '))

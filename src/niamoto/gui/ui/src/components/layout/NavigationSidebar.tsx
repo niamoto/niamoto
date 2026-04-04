@@ -13,8 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
-import { useFeedback } from '@/features/feedback'
-import { useBrowserOnline } from '@/features/feedback/hooks/useBrowserOnline'
+import { useFeedback, useBrowserOnline } from '@/features/feedback'
 
 interface NavigationSidebarProps {
   className?: string

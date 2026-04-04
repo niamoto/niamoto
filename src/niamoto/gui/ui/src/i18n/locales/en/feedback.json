@@ -25,5 +25,12 @@
   "confirm_close_description": "Form content will be lost.",
   "confirm_close_cancel": "Continue",
   "confirm_close_confirm": "Discard",
-  "cooldown": "Sent ({{seconds}}s)"
+  "cooldown": "Sent ({{seconds}}s)",
+  "context_theme": "Theme",
+  "context_language": "Language",
+  "context_window": "Window",
+  "context_errors": "Errors",
+  "context_recent": "recent",
+  "context_diagnostic": "Diagnostic",
+  "context_included": "included"
 }
