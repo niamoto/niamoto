@@ -29,6 +29,7 @@ interface FeedbackState {
   openWithType: (type?: FeedbackType) => Promise<void>
   close: () => void
   setType: (type: FeedbackType) => void
+  captureScreenshot: () => Promise<void>
   send: (title: string, description: string, includeScreenshot: boolean) => Promise<void>
 }
 
@@ -62,8 +63,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [cooldownEnd])
 
+  // Ref for cooldown check in callbacks
+  const cooldownEndRef = useRef(cooldownEnd)
+  cooldownEndRef.current = cooldownEnd
+
   const openWithType = useCallback(
     async (nextType: FeedbackType = 'bug') => {
+      // Block if cooldown is active
+      if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return
+
       setType(nextType)
 
       // Capture screenshot before opening (bug type only)
@@ -94,6 +102,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     async (title: string, description: string, includeScreenshot: boolean) => {
       const ctx = contextDataRef.current
       if (!ctx) return
+      // Block if cooldown is active
+      if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return
 
       setIsSending(true)
       try {
@@ -149,11 +159,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     openWithType,
     close,
     setType,
+    captureScreenshot: capture,
     send,
   }), [
     isOpen, type, isSending, cooldownRemaining,
     screenshot, screenshotError, isCapturing,
-    contextData, openWithType, close, setType, send,
+    contextData, openWithType, close, setType, capture, send,
   ])
 
   return (

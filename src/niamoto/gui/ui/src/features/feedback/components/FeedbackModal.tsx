@@ -48,7 +48,7 @@ export function FeedbackModal() {
     }
   }, [feedback.isOpen])
 
-  // Reset form when modal opens
+  // Reset form only when modal opens (not on type change)
   useEffect(() => {
     if (feedback.isOpen) {
       setTitle('')
@@ -56,12 +56,17 @@ export function FeedbackModal() {
       setIncludeScreenshot(feedback.type === 'bug')
       setTitleError(false)
     }
-  }, [feedback.isOpen, feedback.type])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on isOpen
+  }, [feedback.isOpen])
 
   // Update screenshot default when type changes
-  const handleTypeChange = (newType: FeedbackType) => {
+  const handleTypeChange = async (newType: FeedbackType) => {
     feedback.setType(newType)
     setIncludeScreenshot(newType === 'bug')
+    // Trigger capture when switching to bug if no screenshot exists yet
+    if (newType === 'bug' && !feedback.screenshot && !feedback.isPreparingScreenshot) {
+      await feedback.captureScreenshot()
+    }
   }
 
   const handleClose = () => {
@@ -82,7 +87,7 @@ export function FeedbackModal() {
     await feedback.send(title.trim(), description.trim(), includeScreenshot)
   }
 
-  const canSend = browserOnline && !feedback.isSending && title.trim().length > 0
+  const canSend = browserOnline && !feedback.isSending && feedback.cooldownRemaining <= 0 && title.trim().length > 0
 
   return (
     <>
