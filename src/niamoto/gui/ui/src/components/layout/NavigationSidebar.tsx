@@ -5,11 +5,16 @@ import {
   Settings,
   PanelLeft,
   Command,
+  MessageSquarePlus,
+  Loader2,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
+import { useFeedback } from '@/features/feedback'
+import { useBrowserOnline } from '@/features/feedback/hooks/useBrowserOnline'
 
 interface NavigationSidebarProps {
   className?: string
@@ -26,6 +31,9 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   } = useNavigationStore()
   const { isMac } = usePlatform()
   const { isDesktop } = useRuntimeMode()
+  const feedback = useFeedback()
+  const browserOnline = useBrowserOnline()
+  const feedbackDisabled = !browserOnline || feedback.cooldownRemaining > 0 || feedback.isPreparingScreenshot
 
   if (sidebarMode === 'hidden') {
     return null
@@ -116,6 +124,25 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
       <div className="border-t p-3 space-y-2">
         {!isCompact ? (
           <>
+            <button
+              onClick={() => feedback.openWithType('bug')}
+              disabled={feedbackDisabled}
+              aria-label={t('feedback:button_label')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-theme-sm px-3 py-2 text-sm transition-theme-fast',
+                'hover:bg-accent hover:text-accent-foreground text-muted-foreground',
+                feedbackDisabled && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              {feedback.isPreparingScreenshot ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquarePlus className="h-4 w-4" />
+              )}
+              {feedback.cooldownRemaining > 0
+                ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
+                : t('feedback:button_label')}
+            </button>
             <NavLink
               to="/tools/settings"
               className={({ isActive: active }) =>
@@ -132,6 +159,33 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
           </>
         ) : (
           <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => feedback.openWithType('bug')}
+                  disabled={feedbackDisabled}
+                  aria-label={t('feedback:button_label')}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',
+                    'hover:bg-accent hover:text-accent-foreground text-muted-foreground',
+                    feedbackDisabled && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  {feedback.isPreparingScreenshot ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MessageSquarePlus className="h-4 w-4" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {!browserOnline
+                  ? t('feedback:offline_tooltip')
+                  : feedback.cooldownRemaining > 0
+                    ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
+                    : t('feedback:button_label')}
+              </TooltipContent>
+            </Tooltip>
             <NavLink
               to="/tools/settings"
               className={({ isActive: active }) =>

@@ -26,11 +26,14 @@ import {
   FileCode2,
   Puzzle,
   BookOpen,
+  MessageSquarePlus,
   ArrowUpDown,
   CornerDownLeft,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useTheme } from '@/hooks/use-theme'
+import { useFeedback } from '@/features/feedback'
+import { useBrowserOnline } from '@/features/feedback/hooks/useBrowserOnline'
 
 const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
@@ -45,6 +48,8 @@ export function CommandPalette() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { commandPaletteOpen, setCommandPaletteOpen } = useNavigationStore()
+  const feedback = useFeedback()
+  const browserOnline = useBrowserOnline()
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -75,10 +80,14 @@ export function CommandPalette() {
         i18n.changeLanguage(params[0])
         setCommandPaletteOpen(false)
         break
+      case 'feedback':
+        setCommandPaletteOpen(false)
+        feedback.openWithType('bug')
+        break
       default:
         break
     }
-  }, [navigate, setTheme, i18n, setCommandPaletteOpen])
+  }, [navigate, setTheme, i18n, setCommandPaletteOpen, feedback])
 
   return (
     <CommandDialog
@@ -175,6 +184,18 @@ export function CommandPalette() {
             <div className="flex flex-1 flex-col">
               <span className="font-medium">Documentation API</span>
               <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Endpoints reference')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="feedback:open"
+            keywords={['feedback', 'bug', 'report', 'suggestion', 'question', 'signaler', 'problème']}
+            onSelect={handleSelect}
+            disabled={!browserOnline}
+          >
+            <MessageSquarePlus className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('feedback:command_palette_label', 'Send feedback')}</span>
+              <span className="text-xs text-muted-foreground">{t('feedback:type_bug', 'Bug')}, {t('feedback:type_suggestion', 'Suggestion')}, {t('feedback:type_question', 'Question')}</span>
             </div>
           </CommandItem>
         </CommandGroup>

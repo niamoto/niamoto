@@ -1,0 +1,16 @@
+{
+  "name": "niamoto-feedback-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
+    "@cloudflare/workers-types": "^4.20250326.0",
+    "vitest": "^3.1.0",
+    "wrangler": "^4.0.0"
+  }
+}
