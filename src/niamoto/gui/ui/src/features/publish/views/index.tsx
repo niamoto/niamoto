@@ -563,7 +563,7 @@ export default function PublishOverview() {
     .slice(0, 5)
 
   return (
-    <div>
+    <div className="h-full overflow-y-auto">
       <div className="container mx-auto space-y-6 px-6 py-6">
         <Card>
           <CardHeader className="space-y-4">

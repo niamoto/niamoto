@@ -1,0 +1,15 @@
+name = "niamoto-feedback-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+[[r2_buckets]]
+binding = "FEEDBACK_BUCKET"
+bucket_name = "niamoto-feedback"
+
+[vars]
+R2_PUBLIC_URL = "https://feedback-assets.niamoto.org"
+GITHUB_REPO = "niamoto/niamoto"
+
+# Secrets (set via `wrangler secret put`):
+# - GITHUB_TOKEN: fine-grained PAT with issues:write on niamoto/niamoto
+# - FEEDBACK_API_KEY: static key sent by the app in X-Feedback-Key header
