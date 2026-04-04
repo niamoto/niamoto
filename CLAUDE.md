@@ -44,7 +44,7 @@ pnpm build
 GUI dev workflow reference:
 
 ```bash
-./scripts/dev_gui.sh test-instance/niamoto-nc
+./scripts/dev/dev_desktop.sh test-instance/niamoto-nc
 ```
 
 More commands:

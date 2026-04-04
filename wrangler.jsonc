@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "niamoto",
+  "compatibility_date": "2026-04-04",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "htmlcov"
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
+}
