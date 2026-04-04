@@ -29,6 +29,8 @@
   "context_theme": "Theme",
   "context_language": "Language",
   "context_window": "Window",
+  "context_screen": "Screen",
+  "context_memory": "Memory",
   "context_errors": "Errors",
   "context_recent": "recent",
   "context_diagnostic": "Diagnostic",

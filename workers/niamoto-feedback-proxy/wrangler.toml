@@ -7,7 +7,7 @@ binding = "FEEDBACK_BUCKET"
 bucket_name = "niamoto-feedback"
 
 [vars]
-R2_PUBLIC_URL = "https://feedback-assets.niamoto.dev"
+R2_PUBLIC_URL = "https://feedback-assets.niamoto.org"
 GITHUB_REPO = "niamoto/niamoto"
 
 # Secrets (set via `wrangler secret put`):

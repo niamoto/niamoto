@@ -156,3 +156,9 @@ ml/data/cache/
 data/.DS_Store
 data/**/.DS_Store
 .autoresearch/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

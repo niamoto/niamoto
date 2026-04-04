@@ -33,6 +33,9 @@ export function ScreenshotPreview({
     return () => URL.revokeObjectURL(url)
   }, [screenshot])
 
+  // Hide entirely if no screenshot and no capture in progress
+  if (!screenshot && !isCapturing && !error) return null
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -40,7 +43,7 @@ export function ScreenshotPreview({
           id="include-screenshot"
           checked={included}
           onCheckedChange={(checked) => onIncludedChange(checked === true)}
-          disabled={isCapturing || (!screenshot && !error)}
+          disabled={isCapturing || !screenshot}
         />
         <Label htmlFor="include-screenshot" className="text-sm cursor-pointer">
           {t('screenshot_label')}

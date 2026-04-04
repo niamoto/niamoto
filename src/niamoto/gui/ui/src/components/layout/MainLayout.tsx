@@ -6,6 +6,8 @@ import { TopBar } from './TopBar'
 import { BreadcrumbNav } from './BreadcrumbNav'
 import { CommandPalette } from './CommandPalette'
 import { FeedbackProvider, FeedbackModal } from '@/features/feedback'
+import { FeedbackErrorBoundary } from '@/features/feedback/components/FeedbackErrorBoundary'
+import { recordNavigation } from '@/features/feedback/lib/navigation-tracker'
 import { DesktopTitlebar } from './DesktopTitlebar'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
@@ -43,6 +45,7 @@ export function MainLayout() {
     })
 
     setBreadcrumbs(breadcrumbs)
+    recordNavigation(location.pathname)
   }, [location.pathname, setBreadcrumbs])
 
   // Handle responsive sidebar
@@ -82,9 +85,11 @@ export function MainLayout() {
               'transition-all duration-200'
             )}
           >
-            <PageTransition>
-              <Outlet />
-            </PageTransition>
+            <FeedbackErrorBoundary key={location.pathname}>
+              <PageTransition>
+                <Outlet />
+              </PageTransition>
+            </FeedbackErrorBoundary>
           </main>
         </div>
 

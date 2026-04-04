@@ -107,7 +107,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
       setIsSending(true)
       try {
-        const result = await sendFeedback({
+        await sendFeedback({
           payload: {
             type,
             title: title.slice(0, 200),
@@ -119,12 +119,6 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
         toast.success(t('success'), {
           description: t('issue_created'),
-          action: result.issue_url
-            ? {
-                label: t('view_issue'),
-                onClick: () => window.open(result.issue_url, '_blank'),
-              }
-            : undefined,
         })
 
         setIsOpen(false)

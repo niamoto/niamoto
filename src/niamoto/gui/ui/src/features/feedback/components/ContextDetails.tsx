@@ -25,6 +25,18 @@ export function ContextDetails({ context }: ContextDetailsProps) {
             <tr><td className="pr-3 text-muted-foreground/70">{t('context_theme')}</td><td>{context.theme}</td></tr>
             <tr><td className="pr-3 text-muted-foreground/70">{t('context_language')}</td><td>{context.language}</td></tr>
             <tr><td className="pr-3 text-muted-foreground/70">{t('context_window')}</td><td>{context.window_size}</td></tr>
+            {context.screen_size && (
+              <tr><td className="pr-3 text-muted-foreground/70">{t('context_screen')}</td><td>{context.screen_size}</td></tr>
+            )}
+            {context.uptime && (
+              <tr><td className="pr-3 text-muted-foreground/70">Uptime</td><td>{context.uptime}</td></tr>
+            )}
+            {context.memory && (
+              <tr><td className="pr-3 text-muted-foreground/70">{t('context_memory')}</td><td>{context.memory}</td></tr>
+            )}
+            {context.backend_status && (
+              <tr><td className="pr-3 text-muted-foreground/70">Backend</td><td>{context.backend_status}</td></tr>
+            )}
             {context.recent_errors && context.recent_errors.length > 0 && (
               <tr>
                 <td className="pr-3 align-top text-muted-foreground/70">{t('context_errors')}</td>
