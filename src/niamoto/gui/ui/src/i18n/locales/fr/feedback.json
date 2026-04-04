@@ -29,6 +29,8 @@
   "context_theme": "Thème",
   "context_language": "Langue",
   "context_window": "Fenêtre",
+  "context_screen": "Écran",
+  "context_memory": "Mémoire",
   "context_errors": "Erreurs",
   "context_recent": "récente(s)",
   "context_diagnostic": "Diagnostic",

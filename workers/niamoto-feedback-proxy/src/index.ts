@@ -18,9 +18,17 @@ interface FeedbackPayload {
     theme: string
     language: string
     window_size: string
+    screen_size?: string
     timestamp: string
+    uptime?: string
+    memory?: string
+    backend_status?: string
     diagnostic?: Record<string, unknown>
     recent_errors?: Array<{ message: string; stack?: string; timestamp: string }>
+    navigation_history?: Array<{ path: string; timestamp: string }>
+    failed_requests?: Array<{ url: string; status: number; duration: number; timestamp: string }>
+    crashes?: Array<{ component: string; error: string; timestamp: string }>
+    state_snapshot?: Record<string, unknown>
   }
 }
 
@@ -29,8 +37,10 @@ const ALLOWED_ORIGINS = [
   'https://tauri.localhost',
   'http://localhost:1420',
   'http://localhost:1421',
+  'http://localhost:5173',
   'http://127.0.0.1:1420',
   'http://127.0.0.1:1421',
+  'http://127.0.0.1:5173',
 ]
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -91,6 +101,13 @@ function buildIssueBody(
   }
 
   const ctx = payload.context
+  const escapeCodeFence = (s: string) => s.replace(/`{3,}/g, '`` `')
+  const appendJsonSection = (title: string, value: Record<string, unknown>) => {
+    const json = JSON.stringify(value, null, 2)
+    if (!json || json === '{}') return
+    body += `\n### ${title}\n\`\`\`json\n${escapeCodeFence(json)}\n\`\`\`\n`
+  }
+
   body += `### Contexte\n`
   body += `| | |\n|-|-|\n`
   body += `| Version | ${ctx.app_version} |\n`
@@ -100,10 +117,41 @@ function buildIssueBody(
   body += `| Thème | ${ctx.theme} |\n`
   body += `| Langue | ${ctx.language} |\n`
   body += `| Fenêtre | ${ctx.window_size} |\n`
+  if (ctx.screen_size) body += `| Écran | ${ctx.screen_size} |\n`
+  if (ctx.uptime) body += `| Uptime | ${ctx.uptime} |\n`
+  if (ctx.memory) body += `| Mémoire | ${ctx.memory} |\n`
+  if (ctx.backend_status) body += `| Backend | ${ctx.backend_status} |\n`
+
+  if (ctx.navigation_history && ctx.navigation_history.length > 0) {
+    body += `\n### Historique navigation\n`
+    for (const nav of ctx.navigation_history.slice(-5)) {
+      body += `- \`${nav.path}\` (${nav.timestamp.slice(11, 19)})\n`
+    }
+  }
+
+  if (ctx.failed_requests && ctx.failed_requests.length > 0) {
+    body += `\n### Requêtes échouées\n`
+    for (const req of ctx.failed_requests.slice(-5)) {
+      body += `- \`${req.url}\` → ${req.status} (${req.duration}ms)\n`
+    }
+  }
+
+  if (ctx.crashes && ctx.crashes.length > 0) {
+    body += `\n### Composants crashés\n`
+    for (const crash of ctx.crashes) {
+      body += `- **${crash.component}**: ${escapeCodeFence(crash.error)} (${crash.timestamp.slice(11, 19)})\n`
+    }
+  }
+
+  if (ctx.state_snapshot) {
+    appendJsonSection('État local', ctx.state_snapshot)
+  }
+
+  if (ctx.diagnostic) {
+    appendJsonSection('Diagnostic backend', ctx.diagnostic)
+  }
 
   if (ctx.recent_errors && ctx.recent_errors.length > 0) {
-    // Escape backtick sequences that would break the code fence
-    const escapeCodeFence = (s: string) => s.replace(/`{3,}/g, '`` `')
     body += `\n### Erreurs console\n\`\`\`\n`
     for (const err of ctx.recent_errors.slice(0, 5)) {
       body += `[${err.timestamp}] ${escapeCodeFence(err.message)}\n`

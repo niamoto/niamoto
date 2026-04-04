@@ -59,11 +59,10 @@ export function FeedbackModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on isOpen
   }, [feedback.isOpen])
 
-  // Update screenshot default when type changes
   const handleTypeChange = async (newType: FeedbackType) => {
     feedback.setType(newType)
     setIncludeScreenshot(newType === 'bug')
-    // Trigger capture when switching to bug if no screenshot exists yet
+
     if (newType === 'bug' && !feedback.screenshot && !feedback.isPreparingScreenshot) {
       await feedback.captureScreenshot()
     }
@@ -145,7 +144,7 @@ export function FeedbackModal() {
               />
             </div>
 
-            {/* Screenshot preview */}
+            {/* Screenshot preview (visible for bug type) */}
             <ScreenshotPreview
               screenshot={feedback.screenshot}
               error={feedback.screenshotError}

@@ -11,32 +11,33 @@ export function useScreenshot() {
     setIsCapturing(true)
     setError(false)
     try {
-      const { default: html2canvas } = await import('html2canvas')
+      // html2canvas-pro: fork with oklch/oklab/lch support (same API)
+      const { default: html2canvas } = await import('html2canvas-pro')
       const canvas = await html2canvas(document.body, {
         useCORS: true,
-        scale: 1, // Force 1x to avoid >5MB on Retina displays
+        scale: 1,
         logging: false,
+        backgroundColor: '#ffffff',
       })
 
       let blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/jpeg', 0.7)
       )
 
-      // Fallback: lower quality if still too large
       if (blob && blob.size > MAX_SIZE) {
         blob = await new Promise<Blob | null>((resolve) =>
           canvas.toBlob(resolve, 'image/jpeg', 0.4)
         )
       }
 
-      // Drop if still too large
       if (blob && blob.size > MAX_SIZE) {
         setError(true)
         setScreenshot(null)
       } else {
         setScreenshot(blob)
       }
-    } catch {
+    } catch (err) {
+      console.error('[feedback] Screenshot capture failed:', err)
       setError(true)
       setScreenshot(null)
     } finally {

@@ -14,9 +14,17 @@ export interface FeedbackContext {
   theme: string
   language: string
   window_size: string
+  screen_size?: string
   timestamp: string
+  uptime?: string
+  memory?: string
+  backend_status?: string
   diagnostic?: Record<string, unknown>
   recent_errors?: ErrorEntry[]
+  navigation_history?: Array<{ path: string; timestamp: string }>
+  failed_requests?: Array<{ url: string; status: number; duration: number; timestamp: string }>
+  crashes?: Array<{ component: string; error: string; timestamp: string }>
+  state_snapshot?: Record<string, unknown>
 }
 
 export interface FeedbackPayload {

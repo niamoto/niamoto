@@ -533,14 +533,7 @@ pub fn run() {
                                 readiness_started.elapsed().as_secs_f64()
                             ),
                         );
-                        show_loading_status(
-                            &window_clone,
-                            &format!(
-                                "Still waiting... ({}/{}s)",
-                                attempts as u64 * SERVER_POLL_INTERVAL_MS / 1000,
-                                SERVER_STARTUP_TIMEOUT_SECS
-                            ),
-                        );
+                        show_loading_status(&window_clone, "Still waiting...");
                     }
                 }
 
