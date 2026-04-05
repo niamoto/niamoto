@@ -1,14 +1,56 @@
 """Tests for preview engine transformer execution paths and caching."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
+from niamoto.gui.api.services.preview_engine import engine as preview_engine_module
 from niamoto.gui.api.services.preview_engine.engine import PreviewEngine
 
 
 def _make_engine() -> PreviewEngine:
     return PreviewEngine("/tmp/niamoto-preview.db", "/tmp/niamoto/config")
+
+
+def test_get_preview_engine_rebuilds_when_context_changes(monkeypatch):
+    created: list[tuple[str, str]] = []
+
+    class DummyEngine:
+        def __init__(self, db_path: str, config_dir: str):
+            self._db_path = db_path
+            self._config_dir = config_dir
+            created.append((db_path, config_dir))
+
+    current = {
+        "db_path": Path("/tmp/project-a/db/niamoto.duckdb"),
+        "work_dir": Path("/tmp/project-a"),
+    }
+
+    monkeypatch.setattr(
+        preview_engine_module, "get_database_path", lambda: current["db_path"]
+    )
+    monkeypatch.setattr(
+        preview_engine_module, "get_working_directory", lambda: current["work_dir"]
+    )
+    monkeypatch.setattr(preview_engine_module, "PreviewEngine", DummyEngine)
+
+    preview_engine_module.reset_preview_engine()
+    try:
+        first = preview_engine_module.get_preview_engine()
+        current["db_path"] = Path("/tmp/project-b/db/niamoto.duckdb")
+        current["work_dir"] = Path("/tmp/project-b")
+        second = preview_engine_module.get_preview_engine()
+    finally:
+        preview_engine_module.reset_preview_engine()
+
+    assert first is not None
+    assert second is not None
+    assert first is not second
+    assert created == [
+        ("/tmp/project-a/db/niamoto.duckdb", "/tmp/project-a/config"),
+        ("/tmp/project-b/db/niamoto.duckdb", "/tmp/project-b/config"),
+    ]
 
 
 # ---------------------------------------------------------------------------

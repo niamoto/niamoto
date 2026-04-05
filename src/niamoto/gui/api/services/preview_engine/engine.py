@@ -1851,20 +1851,28 @@ def get_preview_engine() -> PreviewEngine | None:
     Lazily created on the first request (double-checked locking).
     """
     global _engine_instance
+    db_path = get_database_path()
+    work_dir = get_working_directory()
+
+    if not db_path:
+        return None
+
+    config_dir = str(work_dir / "config") if work_dir else ""
+
     if _engine_instance is not None:
-        return _engine_instance
+        if (
+            _engine_instance._db_path == str(db_path)
+            and _engine_instance._config_dir == config_dir
+        ):
+            return _engine_instance
 
     with _engine_lock:
         if _engine_instance is not None:
-            return _engine_instance
-
-        db_path = get_database_path()
-        work_dir = get_working_directory()
-
-        if not db_path:
-            return None
-
-        config_dir = str(work_dir / "config") if work_dir else ""
+            if (
+                _engine_instance._db_path == str(db_path)
+                and _engine_instance._config_dir == config_dir
+            ):
+                return _engine_instance
         engine = PreviewEngine(
             db_path=str(db_path),
             config_dir=config_dir,
