@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.0] - 2026-04-05
+
+### Features
+
+- Add in-app feedback system with Cloudflare Worker proxy
+- Add html2canvas-pro screenshot and enriched debug context for feedback
+- Add page transition and card entrance animations
+- Add 8 new theme presets with extended style categories and fallback logic
+- Add Tauri desktop release readiness
+- Add collapsible widget list panel
+- Merge Sources tab into Blocs as dialog overlay
+- Add enriched collections overview with status cards
+- Simplify API export UX for non-technical users
+
+### Bug Fixes
+
+- Address feedback form reset, cooldown enforcement, screenshot capture, and error sanitization
+- Refine macOS desktop header alignment
+- Restore dev hot reload workflow
+- Wire theme polish review fixes
+- Isolate scroll zones and harmonize tab headers
+- Move collapse toggle to right, fix scrollbar and scroll issues
+- Use i18n for relative time in collections overview
+- Resolve tab mismatch, API settings access, and stale i18n keys
+
+### Refactoring
+
+- Migrate shell components to theme-aware utilities
+- Redesign sources dashboard workflow
+- Site module UX revamp with unified view and first-launch experience
+- Merge header and tabs into single compact toolbar
+- Move pipeline status from banner to breadcrumb
+- Flatten collections sidebar with status dots
+- Rename Groups module to Collections in GUI
+
+### Style
+
+- Darken sidebar across all 10 themes
+
 ## [v0.11.0] - 2026-03-30
 
 ### Features
