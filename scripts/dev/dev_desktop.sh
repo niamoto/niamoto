@@ -16,6 +16,7 @@ VITE_PORT="${NIAMOTO_DESKTOP_VITE_PORT:-5173}"
 API_PORT="${NIAMOTO_DESKTOP_API_PORT:-8080}"
 VITE_HOST="${NIAMOTO_DESKTOP_VITE_HOST:-127.0.0.1}"
 VITE_URL="http://${VITE_HOST}:${VITE_PORT}"
+VITE_VERSION_MODULE_URL="${VITE_URL}/src/shared/desktop/updater/useAppUpdater.ts"
 STARTED_VITE=0
 VITE_PID=""
 RESET_USER_CONFIG=0
@@ -78,6 +79,14 @@ done
 # Change to project root
 cd "$PROJECT_ROOT"
 
+CURRENT_APP_VERSION="$(python3 - <<'PY'
+import json
+from pathlib import Path
+
+print(json.loads(Path("src-tauri/tauri.conf.json").read_text())["version"])
+PY
+)"
+
 # Optionally remove persisted desktop selection to simulate a fresh install
 if [[ "$RESET_USER_CONFIG" -eq 1 ]]; then
     echo -e "${BLUE}🧹 Resetting desktop user config...${NC}"
@@ -123,19 +132,49 @@ cleanup() {
 
 trap cleanup INT TERM
 
+detect_running_vite_version() {
+    curl -fsS "$VITE_VERSION_MODULE_URL" 2>/dev/null \
+        | sed -n 's/.*const APP_VERSION = "\([^"]*\)".*/\1/p' \
+        | head -n 1
+}
+
+stop_vite_on_port() {
+    local pids
+    pids="$(lsof -ti tcp:"$VITE_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+        echo -e "${YELLOW}Stopping existing server on port ${VITE_PORT}: ${pids}${NC}"
+        kill $pids 2>/dev/null || true
+        sleep 1
+    fi
+}
+
 # Step 1: Start or reuse Vite dev server for frontend HMR
 echo ""
 echo -e "${BLUE}⚛️  Step 1: Checking Vite dev server...${NC}"
 cd src/niamoto/gui/ui
 
+REUSE_VITE=0
 if curl -sf "$VITE_URL" > /dev/null; then
-    echo -e "${GREEN}✓ Reusing existing Vite on $VITE_URL${NC}"
-else
+    RUNNING_VITE_VERSION="$(detect_running_vite_version)"
+    if [[ -n "$RUNNING_VITE_VERSION" && "$RUNNING_VITE_VERSION" == "$CURRENT_APP_VERSION" ]]; then
+        REUSE_VITE=1
+        echo -e "${GREEN}✓ Reusing existing Vite on $VITE_URL (version $RUNNING_VITE_VERSION)${NC}"
+    else
+        if [[ -n "$RUNNING_VITE_VERSION" ]]; then
+            echo -e "${YELLOW}⚠️  Running Vite serves version $RUNNING_VITE_VERSION but tauri.conf.json is $CURRENT_APP_VERSION${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Running Vite detected on $VITE_URL but its injected app version could not be verified${NC}"
+        fi
+        stop_vite_on_port
+    fi
+fi
+
+if [[ "$REUSE_VITE" -eq 0 ]]; then
     NIAMOTO_DESKTOP_API_PORT="$API_PORT" pnpm exec vite --host "$VITE_HOST" --strictPort --port "$VITE_PORT" &
     VITE_PID=$!
     STARTED_VITE=1
 
-    echo -e "${YELLOW}Waiting for Vite to start on $VITE_URL...${NC}"
+    echo -e "${YELLOW}Waiting for Vite to start on $VITE_URL (version $CURRENT_APP_VERSION)...${NC}"
 
     for _ in {1..30}; do
         if curl -sf "$VITE_URL" > /dev/null; then
@@ -152,7 +191,7 @@ else
         exit 1
     fi
 
-    echo -e "${GREEN}✓ Vite is ready on $VITE_URL${NC}"
+    echo -e "${GREEN}✓ Vite is ready on $VITE_URL (version $CURRENT_APP_VERSION)${NC}"
 fi
 
 echo -e "${YELLOW}ℹ️  Frontend changes hot-reload through Vite HMR.${NC}"
