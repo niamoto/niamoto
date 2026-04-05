@@ -15,9 +15,11 @@ import { PreviewError } from './PreviewError'
 interface PreviewPaneProps {
   descriptor: PreviewDescriptor
   className?: string
+  /** Optional transform applied to the HTML before rendering in the iframe */
+  transformHtml?: (html: string) => string
 }
 
-export function PreviewPane({ descriptor, className }: PreviewPaneProps) {
+export function PreviewPane({ descriptor, className, transformHtml }: PreviewPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -67,7 +69,7 @@ export function PreviewPane({ descriptor, className }: PreviewPaneProps) {
         <iframe
           key={resizeKey}
           ref={iframeRef}
-          srcDoc={html}
+          srcDoc={transformHtml ? transformHtml(html) : html}
           title="Widget preview"
           sandbox="allow-scripts"
           style={{

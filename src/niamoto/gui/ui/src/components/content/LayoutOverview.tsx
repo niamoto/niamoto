@@ -233,6 +233,26 @@ const CHART_HEIGHTS: Record<string, string> = {
 }
 const DEFAULT_CHART_HEIGHT = 'h-64'
 
+// Script injected into preview iframes to hide legends via Plotly relayout
+// (display:none only hides visually — Plotly still reserves space)
+const HIDE_LEGENDS_SCRIPT = `<script>
+document.addEventListener('DOMContentLoaded',function(){
+  setTimeout(function(){
+    document.querySelectorAll('.js-plotly-plot').forEach(function(el){
+      if(window.Plotly){Plotly.relayout(el,{showlegend:false})}
+    });
+  },200);
+});
+</script>
+<style>.leaflet-control{display:none!important}</style>`
+
+function injectHideLegends(html: string): string {
+  if (!html) return html
+  const idx = html.indexOf('</body>')
+  if (idx !== -1) return html.slice(0, idx) + HIDE_LEGENDS_SCRIPT + html.slice(idx)
+  return html + HIDE_LEGENDS_SCRIPT
+}
+
 function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; plugin: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -268,7 +288,7 @@ function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; 
       )}
       {html && !loading && (
         <iframe
-          srcDoc={html}
+          srcDoc={injectHideLegends(html)}
           title="Widget preview"
           sandbox="allow-scripts"
           style={{
@@ -396,6 +416,7 @@ function SortableWidgetCard({
               <PreviewPane
                 descriptor={descriptor}
                 className={cn('w-full', CHART_HEIGHTS[widget.plugin] ?? DEFAULT_CHART_HEIGHT)}
+                transformHtml={injectHideLegends}
               />
             )}
             {/* Selection overlay on hover */}
