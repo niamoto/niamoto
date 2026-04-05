@@ -10,11 +10,12 @@
  * - Click to select widget for details
  * - Save changes to layout API
  */
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PreviewPane } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
+import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import {
   DndContext,
@@ -49,7 +50,10 @@ import {
   Navigation,
   List,
   MousePointerClick,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
+import { getPluginLabel } from '@/components/widgets/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -211,6 +215,76 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
   )
 }
 
+// Scaled preview for widgets that need a wider render (maps, info grids).
+// Renders the iframe at a large native width then CSS-transforms it down.
+const SCALED_DIMS: Record<string, { w: number; h: number }> = {
+  interactive_map: { w: 800, h: 500 },
+}
+
+// Plugins that benefit from scale-down (content designed for full-page width)
+const NEEDS_SCALE = new Set(Object.keys(SCALED_DIMS))
+
+// Height hints for chart widgets rendered at native container width
+const CHART_HEIGHTS: Record<string, string> = {
+  bar_plot:      'h-72',
+  donut_chart:   'h-72',
+  radial_gauge:  'h-64',
+  info_grid:     'h-64',
+}
+const DEFAULT_CHART_HEIGHT = 'h-64'
+
+function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; plugin: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+
+  const fullDescriptor = useMemo(
+    () => ({ ...descriptor, mode: 'full' as const }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    descriptorDeps(descriptor),
+  )
+  const { html, loading } = usePreviewFrame(fullDescriptor, true)
+
+  const dims = SCALED_DIMS[plugin] ?? { w: 800, h: 400 }
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const containerW = entries[0].contentRect.width
+      if (containerW > 0) setScale(containerW / dims.w)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [dims.w])
+
+  const scaledHeight = dims.h * scale
+
+  return (
+    <div ref={containerRef} className="w-full overflow-hidden" style={{ height: scaledHeight }}>
+      {loading && (
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {html && !loading && (
+        <iframe
+          srcDoc={html}
+          title="Widget preview"
+          sandbox="allow-scripts"
+          style={{
+            width: dims.w,
+            height: dims.h,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            border: 'none',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 // Sortable Widget Card with preview and selection
 interface SortableWidgetCardProps {
   id: string
@@ -259,22 +333,6 @@ function SortableWidgetCard({
   // Column span class
   const colSpanClass = widget.colspan === 1 ? 'col-span-6' : 'col-span-12'
 
-  // Height class based on widget type
-  const getHeightClass = () => {
-    switch (widget.plugin) {
-      case 'interactive_map':
-        return 'h-80'
-      case 'bar_plot':
-        return 'h-64'
-      case 'donut_chart':
-        return 'h-56'
-      case 'radial_gauge':
-        return 'h-64'
-      default:
-        return 'h-56'
-    }
-  }
-
   const shouldRenderPreview = showPreview && !isDragging
 
   return (
@@ -288,7 +346,7 @@ function SortableWidgetCard({
       )}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b">
         {/* Drag handle */}
         <button
           className="touch-none cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted"
@@ -302,8 +360,8 @@ function SortableWidgetCard({
         <span className="flex-1 font-medium text-sm truncate">{widget.title}</span>
 
         {/* Plugin badge */}
-        <Badge variant="secondary" className="text-xs shrink-0">
-          {widget.plugin}
+        <Badge variant="secondary" className="text-[10px] shrink-0">
+          {getPluginLabel(widget.plugin)}
         </Badge>
 
         {/* Colspan toggle */}
@@ -327,12 +385,19 @@ function SortableWidgetCard({
 
       {/* Preview area - clickable for selection */}
       <div
-        className={cn('relative bg-background cursor-pointer', getHeightClass())}
+        className="relative bg-background cursor-pointer"
         onClick={onSelect}
       >
         {shouldRenderPreview ? (
           <>
-            <PreviewPane descriptor={descriptor} className="w-full h-full" />
+            {NEEDS_SCALE.has(widget.plugin) ? (
+              <ScaledPreview descriptor={descriptor} plugin={widget.plugin} />
+            ) : (
+              <PreviewPane
+                descriptor={descriptor}
+                className={cn('w-full', CHART_HEIGHTS[widget.plugin] ?? DEFAULT_CHART_HEIGHT)}
+              />
+            )}
             {/* Selection overlay on hover */}
             <div className="absolute inset-0 bg-primary/0 hover:bg-primary/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <div className="bg-background/90 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
@@ -342,9 +407,9 @@ function SortableWidgetCard({
             </div>
           </>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
+          <div className="flex h-32 flex-col items-center justify-center text-muted-foreground bg-muted/20">
             <Badge variant="outline" className="text-xs">
-              {widget.plugin}
+              {getPluginLabel(widget.plugin)}
             </Badge>
             <span className="mt-2 text-xs">
               {isDragging ? t('layout.moving') : t('layout.previewDisabled')}
@@ -404,6 +469,7 @@ export function LayoutOverview({
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [showNavSidebar, setShowNavSidebar] = useState(false)
 
   // Reset entity selection when group changes
   useEffect(() => {
@@ -578,83 +644,100 @@ export function LayoutOverview({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="px-4 py-3 border-b shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">{t('layout.layoutPreview')}</h2>
-            <p className="text-sm text-muted-foreground">
-              {t('layout.widgetsConfigured', { count: layout.total_widgets })} - {t('layout.clickToEdit')}
-              {hasChanges && (
-                <Badge variant="outline" className="ml-2 text-warning border-warning">
-                  {t('layout.unsavedChanges')}
-                </Badge>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Preview toggle */}
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+        {/* Left: nav toggle + widget count */}
+        <div className="flex items-center gap-2">
+          {navigationWidget && layout.navigation_widget && (
             <Button
-              variant={showPreviews ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => setShowPreviews(!showPreviews)}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowNavSidebar((v) => !v)}
+              title={t('layout.toggleNavigation')}
             >
-              {showPreviews ? (
-                <Eye className="mr-1.5 h-4 w-4" />
+              {showNavSidebar ? (
+                <PanelLeftClose className="h-4 w-4" />
               ) : (
-                <EyeOff className="mr-1.5 h-4 w-4" />
+                <PanelLeftOpen className="h-4 w-4" />
               )}
-              {t('layout.previews')}
             </Button>
-
-            {/* Entity selector */}
-            {showPreviews && representatives && representatives.entities.length > 0 && (
-              <Select
-                value={selectedEntityId || ''}
-                onValueChange={setSelectedEntityId}
-              >
-                <SelectTrigger className="w-[180px] h-8">
-                  <Leaf className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder={t('layout.entity')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {representatives.entities.map((entity) => (
-                    <SelectItem key={entity.id} value={entity.id}>
-                      {entity.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Refresh */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                refetch()
-                invalidateAllPreviews(queryClient)
-              }}
-              disabled={saveMutation.isPending}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-
-            {/* Save */}
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!hasChanges || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-1.5 h-4 w-4" />
-              )}
-              {t('layout.save')}
-            </Button>
-          </div>
+          )}
+          <span className="text-sm text-muted-foreground">
+            {t('layout.widgetsConfigured', { count: layout.total_widgets })}
+          </span>
+          {hasChanges && (
+            <Badge variant="outline" className="text-warning border-warning text-xs">
+              {t('layout.unsavedChanges')}
+            </Badge>
+          )}
         </div>
+
+        <div className="flex-1" />
+
+        {/* Center: preview toggle + entity selector */}
+        <Button
+          variant={showPreviews ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-8"
+          onClick={() => setShowPreviews(!showPreviews)}
+        >
+          {showPreviews ? (
+            <Eye className="mr-1.5 h-3.5 w-3.5" />
+          ) : (
+            <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          {t('layout.previews')}
+        </Button>
+
+        {showPreviews && representatives && representatives.entities.length > 0 && (
+          <Select
+            value={selectedEntityId || ''}
+            onValueChange={setSelectedEntityId}
+          >
+            <SelectTrigger className="w-[180px] h-8">
+              <Leaf className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue placeholder={t('layout.entity')} />
+            </SelectTrigger>
+            <SelectContent>
+              {representatives.entities.map((entity) => (
+                <SelectItem key={entity.id} value={entity.id}>
+                  {entity.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <div className="mx-1 h-4 w-px bg-border" />
+
+        {/* Right: refresh + save */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => {
+            refetch()
+            invalidateAllPreviews(queryClient)
+          }}
+          disabled={saveMutation.isPending}
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button
+          size="sm"
+          className="h-8"
+          onClick={handleSave}
+          disabled={!hasChanges || saveMutation.isPending}
+        >
+          {saveMutation.isPending ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          {t('layout.save')}
+        </Button>
       </div>
 
       {/* Success/Error messages */}
@@ -673,9 +756,9 @@ export function LayoutOverview({
 
       {/* Main content area */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Navigation sidebar */}
-        {navigationWidget && layout.navigation_widget && (
-          <div className="w-64 p-4 shrink-0 border-r">
+        {/* Navigation sidebar (collapsible) */}
+        {navigationWidget && layout.navigation_widget && showNavSidebar && (
+          <div className="w-56 p-3 shrink-0 border-r">
             <NavigationSidebar
               groupBy={groupBy}
               navigationWidget={layout.navigation_widget}
@@ -724,7 +807,7 @@ export function LayoutOverview({
                       <span className="font-medium text-sm">{activeWidget.title}</span>
                     </div>
                     <div className="h-16 bg-muted/30 flex items-center justify-center text-muted-foreground text-sm">
-                      {activeWidget.plugin}
+                      {getPluginLabel(activeWidget.plugin)}
                     </div>
                   </div>
                 ) : null}

@@ -67,6 +67,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ConfiguredWidget } from '@/components/widgets'
+import { getPluginLabel } from '@/components/widgets/types'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -168,7 +169,7 @@ function SortableWidgetItem({
         <div className="font-medium text-sm truncate">{resolveLocalizedString(widget.title)}</div>
         <div className="flex items-center gap-1.5 mt-0.5">
           <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {widget.widgetPlugin}
+            {getPluginLabel(widget.widgetPlugin)}
           </Badge>
         </div>
       </div>
