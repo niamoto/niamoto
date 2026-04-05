@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.1] - 2026-04-05
+
+### Bug Fixes
+
+- Disable automatic RUSTSEC issue creation in dependency audit workflow
+- Fix NIAMOTO_PYINSTALLER_MODE env var passing in Tauri CI build
+- Allow desktop startup without pre-selected project (welcome mode)
+- Add --reset-user-config flag to dev_desktop.sh
+- Fix WelcomeScreen button text color
+
 ## [v0.12.0] - 2026-04-05
 
 ### Features
