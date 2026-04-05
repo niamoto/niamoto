@@ -200,7 +200,7 @@ export default function WelcomeScreen({
             <Button
               size="lg"
               variant="outline"
-              className="btn-interactive h-28 flex-col gap-3 border-2 hover:bg-muted/50"
+              className="btn-interactive h-28 flex-col gap-3 border-2 text-foreground hover:bg-muted/50 hover:text-foreground"
               onClick={handleBrowse}
               disabled={loading === 'browse'}
             >

@@ -62,9 +62,9 @@ class TestGuiCommand:
 
                 result = runner.invoke(gui)
 
-                # Verify app was created and working directory set
+                # Verify app was created
                 fake_app_module.create_app.assert_called_once()
-                fake_context_module.set_working_directory.assert_called_once()
+                fake_context_module.set_working_directory.assert_not_called()
 
                 # Verify uvicorn was called with correct defaults
                 mock_uvicorn.run.assert_called_once()
@@ -75,8 +75,10 @@ class TestGuiCommand:
 
                 assert "Starting Niamoto GUI" in result.output
 
-    def test_gui_sets_niamoto_home_before_app_creation(self, monkeypatch):
-        """Test GUI command sets NIAMOTO_HOME before importing the app module."""
+    def test_gui_does_not_invent_niamoto_home_without_selected_project(
+        self, monkeypatch
+    ):
+        """Test GUI command keeps startup in welcome mode when no project is selected."""
         runner = CliRunner()
         mock_uvicorn = MagicMock()
         mock_uvicorn.run.side_effect = KeyboardInterrupt()
@@ -90,7 +92,32 @@ class TestGuiCommand:
         monkeypatch.delenv("NIAMOTO_HOME", raising=False)
 
         with runner.isolated_filesystem():
+            with mocked_gui_runtime(mock_uvicorn) as (
+                fake_app_module,
+                fake_context_module,
+            ):
+                fake_app_module.create_app.side_effect = fake_create_app
+                result = runner.invoke(gui, ["--no-browser"])
+
+            assert result.exit_code == 0
+            assert observed["niamoto_home"] is None
+            fake_context_module.set_working_directory.assert_not_called()
+
+    def test_gui_uses_explicit_niamoto_home_before_app_creation(self, monkeypatch):
+        """Test GUI command preserves an explicit project path for the API app."""
+        runner = CliRunner()
+        mock_uvicorn = MagicMock()
+        mock_uvicorn.run.side_effect = KeyboardInterrupt()
+
+        observed = {}
+
+        def fake_create_app():
+            observed["niamoto_home"] = os.environ.get("NIAMOTO_HOME")
+            return MagicMock()
+
+        with runner.isolated_filesystem():
             expected_dir = os.getcwd()
+            monkeypatch.setenv("NIAMOTO_HOME", expected_dir)
             with mocked_gui_runtime(mock_uvicorn) as (
                 fake_app_module,
                 fake_context_module,

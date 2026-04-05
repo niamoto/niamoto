@@ -23,3 +23,5 @@ jobs:
           # Only fail on actual vulnerabilities, not unmaintained warnings
           # (Tauri has many unmaintained transitive deps like gtk3-rs, unic)
           denyWarnings: false
+          # Don't create GitHub issues for each RUSTSEC advisory
+          createIssues: false
