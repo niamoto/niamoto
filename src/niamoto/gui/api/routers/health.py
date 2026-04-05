@@ -10,6 +10,7 @@ from niamoto.gui.api.context import (
     get_database_path,
 )
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
+from niamoto.gui.api.services.preview_engine.engine import reset_preview_engine
 from niamoto.gui.startup_logging import log_desktop_startup
 
 router = APIRouter(prefix="/api/health", tags=["health"])
@@ -68,6 +69,7 @@ async def reload_project(request: Request):
         - success: Whether the reload was successful
     """
     reload_result = reload_project_from_desktop_config()
+    reset_preview_engine()
 
     if reload_result.state == "loaded":
         resolve_job_store(request.app)

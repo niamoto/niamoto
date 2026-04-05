@@ -26,6 +26,7 @@ class TestReloadProjectEndpoint:
         client = create_test_client()
         loaded_project = Path("/tmp/niamoto-project")
         resolve_calls = []
+        reset_calls = []
 
         monkeypatch.setattr(
             health,
@@ -36,6 +37,9 @@ class TestReloadProjectEndpoint:
         )
         monkeypatch.setattr(
             health, "resolve_job_store", lambda app: resolve_calls.append(app)
+        )
+        monkeypatch.setattr(
+            health, "reset_preview_engine", lambda: reset_calls.append(True)
         )
 
         response = client.post("/api/health/reload-project")
@@ -48,9 +52,11 @@ class TestReloadProjectEndpoint:
             "message": None,
         }
         assert resolve_calls == [client.app]
+        assert reset_calls == [True]
 
     def test_welcome_state_clears_job_store(self, monkeypatch: pytest.MonkeyPatch):
         client = create_test_client()
+        reset_calls = []
 
         monkeypatch.setattr(
             health,
@@ -66,6 +72,9 @@ class TestReloadProjectEndpoint:
             "resolve_job_store",
             lambda app: pytest.fail("resolve_job_store should not be called"),
         )
+        monkeypatch.setattr(
+            health, "reset_preview_engine", lambda: reset_calls.append(True)
+        )
 
         response = client.post("/api/health/reload-project")
 
@@ -78,11 +87,13 @@ class TestReloadProjectEndpoint:
         }
         assert client.app.state.job_store is None
         assert client.app.state.job_store_work_dir is None
+        assert reset_calls == [True]
 
     def test_invalid_project_state_clears_job_store(
         self, monkeypatch: pytest.MonkeyPatch
     ):
         client = create_test_client()
+        reset_calls = []
 
         monkeypatch.setattr(
             health,
@@ -98,6 +109,9 @@ class TestReloadProjectEndpoint:
             "resolve_job_store",
             lambda app: pytest.fail("resolve_job_store should not be called"),
         )
+        monkeypatch.setattr(
+            health, "reset_preview_engine", lambda: reset_calls.append(True)
+        )
 
         response = client.post("/api/health/reload-project")
 
@@ -110,3 +124,4 @@ class TestReloadProjectEndpoint:
         }
         assert client.app.state.job_store is None
         assert client.app.state.job_store_work_dir is None
+        assert reset_calls == [True]

@@ -148,6 +148,23 @@ stop_vite_on_port() {
     fi
 }
 
+stop_api_on_port() {
+    local pids
+    pids="$(lsof -ti tcp:"$API_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+        echo -e "${YELLOW}Stopping existing backend on port ${API_PORT}: ${pids}${NC}"
+        kill $pids 2>/dev/null || true
+        sleep 1
+
+        pids="$(lsof -ti tcp:"$API_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+        if [[ -n "$pids" ]]; then
+            echo -e "${YELLOW}Force-stopping backend still listening on port ${API_PORT}: ${pids}${NC}"
+            kill -9 $pids 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+}
+
 # Step 1: Start or reuse Vite dev server for frontend HMR
 echo ""
 echo -e "${BLUE}⚛️  Step 1: Checking Vite dev server...${NC}"
@@ -203,7 +220,10 @@ echo ""
 echo -e "${BLUE}🦀 Step 2: Starting Tauri...${NC}"
 echo -e "${YELLOW}This will open the Niamoto Desktop window${NC}"
 echo -e "${YELLOW}ℹ️  cargo tauri dev will rebuild Rust changes under src-tauri.${NC}"
+echo -e "${YELLOW}ℹ️  Ensuring API port ${API_PORT} is free before launch.${NC}"
 echo ""
+
+stop_api_on_port
 
 NIAMOTO_TAURI_DEV_UI=1 NIAMOTO_DESKTOP_API_PORT="$API_PORT" cargo tauri dev
 
