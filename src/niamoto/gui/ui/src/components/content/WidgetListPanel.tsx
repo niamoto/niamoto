@@ -43,7 +43,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { LocalizedString } from '@/components/ui/localized-input'
 import {
@@ -137,7 +136,7 @@ function SortableWidgetItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group relative flex items-center gap-2 rounded-lg border p-2 cursor-pointer transition-all bg-background',
+        'group relative flex items-center gap-1.5 rounded-md border px-1.5 py-1 cursor-pointer transition-all bg-background',
         'hover:border-primary/50 hover:bg-accent/30',
         isSelected && 'border-primary bg-primary/5 ring-1 ring-primary/20',
         isDragging && 'opacity-50 shadow-lg z-50'
@@ -151,26 +150,24 @@ function SortableWidgetItem({
         className="flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
         onClick={(e) => e.stopPropagation()}
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-3 w-3" />
       </div>
 
       {/* Category icon */}
       <div className={cn(
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded',
+        'flex h-6 w-6 shrink-0 items-center justify-center rounded',
         colors.bg,
         colors.border,
         'border'
       )}>
-        <Icon className={cn('h-4 w-4', colors.text)} />
+        <Icon className={cn('h-3 w-3', colors.text)} />
       </div>
 
       {/* Widget info */}
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{resolveLocalizedString(widget.title)}</div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {getPluginLabel(widget.widgetPlugin)}
-          </Badge>
+        <div className="font-medium text-xs truncate">{resolveLocalizedString(widget.title)}</div>
+        <div className="text-[10px] text-muted-foreground truncate">
+          {getPluginLabel(widget.widgetPlugin)}
         </div>
       </div>
 
@@ -180,7 +177,7 @@ function SortableWidgetItem({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6"
             onClick={onDuplicateClick}
             title={t('common:actions.duplicate')}
           >
@@ -190,7 +187,7 @@ function SortableWidgetItem({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={onDeleteClick}
           title={t('common:actions.delete')}
         >
