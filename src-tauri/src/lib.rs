@@ -18,6 +18,7 @@ use commands::ConfigState;
 
 const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
 const SERVER_POLL_INTERVAL_MS: u64 = 500;
+const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
 
 /// Shared state to track the FastAPI server process
@@ -183,6 +184,28 @@ fn is_server_ready(port: u16) -> bool {
         Ok(response) => response.status().is_success(),
         Err(_) => false,
     }
+}
+
+fn terminate_child_process(process: &mut Child) {
+    let pid = process.id();
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(&["/F", "/T", "/PID", &pid.to_string()])
+            .output();
+    }
+
+    #[cfg(unix)]
+    {
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGTERM);
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    let _ = process.kill();
+    let _ = process.wait();
 }
 
 /// Launch the FastAPI server as a subprocess
@@ -467,77 +490,175 @@ pub fn run() {
                     "startup thread entered",
                 );
 
-                // Launch the FastAPI server
-                println!("Launching FastAPI server...");
-                let launch_started = Instant::now();
+                // Launch the FastAPI server and retry on port races in production mode.
+                let mut current_port = port;
+                let mut launch_attempt = 1;
 
-                let server_process = match launch_fastapi_server(
-                    &app_handle,
-                    port,
-                    niamoto_home.as_deref(),
-                    &startup_session_for_thread,
-                    &startup_log_path_for_thread,
-                ) {
-                    Ok(process) => process,
-                    Err(e) => {
-                        let error_msg = format!(
-                            "Failed to launch server: {}\n\nMake sure the application was built correctly.\n\nStartup log: {}",
-                            e,
-                            startup_log_path_for_thread.display()
-                        );
-                        eprintln!("{}", error_msg);
-                        write_startup_log(
-                            &startup_log_path_for_thread,
-                            &startup_session_for_thread,
-                            "rust",
-                            &format!("sidecar launch failed after {:.3}s: {e}", launch_started.elapsed().as_secs_f64()),
-                        );
-                        show_error_screen(&window_clone, &error_msg);
-                        return;
+                let ready_port = loop {
+                    println!(
+                        "Launching FastAPI server (attempt {}/{}) on port {}...",
+                        launch_attempt,
+                        SERVER_STARTUP_RETRY_LIMIT,
+                        current_port
+                    );
+                    let launch_started = Instant::now();
+
+                    let server_process = match launch_fastapi_server(
+                        &app_handle,
+                        current_port,
+                        niamoto_home.as_deref(),
+                        &startup_session_for_thread,
+                        &startup_log_path_for_thread,
+                    ) {
+                        Ok(process) => process,
+                        Err(e) => {
+                            let error_msg = format!(
+                                "Failed to launch server: {}\n\nMake sure the application was built correctly.\n\nStartup log: {}",
+                                e,
+                                startup_log_path_for_thread.display()
+                            );
+                            eprintln!("{}", error_msg);
+                            write_startup_log(
+                                &startup_log_path_for_thread,
+                                &startup_session_for_thread,
+                                "rust",
+                                &format!(
+                                    "sidecar launch failed on port {current_port} after {:.3}s: {e}",
+                                    launch_started.elapsed().as_secs_f64()
+                                ),
+                            );
+                            show_error_screen(&window_clone, &error_msg);
+                            return;
+                        }
+                    };
+                    let mut server_process = Some(server_process);
+                    write_startup_log(
+                        &startup_log_path_for_thread,
+                        &startup_session_for_thread,
+                        "rust",
+                        &format!(
+                            "sidecar launch attempt {launch_attempt} completed on port {current_port} in {:.3}s",
+                            launch_started.elapsed().as_secs_f64()
+                        ),
+                    );
+
+                    println!("Waiting for server to be ready...");
+                    show_loading_status(&window_clone, "Waiting for server to be ready...");
+
+                    let max_attempts =
+                        (SERVER_STARTUP_TIMEOUT_SECS * 1000 / SERVER_POLL_INTERVAL_MS) as u32;
+                    let mut attempts = 0;
+                    let readiness_started = Instant::now();
+                    let mut exited_early = None;
+
+                    while attempts < max_attempts {
+                        if is_server_ready(current_port) {
+                            let server_state = app_handle.state::<ServerState>();
+                            *server_state.process.lock().unwrap() = server_process.take();
+                            break;
+                        }
+
+                        match server_process
+                            .as_mut()
+                            .expect("server process missing before readiness")
+                            .try_wait()
+                        {
+                            Ok(Some(status)) => {
+                                exited_early = Some(status);
+                                break;
+                            }
+                            Ok(None) => {}
+                            Err(err) => {
+                                write_startup_log(
+                                    &startup_log_path_for_thread,
+                                    &startup_session_for_thread,
+                                    "rust",
+                                    &format!("failed to query sidecar status on port {current_port}: {err}"),
+                                );
+                            }
+                        }
+
+                        thread::sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS));
+                        attempts += 1;
+
+                        if attempts % 10 == 0 {
+                            println!("Still waiting... ({}/{})", attempts, max_attempts);
+                            write_startup_log(
+                                &startup_log_path_for_thread,
+                                &startup_session_for_thread,
+                                "rust",
+                                &format!(
+                                    "health still pending on port {current_port} after {:.3}s (attempt {attempts}/{max_attempts})",
+                                    readiness_started.elapsed().as_secs_f64()
+                                ),
+                            );
+                            show_loading_status(&window_clone, "Still waiting...");
+                        }
                     }
-                };
-                write_startup_log(
-                    &startup_log_path_for_thread,
-                    &startup_session_for_thread,
-                    "rust",
-                    &format!(
-                        "sidecar launch completed in {:.3}s",
-                        launch_started.elapsed().as_secs_f64()
-                    ),
-                );
 
-                // Store the process handle for cleanup
-                let server_state = app_handle.state::<ServerState>();
-                *server_state.process.lock().unwrap() = Some(server_process);
-
-                // Poll for server readiness
-                println!("Waiting for server to be ready...");
-                show_loading_status(&window_clone, "Waiting for server to be ready...");
-
-                let max_attempts = (SERVER_STARTUP_TIMEOUT_SECS * 1000 / SERVER_POLL_INTERVAL_MS) as u32;
-                let mut attempts = 0;
-                let readiness_started = Instant::now();
-
-                while !is_server_ready(port) && attempts < max_attempts {
-                    thread::sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS));
-                    attempts += 1;
-
-                    if attempts % 10 == 0 {
-                        println!("Still waiting... ({}/{})", attempts, max_attempts);
+                    if is_server_ready(current_port) {
                         write_startup_log(
                             &startup_log_path_for_thread,
                             &startup_session_for_thread,
                             "rust",
                             &format!(
-                                "health still pending after {:.3}s (attempt {attempts}/{max_attempts})",
-                                readiness_started.elapsed().as_secs_f64()
+                                "health endpoint became ready on port {current_port} after {:.3}s (total {:.3}s)",
+                                readiness_started.elapsed().as_secs_f64(),
+                                startup_started.elapsed().as_secs_f64()
                             ),
                         );
-                        show_loading_status(&window_clone, "Still waiting...");
+                        break current_port;
                     }
-                }
 
-                if attempts >= max_attempts {
+                    if let Some(status) = exited_early {
+                        let exit_note = status
+                            .code()
+                            .map(|code| format!("exit code {code}"))
+                            .unwrap_or_else(|| "terminated by signal".to_string());
+                        write_startup_log(
+                            &startup_log_path_for_thread,
+                            &startup_session_for_thread,
+                            "rust",
+                            &format!(
+                                "sidecar exited before health became ready on port {current_port} ({exit_note})"
+                            ),
+                        );
+
+                        if hot_reload_enabled {
+                            let error_msg = format!(
+                                "Server exited before becoming ready on port {}.\n\nDesktop dev mode requires the API port to stay fixed for the Vite proxy. Ensure port {} is free or change NIAMOTO_DESKTOP_API_PORT, then relaunch.\n\nStartup log: {}",
+                                current_port,
+                                current_port,
+                                startup_log_path_for_thread.display()
+                            );
+                            show_error_screen(&window_clone, &error_msg);
+                            return;
+                        }
+
+                        if launch_attempt < SERVER_STARTUP_RETRY_LIMIT {
+                            launch_attempt += 1;
+                            current_port = find_free_port();
+                            write_startup_log(
+                                &startup_log_path_for_thread,
+                                &startup_session_for_thread,
+                                "rust",
+                                &format!(
+                                    "retrying sidecar startup on new port {current_port} (attempt {launch_attempt}/{SERVER_STARTUP_RETRY_LIMIT})"
+                                ),
+                            );
+                            show_loading_status(&window_clone, "Retrying server startup...");
+                            continue;
+                        }
+
+                        let error_msg = format!(
+                            "Server exited before becoming ready after {} attempts.\n\nStartup log: {}",
+                            SERVER_STARTUP_RETRY_LIMIT,
+                            startup_log_path_for_thread.display()
+                        );
+                        show_error_screen(&window_clone, &error_msg);
+                        return;
+                    }
+
                     let error_msg = format!(
                         "Server failed to start after {} seconds.\n\nThe packaged backend may still be starting up or may be missing dependencies.\n\nStartup log: {}",
                         SERVER_STARTUP_TIMEOUT_SECS,
@@ -549,46 +670,23 @@ pub fn run() {
                         &startup_session_for_thread,
                         "rust",
                         &format!(
-                            "startup timed out after {:.3}s total",
+                            "startup timed out on port {current_port} after {:.3}s total",
                             startup_started.elapsed().as_secs_f64()
                         ),
                     );
-                    let server_state = app_handle.state::<ServerState>();
-                    if let Some(mut process) = server_state.process.lock().unwrap().take() {
-                        let pid = process.id();
-
-                        #[cfg(target_os = "windows")]
-                        {
-                            let _ = std::process::Command::new("taskkill")
-                                .args(&["/F", "/T", "/PID", &pid.to_string()])
-                                .output();
-                        }
-
-                        #[cfg(unix)]
-                        {
-                            unsafe {
-                                libc::kill(-(pid as i32), libc::SIGTERM);
-                            }
-                            thread::sleep(Duration::from_millis(500));
-                        }
-
-                        let _ = process.kill();
-                        let _ = process.wait();
+                    if let Some(mut process) = server_process.take() {
+                        terminate_child_process(&mut process);
                     }
                     show_error_screen(&window_clone, &error_msg);
                     return;
-                }
+                };
 
-                println!("✓ Server ready on http://127.0.0.1:{}", port);
+                println!("✓ Server ready on http://127.0.0.1:{}", ready_port);
                 write_startup_log(
                     &startup_log_path_for_thread,
                     &startup_session_for_thread,
                     "rust",
-                    &format!(
-                        "health endpoint became ready after {:.3}s (total {:.3}s)",
-                        readiness_started.elapsed().as_secs_f64(),
-                        startup_started.elapsed().as_secs_f64()
-                    ),
+                    &format!("server ready on http://127.0.0.1:{ready_port}"),
                 );
 
                 if hot_reload_enabled {
@@ -602,7 +700,7 @@ pub fn run() {
                     );
                 } else {
                     // Navigate to the server URL
-                    let url = format!("http://127.0.0.1:{}", port);
+                    let url = format!("http://127.0.0.1:{}", ready_port);
                     println!("Loading URL: {}", url);
                     let _ = window_clone.eval(&format!("window.location.replace('{}')", url));
                     write_startup_log(

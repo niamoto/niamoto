@@ -210,7 +210,7 @@ export function DataModule() {
         }
 
         return (
-          <div className="p-6">
+          <div className="h-full overflow-auto p-6">
             <SourcesOverview
               onExploreDataset={(name) => handleSelect({ type: 'dataset', name })}
               onExploreReference={(name) => handleSelect({ type: 'reference', name })}

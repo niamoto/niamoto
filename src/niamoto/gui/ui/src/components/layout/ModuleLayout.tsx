@@ -52,7 +52,7 @@ export function ModuleLayout({
           order={1}
           defaultSize={100 - sidebarDefaultSize}
           minSize={30}
-          className="overflow-hidden"
+          className="min-w-0 overflow-hidden"
         >
           {children}
         </ResizablePanel>

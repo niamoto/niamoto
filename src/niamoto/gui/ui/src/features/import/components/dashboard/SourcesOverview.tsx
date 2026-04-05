@@ -97,16 +97,6 @@ export function SourcesOverview({
   ).length
   const availableEnrichmentCount = enrichableReferences.length - configuredEnrichmentCount
 
-  const collectionSummary = references.map((reference) => {
-    const issueCount =
-      (alertsByEntity.get(reference.name) ?? 0) +
-      (alertsByEntity.get(reference.table_name) ?? 0)
-    const status = getReferenceStatus(reference, issueCount)
-    return `${reference.name} (${t(`dashboard.summaryStatus.${status}`, {
-      defaultValue: reference.name,
-    })})`
-  })
-
   const availableReferences = references.map((reference) => ({
     name: reference.name,
     columns: reference.schema_fields?.map((field) => field.name) ?? [],
@@ -316,29 +306,14 @@ export function SourcesOverview({
       ) : null}
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
               {t('tree.references', 'References')}
             </h2>
             <Badge variant="secondary">{references.length}</Badge>
           </div>
-          {references.length > 0 ? (
-            <Button variant="link" className="h-auto p-0" onClick={onOpenGroups}>
-              {t('dashboard.actions.openCollections')}
-            </Button>
-          ) : null}
         </div>
-        {references.length > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {collectionSummary.slice(0, 4).join(' · ')}
-            {collectionSummary.length > 4
-              ? t('dashboard.readiness.moreCollections', ' · +{{count}} more', {
-                  count: collectionSummary.length - 4,
-                })
-              : ''}
-          </p>
-        ) : null}
         <div className="space-y-3">
           {references.map((reference) => {
             const metrics =
@@ -382,30 +357,32 @@ export function SourcesOverview({
                       variant: 'default' as const,
                     }
                   : {
-                      label: t('dashboard.actions.openCollection'),
+                      label: t('dashboard.actions.open'),
                       onClick: () => onOpenGroup(reference.name),
                       variant: 'default' as const,
                     }
 
-            const secondaryAction =
-              status === 'imported'
-                ? {
-                    label: t('dashboard.actions.details', 'Details'),
-                    onClick: () => onExploreReference(reference.name),
-                    variant: 'ghost' as const,
-                  }
-                : {
-                    label: t('dashboard.actions.openCollection'),
+            const secondaryActions = [
+              ...(status === 'imported'
+                ? []
+                : [{
+                    label: t('dashboard.actions.open'),
                     onClick: () => onOpenGroup(reference.name),
                     variant: 'ghost' as const,
-                  }
+                  }]),
+              {
+                label: t('dashboard.actions.details', 'Details'),
+                onClick: () => onExploreReference(reference.name),
+                variant: 'ghost' as const,
+              },
+            ]
 
             return (
               <SourceRow
                 key={reference.name}
                 icon={Sparkles}
                 name={reference.name}
-                typeBadge={t(`dashboard.referenceKinds.${reference.kind}`, {
+                typeLabel={t(`dashboard.referenceKinds.${reference.kind}`, {
                   defaultValue: reference.kind,
                 })}
                 metrics={t('dashboard.readiness.referenceMetrics', '{{rows}} · {{fields}}', {
@@ -424,7 +401,7 @@ export function SourcesOverview({
                     onClick: primaryAction.onClick,
                     variant: primaryAction.variant,
                   },
-                  secondaryAction,
+                  ...secondaryActions,
                 ]}
               />
             )
@@ -448,7 +425,7 @@ export function SourcesOverview({
                 key={dataset.name}
                 icon={Database}
                 name={dataset.name}
-                typeBadge={t('dashboard.kinds.dataset')}
+                typeLabel={t('dashboard.kinds.dataset')}
                 metrics={t('dashboard.readiness.datasetMetrics', '{{rows}} · {{fields}}', {
                   rows: t('dashboard.rows', '{{count}} rows', {
                     count: metrics?.row_count ?? dataset.entity_count ?? 0,
@@ -463,7 +440,7 @@ export function SourcesOverview({
                     label: t('dashboard.actions.explore'),
                     icon: Search,
                     onClick: () => onExploreDataset(dataset.name),
-                    variant: 'outline',
+                    variant: 'default',
                   },
                   {
                     label: t('dashboard.actions.editConfig'),
@@ -497,7 +474,7 @@ export function SourcesOverview({
                 key={layer.name}
                 icon={Layers}
                 name={layer.name}
-                typeBadge={t('dashboard.kinds.layer')}
+                typeLabel={t('dashboard.kinds.layer')}
                 metrics={t(
                   'dashboard.readiness.layerMetrics',
                   '{{rows}} · {{fields}}',

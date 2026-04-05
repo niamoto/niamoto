@@ -61,33 +61,33 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
 
   return (
     <Card
-      className="flex h-full cursor-pointer flex-col transition-all hover:border-primary hover:shadow-sm"
+      className="flex h-full min-w-0 cursor-pointer flex-col overflow-hidden transition-all hover:border-primary hover:shadow-sm"
       onClick={() => onSelect({ type: 'collection', name: reference.name })}
     >
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
             <Layers className="h-4 w-4 text-muted-foreground" />
-            <span className="text-lg font-semibold">{reference.name}</span>
+            <span className="truncate text-lg font-semibold">{reference.name}</span>
           </div>
           {isFresh ? (
-            <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
+            <Badge variant="outline" className="shrink-0 gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
               <CheckCircle className="h-3 w-3" />
               {t('collections.overviewFresh', 'Up to date')}
             </Badge>
           ) : isStale ? (
-            <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400">
+            <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400">
               <AlertTriangle className="h-3 w-3" />
               {t('collections.overviewStale', 'Needs recomputing')}
             </Badge>
           ) : (
-            <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
               <Minus className="h-3 w-3" />
               {t('collections.overviewNeverRun', 'Never computed')}
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Badge variant="secondary" className="text-[10px]">
             {kindLabels[reference.kind] || reference.kind}
           </Badge>
@@ -95,7 +95,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col space-y-4">
+      <CardContent className="flex min-w-0 flex-1 flex-col space-y-4">
         {/* Counters */}
         <div className="grid grid-cols-3 gap-2">
           <CounterBox
@@ -114,7 +114,7 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
 
         {/* Block type badges */}
         {configuredIds.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex min-w-0 flex-wrap gap-1">
             {configuredIds.slice(0, 5).map((id) => (
               <Badge key={id} variant="outline" className="text-[10px]">
                 {id}
@@ -137,33 +137,33 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
         )}
 
         {/* Shortcut buttons */}
-        <div className="mt-auto flex gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-auto grid min-w-0 grid-cols-3 gap-2" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="default"
             size="sm"
-            className="flex-1 text-xs"
+            className="min-w-0 px-2 text-xs"
             onClick={() => onSelect({ type: 'collection', name: reference.name }, 'content')}
           >
-            <LayoutGrid className="mr-1 h-3 w-3" />
-            {t('collectionPanel.tabs.blocks')}
+            <LayoutGrid className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t('collectionPanel.tabs.blocks')}</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 text-xs"
+            className="min-w-0 px-2 text-xs"
             onClick={() => onSelect({ type: 'collection', name: reference.name }, 'index')}
           >
-            <ListOrdered className="mr-1 h-3 w-3" />
-            {t('collectionPanel.tabs.list')}
+            <ListOrdered className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t('collectionPanel.tabs.list')}</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 text-xs"
+            className="min-w-0 px-2 text-xs"
             onClick={() => onSelect({ type: 'collection', name: reference.name }, 'api')}
           >
-            <FileCode className="mr-1 h-3 w-3" />
-            {t('collectionPanel.tabs.export')}
+            <FileCode className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t('collectionPanel.tabs.export')}</span>
           </Button>
         </div>
       </CardContent>
@@ -206,14 +206,14 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="min-w-0 space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-bold">{t('collections.title', 'Collections')}</h1>
         <p className="mt-1 text-muted-foreground">
           {t('collections.description', 'Configure blocks and data sources for each collection.')}
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {references.map((ref) => (
           <CollectionCard
             key={ref.name}

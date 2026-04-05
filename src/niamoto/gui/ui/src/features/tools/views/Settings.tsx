@@ -18,7 +18,7 @@ import {
 import { ThemeSwitcher } from '@/components/theme'
 
 export function Settings() {
-  const { t } = useTranslation()
+  const { t } = useTranslation('tools')
   const { isDesktop } = useRuntimeMode()
   const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate } = useAppUpdater()
 
@@ -36,7 +36,7 @@ export function Settings() {
         </div>
         <Button>
           <Save className="mr-2 h-4 w-4" />
-          {t('common.save_changes', 'Save Changes')}
+          {t('settings.saveChanges', 'Save Changes')}
         </Button>
       </div>
 
@@ -69,22 +69,22 @@ export function Settings() {
         <TabsContent value="general" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.project_settings', 'Project Settings')}</CardTitle>
+              <CardTitle>{t('settings.projectSettings', 'Project Settings')}</CardTitle>
               <CardDescription>
-                {t('settings.project_settings_desc', 'Basic configuration for your project')}
+                {t('settings.projectSettingsDesc', 'Basic configuration for your project')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="project-name">{t('settings.project_name', 'Project Name')}</Label>
+                <Label htmlFor="project-name">{t('settings.projectName', 'Project Name')}</Label>
                 <Input id="project-name" placeholder="My Ecological Project" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">{t('settings.project_description', 'Description')}</Label>
+                <Label htmlFor="description">{t('settings.projectDescription', 'Description')}</Label>
                 <Input id="description" placeholder="A comprehensive ecological data platform" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="language">{t('settings.default_language', 'Default Language')}</Label>
+                <Label htmlFor="language">{t('settings.defaultLanguage', 'Default Language')}</Label>
                 <Select defaultValue="en">
                   <SelectTrigger id="language">
                     <SelectValue />
@@ -100,21 +100,21 @@ export function Settings() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.export_settings', 'Export Settings')}</CardTitle>
+              <CardTitle>{t('settings.exportSettings', 'Export Settings')}</CardTitle>
               <CardDescription>
-                {t('settings.export_settings_desc', 'Configure default export parameters')}
+                {t('settings.exportSettingsDesc', 'Configure default export parameters')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="output-dir">{t('settings.output_directory', 'Output Directory')}</Label>
+                <Label htmlFor="output-dir">{t('settings.outputDirectory', 'Output Directory')}</Label>
                 <Input id="output-dir" placeholder="/path/to/output" />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.auto_export', 'Auto Export')}</Label>
+                  <Label>{t('settings.autoExport', 'Auto Export')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.auto_export_desc', 'Automatically export after transforms')}
+                    {t('settings.autoExportDesc', 'Automatically export after transforms')}
                   </p>
                 </div>
                 <Switch />
@@ -129,18 +129,22 @@ export function Settings() {
                 {t('settings.about', 'About')}
               </CardTitle>
               <CardDescription>
-                {t('settings.about_desc', 'Application version and updates')}
+                {t('settings.aboutDesc', 'Application version and updates')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.current_version', 'Current version')}</Label>
+                  <Label>{t('settings.currentVersion', 'Current version')}</Label>
                   <p className="text-sm font-mono text-muted-foreground">v{appVersion}</p>
                 </div>
                 {status === 'available' && updateVersion && (
                   <div className="text-right">
-                    <p className="text-sm font-medium text-green-600">v{updateVersion} disponible</p>
+                    <p className="text-sm font-medium text-green-600">
+                      {t('settings.updateAvailable', 'Version {{version}} available', {
+                        version: updateVersion,
+                      })}
+                    </p>
                   </div>
                 )}
               </div>
@@ -148,17 +152,20 @@ export function Settings() {
                 {status === 'available' ? (
                   <Button onClick={installUpdate} size="sm">
                     <Download className="mr-2 h-4 w-4" />
-                    Installer v{updateVersion}
+                    {t('settings.installUpdate', 'Install v{{version}}', {
+                      version: updateVersion,
+                    })}
                   </Button>
                 ) : status === 'downloading' ? (
                   <Button disabled size="sm">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Installation en cours...
+                    {t('settings.installingUpdate', 'Installing update...')}
                   </Button>
                 ) : (
                   <Button
                     variant="outline"
                     size="sm"
+                    className="hover:bg-background hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-background"
                     onClick={checkForUpdate}
                     disabled={status === 'checking'}
                   >
@@ -167,13 +174,13 @@ export function Settings() {
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    {t('settings.check_updates', 'Check for updates')}
+                    {t('settings.checkUpdates', 'Check for updates')}
                   </Button>
                 )}
                 {status === 'idle' && (
                   <p className="flex items-center text-sm text-muted-foreground">
                     <Check className="mr-1 h-4 w-4 text-green-500" />
-                    {t('settings.up_to_date', 'Up to date')}
+                    {t('settings.upToDate', 'Up to date')}
                   </p>
                 )}
               </div>
@@ -186,26 +193,26 @@ export function Settings() {
         <TabsContent value="database" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.database_config', 'Database Configuration')}</CardTitle>
+              <CardTitle>{t('settings.databaseConfig', 'Database Configuration')}</CardTitle>
               <CardDescription>
-                {t('settings.database_config_desc', 'Manage your database connections and settings')}
+                {t('settings.databaseConfigDesc', 'Manage your database connections and settings')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="db-path">{t('settings.database_path', 'Database Path')}</Label>
+                <Label htmlFor="db-path">{t('settings.databasePath', 'Database Path')}</Label>
                 <Input id="db-path" placeholder="/path/to/database.db" readOnly />
               </div>
               <div className="space-y-2">
-                <Label>{t('settings.database_size', 'Database Size')}</Label>
+                <Label>{t('settings.databaseSize', 'Database Size')}</Label>
                 <p className="text-sm text-muted-foreground">256.3 MB</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline">
-                  {t('settings.backup_database', 'Backup Database')}
+                  {t('settings.backupDatabase', 'Backup Database')}
                 </Button>
                 <Button variant="outline">
-                  {t('settings.optimize_database', 'Optimize Database')}
+                  {t('settings.optimizeDatabase', 'Optimize Database')}
                 </Button>
               </div>
             </CardContent>
@@ -216,9 +223,9 @@ export function Settings() {
         <TabsContent value="appearance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.theme_settings', 'Theme Settings')}</CardTitle>
+              <CardTitle>{t('settings.themeSettings', 'Theme Settings')}</CardTitle>
               <CardDescription>
-                {t('settings.theme_settings_desc', 'Customize the appearance of your interface')}
+                {t('settings.themeSettingsDesc', 'Customize the appearance of your interface')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -228,17 +235,17 @@ export function Settings() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.display_options', 'Display Options')}</CardTitle>
+              <CardTitle>{t('settings.displayOptions', 'Display Options')}</CardTitle>
               <CardDescription>
-                {t('settings.display_options_desc', 'Additional display preferences')}
+                {t('settings.displayOptionsDesc', 'Additional display preferences')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.compact_mode', 'Compact Mode')}</Label>
+                  <Label>{t('settings.compactMode', 'Compact Mode')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.compact_mode_desc', 'Use compact spacing in the interface')}
+                    {t('settings.compactModeDesc', 'Use compact spacing in the interface')}
                   </p>
                 </div>
                 <Switch />
@@ -251,35 +258,35 @@ export function Settings() {
         <TabsContent value="notifications" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.notification_preferences', 'Notification Preferences')}</CardTitle>
+              <CardTitle>{t('settings.notificationPrefs', 'Notification Preferences')}</CardTitle>
               <CardDescription>
-                {t('settings.notification_preferences_desc', 'Choose what notifications you receive')}
+                {t('settings.notificationPrefsDesc', 'Choose what notifications you receive')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.import_complete', 'Import Complete')}</Label>
+                  <Label>{t('settings.importComplete', 'Import Complete')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.import_complete_desc', 'Notify when data import is finished')}
+                    {t('settings.importCompleteDesc', 'Notify when data import is finished')}
                   </p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.transform_complete', 'Transform Complete')}</Label>
+                  <Label>{t('settings.transformComplete', 'Transform Complete')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.transform_complete_desc', 'Notify when transforms are done')}
+                    {t('settings.transformCompleteDesc', 'Notify when transforms are done')}
                   </p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.export_complete', 'Export Complete')}</Label>
+                  <Label>{t('settings.exportComplete', 'Export Complete')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.export_complete_desc', 'Notify when site export is finished')}
+                    {t('settings.exportCompleteDesc', 'Notify when site export is finished')}
                   </p>
                 </div>
                 <Switch defaultChecked />
@@ -292,33 +299,33 @@ export function Settings() {
         <TabsContent value="advanced" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.developer_options', 'Developer Options')}</CardTitle>
+              <CardTitle>{t('settings.developerOptions', 'Developer Options')}</CardTitle>
               <CardDescription>
-                {t('settings.developer_options_desc', 'Advanced settings for developers')}
+                {t('settings.developerOptionsDesc', 'Advanced settings for developers')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.debug_mode', 'Debug Mode')}</Label>
+                  <Label>{t('settings.debugMode', 'Debug Mode')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.debug_mode_desc', 'Enable detailed logging')}
+                    {t('settings.debugModeDesc', 'Enable detailed logging')}
                   </p>
                 </div>
                 <Switch />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{t('settings.experimental_features', 'Experimental Features')}</Label>
+                  <Label>{t('settings.experimentalFeatures', 'Experimental Features')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t('settings.experimental_features_desc', 'Enable features in development')}
+                    {t('settings.experimentalFeaturesDesc', 'Enable features in development')}
                   </p>
                 </div>
                 <Switch />
               </div>
               <div className="pt-4 border-t">
                 <Button variant="destructive">
-                  {t('settings.reset_all', 'Reset All Settings')}
+                  {t('settings.resetAll', 'Reset All Settings')}
                 </Button>
               </div>
             </CardContent>
