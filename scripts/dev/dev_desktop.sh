@@ -3,10 +3,11 @@
 # Starts both Vite dev server and Tauri app
 #
 # Usage:
-#   ./scripts/dev/dev_desktop.sh [instance_path]
+#   ./scripts/dev/dev_desktop.sh [--reset-user-config] [instance_path]
 #
 # Examples:
 #   ./scripts/dev/dev_desktop.sh test-instance/niamoto-nc
+#   ./scripts/dev/dev_desktop.sh --reset-user-config test-instance/niamoto-nc
 #   ./scripts/dev/dev_desktop.sh /absolute/path/to/instance
 
 set -e
@@ -17,6 +18,9 @@ VITE_HOST="${NIAMOTO_DESKTOP_VITE_HOST:-127.0.0.1}"
 VITE_URL="http://${VITE_HOST}:${VITE_PORT}"
 STARTED_VITE=0
 VITE_PID=""
+RESET_USER_CONFIG=0
+INSTANCE_ARG=""
+DESKTOP_CONFIG_PATH="$HOME/.niamoto/desktop-config.json"
 
 # Colors
 GREEN='\033[0;32m'
@@ -28,16 +32,67 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚀 Starting Niamoto Desktop in dev mode...${NC}"
 echo ""
 
+print_usage() {
+    echo "Usage: $0 [--reset-user-config] [instance_path]"
+    echo ""
+    echo "Options:"
+    echo "  --reset-user-config  Remove ~/.niamoto/desktop-config.json before launch"
+    echo "                       to simulate a fresh desktop install."
+    echo "  -h, --help           Show this help message"
+}
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --reset-user-config)
+            RESET_USER_CONFIG=1
+            shift
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        --*)
+            echo -e "${RED}❌ Unknown option: $1${NC}"
+            echo ""
+            print_usage
+            exit 1
+            ;;
+        *)
+            if [[ -n "$INSTANCE_ARG" ]]; then
+                echo -e "${RED}❌ Multiple instance paths provided${NC}"
+                echo ""
+                print_usage
+                exit 1
+            fi
+            INSTANCE_ARG="$1"
+            shift
+            ;;
+    esac
+done
+
 # Change to project root
 cd "$PROJECT_ROOT"
 
+# Optionally remove persisted desktop selection to simulate a fresh install
+if [[ "$RESET_USER_CONFIG" -eq 1 ]]; then
+    echo -e "${BLUE}🧹 Resetting desktop user config...${NC}"
+    if [[ -f "$DESKTOP_CONFIG_PATH" ]]; then
+        rm -f "$DESKTOP_CONFIG_PATH"
+        echo -e "${GREEN}✓ Removed $DESKTOP_CONFIG_PATH${NC}"
+    else
+        echo -e "${YELLOW}ℹ️  No desktop config found at $DESKTOP_CONFIG_PATH${NC}"
+    fi
+    echo ""
+fi
+
 # Handle instance path argument
-if [[ -n "$1" ]]; then
-    INSTANCE_PATH="$1"
+if [[ -n "$INSTANCE_ARG" ]]; then
+    INSTANCE_PATH="$INSTANCE_ARG"
     # Convert to absolute path if relative
     if [[ ! "$INSTANCE_PATH" = /* ]]; then
         INSTANCE_PATH="$PROJECT_ROOT/$INSTANCE_PATH"

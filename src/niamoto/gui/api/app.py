@@ -35,7 +35,7 @@ from .routers import (
     preview,
     pipeline,
 )
-from .context import get_working_directory
+from .context import get_optional_working_directory
 from .services.job_store_runtime import resolve_job_store
 
 APP_IMPORT_STARTED = time.perf_counter()
@@ -119,8 +119,8 @@ def create_app() -> FastAPI:
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
     app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
-    work_dir = get_working_directory()
-    if work_dir:
+    work_dir = get_optional_working_directory()
+    if work_dir is not None:
         resolve_job_store(app)
     else:
         app.state.job_store = None

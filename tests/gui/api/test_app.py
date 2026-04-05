@@ -116,6 +116,19 @@ class TestCreateApp:
         assets_routes = [path for path in route_paths if path.startswith("/assets")]
         assert len(assets_routes) == 0
 
+    def test_create_app_without_explicit_project_keeps_job_store_disabled(
+        self, monkeypatch
+    ):
+        """Desktop welcome mode should not initialize a project-scoped job store."""
+        monkeypatch.setattr(
+            "niamoto.gui.api.app.get_optional_working_directory", lambda: None
+        )
+
+        app = create_app()
+
+        assert app.state.job_store is None
+        assert app.state.job_store_work_dir is None
+
 
 class TestSPAStaticFiles:
     """Test SPAStaticFiles custom handler."""
@@ -132,7 +145,7 @@ class TestSPAStaticFiles:
         # Use monkeypatch instead of nested patches
         monkeypatch.setattr("niamoto.gui.api.app.UI_BUILD_DIR", ui_build)
         monkeypatch.setattr(
-            "niamoto.gui.api.app.get_working_directory", lambda: tmp_path
+            "niamoto.gui.api.app.get_optional_working_directory", lambda: tmp_path
         )
 
         app = create_app()

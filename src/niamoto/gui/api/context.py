@@ -69,6 +69,25 @@ def get_working_directory() -> Path:
     return cwd
 
 
+def get_optional_working_directory() -> Optional[Path]:
+    """Return the explicit GUI working directory when one is configured.
+
+    Desktop startup can legitimately begin without any selected project.
+    In that case, returning ``None`` lets the API stay in welcome mode
+    instead of implicitly treating the process cwd as a project root.
+    """
+    if _working_directory is not None:
+        return _working_directory
+
+    niamoto_home = os.environ.get("NIAMOTO_HOME")
+    if niamoto_home:
+        path = Path(niamoto_home)
+        logger.info(f"Using explicit NIAMOTO_HOME: {path}")
+        return path
+
+    return None
+
+
 def get_database_path() -> Optional[Path]:
     """Return the analytics database path (DuckDB by default).
 

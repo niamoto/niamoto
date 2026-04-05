@@ -89,7 +89,9 @@ jobs:
           uv pip install pyinstaller==${{ env.PYINSTALLER_VERSION }}
 
       - name: Build Python binary (PyInstaller)
-        run: NIAMOTO_PYINSTALLER_MODE=onedir uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+        env:
+          NIAMOTO_PYINSTALLER_MODE: onedir
+        run: uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
 
       - name: Place sidecar resources (Unix)
         if: matrix.os != 'windows-latest'

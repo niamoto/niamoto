@@ -57,10 +57,14 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
     # Expose the resolved project directory before importing the FastAPI app module.
     # The module creates an app instance at import time and reads the GUI context.
     niamoto_home = os.environ.get("NIAMOTO_HOME")
-    work_dir = Path(niamoto_home).expanduser().resolve() if niamoto_home else Path.cwd()
-    os.environ["NIAMOTO_HOME"] = str(work_dir)
-    set_working_directory(work_dir)
-    log_desktop_startup(f"resolved working directory to {work_dir}")
+    if niamoto_home:
+        work_dir = Path(niamoto_home).expanduser().resolve()
+        os.environ["NIAMOTO_HOME"] = str(work_dir)
+        set_working_directory(work_dir)
+        log_desktop_startup(f"resolved working directory to {work_dir}")
+    else:
+        os.environ.pop("NIAMOTO_HOME", None)
+        log_desktop_startup("no working directory resolved at startup")
 
     try:
         app_import_started = time.perf_counter()
