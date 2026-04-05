@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
+  ChevronRight,
   Database,
   Layers,
   Pencil,
@@ -294,11 +295,14 @@ export function SourcesOverview({
       </p>
 
       {nextStep ? (
-        <Alert className="border-border/70 bg-muted/30">
-          <AlertTitle>{nextStep.title}</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>{nextStep.description}</span>
-            <Button type="button" size="sm" onClick={nextStep.onClick}>
+        <Alert className="border-border/70 bg-muted/30 py-3">
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span className="text-sm">
+              <span className="font-medium">{nextStep.title}</span>
+              {' — '}
+              {nextStep.description}
+            </span>
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={nextStep.onClick}>
               {nextStep.actionLabel}
             </Button>
           </AlertDescription>
@@ -307,14 +311,13 @@ export function SourcesOverview({
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              {t('tree.references', 'References')}
-            </h2>
-            <Badge variant="secondary">{references.length}</Badge>
-          </div>
+          <div className="h-4 w-1 rounded-full bg-primary" />
+          <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            {t('tree.references', 'References')}
+          </h2>
+          <Badge variant="secondary">{references.length}</Badge>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {references.map((reference) => {
             const metrics =
               entityMetrics.get(reference.table_name) ?? entityMetrics.get(reference.name)
@@ -325,11 +328,9 @@ export function SourcesOverview({
             const statusVariant =
               status === 'structural_alert'
                 ? 'destructive'
-                : status === 'enrichment_available'
-                  ? 'default'
-                  : status === 'enrichment_configured'
-                    ? 'secondary'
-                    : 'outline'
+                : status === 'enrichment_configured'
+                  ? 'secondary'
+                  : 'outline'
             const statusLabel = t(`dashboard.status.${status}`, {
               defaultValue:
                 {
@@ -340,36 +341,34 @@ export function SourcesOverview({
                 }[status],
             })
 
-            const primaryAction =
-              status === 'structural_alert'
-                ? {
+            // Primary action is always a chevron to open the collection
+            const primaryAction = {
+              label: '',
+              icon: ChevronRight,
+              onClick: () => onOpenGroup(reference.name),
+              variant: 'ghost' as const,
+            }
+
+            // Secondary actions: enrichment (if applicable) + details
+            const secondaryActions = [
+              ...(status === 'structural_alert'
+                ? [{
                     label: t('dashboard.actions.openVerification', 'Open verification'),
                     onClick: onOpenVerification,
-                    variant: 'default' as const,
-                  }
+                    variant: 'ghost' as const,
+                    icon: AlertTriangle,
+                  }]
                 : status === 'enrichment_available' || status === 'enrichment_configured'
-                  ? {
+                  ? [{
                       label:
                         status === 'enrichment_configured'
                           ? t('dashboard.actions.manageEnrichment')
                           : t('dashboard.actions.configureEnrichment'),
                       onClick: () => setActiveReference(reference),
-                      variant: 'default' as const,
-                    }
-                  : {
-                      label: t('dashboard.actions.open'),
-                      onClick: () => onOpenGroup(reference.name),
-                      variant: 'default' as const,
-                    }
-
-            const secondaryActions = [
-              ...(status === 'imported'
-                ? []
-                : [{
-                    label: t('dashboard.actions.open'),
-                    onClick: () => onOpenGroup(reference.name),
-                    variant: 'ghost' as const,
-                  }]),
+                      variant: 'ghost' as const,
+                      icon: Sparkles,
+                    }]
+                  : []),
               {
                 label: t('dashboard.actions.details', 'Details'),
                 onClick: () => onExploreReference(reference.name),
@@ -411,12 +410,13 @@ export function SourcesOverview({
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
+          <div className="h-4 w-1 rounded-full bg-blue-500/70" />
           <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
             {t('tree.datasets', 'Datasets')}
           </h2>
           <Badge variant="secondary">{datasets.length}</Badge>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {datasets.map((dataset) => {
             const metrics =
               entityMetrics.get(dataset.table_name) ?? entityMetrics.get(dataset.name)
@@ -437,10 +437,10 @@ export function SourcesOverview({
                 onNameClick={() => onExploreDataset(dataset.name)}
                 actions={[
                   {
-                    label: t('dashboard.actions.explore'),
+                    label: '',
                     icon: Search,
                     onClick: () => onExploreDataset(dataset.name),
-                    variant: 'default',
+                    variant: 'ghost',
                   },
                   {
                     label: t('dashboard.actions.editConfig'),
@@ -463,12 +463,13 @@ export function SourcesOverview({
       {layers.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
+            <div className="h-4 w-1 rounded-full bg-amber-500/70" />
             <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
               {t('dashboard.readiness.layersTitle', 'Layers')}
             </h2>
             <Badge variant="secondary">{layers.length}</Badge>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {layers.map((layer) => (
               <SourceRow
                 key={layer.name}
