@@ -326,7 +326,8 @@ export function ImportWizard() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex h-full flex-col overflow-auto p-6">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">{t('wizard.importData')}</h1>
@@ -501,7 +502,7 @@ export function ImportWizard() {
           </Button>
         </div>
       )}
-
+      </div>
     </div>
   )
 }

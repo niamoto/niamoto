@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import i18n from '@/i18n'
 import { recordCrash } from '../lib/crash-tracker'
+import { requestBugReport } from '../lib/bug-report-bridge'
 
 interface Props {
   children: ReactNode
@@ -8,6 +10,7 @@ interface Props {
 interface State {
   hasError: boolean
   errorMessage?: string
+  componentName?: string
 }
 
 /**
@@ -31,10 +34,28 @@ export class FeedbackErrorBoundary extends Component<Props, State> {
       .split(' ')[0] || 'Unknown'
 
     recordCrash(componentName, error)
+    this.setState({ componentName })
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, errorMessage: undefined })
+    this.setState({
+      hasError: false,
+      errorMessage: undefined,
+      componentName: undefined,
+    })
+  }
+
+  private handleReportBug = () => {
+    const componentName = this.state.componentName || 'Unknown'
+    const errorMessage = this.state.errorMessage || 'Unknown error'
+
+    requestBugReport({
+      title: i18n.t('feedback:prefill_crash_title', { component: componentName }),
+      description: i18n.t('feedback:prefill_crash_description', {
+        component: componentName,
+        error: errorMessage,
+      }),
+    })
   }
 
   render() {
@@ -42,20 +63,31 @@ export class FeedbackErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex h-full items-center justify-center p-6">
           <div className="w-full max-w-md rounded-theme-md border bg-card p-5 text-center shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">This screen crashed</h2>
+            <h2 className="text-sm font-semibold text-foreground">
+              {i18n.t('feedback:crash_screen_title')}
+            </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              The error was recorded for feedback reporting. You can try again or navigate to another section.
+              {i18n.t('feedback:crash_screen_description')}
             </p>
             {this.state.errorMessage && (
               <p className="mt-3 text-xs text-muted-foreground">{this.state.errorMessage}</p>
             )}
-            <button
-              type="button"
-              onClick={this.handleRetry}
-              className="mt-4 inline-flex h-9 items-center justify-center rounded-theme-sm border px-4 text-sm font-medium transition-theme-fast hover:bg-accent hover:text-accent-foreground"
-            >
-              Try again
-            </button>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={this.handleRetry}
+                className="inline-flex h-9 items-center justify-center rounded-theme-sm border px-4 text-sm font-medium transition-theme-fast hover:bg-accent hover:text-accent-foreground"
+              >
+                {i18n.t('feedback:crash_screen_retry')}
+              </button>
+              <button
+                type="button"
+                onClick={this.handleReportBug}
+                className="inline-flex h-9 items-center justify-center rounded-theme-sm border px-4 text-sm font-medium transition-theme-fast hover:bg-accent hover:text-accent-foreground"
+              >
+                {i18n.t('feedback:report_bug_cta')}
+              </button>
+            </div>
           </div>
         </div>
       )

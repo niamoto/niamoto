@@ -4,7 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text, inspect
+from sqlalchemy import text
 import yaml
 
 from niamoto.common.database import Database
@@ -359,8 +359,7 @@ def get_table_count(db: Database, table_name: str) -> int:
 def get_table_columns(db: Database, table_name: str) -> List[str]:
     """Get column names for a table."""
     try:
-        inspector = inspect(db.engine)
-        columns = inspector.get_columns(table_name)
+        columns = db.get_columns(table_name)
         return [col["name"] for col in columns]
     except Exception:
         return []
@@ -382,8 +381,7 @@ async def list_tables():
 
     try:
         with open_database(db_path) as db:
-            inspector = inspect(db.engine)
-            table_names = inspector.get_table_names()
+            table_names = db.get_table_names()
 
             tables = []
             for table_name in table_names:
@@ -431,15 +429,12 @@ async def query_table(request: QueryRequest):
 
     try:
         with open_database(db_path) as db:
-            inspector = inspect(db.engine)
-            if request.table not in inspector.get_table_names():
+            if request.table not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Table '{request.table}' not found"
                 )
 
-            table_columns = [
-                col["name"] for col in inspector.get_columns(request.table)
-            ]
+            table_columns = [col["name"] for col in db.get_columns(request.table)]
             allowed_columns = set(table_columns)
             quoted_table = quote_identifier(db, request.table)
 
@@ -522,14 +517,12 @@ async def get_table_columns_endpoint(table_name: str):
 
     try:
         with open_database(db_path) as db:
-            inspector = inspect(db.engine)
-
-            if table_name not in inspector.get_table_names():
+            if table_name not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Table '{table_name}' not found"
                 )
 
-            columns = inspector.get_columns(table_name)
+            columns = db.get_columns(table_name)
 
         return {
             "table": table_name,

@@ -51,8 +51,8 @@ export function FeedbackModal() {
   // Reset form only when modal opens (not on type change)
   useEffect(() => {
     if (feedback.isOpen) {
-      setTitle('')
-      setDescription('')
+      setTitle(feedback.draftTitle)
+      setDescription(feedback.draftDescription)
       setIncludeScreenshot(feedback.type === 'bug')
       setTitleError(false)
     }

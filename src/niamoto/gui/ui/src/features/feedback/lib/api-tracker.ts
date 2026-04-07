@@ -6,6 +6,7 @@
 import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 import { apiClient } from '@/shared/lib/api/client'
+import { promptServerErrorBugReport } from './server-error-feedback'
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -130,6 +131,18 @@ export function initApiTracker(): void {
           duration,
           timestamp: new Date().toISOString(),
         })
+      }
+
+      if (response.status === 500) {
+        let detail = ''
+        try {
+          const clone = response.clone()
+          const payload = await clone.json().catch(() => null) as { detail?: string } | null
+          detail = payload?.detail || ''
+        } catch {
+          detail = ''
+        }
+        promptServerErrorBugReport(url, detail)
       }
 
       return response

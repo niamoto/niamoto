@@ -54,7 +54,7 @@ dependencies = [
     "shapely>=2.1.2",
     # topojson - TopoJSON is an extension of GeoJSON that encodes topology.
     # Documentation: https://github.com/topojson/topojson
-    "topojson>=1.9",
+    "topojson>=1.10",
     # -------------------------
     # Data Processing libraries
     # -------------------------
@@ -125,7 +125,7 @@ dependencies = [
     "duckdb>=1.5.0",
     # duckdb-engine - SQLAlchemy driver for DuckDB
     "duckdb-engine>=0.17.0",
-    "markdown>=3.10",
+    "markdown>=3.10.2",
     # keyring - System keyring access for secure credential storage
     # Documentation: https://pypi.org/project/keyring/
     "keyring>=25.0.0",
@@ -191,7 +191,7 @@ dev = [
 
     # mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
     # Documentation: http://mypy-lang.org/
-    "mypy>=1.18.0",
+    "mypy>=1.19.1",
     # SQLAlchemy typing helpers stay in dev-only dependencies; the desktop runtime
     # does not need mypy or its compiled mypyc payload.
     "sqlalchemy[mypy]>=2.0.44",
@@ -202,7 +202,7 @@ dev = [
 
     # pre-commit - Framework for managing multi-language pre-commit hooks.
     # Documentation: https://pre-commit.com/
-    "pre-commit>=3.5.0",
+    "pre-commit>=4.5.1",
 
     # ------------------
     # Documentation Tools
@@ -213,7 +213,7 @@ dev = [
     "sphinx>=7.2.6",
     "sphinxcontrib-napoleon>=0.7",
     "myst-parser>=4.0",
-    "sphinx-markdown-builder>=0.6.6",
+    "sphinx-markdown-builder>=0.6.10",
 
     # furo - A clean, customizable Sphinx theme for Python documentation.
     # Documentation: https://pradyunsg.me/furo/
@@ -239,14 +239,14 @@ dev = [
 [dependency-groups]
 dev = [
     "bump2version>=1.0.1",
-    "pre-commit>=4.4.0",
+    "pre-commit>=4.5.1",
     "pytest>=8.4.1,<9.0.0",
     "pytest-cov>=7.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.15.0",
     "pytest-xdist>=3.5.0",
     "requests-mock>=1.12.1",
-    "tox>=4.32.0",
+    "tox>=4.52.0",
 ]
 
 [tool.hatch.build.targets.wheel]

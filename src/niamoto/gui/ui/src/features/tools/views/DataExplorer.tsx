@@ -161,7 +161,8 @@ export function DataExplorer() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="h-full overflow-auto">
+      <div className="container mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -625,6 +626,7 @@ export function DataExplorer() {
           </div>
         </TabsContent>
       </Tabs>
+      </div>
 
       {/* Enrichment Preview Modal */}
       <Dialog open={enrichmentModal} onOpenChange={setEnrichmentModal}>

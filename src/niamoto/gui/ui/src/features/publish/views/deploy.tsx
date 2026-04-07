@@ -599,7 +599,8 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
   const canDeployPlatform = !isDeploying && !isOffline && hasSuccessfulBuild
 
   return (
-    <div className={embedded ? 'space-y-6 p-1' : 'container mx-auto py-6 space-y-6'}>
+    <div className={embedded ? 'space-y-6 p-1' : 'h-full overflow-auto'}>
+      <div className={embedded ? 'space-y-6' : 'container mx-auto space-y-6 py-6'}>
       {embedded ? (
         <div className="flex justify-end">
           <Button onClick={openAddDialog}>
@@ -1118,6 +1119,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
           })()}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   )
 }
