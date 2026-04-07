@@ -121,12 +121,12 @@ async def get_database_schema():
             views = []
 
             # Get all table names
-            table_names = inspector.get_table_names()
+            table_names = db.get_table_names()
 
             for table_name in table_names:
                 # Get columns
                 columns = []
-                for col in inspector.get_columns(table_name):
+                for col in db.get_columns(table_name):
                     column_info = ColumnInfo(
                         name=col["name"],
                         type=str(col["type"]),
@@ -188,7 +188,7 @@ async def get_database_schema():
             for view_name in view_names:
                 try:
                     columns = []
-                    for col in inspector.get_columns(view_name):
+                    for col in db.get_columns(view_name):
                         column_info = ColumnInfo(
                             name=col["name"],
                             type=str(col.get("type", "UNKNOWN")),
@@ -259,7 +259,7 @@ async def get_table_preview(
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            table_names = set(inspector.get_table_names() or [])
+            table_names = set(db.get_table_names())
             view_names = set(inspector.get_view_names() or [])
 
             if table_name not in table_names and table_name not in view_names:
@@ -325,10 +325,9 @@ async def get_table_stats(table_name: str):
 
     try:
         with open_database(db_path) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            if table_name not in inspector.get_table_names():
+            if table_name not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Table '{table_name}' not found"
                 )
@@ -339,7 +338,7 @@ async def get_table_stats(table_name: str):
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
                 row_count = result.scalar() or 0
 
-                columns = inspector.get_columns(table_name)
+                columns = db.get_columns(table_name)
                 column_count = len(columns)
 
                 null_counts = {}

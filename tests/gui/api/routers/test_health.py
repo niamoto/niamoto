@@ -89,6 +89,17 @@ class TestReloadProjectEndpoint:
         assert client.app.state.job_store_work_dir is None
         assert reset_calls == [True]
 
+
+def test_debug_test_500_endpoint_returns_intentional_server_error():
+    client = create_test_client()
+
+    response = client.get("/api/health/debug/test-500")
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "Intentional test 500 for bug report CTA validation."
+    }
+
     def test_invalid_project_state_clears_job_store(
         self, monkeypatch: pytest.MonkeyPatch
     ):

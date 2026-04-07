@@ -40,142 +40,144 @@ export function LivePreview() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {t('livePreview.title')}
-          </h1>
-          <p className="text-muted-foreground">
-            {t('livePreview.description')}
-          </p>
-        </div>
-      </div>
-
-      {/* Preview Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              <CardTitle>{t('livePreview.previewPanel')}</CardTitle>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={viewportSize === 'mobile' ? 'default' : 'ghost'}
-                size="icon"
-                onClick={() => setViewportSize('mobile')}
-                title="Mobile (375px)"
-              >
-                <Smartphone className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewportSize === 'tablet' ? 'default' : 'ghost'}
-                size="icon"
-                onClick={() => setViewportSize('tablet')}
-                title="Tablet (768px)"
-              >
-                <Tablet className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewportSize === 'desktop' ? 'default' : 'ghost'}
-                size="icon"
-                onClick={() => setViewportSize('desktop')}
-                title="Desktop (100%)"
-              >
-                <Monitor className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleRefresh}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {t('common:actions.reset')}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleOpenNewTab}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                {t('livePreview.openNew')}
-              </Button>
-            </div>
+    <div className="h-full overflow-auto">
+      <div className="container mx-auto space-y-6 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {t('livePreview.title')}
+            </h1>
+            <p className="text-muted-foreground">
+              {t('livePreview.description')}
+            </p>
           </div>
-          <CardDescription>
-            {t('livePreview.previewDescription')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!siteExists ? (
-            <div className="aspect-video rounded-lg border bg-muted flex items-center justify-center">
-              <div className="text-center space-y-4">
-                <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto" />
-                <div>
-                  <p className="text-lg font-medium">
-                    {t('livePreview.notAvailable')}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t('livePreview.exportFirst')}
-                  </p>
-                </div>
-                <Button onClick={() => window.location.href = '/publish'}>
-                  {t('livePreview.goToExport')}
+        </div>
+
+        {/* Preview Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                <CardTitle>{t('livePreview.previewPanel')}</CardTitle>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={viewportSize === 'mobile' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => setViewportSize('mobile')}
+                  title="Mobile (375px)"
+                >
+                  <Smartphone className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewportSize === 'tablet' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => setViewportSize('tablet')}
+                  title="Tablet (768px)"
+                >
+                  <Tablet className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewportSize === 'desktop' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => setViewportSize('desktop')}
+                  title="Desktop (100%)"
+                >
+                  <Monitor className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleRefresh}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {t('common:actions.reset')}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleOpenNewTab}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t('livePreview.openNew')}
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="rounded-lg border overflow-hidden bg-muted/50 flex justify-center">
-              <div style={{ width: getIframeWidth(), transition: 'width 0.3s ease' }}>
-                <iframe
-                  key={iframeKey}
-                  src={getExportedSitePreviewUrl('index.html')}
-                  className="w-full h-[700px] border-0 bg-white"
-                  title="Site exporté"
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                  onError={handleIframeError}
-                />
+            <CardDescription>
+              {t('livePreview.previewDescription')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!siteExists ? (
+              <div className="aspect-video rounded-lg border bg-muted flex items-center justify-center">
+                <div className="text-center space-y-4">
+                  <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto" />
+                  <div>
+                    <p className="text-lg font-medium">
+                      {t('livePreview.notAvailable')}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {t('livePreview.exportFirst')}
+                    </p>
+                  </div>
+                  <Button onClick={() => window.location.href = '/publish'}>
+                    {t('livePreview.goToExport')}
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="rounded-lg border overflow-hidden bg-muted/50 flex justify-center">
+                <div style={{ width: getIframeWidth(), transition: 'width 0.3s ease' }}>
+                  <iframe
+                    key={iframeKey}
+                    src={getExportedSitePreviewUrl('index.html')}
+                    className="w-full h-[700px] border-0 bg-white"
+                    title="Site exporté"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                    onError={handleIframeError}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Info Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <RefreshCw className="h-4 w-4 inline mr-2" />
-              {t('livePreview.autoRefresh')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {t('livePreview.autoRefreshDesc')}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <Smartphone className="h-4 w-4 inline mr-2" />
-              {t('live_preview.responsive', 'Test responsive')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {t('live_preview.responsive_desc', 'Test your site on different screen sizes (mobile, tablet, desktop)')}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <ExternalLink className="h-4 w-4 inline mr-2" />
-              {t('live_preview.external', 'Ouverture externe')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {t('live_preview.external_desc', 'Open the site in a new tab for full navigation')}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Info Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                <RefreshCw className="h-4 w-4 inline mr-2" />
+                {t('livePreview.autoRefresh')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('livePreview.autoRefreshDesc')}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                <Smartphone className="h-4 w-4 inline mr-2" />
+                {t('live_preview.responsive', 'Test responsive')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('live_preview.responsive_desc', 'Test your site on different screen sizes (mobile, tablet, desktop)')}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                <ExternalLink className="h-4 w-4 inline mr-2" />
+                {t('live_preview.external', 'Ouverture externe')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('live_preview.external_desc', 'Open the site in a new tab for full navigation')}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

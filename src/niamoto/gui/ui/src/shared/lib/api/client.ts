@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { promptServerErrorBugReport } from '@/features/feedback/lib/server-error-feedback'
 
 // Create axios instance with base configuration
 export const apiClient = axios.create({
@@ -23,7 +24,9 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 404) {
       console.error('Resource not found:', error.config?.url)
     } else if (error.response?.status === 500) {
-      console.error('Server error:', error.response?.data?.detail || error.message)
+      const detail = error.response?.data?.detail || error.message
+      console.error('Server error:', detail)
+      promptServerErrorBugReport(error.config?.url, detail)
     }
     return Promise.reject(error)
   }

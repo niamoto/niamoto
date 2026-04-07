@@ -1,5 +1,6 @@
 """Unit tests for data explorer query helpers."""
 
+from fastapi.testclient import TestClient
 from fastapi import HTTPException
 import pytest
 from sqlalchemy import create_engine
@@ -90,3 +91,38 @@ def test_build_where_clause_supports_between_and_not_between(dummy_db: _DummyDB)
     assert "BETWEEN" in clause
     assert "NOT BETWEEN" in clause
     assert params == {"w_0": 10, "w_1": 20, "w_2": 18, "w_3": 65}
+
+
+def test_list_tables_uses_duckdb_fixture_without_reflection_errors(
+    gui_duckdb_client: TestClient,
+):
+    """Data explorer should list DuckDB tables via backend-safe introspection."""
+
+    response = gui_duckdb_client.get("/api/data/tables")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    table_names = [table["name"] for table in payload]
+    assert table_names == ["dataset_occurrences", "entity_taxons"]
+    assert payload[0]["count"] == 3
+    assert payload[0]["columns"] == ["id", "taxon_id", "count", "locality"]
+
+
+def test_get_table_columns_uses_duckdb_fixture_without_reflection_errors(
+    gui_duckdb_client: TestClient,
+):
+    """Column metadata endpoint should read DuckDB schema through the safe helper."""
+
+    response = gui_duckdb_client.get("/api/data/tables/dataset_occurrences/columns")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["table"] == "dataset_occurrences"
+    assert [column["name"] for column in payload["columns"]] == [
+        "id",
+        "taxon_id",
+        "count",
+        "locality",
+    ]

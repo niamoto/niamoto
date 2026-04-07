@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, List
 
+from fastapi.testclient import TestClient
+
 from niamoto.gui.api.routers.stats import (
     _build_entity_type_map,
     _find_geometry_column,
@@ -14,6 +16,16 @@ from niamoto.gui.api.routers.stats import (
 
 class _DummyInspector:
     """Minimal inspector stub for geometry helper tests."""
+
+    def __init__(self, columns_by_table: Dict[str, List[Dict[str, Any]]]):
+        self.columns_by_table = columns_by_table
+
+    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        return self.columns_by_table.get(table_name, [])
+
+
+class _DummyDatabase:
+    """Minimal DB stub matching the backend-safe get_columns helper."""
 
     def __init__(self, columns_by_table: Dict[str, List[Dict[str, Any]]]):
         self.columns_by_table = columns_by_table
@@ -103,9 +115,10 @@ def test_resolve_spatial_reference_tables_from_config_without_keywords():
             ]
         }
     )
+    db = _DummyDatabase(inspector.columns_by_table)
 
     resolved = _resolve_spatial_reference_tables(
-        table_names, inspector, references, occurrence_table="dataset_observations"
+        db, table_names, inspector, references, occurrence_table="dataset_observations"
     )
 
     assert len(resolved) == 1
@@ -132,9 +145,14 @@ def test_resolve_spatial_reference_tables_fallback_geometry_scan():
             ],
         }
     )
+    db = _DummyDatabase(inspector.columns_by_table)
 
     resolved = _resolve_spatial_reference_tables(
-        table_names, inspector, references={}, occurrence_table="dataset_observations"
+        db,
+        table_names,
+        inspector,
+        references={},
+        occurrence_table="dataset_observations",
     )
 
     assert len(resolved) == 1
@@ -156,3 +174,28 @@ def test_resolve_taxonomy_table_name_prefers_hierarchical_reference():
     )
 
     assert resolved == "entity_plants"
+
+
+def test_import_summary_uses_duckdb_fixture_without_sqlalchemy_reflection_errors(
+    gui_duckdb_client: TestClient,
+):
+    """Summary endpoint should introspect DuckDB tables without PostgreSQL reflection."""
+
+    response = gui_duckdb_client.get("/api/stats/summary")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["total_entities"] == 2
+    assert payload["total_rows"] == 5
+
+    entities = {entity["name"]: entity for entity in payload["entities"]}
+    assert entities["dataset_occurrences"]["entity_type"] == "dataset"
+    assert entities["dataset_occurrences"]["column_count"] == 4
+    assert entities["dataset_occurrences"]["columns"] == [
+        "id",
+        "taxon_id",
+        "count",
+        "locality",
+    ]
+    assert entities["entity_taxons"]["entity_type"] == "reference"

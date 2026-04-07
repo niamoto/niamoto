@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import inspect, text
 import yaml
 
+from niamoto.common.database import Database
 from niamoto.common.table_resolver import (
     resolve_dataset_table_name,
     resolve_entity_table_name,
@@ -451,6 +452,7 @@ def _pick_first_existing(
 
 
 def _resolve_spatial_reference_tables(
+    db: Database,
     table_names: List[str],
     inspector: Any,
     references: Dict[str, Any],
@@ -478,7 +480,7 @@ def _resolve_spatial_reference_tables(
             continue
         seen_tables.add(table_name)
 
-        columns_info = inspector.get_columns(table_name)
+        columns_info = db.get_columns(table_name)
         geo_column, is_native = _find_geometry_column(columns_info)
         column_names = [col["name"] for col in columns_info]
         columns_by_lower = {c.lower(): c for c in column_names}
@@ -542,7 +544,7 @@ def _resolve_spatial_reference_tables(
             if table_name.startswith("_") or table_name.startswith("sqlite"):
                 continue
 
-            columns_info = inspector.get_columns(table_name)
+            columns_info = db.get_columns(table_name)
             geo_column, is_native = _find_geometry_column(columns_info)
             if not geo_column:
                 continue
@@ -600,10 +602,9 @@ async def get_import_summary():
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             datasets, references = _load_import_entities_config()
             entity_type_map = _build_entity_type_map(table_names, datasets, references)
             entities = []
@@ -624,7 +625,7 @@ async def get_import_summary():
                     total_rows += row_count
 
                     # Get columns
-                    columns_info = inspector.get_columns(table_name)
+                    columns_info = db.get_columns(table_name)
                     column_names = [c["name"] for c in columns_info]
 
                     entity_type = entity_type_map.get(
@@ -677,10 +678,9 @@ async def get_completeness(entity: str):
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            if entity not in inspector.get_table_names():
+            if entity not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Entity '{entity}' not found"
                 )
@@ -692,7 +692,7 @@ async def get_completeness(entity: str):
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
                 total_count = result.scalar() or 0
 
-            columns_info = inspector.get_columns(entity)
+            columns_info = db.get_columns(entity)
             column_stats = []
 
             with db.engine.connect() as conn:
@@ -768,12 +768,11 @@ async def get_spatial_stats(
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
             datasets, references = _load_import_entities_config()
             # Resolve table from config metadata first.
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             target_table = _resolve_entity_table(
                 table_names, entity, datasets, references
             )
@@ -789,7 +788,7 @@ async def get_spatial_stats(
                 )
 
             quoted_table = preparer.quote(target_table)
-            columns_info = inspector.get_columns(target_table)
+            columns_info = db.get_columns(target_table)
             column_names = [c["name"] for c in columns_info]
 
             # Detect or use provided coordinate columns
@@ -943,12 +942,11 @@ async def get_taxonomy_consistency(
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             _, references = _load_import_entities_config()
 
             # Find taxonomy table
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             target_table = _resolve_taxonomy_table_name(table_names, references, entity)
 
             if not target_table:
@@ -961,7 +959,7 @@ async def get_taxonomy_consistency(
                 )
 
             quoted_table = preparer.quote(target_table)
-            columns_info = inspector.get_columns(target_table)
+            columns_info = db.get_columns(target_table)
             column_names = [c["name"].lower() for c in columns_info]
 
             with db.engine.connect() as conn:
@@ -1107,16 +1105,15 @@ async def get_value_validation(
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            if entity not in inspector.get_table_names():
+            if entity not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Entity '{entity}' not found"
                 )
 
             quoted_table = preparer.quote(entity)
-            columns_info = inspector.get_columns(entity)
+            columns_info = db.get_columns(entity)
 
             # Filter to numeric columns
             numeric_types = ["INTEGER", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "REAL"]
@@ -1597,15 +1594,14 @@ async def export_outliers_csv(
 
     try:
         with open_database(db_path, read_only=True) as db:
-            inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            if entity not in inspector.get_table_names():
+            if entity not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Entity '{entity}' not found"
                 )
 
-            columns_info = inspector.get_columns(entity)
+            columns_info = db.get_columns(entity)
             col_names = [c["name"] for c in columns_info]
 
             if column not in col_names:
@@ -1752,7 +1748,7 @@ async def get_geo_coverage(
         with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             datasets, references = _load_import_entities_config()
 
             # Resolve occurrence table from explicit param/config.
@@ -1777,7 +1773,7 @@ async def get_geo_coverage(
                 total = result.scalar() or 0
 
             # Find geo column in occurrences
-            columns_info = inspector.get_columns(occ_table)
+            columns_info = db.get_columns(occ_table)
             geo_column, _ = _find_geometry_column(columns_info)
 
             # Count occurrences with geometry
@@ -1794,7 +1790,7 @@ async def get_geo_coverage(
 
             # Resolve spatial references from config (kind=spatial), fallback to geometry scan.
             spatial_tables = _resolve_spatial_reference_tables(
-                table_names, inspector, references, occurrence_table=occ_table
+                db, table_names, inspector, references, occurrence_table=occ_table
             )
             available_shapes = []
 
@@ -1892,7 +1888,7 @@ async def analyze_spatial_coverage(
         with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             datasets, references = _load_import_entities_config()
 
             # Resolve occurrence table from explicit param/config.
@@ -1913,7 +1909,7 @@ async def analyze_spatial_coverage(
                 )
 
             # Find geo column in occurrences.
-            columns_info = inspector.get_columns(occ_table)
+            columns_info = db.get_columns(occ_table)
             geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             if not geo_column:
@@ -1932,7 +1928,7 @@ async def analyze_spatial_coverage(
             quoted_geo = preparer.quote(geo_column)
 
             spatial_tables = _resolve_spatial_reference_tables(
-                table_names, inspector, references, occurrence_table=occ_table
+                db, table_names, inspector, references, occurrence_table=occ_table
             )
             shape_tables = [s for s in spatial_tables if s.get("has_geometry")]
             shape_tables_without_geo = [
@@ -2129,7 +2125,7 @@ async def get_shape_distribution(
         with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
-            table_names = inspector.get_table_names() or []
+            table_names = db.get_table_names()
             datasets, references = _load_import_entities_config()
 
             # Resolve occurrence table from explicit param/config.
@@ -2147,7 +2143,7 @@ async def get_shape_distribution(
                 )
 
             # Find geo column in occurrences.
-            columns_info = inspector.get_columns(occ_table)
+            columns_info = db.get_columns(occ_table)
             geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             if not geo_column:
@@ -2160,7 +2156,7 @@ async def get_shape_distribution(
                 )
 
             spatial_tables = _resolve_spatial_reference_tables(
-                table_names, inspector, references, occurrence_table=occ_table
+                db, table_names, inspector, references, occurrence_table=occ_table
             )
             shape_candidates = [s for s in spatial_tables if s.get("has_geometry")]
 
@@ -2180,7 +2176,7 @@ async def get_shape_distribution(
             shape_is_native = shape_meta["is_native"]
 
             # Resolve id/name/type columns dynamically (no hardcoded `id`/`name`).
-            shape_columns = [c["name"] for c in inspector.get_columns(shape_table)]
+            shape_columns = [c["name"] for c in db.get_columns(shape_table)]
             shape_cols_by_lower = {c.lower(): c for c in shape_columns}
             shape_id_col = shape_meta.get("id_column") or _pick_first_existing(
                 shape_cols_by_lower, ["id", "name"]

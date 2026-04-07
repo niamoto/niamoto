@@ -2,7 +2,7 @@
 
 import os
 import time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from niamoto.gui.api.context import (
     reload_project_from_desktop_config,
@@ -157,3 +157,13 @@ async def get_diagnostic():
         },
         "config_files": config_files,
     }
+
+
+@router.get("/debug/test-500")
+async def trigger_test_server_error():
+    """Trigger a deliberate 500 response for manual feedback-flow testing."""
+
+    raise HTTPException(
+        status_code=500,
+        detail="Intentional test 500 for bug report CTA validation.",
+    )

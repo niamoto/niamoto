@@ -201,65 +201,67 @@ export function ConfigEditor() {
   const [activeTab, setActiveTab] = useState<ConfigType>('config')
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <FileCode2 className="h-8 w-8" />
-            <h1 className="text-3xl font-bold tracking-tight">
-              Configuration Editor
-            </h1>
+    <div className="h-full overflow-auto">
+      <div className="container mx-auto space-y-6 p-6">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <FileCode2 className="h-8 w-8" />
+              <h1 className="text-3xl font-bold tracking-tight">
+                Configuration Editor
+              </h1>
+            </div>
+            <p className="text-muted-foreground">
+              Edit your Niamoto configuration files with automatic backup and
+              restore functionality
+            </p>
           </div>
-          <p className="text-muted-foreground">
-            Edit your Niamoto configuration files with automatic backup and
-            restore functionality
-          </p>
         </div>
-      </div>
 
-      <Alert>
-        <CheckCircle2 className="h-4 w-4" />
-        <div className="ml-2 space-y-1">
-          <p className="font-medium">Automatic Backups</p>
-          <p className="text-sm text-muted-foreground">
-            Every time you save a configuration, a backup is automatically
-            created. You can restore previous versions at any time from the
-            backup list.
-          </p>
-        </div>
-      </Alert>
+        <Alert>
+          <CheckCircle2 className="h-4 w-4" />
+          <div className="ml-2 space-y-1">
+            <p className="font-medium">Automatic Backups</p>
+            <p className="text-sm text-muted-foreground">
+              Every time you save a configuration, a backup is automatically
+              created. You can restore previous versions at any time from the
+              backup list.
+            </p>
+          </div>
+        </Alert>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuration Files</CardTitle>
-          <CardDescription>Select a configuration file to edit</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={activeTab}
-            onValueChange={(v) => setActiveTab(v as ConfigType)}
-          >
-            <TabsList className="grid w-full grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration Files</CardTitle>
+            <CardDescription>Select a configuration file to edit</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as ConfigType)}
+            >
+              <TabsList className="grid w-full grid-cols-4">
+                {CONFIG_TABS.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
               {CONFIG_TABS.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value}>
-                  {tab.label}
-                </TabsTrigger>
+                <TabsContent key={tab.value} value={tab.value} className="mt-6">
+                  <div className="mb-4 rounded-lg bg-muted/50 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      {tab.description}
+                    </p>
+                  </div>
+                  <ConfigTab configName={tab.value} />
+                </TabsContent>
               ))}
-            </TabsList>
-
-            {CONFIG_TABS.map((tab) => (
-              <TabsContent key={tab.value} value={tab.value} className="mt-6">
-                <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    {tab.description}
-                  </p>
-                </div>
-                <ConfigTab configName={tab.value} />
-              </TabsContent>
-            ))}
-          </Tabs>
-        </CardContent>
-      </Card>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

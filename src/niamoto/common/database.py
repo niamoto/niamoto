@@ -504,6 +504,11 @@ class Database:
         self._table_names_cache = None
         self._table_names_cache_ts = 0.0
 
+    def get_table_names(self, max_age_seconds: float = 2.0) -> List[str]:
+        """Return table names using the backend-safe cache path."""
+
+        return sorted(self._get_table_names_cached(max_age_seconds=max_age_seconds))
+
     @error_handler(log=True, raise_error=True)
     def get_new_session(self) -> scoped_session[Session]:
         """
@@ -739,6 +744,11 @@ class Database:
             logger.warning("Could not retrieve columns for table '%s'", table_name)
             return []
         return [column["name"] for column in schema]
+
+    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """Return SQLAlchemy inspector-like column metadata for a table."""
+
+        return self.get_table_schema(table_name)
 
     def get_table_schema(self, table_name: str) -> List[Dict[str, Any]]:
         """Return table schema as list of {name, type} dictionaries."""

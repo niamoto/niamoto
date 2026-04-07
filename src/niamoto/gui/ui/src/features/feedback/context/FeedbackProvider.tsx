@@ -13,6 +13,10 @@ import { toast } from 'sonner'
 import { useScreenshot } from '../hooks/useScreenshot'
 import { useContextData } from '../hooks/useContextData'
 import { sendFeedback } from '../lib/feedback-api'
+import {
+  subscribeToBugReportRequests,
+  type BugReportDraft,
+} from '../lib/bug-report-bridge'
 import { FeedbackError, type FeedbackType, type FeedbackContext } from '../types'
 
 const COOLDOWN_SECONDS = 30
@@ -26,6 +30,8 @@ interface FeedbackState {
   screenshotError: boolean
   isPreparingScreenshot: boolean
   contextData: FeedbackContext | null
+  draftTitle: string
+  draftDescription: string
   openWithType: (type?: FeedbackType) => Promise<void>
   close: () => void
   setType: (type: FeedbackType) => void
@@ -43,6 +49,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null)
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [contextData, setContextData] = useState<FeedbackContext | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftDescription, setDraftDescription] = useState('')
 
   const { screenshot, isCapturing, error: screenshotError, capture, clear } = useScreenshot()
   const { collect } = useContextData()
@@ -67,12 +75,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const cooldownEndRef = useRef(cooldownEnd)
   cooldownEndRef.current = cooldownEnd
 
-  const openWithType = useCallback(
-    async (nextType: FeedbackType = 'bug') => {
+  const openDraft = useCallback(
+    async (nextType: FeedbackType = 'bug', draft?: BugReportDraft) => {
       // Block if cooldown is active
       if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return
 
       setType(nextType)
+      setDraftTitle(draft?.title ?? '')
+      setDraftDescription(draft?.description ?? '')
 
       // Capture screenshot before opening (bug type only)
       if (nextType === 'bug') {
@@ -90,9 +100,22 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     [capture, clear, collect]
   )
 
+  const openWithType = useCallback(
+    async (nextType: FeedbackType = 'bug') => openDraft(nextType),
+    [openDraft]
+  )
+
   const close = useCallback(() => {
     setIsOpen(false)
+    setDraftTitle('')
+    setDraftDescription('')
   }, [])
+
+  useEffect(() => {
+    return subscribeToBugReportRequests((draft) => {
+      void openDraft('bug', draft)
+    })
+  }, [openDraft])
 
   // Keep ref to avoid stale closures in send
   const contextDataRef = useRef(contextData)
@@ -150,6 +173,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     screenshotError,
     isPreparingScreenshot: isCapturing,
     contextData,
+    draftTitle,
+    draftDescription,
     openWithType,
     close,
     setType,
@@ -158,7 +183,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   }), [
     isOpen, type, isSending, cooldownRemaining,
     screenshot, screenshotError, isCapturing,
-    contextData, openWithType, close, setType, capture, send,
+    contextData, draftTitle, draftDescription,
+    openWithType, close, setType, capture, send,
   ])
 
   return (

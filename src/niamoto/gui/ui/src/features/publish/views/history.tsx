@@ -128,7 +128,8 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
   }
 
   return (
-    <div className={embedded ? 'space-y-6 p-1' : 'container mx-auto py-6 space-y-6'}>
+    <div className={embedded ? 'space-y-6 p-1' : 'h-full overflow-auto'}>
+      <div className={embedded ? 'space-y-6' : 'container mx-auto space-y-6 py-6'}>
       {!embedded && (
         <div className="flex items-center justify-between">
           <div>
@@ -501,6 +502,7 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   )
 }
