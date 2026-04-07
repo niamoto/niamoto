@@ -28,6 +28,51 @@ import enPublish from './locales/en/publish.json';
 import frFeedback from './locales/fr/feedback.json';
 import enFeedback from './locales/en/feedback.json';
 
+export const SUPPORTED_UI_LANGUAGES = ['fr', 'en'] as const;
+
+export type UiLanguage = (typeof SUPPORTED_UI_LANGUAGES)[number];
+export type UiLanguagePreference = UiLanguage | 'auto';
+
+export function normalizeUiLanguage(value?: string | null): UiLanguage {
+  const normalized = value?.toLowerCase();
+
+  if (normalized?.startsWith('fr')) {
+    return 'fr';
+  }
+
+  if (normalized?.startsWith('en')) {
+    return 'en';
+  }
+
+  return 'en';
+}
+
+export function getBestSupportedLanguage(
+  candidates?: readonly string[] | string | null
+): UiLanguage {
+  const rawCandidates = Array.isArray(candidates)
+    ? candidates
+    : candidates
+      ? [candidates]
+      : typeof navigator !== 'undefined'
+        ? [...navigator.languages, navigator.language]
+        : [];
+
+  for (const candidate of rawCandidates) {
+    const normalized = candidate?.toLowerCase();
+
+    if (normalized?.startsWith('fr')) {
+      return 'fr';
+    }
+
+    if (normalized?.startsWith('en')) {
+      return 'en';
+    }
+  }
+
+  return 'en';
+}
+
 const resources = {
   fr: {
     common: frCommon,
@@ -66,7 +111,9 @@ i18n
     resources,
     defaultNS: 'common',
     ns: ['common', 'import', 'transform', 'export', 'visualize', 'site', 'widgets', 'sources', 'indexConfig', 'tools', 'publish', 'feedback'],
-    fallbackLng: 'fr',
+    fallbackLng: 'en',
+    supportedLngs: SUPPORTED_UI_LANGUAGES,
+    load: 'languageOnly',
     debug: false,
 
     interpolation: {
@@ -74,8 +121,8 @@ i18n
     },
 
     detection: {
-      order: ['localStorage', 'navigator'],
-      caches: ['localStorage'],
+      order: ['navigator'],
+      caches: [],
     },
   });
 

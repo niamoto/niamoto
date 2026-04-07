@@ -7,6 +7,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Globe } from 'lucide-react';
+import {
+  applyUiLanguagePreference,
+  getAppSettings,
+  setAppSettings,
+} from '@/shared/desktop/appSettings';
 
 const languages = [
   { code: 'fr', name: 'FR', flag: '🇫🇷' },
@@ -16,12 +21,18 @@ const languages = [
 export function LanguageSwitcher() {
   const { i18n } = useTranslation();
 
-  const handleLanguageChange = (value: string) => {
-    i18n.changeLanguage(value);
+  const handleLanguageChange = async (value: string) => {
+    const nextLanguage = value === 'fr' ? 'fr' : 'en';
+    const currentSettings = await getAppSettings();
+    await setAppSettings({
+      ...currentSettings,
+      ui_language: nextLanguage,
+    });
+    await applyUiLanguagePreference(nextLanguage);
   };
 
   return (
-    <Select value={i18n.language} onValueChange={handleLanguageChange}>
+    <Select value={i18n.language.startsWith('fr') ? 'fr' : 'en'} onValueChange={handleLanguageChange}>
       <SelectTrigger className="w-[140px]">
         <Globe className="w-4 h-4 mr-2" />
         <SelectValue />

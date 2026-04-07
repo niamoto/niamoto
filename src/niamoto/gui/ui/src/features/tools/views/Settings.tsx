@@ -1,13 +1,29 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, Database, Palette, Bell, Shield, Save, Info, RefreshCw, Download, Check, Loader2 } from 'lucide-react'
+import {
+  Check,
+  Download,
+  Info,
+  Languages,
+  Loader2,
+  RefreshCw,
+  Settings2,
+} from 'lucide-react'
 import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
+import {
+  DEFAULT_APP_SETTINGS,
+  applyUiLanguagePreference,
+  getAppSettings,
+  setAppSettings,
+  type AppSettings,
+} from '@/shared/desktop/appSettings'
+import type { UiLanguage, UiLanguagePreference } from '@/i18n'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ThemeSwitcher } from '@/components/theme'
 import {
   Select,
   SelectContent,
@@ -15,114 +31,217 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ThemeSwitcher } from '@/components/theme'
+
+const LANGUAGE_LABELS: Record<UiLanguage, string> = {
+  fr: 'Français',
+  en: 'English',
+}
 
 export function Settings() {
-  const { t } = useTranslation('tools')
+  const { t, i18n } = useTranslation('tools')
   const { isDesktop } = useRuntimeMode()
-  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate } = useAppUpdater()
+  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate } =
+    useAppUpdater()
+  const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
+  const [loading, setLoading] = useState(true)
+  const [savingKey, setSavingKey] = useState<'ui_language' | 'auto_load_last_project' | null>(
+    null
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSettings = async () => {
+      try {
+        const nextSettings = await getAppSettings()
+        if (!cancelled) {
+          setSettingsState(nextSettings)
+        }
+      } catch (err) {
+        console.error('Failed to load app settings:', err)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadSettings()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const effectiveLanguage = useMemo<UiLanguage>(() => {
+    const language = i18n.resolvedLanguage ?? i18n.language
+    return language.startsWith('fr') ? 'fr' : 'en'
+  }, [i18n.language, i18n.resolvedLanguage])
+
+  const saveSettings = async (
+    patch: Partial<AppSettings>,
+    key: 'ui_language' | 'auto_load_last_project'
+  ) => {
+    const previousSettings = settings
+    const nextSettings = { ...settings, ...patch }
+
+    setSavingKey(key)
+
+    try {
+      await setAppSettings(nextSettings)
+
+      if (patch.ui_language) {
+        await applyUiLanguagePreference(patch.ui_language)
+      }
+
+      setSettingsState(nextSettings)
+    } catch (err) {
+      console.error('Failed to update app settings:', err)
+      setSettingsState(previousSettings)
+    } finally {
+      setSavingKey(null)
+    }
+  }
 
   return (
-    <div className="container mx-auto p-6 space-y-6 h-full overflow-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {t('settings.title', 'Settings')}
-          </h1>
-          <p className="text-muted-foreground">
-            {t('settings.description', 'Configure your Niamoto instance')}
-          </p>
-        </div>
-        <Button>
-          <Save className="mr-2 h-4 w-4" />
-          {t('settings.saveChanges', 'Save Changes')}
-        </Button>
+    <div className="container mx-auto h-full space-y-6 overflow-auto p-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {t('settings.title', 'Settings')}
+        </h1>
+        <p className="text-muted-foreground">
+          {t(
+            'settings.description',
+            'Configure your desktop application preferences'
+          )}
+        </p>
       </div>
 
-      {/* Settings Tabs */}
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">
-            <SettingsIcon className="mr-2 h-4 w-4" />
-            {t('settings.general', 'General')}
-          </TabsTrigger>
-          <TabsTrigger value="database">
-            <Database className="mr-2 h-4 w-4" />
-            {t('settings.database', 'Database')}
-          </TabsTrigger>
-          <TabsTrigger value="appearance">
-            <Palette className="mr-2 h-4 w-4" />
-            {t('settings.appearance', 'Appearance')}
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="mr-2 h-4 w-4" />
-            {t('settings.notifications', 'Notifications')}
-          </TabsTrigger>
-          <TabsTrigger value="advanced">
-            <Shield className="mr-2 h-4 w-4" />
-            {t('settings.advanced', 'Advanced')}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* General Settings */}
-        <TabsContent value="general" className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.projectSettings', 'Project Settings')}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Languages className="h-5 w-5" />
+                {t('settings.interface', 'Interface')}
+              </CardTitle>
               <CardDescription>
-                {t('settings.projectSettingsDesc', 'Basic configuration for your project')}
+                {t(
+                  'settings.interfaceDesc',
+                  'Choose how the application language is selected.'
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="project-name">{t('settings.projectName', 'Project Name')}</Label>
-                <Input id="project-name" placeholder="My Ecological Project" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">{t('settings.projectDescription', 'Description')}</Label>
-                <Input id="description" placeholder="A comprehensive ecological data platform" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="language">{t('settings.defaultLanguage', 'Default Language')}</Label>
-                <Select defaultValue="en">
-                  <SelectTrigger id="language">
+                <Label htmlFor="ui-language">
+                  {t('settings.uiLanguage', 'Application language')}
+                </Label>
+                <Select
+                  value={settings.ui_language}
+                  onValueChange={(value) =>
+                    void saveSettings(
+                      { ui_language: value as UiLanguagePreference },
+                      'ui_language'
+                    )
+                  }
+                  disabled={loading || savingKey === 'ui_language'}
+                >
+                  <SelectTrigger id="ui-language">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="fr">Français</SelectItem>
+                    <SelectItem value="auto">
+                      {t('settings.uiLanguageAuto', 'Automatic (system)')}
+                    </SelectItem>
+                    <SelectItem value="fr">
+                      {t('settings.uiLanguageFrench', 'Français')}
+                    </SelectItem>
+                    <SelectItem value="en">
+                      {t('settings.uiLanguageEnglish', 'English')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-sm text-muted-foreground">
+                  {settings.ui_language === 'auto'
+                    ? t('settings.languageDetected', 'Currently using {{language}}.', {
+                        language: LANGUAGE_LABELS[effectiveLanguage],
+                      })
+                    : t('settings.languageManual', 'Currently set to {{language}}.', {
+                        language: LANGUAGE_LABELS[effectiveLanguage],
+                      })}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.exportSettings', 'Export Settings')}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5" />
+                {t('settings.appearance', 'Appearance')}
+              </CardTitle>
               <CardDescription>
-                {t('settings.exportSettingsDesc', 'Configure default export parameters')}
+                {t(
+                  'settings.appearanceDesc',
+                  'Choose the visual theme and light or dark rendering mode.'
+                )}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="output-dir">{t('settings.outputDirectory', 'Output Directory')}</Label>
-                <Input id="output-dir" placeholder="/path/to/output" />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.autoExport', 'Auto Export')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.autoExportDesc', 'Automatically export after transforms')}
-                  </p>
-                </div>
-                <Switch />
-              </div>
+            <CardContent>
+              <ThemeSwitcher columns={2} />
             </CardContent>
           </Card>
+
           {isDesktop && (
-          <Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5" />
+                  {t('settings.appBehavior', 'Startup')}
+                </CardTitle>
+                <CardDescription>
+                  {t(
+                    'settings.appBehaviorDesc',
+                    'Keep only desktop behaviors that are actually configurable.'
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-load-last-project">
+                      {t(
+                        'settings.openLastProject',
+                        'Open last project on startup'
+                      )}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        'settings.openLastProjectDesc',
+                        'Automatically reopen the most recent valid project.'
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-load-last-project"
+                    checked={settings.auto_load_last_project}
+                    onCheckedChange={(checked) =>
+                      void saveSettings(
+                        { auto_load_last_project: checked },
+                        'auto_load_last_project'
+                      )
+                    }
+                    disabled={loading || savingKey === 'auto_load_last_project'}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {isDesktop && (
+          <Card className="h-fit">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-5 w-5" />
@@ -133,10 +252,10 @@ export function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label>{t('settings.currentVersion', 'Current version')}</Label>
-                  <p className="text-sm font-mono text-muted-foreground">v{appVersion}</p>
+                  <p className="font-mono text-sm text-muted-foreground">v{appVersion}</p>
                 </div>
                 {status === 'available' && updateVersion && (
                   <div className="text-right">
@@ -148,7 +267,8 @@ export function Settings() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
+
+              <div className="flex flex-wrap gap-2">
                 {status === 'available' ? (
                   <Button onClick={installUpdate} size="sm">
                     <Download className="mr-2 h-4 w-4" />
@@ -164,10 +284,9 @@ export function Settings() {
                 ) : (
                   <Button
                     variant="outline"
-                    size="sm"
-                    className="hover:bg-background hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-background"
                     onClick={checkForUpdate}
                     disabled={status === 'checking'}
+                    size="sm"
                   >
                     {status === 'checking' ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -177,6 +296,7 @@ export function Settings() {
                     {t('settings.checkUpdates', 'Check for updates')}
                   </Button>
                 )}
+
                 {status === 'idle' && (
                   <p className="flex items-center text-sm text-muted-foreground">
                     <Check className="mr-1 h-4 w-4 text-green-500" />
@@ -184,154 +304,11 @@ export function Settings() {
                   </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-          )}
-        </TabsContent>
 
-        {/* Database Settings */}
-        <TabsContent value="database" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.databaseConfig', 'Database Configuration')}</CardTitle>
-              <CardDescription>
-                {t('settings.databaseConfigDesc', 'Manage your database connections and settings')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="db-path">{t('settings.databasePath', 'Database Path')}</Label>
-                <Input id="db-path" placeholder="/path/to/database.db" readOnly />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('settings.databaseSize', 'Database Size')}</Label>
-                <p className="text-sm text-muted-foreground">256.3 MB</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline">
-                  {t('settings.backupDatabase', 'Backup Database')}
-                </Button>
-                <Button variant="outline">
-                  {t('settings.optimizeDatabase', 'Optimize Database')}
-                </Button>
-              </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Appearance Settings */}
-        <TabsContent value="appearance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.themeSettings', 'Theme Settings')}</CardTitle>
-              <CardDescription>
-                {t('settings.themeSettingsDesc', 'Customize the appearance of your interface')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ThemeSwitcher columns={2} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.displayOptions', 'Display Options')}</CardTitle>
-              <CardDescription>
-                {t('settings.displayOptionsDesc', 'Additional display preferences')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.compactMode', 'Compact Mode')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.compactModeDesc', 'Use compact spacing in the interface')}
-                  </p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Notifications Settings */}
-        <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.notificationPrefs', 'Notification Preferences')}</CardTitle>
-              <CardDescription>
-                {t('settings.notificationPrefsDesc', 'Choose what notifications you receive')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.importComplete', 'Import Complete')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.importCompleteDesc', 'Notify when data import is finished')}
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.transformComplete', 'Transform Complete')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.transformCompleteDesc', 'Notify when transforms are done')}
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.exportComplete', 'Export Complete')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.exportCompleteDesc', 'Notify when site export is finished')}
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Advanced Settings */}
-        <TabsContent value="advanced" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.developerOptions', 'Developer Options')}</CardTitle>
-              <CardDescription>
-                {t('settings.developerOptionsDesc', 'Advanced settings for developers')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.debugMode', 'Debug Mode')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.debugModeDesc', 'Enable detailed logging')}
-                  </p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.experimentalFeatures', 'Experimental Features')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.experimentalFeaturesDesc', 'Enable features in development')}
-                  </p>
-                </div>
-                <Switch />
-              </div>
-              <div className="pt-4 border-t">
-                <Button variant="destructive">
-                  {t('settings.resetAll', 'Reset All Settings')}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   )
 }

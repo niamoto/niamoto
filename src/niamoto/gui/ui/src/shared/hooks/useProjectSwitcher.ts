@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { reloadDesktopProject } from '@/shared/desktop/projectReload';
+import { markManualProjectOpen } from '@/shared/desktop/projectLaunchIntent';
 
 // Tauri types (will be available when running in Tauri)
 declare global {
@@ -126,6 +127,7 @@ export function useProjectSwitcher() {
         });
 
         // Step 3: Reload the page to refresh the UI with new project data
+        markManualProjectOpen(projectPath);
         window.location.reload();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to switch project';

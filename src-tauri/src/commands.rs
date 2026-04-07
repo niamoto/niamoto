@@ -31,7 +31,14 @@ fn create_project_scaffold(project_path: &PathBuf, name: &str) -> Result<(), Str
         .map_err(|e| format!("Failed to create project directory: {}", e))?;
 
     // Create directories expected by the desktop onboarding flow.
-    for subdir in ["db", "config", "imports", "logs", "exports/web", "exports/api"] {
+    for subdir in [
+        "db",
+        "config",
+        "imports",
+        "logs",
+        "exports/web",
+        "exports/api",
+    ] {
         fs::create_dir_all(project_path.join(subdir))
             .map_err(|e| format!("Failed to create {} directory: {}", subdir, e))?;
     }
@@ -289,7 +296,8 @@ mod tests {
             );
         }
 
-        let config_content = std::fs::read_to_string(project_path.join("config/config.yml")).unwrap();
+        let config_content =
+            std::fs::read_to_string(project_path.join("config/config.yml")).unwrap();
         assert!(config_content.contains("name: \"demo-project\""));
         assert!(config_content.contains("web: exports/web"));
         assert!(config_content.contains("api: exports/api"));

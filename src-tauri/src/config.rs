@@ -17,6 +17,10 @@ pub struct AppConfig {
     /// Whether to auto-load the last project on startup
     #[serde(default = "default_auto_load")]
     pub auto_load_last_project: bool,
+
+    /// Preferred UI language for the desktop app
+    #[serde(default = "default_ui_language")]
+    pub ui_language: UiLanguagePreference,
 }
 
 /// Default value for auto_load_last_project
@@ -24,10 +28,24 @@ fn default_auto_load() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UiLanguagePreference {
+    Auto,
+    Fr,
+    En,
+}
+
+fn default_ui_language() -> UiLanguagePreference {
+    UiLanguagePreference::Auto
+}
+
 /// Application settings exposed to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub auto_load_last_project: bool,
+    #[serde(default = "default_ui_language")]
+    pub ui_language: UiLanguagePreference,
 }
 
 /// Entry for a recent project
@@ -192,6 +210,7 @@ impl Default for AppConfig {
             recent_projects: Vec::new(),
             last_updated: chrono::Utc::now().to_rfc3339(),
             auto_load_last_project: true,
+            ui_language: UiLanguagePreference::Auto,
         }
     }
 }
@@ -201,12 +220,14 @@ impl AppConfig {
     pub fn get_settings(&self) -> AppSettings {
         AppSettings {
             auto_load_last_project: self.auto_load_last_project,
+            ui_language: self.ui_language.clone(),
         }
     }
 
     /// Update the application settings
     pub fn set_settings(&mut self, settings: AppSettings) -> Result<(), String> {
         self.auto_load_last_project = settings.auto_load_last_project;
+        self.ui_language = settings.ui_language;
         self.last_updated = chrono::Utc::now().to_rfc3339();
         self.save()
     }
@@ -215,13 +236,13 @@ impl AppConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[test]
     fn test_default_config() {
         let config = AppConfig::default();
         assert!(config.current_project.is_none());
         assert!(config.recent_projects.is_empty());
+        assert_eq!(config.ui_language, UiLanguagePreference::Auto);
     }
 
     #[test]

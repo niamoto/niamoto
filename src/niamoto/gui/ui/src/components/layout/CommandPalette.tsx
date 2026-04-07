@@ -33,6 +33,11 @@ import {
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useTheme } from '@/hooks/use-theme'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
+import {
+  applyUiLanguagePreference,
+  getAppSettings,
+  setAppSettings,
+} from '@/shared/desktop/appSettings'
 
 const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
@@ -50,6 +55,7 @@ export function CommandPalette() {
   const feedback = useFeedback()
   const browserOnline = useBrowserOnline()
   const [search, setSearch] = useState('')
+  const currentLanguage = i18n.resolvedLanguage?.startsWith('fr') ? 'fr' : 'en'
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -76,7 +82,15 @@ export function CommandPalette() {
         setCommandPaletteOpen(false)
         break
       case 'language':
-        i18n.changeLanguage(params[0])
+        void (async () => {
+          const nextLanguage = params[0] === 'fr' ? 'fr' : 'en'
+          const currentSettings = await getAppSettings()
+          await setAppSettings({
+            ...currentSettings,
+            ui_language: nextLanguage,
+          })
+          await applyUiLanguagePreference(nextLanguage)
+        })()
         setCommandPaletteOpen(false)
         break
       case 'feedback':
@@ -86,7 +100,7 @@ export function CommandPalette() {
       default:
         break
     }
-  }, [navigate, setTheme, i18n, setCommandPaletteOpen, feedback])
+  }, [navigate, setTheme, setCommandPaletteOpen, feedback])
 
   return (
     <CommandDialog
@@ -219,12 +233,12 @@ export function CommandPalette() {
           <CommandItem value="language:fr" keywords={['français', 'french', 'langue']} onSelect={handleSelect}>
             <span className="flex !size-[18px] items-center justify-center text-xs font-bold text-foreground/70">FR</span>
             <span>Français</span>
-            {i18n.language === 'fr' && <CommandShortcut>actif</CommandShortcut>}
+            {currentLanguage === 'fr' && <CommandShortcut>actif</CommandShortcut>}
           </CommandItem>
           <CommandItem value="language:en" keywords={['english', 'anglais', 'langue']} onSelect={handleSelect}>
             <span className="flex !size-[18px] items-center justify-center text-xs font-bold text-foreground/70">EN</span>
             <span>English</span>
-            {i18n.language === 'en' && <CommandShortcut>active</CommandShortcut>}
+            {currentLanguage === 'en' && <CommandShortcut>active</CommandShortcut>}
           </CommandItem>
           <CommandSeparator className="my-1" />
           <CommandItem
