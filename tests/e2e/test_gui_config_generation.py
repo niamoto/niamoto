@@ -49,6 +49,25 @@ KNOWN_MISSING_PLUGINS = {
     "entity_map_extractor",
 }
 
+# Plugins traités comme « export-only » par save_transform_config :
+# ils sont retirés de transform.yml et écrits uniquement dans export.yml.
+# Cf. _is_export_only_widget_config dans gui/api/routers/templates.py.
+EXPORT_ONLY_PLUGINS = {
+    "hierarchical_nav_widget",
+}
+
+
+def _strip_export_only(widgets_data: dict) -> dict:
+    """Retourne widgets_data sans les plugins export-only."""
+    return {
+        widget_id: widget_config
+        for widget_id, widget_config in widgets_data.items()
+        if not (
+            isinstance(widget_config, dict)
+            and widget_config.get("plugin") in EXPORT_ONLY_PLUGINS
+        )
+    }
+
 
 # ============================================================================
 # FIXTURES
@@ -208,8 +227,9 @@ class TestConfigSaveLoadRoundTrip:
 
         assert found_group is not None, f"Groupe '{group}' non trouvé après reload"
 
-        # Vérifier que tous les widgets sont présents
-        ref_widgets = set(ref_config["widgets_data"].keys())
+        # Les widgets export-only (ex: hierarchical_nav_widget) sont écrits
+        # uniquement dans export.yml, pas dans transform.yml.
+        ref_widgets = set(_strip_export_only(ref_config["widgets_data"]).keys())
         loaded_widgets = set(found_group.get("widgets_data", {}).keys())
 
         missing = ref_widgets - loaded_widgets
@@ -247,9 +267,10 @@ class TestConfigSaveLoadRoundTrip:
 
         assert found_group is not None
 
-        # Comparer chaque widget
+        # Comparer chaque widget (en excluant les export-only, persistés ailleurs)
         errors = []
-        for widget_name, ref_widget in ref_config["widgets_data"].items():
+        ref_widgets_data = _strip_export_only(ref_config["widgets_data"])
+        for widget_name, ref_widget in ref_widgets_data.items():
             loaded_widget = found_group["widgets_data"].get(widget_name)
             if loaded_widget is None:
                 errors.append(f"{widget_name}: absent après reload")
@@ -564,7 +585,8 @@ class TestConfigMergeMode:
         """Le mode merge ajoute un widget sans supprimer les existants."""
         group = "taxons"
         ref_config = reference_transform[group]
-        original_widget_count = len(ref_config["widgets_data"])
+        # Les widgets export-only ne sont pas écrits dans transform.yml.
+        original_widget_count = len(_strip_export_only(ref_config["widgets_data"]))
 
         # D'abord sauvegarder la config de référence
         save_request = {
@@ -681,3 +703,64 @@ class TestExportConfigGeneration:
         with open(export_path) as f:
             export_config = yaml.safe_load(f)
         assert export_config is not None
+
+    def test_export_only_widgets_routed_to_export_yml(
+        self, test_client, working_directory, reference_transform
+    ):
+        """Les widgets export-only doivent atterrir dans export.yml.
+
+        Les plugins comme hierarchical_nav_widget sont retirés de transform.yml
+        par save-config et écrits exclusivement dans export.yml. Ce test vérifie
+        ce routage end-to-end pour éviter toute régression silencieuse.
+        """
+        group = "taxons"
+        ref_config = reference_transform[group]
+
+        # On exige qu'au moins un widget export-only soit dans la référence,
+        # sinon le test ne couvre rien.
+        export_only_ids = [
+            wid
+            for wid, wcfg in ref_config["widgets_data"].items()
+            if isinstance(wcfg, dict) and wcfg.get("plugin") in EXPORT_ONLY_PLUGINS
+        ]
+        assert export_only_ids, (
+            f"La référence '{group}' ne contient aucun widget export-only ; "
+            f"impossible de couvrir ce scénario."
+        )
+
+        save_request = {
+            "group_by": group,
+            "sources": ref_config["sources"],
+            "widgets_data": ref_config["widgets_data"],
+            "mode": "replace",
+        }
+        response = test_client.post("/api/templates/save-config", json=save_request)
+        assert response.status_code == 200
+
+        # Le widget ne doit PAS être dans transform.yml
+        response = test_client.get("/api/transform/config")
+        raw_config = response.json()["raw_config"]
+        found_group = next(cfg for cfg in raw_config if cfg["group_by"] == group)
+        for wid in export_only_ids:
+            assert wid not in found_group["widgets_data"], (
+                f"Widget export-only '{wid}' présent à tort dans transform.yml"
+            )
+
+        # Le widget DOIT être dans export.yml (référencé via data_source)
+        export_path = working_directory / "config" / "export.yml"
+        with open(export_path) as f:
+            export_config = yaml.safe_load(f)
+
+        export_data_sources: set[str] = set()
+        for export in export_config.get("exports", []):
+            for grp in export.get("groups", []):
+                if grp.get("group_by") == group:
+                    for widget in grp.get("widgets", []):
+                        if isinstance(widget, dict) and widget.get("data_source"):
+                            export_data_sources.add(widget["data_source"])
+
+        for wid in export_only_ids:
+            assert wid in export_data_sources, (
+                f"Widget export-only '{wid}' absent de export.yml "
+                f"(data_sources trouvés: {export_data_sources})"
+            )
