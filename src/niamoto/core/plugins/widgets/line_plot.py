@@ -52,7 +52,7 @@ class LinePlotParams(BasePluginParams):
     y_axis: Union[str, List[str]] = Field(
         ...,
         description="Field name(s) for the Y-axis (values)",
-        json_schema_extra={"ui:widget": "field-select"},
+        json_schema_extra={"ui:widget": "multi-field-select"},
     )
     color_field: Optional[str] = Field(
         default=None,
@@ -97,7 +97,7 @@ class LinePlotParams(BasePluginParams):
     color_discrete_map: Optional[Any] = Field(
         default=None,
         description="Mapping for discrete colors",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     color_continuous_scale: Optional[str] = Field(
         default=None,
@@ -112,7 +112,7 @@ class LinePlotParams(BasePluginParams):
     labels: Optional[Any] = Field(
         default=None,
         description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     log_y: bool = Field(
         default=False,
@@ -308,7 +308,7 @@ class LinePlotWidget(WidgetPlugin):
                 converted = False
                 for fmt in common_formats:
                     try:
-                        df_plot[params.x_axis] = pd.to_datetime(
+                        df_plot.loc[:, params.x_axis] = pd.to_datetime(
                             df_plot[params.x_axis], format=fmt
                         )
                         converted = True
@@ -319,7 +319,9 @@ class LinePlotWidget(WidgetPlugin):
                 # If no format worked, try without format (pandas will infer)
                 if not converted:
                     try:
-                        df_plot[params.x_axis] = pd.to_datetime(df_plot[params.x_axis])
+                        df_plot.loc[:, params.x_axis] = pd.to_datetime(
+                            df_plot[params.x_axis]
+                        )
                     except (ValueError, TypeError):
                         # If conversion fails, keep original values
                         pass

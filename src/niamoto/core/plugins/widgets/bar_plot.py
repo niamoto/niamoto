@@ -200,18 +200,18 @@ class BarPlotParams(BasePluginParams):
     # =========================================================================
     transform: Optional[str] = Field(
         default=None,
-        description="Type de transformation a appliquer aux donnees",
+        description="Type de transformation à appliquer aux données",
         json_schema_extra={
             "ui:widget": "select",
             "ui:group": "1_transform",
             "ui:order": 0,
             "ui:options": [
                 {"value": "bins_to_df", "label": "Histogramme (bins/counts)"},
-                {"value": "monthly_data", "label": "Donnees mensuelles/phenologie"},
-                {"value": "category_with_labels", "label": "Categories avec labels"},
+                {"value": "monthly_data", "label": "Données mensuelles/phénologie"},
+                {"value": "category_with_labels", "label": "Catégories avec labels"},
                 {
                     "value": "nested_dict_to_long",
-                    "label": "Dict imbrique → long format",
+                    "label": "Dict imbriqué → long format",
                 },
                 {"value": "pyramid_chart", "label": "Pyramide (gauche/droite)"},
             ],
@@ -219,11 +219,12 @@ class BarPlotParams(BasePluginParams):
     )
     transform_params: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Parametres de la transformation (selon le type choisi)",
+        description="Paramètres de la transformation (selon le type choisi)",
         json_schema_extra={
             "ui:widget": "json",
             "ui:group": "1_transform",
             "ui:order": 1,
+            "ui:condition": "transform",
             "ui:transform_schemas": {
                 "bins_to_df": {
                     "bin_field": {
@@ -261,11 +262,11 @@ class BarPlotParams(BasePluginParams):
                     "data_field": {
                         "type": "string",
                         "default": "month_data",
-                        "description": "Champ des donnees",
+                        "description": "Champ des données",
                     },
                     "series_name": {
                         "type": "string",
-                        "description": "Nom de la serie (optionnel)",
+                        "description": "Nom de la série (optionnel)",
                     },
                     "melt": {
                         "type": "boolean",
@@ -277,7 +278,7 @@ class BarPlotParams(BasePluginParams):
                     "category_field": {
                         "type": "string",
                         "default": "categories",
-                        "description": "Champ des categories",
+                        "description": "Champ des catégories",
                     },
                     "count_field": {
                         "type": "string",
@@ -298,22 +299,22 @@ class BarPlotParams(BasePluginParams):
                 "nested_dict_to_long": {
                     "primary_keys": {
                         "type": "array",
-                        "description": "Cles primaires a extraire",
+                        "description": "Clés primaires à extraire",
                     },
                     "category_field": {
                         "type": "string",
                         "default": "category",
-                        "description": "Nom colonne categorie",
+                        "description": "Nom de colonne catégorie",
                     },
                     "value_field": {
                         "type": "string",
                         "default": "value",
-                        "description": "Nom colonne valeur",
+                        "description": "Nom de colonne valeur",
                     },
                     "type_field": {
                         "type": "string",
                         "default": "type",
-                        "description": "Nom colonne type",
+                        "description": "Nom de colonne type",
                     },
                 },
                 "pyramid_chart": {
@@ -325,15 +326,15 @@ class BarPlotParams(BasePluginParams):
                     "series_field": {
                         "type": "string",
                         "default": "series",
-                        "description": "Champ des series",
+                        "description": "Champ des séries",
                     },
                     "left_series": {
                         "type": "string",
-                        "description": "Serie gauche (valeurs negatives)",
+                        "description": "Série gauche (valeurs négatives)",
                     },
                     "right_series": {
                         "type": "string",
-                        "description": "Serie droite (valeurs positives)",
+                        "description": "Série droite (valeurs positives)",
                     },
                     "left_label": {
                         "type": "string",
@@ -353,9 +354,10 @@ class BarPlotParams(BasePluginParams):
         default=None,
         description="Mapping des champs source vers les colonnes attendues",
         json_schema_extra={
-            "ui:widget": "json",
+            "ui:widget": "key-value-pairs",
             "ui:group": "1_transform",
             "ui:order": 2,
+            "ui:condition": "transform",
         },
     )
 
@@ -364,7 +366,7 @@ class BarPlotParams(BasePluginParams):
     # =========================================================================
     x_axis: str = Field(
         ...,
-        description="Champ pour l'axe X (categories)",
+        description="Champ pour l'axe X (catégories)",
         json_schema_extra={
             "ui:widget": "field-select",
             "ui:group": "2_data",

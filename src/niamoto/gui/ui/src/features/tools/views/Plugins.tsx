@@ -148,7 +148,7 @@ export function Plugins() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 flex items-center justify-center h-96">
+      <div className="container mx-auto flex h-full items-center justify-center p-6">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -156,7 +156,7 @@ export function Plugins() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto h-full overflow-auto p-6">
         <div className="text-center text-red-500">
           {t('plugins.error', 'Failed to load plugins')}: {error}
         </div>
@@ -165,7 +165,7 @@ export function Plugins() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto h-full overflow-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

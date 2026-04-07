@@ -1,6 +1,7 @@
 // src/components/forms/fields/KeyValuePairsField.tsx
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,21 +26,24 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
   label,
   description,
   placeholder,
-  value = {},
+  value,
   onChange,
   required = false,
   disabled = false,
   error,
   className = ''
 }) => {
+  const { t } = useTranslation('common');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
+  const safeValue =
+    value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
-  const pairs = Object.entries(value);
+  const pairs = Object.entries(safeValue);
 
   const handleAdd = () => {
-    if (newKey.trim() && !value[newKey.trim()]) {
-      const updated = { ...value, [newKey.trim()]: newValue };
+    if (newKey.trim() && !safeValue[newKey.trim()]) {
+      const updated = { ...safeValue, [newKey.trim()]: newValue };
       onChange?.(updated);
       setNewKey('');
       setNewValue('');
@@ -47,13 +51,13 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
   };
 
   const handleRemove = (key: string) => {
-    const updated = { ...value };
+    const updated = { ...safeValue };
     delete updated[key];
     onChange?.(updated);
   };
 
   const handleValueChange = (key: string, newVal: string) => {
-    const updated = { ...value, [key]: newVal };
+    const updated = { ...safeValue, [key]: newVal };
     onChange?.(updated);
   };
 
@@ -84,7 +88,7 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
             />
             <span className="text-muted-foreground">&rarr;</span>
             <Input
-              value={val}
+              value={val ?? ''}
               onChange={(e) => handleValueChange(key, e.target.value)}
               disabled={disabled}
               className="flex-1"
@@ -106,7 +110,7 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
         {!disabled && (
           <div className="flex items-center gap-2">
             <Input
-              placeholder={placeholder || "Key"}
+              placeholder={placeholder || t('labels.name')}
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -114,7 +118,7 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
             />
             <span className="text-muted-foreground">&rarr;</span>
             <Input
-              placeholder="Value"
+              placeholder={t('labels.value')}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -134,10 +138,10 @@ const KeyValuePairsField: React.FC<KeyValuePairsFieldProps> = ({
         )}
 
         {pairs.length === 0 && disabled && (
-          <div className="text-sm text-muted-foreground">
-            No mappings defined
-          </div>
-        )}
+            <div className="text-sm text-muted-foreground">
+              {t('messages.noMapping')}
+            </div>
+          )}
       </div>
 
       {description && !error && (

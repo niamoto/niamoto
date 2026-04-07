@@ -74,7 +74,7 @@ class StackedAreaPlotParams(BasePluginParams):
     axis_titles: Optional[Dict[str, str]] = Field(
         default=None,
         description="Custom axis titles {'x': 'X Label', 'y': 'Y Label'}",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     hover_template: Optional[str] = Field(
         default=None,
@@ -108,13 +108,27 @@ class StackedAreaPlotParams(BasePluginParams):
     transform_params: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Parameters for the transformation",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:condition": "transform",
+            "ui:transform_schemas": {
+                "extract_series": {
+                    "series_field": {
+                        "type": "string",
+                        "description": "Field containing the nested series dictionary",
+                    }
+                }
+            },
+        },
     )
     # Fields for field mappings
     field_mapping: Optional[Dict[str, str]] = Field(
         default=None,
         description="Mapping from data fields to expected column names",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "key-value-pairs",
+            "ui:condition": "!transform || transform !== 'extract_series'",
+        },
     )
 
 

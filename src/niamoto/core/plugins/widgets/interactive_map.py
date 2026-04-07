@@ -171,7 +171,7 @@ class InteractiveMapParams(BasePluginParams):
     color_discrete_map: Optional[Any] = Field(
         default=None,
         description="Mapping for discrete colors",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     range_color: Optional[List[float]] = Field(
         default=None,
@@ -222,7 +222,10 @@ class InteractiveMapParams(BasePluginParams):
     mapbox_access_token: Optional[str] = Field(
         default=None,
         description="Mapbox access token for satellite and other premium map styles. Get one free at https://account.mapbox.com/",
-        json_schema_extra={"ui:widget": "text"},
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:condition": "map_style in ['basic', 'streets', 'outdoors', 'light', 'dark', 'satellite', 'satellite-streets']",
+        },
     )
     custom_tiles_url: Optional[str] = Field(
         default=None,
@@ -232,7 +235,7 @@ class InteractiveMapParams(BasePluginParams):
     custom_tiles_attribution: str = Field(
         default="",
         description="Attribution text for custom tiles provider",
-        json_schema_extra={"ui:widget": "text"},
+        json_schema_extra={"ui:widget": "text", "ui:condition": "custom_tiles_url"},
     )
 
 

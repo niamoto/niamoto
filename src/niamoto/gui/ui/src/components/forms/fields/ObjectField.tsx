@@ -1,8 +1,10 @@
 // src/components/forms/widgets/ObjectField.tsx
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
+import { evaluateUiCondition, getUiSchemaValue, humanizeFieldName } from '../formSchemaUtils';
 import TextField from './TextField';
 import NumberField from './NumberField';
 import CheckboxField from './CheckboxField';
@@ -37,6 +39,8 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
   className = '',
   properties = {}
 }) => {
+  const { t } = useTranslation(['common', 'widgets']);
+
   const handleFieldChange = (fieldName: string, fieldValue: any) => {
     const newValue = { ...value, [fieldName]: fieldValue };
     onChange?.(newValue);
@@ -45,16 +49,31 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
   const renderField = (fieldName: string, fieldSchema: any) => {
     const fieldType = Array.isArray(fieldSchema.type) ? fieldSchema.type[0] : fieldSchema.type;
     const fieldValue = value[fieldName];
+    const uiCondition = getUiSchemaValue<string>(fieldSchema, 'ui:condition');
+
+    if (!evaluateUiCondition(uiCondition, value)) {
+      return null;
+    }
 
     // Check for ui:widget hint (Pydantic places it directly in schema)
-    const uiWidget = fieldSchema['ui:widget'];
-    const uiPlaceholder = fieldSchema['ui:placeholder'];
-    const uiHelp = fieldSchema['ui:help'];
-    const uiOptions = fieldSchema['ui:options'];
+    const uiWidget = getUiSchemaValue<string>(fieldSchema, 'ui:widget');
+    const uiPlaceholder = getUiSchemaValue<string>(fieldSchema, 'ui:placeholder');
+    const uiHelp = getUiSchemaValue<string>(fieldSchema, 'ui:help');
+    const uiOptions = getUiSchemaValue<Array<string | { value: any; label: string }>>(fieldSchema, 'ui:options');
+    const autoTitle = humanizeFieldName(fieldName);
+    const resolvedLabel =
+      fieldSchema.title && fieldSchema.title !== autoTitle
+        ? fieldSchema.title
+        : t(`widgets:form.fieldLabels.${fieldName}`, { defaultValue: autoTitle });
+
+    const translateOptionLabel = (optionValue: any, fallbackLabel: string) =>
+      t(`widgets:form.fieldOptions.${fieldName}.${String(optionValue)}`, {
+        defaultValue: fallbackLabel,
+      });
 
     const commonProps = {
       name: `${name}.${fieldName}`,
-      label: fieldSchema.title || fieldName,
+      label: resolvedLabel,
       description: uiHelp || fieldSchema.description,
       placeholder: uiPlaceholder,
       value: fieldValue,
@@ -70,8 +89,19 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
           return <TextAreaField {...commonProps} />;
 
         case 'select':
-          const selectOptions = uiOptions?.map((opt: string) => ({ value: opt, label: opt })) ||
-                               fieldSchema.enum?.map((val: any) => ({ value: val, label: val })) || [];
+          const selectOptions = uiOptions?.map((opt) => {
+            if (typeof opt === 'string') {
+              return { value: opt, label: translateOptionLabel(opt, opt) };
+            }
+            return {
+              value: opt.value,
+              label: translateOptionLabel(opt.value, opt.label),
+            };
+          }) ||
+            fieldSchema.enum?.map((val: any) => ({
+              value: val,
+              label: translateOptionLabel(val, String(val)),
+            })) || [];
           return <SelectField {...commonProps} options={selectOptions} />;
 
         case 'checkbox':
@@ -108,7 +138,10 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
           return (
             <SelectField
               {...commonProps}
-              options={fieldSchema.enum.map((val: any) => ({ value: val, label: val }))}
+              options={fieldSchema.enum.map((val: any) => ({
+                value: val,
+                label: translateOptionLabel(val, String(val)),
+              }))}
             />
           );
         }
@@ -161,14 +194,19 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
         </Label>
       )}
       <div className="space-y-3">
-        {Object.entries(properties).map(([fieldName, fieldSchema]) => (
-          <div key={fieldName}>
-            {renderField(fieldName, fieldSchema)}
-          </div>
-        ))}
+        {Object.entries(properties)
+          .map(([fieldName, fieldSchema]) => {
+            const renderedField = renderField(fieldName, fieldSchema);
+            if (!renderedField) {
+              return null;
+            }
+
+            return <div key={fieldName}>{renderedField}</div>;
+          })
+          .filter(Boolean)}
         {Object.keys(properties).length === 0 && (
           <div className="text-sm text-gray-500">
-            No properties defined
+            {t('messages.noPropertiesDefined')}
           </div>
         )}
       </div>

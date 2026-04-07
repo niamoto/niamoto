@@ -1,10 +1,12 @@
 // src/components/forms/widgets/FieldSelectField.tsx
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
 import { Database } from 'lucide-react';
+import { mergeOptionValue } from '../formSchemaUtils';
 
 interface FieldSelectFieldProps {
   name: string;
@@ -28,19 +30,26 @@ const FieldSelectField: React.FC<FieldSelectFieldProps> = ({
   value,
   onChange,
   availableFields,
-  placeholder = 'Select a field...',
+  placeholder,
   required = false,
   disabled = false,
   error,
   className = '',
   allowMultiple: _allowMultiple = false // unused but kept for future enhancement
 }) => {
+  const { t } = useTranslation('common');
+  const resolvedPlaceholder = placeholder ?? t('messages.selectField');
+  const normalizedFields = React.useMemo(
+    () => mergeOptionValue(availableFields, value),
+    [availableFields, value]
+  );
+
   // Group fields by table/source if they contain dots
   const groupedFields = React.useMemo(() => {
     const groups: Record<string, string[]> = {};
     const standalone: string[] = [];
 
-    availableFields.forEach(field => {
+    normalizedFields.forEach(field => {
       if (field.includes('.')) {
         const [table, ...rest] = field.split('.');
         if (!groups[table]) {
@@ -53,7 +62,7 @@ const FieldSelectField: React.FC<FieldSelectFieldProps> = ({
     });
 
     return { groups, standalone };
-  }, [availableFields]);
+  }, [normalizedFields]);
 
   return (
     <FormItem className={className}>
@@ -70,7 +79,7 @@ const FieldSelectField: React.FC<FieldSelectFieldProps> = ({
         disabled={disabled}
       >
         <SelectTrigger id={name} className={error ? 'border-red-500' : ''}>
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={resolvedPlaceholder} />
         </SelectTrigger>
         <SelectContent>
           {/* Standalone fields */}
@@ -101,9 +110,9 @@ const FieldSelectField: React.FC<FieldSelectFieldProps> = ({
             </div>
           ))}
 
-          {availableFields.length === 0 && (
+          {normalizedFields.length === 0 && (
             <div className="px-2 py-1 text-sm text-gray-500">
-              No fields available
+              {t('status.noFieldsAvailable')}
             </div>
           )}
         </SelectContent>

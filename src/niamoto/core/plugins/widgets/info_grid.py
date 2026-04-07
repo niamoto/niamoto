@@ -83,12 +83,18 @@ class InfoItem(BaseModel):
     mapping: Optional[Dict[str, str]] = Field(
         default=None,
         description="Optional mapping for the 'map' format.",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "key-value-pairs",
+            "ui:condition": "format === 'map'",
+        },
     )
     image_mapping: Optional[ImageMapping] = Field(
         default=None,
         description="Optional image field mapping for the 'image' format.",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "object",
+            "ui:condition": "format === 'image'",
+        },
     )
 
 

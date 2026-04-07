@@ -184,6 +184,7 @@
     "retry": "Retry",
     "start": "Start",
     "addNew": "Add",
+    "formatJson": "Format JSON",
     "hidePreview": "Hide preview",
     "duplicate": "Duplicate",
     "preview": "Preview",
@@ -288,6 +289,7 @@
     "example": "e.g., {{example}}",
     "or": "or",
     "notFound": "Not found",
+    "noPropertiesDefined": "No properties defined",
     "navigatingTo": "Navigating to \"{{name}}\"",
     "pageNotFound": "Page not found: {{href}}"
   },

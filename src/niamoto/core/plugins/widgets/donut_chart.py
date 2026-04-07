@@ -66,7 +66,7 @@ class DonutChartParams(BasePluginParams):
     label_mapping: Optional[Dict[str, str]] = Field(
         default=None,
         description="Mapping for category labels {'old_label': 'new_label'}",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     color_discrete_sequence: Optional[List[str]] = Field(
         default=None,
