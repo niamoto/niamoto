@@ -61,6 +61,12 @@ from niamoto.common.database import Database  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+
+def _is_export_only_widget_config(widget_config: Dict[str, Any]) -> bool:
+    """Return True for widgets that belong only in export.yml."""
+    return widget_config.get("plugin") == "hierarchical_nav_widget"
+
+
 # Static category definitions (widget categories are predefined, not data-driven)
 WIDGET_CATEGORIES = {
     "navigation": {
@@ -679,8 +685,21 @@ async def save_transform_config(request: SaveConfigRequest):
             # Replace mode: replace sources entirely
             group_config["sources"] = request.sources
 
-        # Track changes
-        existing_widgets = group_config.get("widgets_data", {})
+        transform_widgets_data = {
+            widget_id: widget_config
+            for widget_id, widget_config in request.widgets_data.items()
+            if isinstance(widget_config, dict)
+            and not _is_export_only_widget_config(widget_config)
+        }
+
+        # Track changes on transform.yml only. Export-only widgets like
+        # hierarchical_nav_widget are written exclusively to export.yml.
+        existing_widgets = {
+            widget_id: widget_config
+            for widget_id, widget_config in group_config.get("widgets_data", {}).items()
+            if isinstance(widget_config, dict)
+            and not _is_export_only_widget_config(widget_config)
+        }
         widgets_added = 0
         widgets_updated = 0
         widgets_removed = 0
@@ -688,7 +707,7 @@ async def save_transform_config(request: SaveConfigRequest):
         if request.mode == "merge":
             # Merge mode: add new widgets to existing ones, update if exists
             merged_widgets = dict(existing_widgets)
-            for widget_id, widget_config in request.widgets_data.items():
+            for widget_id, widget_config in transform_widgets_data.items():
                 if widget_id in merged_widgets:
                     widgets_updated += 1
                 else:
@@ -697,18 +716,18 @@ async def save_transform_config(request: SaveConfigRequest):
             group_config["widgets_data"] = merged_widgets
         else:
             # Replace mode: count changes and replace entirely
-            for widget_id in request.widgets_data:
+            for widget_id in transform_widgets_data:
                 if widget_id in existing_widgets:
                     widgets_updated += 1
                 else:
                     widgets_added += 1
 
             for widget_id in existing_widgets:
-                if widget_id not in request.widgets_data:
+                if widget_id not in transform_widgets_data:
                     widgets_removed += 1
 
             # Replace widgets_data entirely (not merge) to handle deletions
-            group_config["widgets_data"] = dict(request.widgets_data)
+            group_config["widgets_data"] = dict(transform_widgets_data)
 
         # Update the group in the list
         existing_groups[group_index] = group_config

@@ -13,12 +13,12 @@ import { CSS } from '@dnd-kit/utilities'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   GripVertical,
-  Columns,
-  Columns2,
   RefreshCw,
   Pencil,
   Check,
   X,
+  RectangleHorizontal,
+  Square,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -216,9 +216,9 @@ export function WidgetCard({
           title={widget.colspan === 1 ? 'Etendre sur 2 colonnes' : 'Reduire a 1 colonne'}
         >
           {widget.colspan === 1 ? (
-            <Columns2 className="h-4 w-4 text-muted-foreground" />
+            <RectangleHorizontal className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <Columns className="h-4 w-4 text-muted-foreground" />
+            <Square className="h-4 w-4 text-muted-foreground" />
           )}
         </Button>
 

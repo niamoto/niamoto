@@ -113,6 +113,15 @@ class DonutChartParams(BasePluginParams):
             ],
         },
     )
+    show_legend: bool = Field(
+        default=False,
+        description="Display legend",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "display",
+            "ui:order": 0,
+        },
+    )
 
     # New fields for multi-donut subplot feature
     subplots: Optional[List[SubplotConfig]] = Field(
@@ -462,7 +471,7 @@ class DonutChartWidget(WidgetPlugin):
                     # Layout updates
                     layout_updates = {
                         "title": params.title,
-                        "showlegend": True,
+                        "showlegend": params.show_legend,
                         "legend_orientation": params.legend_orientation,
                         "uniformtext_minsize": 12,
                         "uniformtext_mode": "hide",

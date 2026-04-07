@@ -77,6 +77,38 @@ interface FieldSchema {
   allOf?: any[];
 }
 
+function addCompatibilityFields(
+  pluginId: string,
+  properties: Record<string, any>,
+): Record<string, any> {
+  if (pluginId !== 'donut_chart' || properties.show_legend) {
+    return properties;
+  }
+
+  const injectedField = {
+    type: 'boolean',
+    title: 'Show Legend',
+    description: 'Display legend',
+    default: false,
+    'ui:widget': 'checkbox',
+    'ui:group': 'display',
+    'ui:order': 0,
+  };
+
+  const entries = Object.entries(properties);
+  const legendOrientationIndex = entries.findIndex(([fieldName]) => fieldName === 'legend_orientation');
+
+  if (legendOrientationIndex === -1) {
+    return { ...properties, show_legend: injectedField };
+  }
+
+  return Object.fromEntries([
+    ...entries.slice(0, legendOrientationIndex + 1),
+    ['show_legend', injectedField],
+    ...entries.slice(legendOrientationIndex + 1),
+  ]);
+}
+
 const pluginSchemaCache = new Map<string, PluginSchema>();
 const pluginSchemaRequests = new Map<string, Promise<PluginSchema>>();
 
@@ -91,14 +123,15 @@ async function loadPluginSchema(pluginId: string): Promise<PluginSchema> {
     return inFlightRequest;
   }
 
-  const request = fetch(`/api/plugins/${pluginId}/schema`)
+  const request = fetch(`/api/plugins/${pluginId}/schema`, {
+    cache: 'no-store',
+  })
     .then(async (response) => {
       if (!response.ok) {
         throw new Error(`Failed to fetch schema: ${response.statusText}`);
       }
 
       const data: PluginSchema = await response.json();
-      pluginSchemaCache.set(pluginId, data);
       return data;
     })
     .finally(() => {
@@ -599,6 +632,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       return null;
     }
 
+    properties = addCompatibilityFields(pluginId, properties);
+
     const fields = Object.entries(properties)
       .filter(([fieldName]) => !hiddenFieldSet.has(fieldName))
       .map(([fieldName, fieldSchema]) => {
@@ -678,7 +713,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           )}
         </CardHeader>
       )}
-      <CardContent>
+      <CardContent className={showTitle ? undefined : 'py-4'}>
         {renderFields}
       </CardContent>
     </Card>

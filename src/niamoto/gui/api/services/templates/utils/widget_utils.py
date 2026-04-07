@@ -184,6 +184,7 @@ def generate_widget_params(
         params = {
             "labels_field": "labels",
             "values_field": "counts",
+            "show_legend": False,
         }
 
     elif widget_plugin == "radial_gauge":

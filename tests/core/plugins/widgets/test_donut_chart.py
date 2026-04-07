@@ -426,6 +426,7 @@ class TestDonutChartParams(NiamotoTestCase):
         self.assertEqual(params.hole_size, 0.3)
         self.assertEqual(params.text_info, "percent+label")
         self.assertIsNone(params.legend_orientation)
+        self.assertFalse(params.show_legend)
         self.assertIsNone(params.subplots)
         self.assertIsNone(params.common_labels)
 
@@ -448,6 +449,7 @@ class TestDonutChartParams(NiamotoTestCase):
             hole_size=0.5,
             text_info="value",
             legend_orientation="v",
+            show_legend=True,
             subplots=[subplot_config],
             common_labels=["Common A", "Common B"],
             hover_name="hover_field",
@@ -464,6 +466,7 @@ class TestDonutChartParams(NiamotoTestCase):
         self.assertEqual(params.hole_size, 0.5)
         self.assertEqual(params.text_info, "value")
         self.assertEqual(params.legend_orientation, "v")
+        self.assertTrue(params.show_legend)
         self.assertEqual(len(params.subplots), 1)
         self.assertEqual(params.subplots[0].name, "Test Subplot")
         self.assertEqual(params.common_labels, ["Common A", "Common B"])

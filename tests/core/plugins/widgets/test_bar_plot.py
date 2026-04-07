@@ -757,7 +757,7 @@ class TestBarPlotParams(NiamotoTestCase):
         self.assertEqual(params.gradient_mode, "luminance")
         self.assertIsNone(params.bar_width)
         self.assertFalse(params.filter_zero_values)
-        self.assertTrue(params.show_legend)
+        self.assertFalse(params.show_legend)
 
     def test_params_barmode_options(self):
         """Test different barmode values."""

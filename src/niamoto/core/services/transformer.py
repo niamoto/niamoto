@@ -210,6 +210,11 @@ class TransformerService:
     ) -> Any:
         """Execute one widget transformation for a given entity."""
 
+        # Some legacy configs incorrectly persisted export-only navigation widgets
+        # in transform.yml. They do not produce per-entity transformed data.
+        if widget_config["plugin"] == "hierarchical_nav_widget":
+            return None
+
         transformer = PluginRegistry.get_plugin(
             widget_config["plugin"], PluginType.TRANSFORMER
         )(self.db, registry=self.entity_registry)
