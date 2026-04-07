@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { DesktopTitlebar } from '@/components/layout/DesktopTitlebar';
 import type { ProjectEntry } from '@/shared/hooks/useProjectSwitcher';
-import type { AppSettings } from '@/features/welcome/hooks/useWelcomeScreen';
+import type { AppSettings } from '@/shared/desktop/appSettings';
 import ProjectCreationWizard from './ProjectCreationWizard';
 
 interface WelcomeScreenProps {
@@ -29,7 +29,7 @@ interface WelcomeScreenProps {
   onBrowseProject: () => Promise<string | null>;
   onCreateProject: (name: string, location: string) => Promise<string>;
   onRemoveProject: (path: string) => Promise<void>;
-  onUpdateSettings: (settings: AppSettings) => Promise<void>;
+  onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   onBrowseFolder: () => Promise<string | null>;
 }
 

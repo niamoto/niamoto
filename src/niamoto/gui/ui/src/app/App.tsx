@@ -4,6 +4,14 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
+import {
+  applyUiLanguagePreference,
+  getAppSettings,
+} from '@/shared/desktop/appSettings'
+import {
+  clearManualProjectOpenTarget,
+  getManualProjectOpenTarget,
+} from '@/shared/desktop/projectLaunchIntent'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
@@ -80,6 +88,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
+  const [languageReady, setLanguageReady] = useState(false)
   const [initialized, setInitialized] = useState(!isTauri)
   const [bootFallbackToWelcome, setBootFallbackToWelcome] = useState(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -103,8 +112,34 @@ function App() {
   } = useWelcomeScreen()
 
   useEffect(() => {
+    let cancelled = false
+
+    const initializeLanguage = async () => {
+      try {
+        const settings = await getAppSettings()
+        await applyUiLanguagePreference(settings.ui_language)
+      } catch (err) {
+        console.error('Failed to initialize UI language:', err)
+        await applyUiLanguagePreference('auto')
+      } finally {
+        if (!cancelled) {
+          setLanguageReady(true)
+        }
+      }
+    }
+
+    initializeLanguage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isTauriMode || initialized || welcomeLoading) return
-    if (showWelcome) {
+    const manualProjectTarget = getManualProjectOpenTarget()
+
+    if (showWelcome && !manualProjectTarget) {
       setInitialized(true)
       return
     }
@@ -112,18 +147,26 @@ function App() {
     const initializeProject = async () => {
       try {
         const result = await reloadDesktopProject({
-          allowStates: ['loaded', 'welcome', 'invalid-project'],
+          allowStates: manualProjectTarget
+            ? ['loaded']
+            : ['loaded', 'welcome', 'invalid-project'],
+          expectedProject: manualProjectTarget ?? undefined,
         })
 
         if (result.state === 'loaded') {
+          if (manualProjectTarget) {
+            clearManualProjectOpenTarget()
+          }
           await refetchProjectInfo()
           setBootFallbackToWelcome(false)
           setBootError(null)
         } else {
+          clearManualProjectOpenTarget()
           setBootFallbackToWelcome(true)
           setBootError(result.message)
         }
       } catch (err) {
+        clearManualProjectOpenTarget()
         console.error('Failed to initialize project:', err)
         setBootFallbackToWelcome(true)
         setBootError(
@@ -150,7 +193,7 @@ function App() {
     return createProject(name, location)
   }
 
-  if (isTauriMode && welcomeLoading) {
+  if (!languageReady || (isTauriMode && welcomeLoading)) {
     return (
       <ThemeProvider>
         <div className="flex h-screen items-center justify-center bg-background">

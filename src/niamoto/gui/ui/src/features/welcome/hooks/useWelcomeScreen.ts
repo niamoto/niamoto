@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { reloadDesktopProject } from '@/shared/desktop/projectReload';
+import {
+  getManualProjectOpenTarget,
+  markManualProjectOpen,
+} from '@/shared/desktop/projectLaunchIntent';
+import {
+  DEFAULT_APP_SETTINGS,
+  getAppSettings,
+  setAppSettings as persistAppSettings,
+  type AppSettings,
+} from '@/shared/desktop/appSettings';
 import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
 
 // Tauri types
@@ -11,10 +21,6 @@ declare global {
       };
     };
   }
-}
-
-export interface AppSettings {
-  auto_load_last_project: boolean;
 }
 
 interface WelcomeScreenState {
@@ -46,7 +52,7 @@ export function useWelcomeScreen() {
     showWelcome: false,
     loading: true,
     error: null,
-    settings: { auto_load_last_project: true },
+    settings: DEFAULT_APP_SETTINGS,
   });
 
   // Invoke Tauri command
@@ -76,7 +82,9 @@ export function useWelcomeScreen() {
     const initialize = async () => {
       try {
         // Get app settings
-        const settings = await invoke<AppSettings>('get_app_settings');
+        const settings = await getAppSettings();
+        const manualProjectTarget = getManualProjectOpenTarget();
+        const manualProjectOpen = manualProjectTarget !== null;
         const unavailableProjectMessage =
           'The last project you opened is no longer available. Remove it from the list or open another folder.';
         const lastProject = recentProjects[0] ?? null;
@@ -85,11 +93,12 @@ export function useWelcomeScreen() {
           : false;
         const currentProjectValid = currentProject !== null;
 
-        let showWelcome = !currentProjectValid;
+        let showWelcome = !settings.auto_load_last_project && !manualProjectOpen;
         let error: string | null = null;
 
         // Check if we should auto-load the last project
         if (settings.auto_load_last_project && lastProject) {
+          showWelcome = !currentProjectValid;
           if (lastProjectInvalid) {
             error = unavailableProjectMessage;
           } else if (currentProject === lastProject.path) {
@@ -109,7 +118,11 @@ export function useWelcomeScreen() {
           showWelcome = true;
         }
 
-        if (currentProjectValid) {
+        if (manualProjectOpen && currentProjectValid) {
+          showWelcome = false;
+        }
+
+        if (settings.auto_load_last_project && currentProjectValid) {
           showWelcome = false;
         }
 
@@ -154,6 +167,7 @@ export function useWelcomeScreen() {
         });
 
         // Reload the page to show the new project
+        markManualProjectOpen(projectPath);
         window.location.reload();
 
         return projectPath;
@@ -207,16 +221,17 @@ export function useWelcomeScreen() {
 
   // Update app settings
   const updateSettings = useCallback(
-    async (settings: AppSettings) => {
+    async (patch: Partial<AppSettings>) => {
+      const nextSettings = { ...state.settings, ...patch };
       try {
-        await invoke('set_app_settings', { settings });
-        setState((s) => ({ ...s, settings }));
+        await persistAppSettings(nextSettings);
+        setState((s) => ({ ...s, settings: nextSettings }));
       } catch (err) {
         console.error('Failed to update settings:', err);
         throw err;
       }
     },
-    [invoke]
+    [state.settings]
   );
 
   // Dismiss welcome screen (for debugging/testing)

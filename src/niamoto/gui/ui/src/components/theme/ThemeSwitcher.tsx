@@ -5,7 +5,7 @@
  * showing typography, shapes, and colors distinctive to each theme.
  */
 
-import { Moon, Sun, Monitor, Check, Palette } from 'lucide-react'
+import { Moon, Sun, Monitor, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/stores/themeStore'
 import { loadThemeFonts, type Theme, type ThemeMode } from '@/themes'
@@ -268,11 +268,7 @@ export function ThemeSwitcher({
     <div className={cn('space-y-4', className)}>
       {/* Header with mode selector */}
       {showModeSelector && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Appearance</span>
-          </div>
+        <div className="flex justify-end">
           <ModeSelector currentMode={mode} onModeChange={setMode} />
         </div>
       )}
