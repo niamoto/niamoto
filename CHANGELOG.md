@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.2] - 2026-04-07
+
+### Bug Fixes
+
+- Improve widget and transformer form handling
+- Tighten desktop settings behavior
+- Recover offline indicator on reconnect
+- Align widget previews and layout config
+- Hide legends in layout overview miniatures via Plotly relayout
+- Improve preview engine resilience and health endpoint
+- Improve Tauri startup, updater UX, and collections UI
+
+### Refactoring
+
+- Improve collection layout overview
+- Compact source cards with consistent icon-only actions
+
+### Style
+
+- Compact widget list items in collection panel
+
+### Other
+
+- Refresh safe dependencies
+
 ## [v0.12.1] - 2026-04-05
 
 ### Bug Fixes
