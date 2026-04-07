@@ -46,9 +46,17 @@ import {
 import type { ConfiguredWidget } from '@/components/widgets'
 import { WidgetConfigForm } from '@/components/widgets/WidgetConfigForm'
 import type { LocalizedString } from '@/components/ui/localized-input'
-import { PreviewPane } from '@/components/preview'
+import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
+
+// La preview individuelle dispose de tout l'espace du panneau de détail :
+// on étire le chart pour remplir l'iframe sans quitter le mode preview
+// statique (sinon Plotly resterait coincé sur le 400x300 par défaut imposé
+// par `plotly_utils.py`).
+function injectFullPreviewOverrides(html: string): string {
+  return injectPreviewOverrides(html, { fullSize: true })
+}
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -116,12 +124,14 @@ export function WidgetDetailPanel({
 
   // Generate YAML previews
   const yamlPreviews = useMemo(() => {
-    const transformConfig: Record<string, unknown> = {
-      [widget.id]: {
-        plugin: widget.transformerPlugin,
-        params: widget.transformerParams,
-      },
-    }
+    const transformConfig: Record<string, unknown> | null = widget.hasTransformConfig
+      ? {
+          [widget.id]: {
+            plugin: widget.transformerPlugin,
+            params: widget.transformerParams,
+          },
+        }
+      : null
 
     const exportWidget: Record<string, unknown> = {
       plugin: widget.widgetPlugin,
@@ -136,7 +146,9 @@ export function WidgetDetailPanel({
     }
 
     return {
-      transform: yaml.dump(transformConfig, { indent: 2, lineWidth: -1 }),
+      transform: transformConfig
+        ? yaml.dump(transformConfig, { indent: 2, lineWidth: -1 })
+        : '# No transform.yml entry for this export-only widget\n',
       export: yaml.dump([exportWidget], { indent: 2, lineWidth: -1 }),
     }
   }, [widget])
@@ -266,7 +278,11 @@ export function WidgetDetailPanel({
         <TabsContent value="preview" className="flex-1 m-0 min-h-0">
           <div className="h-full p-4">
             <div className="h-full rounded-xl border bg-card overflow-hidden">
-              <PreviewPane descriptor={previewDescriptor} className="w-full h-full" />
+              <PreviewPane
+                descriptor={previewDescriptor}
+                className="w-full h-full"
+                transformHtml={injectFullPreviewOverrides}
+              />
             </div>
           </div>
         </TabsContent>

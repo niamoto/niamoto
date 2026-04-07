@@ -17,11 +17,12 @@ import {
   RefreshCw,
   AlertCircle,
   Settings2,
-  Columns,
-  Columns2,
   Eye,
   EyeOff,
   Leaf,
+  GripVertical,
+  RectangleHorizontal,
+  Square,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -368,15 +369,18 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
       {/* Legend */}
       <div className="mt-4 pt-4 border-t flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
-          <Columns className="h-3.5 w-3.5" />
+          <Square className="h-3.5 w-3.5" />
           <span>{t('layout.columns.one')}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Columns2 className="h-3.5 w-3.5" />
+          <RectangleHorizontal className="h-3.5 w-3.5" />
           <span>{t('layout.columns.two')}</span>
         </div>
         <span className="text-muted-foreground/50">|</span>
-        <span>{t('layout.dragDrop')}</span>
+        <div className="flex items-center gap-1">
+          <GripVertical className="h-3.5 w-3.5" />
+          <span>{t('layout.dragDrop')}</span>
+        </div>
       </div>
     </div>
   )

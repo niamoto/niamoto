@@ -64,10 +64,8 @@ export function ContentTab({ reference }: ContentTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
   const {
-    configuredIds,
     loading: configuredWidgetsLoading,
   } = useConfiguredWidgets(reference.name)
-  const hasConfiguredWidgets = configuredIds.length > 0
 
   // Fetch configured widgets
   const {
@@ -78,7 +76,7 @@ export function ContentTab({ reference }: ContentTabProps) {
     duplicateWidget,
     reorderWidgets,
     refetch: refetchWidgets,
-  } = useWidgetConfig(reference.name, hasConfiguredWidgets)
+  } = useWidgetConfig(reference.name, true)
 
   // Fetch suggestions only when the add-widget modal is opened
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
@@ -236,7 +234,7 @@ export function ContentTab({ reference }: ContentTabProps) {
               <WidgetListPanel
                 widgets={filteredWidgets}
                 selectedId={selectedWidgetId}
-                loading={configuredWidgetsLoading || (hasConfiguredWidgets && widgetsLoading)}
+                loading={configuredWidgetsLoading || widgetsLoading}
                 onSelect={handleSelectWidget}
                 onDelete={handleDeleteWidget}
                 onDuplicate={handleDuplicateWidget}
@@ -246,7 +244,7 @@ export function ContentTab({ reference }: ContentTabProps) {
 
             {/* Footer */}
             <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
-              {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''} configure{configuredWidgets.length !== 1 ? 's' : ''}
+              {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
             </div>
           </div>
           </div>
@@ -284,7 +282,7 @@ export function ContentTab({ reference }: ContentTabProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <span className="text-xs text-muted-foreground ml-1">
-                  {configuredWidgets.length} widget{configuredWidgets.length !== 1 ? 's' : ''}
+                  {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
                 </span>
               </div>
             )}

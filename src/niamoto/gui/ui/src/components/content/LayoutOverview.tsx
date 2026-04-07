@@ -13,7 +13,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { PreviewPane } from '@/components/preview'
+import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
@@ -41,8 +41,6 @@ import {
   RefreshCw,
   AlertCircle,
   Settings2,
-  Columns,
-  Columns2,
   Eye,
   EyeOff,
   Leaf,
@@ -52,6 +50,8 @@ import {
   MousePointerClick,
   PanelLeftClose,
   PanelLeftOpen,
+  RectangleHorizontal,
+  Square,
 } from 'lucide-react'
 import { getPluginLabel } from '@/components/widgets/types'
 import { cn } from '@/lib/utils'
@@ -233,24 +233,14 @@ const CHART_HEIGHTS: Record<string, string> = {
 }
 const DEFAULT_CHART_HEIGHT = 'h-64'
 
-// Script injected into preview iframes to hide legends via Plotly relayout
-// (display:none only hides visually — Plotly still reserves space)
-const HIDE_LEGENDS_SCRIPT = `<script>
-document.addEventListener('DOMContentLoaded',function(){
-  setTimeout(function(){
-    document.querySelectorAll('.js-plotly-plot').forEach(function(el){
-      if(window.Plotly){Plotly.relayout(el,{showlegend:false})}
-    });
-  },200);
-});
-</script>
-<style>.leaflet-control{display:none!important}</style>`
-
-function injectHideLegends(html: string): string {
-  if (!html) return html
-  const idx = html.indexOf('</body>')
-  if (idx !== -1) return html.slice(0, idx) + HIDE_LEGENDS_SCRIPT + html.slice(idx)
-  return html + HIDE_LEGENDS_SCRIPT
+// Overrides spécifiques aux miniatures : masquer les contrôles Leaflet
+// (ces miniatures sont en lecture seule, donc pas d'interaction zoom/pan
+// nécessaire). On garde les dimensions natives (400x300 par défaut) pour
+// profiter du scaling appliqué par `ScaledPreview`.
+function injectMiniatureOverrides(html: string): string {
+  return injectPreviewOverrides(html, {
+    hideLeafletControls: true,
+  })
 }
 
 function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; plugin: string }) {
@@ -288,7 +278,7 @@ function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; 
       )}
       {html && !loading && (
         <iframe
-          srcDoc={injectHideLegends(html)}
+          srcDoc={injectMiniatureOverrides(html)}
           title="Widget preview"
           sandbox="allow-scripts"
           style={{
@@ -396,9 +386,9 @@ function SortableWidgetCard({
           title={widget.colspan === 1 ? t('layout.columns.expandTo2') : t('layout.columns.reduceTo1')}
         >
           {widget.colspan === 1 ? (
-            <Columns2 className="h-4 w-4 text-muted-foreground" />
+            <RectangleHorizontal className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <Columns className="h-4 w-4 text-muted-foreground" />
+            <Square className="h-4 w-4 text-muted-foreground" />
           )}
         </Button>
       </div>
@@ -416,7 +406,7 @@ function SortableWidgetCard({
               <PreviewPane
                 descriptor={descriptor}
                 className={cn('w-full', CHART_HEIGHTS[widget.plugin] ?? DEFAULT_CHART_HEIGHT)}
-                transformHtml={injectHideLegends}
+                transformHtml={injectMiniatureOverrides}
               />
             )}
             {/* Selection overlay on hover */}
@@ -841,15 +831,18 @@ export function LayoutOverview({
       {/* Legend footer */}
       <div className="px-4 py-2 border-t flex items-center gap-4 text-xs text-muted-foreground shrink-0">
         <div className="flex items-center gap-1">
-          <Columns className="h-3.5 w-3.5" />
+          <Square className="h-3.5 w-3.5" />
           <span>{t('layout.columns.one')}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Columns2 className="h-3.5 w-3.5" />
+          <RectangleHorizontal className="h-3.5 w-3.5" />
           <span>{t('layout.columns.two')}</span>
         </div>
         <span className="text-muted-foreground/50">|</span>
-        <span>{t('layout.dragDrop')}</span>
+        <div className="flex items-center gap-1">
+          <GripVertical className="h-3.5 w-3.5" />
+          <span>{t('layout.dragDrop')}</span>
+        </div>
       </div>
     </div>
   )

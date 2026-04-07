@@ -344,7 +344,11 @@ export function WidgetListPanel({
                     isSelected={widget.id === selectedId}
                     onSelect={() => onSelect(widget)}
                     onDeleteClick={(e) => handleDeleteClick(e, widget)}
-                    onDuplicateClick={onDuplicate ? (e) => handleDuplicateClick(e, widget) : undefined}
+                    onDuplicateClick={
+                      onDuplicate && widget.hasTransformConfig
+                        ? (e) => handleDuplicateClick(e, widget)
+                        : undefined
+                    }
                   />
                 ))}
               </div>

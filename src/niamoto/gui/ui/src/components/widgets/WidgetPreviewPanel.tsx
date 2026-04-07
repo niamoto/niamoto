@@ -290,6 +290,7 @@ export function WidgetPreviewPanel({
       exportParams = {
         labels_field: 'labels',
         values_field: 'counts',
+        show_legend: false,
       }
     } else if (widgetPlugin === 'radial_gauge') {
       if (transformer === 'statistical_summary') {

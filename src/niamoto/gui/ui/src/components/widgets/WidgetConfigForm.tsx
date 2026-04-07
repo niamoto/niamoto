@@ -170,34 +170,40 @@ export function WidgetConfigForm({
 
       {/* Accordion sections for transformer and widget params */}
       <div className="flex-1 overflow-auto p-4">
-        <Accordion type="multiple" defaultValue={['transformer', 'widget']} className="space-y-2">
+        <Accordion
+          type="multiple"
+          defaultValue={widget.hasTransformConfig ? ['transformer', 'widget'] : ['widget']}
+          className="space-y-2"
+        >
           {/* Transformer params */}
-          <AccordionItem value="transformer" className="border rounded-lg">
-            <AccordionTrigger className="px-4 py-3 hover:no-underline">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
-                  <Settings2 className="h-4 w-4 text-amber-600" />
+          {widget.hasTransformConfig && (
+            <AccordionItem value="transformer" className="border rounded-lg">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
+                    <Settings2 className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div className="text-left">
+                    <span className="font-medium">Transformation des donnees</span>
+                    <p className="text-xs text-muted-foreground font-normal">
+                      Plugin: {widget.transformerPlugin}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <span className="font-medium">Transformation des donnees</span>
-                  <p className="text-xs text-muted-foreground font-normal">
-                    Plugin: {widget.transformerPlugin}
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-4 pb-4">
-              <JsonSchemaForm
-                pluginId={widget.transformerPlugin}
-                groupBy={groupBy}
-                onChange={handleTransformerChange}
-                availableFields={availableFields}
-                showTitle={false}
-                className="border-0 shadow-none p-0"
-                initialValues={transformerParams}
-              />
-            </AccordionContent>
-          </AccordionItem>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <JsonSchemaForm
+                  pluginId={widget.transformerPlugin}
+                  groupBy={groupBy}
+                  onChange={handleTransformerChange}
+                  availableFields={availableFields}
+                  showTitle={false}
+                  className="border-0 shadow-none p-0"
+                  initialValues={transformerParams}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
           {/* Widget params */}
           <AccordionItem value="widget" className="border rounded-lg">

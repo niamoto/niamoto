@@ -540,7 +540,7 @@ class BarPlotParams(BasePluginParams):
         },
     )
     show_legend: bool = Field(
-        default=True,
+        default=False,
         description="Afficher la legende",
         json_schema_extra={
             "ui:widget": "checkbox",

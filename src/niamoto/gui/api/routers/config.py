@@ -1475,6 +1475,16 @@ class WidgetSummary(BaseModel):
     params: Dict[str, Any] = {}
 
 
+def _resolve_export_widget_id(group_by: str, widget: Dict[str, Any]) -> Optional[str]:
+    """Return the frontend identifier used for an export widget."""
+    data_source = widget.get("data_source")
+    if data_source:
+        return str(data_source)
+    if widget.get("plugin") == "hierarchical_nav_widget":
+        return f"{group_by}_hierarchical_nav_widget"
+    return None
+
+
 @router.get("/transform/{group_by}/widgets")
 async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
     """
@@ -1725,16 +1735,18 @@ async def update_export_widget(
         if "widgets" not in target_group:
             target_group["widgets"] = []
 
-        # Find existing widget by data_source
+        # Find existing widget by data_source or synthetic navigation id
         existing_idx = None
         for idx, widget in enumerate(target_group["widgets"]):
-            if widget.get("data_source") == widget_id:
+            if _resolve_export_widget_id(group_by, widget) == widget_id:
                 existing_idx = idx
                 break
 
         new_widget = {
             "plugin": update.plugin,
-            "data_source": update.data_source,
+            "data_source": (
+                "" if update.plugin == "hierarchical_nav_widget" else update.data_source
+            ),
             "params": update.params,
         }
         if update.title:
@@ -1799,7 +1811,7 @@ async def delete_export_widget(group_by: str, widget_id: str) -> Dict[str, bool]
 
         # Filter out the widget
         target_group["widgets"] = [
-            w for w in widgets if w.get("data_source") != widget_id
+            w for w in widgets if _resolve_export_widget_id(group_by, w) != widget_id
         ]
 
         if len(target_group["widgets"]) == original_len:

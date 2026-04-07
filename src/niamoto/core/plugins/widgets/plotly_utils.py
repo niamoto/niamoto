@@ -229,11 +229,12 @@ def render_plotly_figure(
             if (isPreview) {{
                 plotConfig.displayModeBar = false;
                 plotConfig.responsive = false;
+                figure.layout = figure.layout || {{}};
+                figure.layout.showlegend = false;
                 // Keep maps in their native autosize path, but freeze non-map
                 // charts to avoid heavy redraw loops in tiny iframes.
                 if (!isMap) {{
                     plotConfig.staticPlot = true;
-                    figure.layout = figure.layout || {{}};
                     // Avoid autosize/automargin feedback loops in tiny preview iframes.
                     figure.layout.autosize = false;
                     if (typeof figure.layout.width !== 'number') {{

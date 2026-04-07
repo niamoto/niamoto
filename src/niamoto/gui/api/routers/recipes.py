@@ -1273,6 +1273,15 @@ class ReorderWidgetsRequest(BaseModel):
     widget_ids: list[str] = Field(..., description="Ordered list of widget IDs")
 
 
+def _resolve_export_widget_id(group_by: str, widget: dict[str, Any]) -> str | None:
+    data_source = widget.get("data_source")
+    if data_source:
+        return str(data_source)
+    if widget.get("plugin") == "hierarchical_nav_widget":
+        return f"{group_by}_hierarchical_nav_widget"
+    return None
+
+
 @router.post("/{group_by}/reorder")
 async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
     """
@@ -1297,8 +1306,12 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
             if group.get("group_by") == group_by:
                 widgets = group.get("widgets", [])
 
-                # Create a map of data_source -> widget
-                widget_map = {w.get("data_source"): w for w in widgets}
+                # Create a map of frontend widget id -> widget
+                widget_map = {}
+                for widget in widgets:
+                    widget_id = _resolve_export_widget_id(group_by, widget)
+                    if widget_id:
+                        widget_map[widget_id] = widget
 
                 # Reorder based on request
                 new_widgets = []

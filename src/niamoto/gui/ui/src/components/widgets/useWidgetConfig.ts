@@ -25,6 +25,7 @@ export interface ConfiguredWidget {
   transformerParams: Record<string, unknown>  // Params from transform.yml
   widgetParams: Record<string, unknown>       // Params from export.yml
   category?: string                    // Widget category (chart, gauge, etc.)
+  hasTransformConfig: boolean          // Whether this widget has a transform.yml entry
 }
 
 interface TransformConfig {
@@ -51,6 +52,16 @@ interface ExportWidgetConfig {
     colspan?: number
     order?: number
   }
+}
+
+function getNavigationWidgetId(groupBy: string): string {
+  return `${groupBy}_hierarchical_nav_widget`
+}
+
+function getExportWidgetId(groupBy: string, widget: ExportWidgetConfig): string | null {
+  if (widget.data_source) return widget.data_source
+  if (widget.plugin === 'hierarchical_nav_widget') return getNavigationWidgetId(groupBy)
+  return null
 }
 
 interface ExportGroupConfig {
@@ -115,6 +126,9 @@ function parseTransformWidgets(
   const group = groups.find(g => g.group_by === groupBy)
   if (group?.widgets_data) {
     Object.entries(group.widgets_data).forEach(([widgetId, widgetConfig]) => {
+      if (widgetConfig.plugin === 'hierarchical_nav_widget') {
+        return
+      }
       widgets.set(widgetId, {
         plugin: widgetConfig.plugin,
         params: widgetConfig.params || {}
@@ -146,12 +160,13 @@ function parseExportWidgets(
     const group = groups.find(g => g.group_by === groupBy)
     if (group?.widgets) {
       group.widgets.forEach((widget, arrayIndex) => {
-        if (widget.data_source) {
-          widgetMap.set(widget.data_source, widget)
-          // Use layout.order if available, otherwise use array index
-          const order = widget.layout?.order ?? arrayIndex
-          widgetsWithOrder.push({ dataSource: widget.data_source, order })
-        }
+        const widgetId = getExportWidgetId(groupBy, widget)
+        if (!widgetId) return
+
+        widgetMap.set(widgetId, widget)
+        // Use layout.order if available, otherwise use array index
+        const order = widget.layout?.order ?? arrayIndex
+        widgetsWithOrder.push({ dataSource: widgetId, order })
       })
     }
   }
@@ -194,9 +209,28 @@ function mergeWidgetData(
   // First, add widgets in export.yml order (this preserves user's custom order)
   for (const widgetId of exportWidgets.order) {
     const transformConfig = transformWidgets.get(widgetId)
-    if (!transformConfig) continue // Skip if not in transform.yml
-
     const exportConfig = exportWidgets.map.get(widgetId)
+
+    if (!exportConfig) continue
+
+    if (!transformConfig && exportConfig.plugin === 'hierarchical_nav_widget') {
+      processedIds.add(widgetId)
+      merged.push({
+        id: widgetId,
+        transformerPlugin: exportConfig.plugin,
+        widgetPlugin: exportConfig.plugin,
+        title: exportConfig.title || 'Navigation',
+        description: exportConfig.description,
+        dataSource: exportConfig.data_source || '',
+        transformerParams: {},
+        widgetParams: exportConfig.params || {},
+        category: getWidgetCategory(exportConfig.plugin),
+        hasTransformConfig: false,
+      })
+      continue
+    }
+
+    if (!transformConfig) continue // Skip if not in transform.yml
     processedIds.add(widgetId)
 
     merged.push({
@@ -208,26 +242,10 @@ function mergeWidgetData(
       dataSource: widgetId,
       transformerParams: transformConfig.params,
       widgetParams: exportConfig?.params || {},
-      category: exportConfig ? getWidgetCategory(exportConfig.plugin) : 'chart'
+      category: exportConfig ? getWidgetCategory(exportConfig.plugin) : 'chart',
+      hasTransformConfig: true,
     })
   }
-
-  // Then add any widgets in transform.yml but not yet in export.yml
-  transformWidgets.forEach((transformConfig, widgetId) => {
-    if (processedIds.has(widgetId)) return
-
-    merged.push({
-      id: widgetId,
-      transformerPlugin: transformConfig.plugin,
-      widgetPlugin: 'bar_plot',
-      title: widgetId.replace(/_/g, ' '),
-      description: undefined,
-      dataSource: widgetId,
-      transformerParams: transformConfig.params,
-      widgetParams: {},
-      category: 'chart'
-    })
-  })
 
   return merged
 }
@@ -262,9 +280,11 @@ async function performUpdate(
   currentWidgets: ConfiguredWidget[],
   groupBy: string
 ): Promise<void> {
-  if (config.transformerParams !== undefined || config.transformerPlugin !== undefined) {
-    const currentWidget = currentWidgets.find(w => w.id === widgetId)
-    if (!currentWidget) throw new Error(`Widget ${widgetId} not found`)
+  const currentWidget = currentWidgets.find(w => w.id === widgetId)
+  if (!currentWidget) throw new Error(`Widget ${widgetId} not found`)
+
+  if (currentWidget.hasTransformConfig &&
+      (config.transformerParams !== undefined || config.transformerPlugin !== undefined)) {
 
     const transformPayload = {
       plugin: config.transformerPlugin || currentWidget.transformerPlugin,
@@ -289,12 +309,11 @@ async function performUpdate(
 
   if (config.widgetParams !== undefined || config.widgetPlugin !== undefined ||
       config.title !== undefined || config.description !== undefined) {
-    const currentWidget = currentWidgets.find(w => w.id === widgetId)
-    if (!currentWidget) throw new Error(`Widget ${widgetId} not found`)
-
     const exportPayload = {
       plugin: config.widgetPlugin || currentWidget.widgetPlugin,
-      data_source: widgetId,
+      data_source: currentWidget.widgetPlugin === 'hierarchical_nav_widget'
+        ? ''
+        : currentWidget.dataSource,
       title: config.title !== undefined ? config.title : currentWidget.title,
       description: config.description !== undefined ? config.description : currentWidget.description,
       params: config.widgetParams !== undefined
@@ -347,6 +366,9 @@ async function performDuplicate(
 ): Promise<void> {
   const sourceWidget = currentWidgets.find(w => w.id === widgetId)
   if (!sourceWidget) throw new Error(`Widget ${widgetId} not found`)
+  if (!sourceWidget.hasTransformConfig) {
+    throw new Error(`Widget ${widgetId} cannot be duplicated`)
+  }
 
   const transformRes = await fetch(
     `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
