@@ -29,24 +29,6 @@ export function useNetworkStatus() {
     lastChecked: null,
   })
 
-  // Listen to browser online/offline events
-  useEffect(() => {
-    const handleOnline = () => {
-      setStatus((prev) => ({ ...prev, isOnline: true }))
-    }
-    const handleOffline = () => {
-      setStatus((prev) => ({ ...prev, isOnline: false, isInternetAvailable: false }))
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
-
   // On-demand connectivity check via backend
   const checkConnectivity = useCallback(async (): Promise<boolean> => {
     setStatus((prev) => ({ ...prev, isChecking: true }))
@@ -82,6 +64,30 @@ export function useNetworkStatus() {
       return false
     }
   }, [])
+
+  // Listen to browser online/offline events
+  useEffect(() => {
+    const handleOnline = () => {
+      // Clear stale offline state immediately, then confirm via backend.
+      setStatus((prev) => ({
+        ...prev,
+        isOnline: true,
+        isInternetAvailable: null,
+      }))
+      void checkConnectivity()
+    }
+    const handleOffline = () => {
+      setStatus((prev) => ({ ...prev, isOnline: false, isInternetAvailable: false }))
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [checkConnectivity])
 
   return {
     ...status,
