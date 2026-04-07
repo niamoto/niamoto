@@ -88,7 +88,7 @@ class RadialGaugeParams(BasePluginParams):
     max_value: Optional[float] = Field(
         default=None,
         description="Maximum value of the gauge range (or use auto_range)",
-        json_schema_extra={"ui:widget": "number"},
+        json_schema_extra={"ui:widget": "number", "ui:condition": "!auto_range"},
     )
     unit: Optional[str] = Field(
         default=None,
@@ -98,7 +98,10 @@ class RadialGaugeParams(BasePluginParams):
     steps: Optional[List[dict]] = Field(
         default=None,
         description="List of dicts defining color steps, e.g., [{'range': [0, 50], 'color': 'red'}, ...]",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:condition": "style_mode !== 'minimal'",
+        },
     )
     threshold: Optional[dict] = Field(
         default=None,

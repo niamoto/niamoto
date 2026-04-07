@@ -184,6 +184,7 @@
     "retry": "Réessayer",
     "start": "Lancer",
     "addNew": "Ajouter",
+    "formatJson": "Formater le JSON",
     "hidePreview": "Masquer l'aperçu",
     "duplicate": "Dupliquer",
     "preview": "Aperçu",
@@ -286,6 +287,7 @@
     "example": "ex: {{example}}",
     "or": "ou",
     "notFound": "Non trouvé",
+    "noPropertiesDefined": "Aucune propriété définie",
     "navigatingTo": "Navigation vers \"{{name}}\"",
     "pageNotFound": "Page non trouvée : {{href}}"
   },

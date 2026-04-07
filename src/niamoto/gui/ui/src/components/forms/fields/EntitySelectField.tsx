@@ -1,10 +1,12 @@
 // src/components/forms/widgets/EntitySelectField.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { mergeOptionValue } from '../formSchemaUtils';
 
 interface EntitySelectFieldProps {
   name: string;
@@ -37,7 +39,7 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   description,
   value,
   onChange,
-  placeholder = 'Select an entity...',
+  placeholder,
   required = false,
   disabled = false,
   error,
@@ -45,6 +47,7 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   kind,
   groupBy  // Reserved for future use: filter entities by group context
 }) => {
+  const { t } = useTranslation('common');
   const [entities, setEntities] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -52,6 +55,9 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   // Note: groupBy parameter is available for future enhancement
   // to filter entities based on transform group context
   void groupBy;
+
+  const resolvedPlaceholder = placeholder ?? t('placeholders.selectOption');
+  const resolvedEntities = mergeOptionValue(entities, value);
 
   useEffect(() => {
     const fetchEntities = async () => {
@@ -113,22 +119,22 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
           {loading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground">Loading entities...</span>
-            </div>
-          ) : (
-            <SelectValue placeholder={placeholder} />
-          )}
-        </SelectTrigger>
-        <SelectContent>
-          {entities.length === 0 && !loading && (
-            <div className="p-2 text-sm text-muted-foreground text-center">
-              {loadError ? 'Error loading entities' : 'No entities available'}
-            </div>
-          )}
-          {entities.map((entityName) => (
-            <SelectItem key={entityName} value={entityName}>
-              {entityName}
-            </SelectItem>
+	              <span className="text-muted-foreground">{t('status.loading')}</span>
+	            </div>
+	          ) : (
+	            <SelectValue placeholder={resolvedPlaceholder} />
+	          )}
+	        </SelectTrigger>
+	        <SelectContent>
+	          {resolvedEntities.length === 0 && !loading && (
+	            <div className="p-2 text-sm text-muted-foreground text-center">
+	              {loadError ? t('status.error') : t('empty.noData')}
+	            </div>
+	          )}
+	          {resolvedEntities.map((entityName) => (
+	            <SelectItem key={entityName} value={entityName}>
+	              {entityName}
+	            </SelectItem>
           ))}
         </SelectContent>
       </Select>

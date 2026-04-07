@@ -1,6 +1,7 @@
 // src/components/forms/widgets/SelectField.tsx
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
@@ -31,12 +32,14 @@ const SelectField: React.FC<SelectFieldProps> = ({
   value,
   onChange,
   options,
-  placeholder = 'Select an option...',
+  placeholder,
   required = false,
   disabled = false,
   error,
   className = ''
 }) => {
+  const { t } = useTranslation('common');
+
   return (
     <FormItem className={className}>
       {label && (
@@ -55,7 +58,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
         disabled={disabled}
       >
         <SelectTrigger id={name} className={error ? 'border-red-500' : ''}>
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={placeholder || t('placeholders.selectOption')} />
         </SelectTrigger>
         <SelectContent>
           {options

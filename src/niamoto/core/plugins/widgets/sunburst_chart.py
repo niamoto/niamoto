@@ -54,13 +54,13 @@ class SunburstChartWidgetParams(BasePluginParams):
     category_labels: Dict[str, str] = Field(
         default_factory=dict,
         description="Mapping from data keys (e.g., 'emprise') to display labels (e.g., 'Emprise').",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     # Labels for the outer ring (leaves)
     leaf_labels: Dict[str, str] = Field(
         default_factory=dict,
         description="Mapping from data sub-keys (e.g., 'forest') to display labels (e.g., 'Forêt').",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     # Colors for the outer ring (leaves). Can be a single color per leaf type
     # or nested dict for specific colors per category/leaf combination.

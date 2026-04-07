@@ -49,7 +49,7 @@ export function WidgetConfigForm({
   languages = ['fr', 'en'],
   defaultLang = 'fr',
 }: WidgetConfigFormProps) {
-  const { t } = useTranslation('widgets')
+  const { t } = useTranslation(['widgets', 'common'])
 
   // Local state for form values (title and description support LocalizedString)
   const [title, setTitle] = useState<LocalizedString | undefined>(widget.title as LocalizedString | undefined)
@@ -74,7 +74,7 @@ export function WidgetConfigForm({
     setTransformerParams(widget.transformerParams)
     setWidgetParams(widget.widgetParams)
     setError(null)
-  }, [widget.id])
+  }, [widget.description, widget.id, widget.title, widget.transformerParams, widget.widgetParams])
 
   // Debounce ref for onChange
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -184,7 +184,7 @@ export function WidgetConfigForm({
                     <Settings2 className="h-4 w-4 text-amber-600" />
                   </div>
                   <div className="text-left">
-                    <span className="font-medium">Transformation des donnees</span>
+                    <span className="font-medium">{t('widgets:form.dataTransformationSection')}</span>
                     <p className="text-xs text-muted-foreground font-normal">
                       Plugin: {widget.transformerPlugin}
                     </p>
@@ -213,7 +213,7 @@ export function WidgetConfigForm({
                   <Palette className="h-4 w-4 text-emerald-600" />
                 </div>
                 <div className="text-left">
-                  <span className="font-medium">Visualisation</span>
+                  <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
                   <p className="text-xs text-muted-foreground font-normal">
                     Plugin: {widget.widgetPlugin}
                   </p>
@@ -252,7 +252,7 @@ export function WidgetConfigForm({
           disabled={saving}
         >
           <X className="mr-2 h-4 w-4" />
-          Annuler
+          {t('common:actions.cancel')}
         </Button>
         <Button
           onClick={handleSave}
@@ -261,12 +261,12 @@ export function WidgetConfigForm({
           {saving ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sauvegarde...
+              {t('common:status.saving')}
             </>
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Sauvegarder
+              {t('common:actions.save')}
             </>
           )}
         </Button>

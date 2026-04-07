@@ -1,10 +1,12 @@
 // src/components/forms/widgets/TransformSourceSelectField.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { mergeOptionValue } from '../formSchemaUtils';
 
 interface TransformSourceSelectFieldProps {
   name: string;
@@ -18,10 +20,16 @@ interface TransformSourceSelectFieldProps {
   error?: string;
   className?: string;
   groupBy?: string;  // Optional: filter sources by group_by
+  kind?: 'dataset' | 'reference';
+}
+
+interface TransformSourceInfo {
+  name: string;
+  type: 'dataset' | 'reference' | 'csv_stats';
 }
 
 interface TransformSourcesResponse {
-  sources: string[];
+  sources: TransformSourceInfo[];
 }
 
 const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
@@ -30,16 +38,20 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
   description,
   value,
   onChange,
-  placeholder = 'Select a transform source...',
+  placeholder,
   required = false,
   disabled = false,
   error,
   className = '',
-  groupBy
+  groupBy,
+  kind
 }) => {
+  const { t } = useTranslation('common');
   const [sources, setSources] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const resolvedPlaceholder = placeholder ?? t('placeholders.selectOption');
+  const resolvedSources = mergeOptionValue(sources, value);
 
   useEffect(() => {
     const fetchSources = async () => {
@@ -49,8 +61,13 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
 
         // Build URL with optional group_by filter
         const url = groupBy
-          ? `/api/transform/sources?group_by=${groupBy}`
-          : `/api/transform/sources`;
+          ? `/api/recipes/sources/${groupBy}`
+          : null;
+
+        if (!url) {
+          setSources([]);
+          return;
+        }
 
         const response = await fetch(url);
 
@@ -59,8 +76,11 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
         }
 
         const data: TransformSourcesResponse = await response.json();
-        // Filter out empty strings to prevent Select.Item error
-        setSources(data.sources.filter(s => s && s.trim() !== ''));
+        const sourceNames = data.sources
+          .filter((source) => !kind || source.type === kind)
+          .map((source) => source.name)
+          .filter((sourceName) => sourceName && sourceName.trim() !== '');
+        setSources(sourceNames);
       } catch (err) {
         console.error('Error fetching transform sources:', err);
         setLoadError(err instanceof Error ? err.message : 'Failed to load sources');
@@ -71,7 +91,7 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
     };
 
     fetchSources();
-  }, [groupBy]);
+  }, [groupBy, kind]);
 
   return (
     <FormItem className={className}>
@@ -90,21 +110,21 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
           {loading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground">Loading sources...</span>
-            </div>
-          ) : (
-            <SelectValue placeholder={placeholder} />
-          )}
-        </SelectTrigger>
-        <SelectContent>
-          {sources.length === 0 && !loading && (
-            <div className="p-2 text-sm text-muted-foreground text-center">
-              {loadError ? 'Error loading sources' : 'No sources available'}
-            </div>
-          )}
-          {sources.map((sourceName) => (
-            <SelectItem key={sourceName} value={sourceName}>
-              {sourceName}
+	              <span className="text-muted-foreground">{t('status.loading')}</span>
+	            </div>
+	          ) : (
+	            <SelectValue placeholder={resolvedPlaceholder} />
+	          )}
+	        </SelectTrigger>
+	        <SelectContent>
+	          {resolvedSources.length === 0 && !loading && (
+	            <div className="p-2 text-sm text-muted-foreground text-center">
+	              {loadError ? t('status.error') : t('empty.noData')}
+	            </div>
+	          )}
+	          {resolvedSources.map((sourceName) => (
+	            <SelectItem key={sourceName} value={sourceName}>
+	              {sourceName}
             </SelectItem>
           ))}
         </SelectContent>

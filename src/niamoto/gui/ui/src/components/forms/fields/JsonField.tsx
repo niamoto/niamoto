@@ -1,6 +1,7 @@
 // src/components/forms/widgets/JsonField.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
@@ -34,6 +35,7 @@ const JsonField: React.FC<JsonFieldProps> = ({
   className = '',
   schema: _schema
 }) => {
+  const { t } = useTranslation('common');
   const [textValue, setTextValue] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [isFormatted, setIsFormatted] = useState(false);
@@ -110,7 +112,7 @@ const JsonField: React.FC<JsonFieldProps> = ({
                   size="sm"
                   onClick={handleFormat}
                   disabled={!textValue || isFormatted}
-                  title="Format JSON"
+                  title={t('actions.formatJson')}
                 >
                   <Check className="h-3 w-3" />
                 </Button>
@@ -120,7 +122,7 @@ const JsonField: React.FC<JsonFieldProps> = ({
                   size="sm"
                   onClick={handleClear}
                   disabled={!textValue}
-                  title="Clear"
+                  title={t('actions.clear')}
                 >
                   <X className="h-3 w-3" />
                 </Button>

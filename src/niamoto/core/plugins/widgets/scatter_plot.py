@@ -110,13 +110,13 @@ class ScatterPlotParams(BasePluginParams):
     labels: Optional[Dict[str, str]] = Field(
         default=None,
         description="Dictionary to override axis/legend labels",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     # Add other relevant plotly express scatter arguments as needed
     color_discrete_map: Optional[Dict[str, str]] = Field(
         default=None,
         description="Explicit color mapping for discrete colors",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "key-value-pairs"},
     )
     size_max: Optional[int] = Field(
         default=None,
@@ -180,6 +180,7 @@ class ScatterPlotWidget(WidgetPlugin):
             return f"<p class='error'>Configuration Error: Missing columns {html.escape(str(missing_cols))}.</p>"
 
         # Check data types for numeric axes/size
+        data = data.copy()
         numeric_cols = {params.x_axis, params.y_axis}
         if params.size_field:
             numeric_cols.add(params.size_field)
@@ -188,7 +189,7 @@ class ScatterPlotWidget(WidgetPlugin):
             if not pd.api.types.is_numeric_dtype(data[col]):
                 try:
                     # Attempt conversion
-                    data[col] = pd.to_numeric(data[col], errors="coerce")
+                    data.loc[:, col] = pd.to_numeric(data[col], errors="coerce")
                     if data[col].isnull().any():
                         logger.warning(
                             f"Column '{col}' used for numeric axis/size contains non-numeric values or NaNs after conversion."
