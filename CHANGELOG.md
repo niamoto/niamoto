@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.3] - 2026-04-07
+
+### Bug Fixes
+
+- Harden GUI runtime diagnostics
+
 ## [v0.12.2] - 2026-04-07
 
 ### Bug Fixes
