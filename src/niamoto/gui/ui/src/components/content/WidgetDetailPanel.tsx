@@ -24,7 +24,6 @@ import {
   RefreshCw,
   Trash2,
   FileCode,
-  Eye,
   Settings,
   Loader2,
 } from 'lucide-react'
@@ -50,10 +49,9 @@ import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 
-// La preview individuelle dispose de tout l'espace du panneau de détail :
-// on étire le chart pour remplir l'iframe sans quitter le mode preview
-// statique (sinon Plotly resterait coincé sur le 400x300 par défaut imposé
-// par `plotly_utils.py`).
+// La preview individuelle a besoin d'un rendu responsive, mais pas d'occuper
+// toute la hauteur du panneau : on garde donc l'override Plotly, puis on borne
+// la taille du conteneur côté layout.
 function injectFullPreviewOverrides(html: string): string {
   return injectPreviewOverrides(html, { fullSize: true })
 }
@@ -106,21 +104,61 @@ export function WidgetDetailPanel({
 }: WidgetDetailPanelProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'preview' | 'params' | 'yaml'>('preview')
+  const [activeTab, setActiveTab] = useState<'params' | 'yaml'>('params')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [previewDraft, setPreviewDraft] = useState<Partial<ConfiguredWidget> | null>(null)
+  const [formInstanceKey, setFormInstanceKey] = useState(0)
 
   // Category info
   const category = widget.category || 'chart'
   const Icon = CATEGORY_ICONS[category] || BarChart3
   const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS.chart
 
+  const previewTitle = useMemo(
+    () => resolveLocalizedString(
+      (previewDraft?.title as LocalizedString | undefined) ?? widget.title,
+    ),
+    [previewDraft?.title, widget.title],
+  )
+
   // Build PreviewDescriptor
-  const previewDescriptor: PreviewDescriptor = useMemo(() => ({
-    templateId: widget.dataSource || widget.id,
+  const previewDescriptor: PreviewDescriptor = useMemo(() => {
+    if (!widget.hasTransformConfig || widget.widgetPlugin === 'hierarchical_nav_widget') {
+      return {
+        templateId: widget.id,
+        groupBy,
+        mode: 'full' as const,
+      }
+    }
+
+    return {
+      groupBy,
+      mode: 'full' as const,
+      inline: {
+        transformer_plugin: widget.transformerPlugin,
+        transformer_params:
+          (previewDraft?.transformerParams as Record<string, unknown> | undefined) ??
+          widget.transformerParams,
+        widget_plugin: widget.widgetPlugin,
+        widget_params:
+          (previewDraft?.widgetParams as Record<string, unknown> | undefined) ??
+          widget.widgetParams,
+        widget_title: previewTitle || widget.id,
+      },
+    }
+  }, [
     groupBy,
-    mode: 'full' as const,
-  }), [widget.id, widget.dataSource, groupBy])
+    previewDraft?.transformerParams,
+    previewDraft?.widgetParams,
+    previewTitle,
+    widget.hasTransformConfig,
+    widget.id,
+    widget.transformerPlugin,
+    widget.transformerParams,
+    widget.widgetParams,
+    widget.widgetPlugin,
+  ])
 
   // Generate YAML previews
   const yamlPreviews = useMemo(() => {
@@ -155,7 +193,9 @@ export function WidgetDetailPanel({
 
   // Reset tab when widget changes
   useEffect(() => {
-    setActiveTab('preview')
+    setActiveTab('params')
+    setPreviewDraft(null)
+    setFormInstanceKey(0)
   }, [widget.id])
 
   const handleRefresh = useCallback(() => {
@@ -165,13 +205,15 @@ export function WidgetDetailPanel({
   const handleSave = useCallback(async (config: Partial<ConfiguredWidget>): Promise<boolean> => {
     const success = await onUpdate(config)
     if (success) {
+      setPreviewDraft(null)
       invalidateAllPreviews(queryClient)
     }
     return success
   }, [onUpdate, queryClient])
 
   const handleCancelEdit = useCallback(() => {
-    setActiveTab('preview')
+    setPreviewDraft(null)
+    setFormInstanceKey((current) => current + 1)
   }, [])
 
   const handleConfirmDelete = useCallback(async () => {
@@ -259,10 +301,6 @@ export function WidgetDetailPanel({
       >
         <div className="px-4 pt-2 border-b">
           <TabsList className="h-9">
-            <TabsTrigger value="preview" className="gap-1.5 text-sm">
-              <Eye className="h-3.5 w-3.5" />
-              Preview
-            </TabsTrigger>
             <TabsTrigger value="params" className="gap-1.5 text-sm">
               <Settings className="h-3.5 w-3.5" />
               Parametres
@@ -274,32 +312,48 @@ export function WidgetDetailPanel({
           </TabsList>
         </div>
 
-        {/* Preview Tab */}
-        <TabsContent value="preview" className="flex-1 m-0 min-h-0">
-          <div className="h-full p-4">
-            <div className="h-full rounded-xl border bg-card overflow-hidden">
-              <PreviewPane
-                descriptor={previewDescriptor}
-                className="w-full h-full"
-                transformHtml={injectFullPreviewOverrides}
-              />
-            </div>
-          </div>
-        </TabsContent>
-
         {/* Parameters Tab */}
         <TabsContent value="params" className="flex-1 m-0 min-h-0 overflow-hidden">
-          <ScrollArea className="h-full">
-            <div className="p-4">
+          <div className="flex h-full min-h-0 flex-col lg:flex-row">
+            <div className="min-h-0 flex-1 lg:basis-[62%] lg:border-r">
               <WidgetConfigForm
+                key={`${widget.id}-${formInstanceKey}`}
                 widget={widget}
                 groupBy={groupBy}
                 availableFields={availableFields}
                 onSave={handleSave}
                 onCancel={handleCancelEdit}
+                onChange={(config) => setPreviewDraft(config)}
               />
             </div>
-          </ScrollArea>
+
+            <div className="flex h-[38vh] shrink-0 flex-col border-t bg-muted/20 p-4 lg:h-full lg:basis-[38%] lg:border-l-0 lg:border-t-0">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Preview</p>
+                  <p className="text-xs text-muted-foreground">
+                    {previewDraft ? 'Mise a jour en direct' : 'Version enregistree'}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mx-auto flex min-h-0 w-full max-w-[420px] flex-1 overflow-hidden rounded-xl border bg-card lg:h-[520px] lg:flex-none">
+                <PreviewPane
+                  descriptor={previewDescriptor}
+                  className="h-full w-full"
+                  transformHtml={injectFullPreviewOverrides}
+                />
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
         {/* YAML Tab */}

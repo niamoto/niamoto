@@ -2,8 +2,8 @@
  * WidgetConfigForm - Combined form for transformer and widget parameters
  *
  * Displays two JsonSchemaForm sections:
- * 1. Transformer params (from transform.yml)
- * 2. Widget params (from export.yml)
+ * 1. Widget params (from export.yml)
+ * 2. Transformer params (from transform.yml)
  *
  * Supports:
  * - Live preview updates via onChange callback (debounced)
@@ -172,9 +172,38 @@ export function WidgetConfigForm({
       <div className="flex-1 overflow-auto p-4">
         <Accordion
           type="multiple"
-          defaultValue={widget.hasTransformConfig ? ['transformer', 'widget'] : ['widget']}
+          defaultValue={widget.hasTransformConfig ? ['widget', 'transformer'] : ['widget']}
           className="space-y-2"
         >
+          {/* Widget params */}
+          <AccordionItem value="widget" className="border rounded-lg">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
+                  <Palette className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="text-left">
+                  <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
+                  <p className="text-xs text-muted-foreground font-normal">
+                    Plugin: {widget.widgetPlugin}
+                  </p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <JsonSchemaForm
+                pluginId={widget.widgetPlugin}
+                groupBy={groupBy}
+                onChange={handleWidgetChange}
+                availableFields={availableFields}
+                hiddenFields={['title', 'description']}
+                showTitle={false}
+                className="border-0 shadow-none p-0"
+                initialValues={widgetParams}
+              />
+            </AccordionContent>
+          </AccordionItem>
+
           {/* Transformer params */}
           {widget.hasTransformConfig && (
             <AccordionItem value="transformer" className="border rounded-lg">
@@ -204,34 +233,6 @@ export function WidgetConfigForm({
               </AccordionContent>
             </AccordionItem>
           )}
-
-          {/* Widget params */}
-          <AccordionItem value="widget" className="border rounded-lg">
-            <AccordionTrigger className="px-4 py-3 hover:no-underline">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
-                  <Palette className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div className="text-left">
-                  <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
-                  <p className="text-xs text-muted-foreground font-normal">
-                    Plugin: {widget.widgetPlugin}
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-4 pb-4">
-              <JsonSchemaForm
-                pluginId={widget.widgetPlugin}
-                groupBy={groupBy}
-                onChange={handleWidgetChange}
-                availableFields={availableFields}
-                showTitle={false}
-                className="border-0 shadow-none p-0"
-                initialValues={widgetParams}
-              />
-            </AccordionContent>
-          </AccordionItem>
         </Accordion>
       </div>
 
