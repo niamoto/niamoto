@@ -33,6 +33,7 @@ Daily development workflow scripts.
 | `dev_web.sh` | Launch full dev environment (FastAPI + Vite HMR) |
 | `dev_api.py` | Launch FastAPI backend only |
 | `dev_desktop.sh` | Launch Tauri desktop app in dev mode |
+| `test_desktop_update.sh` | Build two local desktop versions and exercise the real macOS auto-update flow |
 | `smart_commit.sh` | Automated commit with pre-commit hooks |
 | `test_preview_suggestions.py` | Batch test all preview suggestions |
 | `test_shapes_previews.py` | Test shapes widget previews |
@@ -48,6 +49,9 @@ Daily development workflow scripts.
 
 # Launch API only
 uv run python scripts/dev/dev_api.py test-instance/niamoto-nc
+
+# Exercise a real local desktop update flow on macOS
+bash scripts/dev/test_desktop_update.sh --from-version 0.13.0 --to-version 0.13.1-local
 
 # Benchmark preview routes (requires running server)
 uv run python scripts/dev/bench_preview.py --base-url http://localhost:8000
