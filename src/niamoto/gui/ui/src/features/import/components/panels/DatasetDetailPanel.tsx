@@ -14,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -186,45 +187,45 @@ export function DatasetDetailPanel({
             </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Stats */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Database className="h-4 w-4" />
-                  {t('sources:reference.statistics')}
-                </CardTitle>
-                {path && (
-                  <CardDescription className="font-mono text-xs">{path}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <TableStats tableName={tableName} />
-              </CardContent>
-            </Card>
+          <PanelTransition transitionKey={activeTab} className="min-h-0">
+            {activeTab === 'overview' ? (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Database className="h-4 w-4" />
+                      {t('sources:reference.statistics')}
+                    </CardTitle>
+                    {path && (
+                      <CardDescription className="font-mono text-xs">{path}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <TableStats tableName={tableName} />
+                  </CardContent>
+                </Card>
 
-            {/* Data Preview */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('sources:reference.dataPreview')}</CardTitle>
-                <CardDescription>Table: {tableName}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TableBrowser
-                  tableName={tableName}
-                  pageSize={15}
-                  maxColumns={6}
-                  onOpenInExplorer={openInDataExplorer}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Configuration Tab */}
-          <TabsContent value="config" className="space-y-6">
-            <DatasetConfigEditor datasetName={datasetName} />
-          </TabsContent>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">{t('sources:reference.dataPreview')}</CardTitle>
+                    <CardDescription>Table: {tableName}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TableBrowser
+                      tableName={tableName}
+                      pageSize={15}
+                      maxColumns={6}
+                      onOpenInExplorer={openInDataExplorer}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <DatasetConfigEditor datasetName={datasetName} />
+              </div>
+            )}
+          </PanelTransition>
         </Tabs>
       </div>
     </div>

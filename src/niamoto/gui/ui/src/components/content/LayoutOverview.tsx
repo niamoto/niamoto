@@ -48,8 +48,6 @@ import {
   Navigation,
   List,
   MousePointerClick,
-  PanelLeftClose,
-  PanelLeftOpen,
   RectangleHorizontal,
   Square,
 } from 'lucide-react'
@@ -480,7 +478,6 @@ export function LayoutOverview({
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [showNavSidebar, setShowNavSidebar] = useState(false)
 
   // Reset entity selection when group changes
   useEffect(() => {
@@ -657,23 +654,8 @@ export function LayoutOverview({
     <div className="h-full flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
-        {/* Left: nav toggle + widget count */}
+        {/* Left: widget count */}
         <div className="flex items-center gap-2">
-          {navigationWidget && layout.navigation_widget && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setShowNavSidebar((v) => !v)}
-              title={t('layout.toggleNavigation')}
-            >
-              {showNavSidebar ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-            </Button>
-          )}
           <span className="text-sm text-muted-foreground">
             {t('layout.widgetsConfigured', { count: layout.total_widgets })}
           </span>
@@ -767,8 +749,8 @@ export function LayoutOverview({
 
       {/* Main content area */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Navigation sidebar (collapsible) */}
-        {navigationWidget && layout.navigation_widget && showNavSidebar && (
+        {/* Navigation sidebar */}
+        {navigationWidget && layout.navigation_widget && (
           <div className="w-56 p-3 shrink-0 border-r">
             <NavigationSidebar
               groupBy={groupBy}

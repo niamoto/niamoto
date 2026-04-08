@@ -15,7 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -258,88 +259,86 @@ export function ReferenceDetailPanel({
             </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Hierarchy info if applicable */}
-            {kind === 'hierarchical' && hierarchyLevels && hierarchyLevels.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Leaf className="h-4 w-4" />
-                    {t('reference.hierarchy')}
-                  </CardTitle>
-                  <CardDescription>
-                    {t('reference.hierarchyLevels', { count: hierarchyLevels.length })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {hierarchyLevels.map((level, idx) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <Badge variant="outline">{level}</Badge>
-                        {idx < hierarchyLevels.length - 1 && (
-                          <span className="text-muted-foreground">→</span>
-                        )}
+          <PanelTransition transitionKey={activeTab} className="min-h-0">
+            {activeTab === 'overview' ? (
+              <div className="space-y-6">
+                {kind === 'hierarchical' && hierarchyLevels && hierarchyLevels.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Leaf className="h-4 w-4" />
+                        {t('reference.hierarchy')}
+                      </CardTitle>
+                      <CardDescription>
+                        {t('reference.hierarchyLevels', { count: hierarchyLevels.length })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {hierarchyLevels.map((level, idx) => (
+                          <div key={level} className="flex items-center gap-2">
+                            <Badge variant="outline">{level}</Badge>
+                            {idx < hierarchyLevels.length - 1 && (
+                              <span className="text-muted-foreground">→</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Database className="h-4 w-4" />
+                      {t('reference.statistics')}
+                    </CardTitle>
+                    <CardDescription>Table: {tableName}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TableStats
+                      tableName={tableName}
+                      kind={kind}
+                      hierarchyLevels={hierarchyLevels}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">{t('reference.dataPreview')}</CardTitle>
+                    <CardDescription>
+                      {t('reference.firstRows')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TableBrowser
+                      tableName={tableName}
+                      pageSize={15}
+                      maxColumns={6}
+                      onOpenInExplorer={openInDataExplorer}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            ) : activeTab === 'enrichment' ? (
+              <div className="space-y-6">
+                <EnrichmentTab
+                  referenceName={referenceName}
+                  hasEnrichment={hasEnrichment}
+                  onConfigSaved={handleConfigSaved}
+                />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <ReferenceConfigEditor
+                  referenceName={referenceName}
+                  onSaved={handleConfigSaved}
+                />
+              </div>
             )}
-
-            {/* Stats */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Database className="h-4 w-4" />
-                  {t('reference.statistics')}
-                </CardTitle>
-                <CardDescription>Table: {tableName}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TableStats
-                  tableName={tableName}
-                  kind={kind}
-                  hierarchyLevels={hierarchyLevels}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Data Preview */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('reference.dataPreview')}</CardTitle>
-                <CardDescription>
-                  {t('reference.firstRows')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TableBrowser
-                  tableName={tableName}
-                  pageSize={15}
-                  maxColumns={6}
-                  onOpenInExplorer={openInDataExplorer}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Enrichment Tab */}
-          <TabsContent value="enrichment" className="space-y-6">
-            <EnrichmentTab
-              referenceName={referenceName}
-              hasEnrichment={hasEnrichment}
-              onConfigSaved={handleConfigSaved}
-            />
-          </TabsContent>
-
-          {/* Configuration Tab */}
-          <TabsContent value="config" className="space-y-6">
-            <ReferenceConfigEditor
-              referenceName={referenceName}
-              onSaved={handleConfigSaved}
-            />
-          </TabsContent>
+          </PanelTransition>
         </Tabs>
       </div>
     </div>

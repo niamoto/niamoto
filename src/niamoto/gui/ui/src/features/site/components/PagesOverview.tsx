@@ -12,7 +12,6 @@ import {
   Trash2,
   Copy,
   Link2,
-  ExternalLink as ExternalLinkIcon,
   Home,
   BookOpen,
   Users,
@@ -278,12 +277,6 @@ export function PagesOverview({
                 {groups.length}
               </Badge>
             </div>
-            <Button variant="link" size="sm" className="text-xs" asChild>
-              <a href="/flow?tab=export">
-                {t('collections.configureInExport')}
-                <ExternalLinkIcon className="h-3 w-3 ml-1" />
-              </a>
-            </Button>
           </div>
 
           {groups.length === 0 ? (

@@ -10,16 +10,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
-import { SourcesDialog } from '@/features/collections/components/sources/SourcesDialog'
+import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import { useConfiguredWidgets } from '@/components/widgets'
 import {
   executeTransformAndWait,
@@ -32,10 +40,17 @@ import { getActiveExportJob } from '@/lib/api/export'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
+  references: ReferenceInfo[]
   initialTab?: string
+  onSelectCollection: (name: string, tab?: string) => void
 }
 
-export function CollectionPanel({ reference, initialTab }: CollectionPanelProps) {
+export function CollectionPanel({
+  reference,
+  references,
+  initialTab,
+  onSelectCollection,
+}: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
@@ -201,6 +216,9 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
     : cannotRunWithoutWidgets
       ? t('collectionPanel.transform.noWidgetsTooltip')
       : undefined
+  const tabsTriggerClassName =
+    "h-7 rounded border border-transparent px-2.5 text-xs text-muted-foreground data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+  const activeContent = getTabContent(activeTab, reference)
 
   return (
     <div className="relative h-full">
@@ -208,33 +226,53 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
       {/* Compact toolbar: tabs + actions in one row */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
+          <Select
+            value={reference.name}
+            onValueChange={(value) => onSelectCollection(value, activeTab)}
+          >
+            <SelectTrigger className="h-7 w-[180px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {references.map((item) => (
+                <SelectItem key={item.name} value={item.name}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Tabs */}
           <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">
             <TabsTrigger
+              value="sources"
+              className={tabsTriggerClassName}
+            >
+              <Database className="mr-1.5 h-3.5 w-3.5" />
+              {t('collectionPanel.tabs.sources')}
+            </TabsTrigger>
+            <TabsTrigger
               value="content"
-              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
+              className={tabsTriggerClassName}
             >
               <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.blocks')}
             </TabsTrigger>
             <TabsTrigger
               value="index"
-              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
+              className={tabsTriggerClassName}
             >
               <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.list')}
             </TabsTrigger>
             <TabsTrigger
               value="api"
-              className="h-7 px-2.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded"
+              className={tabsTriggerClassName}
             >
               <FileCode className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.export')}
             </TabsTrigger>
           </TabsList>
-
-          {/* Sources dialog */}
-          <SourcesDialog reference={reference} />
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -290,22 +328,45 @@ export function CollectionPanel({ reference, initialTab }: CollectionPanelProps)
           </div>
         )}
 
-        {/* Tab Content */}
-        <TabsContent value="content" className="flex-1 min-h-0 m-0 overflow-hidden">
-          <ContentTab reference={reference} />
-        </TabsContent>
-
-        <TabsContent value="index" className="flex-1 min-h-0 m-0 overflow-auto">
-          <IndexTab reference={reference} />
-        </TabsContent>
-
-        <TabsContent value="api" className="flex-1 min-h-0 m-0 overflow-hidden">
-          <ApiExportsTab groupBy={reference.name} />
-        </TabsContent>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PanelTransition transitionKey={activeTab}>
+            {activeContent}
+          </PanelTransition>
+        </div>
       </Tabs>
     </div>
     </div>
   )
+}
+
+function getTabContent(activeTab: string, reference: ReferenceInfo) {
+  switch (activeTab) {
+    case 'sources':
+      return (
+        <div className="h-full overflow-hidden">
+          <SourcesPanel reference={reference} />
+        </div>
+      )
+    case 'index':
+      return (
+        <div className="h-full overflow-auto">
+          <IndexTab reference={reference} />
+        </div>
+      )
+    case 'api':
+      return (
+        <div className="h-full overflow-hidden">
+          <ApiExportsTab groupBy={reference.name} />
+        </div>
+      )
+    case 'content':
+    default:
+      return (
+        <div className="h-full overflow-hidden">
+          <ContentTab reference={reference} />
+        </div>
+      )
+  }
 }
 
 function IndexTab({ reference }: { reference: ReferenceInfo }) {
