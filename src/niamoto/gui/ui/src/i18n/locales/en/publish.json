@@ -44,6 +44,7 @@
     "previewTitle": "Site Preview",
     "previewDescription": "Preview of the generated site",
     "openNewTab": "New Tab",
+    "openBrowser": "Open in Browser",
     "outputPath": "Directory",
     "success": "Build completed successfully!",
     "error": "Build error",

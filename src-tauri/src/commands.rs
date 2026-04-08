@@ -2,6 +2,7 @@ use crate::config::{AppConfig, AppSettings, ProjectEntry};
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -253,6 +254,40 @@ pub async fn browse_folder(app: tauri::AppHandle) -> Result<Option<String>, Stri
         }
         None => Ok(None), // User cancelled
     }
+}
+
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed_url = url.trim();
+    if trimmed_url.is_empty() {
+        return Err("URL cannot be empty".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(trimmed_url);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("rundll32");
+        command.args(["url.dll,FileProtocolHandler", trimmed_url]);
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(trimmed_url);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("Failed to open external URL: {err}"))
 }
 
 #[cfg(test)]

@@ -398,6 +398,7 @@ pub fn run() {
             commands::set_app_settings,
             commands::create_project,
             commands::browse_folder,
+            commands::open_external_url,
         ])
         .setup(|app| {
             println!("Starting Niamoto Desktop Application...");

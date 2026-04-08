@@ -58,6 +58,7 @@ import {
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/lib/api/export'
 import { apiClient } from '@/shared/lib/api/client'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import PublishDeployContent, {
   getProjectName,
   PLATFORM_ORDER,
@@ -67,6 +68,15 @@ import PublishHistoryContent from '@/features/publish/views/history'
 
 function getExportedSitePreviewUrl(path: string) {
   return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
+}
+
+function getAbsolutePreviewUrl(path: string) {
+  const relativeUrl = getExportedSitePreviewUrl(path)
+  if (typeof window === 'undefined') {
+    return relativeUrl
+  }
+
+  return new URL(relativeUrl, window.location.origin).toString()
 }
 
 function getExportedHomePath(lang?: string, languages?: string[]) {
@@ -126,11 +136,26 @@ function StaticSitePreview({
   languages?: string[]
 }) {
   const { t } = useTranslation('publish')
+  const { isDesktop } = useRuntimeMode()
   const [iframeKey, setIframeKey] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const dims = DEVICE_DIMENSIONS[device]
   const previewUrl = getExportedSitePreviewUrl(getExportedHomePath(lang, languages))
+  const externalPreviewUrl = getAbsolutePreviewUrl(
+    getExportedHomePath(lang, languages)
+  )
+
+  const handleOpenPreview = async () => {
+    if (isDesktop && window.__TAURI__?.core) {
+      await window.__TAURI__.core.invoke('open_external_url', {
+        url: externalPreviewUrl,
+      })
+      return
+    }
+
+    window.open(externalPreviewUrl, '_blank', 'noopener,noreferrer')
+  }
 
   useEffect(() => {
     const update = () => {
@@ -172,11 +197,11 @@ function StaticSitePreview({
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 h-4 w-4" />
-              {t('build.openNewTab', 'Open in New Tab')}
-            </a>
+          <Button variant="outline" size="sm" onClick={() => void handleOpenPreview()}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            {isDesktop
+              ? t('build.openBrowser', 'Open in Browser')
+              : t('build.openNewTab', 'Open in New Tab')}
           </Button>
         </div>
       </div>
