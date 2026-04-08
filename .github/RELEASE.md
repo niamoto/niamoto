@@ -45,8 +45,7 @@ Once the tag is pushed, GitHub Actions will automatically:
 
 1. ✅ Build React UI
 2. ✅ Build binaries for all platforms:
-   - macOS Apple Silicon (arm64)
-   - macOS Intel (x86_64)
+   - macOS Apple Silicon (arm64) — Intel Macs run it via Rosetta 2
    - Linux x86_64
    - Linux arm64
    - Windows x86_64
@@ -64,19 +63,22 @@ The build takes approximately:
 
 ## 📦 What Gets Released
 
-Each release includes 5 CLI binaries and matching desktop bundles:
+Each release includes 4 CLI binaries and matching desktop bundles:
 
 | File | Platform | Size |
 |------|----------|------|
-| `niamoto-macos-arm64.tar.gz` | macOS Apple Silicon (M1/M2/M3/M4) | ~50-60 MB |
-| `niamoto-macos-x86_64.tar.gz` | macOS Intel (2019-2020 MacBooks) | ~50-60 MB |
+| `niamoto-macos-arm64.tar.gz` | macOS (Apple Silicon native; Intel via Rosetta 2) | ~50-60 MB |
 | `niamoto-linux-x86_64.tar.gz` | Linux x86_64 | ~50-60 MB |
 | `niamoto-linux-arm64.tar.gz` | Linux arm64 (Pi, Ampere, Graviton) | ~50-60 MB |
 | `niamoto-windows-x86_64.zip` | Windows 10/11 x86_64 | ~50-60 MB |
 
 Desktop bundles (`.dmg`, `.deb`, `.msi`) are produced for every platform above
-(except Windows arm64) by the `build-tauri.yml` workflow and attached to the
-same GitHub Release.
+by the `build-tauri.yml` workflow and attached to the same GitHub Release.
+
+**Note:** There is no free GitHub Actions runner for Intel macOS since late
+2024 (`macos-13` has been retired). Apple Silicon users get a native binary,
+Intel Mac users continue to use Rosetta 2 — which handles Tauri bundles and
+PyInstaller CLI binaries transparently.
 
 **Uncompressed binaries are ~130-140 MB each**
 
@@ -212,15 +214,15 @@ Examples:
 
 The workflow builds on:
 
-- **macOS-14**: Apple Silicon runner for native arm64 binaries
-- **macOS-13**: Intel runner for native x86_64 macOS binaries
+- **macos-14**: Apple Silicon runner for native arm64 binaries
 - **ubuntu-22.04**: Ubuntu 22.04 LTS for Linux x86_64 binaries
 - **ubuntu-22.04-arm**: Ubuntu 22.04 arm64 runner for Linux arm64 binaries
 - **windows-latest**: Windows Server 2022 for Windows x86_64 binaries
 
-**Note:** Intel macOS builds are included again to provide native binaries for
-2019-2020 MacBooks and other x86_64 systems. Apple Silicon users continue to
-receive native arm64 binaries.
+**Note:** Intel macOS is not part of the matrix because GitHub retired the
+free `macos-13` runner in late 2024. The paid `macos-13-large` alternative
+is not worth the cost for a niche audience — Intel Mac users run the arm64
+bundle via Rosetta 2 instead.
 
 ## 🔄 Updating the Workflow
 
