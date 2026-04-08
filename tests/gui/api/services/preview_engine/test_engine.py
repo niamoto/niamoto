@@ -7,6 +7,7 @@ import pandas as pd
 
 from niamoto.gui.api.services.preview_engine import engine as preview_engine_module
 from niamoto.gui.api.services.preview_engine.engine import PreviewEngine
+from niamoto.gui.api.services.preview_engine.models import PreviewRequest
 
 
 def _make_engine() -> PreviewEngine:
@@ -311,6 +312,46 @@ def test_render_occurrence_uses_transformer_service_pipeline():
         {"counts": [3, 1]},
         {"legend": True},
         "Elevation",
+    )
+
+
+def test_render_inline_class_object_reuses_configured_class_object_path():
+    engine = _make_engine()
+    db = MagicMock()
+    request = PreviewRequest(
+        group_by="plots",
+        inline={
+            "transformer_plugin": "class_object_series_extractor",
+            "transformer_params": {
+                "class_object": "top10_family",
+                "source": "plot_stats",
+            },
+            "widget_plugin": "bar_plot",
+            "widget_params": {"orientation": "horizontal"},
+            "widget_title": "Top familles",
+        },
+    )
+
+    with patch.object(
+        engine,
+        "_render_configured_class_object",
+        return_value="<div>class-object</div>",
+    ) as render_configured:
+        result = engine._render_inline(request, db, [])
+
+    assert result == "<div>class-object</div>"
+    render_configured.assert_called_once_with(
+        db,
+        "class_object_series_extractor",
+        {
+            "class_object": "top10_family",
+            "source": "plot_stats",
+        },
+        "bar_plot",
+        {"orientation": "horizontal"},
+        "Top familles",
+        "plots",
+        [],
     )
 
 

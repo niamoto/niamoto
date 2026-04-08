@@ -346,6 +346,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     const dependsOn = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:depends');
     const fieldValue = form ? form.watch(fieldName) : formData[fieldName];
     const dependsValue = dependsOn ? formData[dependsOn] : undefined;
+    const hasSelectableFields = resolvedAvailableFields.length > 0;
+    const hasExistingFieldValue = Array.isArray(fieldValue)
+      ? fieldValue.length > 0
+      : fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
 
     // Common props for all fields
     const commonProps = {
@@ -399,6 +403,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           return <CheckboxField key={fieldName} {...commonProps} />;
 
         case 'field-select':
+          if (!hasSelectableFields && !hasExistingFieldValue) {
+            return null;
+          }
           return (
             <FieldSelectField
               key={fieldName}
@@ -455,6 +462,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'multi-field-select':
+          if (!hasSelectableFields && !hasExistingFieldValue) {
+            return null;
+          }
           return (
             <ArrayField
               key={fieldName}

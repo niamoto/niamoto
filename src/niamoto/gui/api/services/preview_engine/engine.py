@@ -672,15 +672,15 @@ class PreviewEngine:
         try:
             # Class object transformers use CSV data
             if transformer_plugin.startswith("class_object_"):
-                co_data = load_class_object_data_for_preview(
-                    self._work_dir,
-                    transformer_params.get("source", ""),
+                return self._render_configured_class_object(
+                    db,
+                    transformer_plugin,
+                    transformer_params,
+                    widget_plugin,
+                    widget_params if isinstance(widget_params, dict) else None,
+                    widget_title,
                     group_by,
-                )
-                if not co_data:
-                    return self._info_html("Class object data not found")
-                result = execute_transformer(
-                    db, transformer_plugin, transformer_params, co_data
+                    warnings,
                 )
             else:
                 # Use TransformerService for real pipeline when possible
