@@ -45,8 +45,10 @@ Once the tag is pushed, GitHub Actions will automatically:
 
 1. ✅ Build React UI
 2. ✅ Build binaries for all platforms:
-   - macOS Apple Silicon (arm64) - works on Intel Macs via Rosetta 2
+   - macOS Apple Silicon (arm64)
+   - macOS Intel (x86_64)
    - Linux x86_64
+   - Linux arm64
    - Windows x86_64
 3. ✅ Create GitHub Release with all binaries
 4. ✅ Generate release notes
@@ -62,15 +64,19 @@ The build takes approximately:
 
 ## 📦 What Gets Released
 
-Each release includes 3 binaries:
+Each release includes 5 CLI binaries and matching desktop bundles:
 
 | File | Platform | Size |
 |------|----------|------|
-| `niamoto-macos-arm64.tar.gz` | macOS (all Macs via Rosetta 2) | ~50-60 MB |
+| `niamoto-macos-arm64.tar.gz` | macOS Apple Silicon (M1/M2/M3/M4) | ~50-60 MB |
+| `niamoto-macos-x86_64.tar.gz` | macOS Intel (2019-2020 MacBooks) | ~50-60 MB |
 | `niamoto-linux-x86_64.tar.gz` | Linux x86_64 | ~50-60 MB |
-| `niamoto-windows-x86_64.zip` | Windows 10/11 | ~50-60 MB |
+| `niamoto-linux-arm64.tar.gz` | Linux arm64 (Pi, Ampere, Graviton) | ~50-60 MB |
+| `niamoto-windows-x86_64.zip` | Windows 10/11 x86_64 | ~50-60 MB |
 
-**Note:** The macOS binary is arm64 only. Intel Macs will run it automatically via Rosetta 2.
+Desktop bundles (`.dmg`, `.deb`, `.msi`) are produced for every platform above
+(except Windows arm64) by the `build-tauri.yml` workflow and attached to the
+same GitHub Release.
 
 **Uncompressed binaries are ~130-140 MB each**
 
@@ -206,12 +212,15 @@ Examples:
 
 The workflow builds on:
 
-- **macOS-14**: Latest Apple Silicon runner (arm64) - Intel Macs use Rosetta 2
-- **ubuntu-22.04**: Ubuntu 22.04 LTS (glibc 2.35)
-- **windows-latest**: Windows Server 2022
+- **macOS-14**: Apple Silicon runner for native arm64 binaries
+- **macOS-13**: Intel runner for native x86_64 macOS binaries
+- **ubuntu-22.04**: Ubuntu 22.04 LTS for Linux x86_64 binaries
+- **ubuntu-22.04-arm**: Ubuntu 22.04 arm64 runner for Linux arm64 binaries
+- **windows-latest**: Windows Server 2022 for Windows x86_64 binaries
 
-**Note:** macOS Intel builds were removed to save GitHub Actions minutes (10x multiplier).
-Intel Macs can run arm64 binaries seamlessly via Rosetta 2.
+**Note:** Intel macOS builds are included again to provide native binaries for
+2019-2020 MacBooks and other x86_64 systems. Apple Silicon users continue to
+receive native arm64 binaries.
 
 ## 🔄 Updating the Workflow
 
