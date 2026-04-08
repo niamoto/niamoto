@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.13.0] - 2026-04-08
+
+### Features
+
+- Improve publish workspace and desktop window state
+- Refine panel navigation and transitions
+
+### Bug Fixes
+
+- Streamline widget detail preview and forms
+- Correct language switcher paths in exports
+- Harden desktop update relaunch flow
+
+### Refactoring
+
+- Polish publish preview copy and layout
+
+### Documentation
+
+- Add publish layout redesign spec
+
+### Other
+
+- Update Tauri lockfile for 0.12.4
+
 ## [v0.12.4] - 2026-04-08
 
 ### Bug Fixes
