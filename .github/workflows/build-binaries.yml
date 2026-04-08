@@ -52,13 +52,20 @@ jobs:
       matrix:
         include:
           # macOS Apple Silicon (M1/M2/M3/M4)
-          # Note: Intel Macs can run arm64 binaries via Rosetta 2
           - os: macos-14
             name: macOS-arm64
             platform: macos
             arch: arm64
             binary_name: niamoto
             asset_name: niamoto-macos-arm64
+
+          # macOS Intel (still common on 2019-2020 MacBooks)
+          - os: macos-13
+            name: macOS-x86_64
+            platform: macos
+            arch: x86_64
+            binary_name: niamoto
+            asset_name: niamoto-macos-x86_64
 
           # Linux x86_64
           - os: ubuntu-22.04
@@ -67,6 +74,14 @@ jobs:
             arch: x86_64
             binary_name: niamoto
             asset_name: niamoto-linux-x86_64
+
+          # Linux arm64 (Raspberry Pi, Ampere, AWS Graviton, UTM VMs)
+          - os: ubuntu-22.04-arm
+            name: Linux-arm64
+            platform: linux
+            arch: arm64
+            binary_name: niamoto
+            asset_name: niamoto-linux-arm64
 
           # Windows x86_64
           - os: windows-latest
@@ -189,8 +204,10 @@ jobs:
 
           | Platform | Download |
           |----------|----------|
-          | macOS (Apple Silicon & Intel) | `niamoto-macos-arm64.tar.gz` |
+          | macOS Apple Silicon | `niamoto-macos-arm64.tar.gz` |
+          | macOS Intel | `niamoto-macos-x86_64.tar.gz` |
           | Linux x86_64 | `niamoto-linux-x86_64.tar.gz` |
+          | Linux arm64 | `niamoto-linux-arm64.tar.gz` |
           | Windows x86_64 | `niamoto-windows-x86_64.zip` |
 
           ```bash
@@ -215,7 +232,9 @@ jobs:
           body_path: release_notes.md
           files: |
             artifacts/niamoto-macos-arm64/*.tar.gz
+            artifacts/niamoto-macos-x86_64/*.tar.gz
             artifacts/niamoto-linux-x86_64/*.tar.gz
+            artifacts/niamoto-linux-arm64/*.tar.gz
             artifacts/niamoto-windows-x86_64/*.zip
           draft: false
           prerelease: false
