@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { relaunch } from '@tauri-apps/plugin-process'
+import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
@@ -16,7 +18,7 @@ const APP_VERSION = __APP_VERSION__
 export function useAppUpdater() {
   const { isDesktop } = useRuntimeMode()
   const [info, setInfo] = useState<UpdateInfo>({ status: 'idle' })
-  const updateRef = useRef<Awaited<ReturnType<typeof import('@tauri-apps/plugin-updater').check>> | null>(null)
+  const updateRef = useRef<Awaited<ReturnType<typeof check>> | null>(null)
   const toastIdRef = useRef<string | number | undefined>(undefined)
   const isInstallingRef = useRef(false)
 
@@ -59,9 +61,21 @@ export function useAppUpdater() {
         duration: 2000,
       })
 
-      const { relaunch } = await import('@tauri-apps/plugin-process')
-      await relaunch()
+      try {
+        await relaunch()
+      } catch (err) {
+        updateRef.current = null
+        setInfo({ status: 'idle' })
+        toast('Mise à jour installée', {
+          id: toastIdRef.current,
+          description:
+            "Le redémarrage automatique a échoué. Relancez l'application manuellement.",
+          duration: 10000,
+        })
+        console.error('Update installed but relaunch failed:', err)
+      }
     } catch (err) {
+      updateRef.current = null
       setInfo({ status: 'idle' })
       toast.error('Échec de la mise à jour', {
         id: toastIdRef.current,
@@ -78,7 +92,6 @@ export function useAppUpdater() {
 
     setInfo({ status: 'checking' })
     try {
-      const { check } = await import('@tauri-apps/plugin-updater')
       const update = await check()
 
       if (update) {
