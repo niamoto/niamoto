@@ -44,6 +44,7 @@
     "previewTitle": "Aperçu du site",
     "previewDescription": "Prévisualisation du site généré",
     "openNewTab": "Nouvel onglet",
+    "openBrowser": "Ouvrir dans le navigateur",
     "outputPath": "Répertoire",
     "success": "Build terminé avec succès !",
     "error": "Erreur lors du build",

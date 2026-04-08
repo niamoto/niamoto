@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, ExternalLink, RefreshCw, Smartphone, Tablet, Monitor, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
 type ViewportSize = 'mobile' | 'tablet' | 'desktop'
 
@@ -10,8 +11,18 @@ function getExportedSitePreviewUrl(path: string) {
   return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
 }
 
+function getAbsolutePreviewUrl(path: string) {
+  const relativeUrl = getExportedSitePreviewUrl(path)
+  if (typeof window === 'undefined') {
+    return relativeUrl
+  }
+
+  return new URL(relativeUrl, window.location.origin).toString()
+}
+
 export function LivePreview() {
   const { t } = useTranslation(['tools', 'common'])
+  const { isDesktop } = useRuntimeMode()
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop')
   const [iframeKey, setIframeKey] = useState(0)
   const [siteExists, setSiteExists] = useState(true)
@@ -20,8 +31,17 @@ export function LivePreview() {
     setIframeKey(prev => prev + 1)
   }
 
-  const handleOpenNewTab = () => {
-    window.open(getExportedSitePreviewUrl('index.html'), '_blank')
+  const handleOpenPreview = async () => {
+    const previewUrl = getAbsolutePreviewUrl('index.html')
+
+    if (isDesktop && window.__TAURI__?.core) {
+      await window.__TAURI__.core.invoke('open_external_url', {
+        url: previewUrl,
+      })
+      return
+    }
+
+    window.open(previewUrl, '_blank', 'noopener,noreferrer')
   }
 
   const getIframeWidth = () => {
@@ -91,9 +111,9 @@ export function LivePreview() {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {t('common:actions.reset')}
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleOpenNewTab}>
+                <Button variant="outline" size="sm" onClick={() => void handleOpenPreview()}>
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  {t('livePreview.openNew')}
+                  {isDesktop ? t('publish:build.openBrowser', 'Open in Browser') : t('livePreview.openNew')}
                 </Button>
               </div>
             </div>
