@@ -298,6 +298,42 @@ class TestSiteGroups:
                 in html
             )
 
+    def test_preview_template_language_switcher_uses_preview_exported_urls(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "page.html",
+                        "context": {"title": "Methodology"},
+                        "site": {
+                            "title": "Niamoto",
+                            "lang": "fr",
+                            "languages": ["fr", "en"],
+                            "language_switcher": True,
+                        },
+                        "navigation": [],
+                        "footer_navigation": [],
+                        "output_file": "methodology.html",
+                        "gui_lang": "fr",
+                    },
+                )
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert (
+                'href="http://testserver/api/site/preview-exported/en/methodology.html"'
+                in html
+            )
+
     def test_preview_group_index_uses_absolute_backend_urls_for_assets(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)

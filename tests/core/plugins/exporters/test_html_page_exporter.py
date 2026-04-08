@@ -1123,6 +1123,52 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertIn("Niamoto FR", content)
         self.assertNotIn("{'fr': 'Niamoto FR', 'en': 'Niamoto EN'}", content)
 
+    def test_language_switcher_stays_under_export_root_for_multilang_static_pages(self):
+        """Language switcher links must keep multilingual static pages under /web."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        nav_template = Path("src/niamoto/publish/templates/_nav.html").read_text(
+            encoding="utf-8"
+        )
+        (self.template_dir / "_nav.html").write_text(nav_template, encoding="utf-8")
+        (self.template_dir / "_base.html").write_text(
+            """
+<!DOCTYPE html>
+<html>
+<body>
+    {% include "_nav.html" %}
+    {% block content %}{% endblock %}
+</body>
+</html>
+""",
+            encoding="utf-8",
+        )
+
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": str(self.template_dir),
+            "include_default_assets": False,
+            "site": {
+                "title": "Test Site",
+                "languages": ["fr", "en"],
+                "language_switcher": True,
+            },
+        }
+        self.target_config.static_pages = [
+            StaticPageConfig(
+                name="home",
+                output_file="index.html",
+                template="_layouts/static_page.html",
+                context=StaticPageContext(title="Home"),
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        fr_home = (self.output_dir / "fr" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="../en/index.html"', fr_home)
+        self.assertNotIn('href="../../en/index.html"', fr_home)
+
     @patch("niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home")
     def test_project_files_are_copied_even_without_user_assets(self, mock_home):
         """Project files must still be copied when copy_assets_from is empty."""

@@ -21,7 +21,7 @@
 
         <div class="w-full flex-grow lg:flex lg:items-center lg:w-auto hidden lg:block pt-6 lg:pt-0" id="nav-content">
             <ul class="list-reset lg:flex justify-end flex-1 items-center">
-                {% if navigation %}
+{% if navigation %}
                     {% for item in navigation %}
                         {% if item.children and item.children|length > 0 %}
                             <!-- Menu item with dropdown -->
@@ -85,8 +85,13 @@
                                             <i class="fas fa-check mr-2"></i>{{ lang | upper }}
                                         </span>
                                     {% else %}
+                                        {% if preview_exported_base_url %}
+                                            {% set language_switcher_href = preview_exported_base_url ~ '/' ~ lang ~ '/' ~ (output_file | default('index.html')) %}
+                                        {% else %}
+                                            {% set language_switcher_href = '../' * (depth|default(0)) ~ lang ~ '/' ~ (output_file | default('index.html')) %}
+                                        {% endif %}
                                         <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-green-600"
-                                           href="{{ '../' * (depth|default(0) + 1) }}{{ lang }}/{{ output_file | default('index.html') }}">
+                                           href="{{ language_switcher_href }}">
                                             {{ lang | upper }}
                                         </a>
                                     {% endif %}
