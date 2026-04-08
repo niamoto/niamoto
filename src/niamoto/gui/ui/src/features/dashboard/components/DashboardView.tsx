@@ -24,11 +24,15 @@ export function DashboardView() {
     pipeline.groups.status === "stale" ||
     pipeline.site.status === "stale" ||
     pipeline.publication.status === "stale"
+  const hasPendingFirstRun =
+    pipeline.groups.status === "never_run" ||
+    pipeline.site.status === "never_run" ||
+    pipeline.publication.status === "never_run"
 
   const staleGroups =
-    pipeline.groups.items?.filter(
-      (item) => item.status === "stale" || item.status === "never_run",
-    ) ?? []
+    pipeline.groups.items?.filter((item) => item.status === "stale") ?? []
+  const neverRunGroups =
+    pipeline.groups.items?.filter((item) => item.status === "never_run") ?? []
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -40,6 +44,13 @@ export function DashboardView() {
           {hasStale ? (
             <p className="text-amber-600 dark:text-amber-400">
               {t("pipeline.dashboard.stale_subtitle", "Updates are needed")}
+            </p>
+          ) : hasPendingFirstRun ? (
+            <p className="text-muted-foreground">
+              {t(
+                "pipeline.dashboard.pending_subtitle",
+                "Initial steps are still pending",
+              )}
             </p>
           ) : (
             <p className="text-green-600 dark:text-green-400">
@@ -89,6 +100,26 @@ export function DashboardView() {
         </div>
       )}
 
+      {!hasStale && neverRunGroups.length > 0 && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/30">
+          <div className="flex items-start gap-3">
+            <RefreshCw className="mt-0.5 h-5 w-5 text-sky-600 dark:text-sky-400" />
+            <div className="flex-1">
+              <p className="font-medium text-sky-800 dark:text-sky-300">
+                {t("pipeline.first_run.title", "First calculations")}
+              </p>
+              <p className="mt-1 text-sm text-sky-700 dark:text-sky-400">
+                {t(
+                  "pipeline.first_run.description",
+                  "Calculate {{count}} collection(s) to initialize results before building and publishing.",
+                  { count: neverRunGroups.length },
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CardEntrance className="grid gap-4 sm:grid-cols-2">
         <CardEntranceItem>
           <StageCard
@@ -115,8 +146,11 @@ export function DashboardView() {
             iconBgClass="bg-amber-50 dark:bg-amber-950/40"
             actionLabel={t("pipeline.action_recalculate", "Recalculate")}
             onAction={() => navigate("/groups")}
+            showActionWhen={["stale", "never_run"]}
           >
             <CollectionsSummary
+              status={pipeline.groups.status}
+              groups={pipeline.groups.summary?.groups}
               items={
                 pipeline.groups.items?.map((item) => ({
                   name: item.name,

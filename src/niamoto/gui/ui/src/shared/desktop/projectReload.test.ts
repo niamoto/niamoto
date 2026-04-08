@@ -39,7 +39,7 @@ describe('reloadDesktopProject', () => {
           success: true,
           state: 'welcome',
           project: null,
-          message: 'No desktop project selected.',
+          message: null,
         })
       )
     )
@@ -48,7 +48,9 @@ describe('reloadDesktopProject', () => {
       reloadDesktopProject({
         allowStates: ['loaded'],
       })
-    ).rejects.toThrow('No desktop project selected.')
+    ).rejects.toThrow(
+      'Unexpected project reload state returned by the server: welcome'
+    )
   })
 
   it('rejects a mismatched expected project', async () => {

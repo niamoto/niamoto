@@ -811,6 +811,17 @@ class ColumnDetector:
             and source_hint["token"] != "locality"
         ):
             adjustment += 0.08
+        if (
+            source_hint["category"] == "label"
+            and target_hint["category"] == "identifier"
+        ):
+            adjustment -= 0.24
+        if (
+            source_hint["category"] == "label"
+            and source_hint["token"]
+            and target_col.lower() == source_hint["token"]
+        ):
+            adjustment += 0.08
 
         if source_entity_token and source_hint["token"] == source_entity_token:
             adjustment += 0.04
@@ -865,19 +876,25 @@ class ColumnDetector:
             if has_identifier_marker:
                 semantic_type = "identifier.plot"
                 category = "identifier"
-            elif has_label_marker:
-                semantic_type = "identifier.plot"
+            elif has_label_marker or normalized == token:
+                semantic_type = "label.plot"
                 category = "label"
         elif token == "taxon":
             if has_identifier_marker:
                 semantic_type = "identifier.taxon"
                 category = "identifier"
-            else:
+            elif has_label_marker or normalized == token:
                 semantic_type = "taxonomy.name"
-                category = "label" if has_label_marker else "taxonomy"
+                category = "label"
+            else:
+                category = "taxonomy"
         elif token == "locality":
-            semantic_type = "location.locality"
-            category = "identifier" if has_identifier_marker else "label"
+            if has_identifier_marker:
+                semantic_type = "location.locality"
+                category = "identifier"
+            else:
+                semantic_type = "label.locality"
+                category = "label"
         elif has_identifier_marker:
             semantic_type = "identifier.record"
             category = "identifier"
@@ -981,6 +998,7 @@ class GeoPackageAnalyzer:
             Dictionary with analysis results including classification
         """
         import geopandas as gpd
+        from pandas.api.types import is_string_dtype
         import pyogrio
 
         if not filepath.exists():
@@ -1012,21 +1030,38 @@ class GeoPackageAnalyzer:
             # Extract attribute info
             attributes = {}
             name_field_candidates = []
+            detected_name_columns = set(
+                ColumnDetector.detect_name_columns(columns_no_geom)
+            )
 
             for col in columns_no_geom:
-                dtype = str(gdf[col].dtype)
-                unique_count = gdf[col].nunique()
+                series = gdf[col]
+                dtype = str(series.dtype)
+                unique_count = series.nunique()
                 unique_ratio = unique_count / row_count if row_count > 0 else 0
 
                 attributes[col] = {
                     "type": dtype,
                     "unique_count": unique_count,
                     "unique_ratio": round(unique_ratio, 2),
-                    "sample_values": list(gdf[col].dropna().head(3).astype(str)),
+                    "sample_values": list(series.dropna().head(3).astype(str)),
                 }
 
-                # Candidate for name_field: string type with high uniqueness
-                if dtype == "object" and unique_ratio > 0.5:
+                col_lower = col.lower()
+                looks_like_identifier = any(
+                    marker in col_lower.split("_")
+                    or col_lower.startswith(f"{marker}_")
+                    or col_lower.endswith(f"_{marker}")
+                    for marker in ("id", "code", "uuid", "key", "ref")
+                )
+
+                # Candidate for name_field:
+                # - any obvious name/label column
+                # - otherwise any distinct string column that does not look like an ID
+                if is_string_dtype(series.dtype) and (
+                    col in detected_name_columns
+                    or (unique_ratio > 0.5 and not looks_like_identifier)
+                ):
                     name_field_candidates.append(col)
 
             # Classify as shapes or layers

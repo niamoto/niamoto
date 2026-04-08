@@ -22,6 +22,7 @@ def _base_job(job_id: str = "job-1") -> dict:
         "current_entity": None,
         "current_entity_type": None,
         "errors": [],
+        "error_details": None,
         "warnings": [],
         "events": [],
     }
@@ -156,8 +157,12 @@ def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path)
     assert job["status"] == "failed"
     assert job["phase"] == "failed"
     assert job["errors"]
+    assert job["error_details"]["error_type"] == "RuntimeError"
+    assert "boom" in job["error_details"]["message"]
+    assert "traceback" in job["error_details"]
     assert job["events"][-1]["kind"] == "error"
     assert "Import failed" in job["events"][-1]["message"]
+    assert job["events"][-1]["details"]["error_type"] == "RuntimeError"
 
 
 def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):

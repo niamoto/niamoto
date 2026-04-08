@@ -143,11 +143,6 @@ class ConfigRefCollector:
             "group_by_field",
             "group_by_label_field",
         ),
-        "entity_map_extractor": (
-            "geometry_field",
-            "name_field",
-            "id_field",
-        ),
     }
 
     def collect(
@@ -532,10 +527,6 @@ class ConfigRefCollector:
             if plugin_name == "hierarchical_nav_widget":
                 if referential_data != entity_name or group_by != entity_name:
                     continue
-            elif plugin_name == "entity_map_extractor":
-                entity_table = str(params.get("entity_table", "") or "")
-                if not self._matches_entity_table(entity_name, entity_table):
-                    continue
             else:
                 continue
             for field_name in fields:
@@ -803,17 +794,6 @@ class ConfigRefCollector:
         return "/" in data_entity and (
             source_name == entity_name or Path(data_entity).stem == entity_name
         )
-
-    @staticmethod
-    def _matches_entity_table(entity_name: str, entity_table: str) -> bool:
-        if not entity_table:
-            return False
-        normalized = entity_table
-        for prefix in ("entity_", "dataset_", "reference_"):
-            if normalized.startswith(prefix):
-                normalized = normalized[len(prefix) :]
-                break
-        return normalized == entity_name
 
     # -- helpers -------------------------------------------------------------
 

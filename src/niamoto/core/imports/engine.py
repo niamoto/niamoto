@@ -53,6 +53,23 @@ class GenericImporter:
         self.data_analyzer = DataAnalyzer()
         self.transformer_suggester = TransformerSuggester()
 
+    def _write_dataframe_to_table(self, df: pd.DataFrame, table_name: str) -> None:
+        """Persist a DataFrame without triggering DuckDB reflection on replace.
+
+        Recent SQLAlchemy + duckdb-engine combinations can fail when pandas uses
+        ``if_exists="replace"`` because pandas reflects the table through
+        PostgreSQL-style system catalogs. For DuckDB we avoid that code path by
+        dropping the table ourselves, then creating it with ``if_exists="fail"``.
+        """
+
+        if self.db.is_duckdb:
+            quoted_table = str(quoted_name(table_name, quote=True))
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+            df.to_sql(table_name, self.db.engine, if_exists="fail", index=False)
+            return
+
+        df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+
     def import_from_csv(
         self,
         *,
@@ -112,7 +129,7 @@ class GenericImporter:
             if "extra_data" not in df.columns:
                 df["extra_data"] = None
 
-            df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+            self._write_dataframe_to_table(df, table_name)
 
         # Convert WKT geometry columns to native GEOMETRY for spatial queries
         self._convert_wkt_columns_to_geometry(table_name, df.columns.tolist())
@@ -227,18 +244,12 @@ class GenericImporter:
             )
             return ImportResult(rows=0, table=table_name)
 
-        # 2. Write to database (SQLAlchemy via pandas.to_sql)
-        # Drop existing
-        self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-
         # Add extra_data column if not present
         if "extra_data" not in hierarchy_df.columns:
             hierarchy_df["extra_data"] = None
 
         # Create from DataFrame (works with both SQLite and DuckDB)
-        hierarchy_df.to_sql(
-            table_name, self.db.engine, if_exists="replace", index=False
-        )
+        self._write_dataframe_to_table(hierarchy_df, table_name)
 
         # 3. Register in registry with derived metadata
         external_id_field = f"{entity_name}_id" if extraction_config.id_column else None
@@ -390,7 +401,7 @@ class GenericImporter:
 
         # Write to database
         primary_key = id_field or "id"
-        df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+        self._write_dataframe_to_table(df, table_name)
 
         # Convert WKT location to native GEOMETRY for spatial queries
         self._add_native_geometry_column(table_name, "location", "geometry")

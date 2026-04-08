@@ -20,6 +20,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
+    "ignoreDeprecations": "6.0",
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 

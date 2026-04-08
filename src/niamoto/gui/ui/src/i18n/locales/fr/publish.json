@@ -50,6 +50,7 @@
     "advancedOptions": "Options avancées",
     "lastGenerated": "Dernière génération",
     "includeTransform": "Recalculer les statistiques avant la génération",
+    "includeTransformInitial": "Calculer les statistiques avant la génération",
     "phaseTransform": "Phase 1/2 : Transformations",
     "phaseExport": "Phase 2/2 : Export",
     "phaseTransformLabel": "Transformations",

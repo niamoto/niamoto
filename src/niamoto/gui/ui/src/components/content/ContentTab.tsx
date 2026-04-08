@@ -9,7 +9,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PanelLeft, Plus } from 'lucide-react'
-import type { ImperativePanelHandle } from 'react-resizable-panels'
+import type { PanelImperativeHandle } from 'react-resizable-panels'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -164,7 +164,7 @@ export function ContentTab({ reference }: ContentTabProps) {
     setSelectedWidgetId(null)
   }, [refetchWidgets])
 
-  const leftPanelRef = useRef<ImperativePanelHandle>(null)
+  const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const togglePanel = useCallback(() => {
@@ -172,8 +172,10 @@ export function ContentTab({ reference }: ContentTabProps) {
     if (!panel) return
     if (isCollapsed) {
       panel.expand()
+      setIsCollapsed(false)
     } else {
       panel.collapse()
+      setIsCollapsed(true)
     }
   }, [isCollapsed])
 
@@ -182,14 +184,13 @@ export function ContentTab({ reference }: ContentTabProps) {
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Panel - Widget List */}
         <ResizablePanel
-          ref={leftPanelRef}
-          defaultSize={28}
-          minSize={15}
-          maxSize={40}
+          panelRef={leftPanelRef}
+          defaultSize="28%"
+          minSize="15%"
+          maxSize="40%"
           collapsible
           collapsedSize={0}
-          onCollapse={() => setIsCollapsed(true)}
-          onExpand={() => setIsCollapsed(false)}
+          onResize={(panelSize) => setIsCollapsed(panelSize.asPercentage === 0)}
         >
           <div className="relative h-full">
           <div className="absolute inset-0 flex flex-col">
@@ -254,7 +255,7 @@ export function ContentTab({ reference }: ContentTabProps) {
         <ResizableHandle />
 
         {/* Right Panel - Contextual */}
-        <ResizablePanel defaultSize={72} minSize={55}>
+        <ResizablePanel defaultSize="72%" minSize="55%">
           <div className="relative h-full">
           <div className="absolute inset-0 flex flex-col">
             {/* Collapsed toolbar: toggle + add widget */}

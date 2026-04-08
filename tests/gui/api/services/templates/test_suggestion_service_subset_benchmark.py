@@ -99,12 +99,14 @@ def test_subset_instance_suggestions_cover_navigation_maps_and_widgets(
 
     assert {s["template_id"] for s in plot_maps} >= {
         "plots_geo_pt_entity_map",
-        "plots_geo_pt_all_map",
     }
     assert {s["template_id"] for s in shape_maps} >= {
         "shapes_location_entity_map",
-        "shapes_location_all_map",
     }
+    assert all(s["plugin"] == "geospatial_extractor" for s in plot_maps)
+    assert all(s["widget_plugin"] == "interactive_map" for s in plot_maps)
+    assert all(s["plugin"] == "geospatial_extractor" for s in shape_maps)
+    assert all(s["widget_plugin"] == "interactive_map" for s in shape_maps)
 
     assert any(
         suggestion["template_id"] == "basal_area_binned_distribution_bar_plot"

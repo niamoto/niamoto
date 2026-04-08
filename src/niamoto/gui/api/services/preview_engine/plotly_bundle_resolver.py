@@ -82,9 +82,9 @@ def get_plotly_script_tag(bundle: BundleTier) -> str:
     # qui n'existe pas dans les navigateurs (seulement Node.js).
     parts = [
         "    <script>var global = globalThis;</script>",
-        f'    <script src="{path}"></script>',
+        f'    <script src="{path}" crossorigin="anonymous"></script>',
     ]
     if bundle == "maps":
         for extra in _MAP_EXTRA_SCRIPTS:
-            parts.append(f'    <script src="{extra}"></script>')
+            parts.append(f'    <script src="{extra}" crossorigin="anonymous"></script>')
     return "\n".join(parts)

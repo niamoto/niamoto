@@ -248,8 +248,6 @@ fn launch_fastapi_server(
     if let Some(home) = niamoto_home {
         println!("Setting NIAMOTO_HOME to: {}", home);
         command.env("NIAMOTO_HOME", home);
-    } else {
-        println!("No project selected - running in standalone mode");
     }
 
     // On Unix, start the sidecar in its own process group
@@ -445,14 +443,6 @@ pub fn run() {
                     &startup_session,
                     "rust",
                     &format!("current project set to {home}"),
-                );
-            } else {
-                println!("No project selected - running in standalone mode");
-                write_startup_log(
-                    &startup_log_path,
-                    &startup_session,
-                    "rust",
-                    "no current project selected",
                 );
             }
 

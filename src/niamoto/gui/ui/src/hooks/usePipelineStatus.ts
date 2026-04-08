@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/shared/lib/api/client'
+import { useProjectInfo } from '@/hooks/useProjectInfo'
 
-export type FreshnessStatus = 'fresh' | 'stale' | 'never_run' | 'running' | 'error'
+export type FreshnessStatus = 'fresh' | 'stale' | 'never_run' | 'unconfigured' | 'running' | 'error'
 
 export interface EntityStatus {
   name: string
@@ -51,15 +52,22 @@ export interface PipelineStatus {
 }
 
 export function usePipelineStatus(enabled = true) {
+  const { data: projectInfo, isSuccess: hasProjectInfo } = useProjectInfo()
+
   return useQuery<PipelineStatus>({
-    queryKey: ['pipeline-status'],
+    queryKey: [
+      'pipeline-status',
+      projectInfo?.name ?? null,
+      projectInfo?.created_at ?? null,
+    ],
     queryFn: async () => {
       const response = await apiClient.get('/pipeline/status')
       return response.data
     },
-    enabled,
+    enabled: enabled && hasProjectInfo,
     refetchInterval: 30_000, // Poll every 30s
     staleTime: 10_000,       // Consider fresh for 10s
+    refetchOnMount: 'always',
     retry: 1,
   })
 }

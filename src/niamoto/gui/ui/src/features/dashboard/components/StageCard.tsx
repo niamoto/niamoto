@@ -19,6 +19,7 @@ interface StageCardProps {
   iconBgClass: string
   actionLabel?: string
   onAction?: () => void
+  showActionWhen?: FreshnessStatus[]
   children?: ReactNode
 }
 
@@ -31,6 +32,7 @@ function StatusBadge({ status }: { status: FreshnessStatus }) {
     case "running":
       return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
     case "never_run":
+    case "unconfigured":
       return <Circle className="h-4 w-4 text-muted-foreground" />
     case "error":
       return <Circle className="h-4 w-4 text-muted-foreground" />
@@ -46,6 +48,7 @@ export function StageCard({
   iconBgClass,
   actionLabel,
   onAction,
+  showActionWhen = ["stale"],
   children,
 }: StageCardProps) {
   const { t, i18n } = useTranslation("common")
@@ -126,6 +129,8 @@ export function StageCard({
                     "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
                   item.status === "never_run" &&
                     "bg-muted text-muted-foreground",
+                  item.status === "unconfigured" &&
+                    "bg-muted text-muted-foreground",
                 )}
               >
                 <StatusBadge status={item.status} />
@@ -135,7 +140,7 @@ export function StageCard({
           </div>
         )}
 
-        {status === "stale" && onAction && (
+        {showActionWhen.includes(status) && onAction && (
           <Button
             size="sm"
             variant="outline"

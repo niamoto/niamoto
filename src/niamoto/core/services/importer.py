@@ -207,7 +207,14 @@ class ImporterService:
                 raise
             raise DataImportError(
                 f"Failed to import reference '{name}'",
-                details={"error": str(exc)},
+                details={
+                    "error": str(exc),
+                    "cause_type": type(exc).__name__,
+                    "entity_name": name,
+                    "connector_type": config.connector.type.value
+                    if config.connector
+                    else None,
+                },
             ) from exc
 
     @error_handler(log=True, raise_error=True)
@@ -276,7 +283,15 @@ class ImporterService:
         except Exception as exc:
             raise DataImportError(
                 f"Failed to import dataset '{name}'",
-                details={"file": str(source_path), "error": str(exc)},
+                details={
+                    "file": str(source_path),
+                    "error": str(exc),
+                    "cause_type": type(exc).__name__,
+                    "entity_name": name,
+                    "connector_type": config.connector.type.value
+                    if config.connector
+                    else None,
+                },
             ) from exc
 
     def _validate_dependencies(self, config: GenericImportConfig) -> None:

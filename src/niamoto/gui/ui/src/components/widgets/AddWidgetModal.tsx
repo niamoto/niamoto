@@ -114,14 +114,6 @@ interface WidgetPreviewProps {
 }
 
 
-function isHeavyMapSuggestion(
-  templateId: string,
-  plugin?: string,
-  category?: string
-): boolean {
-  return category === 'map' && plugin === 'entity_map_extractor' && templateId.endsWith('_all_map')
-}
-
 /**
  * Build a PreviewDescriptor from inline plugin config or template_id fallback.
  * Shared by WidgetPreview, LargePreview, and CombinedPreview.
@@ -524,10 +516,7 @@ export function AddWidgetModal({
 
   // Get available fields from suggestions
   const visibleSuggestions = useMemo(
-    () =>
-      suggestions.filter(
-        (s) => !isHeavyMapSuggestion(s.template_id, s.plugin, s.category)
-      ),
+    () => suggestions,
     [suggestions]
   )
 
@@ -588,14 +577,6 @@ export function AddWidgetModal({
   const deferredFocusedSuggestion = useDeferredValue(focusedSuggestion)
   const previewSuggestionId = deferredFocusedSuggestion || null
   const previewSuggestion = visibleSuggestions.find((s) => s.template_id === previewSuggestionId)
-  const isHeavyMapPreview = previewSuggestion
-    ? isHeavyMapSuggestion(
-        previewSuggestion.template_id,
-        previewSuggestion.plugin,
-        previewSuggestion.category
-      )
-    : false
-
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
     if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
@@ -1185,11 +1166,6 @@ export function AddWidgetModal({
                                               widgetPlugin={suggestion.widget_plugin}
                                               widgetParams={suggestion.widget_params}
                                               widgetTitle={suggestion.name}
-                                              disablePreview={isHeavyMapSuggestion(
-                                                suggestion.template_id,
-                                                suggestion.plugin,
-                                                suggestion.category
-                                              )}
                                               width={100}
                                               height={75}
                                             />
@@ -1289,7 +1265,6 @@ export function AddWidgetModal({
                           widgetPlugin={previewSuggestion.widget_plugin}
                           widgetParams={previewSuggestion.widget_params}
                           widgetTitle={previewSuggestion.name}
-                          disablePreview={isHeavyMapPreview}
                         />
 
                         {/* Info */}

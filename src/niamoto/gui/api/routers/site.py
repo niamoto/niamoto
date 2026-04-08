@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 import yaml
@@ -1027,6 +1027,13 @@ async def preview_markdown(request: MarkdownPreviewRequest):
         )
 
 
+def _get_preview_api_base_url(http_request: Request | None) -> str:
+    """Return the absolute /api/site base URL used inside preview HTML."""
+    if http_request is None:
+        return "/api/site"
+    return f"{str(http_request.base_url).rstrip('/')}/api/site"
+
+
 def _setup_jinja_environment():
     """
     Set up Jinja2 environment with project and default templates.
@@ -1073,14 +1080,11 @@ def _setup_jinja_environment():
     )
     jinja_env.filters["relative_url"] = relative_url_filter
 
-    # Base URL for assets (API endpoint)
-    base_url = "/api/site"
-
-    return jinja_env, base_url, work_dir
+    return jinja_env, work_dir
 
 
 @router.post("/preview-template", response_model=TemplatePreviewResponse)
-async def preview_template(request: TemplatePreviewRequest):
+async def preview_template(request: TemplatePreviewRequest, http_request: Request):
     """
     Render a Jinja2 template with the provided context for preview.
 
@@ -1088,7 +1092,8 @@ async def preview_template(request: TemplatePreviewRequest):
     with the current site configuration and page-specific context.
     """
     try:
-        jinja_env, base_url, work_dir = _setup_jinja_environment()
+        jinja_env, work_dir = _setup_jinja_environment()
+        base_url = _get_preview_api_base_url(http_request)
 
         # Load the template
         try:
@@ -1424,7 +1429,9 @@ def _generate_mock_items(
     "/preview-group-index/{group_name}", response_model=TemplatePreviewResponse
 )
 async def preview_group_index(
-    group_name: str, request: GroupIndexPreviewRequest = None
+    group_name: str,
+    http_request: Request,
+    request: GroupIndexPreviewRequest = None,
 ):
     """
     Generate a preview of a group index page with mock data.
@@ -1464,7 +1471,8 @@ async def preview_group_index(
             )
 
         # Setup Jinja environment
-        jinja_env, base_url, work_dir = _setup_jinja_environment()
+        jinja_env, work_dir = _setup_jinja_environment()
+        base_url = _get_preview_api_base_url(http_request)
 
         # Load the template (default to _group_index.html)
         template_name = index_gen.get("template", "_group_index.html")
@@ -2117,8 +2125,9 @@ async def serve_niamoto_assets(filepath: str):
     if "/vendor/" in filepath and file_path.suffix == ".js":
         headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
-    # Fonts need CORS headers for srcdoc iframe preview (origin: null)
-    if extension in (".woff", ".woff2", ".ttf", ".eot"):
+    # Preview iframes use srcdoc (origin: null), so vendor assets loaded from
+    # /api/site/assets must opt into cross-origin use explicitly.
+    if extension in (".js", ".css", ".woff", ".woff2", ".ttf", ".eot"):
         headers["Access-Control-Allow-Origin"] = "*"
 
     return FileResponse(file_path, media_type=media_type, headers=headers)

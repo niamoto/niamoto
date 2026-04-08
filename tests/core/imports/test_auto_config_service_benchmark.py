@@ -5,7 +5,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import geopandas as gpd
 import pytest
+from shapely.geometry import Polygon
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 
@@ -209,3 +211,100 @@ class TestAutoConfigServiceBenchmark:
             "foreign_key": "plot_name",
             "reference_key": "plot",
         }
+
+    def test_reference_relation_prefers_plot_label_when_dataset_values_start_empty(
+        self, benchmark_service: AutoConfigService, tmp_path: Path
+    ):
+        imports_dir = tmp_path / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        (imports_dir / "sample_occurrences.csv").write_text(
+            "\n".join(
+                [
+                    "id,plot_name,measurement",
+                    "1,,10.5",
+                    "2,,11.2",
+                    "3,,9.8",
+                    "4,Plot A,12.1",
+                    "5,Plot B,13.4",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "sample_plots.csv").write_text(
+            "\n".join(
+                [
+                    "id_plot,plot,elevation",
+                    "1,Plot A,150",
+                    "2,Plot B,180",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = benchmark_service.auto_configure(
+            [
+                "imports/sample_occurrences.csv",
+                "imports/sample_plots.csv",
+            ]
+        )
+
+        relation = result["entities"]["references"]["sample_plots"]["relation"]
+
+        assert relation == {
+            "dataset": "sample_occurrences",
+            "foreign_key": "plot_name",
+            "reference_key": "plot",
+        }
+
+    def test_shape_stats_attach_to_detected_shapes_reference(
+        self, benchmark_service: AutoConfigService, tmp_path: Path
+    ):
+        imports_dir = tmp_path / "imports"
+        imports_dir.mkdir(exist_ok=True)
+
+        (imports_dir / "raw_shape_stats.csv").write_text(
+            "\n".join(
+                [
+                    "id,label,class_object,class_name,class_value",
+                    "provinces_1,PROVINCE NORD,cover_forest,Forêt,0.34",
+                    "provinces_2,PROVINCE SUD,cover_forest,Hors-forêt,0.66",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        gdf = gpd.GeoDataFrame(
+            {
+                "nom": ["PROVINCE NORD", "PROVINCE SUD"],
+                "code_com": ["98827", "98828"],
+            },
+            geometry=[
+                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
+                Polygon([(2, 0), (3, 0), (3, 1), (2, 1)]),
+            ],
+            crs="EPSG:4326",
+        )
+        gdf.to_file(imports_dir / "provinces.gpkg", driver="GPKG")
+
+        result = benchmark_service.auto_configure(
+            [
+                "imports/raw_shape_stats.csv",
+                "imports/provinces.gpkg",
+            ]
+        )
+
+        assert "shapes" in result["entities"]["references"]
+        assert "raw_shape_stats" not in result["entities"]["datasets"]
+        assert "raw_shape_stats" not in result["entities"]["references"]
+        assert (
+            result["decision_summary"]["raw_shape_stats"]["final_entity_type"]
+            == "auxiliary_source"
+        )
+        assert result["decision_summary"]["raw_shape_stats"]["review_level"] == "stable"
+        assert any(
+            source["name"] == "shape_stats" and source["grouping"] == "shapes"
+            for source in result["auxiliary_sources"]
+        )

@@ -319,6 +319,18 @@ def test_multi_feature_import_reprojects_to_wgs84(tmp_path, monkeypatch):
 
     assert result.rows == 2  # One type node + one feature
 
+    # Re-import the same entity to ensure DuckDB writes do not depend on
+    # pandas' SQLAlchemy reflection-based "replace" path.
+    second_result = importer.import_multi_feature(
+        entity_name="shapes_test",
+        table_name="entity_shapes_test",
+        sources=sources,
+        kind=EntityKind.REFERENCE,
+        id_field="id",
+    )
+
+    assert second_result.rows == 2
+
     df = pd.read_sql(
         'SELECT name, location, shape_type FROM "entity_shapes_test"',
         db.engine,

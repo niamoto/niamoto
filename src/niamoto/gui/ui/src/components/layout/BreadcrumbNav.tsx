@@ -20,6 +20,25 @@ const stageLabels: Record<string, { freshKey: string; staleKey: string }> = {
   publication: { freshKey: 'pipeline.publication_fresh', staleKey: 'pipeline.publication_stale' },
 }
 
+function getDisplayStatus(
+  stage: 'data' | 'groups' | 'site' | 'publication' | null,
+  status: FreshnessStatus,
+  itemStatuses: FreshnessStatus[] = []
+): FreshnessStatus {
+  if (stage !== 'groups' || itemStatuses.length === 0) {
+    return status
+  }
+
+  const hasStale = itemStatuses.includes('stale')
+  const hasNeverRun = itemStatuses.includes('never_run')
+
+  if (!hasStale && hasNeverRun) {
+    return 'never_run'
+  }
+
+  return status
+}
+
 function StatusDot({ status }: { status: FreshnessStatus }) {
   return (
     <span
@@ -29,7 +48,8 @@ function StatusDot({ status }: { status: FreshnessStatus }) {
         status === 'stale' && 'bg-amber-500',
         status === 'running' && 'bg-blue-500',
         status === 'error' && 'bg-red-500',
-        status === 'never_run' && 'bg-muted-foreground/30'
+        status === 'never_run' && 'bg-muted-foreground/30',
+        status === 'unconfigured' && 'bg-muted-foreground/30'
       )}
     />
   )
@@ -55,6 +75,11 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
   )
   const stage = matchedPrefix ? routeToStage[matchedPrefix] : null
   const stageData = stage && pipeline ? pipeline[stage] : null
+  const displayStatus = getDisplayStatus(
+    stage,
+    stageData?.status ?? 'never_run',
+    stageData?.items?.map((item) => item.status) ?? []
+  )
 
   return (
     <nav
@@ -100,23 +125,23 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
       </ol>
 
       {/* Pipeline status indicator */}
-      {stageData && stageData.status !== 'never_run' && (
+      {stageData && displayStatus !== 'never_run' && displayStatus !== 'unconfigured' && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {stageData.status === 'running' ? (
+          {displayStatus === 'running' ? (
             <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
           ) : (
-            <StatusDot status={stageData.status} />
+            <StatusDot status={displayStatus} />
           )}
           <span
             className={cn(
-              stageData.status === 'fresh' && 'text-green-600 dark:text-green-400',
-              stageData.status === 'stale' && 'text-amber-600 dark:text-amber-400',
-              stageData.status === 'running' && 'text-blue-600 dark:text-blue-400'
+              displayStatus === 'fresh' && 'text-green-600 dark:text-green-400',
+              displayStatus === 'stale' && 'text-amber-600 dark:text-amber-400',
+              displayStatus === 'running' && 'text-blue-600 dark:text-blue-400'
             )}
           >
-            {stageData.status === 'running'
+            {displayStatus === 'running'
               ? t('pipeline.running', 'Processing...')
-              : stageData.status === 'fresh'
+              : displayStatus === 'fresh'
                 ? t(stageLabels[stage!].freshKey, 'Up to date')
                 : t(stageLabels[stage!].staleKey, 'Needs attention')
             }

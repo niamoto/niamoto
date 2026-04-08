@@ -40,6 +40,7 @@ def mock_db():
     mock = Mock()
     mock.execute_sql = Mock()
     mock.engine = Mock()
+    mock.is_duckdb = False
     return mock
 
 
@@ -609,6 +610,32 @@ class TestTransformerService:
         assert "INSERT INTO plots" in insert_sql
         assert "DROP TABLE IF EXISTS plots__staging" in drop_sql
         assert "plots" not in transformer_service._table_buffers
+
+    def test_flush_group_table_upsert_mode_duckdb_avoids_replace_reflection(
+        self, transformer_service, mock_db, mock_to_sql
+    ):
+        """DuckDB staging writes must not rely on pandas replace reflection."""
+        mock_db.is_duckdb = True
+        transformer_service._table_buffers = {"plots": {1: {"widget": "value"}}}
+
+        transformer_service._flush_group_table("plots", recreate_table=False)
+
+        mock_to_sql.assert_called_once_with(
+            "plots__staging",
+            mock_db.engine,
+            if_exists="fail",
+            index=False,
+        )
+        assert mock_db.execute_sql.call_count == 3
+        assert (
+            mock_db.execute_sql.call_args_list[0][0][0]
+            == "DROP TABLE IF EXISTS plots__staging"
+        )
+        assert "INSERT INTO plots" in mock_db.execute_sql.call_args_list[1][0][0]
+        assert (
+            mock_db.execute_sql.call_args_list[2][0][0]
+            == "DROP TABLE IF EXISTS plots__staging"
+        )
 
     @patch("niamoto.core.services.compatibility.CSVSchemaReader.read_schema")
     @patch("niamoto.core.imports.source_registry.TransformSourceRegistry")

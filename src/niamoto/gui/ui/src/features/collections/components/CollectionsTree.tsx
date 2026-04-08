@@ -39,6 +39,7 @@ export function CollectionsTree({
 }: CollectionsTreeProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { data: pipelineStatus } = usePipelineStatus()
+  const fallbackStatus = pipelineStatus?.groups?.status === 'unconfigured' ? 'unconfigured' : undefined
 
   // Build status map
   const statusByName = new Map<string, EntityStatus>()
@@ -90,7 +91,7 @@ export function CollectionsTree({
           </p>
         ) : (
           references.map((ref) => {
-            const status = statusByName.get(ref.name)?.status
+            const status = statusByName.get(ref.name)?.status ?? fallbackStatus
             return (
               <button
                 key={ref.name}
@@ -108,6 +109,7 @@ export function CollectionsTree({
                     status === 'fresh' && 'bg-green-500',
                     status === 'stale' && 'bg-amber-500',
                     status === 'never_run' && 'bg-muted-foreground/30',
+                    status === 'unconfigured' && 'bg-muted-foreground/30',
                     !status && 'bg-muted-foreground/30'
                   )}
                 />

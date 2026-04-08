@@ -30,13 +30,13 @@ router = APIRouter()
 
 class EntityStatus(BaseModel):
     name: str
-    status: str  # "fresh", "stale", "never_run", "error", "running"
+    status: str  # "fresh", "stale", "never_run", "unconfigured", "error", "running"
     last_run_at: Optional[str] = None
     reason: Optional[str] = None
 
 
 class StageStatus(BaseModel):
-    status: str  # "fresh", "stale", "never_run", "running"
+    status: str  # "fresh", "stale", "never_run", "unconfigured", "running"
     last_run_at: Optional[str] = None
     items: list[EntityStatus] = []
     summary: Optional[dict] = None
@@ -73,8 +73,8 @@ def _iso(dt_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def _get_transform_groups(work_dir: Path) -> list[str]:
-    """Read transform.yml and return the list of group_by names."""
+def _get_transform_group_configs(work_dir: Path) -> list[dict]:
+    """Read transform.yml and return the list of group configs."""
     config_path = work_dir / "config" / "transform.yml"
     if not config_path.exists():
         return []
@@ -82,15 +82,33 @@ def _get_transform_groups(work_dir: Path) -> list[str]:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
         if isinstance(config, list):
-            return [
-                g.get("group_by", "default")
-                for g in config
-                if isinstance(g, dict) and g.get("group_by")
-            ]
+            return [g for g in config if isinstance(g, dict) and g.get("group_by")]
         return []
     except Exception:
         logger.exception("Error reading transform.yml")
         return []
+
+
+def _get_transform_groups(work_dir: Path) -> list[str]:
+    """Return the list of group_by names declared in transform.yml."""
+    return [
+        group.get("group_by", "default")
+        for group in _get_transform_group_configs(work_dir)
+    ]
+
+
+def _has_configured_transform_widgets(group_config: dict) -> bool:
+    """Return True when a transform group has widgets_data to compute.
+
+    Auto-scaffolded groups exist as soon as data is imported, but they are not
+    actually calculable until at least one transform widget is configured.
+    """
+    widgets_data = group_config.get("widgets_data")
+    if isinstance(widgets_data, dict):
+        return len(widgets_data) > 0
+    if isinstance(widgets_data, list):
+        return len(widgets_data) > 0
+    return bool(widgets_data)
 
 
 def _get_entities_last_updated() -> Optional[datetime]:
@@ -278,6 +296,8 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
     if not items:
         return "never_run"
     statuses = {item.status for item in items}
+    if statuses == {"never_run"}:
+        return "never_run"
     if "running" in statuses:
         return "running"
     if "error" in statuses:
@@ -343,10 +363,14 @@ async def get_pipeline_status(http_request: Request):
     # ------------------------------------------------------------------
     # 2. GROUPS stage — per-group transform freshness
     # ------------------------------------------------------------------
-    groups = _get_transform_groups(work_dir)
+    group_configs = _get_transform_group_configs(work_dir)
+    configured_group_configs = [
+        group for group in group_configs if _has_configured_transform_widgets(group)
+    ]
     group_items: list[EntityStatus] = []
 
-    for group_name in groups:
+    for group_config in configured_group_configs:
+        group_name = group_config.get("group_by", "default")
         last_transform = job_store.get_last_run(
             "transform", group_by=group_name, status="completed"
         )
@@ -389,7 +413,7 @@ async def get_pipeline_status(http_request: Request):
             )
 
     # Check for "all groups" transform (group_by=None)
-    if not groups:
+    if not configured_group_configs:
         last_transform_all = job_store.get_last_run("transform", status="completed")
         if last_transform_all:
             t_at = _iso(last_transform_all.get("completed_at"))
@@ -411,7 +435,10 @@ async def get_pipeline_status(http_request: Request):
                     )
                 )
 
-    groups_stage_status = _compute_stage_status(group_items)
+    if group_configs and not configured_group_configs:
+        groups_stage_status = "unconfigured"
+    else:
+        groups_stage_status = _compute_stage_status(group_items)
     last_group_run = max(
         (item.last_run_at for item in group_items if item.last_run_at),
         default=None,

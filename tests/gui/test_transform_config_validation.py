@@ -31,10 +31,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Plugins référencés dans transform.yml mais pas encore implémentés.
-# Seront ignorés dans les tests de validation.
-KNOWN_MISSING_PLUGINS = {
-    "entity_map_extractor",  # Widget cartographique planifié, pas encore créé
-}
+# Gardé vide par défaut pour documenter explicitement l'absence d'exceptions.
+KNOWN_MISSING_PLUGINS: set[str] = set()
 
 
 # ============================================================================

@@ -6,7 +6,6 @@ import { enUS, fr } from 'date-fns/locale'
 import {
   AlertCircle,
   CheckCircle,
-  ChevronDown,
   Clock,
   ExternalLink,
   Globe,
@@ -39,13 +38,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+import { Switch } from '@/components/ui/switch'
 import {
   Sheet,
   SheetContent,
@@ -245,7 +239,6 @@ export default function PublishOverview() {
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
   const [dynamicHtml, setDynamicHtml] = useState<string | null>(null)
   const [includeTransform, setIncludeTransform] = useState(true)
-  const [showAdvancedBuild, setShowAdvancedBuild] = useState(false)
   const [currentPhase, setCurrentPhase] = useState<string | null>(null)
   const [exportPath, setExportPath] = useState('exports')
 
@@ -257,6 +250,12 @@ export default function PublishOverview() {
   const groupIndexMutation = useGroupIndexPreview()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
+  const groupsStatus = pipelineData?.groups?.status
+  const canRecomputeStatistics = groupsStatus !== 'unconfigured'
+  const shouldIncludeTransformByDefault = groupsStatus === 'stale' || groupsStatus === 'never_run'
+  const includeTransformLabel = groupsStatus === 'never_run'
+    ? t('build.includeTransformInitial', 'Compute statistics before generation')
+    : t('build.includeTransform', 'Recompute statistics before generation')
 
   const configuredPlatforms = PLATFORM_ORDER.filter((platform) => Boolean(platformConfigs[platform]))
   const primaryPlatform = configuredPlatforms.includes(preferredPlatform as DeployPlatform)
@@ -297,6 +296,10 @@ export default function PublishOverview() {
 
     void loadWorkingDir()
   }, [])
+
+  useEffect(() => {
+    setIncludeTransform(shouldIncludeTransformByDefault)
+  }, [shouldIncludeTransformByDefault])
 
   const openPanel = (panel: 'destinations' | 'history') => {
     const next = new URLSearchParams(searchParams)
@@ -668,24 +671,18 @@ export default function PublishOverview() {
               </div>
             ) : (
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <Collapsible open={showAdvancedBuild} onOpenChange={setShowAdvancedBuild} className="w-full rounded-lg border px-4 py-3 md:max-w-xl">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-medium">
-                    {t('build.advancedOptions', 'Advanced options')}
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedBuild ? 'rotate-180' : ''}`} />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="include-transform"
-                        checked={includeTransform}
-                        onCheckedChange={(checked) => setIncludeTransform(checked === true)}
-                      />
-                      <Label htmlFor="include-transform" className="cursor-pointer text-sm">
-                        {t('build.includeTransform', 'Recompute statistics before generation')}
-                      </Label>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                {canRecomputeStatistics && (
+                  <div className="flex w-full items-center justify-between rounded-lg border px-4 py-3 md:max-w-xl">
+                    <Label htmlFor="include-transform" className="cursor-pointer text-sm font-medium">
+                      {includeTransformLabel}
+                    </Label>
+                    <Switch
+                      id="include-transform"
+                      checked={includeTransform}
+                      onCheckedChange={setIncludeTransform}
+                    />
+                  </div>
+                )}
 
                 <Button size="lg" onClick={runBuild}>
                   {lastSuccessfulBuild ? (

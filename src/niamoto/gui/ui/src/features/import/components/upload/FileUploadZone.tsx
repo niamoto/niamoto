@@ -255,7 +255,7 @@ export function FileUploadZone({
   return (
     <div className="space-y-4">
       {/* Drop zone */}
-      {selectedFiles.length === 0 && (
+      {!analysisMode && selectedFiles.length === 0 && (
         <div
           className={`flex ${minHeight} cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors ${
             dragActive

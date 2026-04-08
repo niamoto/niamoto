@@ -109,6 +109,23 @@ class TransformerService:
         svc.entity_registry = EntityRegistry(db)
         return svc
 
+    def _write_dataframe_to_table(self, df: pd.DataFrame, table_name: str) -> None:
+        """Persist a DataFrame without DuckDB reflection-based replace.
+
+        ``pandas.to_sql(..., if_exists="replace")`` can trigger SQLAlchemy
+        reflection queries that are incompatible with duckdb-engine on recent
+        versions. For DuckDB, drop the table explicitly first, then create it
+        with ``if_exists="fail"``.
+        """
+
+        if getattr(self.db, "is_duckdb", False):
+            quoted_table = str(quoted_name(table_name, quote=True))
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+            df.to_sql(table_name, self.db.engine, if_exists="fail", index=False)
+            return
+
+        df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+
     def transform_single_widget(
         self,
         group_config: Dict[str, Any],
@@ -1230,7 +1247,7 @@ class TransformerService:
             return
 
         staging_table = f"{group_by}__staging"
-        df.to_sql(staging_table, self.db.engine, if_exists="replace", index=False)
+        self._write_dataframe_to_table(df, staging_table)
 
         non_id_columns = [col for col in ordered_columns if col != id_column]
         columns_sql = ", ".join(ordered_columns)
