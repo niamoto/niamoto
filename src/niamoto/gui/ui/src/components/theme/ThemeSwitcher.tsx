@@ -57,13 +57,13 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
     >
       {/* Preview area - Shows theme personality */}
       <div
-        className="relative h-28 w-full overflow-hidden p-4"
+        className="relative h-24 w-full overflow-hidden p-3"
         style={{ backgroundColor: theme.preview.background }}
       >
         {/* Typography preview */}
         <div className="relative z-10 flex flex-col gap-1">
           <span
-            className="text-lg font-semibold leading-tight"
+            className="text-base font-semibold leading-tight"
             style={{
               fontFamily: theme.preview.fontDisplay,
               color: theme.preview.primary,
@@ -83,10 +83,10 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
         </div>
 
         {/* Shape preview - decorative elements */}
-        <div className="absolute bottom-2 right-2 flex gap-1.5">
+        <div className="absolute bottom-2 right-2 flex gap-1">
           {/* Primary color chip */}
           <div
-            className="h-4 w-4"
+            className="h-3.5 w-3.5"
             style={{
               backgroundColor: theme.preview.primary,
               borderRadius: theme.preview.borderRadius,
@@ -94,7 +94,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           />
           {/* Secondary color chip */}
           <div
-            className="h-4 w-4"
+            className="h-3.5 w-3.5"
             style={{
               backgroundColor: theme.preview.secondary,
               borderRadius: theme.preview.borderRadius,
@@ -102,80 +102,12 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           />
           {/* Accent color chip */}
           <div
-            className="h-4 w-4"
+            className="h-3.5 w-3.5"
             style={{
               backgroundColor: theme.preview.accent,
               borderRadius: theme.preview.borderRadius,
             }}
           />
-        </div>
-
-        {/* Background decoration based on style */}
-        <div className="absolute inset-0 opacity-10">
-          {theme.style === 'scientific' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              {[...Array(10)].map((_, i) => (
-                <line key={`h${i}`} x1="0" y1={i * 10} x2="100" y2={i * 10} stroke={theme.preview.primary} strokeWidth="0.5" />
-              ))}
-              {[...Array(10)].map((_, i) => (
-                <line key={`v${i}`} x1={i * 10} y1="0" x2={i * 10} y2="100" stroke={theme.preview.primary} strokeWidth="0.5" />
-              ))}
-            </svg>
-          )}
-          {theme.style === 'classic' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <rect x="5" y="5" width="90" height="90" fill="none" stroke={theme.preview.primary} strokeWidth="1" />
-              <rect x="8" y="8" width="84" height="84" fill="none" stroke={theme.preview.primary} strokeWidth="0.5" />
-            </svg>
-          )}
-          {theme.style === 'organic' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <path d="M10 80 Q 30 70, 50 75 T 90 70" fill="none" stroke={theme.preview.primary} strokeWidth="1" />
-              <path d="M15 85 Q 35 75, 55 80 T 95 75" fill="none" stroke={theme.preview.primary} strokeWidth="0.5" />
-            </svg>
-          )}
-          {theme.style === 'natural' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <circle cx="80" cy="20" r="15" fill={theme.preview.accent} />
-              <ellipse cx="50" cy="90" rx="40" ry="15" fill={theme.preview.primary} />
-            </svg>
-          )}
-          {theme.style === 'minimal' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <line x1="10" y1="50" x2="90" y2="50" stroke={theme.preview.primary} strokeWidth="0.5" />
-              <line x1="50" y1="10" x2="50" y2="90" stroke={theme.preview.primary} strokeWidth="0.5" />
-            </svg>
-          )}
-          {theme.style === 'vitreous' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <circle cx="70" cy="30" r="30" fill={theme.preview.primary} opacity="0.3" />
-              <circle cx="40" cy="70" r="25" fill={theme.preview.accent} opacity="0.2" />
-            </svg>
-          )}
-          {theme.style === 'cartographic' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              {[...Array(10)].map((_, i) => (
-                [...Array(10)].map((_, j) => (
-                  <circle key={`d${i}-${j}`} cx={5 + i * 10} cy={5 + j * 10} r="0.8" fill={theme.preview.primary} />
-                ))
-              ))}
-            </svg>
-          )}
-          {theme.style === 'editorial' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <line x1="10" y1="20" x2="90" y2="20" stroke={theme.preview.primary} strokeWidth="2" />
-              <line x1="10" y1="40" x2="70" y2="40" stroke={theme.preview.primary} strokeWidth="0.5" />
-              <line x1="10" y1="50" x2="60" y2="50" stroke={theme.preview.primary} strokeWidth="0.5" />
-              <line x1="10" y1="60" x2="65" y2="60" stroke={theme.preview.primary} strokeWidth="0.5" />
-            </svg>
-          )}
-          {theme.style === 'brand' && (
-            <svg className="h-full w-full" viewBox="0 0 100 100">
-              <path d="M20 90 Q 40 70, 60 80 T 95 60" fill="none" stroke={theme.preview.accent} strokeWidth="1.5" />
-              <path d="M50 10 L55 85" fill="none" stroke={theme.preview.primary} strokeWidth="1" opacity="0.5" />
-              <path d="M48 30 Q 60 40, 55 60 Q 50 80, 60 85" fill="none" stroke={theme.preview.primary} strokeWidth="0.8" />
-            </svg>
-          )}
         </div>
 
         {/* Selected indicator */}
@@ -195,7 +127,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
 
       {/* Theme description */}
       <div
-        className="flex flex-col gap-0.5 p-3 text-left"
+        className="flex flex-col gap-0.5 p-2.5 text-left"
         style={{ backgroundColor: theme.preview.background }}
       >
         <span
