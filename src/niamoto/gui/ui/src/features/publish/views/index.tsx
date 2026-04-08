@@ -595,6 +595,33 @@ export default function PublishOverview() {
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
     .slice(0, 5)
 
+  const headerTitle = (siteConfig?.site?.title as string | undefined) || 'Niamoto'
+  const summaryMetrics = [
+    {
+      key: 'files',
+      label: t('build.metrics.files', 'Files generated'),
+      value: lastSuccessfulBuild?.metrics?.totalFiles?.toLocaleString() || '—',
+    },
+    {
+      key: 'duration',
+      label: t('build.metrics.duration', 'Generation time'),
+      value: lastSuccessfulBuild?.metrics?.duration ? `${lastSuccessfulBuild.metrics.duration}s` : '—',
+    },
+    {
+      key: 'generated',
+      label: t('build.lastGenerated', 'Last generated'),
+      value: lastSuccessfulBuild
+        ? formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)
+        : '—',
+    },
+    {
+      key: 'path',
+      label: t('build.outputPath', 'Directory'),
+      value: exportPath,
+      truncate: true,
+    },
+  ]
+
   const previewContent = hasSuccessfulBuild ? (
     <StaticSitePreview
       device={previewDevice}
@@ -620,43 +647,8 @@ export default function PublishOverview() {
   const actionsContent = (
     <div className="space-y-4 p-4 md:p-6">
       <Card>
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-2xl">{t('title', 'Publish')}</CardTitle>
-                <CardDescription className="mt-2 text-sm md:text-base">
-                  {t('description', 'Generate your site, review it, and put it online.')}
-                </CardDescription>
-              </div>
-              <Badge variant={publishStatus.variant} className="w-fit px-3 py-1 text-sm">
-                {publishStatus.label}
-              </Badge>
-            </div>
-
-            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {lastSuccessfulBuild ? (
-                <span>
-                  {t('overview.lastBuild', 'Last build')} {formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}
-                </span>
-              ) : (
-                <span>{t('overview.noBuild', 'No build performed')}</span>
-              )}
-              {primaryDeploy ? (
-                <span>
-                  {t('overview.lastDeploy', 'Last deployment')} {formatDateDistance(primaryDeploy.completedAt || primaryDeploy.startedAt, dateLocale)}
-                </span>
-              ) : (
-                <span>{t('overview.noDeploy', 'No deployment performed')}</span>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <Card>
         <CardHeader>
-          <CardTitle>{t('build.trigger', 'Generate Site')}</CardTitle>
+          <CardTitle>{t('build.configuration', 'Generation settings')}</CardTitle>
           <CardDescription>
             {t('build.generationDescription', 'Create the latest version of your static site from the current data and configuration.')}
           </CardDescription>
@@ -671,35 +663,6 @@ export default function PublishOverview() {
                   : lastBuild.error || t('build.error', 'Build error')}
               </AlertDescription>
             </Alert>
-          )}
-
-          {lastSuccessfulBuild && (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.totalFiles?.toLocaleString() || '—'}</div>
-                  <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Files generated')}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.duration ?? '—'}s</div>
-                  <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Generation time')}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-sm font-medium">{formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}</div>
-                  <p className="text-xs text-muted-foreground">{t('build.lastGenerated', 'Last generated')}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="truncate text-sm font-medium">{exportPath}</div>
-                  <p className="text-xs text-muted-foreground">{t('build.outputPath', 'Directory')}</p>
-                </CardContent>
-              </Card>
-            </div>
           )}
 
           {isBuilding && currentBuild ? (
@@ -736,20 +699,6 @@ export default function PublishOverview() {
                   />
                 </div>
               )}
-
-              <Button size="lg" onClick={runBuild} className="w-full sm:w-auto">
-                {lastSuccessfulBuild ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {t('build.rebuild', 'Regenerate Site')}
-                  </>
-                ) : (
-                  <>
-                    <Package className="mr-2 h-4 w-4" />
-                    {t('build.trigger', 'Generate Site')}
-                  </>
-                )}
-              </Button>
             </div>
           )}
         </CardContent>
@@ -939,8 +888,53 @@ export default function PublishOverview() {
   )
 
   return (
-    <div className="h-full overflow-hidden">
-      <div className="hidden h-full xl:grid xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:gap-6 xl:px-6 xl:py-6">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3 xl:px-6">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold">{headerTitle}</h1>
+          <p className="text-xs text-muted-foreground">{t('title', 'Publish')}</p>
+        </div>
+        <div className="ml-4 flex shrink-0 items-center gap-2">
+          <Badge variant={publishStatus.variant} className="hidden sm:inline-flex px-3 py-1 text-sm">
+            {publishStatus.label}
+          </Badge>
+          <Button size="sm" onClick={runBuild} disabled={isBuilding}>
+            {isBuilding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {t('build.building', 'Generating...')}
+              </>
+            ) : lastSuccessfulBuild ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {t('build.rebuild', 'Regenerate Site')}
+              </>
+            ) : (
+              <>
+                <Package className="mr-2 h-4 w-4" />
+                {t('build.trigger', 'Generate Site')}
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className="border-b bg-background px-4 py-3 xl:px-6">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryMetrics.map((metric) => (
+            <div key={metric.key} className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {metric.label}
+              </p>
+              <p className={cn('mt-1 text-sm font-medium', metric.truncate && 'truncate')}>
+                {metric.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="hidden min-h-0 flex-1 xl:grid xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:gap-6 xl:px-6 xl:py-6">
         <Card className="flex min-h-0 flex-col overflow-hidden">
           <ScrollArea className="h-full">
             {actionsContent}
@@ -962,20 +956,12 @@ export default function PublishOverview() {
         </Card>
       </div>
 
-      <div className="flex h-full flex-col xl:hidden">
+      <div className="flex min-h-0 flex-1 flex-col xl:hidden">
         <div className="border-b bg-background px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-semibold">{t('title', 'Publish')}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t('description', 'Generate your site, review it, and put it online.')}
-              </p>
-            </div>
-            <Badge variant={publishStatus.variant} className="shrink-0 px-3 py-1 text-sm">
+            <Badge variant={publishStatus.variant} className="px-3 py-1 text-sm">
               {publishStatus.label}
             </Badge>
-          </div>
-          <div className="mt-3">
             <ToggleGroup
               type="single"
               value={compactPanel}
