@@ -185,9 +185,9 @@ export function ContentTab({ reference }: ContentTabProps) {
         {/* Left Panel - Widget List */}
         <ResizablePanel
           panelRef={leftPanelRef}
-          defaultSize="28%"
-          minSize="15%"
-          maxSize="40%"
+          defaultSize="20%"
+          minSize="14%"
+          maxSize="26%"
           collapsible
           collapsedSize={0}
           onResize={(panelSize) => setIsCollapsed(panelSize.asPercentage === 0)}
@@ -255,7 +255,7 @@ export function ContentTab({ reference }: ContentTabProps) {
         <ResizableHandle />
 
         {/* Right Panel - Contextual */}
-        <ResizablePanel defaultSize="72%" minSize="55%">
+        <ResizablePanel defaultSize="80%" minSize="55%">
           <div className="relative h-full">
           <div className="absolute inset-0 flex flex-col">
             {/* Collapsed toolbar: toggle + add widget */}

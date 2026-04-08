@@ -8,7 +8,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   Table,
   TableBody,
@@ -65,6 +66,7 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
   const [selectedBuild, setSelectedBuild] = useState<BuildJob | null>(null)
   const [selectedDeploy, setSelectedDeploy] = useState<DeployJob | null>(null)
   const [showClearDialog, setShowClearDialog] = useState<'builds' | 'deploys' | null>(null)
+  const [activeTab, setActiveTab] = useState<'deploys' | 'builds'>('deploys')
 
   const dateLocale = i18n.language === 'fr' ? fr : enUS
 
@@ -172,7 +174,7 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
       </div>
 
       {/* History Tabs */}
-      <Tabs defaultValue="deploys">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'deploys' | 'builds')}>
         <TabsList>
           <TabsTrigger value="deploys" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
@@ -187,195 +189,194 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
         </TabsList>
 
         {/* Deploys Tab */}
-        <TabsContent value="deploys" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>{t('history.deploysTitle', 'Deployment History')}</CardTitle>
-                <CardDescription>{t('history.deploysDescription', 'List of all deployments performed')}</CardDescription>
-              </div>
-              {deployHistory.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowClearDialog('deploys')}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  {t('history.clear', 'Effacer')}
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {deployHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  {t('history.noDeploysYet', 'No deployments performed')}
+        <PanelTransition transitionKey={activeTab} className="mt-4">
+          {activeTab === 'deploys' ? (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>{t('history.deploysTitle', 'Deployment History')}</CardTitle>
+                  <CardDescription>{t('history.deploysDescription', 'List of all deployments performed')}</CardDescription>
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('history.date', 'Date')}</TableHead>
-                      <TableHead>{t('history.platform', 'Plateforme')}</TableHead>
-                      <TableHead>{t('history.project', 'Projet')}</TableHead>
-                      <TableHead>{t('history.status', 'Statut')}</TableHead>
-                      <TableHead>{t('history.url', 'URL')}</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deployHistory.map((deploy) => (
-                      <TableRow key={deploy.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{formatDate(deploy.completedAt || deploy.startedAt)}</div>
-                            <div className="text-xs text-muted-foreground">{formatRelativeDate(deploy.completedAt || deploy.startedAt)}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">{deploy.platform}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{deploy.projectName}</div>
-                            {deploy.branch && <div className="text-xs text-muted-foreground">{deploy.branch}</div>}
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(deploy.status)}</TableCell>
-                        <TableCell>
-                          {deploy.deploymentUrl ? (
-                            <a
-                              href={deploy.deploymentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline flex items-center gap-1 text-sm"
-                            >
-                              <Globe className="w-3 h-3" />
-                              {t('deploy.viewSite', 'View')}
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {deploy.deploymentUrl && (
-                                <DropdownMenuItem asChild>
-                                  <a href={deploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="w-4 h-4 mr-2" />
-                                    {t('history.openSite', 'Open site')}
-                                  </a>
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => setSelectedDeploy(deploy)}>
-                                <FileText className="w-4 h-4 mr-2" />
-                                {t('history.viewLogs', 'View logs')}
-                              </DropdownMenuItem>
-                              {deploy.status === 'completed' && (
-                                <DropdownMenuItem onClick={() => toast.info(t('history.rollbackSoon', 'Rollback coming soon'))}>
-                                  <RotateCcw className="w-4 h-4 mr-2" />
-                                  {t('history.rollback', 'Rollback')}
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+                {deployHistory.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowClearDialog('deploys')}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {t('history.clear', 'Effacer')}
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                {deployHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {t('history.noDeploysYet', 'No deployments performed')}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('history.date', 'Date')}</TableHead>
+                        <TableHead>{t('history.platform', 'Plateforme')}</TableHead>
+                        <TableHead>{t('history.project', 'Projet')}</TableHead>
+                        <TableHead>{t('history.status', 'Statut')}</TableHead>
+                        <TableHead>{t('history.url', 'URL')}</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Builds Tab */}
-        <TabsContent value="builds" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>{t('history.buildsTitle', 'Build history')}</CardTitle>
-                <CardDescription>{t('history.buildsDescription', 'List of all builds performed')}</CardDescription>
-              </div>
-              {buildHistory.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowClearDialog('builds')}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  {t('history.clear', 'Effacer')}
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {buildHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  {t('history.noBuildsYet', 'No builds performed')}
+                    </TableHeader>
+                    <TableBody>
+                      {deployHistory.map((deploy) => (
+                        <TableRow key={deploy.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{formatDate(deploy.completedAt || deploy.startedAt)}</div>
+                              <div className="text-xs text-muted-foreground">{formatRelativeDate(deploy.completedAt || deploy.startedAt)}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">{deploy.platform}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{deploy.projectName}</div>
+                              {deploy.branch && <div className="text-xs text-muted-foreground">{deploy.branch}</div>}
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(deploy.status)}</TableCell>
+                          <TableCell>
+                            {deploy.deploymentUrl ? (
+                              <a
+                                href={deploy.deploymentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline flex items-center gap-1 text-sm"
+                              >
+                                <Globe className="w-3 h-3" />
+                                {t('deploy.viewSite', 'View')}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {deploy.deploymentUrl && (
+                                  <DropdownMenuItem asChild>
+                                    <a href={deploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="w-4 h-4 mr-2" />
+                                      {t('history.openSite', 'Open site')}
+                                    </a>
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => setSelectedDeploy(deploy)}>
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  {t('history.viewLogs', 'View logs')}
+                                </DropdownMenuItem>
+                                {deploy.status === 'completed' && (
+                                  <DropdownMenuItem onClick={() => toast.info(t('history.rollbackSoon', 'Rollback coming soon'))}>
+                                    <RotateCcw className="w-4 h-4 mr-2" />
+                                    {t('history.rollback', 'Rollback')}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>{t('history.buildsTitle', 'Build history')}</CardTitle>
+                  <CardDescription>{t('history.buildsDescription', 'List of all builds performed')}</CardDescription>
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('history.date', 'Date')}</TableHead>
-                      <TableHead>{t('history.status', 'Statut')}</TableHead>
-                      <TableHead>{t('history.files', 'Files')}</TableHead>
-                      <TableHead>{t('history.duration', 'Duration')}</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {buildHistory.map((build) => (
-                      <TableRow key={build.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{formatDate(build.completedAt || build.startedAt)}</div>
-                            <div className="text-xs text-muted-foreground">{formatRelativeDate(build.completedAt || build.startedAt)}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(build.status)}</TableCell>
-                        <TableCell>
-                          {build.metrics?.totalFiles ? (
-                            <span className="font-medium">{build.metrics.totalFiles.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {build.metrics?.duration ? (
-                            <span>{build.metrics.duration}s</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setSelectedBuild(build)}>
-                                <FileText className="w-4 h-4 mr-2" />
-                                {t('history.viewDetails', 'View Details')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+                {buildHistory.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowClearDialog('builds')}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {t('history.clear', 'Effacer')}
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                {buildHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {t('history.noBuildsYet', 'No builds performed')}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('history.date', 'Date')}</TableHead>
+                        <TableHead>{t('history.status', 'Statut')}</TableHead>
+                        <TableHead>{t('history.files', 'Files')}</TableHead>
+                        <TableHead>{t('history.duration', 'Duration')}</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    </TableHeader>
+                    <TableBody>
+                      {buildHistory.map((build) => (
+                        <TableRow key={build.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{formatDate(build.completedAt || build.startedAt)}</div>
+                              <div className="text-xs text-muted-foreground">{formatRelativeDate(build.completedAt || build.startedAt)}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(build.status)}</TableCell>
+                          <TableCell>
+                            {build.metrics?.totalFiles ? (
+                              <span className="font-medium">{build.metrics.totalFiles.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {build.metrics?.duration ? (
+                              <span>{build.metrics.duration}s</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setSelectedBuild(build)}>
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  {t('history.viewDetails', 'View Details')}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </PanelTransition>
       </Tabs>
 
       {/* Build Details Dialog */}

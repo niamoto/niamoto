@@ -5,11 +5,11 @@
  * - Group name and output patterns
  * - Index generator configuration (if enabled)
  * - Widget count
- * - Link to edit in Transform/Export
+ * - Group summary and index configuration status
  */
 
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2, Loader2, Menu, Plus, X } from 'lucide-react'
+import { Folder, LayoutGrid, Filter, List, Eye, Settings2, Loader2, Menu, Plus, X } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -307,26 +307,6 @@ export function GroupPageViewer({
         </Card>
       )}
 
-      {/* Link to Transform/Export */}
-      <Card className="border-dashed">
-        <CardContent className="flex items-center justify-between py-4">
-          <div className="flex items-center gap-3">
-            <Settings2 className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">{t('collectionViewer.editWidgets')}</p>
-              <p className="text-xs text-muted-foreground">
-                {t('collectionViewer.editWidgetsDesc')}
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" asChild>
-            <a href={`/flow?tab=export&group=${group.name}`}>
-              {t('collectionViewer.open')}
-              <ExternalLink className="ml-2 h-3 w-3" />
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -27,7 +27,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import { Textarea } from '@/components/ui/textarea'
 import { type AutoConfigureResponse } from '@/features/import/api/smart-config'
 import { apiClient } from '@/shared/lib/api/client'
@@ -71,6 +72,7 @@ export function ImportWizard() {
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; path: string; size?: number }>>([])
   const [showImportErrorDetails, setShowImportErrorDetails] = useState(false)
+  const [reviewTab, setReviewTab] = useState<'config' | 'yaml'>('config')
   const autoConfigureJob = useAutoConfigureJob()
   const importJob = useImportJob()
   const { data: datasetsData } = useDatasets()
@@ -630,39 +632,39 @@ export function ImportWizard() {
                 </Alert>
               )}
 
-              <Tabs defaultValue="config" className="w-full">
+              <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
                   <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="config" className="mt-4">
-                  <AutoConfigDisplay
-                    result={configResult}
-                    editable={phase !== 'importing'}
-                    onReclassify={handleReclassify}
-                    detectedColumns={configResult.detected_columns || {}}
-                    importState={
-                      phase === 'importing'
-                        ? {
-                            active: true,
-                            phase: importJob.state.phase,
-                            message: importJob.state.message,
-                            progress: importJob.state.progress,
-                            processedEntities: importJob.state.processedEntities,
-                            totalEntities: importJob.state.totalEntities,
-                            currentEntity: importJob.state.currentEntity,
-                            currentEntityType: importJob.state.currentEntityType,
-                            events: importJob.state.events,
-                          }
-                        : undefined
-                    }
-                  />
-                </TabsContent>
-
-                <TabsContent value="yaml" className="mt-4">
-                  <YamlPreview result={configResult} maxHeight="300px" />
-                </TabsContent>
+                <PanelTransition transitionKey={reviewTab} className="mt-4">
+                  {reviewTab === 'config' ? (
+                    <AutoConfigDisplay
+                      result={configResult}
+                      editable={phase !== 'importing'}
+                      onReclassify={handleReclassify}
+                      detectedColumns={configResult.detected_columns || {}}
+                      importState={
+                        phase === 'importing'
+                          ? {
+                              active: true,
+                              phase: importJob.state.phase,
+                              message: importJob.state.message,
+                              progress: importJob.state.progress,
+                              processedEntities: importJob.state.processedEntities,
+                              totalEntities: importJob.state.totalEntities,
+                              currentEntity: importJob.state.currentEntity,
+                              currentEntityType: importJob.state.currentEntityType,
+                              events: importJob.state.events,
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <YamlPreview result={configResult} maxHeight="300px" />
+                  )}
+                </PanelTransition>
               </Tabs>
 
               {phase !== 'importing' && (

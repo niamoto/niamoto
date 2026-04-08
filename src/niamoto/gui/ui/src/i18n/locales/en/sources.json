@@ -739,7 +739,7 @@
   },
   "collectionPanel": {
     "tabs": {
-      "sources": "Data sources",
+      "sources": "Sources",
       "blocks": "Blocks",
       "list": "List",
       "export": "Export"
@@ -750,7 +750,7 @@
       "spatial": "Spatial"
     },
     "sourcesTab": {
-      "title": "Data sources",
+      "title": "Sources",
       "description": "Configure data sources for the \"{{name}}\" collection.",
       "primarySource": "Primary source",
       "primarySourceDesc": "Data table linked to this reference",

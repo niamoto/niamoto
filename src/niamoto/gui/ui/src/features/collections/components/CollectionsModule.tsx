@@ -1,7 +1,6 @@
 /**
  * CollectionsModule - Orchestrator for the Collections section
  *
- * Sidebar + content layout using ModuleLayout.
  * Reads URL to determine initial selection:
  *   /groups       -> overview
  *   /groups/:name -> collection detail
@@ -15,8 +14,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
-import { ModuleLayout } from '@/components/layout/ModuleLayout'
-import { CollectionsTree, type CollectionsSelection } from './CollectionsTree'
+import type { CollectionsSelection } from './CollectionsTree'
 import { CollectionPanel } from './CollectionPanel'
 import { CollectionsOverview } from './CollectionsOverview'
 import { ApiSettingsPanel } from './api/ApiSettingsPanel'
@@ -147,7 +145,16 @@ export function CollectionsModule() {
 
     const reference = references.find((r) => r.name === selection.name)
     if (reference) {
-      return <CollectionPanel reference={reference} initialTab={initialTab} />
+      return (
+        <CollectionPanel
+          reference={reference}
+          references={references}
+          initialTab={initialTab}
+          onSelectCollection={(name, tab) =>
+            handleSelect({ type: 'collection', name }, tab)
+          }
+        />
+      )
     }
 
     // Collection not found
@@ -177,18 +184,5 @@ export function CollectionsModule() {
   // Render
   // ---------------------------------------------------------------------------
 
-  return (
-    <ModuleLayout
-      sidebar={
-        <CollectionsTree
-          references={references}
-          referencesLoading={isLoading}
-          selection={selection}
-          onSelect={handleSelect}
-        />
-      }
-    >
-        {renderContent()}
-      </ModuleLayout>
-  )
+  return <div className="h-full overflow-hidden">{renderContent()}</div>
 }

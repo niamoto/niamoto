@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import { DataTree, type DataSelection } from './DataTree'
 import { ImportWizard } from '@/features/import/components/ImportWizard'
 import { EnrichmentView } from '@/features/import/components/dashboard/EnrichmentView'
@@ -244,7 +245,9 @@ export function DataModule() {
         />
       }
     >
-      {renderContent()}
+      <PanelTransition transitionKey={`${selection.type}:${'name' in selection ? selection.name ?? '' : ''}`}>
+        {renderContent()}
+      </PanelTransition>
     </ModuleLayout>
   )
 }

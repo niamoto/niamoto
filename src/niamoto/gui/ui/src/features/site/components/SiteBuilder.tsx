@@ -29,6 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type DeviceSize } from '@/components/ui/preview-frame'
+import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -242,6 +243,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       toast.success(t('presets.applied'))
     }
   }
+
+  const editorTransitionKey = state.selection
+    ? `${state.selection.type}:${state.selection.id ?? ''}:${previewEnabled ? 'preview' : 'editor'}`
+    : `${overviewPreview ? 'overview-preview' : showWizard || (isSiteEmpty && !wizardDismissed) ? 'wizard' : 'overview'}:${previewEnabled ? 'preview' : 'editor'}`
 
   // Render editor based on selection
   const renderEditor = () => {
@@ -582,7 +587,9 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
         {/* Center Panel - Editor */}
         <ResizablePanel id="editor" defaultSize={showPreview ? "50%" : "85%"} minSize="30%" className="overflow-hidden">
-          {renderEditor()}
+          <PanelTransition transitionKey={editorTransitionKey}>
+            {renderEditor()}
+          </PanelTransition>
         </ResizablePanel>
 
         {/* Right Panel - Preview (optional) */}
