@@ -1,8 +1,10 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
 import logging
+import traceback
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import uuid
 from datetime import datetime, timezone
@@ -10,7 +12,9 @@ from datetime import datetime, timezone
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
     ConfigurationError,
+    NiamotoError,
 )
+from niamoto.common.utils.error_handler import get_error_details
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.core.imports.config_models import ConnectorType
@@ -36,6 +40,7 @@ def _make_import_event(
     phase: Optional[str] = None,
     entity_name: Optional[str] = None,
     entity_type: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     return {
         "timestamp": _now_iso(),
@@ -44,7 +49,42 @@ def _make_import_event(
         "phase": phase,
         "entity_name": entity_name,
         "entity_type": entity_type,
+        "details": details,
     }
+
+
+def _serialize_import_error(error: Exception) -> Dict[str, Any]:
+    details = get_error_details(error)
+    serialized: Dict[str, Any] = {
+        "message": str(error),
+        "error_type": type(error).__name__,
+        "traceback": details.get("traceback"),
+    }
+
+    if isinstance(error, NiamotoError):
+        serialized["user_message"] = error.get_user_message()
+        if error.details:
+            serialized["details"] = error.details
+
+    extra_details = {
+        key: value
+        for key, value in details.items()
+        if key not in {"error_type", "traceback"}
+    }
+    if extra_details:
+        serialized.setdefault("details", {}).update(extra_details)
+
+    cause = error.__cause__ or error.__context__
+    if cause is not None:
+        serialized["cause"] = {
+            "error_type": type(cause).__name__,
+            "message": str(cause),
+            "traceback": "".join(
+                traceback.format_exception(type(cause), cause, cause.__traceback__)
+            ),
+        }
+
+    return jsonable_encoder(serialized)
 
 
 def _append_import_event(job: Dict[str, Any], event: Dict[str, Any]) -> None:
@@ -133,6 +173,7 @@ async def execute_import_all(
         "current_entity": None,
         "current_entity_type": None,
         "errors": [],
+        "error_details": None,
         "warnings": [],
         "events": [],
     }
@@ -180,6 +221,7 @@ async def execute_import_reference(
         "current_entity": None,
         "current_entity_type": None,
         "errors": [],
+        "error_details": None,
         "warnings": [],
         "events": [],
     }
@@ -229,6 +271,7 @@ async def execute_import_dataset(
         "current_entity": None,
         "current_entity_type": None,
         "errors": [],
+        "error_details": None,
         "warnings": [],
         "events": [],
     }
@@ -773,18 +816,27 @@ async def process_generic_import_all(
 
     except Exception as e:
         # Mark as failed
+        error_details = _serialize_import_error(e)
         job["status"] = "failed"
         job["completed_at"] = _now_iso()
-        job["errors"].append(str(e))
-        _set_job_state(job, phase="failed", message=f"Import failed: {str(e)}")
+        job["errors"].append(
+            error_details.get("user_message", error_details.get("message", str(e)))
+        )
+        job["error_details"] = error_details
+        _set_job_state(
+            job,
+            phase="failed",
+            message=f"Import failed: {error_details.get('message', str(e))}",
+        )
         _append_import_event(
             job,
             _make_import_event(
                 "error",
-                f"Import failed: {str(e)}",
+                f"Import failed: {error_details.get('message', str(e))}",
                 phase="failed",
                 entity_name=job.get("current_entity"),
                 entity_type=job.get("current_entity_type"),
+                details=error_details,
             ),
         )
 
@@ -935,18 +987,27 @@ async def process_generic_import_entity(
 
     except Exception as e:
         # Mark as failed
+        error_details = _serialize_import_error(e)
         job["status"] = "failed"
         job["completed_at"] = _now_iso()
-        job["errors"].append(str(e))
-        _set_job_state(job, phase="failed", message=f"Import failed: {str(e)}")
+        job["errors"].append(
+            error_details.get("user_message", error_details.get("message", str(e)))
+        )
+        job["error_details"] = error_details
+        _set_job_state(
+            job,
+            phase="failed",
+            message=f"Import failed: {error_details.get('message', str(e))}",
+        )
         _append_import_event(
             job,
             _make_import_event(
                 "error",
-                f"Import failed: {str(e)}",
+                f"Import failed: {error_details.get('message', str(e))}",
                 phase="failed",
                 entity_name=entity_name,
                 entity_type=entity_type,
+                details=error_details,
             ),
         )
 

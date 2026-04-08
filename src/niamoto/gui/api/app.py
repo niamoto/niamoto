@@ -1,13 +1,16 @@
 """FastAPI application for Niamoto GUI."""
 
+import logging
 import os
 from pathlib import Path
+import tempfile
 import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.gui.startup_logging import log_desktop_startup
 
 from .routers import (
@@ -46,10 +49,36 @@ log_desktop_startup("app.py import started")
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
 
 
+def _resolve_gui_log_directory() -> Path:
+    configured = os.getenv("NIAMOTO_LOGS")
+    if configured:
+        return Path(configured).expanduser()
+
+    work_dir = get_optional_working_directory()
+    if work_dir is not None:
+        return work_dir / "logs"
+
+    return Path(tempfile.gettempdir()) / "niamoto" / "logs"
+
+
+def _configure_gui_logging() -> None:
+    try:
+        setup_logging(
+            component_name="niamoto",
+            log_directory=str(_resolve_gui_log_directory()),
+            log_level=logging.INFO,
+            enable_console=False,
+            enable_file=True,
+        )
+    except Exception as exc:
+        log_desktop_startup(f"gui logging setup failed: {exc}")
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     create_app_started = time.perf_counter()
     log_desktop_startup("create_app() started")
+    _configure_gui_logging()
 
     app = FastAPI(
         title="Niamoto GUI API",

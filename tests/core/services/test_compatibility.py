@@ -639,19 +639,18 @@ class TestConfigRefCollector:
             for path, _ in refs["plot_type"]
         )
 
-    def test_collects_entity_map_refs_for_grouping_entity(self):
+    def test_collects_geospatial_refs_for_grouping_entity(self):
         transform_cfg = [
             {
                 "group_by": "plots",
                 "sources": [],
                 "widgets_data": {
                     "map": {
-                        "plugin": "entity_map_extractor",
+                        "plugin": "geospatial_extractor",
                         "params": {
-                            "entity_table": "entity_plots",
-                            "geometry_field": "geo_pt",
-                            "name_field": "id_plot",
-                            "id_field": "id_plot",
+                            "source": "plots",
+                            "field": "geo_pt",
+                            "properties": ["plot", "id_plot"],
                         },
                     }
                 },
@@ -661,8 +660,9 @@ class TestConfigRefCollector:
         refs = self.collector.collect("plots", SAMPLE_IMPORT_CONFIG, transform_cfg)
 
         assert "geo_pt" in refs
+        assert "plot" in refs
         assert "id_plot" in refs
-        assert any("params.geometry_field" in path for path, _ in refs["geo_pt"])
+        assert any("params.field" in path for path, _ in refs["geo_pt"])
 
 
 # ===================================================================

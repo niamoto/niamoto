@@ -182,6 +182,10 @@ class DirectAttribute(TransformerPlugin):
             original_format = value
             max_value = params.max_value
 
+            if value is not None and pd.isna(value):
+                value = None
+                original_format = None
+
             if value is not None:
                 try:
                     # Check if we need to apply max value restriction

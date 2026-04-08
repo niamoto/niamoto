@@ -178,11 +178,11 @@ def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
     _working_directory = None
 
     if not desktop_config_path.exists():
-        logger.warning(f"Desktop config not found at {desktop_config_path}")
+        logger.debug(f"Desktop config not found at {desktop_config_path}")
         return DesktopProjectReloadResult(
             state="welcome",
             project_path=None,
-            message="No desktop project selected.",
+            message=None,
         )
 
     try:
@@ -191,11 +191,11 @@ def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
 
         current_project = config.get("current_project")
         if not current_project:
-            logger.warning("No current_project in desktop config")
+            logger.debug("No current_project in desktop config")
             return DesktopProjectReloadResult(
                 state="welcome",
                 project_path=None,
-                message="No desktop project selected.",
+                message=None,
             )
 
         project_path = Path(current_project)

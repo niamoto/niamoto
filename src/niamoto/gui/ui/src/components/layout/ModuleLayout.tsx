@@ -8,6 +8,8 @@
  * Used by: Data, Groups, Publish modules
  */
 
+import { useEffect, useRef } from 'react'
+import type { PanelImperativeHandle } from 'react-resizable-panels'
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -30,18 +32,83 @@ export function ModuleLayout({
   sidebarMinSize = 12,
   sidebarMaxSize = 25,
 }: ModuleLayoutProps) {
+  const groupRef = useRef<HTMLDivElement | null>(null)
+  const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null)
+  const sidebarContentRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const groupElement = groupRef.current
+    const panel = sidebarPanelRef.current
+    const contentElement = sidebarContentRef.current
+
+    if (!groupElement || !panel || !contentElement) {
+      return
+    }
+
+    const deadline = window.setTimeout(() => {
+      resizeObserver.disconnect()
+    }, 1500)
+
+    const measureAndResize = () => {
+      const groupWidth = groupElement.clientWidth
+      if (groupWidth === 0) return
+
+      const contentWidth = contentElement.scrollWidth
+      const visibleWidth = contentElement.clientWidth
+      const overflowWidth = contentWidth - visibleWidth
+
+      // Only auto-grow when the sidebar actually clips its content.
+      // Using descendant scrollWidth causes a feedback loop with w-full items.
+      if (contentWidth === 0 || overflowWidth <= 8) return
+
+      const targetSize = Math.min(
+        sidebarMaxSize,
+        Math.max(
+          sidebarMinSize,
+          ((contentWidth + 24) / groupWidth) * 100
+        )
+      )
+
+      const currentSize = panel.getSize().asPercentage
+      if (targetSize > currentSize + 1) {
+        panel.resize(`${targetSize}%`)
+      }
+    }
+
+    const scheduleMeasurement = () => {
+      window.requestAnimationFrame(measureAndResize)
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleMeasurement)
+    resizeObserver.observe(groupElement)
+    resizeObserver.observe(contentElement)
+
+    scheduleMeasurement()
+
+    return () => {
+      window.clearTimeout(deadline)
+      resizeObserver.disconnect()
+    }
+  }, [sidebar, sidebarMinSize, sidebarMaxSize])
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex-1"
+        elementRef={groupRef}
+      >
         <ResizablePanel
+          panelRef={sidebarPanelRef}
           id="module-sidebar"
-          order={0}
-          defaultSize={sidebarDefaultSize}
-          minSize={sidebarMinSize}
-          maxSize={sidebarMaxSize}
+          defaultSize={`${sidebarDefaultSize}%`}
+          minSize={`${sidebarMinSize}%`}
+          maxSize={`${sidebarMaxSize}%`}
         >
           <ScrollArea className="h-full">
-            {sidebar}
+            <div ref={sidebarContentRef} className="h-full">
+              {sidebar}
+            </div>
           </ScrollArea>
         </ResizablePanel>
 
@@ -49,9 +116,8 @@ export function ModuleLayout({
 
         <ResizablePanel
           id="module-content"
-          order={1}
-          defaultSize={100 - sidebarDefaultSize}
-          minSize={30}
+          defaultSize={`${100 - sidebarDefaultSize}%`}
+          minSize="30%"
           className="min-w-0 overflow-hidden"
         >
           {children}

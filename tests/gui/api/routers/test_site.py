@@ -258,6 +258,98 @@ class TestSiteGroups:
                 assert response.status_code == 422, response.text
                 assert "Only one page can use the index.html template" in response.text
 
+    def test_preview_template_uses_absolute_backend_urls_for_assets(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "index.html",
+                        "context": {"hero_image": "files/home_background.jpg"},
+                        "site": {
+                            "title": "Niamoto",
+                            "lang": "fr",
+                            "logo_header": "files/niamoto_logo.png",
+                            "logo_footer": "files/niamoto_logo.png",
+                            "partners": [{"name": "PN", "logo": "files/pn_100.png"}],
+                        },
+                        "navigation": [],
+                        "footer_navigation": [],
+                        "output_file": "index.html",
+                        "gui_lang": "fr",
+                    },
+                )
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "http://testserver/api/site/files/niamoto_logo.png" in html
+            assert "http://testserver/api/site/files/pn_100.png" in html
+            assert "http://testserver/api/site/files/home_background.jpg" in html
+            assert (
+                "http://testserver/api/site/assets/js/vendor/lucide/0.577.0_lucide.min.js"
+                in html
+            )
+
+    def test_preview_group_index_uses_absolute_backend_urls_for_assets(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {
+                                    "title": "Niamoto",
+                                    "lang": "fr",
+                                    "logo_header": "files/niamoto_logo.png",
+                                },
+                                "navigation": [],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post("/api/site/preview-group-index/plots", json={})
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "http://testserver/api/site/files/niamoto_logo.png" in html
+            assert "http://testserver/api/site/assets/css/niamoto.css" in html
+
     def test_preview_exported_site_falls_back_to_legacy_home_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)

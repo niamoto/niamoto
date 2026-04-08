@@ -44,9 +44,10 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
   ).length
 
   // Freshness
-  const status = entityStatus?.status ?? 'never_run'
+  const status = entityStatus?.status ?? 'unconfigured'
   const isFresh = status === 'fresh'
   const isStale = status === 'stale'
+  const isUnconfigured = status === 'unconfigured'
   const lastRunAt = entityStatus?.last_run_at
 
   // Kind labels
@@ -79,6 +80,11 @@ function CollectionCard({ reference, entityStatus, onSelect }: CollectionCardPro
             <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400">
               <AlertTriangle className="h-3 w-3" />
               {t('collections.overviewStale', 'Needs recomputing')}
+            </Badge>
+          ) : isUnconfigured ? (
+            <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
+              <Minus className="h-3 w-3" />
+              {t('collections.noCollectionsConfigured', 'No collection configured')}
             </Badge>
           ) : (
             <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
@@ -196,6 +202,7 @@ interface CollectionsOverviewProps {
 export function CollectionsOverview({ references, onSelect }: CollectionsOverviewProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { data: pipelineStatus } = usePipelineStatus()
+  const fallbackStatus = pipelineStatus?.groups?.status === 'unconfigured' ? 'unconfigured' : undefined
 
   // Build a map of entity statuses by name
   const statusByName = new Map<string, EntityStatus>()
@@ -218,7 +225,10 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
           <CollectionCard
             key={ref.name}
             reference={ref}
-            entityStatus={statusByName.get(ref.name)}
+            entityStatus={
+              statusByName.get(ref.name) ??
+              (fallbackStatus ? ({ name: ref.name, status: fallbackStatus, last_run_at: null, reason: null } as EntityStatus) : undefined)
+            }
             onSelect={onSelect}
           />
         ))}

@@ -1174,34 +1174,37 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
         ref_label = reference_name.replace("_", " ").title()
 
         for geom_col, geom_type in geometry_columns:
-            # Single entity map (primary)
             single_id = f"{reference_name}_{geom_col}_entity_map"
-            all_id = f"{reference_name}_{geom_col}_all_map"
 
             if geom_type == "point":
                 single_name = f"{ref_label} location"
                 single_desc = (
                     f"Map showing the position of the selected {reference_name} entity"
                 )
-                all_name = f"All {ref_label} map"
-                all_desc = f"Map showing all {reference_name} entity positions"
                 icon_single = "MapPin"
             else:
                 single_name = f"{ref_label} polygon"
                 single_desc = (
                     f"Map showing the polygon of the selected {reference_name} entity"
                 )
-                all_name = f"All {ref_label} map"
-                all_desc = f"Map showing all {reference_name} polygons"
                 icon_single = "Hexagon"
 
-            # Single entity map
+            properties = [
+                field_name
+                for field_name in (name_field, id_field)
+                if field_name and field_name in columns
+            ]
+
             suggestions.append(
                 {
                     "template_id": single_id,
                     "name": single_name,
                     "description": single_desc,
-                    "plugin": "entity_map_extractor",
+                    "plugin": "geospatial_extractor",
+                    "widget_plugin": "interactive_map",
+                    "widget_params": {
+                        "geojson_field": "features",
+                    },
                     "category": "map",
                     "icon": icon_single,
                     "confidence": 0.90,
@@ -1211,41 +1214,13 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
                     "match_reason": f"Colonne géométrique '{geom_col}' détectée ({geom_type})",
                     "is_recommended": True,
                     "config": {
-                        "entity_table": entity_table,
-                        "geometry_field": geom_col,
-                        "geometry_type": geom_type,
-                        "name_field": name_field,
-                        "id_field": id_field,
-                        "mode": "single",
+                        "source": reference_name,
+                        "field": geom_col,
+                        "format": "geojson",
+                        "properties": properties,
+                        "title": single_name,
                     },
-                    "alternatives": [all_id],
-                }
-            )
-
-            # All entities map
-            suggestions.append(
-                {
-                    "template_id": all_id,
-                    "name": all_name,
-                    "description": all_desc,
-                    "plugin": "entity_map_extractor",
-                    "category": "map",
-                    "icon": "Map",
-                    "confidence": 0.85,
-                    "source": "entity",
-                    "source_name": reference_name,
-                    "matched_column": geom_col,
-                    "match_reason": f"Vue d'ensemble des {reference_name}",
-                    "is_recommended": False,
-                    "config": {
-                        "entity_table": entity_table,
-                        "geometry_field": geom_col,
-                        "geometry_type": geom_type,
-                        "name_field": name_field,
-                        "id_field": id_field,
-                        "mode": "all",
-                    },
-                    "alternatives": [single_id],
+                    "alternatives": [],
                 }
             )
 

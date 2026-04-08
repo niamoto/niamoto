@@ -16,6 +16,9 @@ from niamoto.core.plugins.models import (
     WidgetConfig,
     StaticPageContext,
     SiteConfig,
+    IndexGeneratorConfig,
+    IndexGeneratorPageConfig,
+    IndexGeneratorDisplayField,
 )
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
@@ -889,6 +892,357 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertIn('href="../../about.html"', content)  # Two levels deep
         self.assertIn('href="https://example.com"', content)  # Absolute URL unchanged
         self.assertIn('href="#section"', content)  # Anchor unchanged
+
+    def test_group_index_uses_index_output_depth_for_assets(self):
+        """Group index pages must resolve assets from index_output_pattern depth."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        group_index_template = """
+{% extends "_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ '/assets/css/niamoto.css' | relative_url(depth|default(0)) }}">
+<img src="{{ site.logo_header | relative_url(depth|default(0)) }}" alt="Logo">
+{% endblock %}
+"""
+        (self.template_dir / "_group_index.html").write_text(group_index_template)
+
+        self.mock_db.fetch_all.return_value = [
+            {"plots_id": 1, "name": "Plot 1"},
+            {"plots_id": 2, "name": "Plot 2"},
+        ]
+        self.mock_db.get_table_columns.return_value = ["plots_id", "name"]
+
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": str(self.template_dir),
+            "include_default_assets": False,
+            "site": {
+                "title": "Test Site",
+                "logo_header": "files/niamoto_logo.png",
+                "languages": ["fr", "en"],
+            },
+        }
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="plots",
+                data_source="db",
+                template="_group_detail.html",
+                output_pattern="plots/{id}.html",
+                index_output_pattern="plots/index.html",
+                widgets=[],
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        index_file = self.output_dir / "fr" / "plots" / "index.html"
+        self.assertTrue(index_file.exists())
+        content = index_file.read_text()
+        self.assertIn('href="../../assets/css/niamoto.css"', content)
+        self.assertIn('src="../../assets/files/niamoto_logo.png"', content)
+
+    def test_group_index_uses_real_output_path_when_pattern_is_local_index(self):
+        """Group index depth must be computed from the actual output path."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        group_index_template = """
+{% extends "_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ '/assets/css/niamoto.css' | relative_url(depth|default(0)) }}">
+<img src="{{ site.logo_header | relative_url(depth|default(0)) }}" alt="Logo">
+{% endblock %}
+"""
+        (self.template_dir / "_group_index.html").write_text(group_index_template)
+
+        self.mock_db.fetch_all.return_value = [{"plots_id": 1, "name": "Plot 1"}]
+        self.mock_db.get_table_columns.return_value = ["plots_id", "name"]
+
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": str(self.template_dir),
+            "include_default_assets": False,
+            "site": {
+                "title": "Test Site",
+                "logo_header": "files/niamoto_logo.png",
+                "languages": ["fr", "en"],
+            },
+        }
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="plots",
+                data_source="db",
+                template="_group_detail.html",
+                output_pattern="{id}.html",
+                index_output_pattern="index.html",
+                widgets=[],
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        index_file = self.output_dir / "fr" / "plots" / "index.html"
+        self.assertTrue(index_file.exists())
+        content = index_file.read_text()
+        self.assertIn('href="../../assets/css/niamoto.css"', content)
+        self.assertIn('src="../../assets/files/niamoto_logo.png"', content)
+
+    def test_index_generator_uses_export_root_depth_for_multilang_assets(self):
+        """Index generator pages must resolve shared assets from the export root."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        group_index_template = """
+{% extends "_base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ '/assets/css/niamoto.css' | relative_url(depth|default(0)) }}">
+<img src="{{ site.logo_header | relative_url(depth|default(0)) }}" alt="Logo">
+{% endblock %}
+"""
+        (self.template_dir / "_group_index.html").write_text(group_index_template)
+
+        self.mock_db.fetch_all.return_value = [{"plots_id": 1, "name": "Plot 1"}]
+        self.mock_db.get_table_columns.return_value = ["plots_id", "name"]
+        self.mock_db.has_table.return_value = True
+
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": str(self.template_dir),
+            "include_default_assets": False,
+            "site": {
+                "title": "Test Site",
+                "logo_header": "files/niamoto_logo.png",
+                "languages": ["fr", "en"],
+            },
+        }
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="plots",
+                data_source="db",
+                template="_group_detail.html",
+                output_pattern="plots/{id}.html",
+                index_output_pattern="plots/index.html",
+                index_generator=IndexGeneratorConfig(
+                    enabled=True,
+                    template="group_index.html",
+                    page_config=IndexGeneratorPageConfig(title="Plots"),
+                    display_fields=[
+                        IndexGeneratorDisplayField(
+                            name="name",
+                            source="name",
+                            type="text",
+                            label="Name",
+                        )
+                    ],
+                    views=[],
+                ),
+                widgets=[],
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        index_file = self.output_dir / "fr" / "plots" / "index.html"
+        self.assertTrue(index_file.exists())
+        content = index_file.read_text()
+        self.assertIn('href="../../assets/css/niamoto.css"', content)
+        self.assertIn('src="../../assets/files/niamoto_logo.png"', content)
+
+    def test_index_generator_resolves_localized_navigation_strings(self):
+        """Index generator pages must receive localized site and navigation labels."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        localized_base_template = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ site.title }}</title>
+</head>
+<body>
+    <nav>{{ navigation[0].text }}</nav>
+    {% block content %}{% endblock %}
+</body>
+</html>
+"""
+        (self.template_dir / "_base.html").write_text(localized_base_template)
+
+        group_index_template = """
+{% extends "_base.html" %}
+{% block content %}
+<div>Index</div>
+{% endblock %}
+"""
+        (self.template_dir / "_group_index.html").write_text(group_index_template)
+
+        self.mock_db.fetch_all.return_value = [{"taxons_id": 1, "name": "Taxon 1"}]
+        self.mock_db.get_table_columns.return_value = ["taxons_id", "name"]
+        self.mock_db.has_table.return_value = True
+
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": str(self.template_dir),
+            "include_default_assets": False,
+            "site": {
+                "title": {"fr": "Niamoto FR", "en": "Niamoto EN"},
+                "logo_header": "files/niamoto_logo.png",
+                "languages": ["fr", "en"],
+            },
+            "navigation": [
+                {"text": {"fr": "Accueil", "en": "Home"}, "url": "/index.html"}
+            ],
+        }
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="taxons",
+                data_source="db",
+                template="_group_detail.html",
+                output_pattern="taxons/{id}.html",
+                index_output_pattern="taxons/index.html",
+                index_generator=IndexGeneratorConfig(
+                    enabled=True,
+                    template="group_index.html",
+                    page_config=IndexGeneratorPageConfig(title="Taxons"),
+                    display_fields=[
+                        IndexGeneratorDisplayField(
+                            name="name",
+                            source="name",
+                            type="text",
+                            label="Name",
+                        )
+                    ],
+                    views=[],
+                ),
+                widgets=[],
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        index_file = self.output_dir / "fr" / "taxons" / "index.html"
+        content = index_file.read_text()
+        self.assertIn("Accueil", content)
+        self.assertNotIn("{'fr': 'Accueil', 'en': 'Home'}", content)
+        self.assertIn("Niamoto FR", content)
+        self.assertNotIn("{'fr': 'Niamoto FR', 'en': 'Niamoto EN'}", content)
+
+    @patch("niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home")
+    def test_project_files_are_copied_even_without_user_assets(self, mock_home):
+        """Project files must still be copied when copy_assets_from is empty."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        project_home = Path(self.test_dir) / "project-home"
+        files_dir = project_home / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "niamoto_logo.png").write_bytes(b"fake-image")
+        mock_home.return_value = str(project_home)
+
+        params = HtmlExporterParams(
+            output_dir=str(self.output_dir),
+            template_dir=str(self.template_dir),
+            include_default_assets=False,
+            copy_assets_from=[],
+        )
+
+        exporter._copy_static_assets(params, self.output_dir)
+
+        copied_file = self.output_dir / "assets" / "files" / "niamoto_logo.png"
+        self.assertTrue(copied_file.exists())
+        self.assertEqual(copied_file.read_bytes(), b"fake-image")
+
+    def test_language_redirect_targets_index_html(self):
+        """Root redirect page should work when opened via file://."""
+        exporter = HtmlPageExporter(self.mock_db)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        exporter._generate_language_redirect(self.output_dir, "fr", ["fr", "en"])
+
+        content = (self.output_dir / "index.html").read_text()
+        self.assertIn('content="0; url=fr/index.html"', content)
+        self.assertIn("window.location.href = shortLang + '/index.html';", content)
+        self.assertIn("window.location.href = 'fr/index.html';", content)
+        self.assertIn('href="fr/index.html"', content)
+
+    def test_bibliography_page_embeds_bibtex_download_payload(self):
+        """Bibliography pages should download BibTeX without relying on file:// download."""
+        exporter = HtmlPageExporter(self.mock_db)
+        self.target_config.params = {
+            "output_dir": str(self.output_dir),
+            "template_dir": "src/niamoto/publish/templates",
+            "include_default_assets": False,
+            "site": {"title": "Test Site", "lang": "fr"},
+        }
+        self.target_config.static_pages = [
+            StaticPageConfig(
+                name="bibliography",
+                template="bibliography.html",
+                output_file="references.html",
+                context=StaticPageContext(
+                    title="Références",
+                    references=[
+                        {
+                            "authors": "Doe, J.",
+                            "year": "2024",
+                            "title": "Example Reference",
+                            "journal": "Niamoto Journal",
+                            "type": "article",
+                        }
+                    ],
+                ),
+            )
+        ]
+
+        exporter.export(self.target_config, self.mock_db)
+
+        html = (self.output_dir / "references.html").read_text(encoding="utf-8")
+        bib = (self.output_dir / "references.bib").read_text(encoding="utf-8")
+
+        self.assertIn('id="download-bibtex"', html)
+        self.assertIn("const bibliographyBibtex =", html)
+        self.assertIn("link.download = 'references.bib';", html)
+        self.assertIn("@article", bib)
+        self.assertIn("Example Reference", bib)
+
+    @patch("niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home")
+    def test_export_paths_resolve_against_project_root(self, mock_home):
+        """Relative output_dir and template_dir must resolve against NIAMOTO_HOME."""
+        project_home = Path(self.test_dir) / "project-home"
+        project_home.mkdir(parents=True, exist_ok=True)
+        output_dir = project_home / "exports" / "web"
+        template_dir = project_home / "templates"
+        template_dir.mkdir(parents=True, exist_ok=True)
+        (template_dir / "_base.html").write_text(
+            "<html><body>{% block content %}{% endblock %}</body></html>"
+        )
+        (template_dir / "_layouts").mkdir(exist_ok=True)
+        (template_dir / "_layouts" / "static_page.html").write_text(
+            '{% extends "_base.html" %}{% block content %}<h1>{{ page.title }}</h1>{% endblock %}'
+        )
+
+        mock_home.return_value = str(project_home)
+
+        exporter = HtmlPageExporter(self.mock_db)
+        target_config = TargetConfig(
+            name="test_export",
+            enabled=True,
+            exporter="html_page_exporter",
+            params={
+                "output_dir": "exports/web",
+                "template_dir": "templates",
+                "include_default_assets": False,
+                "site": {"title": "Test Site", "lang": "fr"},
+            },
+            static_pages=[
+                StaticPageConfig(
+                    name="home",
+                    output_file="index.html",
+                    template="_layouts/static_page.html",
+                    context=StaticPageContext(title="Home"),
+                )
+            ],
+            groups=[],
+        )
+
+        exporter.export(target_config, self.mock_db)
+
+        self.assertTrue((output_dir / "index.html").exists())
 
     def test_hierarchical_nav_widget_special_handling(self):
         """Test special handling for hierarchical navigation widget."""

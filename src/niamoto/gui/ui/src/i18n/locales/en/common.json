@@ -49,6 +49,7 @@
   },
   "pipeline": {
     "never_run": "Not yet run",
+    "unconfigured": "No collection configured",
     "running": "Processing...",
     "data_stale": "Data imported — collections need recalculation",
     "data_fresh": "Data imported",
@@ -72,9 +73,14 @@
       "title": "Cascade update",
       "description": "Recalculate {{count}} collection(s) → Rebuild site → Publish"
     },
+    "first_run": {
+      "title": "First calculations",
+      "description": "Calculate {{count}} collection(s) to initialize results before building and publishing."
+    },
     "dashboard": {
       "title": "Dashboard",
       "stale_subtitle": "Updates needed",
+      "pending_subtitle": "Initial steps are still pending",
       "fresh_subtitle": "Everything is up to date",
       "update_all": "Update"
     },
@@ -85,6 +91,8 @@
       "references": "{{count}} references",
       "layers": "{{count}} spatial layers",
       "collections_ratio": "{{fresh}}/{{total}} up to date",
+      "collections_unconfigured": "No collection configured",
+      "collections_never_run_ratio": "{{count}}/{{total}} not yet calculated",
       "collections_stale_ratio": "{{stale}}/{{total}} to recalculate",
       "pages": "{{count}} pages",
       "html_pages": "{{count}} HTML pages",

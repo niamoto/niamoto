@@ -176,7 +176,7 @@ packaging==24.2
     #   pytest
     #   sphinx
     #   topojson
-pandas==2.3.3
+pandas==3.0.2
     # via
     #   niamoto (pyproject.toml)
     #   geopandas
@@ -248,8 +248,6 @@ python-dotenv==1.1.1
     # via uvicorn
 python-multipart==0.0.22
     # via niamoto (pyproject.toml)
-pytz==2025.1
-    # via pandas
 pyyaml==6.0.3
     # via
     #   niamoto (pyproject.toml)
@@ -361,8 +359,6 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
-tzdata==2025.1
-    # via pandas
 unidecode==1.4.0
     # via niamoto (pyproject.toml)
 urllib3==2.3.0

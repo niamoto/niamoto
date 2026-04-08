@@ -8,6 +8,20 @@ export interface ImportJobEvent {
   phase?: string | null
   entity_name?: string | null
   entity_type?: string | null
+  details?: ImportErrorDetails | Record<string, unknown> | null
+}
+
+export interface ImportErrorDetails {
+  message: string
+  error_type?: string
+  user_message?: string
+  traceback?: string | null
+  details?: Record<string, unknown>
+  cause?: {
+    error_type?: string
+    message?: string
+    traceback?: string | null
+  } | null
 }
 
 export interface ImportJobStatus {
@@ -21,6 +35,7 @@ export interface ImportJobStatus {
   current_entity?: string | null
   current_entity_type?: string | null
   errors?: string[]
+  error_details?: ImportErrorDetails | null
   warnings?: string[]
   events?: ImportJobEvent[]
   processed_records?: number

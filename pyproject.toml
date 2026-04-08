@@ -60,7 +60,7 @@ dependencies = [
     # -------------------------
     # pandas - Essential library for data manipulation and analysis.
     # Documentation: https://pandas.pydata.org/
-    "pandas>=2.3.1,<3",
+    "pandas>=3.0.2,<4",
     # numpy - Fundamental package for scientific computing in Python.
     # Documentation: https://numpy.org/
     "numpy>=2.4.4,<3",
@@ -271,8 +271,6 @@ filterwarnings = [
     "ignore::UserWarning:rich.live",
     # Pandas false positive: our SQLAlchemy connections are valid but pandas doesn't recognize them
     "ignore:pandas only supports SQLAlchemy connectable:UserWarning",
-    # We handle SettingWithCopyWarning properly with .copy() where needed
-    "ignore::pandas.errors.SettingWithCopyWarning",
     # Expected warning when we try to auto-detect datetime formats
     "ignore:Could not infer format:UserWarning",
     # Pyogrio still imports the deprecated shapely.geos module

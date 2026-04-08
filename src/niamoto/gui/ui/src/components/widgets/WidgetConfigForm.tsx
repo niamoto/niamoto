@@ -77,7 +77,7 @@ export function WidgetConfigForm({
   }, [widget.description, widget.id, widget.title, widget.transformerParams, widget.widgetParams])
 
   // Debounce ref for onChange
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Build current config from state
   const currentConfig = useMemo(() => ({

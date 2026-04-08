@@ -51,8 +51,8 @@ export function FeedbackModal() {
   // Reset form only when modal opens (not on type change)
   useEffect(() => {
     if (feedback.isOpen) {
-      setTitle(feedback.draftTitle)
-      setDescription(feedback.draftDescription)
+      setTitle(feedback.draftTitle.slice(0, 200))
+      setDescription(feedback.draftDescription.slice(0, 5000))
       setIncludeScreenshot(feedback.type === 'bug')
       setTitleError(false)
     }
@@ -91,7 +91,7 @@ export function FeedbackModal() {
   return (
     <>
       <Dialog open={feedback.isOpen} onOpenChange={(open) => { if (!open) handleClose() }}>
-        <DialogContent className="max-w-md" showCloseButton>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" showCloseButton>
           <DialogHeader>
             <DialogTitle>{t('modal_title')}</DialogTitle>
           </DialogHeader>
@@ -141,7 +141,9 @@ export function FeedbackModal() {
                 maxLength={5000}
                 rows={4}
                 disabled={feedback.isSending}
+                className="field-sizing-fixed min-h-40 max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words"
               />
+              <p className="text-xs text-muted-foreground text-right">{description.length}/5000</p>
             </div>
 
             {/* Screenshot preview (visible for bug type) */}

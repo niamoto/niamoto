@@ -49,6 +49,7 @@
   },
   "pipeline": {
     "never_run": "Pas encore exécuté",
+    "unconfigured": "Aucune collection configurée",
     "running": "Traitement en cours...",
     "data_stale": "Données importées — collections à recalculer",
     "data_fresh": "Données importées",
@@ -72,9 +73,14 @@
       "title": "Cascade de mises à jour",
       "description": "Recalculer {{count}} collection(s) → Reconstruire le site → Publier"
     },
+    "first_run": {
+      "title": "Premiers calculs",
+      "description": "Calculer {{count}} collection(s) pour initialiser les résultats avant la construction et la publication."
+    },
     "dashboard": {
       "title": "Tableau de bord",
       "stale_subtitle": "Des mises à jour sont nécessaires",
+      "pending_subtitle": "Des étapes initiales restent à lancer",
       "fresh_subtitle": "Tout est à jour",
       "update_all": "Mettre à jour"
     },
@@ -85,6 +91,8 @@
       "references": "{{count}} références",
       "layers": "{{count}} couches spatiales",
       "collections_ratio": "{{fresh}}/{{total}} à jour",
+      "collections_unconfigured": "Aucune collection configurée",
+      "collections_never_run_ratio": "{{count}}/{{total}} pas encore calculées",
       "collections_stale_ratio": "{{stale}}/{{total}} à recalculer",
       "pages": "{{count}} pages",
       "html_pages": "{{count}} pages HTML",

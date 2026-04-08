@@ -343,7 +343,7 @@ export function EnrichmentTab({
   const [isPausing, setIsPausing] = useState(false)
   const [isResuming, setIsResuming] = useState(false)
 
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const apiCategory: ApiCategory =
     referenceConfig?.kind === 'spatial' ? 'spatial' : 'taxonomy'
   const enrichmentConfig = enrichmentToApiConfig(referenceConfig?.enrichment?.[0])

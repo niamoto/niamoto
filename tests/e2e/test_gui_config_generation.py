@@ -45,9 +45,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Plugins manquants connus (cf. Phase 1.3)
-KNOWN_MISSING_PLUGINS = {
-    "entity_map_extractor",
-}
+KNOWN_MISSING_PLUGINS: set[str] = set()
 
 # Plugins traités comme « export-only » par save_transform_config :
 # ils sont retirés de transform.yml et écrits uniquement dans export.yml.

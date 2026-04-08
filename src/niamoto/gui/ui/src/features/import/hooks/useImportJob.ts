@@ -5,6 +5,7 @@ import {
 } from '@/features/import/api/smart-config'
 import {
   executeImportAll,
+  type ImportErrorDetails,
   getImportStatus,
   type ImportJobEvent,
 } from '@/features/import/api/import'
@@ -22,6 +23,7 @@ export interface ImportJobState {
   message?: string
   progress?: number
   events: ImportJobEvent[]
+  errorDetails?: ImportErrorDetails | null
 }
 
 interface UseImportJobOptions {
@@ -50,6 +52,7 @@ const INITIAL_STATE: ImportJobState = {
   totalEntities: 0,
   processedEntities: 0,
   events: [],
+  errorDetails: null,
 }
 
 export function useImportJob({
@@ -77,6 +80,7 @@ export function useImportJob({
     ) => {
       if (startedRef.current) return
       startedRef.current = true
+      let latestErrorDetails: ImportErrorDetails | null = null
 
       try {
         setState({
@@ -97,6 +101,7 @@ export function useImportJob({
               phase: 'saving',
             },
           ],
+          errorDetails: null,
         })
 
         await createEntitiesBulk({
@@ -142,6 +147,7 @@ export function useImportJob({
             message: current.message,
             progress: current.progress,
             events: current.events || [],
+            errorDetails: current.error_details || null,
           })
 
           if (current.status === 'completed') {
@@ -153,6 +159,7 @@ export function useImportJob({
           }
 
           if (current.status === 'failed') {
+            latestErrorDetails = current.error_details || null
             throw new Error(current.errors?.join(', ') || messages?.importFailed || 'Import failed')
           }
 
@@ -168,6 +175,7 @@ export function useImportJob({
           ...previous,
           status: 'failed',
           error: message,
+          errorDetails: latestErrorDetails ?? previous.errorDetails ?? null,
         }))
         throw err
       }

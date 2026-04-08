@@ -80,3 +80,35 @@ def test_detect_relationships_penalizes_locality_as_hard_id_join():
         )
         for relationship in relationships
     )
+
+
+def test_detect_relationships_prefers_plot_label_when_plot_name_is_sparse():
+    relationships = ColumnDetector.detect_relationships(
+        source_columns=["plot_name"],
+        target_columns=["id_plot", "plot"],
+        source_sample=[
+            {"plot_name": ""},
+            {"plot_name": ""},
+            {"plot_name": ""},
+            {"plot_name": "Aoupinie"},
+            {"plot_name": "Mont Panie"},
+        ],
+        target_sample=[
+            {"id_plot": "1", "plot": "Aoupinie"},
+            {"id_plot": "2", "plot": "Mont Panie"},
+        ],
+        source_entity_name="occurrences",
+        target_entity_name="plots",
+    )
+
+    assert relationships
+    best = relationships[0]
+    assert best["source_field"] == "plot_name"
+    assert best["target_field"] == "plot"
+    assert all(
+        not (
+            relationship["target_field"] == "id_plot"
+            and relationship["confidence"] >= best["confidence"]
+        )
+        for relationship in relationships
+    )

@@ -332,6 +332,7 @@ class AutoConfigService:
                 {
                     "final_entity_type": "auxiliary_source",
                     "review_required": False,
+                    "review_level": "stable",
                     "review_reasons": [],
                     "review_priority": "normal",
                     "auxiliary_target": auxiliary["grouping"],

@@ -32,11 +32,8 @@ import {
   Plus,
   Trash2,
   ExternalLink as ExternalLinkIcon,
-  Github,
-  Twitter,
-  Facebook,
-  Linkedin,
-  Instagram,
+  GitBranch,
+  X,
   Globe,
   Mail,
 } from 'lucide-react'
@@ -55,11 +52,11 @@ import type { ExternalLink } from '@/shared/hooks/useSiteConfig'
 
 // Link types with their icons
 const LINK_TYPES = [
-  { value: 'github', label: 'GitHub', icon: Github, pattern: /github\.com/i },
-  { value: 'twitter', label: 'Twitter/X', icon: Twitter, pattern: /twitter\.com|x\.com/i },
-  { value: 'facebook', label: 'Facebook', icon: Facebook, pattern: /facebook\.com/i },
-  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, pattern: /linkedin\.com/i },
-  { value: 'instagram', label: 'Instagram', icon: Instagram, pattern: /instagram\.com/i },
+  { value: 'github', label: 'GitHub', icon: GitBranch, pattern: /github\.com/i },
+  { value: 'twitter', label: 'Twitter/X', icon: X, pattern: /twitter\.com|x\.com/i },
+  { value: 'facebook', label: 'Facebook', icon: ExternalLinkIcon, pattern: /facebook\.com/i },
+  { value: 'linkedin', label: 'LinkedIn', icon: ExternalLinkIcon, pattern: /linkedin\.com/i },
+  { value: 'instagram', label: 'Instagram', icon: ExternalLinkIcon, pattern: /instagram\.com/i },
   { value: 'email', label: 'Email', icon: Mail, pattern: /^mailto:/i },
   { value: 'website', label: 'Site web', icon: Globe, pattern: null },
 ] as const

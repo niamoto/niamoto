@@ -78,6 +78,17 @@ function StatusIcon({ status }: { status: FreshnessStatus }) {
   }
 }
 
+function getDisplayStatus(status: FreshnessStatus, itemStatuses: FreshnessStatus[] = []): FreshnessStatus {
+  const hasStale = itemStatuses.includes('stale')
+  const hasNeverRun = itemStatuses.includes('never_run')
+
+  if (!hasStale && hasNeverRun) {
+    return 'never_run'
+  }
+
+  return status
+}
+
 export function StalenessBanner({ stage, onAction, actionLabel, className }: StalenessBannerProps) {
   const { t } = useTranslation('common')
   const { data: pipeline } = usePipelineStatus()
@@ -88,13 +99,16 @@ export function StalenessBanner({ stage, onAction, actionLabel, className }: Sta
   if (!stageData) return null
 
   const config = stageConfig[stage]
-  const { status } = stageData
+  const status = getDisplayStatus(
+    stageData.status,
+    stageData.items?.map((item) => item.status) ?? []
+  )
 
-  // Don't show banner for never_run — that's handled by the page's empty state
-  if (status === 'never_run') return null
+  // Don't show banner for never_run / unconfigured — that's handled by the page state
+  if (status === 'never_run' || status === 'unconfigured') return null
 
   // Stale items count for groups
-  const staleCount = stageData.items?.filter(i => i.status === 'stale' || i.status === 'never_run').length ?? 0
+  const staleCount = stageData.items?.filter(i => i.status === 'stale').length ?? 0
 
   const isFresh = status === 'fresh'
   const isRunning = status === 'running'

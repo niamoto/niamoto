@@ -64,7 +64,7 @@ class TestReloadProjectEndpoint:
             lambda: DesktopProjectReloadResult(
                 state="welcome",
                 project_path=None,
-                message="No desktop project selected.",
+                message=None,
             ),
         )
         monkeypatch.setattr(
@@ -83,7 +83,7 @@ class TestReloadProjectEndpoint:
             "success": True,
             "state": "welcome",
             "project": None,
-            "message": "No desktop project selected.",
+            "message": None,
         }
         assert client.app.state.job_store is None
         assert client.app.state.job_store_work_dir is None

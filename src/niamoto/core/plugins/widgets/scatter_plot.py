@@ -188,14 +188,14 @@ class ScatterPlotWidget(WidgetPlugin):
         for col in numeric_cols:
             if not pd.api.types.is_numeric_dtype(data[col]):
                 try:
-                    # Attempt conversion
-                    data.loc[:, col] = pd.to_numeric(data[col], errors="coerce")
-                    if data[col].isnull().any():
+                    converted = pd.to_numeric(data[col], errors="coerce")
+                    if converted.isnull().any():
                         logger.warning(
                             f"Column '{col}' used for numeric axis/size contains non-numeric values or NaNs after conversion."
                         )
                         # Decide whether to dropna or return error. Returning error for now.
                         return f"<p class='error'>Data Error: Column '{html.escape(str(col))}' contains non-numeric values.</p>"
+                    data = data.assign(**{col: converted})
                 except Exception as e:
                     logger.error(f"Failed to convert column '{col}' to numeric: {e}")
                     return f"<p class='error'>Data Error: Could not process numeric column '{html.escape(str(col))}'.</p>"

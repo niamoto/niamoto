@@ -45,6 +45,14 @@ from niamoto.core.plugins.registry import PluginRegistry
 logger = logging.getLogger(__name__)
 
 
+def _resolve_project_path(path_value: str) -> Path:
+    """Resolve exporter paths relative to NIAMOTO_HOME when needed."""
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return Path(Config.get_niamoto_home()) / path
+
+
 @register("html_page_exporter", PluginType.EXPORTER)
 class HtmlPageExporter(ExporterPlugin):
     """Generates a static HTML website based on the export configuration."""
@@ -338,7 +346,7 @@ class HtmlPageExporter(ExporterPlugin):
 <html>
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url={default_lang}/">
+    <meta http-equiv="refresh" content="0; url={default_lang}/index.html">
     <script>
         // Detect browser language and redirect
         (function() {{
@@ -347,16 +355,16 @@ class HtmlPageExporter(ExporterPlugin):
             var shortLang = browserLang.split('-')[0].toLowerCase();
 
             if (supportedLangs.indexOf(shortLang) !== -1) {{
-                window.location.href = shortLang + '/';
+                window.location.href = shortLang + '/index.html';
             }} else {{
-                window.location.href = '{default_lang}/';
+                window.location.href = '{default_lang}/index.html';
             }}
         }})();
     </script>
     <title>Redirecting...</title>
 </head>
 <body>
-    <p>Redirecting to <a href="{default_lang}/">default language</a>...</p>
+    <p>Redirecting to <a href="{default_lang}/index.html">default language</a>...</p>
 </body>
 </html>"""
 
@@ -398,8 +406,8 @@ class HtmlPageExporter(ExporterPlugin):
             except AttributeError:
                 html_params = HtmlExporterParams.parse_obj(target_config.params)
 
-            output_dir = Path(html_params.output_dir)
-            user_template_dir = Path(html_params.template_dir)
+            output_dir = _resolve_project_path(html_params.output_dir)
+            user_template_dir = _resolve_project_path(html_params.template_dir)
 
             # Store output path for summary display
             self.stats["output_path"] = str(output_dir.resolve())
@@ -709,65 +717,57 @@ class HtmlPageExporter(ExporterPlugin):
         user_asset_dirs = html_params.copy_assets_from
         if not user_asset_dirs:
             logger.debug("No user-specified asset directories/files to copy.")
-            return  # Nothing more to do if no user assets
-
-        logger.info(f"Copying {len(user_asset_dirs)} user-specified asset paths...")
-        try:
-            user_asset_base_path = Path(Config.get_niamoto_home())
-        except Exception as e:
-            logger.error(
-                f"Could not determine project home directory (NIAMOTO_HOME): {e}. User asset paths may fail."
-            )
-            user_asset_base_path = Path.cwd()  # Fallback
-
-        for asset_path_str in user_asset_dirs:
-            source_path = user_asset_base_path / asset_path_str
-            target_path = (
-                output_dir / Path(asset_path_str).name
-            )  # Copy relative to output root
-
-            if not source_path.exists():
-                logger.warning(
-                    f"User asset source not found, skipping: {source_path} (relative to {user_asset_base_path})"
-                )
-                continue
-
+        else:
+            logger.info(f"Copying {len(user_asset_dirs)} user-specified asset paths...")
             try:
-                if target_path.exists():
-                    logger.debug(
-                        f"Target user asset directory {target_path} exists, merging contents."
-                    )
-                # else:
-                #     target_path.unlink() # Unlink only relevant if it could be a file
-
-                if source_path.is_dir():
-                    logger.debug(
-                        f"Copying user assets directory from {source_path} to {target_path}"
-                    )
-                    shutil.copytree(
-                        source_path, target_path, dirs_exist_ok=True
-                    )  # Allow merging
-                elif source_path.is_file():
-                    logger.debug(
-                        f"Copying user asset file from {source_path} to {target_path}"
-                    )
-                    target_path.parent.mkdir(
-                        parents=True, exist_ok=True
-                    )  # Ensure parent exists for files
-                    shutil.copy2(source_path, target_path)
-                else:
-                    logger.warning(
-                        f"User asset source is neither a file nor a directory, skipping: {source_path}"
-                    )
-
+                user_asset_base_path = Path(Config.get_niamoto_home())
             except Exception as e:
                 logger.error(
-                    f"Failed to copy user assets from {source_path} to {target_path}: {e}",
-                    exc_info=True,
+                    f"Could not determine project home directory (NIAMOTO_HOME): {e}. User asset paths may fail."
                 )
-                # Consider raising ProcessError
+                user_asset_base_path = Path.cwd()  # Fallback
 
-        logger.info("User-specified assets copy process finished.")
+            for asset_path_str in user_asset_dirs:
+                source_path = user_asset_base_path / asset_path_str
+                target_path = (
+                    output_dir / Path(asset_path_str).name
+                )  # Copy relative to output root
+
+                if not source_path.exists():
+                    logger.warning(
+                        f"User asset source not found, skipping: {source_path} (relative to {user_asset_base_path})"
+                    )
+                    continue
+
+                try:
+                    if target_path.exists():
+                        logger.debug(
+                            f"Target user asset directory {target_path} exists, merging contents."
+                        )
+
+                    if source_path.is_dir():
+                        logger.debug(
+                            f"Copying user assets directory from {source_path} to {target_path}"
+                        )
+                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                    elif source_path.is_file():
+                        logger.debug(
+                            f"Copying user asset file from {source_path} to {target_path}"
+                        )
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source_path, target_path)
+                    else:
+                        logger.warning(
+                            f"User asset source is neither a file nor a directory, skipping: {source_path}"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to copy user assets from {source_path} to {target_path}: {e}",
+                        exc_info=True,
+                    )
+
+            logger.info("User-specified assets copy process finished.")
 
         # 3. Copy project 'files/' directory into assets/files/
         # This directory contains user-uploaded files (logos, images, etc.)
@@ -1259,6 +1259,11 @@ class HtmlPageExporter(ExporterPlugin):
                     if key in page_context and key not in context:
                         context[key] = page_context[key]
 
+                if context.get("references"):
+                    context["references_bibtex"] = self._references_to_bibtex(
+                        context["references"]
+                    )
+
                 # Determine the template to use
                 template_name = (
                     page_config.template or "static_page.html"
@@ -1283,7 +1288,7 @@ class HtmlPageExporter(ExporterPlugin):
                     "bibliography.html",
                 ):
                     bib_path = output_file_path.parent / "references.bib"
-                    bib_content = self._references_to_bibtex(context["references"])
+                    bib_content = context["references_bibtex"]
                     bib_path.write_text(bib_content, encoding="utf-8")
                     self.stats["total_files_generated"] += 1
                     logger.debug(
@@ -1402,6 +1407,24 @@ class HtmlPageExporter(ExporterPlugin):
                             f"Using IndexGeneratorPlugin for group '{group_by_key}'"
                         )
 
+                        site_context = self._get_site_context(html_params, lang)
+                        if lang:
+                            site_context["current_lang"] = lang
+                        if languages:
+                            site_context["languages"] = languages
+                        site_context["language_switcher"] = language_switcher
+
+                        navigation = self._resolve_navigation(
+                            html_params.navigation if html_params.navigation else [],
+                            lang,
+                        )
+                        footer_navigation = self._resolve_footer_sections(
+                            html_params.footer_navigation
+                            if html_params.footer_navigation
+                            else [],
+                            lang,
+                        )
+
                         # Create plugin instance
                         index_generator = IndexGeneratorPlugin(repository)
 
@@ -1412,6 +1435,12 @@ class HtmlPageExporter(ExporterPlugin):
                             output_dir,
                             jinja_env,
                             html_params,
+                            lang=lang,
+                            languages=languages,
+                            language_switcher=language_switcher,
+                            site_context=site_context,
+                            navigation=navigation,
+                            footer_navigation=footer_navigation,
                         )
                         logger.debug(
                             f"Index page generated using IndexGeneratorPlugin for '{group_by_key}'"
@@ -1537,6 +1566,8 @@ class HtmlPageExporter(ExporterPlugin):
                         html_params=html_params,
                         group_by_key=group_by_key,
                         id_column=id_column,
+                        output_dir=output_dir,
+                        group_output_dir=group_output_dir,
                         lang=lang,
                         languages=languages,
                         language_switcher=language_switcher,
@@ -1624,14 +1655,26 @@ class HtmlPageExporter(ExporterPlugin):
         html_params: HtmlExporterParams,
         group_by_key: str,
         id_column: str,
+        output_dir: Path,
+        group_output_dir: Path,
         lang: Optional[str],
         languages: Optional[List[str]],
         language_switcher: bool,
     ) -> Dict[str, Any]:
         """Build the part of the detail page context shared by all items in a group."""
-        nav_depth = group_config.output_pattern.count("/")
         is_multilang = bool(lang and languages and len(languages) > 1)
-        depth = nav_depth + (1 if is_multilang else 0)
+        sample_output_path = self._resolve_detail_output_path(
+            group_config=group_config,
+            group_by_key=group_by_key,
+            item_id="__sample__",
+            output_dir=output_dir,
+            group_output_dir=group_output_dir,
+        )
+        nav_depth, depth = self._compute_page_depths(
+            page_output_path=sample_output_path,
+            output_dir=output_dir,
+            is_multilang=is_multilang,
+        )
 
         site_context = self._get_site_context(html_params, lang)
         if lang:
@@ -1662,6 +1705,19 @@ class HtmlPageExporter(ExporterPlugin):
             "languages": languages or [],
             "language_switcher": language_switcher,
         }
+
+    def _compute_page_depths(
+        self,
+        *,
+        page_output_path: Path,
+        output_dir: Path,
+        is_multilang: bool,
+    ) -> tuple[int, int]:
+        """Compute template depth variables from the real output path."""
+        relative_output_path = page_output_path.relative_to(output_dir)
+        nav_depth = max(len(relative_output_path.parts) - 1, 0)
+        depth = nav_depth + (1 if is_multilang else 0)
+        return nav_depth, depth
 
     def _resolve_detail_output_path(
         self,
@@ -2507,6 +2563,28 @@ class HtmlPageExporter(ExporterPlugin):
                     processed_items.append(processed)
                 normalized_items = processed_items
 
+            # Output index file to the specific group directory
+            index_output_file = Path(
+                group_config.index_output_pattern.format(group_by=group_by_key)
+            )
+
+            # Check if index_output_pattern already includes the group name to avoid duplication
+            if (
+                f"{group_by_key}/" in group_config.index_output_pattern
+                or "{group_by}/" in group_config.index_output_pattern
+            ):
+                # Remove the group prefix from output path to avoid duplication
+                index_output_path = output_dir / index_output_file
+            else:
+                # Keep current behavior for backward compatibility
+                index_output_path = group_output_dir / index_output_file
+
+            nav_depth, depth = self._compute_page_depths(
+                page_output_path=index_output_path,
+                output_dir=output_dir,
+                is_multilang=bool(lang and languages and len(languages) > 1),
+            )
+
             index_context = {
                 "site": site_context,
                 "navigation": navigation,
@@ -2529,34 +2607,9 @@ class HtmlPageExporter(ExporterPlugin):
                     "views": views,
                 },
                 "items_data": normalized_items,
-                "nav_depth": (
-                    group_config.output_pattern.count("/")
-                    if group_config.output_pattern
-                    else 0
-                ),
-                "depth": (
-                    group_config.output_pattern.count("/")
-                    if group_config.output_pattern
-                    else 0
-                )
-                + (1 if lang and languages and len(languages) > 1 else 0),
+                "nav_depth": nav_depth,
+                "depth": depth,
             }
-
-            # Output index file to the specific group directory
-            index_output_file = Path(
-                group_config.index_output_pattern.format(group_by=group_by_key)
-            )
-
-            # Check if index_output_pattern already includes the group name to avoid duplication
-            if (
-                f"{group_by_key}/" in group_config.index_output_pattern
-                or "{group_by}/" in group_config.index_output_pattern
-            ):
-                # Remove the group prefix from output path to avoid duplication
-                index_output_path = output_dir / index_output_file
-            else:
-                # Keep current behavior for backward compatibility
-                index_output_path = group_output_dir / index_output_file
 
             index_output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(index_output_path, "w", encoding="utf-8") as f:

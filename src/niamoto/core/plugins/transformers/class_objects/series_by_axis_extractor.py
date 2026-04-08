@@ -186,9 +186,8 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
             # Convert and sort axis values if configured
             if axis_config.numeric:
                 try:
-                    axis_data.loc[:, axis_config.field] = pd.to_numeric(
-                        axis_data[axis_config.field]
-                    )
+                    axis_values = pd.to_numeric(axis_data[axis_config.field])
+                    axis_data = axis_data.assign(**{axis_config.field: axis_values})
                 except Exception as e:
                     raise DataTransformError(
                         "Failed to convert axis values to numeric",
@@ -218,9 +217,8 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
 
                 # Convert and sort values
                 if axis_config.numeric:
-                    type_data.loc[:, axis_config.field] = pd.to_numeric(
-                        type_data[axis_config.field]
-                    )
+                    type_values = pd.to_numeric(type_data[axis_config.field])
+                    type_data = type_data.assign(**{axis_config.field: type_values})
                 if axis_config.sort:
                     type_data = type_data.sort_values(axis_config.field)
 

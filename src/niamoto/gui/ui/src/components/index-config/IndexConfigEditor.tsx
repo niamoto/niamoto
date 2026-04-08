@@ -346,7 +346,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
 
       {/* Main content with optional side panel */}
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={showSidePanel ? 55 : 100} minSize={40}>
+        <ResizablePanel defaultSize={showSidePanel ? "55%" : "100%"} minSize="40%">
           <div className="h-full overflow-auto p-4">
             <div className="space-y-4 max-w-4xl">
           {/* Enable/disable toggle */}
@@ -584,7 +584,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
         {showSidePanel && (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={45} minSize={30}>
+            <ResizablePanel defaultSize="45%" minSize="30%">
               {editingFieldIndex !== null && config.display_fields[editingFieldIndex] ? (
                 <DisplayFieldEditorPanel
                   field={config.display_fields[editingFieldIndex]}

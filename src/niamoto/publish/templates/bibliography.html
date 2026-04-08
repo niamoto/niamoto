@@ -57,11 +57,11 @@
                        class="w-full border-none outline-none bg-transparent text-gray-800 placeholder-gray-400">
             </label>
             {% if references %}
-            <a href="{{ 'references.bib' | relative_url(depth|default(0)) }}" download
+            <button type="button" id="download-bibtex"
                class="inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
                 <i data-lucide="file-down" class="w-4 h-4"></i>
                 BibTeX
-            </a>
+            </button>
             {% endif %}
         </div>
 
@@ -173,8 +173,24 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        {% if references_bibtex %}
+        const bibliographyBibtex = {{ references_bibtex | tojson | safe }};
+        document.getElementById('download-bibtex')?.addEventListener('click', () => {
+            const blob = new Blob([bibliographyBibtex], { type: 'application/x-bibtex;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'references.bib';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        });
+        {% endif %}
+
         const searchInput = document.getElementById('ref-search');
         const filterBtns = document.querySelectorAll('.filter-btn');
         const items = document.querySelectorAll('.reference-item');

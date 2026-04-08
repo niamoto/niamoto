@@ -239,6 +239,12 @@ class IndexGeneratorPlugin(ExporterPlugin):
         output_dir: Path,
         jinja_env: Any,
         html_params: Any,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
+        site_context: Optional[Dict[str, Any]] = None,
+        navigation: Optional[List[Dict[str, Any]]] = None,
+        footer_navigation: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """
         Generate the index page for a group.
@@ -260,6 +266,11 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 logger.warning(f"No data to generate index for group '{group_by}'")
                 return
 
+            output_file = output_dir / f"{group_by}" / "index.html"
+            nav_depth = max(len(output_file.relative_to(output_dir).parts) - 1, 0)
+            is_multilang = bool(lang and languages and len(languages) > 1)
+            depth = nav_depth + (1 if is_multilang else 0)
+
             # Prepare template context
             index_config = {
                 "group_by": group_by,
@@ -276,23 +287,31 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 else [],
             }
 
-            # Calculate depth based on output file path
-            # For example: output_dir/taxon/index.html has depth 1
-            depth = 1  # Index pages are always one level deep (group_by/index.html)
-
             context = {
-                "site": html_params.site.model_dump() if html_params.site else {},
-                "navigation": html_params.navigation if html_params.navigation else [],
-                "footer_navigation": [
-                    s.model_dump() for s in html_params.footer_navigation
-                ]
+                "site": site_context
+                if site_context is not None
+                else html_params.site.model_dump()
+                if html_params.site
+                else {},
+                "navigation": navigation
+                if navigation is not None
+                else html_params.navigation
+                if html_params.navigation
+                else [],
+                "footer_navigation": footer_navigation
+                if footer_navigation is not None
+                else [s.model_dump() for s in html_params.footer_navigation]
                 if html_params.footer_navigation
                 else [],
                 "group_by": group_by,
                 "index_config": index_config,
                 "items_data": items_data,
                 "page_config": config.page_config.model_dump(),
+                "nav_depth": nav_depth,
                 "depth": depth,
+                "current_lang": lang,
+                "languages": languages or [],
+                "language_switcher": language_switcher,
             }
 
             # Load and render template
@@ -311,7 +330,6 @@ class IndexGeneratorPlugin(ExporterPlugin):
             rendered_html = template.render(context)
 
             # Write output
-            output_file = output_dir / f"{group_by}" / "index.html"
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
             with open(output_file, "w", encoding="utf-8") as f:

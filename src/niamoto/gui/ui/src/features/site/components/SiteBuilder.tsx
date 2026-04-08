@@ -565,7 +565,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       {/* Main Content */}
       <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
         {/* Left Panel - Unified Tree */}
-        <ResizablePanel id="tree" order={0} defaultSize={15} minSize={12} maxSize={25}>
+        <ResizablePanel id="tree" defaultSize="15%" minSize="12%" maxSize="25%">
           <UnifiedSiteTree
             items={state.unifiedTree}
             selection={state.selection}
@@ -581,7 +581,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <ResizableHandle withHandle />
 
         {/* Center Panel - Editor */}
-        <ResizablePanel id="editor" order={1} defaultSize={showPreview ? 50 : 85} minSize={30} className="overflow-hidden">
+        <ResizablePanel id="editor" defaultSize={showPreview ? "50%" : "85%"} minSize="30%" className="overflow-hidden">
           {renderEditor()}
         </ResizablePanel>
 
@@ -589,7 +589,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         {showPreview && (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel id="preview" order={2} defaultSize={35} minSize={20} maxSize={50}>
+            <ResizablePanel id="preview" defaultSize="35%" minSize="20%" maxSize="50%">
               {state.selection?.type === 'group' ? (
                 <GroupIndexPreviewPanel
                   html={groupIndexHtml}
