@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.4] - 2026-04-08
+
+### Bug Fixes
+
+- Simplify theme picker cards
+- Open preview in browser from desktop
+- Stabilize GUI import and publishing workflows
+
+### Other
+
+- Bump Node to 22 for publish and binaries workflows
+
 ## [v0.12.3] - 2026-04-07
 
 ### Bug Fixes
