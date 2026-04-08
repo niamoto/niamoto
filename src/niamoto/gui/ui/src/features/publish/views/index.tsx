@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Sheet,
   SheetContent,
@@ -65,6 +66,7 @@ import PublishDeployContent, {
   PLATFORMS,
 } from '@/features/publish/views/deploy'
 import PublishHistoryContent from '@/features/publish/views/history'
+import { cn } from '@/lib/utils'
 
 function getExportedSitePreviewUrl(path: string) {
   return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
@@ -129,11 +131,13 @@ function StaticSitePreview({
   onDeviceChange,
   lang,
   languages,
+  className,
 }: {
   device: DeviceSize
   onDeviceChange: (d: DeviceSize) => void
   lang?: string
   languages?: string[]
+  className?: string
 }) {
   const { t } = useTranslation('publish')
   const { isDesktop } = useRuntimeMode()
@@ -172,7 +176,7 @@ function StaticSitePreview({
   }, [dims.height, dims.width])
 
   return (
-    <div className="flex h-[640px] flex-col bg-muted/20">
+    <div className={cn('flex h-full min-h-0 flex-col bg-muted/20', className)}>
       <div className="flex items-center justify-between border-b bg-background px-4 py-2">
         <div className="text-sm text-muted-foreground">
           {dims.width}x{dims.height} ({Math.round(scale * 100)}%)
@@ -266,6 +270,7 @@ export default function PublishOverview() {
   const [includeTransform, setIncludeTransform] = useState(true)
   const [currentPhase, setCurrentPhase] = useState<string | null>(null)
   const [exportPath, setExportPath] = useState('exports')
+  const [compactPanel, setCompactPanel] = useState<'actions' | 'preview'>('actions')
 
   const activePanel = searchParams.get('panel')
   const { data: siteConfig } = useSiteConfig()
@@ -590,15 +595,37 @@ export default function PublishOverview() {
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
     .slice(0, 5)
 
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="container mx-auto space-y-6 px-6 py-6">
-        <Card>
-          <CardHeader className="space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+  const previewContent = hasSuccessfulBuild ? (
+    <StaticSitePreview
+      device={previewDevice}
+      onDeviceChange={setPreviewDevice}
+      lang={siteConfig?.site?.lang as string || previewLang}
+      languages={siteConfig?.site?.languages as string[] | undefined}
+      className="h-full"
+    />
+  ) : (
+    <PreviewFrame
+      html={dynamicHtml}
+      isLoading={previewMutation.isPending || groupIndexMutation.isPending}
+      device={previewDevice}
+      onDeviceChange={setPreviewDevice}
+      onRefresh={loadDynamicPreview}
+      onLinkClick={handlePreviewLinkClick}
+      title={t('overview.previewDynamic', 'Dynamic preview')}
+      emptyMessage={t('overview.noPreview', 'Generate the site to preview the final output')}
+      className="h-full"
+    />
+  )
+
+  const actionsContent = (
+    <div className="space-y-4 p-4 md:p-6">
+      <Card>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-3xl">{t('title', 'Publish')}</CardTitle>
-                <CardDescription className="mt-2 text-base">
+                <CardTitle className="text-2xl">{t('title', 'Publish')}</CardTitle>
+                <CardDescription className="mt-2 text-sm md:text-base">
                   {t('description', 'Generate your site, review it, and put it online.')}
                 </CardDescription>
               </div>
@@ -607,7 +634,7 @@ export default function PublishOverview() {
               </Badge>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               {lastSuccessfulBuild ? (
                 <span>
                   {t('overview.lastBuild', 'Last build')} {formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}
@@ -623,112 +650,305 @@ export default function PublishOverview() {
                 <span>{t('overview.noDeploy', 'No deployment performed')}</span>
               )}
             </div>
-          </CardHeader>
-        </Card>
+          </div>
+        </CardHeader>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('build.trigger', 'Generate Site')}</CardTitle>
-            <CardDescription>
-              {t('build.generationDescription', 'Create the latest version of your static site from the current data and configuration.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {lastBuild?.status === 'failed' && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {lastBuild.error?.includes('Network Error')
-                    ? t('build.errorNetwork', 'Server connection lost during build. Please retry generation.')
-                    : lastBuild.error || t('build.error', 'Build error')}
-                </AlertDescription>
-              </Alert>
-            )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('build.trigger', 'Generate Site')}</CardTitle>
+          <CardDescription>
+            {t('build.generationDescription', 'Create the latest version of your static site from the current data and configuration.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {lastBuild?.status === 'failed' && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {lastBuild.error?.includes('Network Error')
+                  ? t('build.errorNetwork', 'Server connection lost during build. Please retry generation.')
+                  : lastBuild.error || t('build.error', 'Build error')}
+              </AlertDescription>
+            </Alert>
+          )}
 
-            {lastSuccessfulBuild && (
-              <div className="grid gap-3 md:grid-cols-4">
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.totalFiles?.toLocaleString() || '—'}</div>
-                    <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Files generated')}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.duration ?? '—'}s</div>
-                    <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Generation time')}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-sm font-medium">{formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}</div>
-                    <p className="text-xs text-muted-foreground">{t('build.lastGenerated', 'Last generated')}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="truncate text-sm font-medium">{exportPath}</div>
-                    <p className="text-xs text-muted-foreground">{t('build.outputPath', 'Directory')}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+          {lastSuccessfulBuild && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.totalFiles?.toLocaleString() || '—'}</div>
+                  <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Files generated')}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-2xl font-bold">{lastSuccessfulBuild.metrics?.duration ?? '—'}s</div>
+                  <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Generation time')}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-sm font-medium">{formatDateDistance(lastSuccessfulBuild.completedAt || lastSuccessfulBuild.startedAt, dateLocale)}</div>
+                  <p className="text-xs text-muted-foreground">{t('build.lastGenerated', 'Last generated')}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="truncate text-sm font-medium">{exportPath}</div>
+                  <p className="text-xs text-muted-foreground">{t('build.outputPath', 'Directory')}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-            {isBuilding && currentBuild ? (
-              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
-                {includeTransform && (
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
-                      {t('build.phaseTransform', 'Phase 1/2: Transformations')}
-                    </span>
-                    <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
-                      {t('build.phaseExport', 'Phase 2/2: Export')}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span>{currentBuild.message}</span>
-                  <span>{currentBuild.progress}%</span>
+          {isBuilding && currentBuild ? (
+            <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+              {includeTransform && (
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
+                    {t('build.phaseTransform', 'Phase 1/2: Transformations')}
+                  </span>
+                  <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
+                    {t('build.phaseExport', 'Phase 2/2: Export')}
+                  </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary transition-all duration-300" style={{ width: `${currentBuild.progress}%` }} />
-                </div>
+              )}
+              <div className="flex items-center justify-between text-sm">
+                <span>{currentBuild.message}</span>
+                <span>{currentBuild.progress}%</span>
               </div>
-            ) : (
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                {canRecomputeStatistics && (
-                  <div className="flex w-full items-center justify-between rounded-lg border px-4 py-3 md:max-w-xl">
-                    <Label htmlFor="include-transform" className="cursor-pointer text-sm font-medium">
-                      {includeTransformLabel}
-                    </Label>
-                    <Switch
-                      id="include-transform"
-                      checked={includeTransform}
-                      onCheckedChange={setIncludeTransform}
-                    />
-                  </div>
-                )}
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${currentBuild.progress}%` }} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {canRecomputeStatistics && (
+                <div className="flex w-full items-center justify-between rounded-lg border px-4 py-3">
+                  <Label htmlFor="include-transform" className="cursor-pointer text-sm font-medium">
+                    {includeTransformLabel}
+                  </Label>
+                  <Switch
+                    id="include-transform"
+                    checked={includeTransform}
+                    onCheckedChange={setIncludeTransform}
+                  />
+                </div>
+              )}
 
-                <Button size="lg" onClick={runBuild}>
-                  {lastSuccessfulBuild ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      {t('build.rebuild', 'Regenerate Site')}
-                    </>
-                  ) : (
-                    <>
-                      <Package className="mr-2 h-4 w-4" />
-                      {t('build.trigger', 'Generate Site')}
-                    </>
-                  )}
+              <Button size="lg" onClick={runBuild} className="w-full sm:w-auto">
+                {lastSuccessfulBuild ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {t('build.rebuild', 'Regenerate Site')}
+                  </>
+                ) : (
+                  <>
+                    <Package className="mr-2 h-4 w-4" />
+                    {t('build.trigger', 'Generate Site')}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('deploy.trigger', 'Put Online')}</CardTitle>
+          <CardDescription>
+            {t('deploy.description', 'Publish your site online using a configured destination')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!hasSuccessfulBuild && (
+            <Alert>
+              <Clock className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>{t('deploy.noBuild', 'You need to generate the site first before deploying.')}</span>
+                <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                  <Package className="mr-2 h-4 w-4" />
+                  {t('build.trigger', 'Generate Site')}
                 </Button>
-              </div>
-            )}
-          </CardContent>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isStale && hasSuccessfulBuild && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>{t('deploy.staleWarning', 'The exported site is outdated. Regenerate the site before deploying.')}</span>
+                <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {t('build.rebuild', 'Regenerate Site')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {configuredPlatforms.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-start gap-4 py-8">
+                <div>
+                  <h3 className="font-semibold">{t('deploy.dashboard.emptyTitle', 'No publishing destination configured')}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
+                  </p>
+                </div>
+                <Button onClick={() => openPanel('destinations')}>
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  {t('deploy.dashboard.addDeployment', 'Set Up a Destination')}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                <div className="flex flex-col gap-3">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">
+                        {primaryPlatform ? PLATFORMS[primaryPlatform].name : t('deploy.trigger', 'Deploy')}
+                      </h3>
+                      {primaryDeploy?.status === 'completed' && (
+                        <Badge variant="default" className="bg-green-500">
+                          <CheckCircle className="mr-1 h-3 w-3" />
+                          {t('status.completed', 'Completed')}
+                        </Badge>
+                      )}
+                      {primaryDeploy?.status === 'failed' && (
+                        <Badge variant="destructive">
+                          <AlertCircle className="mr-1 h-3 w-3" />
+                          {t('status.failed', 'Failed')}
+                        </Badge>
+                      )}
+                      {!primaryDeploy && (
+                        <Badge variant="outline">{t('deploy.dashboard.noDeployYet', 'Never deployed')}</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {primaryPlatformConfig && primaryPlatform
+                        ? getProjectName(primaryPlatform, primaryPlatformConfig)
+                        : t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
+                    </p>
+                    {primaryDeploy && (
+                      <p className="text-sm text-muted-foreground">
+                        {t('deploy.dashboard.lastDeployAt', 'Last deployment')} {formatDateDistance(primaryDeploy.completedAt || primaryDeploy.startedAt, dateLocale)}
+                      </p>
+                    )}
+                    {primaryDeploy?.deploymentUrl && (
+                      <a
+                        href={primaryDeploy.deploymentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                      >
+                        <Globe className="h-4 w-4" />
+                        {primaryDeploy.deploymentUrl}
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={handleDeployPrimary}
+                      disabled={!hasSuccessfulBuild || isStale || isPrimaryDeploying}
+                    >
+                      {isPrimaryDeploying ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {t('deploy.deploying', 'Deploying...')}
+                        </>
+                      ) : (
+                        <>
+                          <Send className="mr-2 h-4 w-4" />
+                          {t('deploy.trigger', 'Deploy')}
+                        </>
+                      )}
+                    </Button>
+                    {primaryDeploy?.deploymentUrl && (
+                      <Button variant="outline" asChild>
+                        <a href={primaryDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          {t('deploy.viewSite', 'View Live Site')}
+                        </a>
+                      </Button>
+                    )}
+                    <Button variant="secondary" onClick={() => openPanel('destinations')}>
+                      <Settings2 className="mr-2 h-4 w-4" />
+                      {t('deploy.dashboard.manageDestinations', 'Manage Destinations')}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>{t('overview.recentActivity', 'Recent Activity')}</CardTitle>
+            <CardDescription>{t('history.description', 'Recent generations and deployments')}</CardDescription>
+          </div>
+          <Button variant="outline" onClick={() => openPanel('history')} className="w-full sm:w-auto">
+            <History className="mr-2 h-4 w-4" />
+            {t('history.title', 'View Full History')}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {activityItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t('overview.noActivity', 'No recent activity yet')}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {activityItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
+                  <div className="flex items-center gap-3">
+                    {item.type === 'build' ? (
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Send className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div>
+                      <div className="text-sm font-medium">
+                        {item.type === 'build'
+                          ? t('build.title', 'Build')
+                          : `${t('deploy.title', 'Deploy')} · ${item.platform}`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDateDistance(item.completedAt || item.startedAt, dateLocale)}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant={item.status === 'completed' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>
+                    {t(`status.${item.status}`, item.status)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  return (
+    <div className="h-full overflow-hidden">
+      <div className="hidden h-full xl:grid xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:gap-6 xl:px-6 xl:py-6">
+        <Card className="flex min-h-0 flex-col overflow-hidden">
+          <ScrollArea className="h-full">
+            {actionsContent}
+          </ScrollArea>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="flex min-h-0 flex-col overflow-hidden">
+          <CardHeader className="border-b pb-4">
             <CardTitle>{t('overview.openPreview', 'Preview Site')}</CardTitle>
             <CardDescription>
               {hasSuccessfulBuild
@@ -736,210 +956,67 @@ export default function PublishOverview() {
                 : t('overview.previewDynamic', 'Preview the current site structure before generation')}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {hasSuccessfulBuild ? (
-              <StaticSitePreview
-                device={previewDevice}
-                onDeviceChange={setPreviewDevice}
-                lang={siteConfig?.site?.lang as string || previewLang}
-                languages={siteConfig?.site?.languages as string[] | undefined}
-              />
-            ) : (
-              <PreviewFrame
-                html={dynamicHtml}
-                isLoading={previewMutation.isPending || groupIndexMutation.isPending}
-                device={previewDevice}
-                onDeviceChange={setPreviewDevice}
-                onRefresh={loadDynamicPreview}
-                onLinkClick={handlePreviewLinkClick}
-                title={t('overview.previewDynamic', 'Dynamic preview')}
-                emptyMessage={t('overview.noPreview', 'Generate the site to preview the final output')}
-                className="h-[640px]"
-              />
-            )}
+          <CardContent className="min-h-0 flex-1 p-0">
+            {previewContent}
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('deploy.trigger', 'Put Online')}</CardTitle>
-            <CardDescription>
-              {t('deploy.description', 'Publish your site online using a configured destination')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!hasSuccessfulBuild && (
-              <Alert>
-                <Clock className="h-4 w-4" />
-                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span>{t('deploy.noBuild', 'You need to generate the site first before deploying.')}</span>
-                  <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
-                    <Package className="mr-2 h-4 w-4" />
-                    {t('build.trigger', 'Generate Site')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {isStale && hasSuccessfulBuild && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span>{t('deploy.staleWarning', 'The exported site is outdated. Regenerate the site before deploying.')}</span>
-                  <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {t('build.rebuild', 'Regenerate Site')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {configuredPlatforms.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-start gap-4 py-8">
-                  <div>
-                    <h3 className="font-semibold">{t('deploy.dashboard.emptyTitle', 'No publishing destination configured')}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
-                    </p>
-                  </div>
-                  <Button onClick={() => openPanel('destinations')}>
-                    <Settings2 className="mr-2 h-4 w-4" />
-                    {t('deploy.dashboard.addDeployment', 'Set Up a Destination')}
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="space-y-4 pt-6">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
-                          {primaryPlatform ? PLATFORMS[primaryPlatform].name : t('deploy.trigger', 'Deploy')}
-                        </h3>
-                        {primaryDeploy?.status === 'completed' && (
-                          <Badge variant="default" className="bg-green-500">
-                            <CheckCircle className="mr-1 h-3 w-3" />
-                            {t('status.completed', 'Completed')}
-                          </Badge>
-                        )}
-                        {primaryDeploy?.status === 'failed' && (
-                          <Badge variant="destructive">
-                            <AlertCircle className="mr-1 h-3 w-3" />
-                            {t('status.failed', 'Failed')}
-                          </Badge>
-                        )}
-                        {!primaryDeploy && (
-                          <Badge variant="outline">{t('deploy.dashboard.noDeployYet', 'Never deployed')}</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {primaryPlatformConfig && primaryPlatform
-                          ? getProjectName(primaryPlatform, primaryPlatformConfig)
-                          : t('deploy.dashboard.emptyDescription', 'Configure a destination to publish your site online.')}
-                      </p>
-                      {primaryDeploy && (
-                        <p className="text-sm text-muted-foreground">
-                          {t('deploy.dashboard.lastDeployAt', 'Last deployment')} {formatDateDistance(primaryDeploy.completedAt || primaryDeploy.startedAt, dateLocale)}
-                        </p>
-                      )}
-                      {primaryDeploy?.deploymentUrl && (
-                        <a
-                          href={primaryDeploy.deploymentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                        >
-                          <Globe className="h-4 w-4" />
-                          {primaryDeploy.deploymentUrl}
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={handleDeployPrimary}
-                        disabled={!hasSuccessfulBuild || isStale || isPrimaryDeploying}
-                      >
-                        {isPrimaryDeploying ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {t('deploy.deploying', 'Deploying...')}
-                          </>
-                        ) : (
-                          <>
-                            <Send className="mr-2 h-4 w-4" />
-                            {t('deploy.trigger', 'Deploy')}
-                          </>
-                        )}
-                      </Button>
-                      {primaryDeploy?.deploymentUrl && (
-                        <Button variant="outline" asChild>
-                          <a href={primaryDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            {t('deploy.viewSite', 'View Live Site')}
-                          </a>
-                        </Button>
-                      )}
-                      <Button variant="secondary" onClick={() => openPanel('destinations')}>
-                        <Settings2 className="mr-2 h-4 w-4" />
-                        {t('deploy.dashboard.manageDestinations', 'Manage Destinations')}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex h-full flex-col xl:hidden">
+        <div className="border-b bg-background px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle>{t('overview.recentActivity', 'Recent Activity')}</CardTitle>
-              <CardDescription>{t('history.description', 'Recent generations and deployments')}</CardDescription>
-            </div>
-            <Button variant="outline" onClick={() => openPanel('history')}>
-              <History className="mr-2 h-4 w-4" />
-              {t('history.title', 'View Full History')}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {activityItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t('overview.noActivity', 'No recent activity yet')}
+              <h1 className="text-xl font-semibold">{t('title', 'Publish')}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('description', 'Generate your site, review it, and put it online.')}
               </p>
-            ) : (
-              <div className="space-y-3">
-                {activityItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
-                    <div className="flex items-center gap-3">
-                      {item.type === 'build' ? (
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Send className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <div>
-                        <div className="text-sm font-medium">
-                          {item.type === 'build'
-                            ? t('build.title', 'Build')
-                            : `${t('deploy.title', 'Deploy')} · ${item.platform}`}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDateDistance(item.completedAt || item.startedAt, dateLocale)}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant={item.status === 'completed' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>
-                      {t(`status.${item.status}`, item.status)}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+            <Badge variant={publishStatus.variant} className="shrink-0 px-3 py-1 text-sm">
+              {publishStatus.label}
+            </Badge>
+          </div>
+          <div className="mt-3">
+            <ToggleGroup
+              type="single"
+              value={compactPanel}
+              onValueChange={(value) => value && setCompactPanel(value as 'actions' | 'preview')}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="actions">
+                <Settings2 className="mr-2 h-4 w-4" />
+                {t('common:actions.actions', 'Actions')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="preview">
+                <Monitor className="mr-2 h-4 w-4" />
+                {t('overview.openPreview', 'Preview Site')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {compactPanel === 'actions' ? (
+            <ScrollArea className="h-full">
+              {actionsContent}
+            </ScrollArea>
+          ) : (
+            <div className="h-full p-4">
+              <Card className="flex h-full min-h-0 flex-col overflow-hidden">
+                <CardHeader className="border-b pb-4">
+                  <CardTitle>{t('overview.openPreview', 'Preview Site')}</CardTitle>
+                  <CardDescription>
+                    {hasSuccessfulBuild
+                      ? t('build.previewDescription', 'Preview the generated site')
+                      : t('overview.previewDynamic', 'Preview the current site structure before generation')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="min-h-0 flex-1 p-0">
+                  {previewContent}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
       </div>
 
       <Sheet open={activePanel === 'destinations'} onOpenChange={(open) => !open && closePanel()}>
