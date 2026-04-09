@@ -55,7 +55,6 @@ export function EnrichmentView() {
 
   const references = referencesData?.references ?? []
   const enrichableReferences = references.filter((reference) => reference.can_enrich)
-  const unavailableReferences = references.filter((reference) => !reference.can_enrich)
   const configuredReferences = enrichableReferences.filter((reference) => reference.enrichment_enabled)
   const configuredReferenceKey = configuredReferences.map((reference) => reference.name).join('|')
 
@@ -300,8 +299,8 @@ export function EnrichmentView() {
                   : '-'
               return (
                 <Card key={reference.name} className="border-border/70">
-                  <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-3">
+                  <CardContent className="space-y-4 p-4">
+                    <div className="min-w-0 space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium">{reference.name}</div>
                         <Badge variant="outline">
@@ -398,7 +397,7 @@ export function EnrichmentView() {
                         )
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
                       {reference.enrichment_enabled ? (
                         <>
                           <Button
@@ -442,14 +441,6 @@ export function EnrichmentView() {
             })}
           </div>
         )}
-
-        {unavailableReferences.length > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t('dashboard.enrichmentView.unavailable', 'No enrichment available for: {{names}}', {
-              names: unavailableReferences.map((reference) => reference.name).join(', '),
-            })}
-          </p>
-        ) : null}
       </div>
 
       <EnrichmentWorkspaceSheet

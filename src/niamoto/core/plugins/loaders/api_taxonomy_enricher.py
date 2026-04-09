@@ -224,10 +224,23 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             self.log_messages.append(
                 f"[blue]Using cached data for {query_value}[/blue]"
             )
-            # Cache now contains the enriched data directly
-            cached_enriched_data = self._cache[cache_key]
+            cached_payload = self._cache[cache_key]
             result = taxon_data.copy()
-            result["api_enrichment"] = cached_enriched_data
+            if isinstance(cached_payload, dict) and (
+                "mapped" in cached_payload
+                or "raw" in cached_payload
+                or "processed" in cached_payload
+            ):
+                result["api_enrichment"] = cached_payload.get("mapped", {})
+                if "raw" in cached_payload:
+                    result["api_response_raw"] = cached_payload.get("raw")
+                if "processed" in cached_payload:
+                    result["api_response_processed"] = cached_payload.get("processed")
+            else:
+                # Backward compatibility with legacy cache format.
+                result["api_enrichment"] = (
+                    cached_payload if isinstance(cached_payload, dict) else {}
+                )
             return result
 
         # Prepare API request
@@ -317,16 +330,22 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             # Cache results if enabled
             if params.cache_results and enriched_data:
-                self._cache[cache_key] = enriched_data
+                self._cache[cache_key] = {
+                    "mapped": enriched_data,
+                    "processed": api_data,
+                    "raw": data,
+                }
 
             # Log success message
             self.log_messages.append(
                 f"[green][{emoji('✓', '[OK]')}] Data successfully retrieved for {query_value}[/green]"
             )
 
-            # Return taxon data with enrichment
+            # Return taxon data with enrichment and raw payload for preview/debugging
             result = taxon_data.copy()
             result["api_enrichment"] = enriched_data
+            result["api_response_processed"] = api_data
+            result["api_response_raw"] = data
             return result
 
         except requests.RequestException as e:

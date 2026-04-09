@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -8,7 +7,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
 import type { ReferenceInfo } from '@/hooks/useReferences'
@@ -29,10 +27,14 @@ export function EnrichmentWorkspaceSheet({
   const { t } = useTranslation('sources')
   const navigate = useNavigate()
 
-  const openWorkspace = () => {
+  const openWorkspace = (sourceId?: string) => {
     if (!reference) return
     onOpenChange(false)
-    navigate(`/sources/reference/${encodeURIComponent(reference.name)}?tab=enrichment`)
+    const searchParams = new URLSearchParams({ tab: 'enrichment' })
+    if (sourceId) {
+      searchParams.set('source', sourceId)
+    }
+    navigate(`/sources/reference/${encodeURIComponent(reference.name)}?${searchParams.toString()}`)
   }
 
   return (
@@ -62,14 +64,6 @@ export function EnrichmentWorkspaceSheet({
               </SheetDescription>
             </div>
 
-            {reference ? (
-              <Button variant="outline" size="sm" onClick={openWorkspace}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                {t('dashboard.actions.openWorkspace', {
-                  defaultValue: 'Ouvrir le workspace',
-                })}
-              </Button>
-            ) : null}
           </div>
         </SheetHeader>
 

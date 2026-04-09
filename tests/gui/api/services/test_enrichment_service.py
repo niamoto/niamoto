@@ -179,3 +179,91 @@ def test_preview_default_enrichment_forwards_source_id(monkeypatch):
         "query": "Araucaria columnaris",
         "source_id": "gbif",
     }
+
+
+def test_preview_reference_enrichment_includes_raw_api_payload(monkeypatch):
+    """Preview responses should expose the raw API payload for mapping help."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            assert payload == {"full_name": "Araucaria columnaris"}
+            assert config["params"]["cache_results"] is False
+            return {
+                "api_enrichment": {"id_endemia": 513},
+                "api_response_raw": {
+                    "id": 513,
+                    "full_name": "Araucaria columnaris",
+                    "images": [{"url": "https://cdn.example.org/thumb.jpg"}],
+                },
+            }
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_ensure_startable_sources",
+        lambda reference_name, source_id=None: [source],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_build_enricher",
+        lambda _plugin: FakeEnricher(),
+    )
+
+    response = asyncio.run(
+        enrichment_service.preview_reference_enrichment(
+            "taxons", "Araucaria columnaris", source_id="endemia"
+        )
+    )
+
+    assert response.success is True
+    assert len(response.results) == 1
+    assert response.results[0].data == {"id_endemia": 513}
+    assert response.results[0].raw_data == {
+        "id": 513,
+        "full_name": "Araucaria columnaris",
+        "images": [{"url": "https://cdn.example.org/thumb.jpg"}],
+    }
+
+
+def test_preview_reference_enrichment_falls_back_when_raw_payload_missing(monkeypatch):
+    """Preview should still expose something inspectable when raw payload is absent."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="gbif",
+        label="GBIF",
+        enabled=True,
+        api_url="https://api.gbif.org/v1/species/match",
+    )
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            return {
+                "api_enrichment": {"gbif_key": 6},
+                "api_response_processed": {"usageKey": 6, "status": "ACCEPTED"},
+            }
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_ensure_startable_sources",
+        lambda reference_name, source_id=None: [source],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_build_enricher",
+        lambda _plugin: FakeEnricher(),
+    )
+
+    response = asyncio.run(
+        enrichment_service.preview_reference_enrichment(
+            "taxons", "Alphitonia neocaledonica", source_id="gbif"
+        )
+    )
+
+    assert response.success is True
+    assert response.results[0].raw_data == {"usageKey": 6, "status": "ACCEPTED"}

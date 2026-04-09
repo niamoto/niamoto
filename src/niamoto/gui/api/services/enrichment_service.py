@@ -167,6 +167,7 @@ class PreviewSourceResult(BaseModel):
     source_label: str
     success: bool
     data: Optional[Dict[str, Any]] = None
+    raw_data: Optional[Any] = None
     error: Optional[str] = None
     config_used: Dict[str, Any] = Field(default_factory=dict)
 
@@ -1295,12 +1296,18 @@ async def preview_reference_enrichment(
                 timeout=10.0,
             )
             source_data = result.get("api_enrichment", {})
+            raw_data = result.get("api_response_raw")
+            if raw_data is None:
+                raw_data = result.get("api_response_processed")
+            if raw_data is None:
+                raw_data = source_data
             results.append(
                 PreviewSourceResult(
                     source_id=source.id,
                     source_label=source.label,
                     success=True,
                     data=source_data,
+                    raw_data=raw_data,
                     config_used={
                         "api_url": source.api_url,
                         "query_field": source.query_field,
