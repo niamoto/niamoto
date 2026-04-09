@@ -322,6 +322,7 @@ export function EnrichmentTab({
   const [configSaving, setConfigSaving] = useState(false)
   const [configError, setConfigError] = useState<string | null>(null)
   const [configSaved, setConfigSaved] = useState(false)
+  const [persistedEnrichmentEnabled, setPersistedEnrichmentEnabled] = useState(hasEnrichment)
   const [referenceConfig, setReferenceConfig] = useState<ReferenceConfigPayload | null>(null)
   const [isSetupExpanded, setIsSetupExpanded] = useState(!hasEnrichment)
 
@@ -348,6 +349,13 @@ export function EnrichmentTab({
     referenceConfig?.kind === 'spatial' ? 'spatial' : 'taxonomy'
   const enrichmentConfig = enrichmentToApiConfig(referenceConfig?.enrichment?.[0])
   const enrichmentEnabled = enrichmentConfig.enabled
+  const effectiveHasEnrichment = persistedEnrichmentEnabled
+
+  useEffect(() => {
+    setPersistedEnrichmentEnabled(hasEnrichment)
+    setIsSetupExpanded(!hasEnrichment)
+    setConfigSaved(false)
+  }, [referenceName, hasEnrichment])
 
   const loadReferenceConfig = useCallback(async () => {
     setConfigLoading(true)
@@ -355,11 +363,14 @@ export function EnrichmentTab({
     try {
       const response = await apiClient.get(`/config/references/${referenceName}/config`)
       const normalized = normalizeReferenceConfigPayload(response.data)
+      const nextPersistedEnrichmentEnabled = normalized?.enrichment?.[0]?.enabled ?? false
       setReferenceConfig(normalized)
-      setIsSetupExpanded(!(normalized?.enrichment?.[0]?.enabled ?? false))
+      setPersistedEnrichmentEnabled(nextPersistedEnrichmentEnabled)
+      setIsSetupExpanded(!nextPersistedEnrichmentEnabled)
     } catch (err: any) {
       console.error('Failed to load reference config:', err)
       setConfigError(err.response?.data?.detail || t('enrichmentTab.errors.loadConfig'))
+      setPersistedEnrichmentEnabled(false)
       setReferenceConfig(null)
     } finally {
       setConfigLoading(false)
@@ -596,11 +607,17 @@ export function EnrichmentTab({
     }
   }
 
-  // Initial load - only run on mount or when referenceName changes
+  // Load the persisted configuration on mount and when the selected reference changes.
   useEffect(() => {
     loadReferenceConfig()
 
-    if (!hasEnrichment) {
+    return () => stopPolling()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadReferenceConfig, referenceName, stopPolling])
+
+  // Load runtime enrichment data only when enrichment is actually enabled server-side.
+  useEffect(() => {
+    if (!effectiveHasEnrichment) {
       stopPolling()
       setStatsLoading(false)
       setStats(null)
@@ -618,7 +635,14 @@ export function EnrichmentTab({
 
     return () => stopPolling()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnrichment, loadJobStatus, loadReferenceConfig, loadStats, referenceName, startPolling, stopPolling])
+  }, [
+    effectiveHasEnrichment,
+    loadJobStatus,
+    loadStats,
+    referenceName,
+    startPolling,
+    stopPolling,
+  ])
 
   // Manual refresh handler
   const handleRefresh = async () => {
@@ -761,7 +785,7 @@ export function EnrichmentTab({
         </CardContent>
       </Card>
 
-      {hasEnrichment ? (
+      {effectiveHasEnrichment ? (
         <>
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
