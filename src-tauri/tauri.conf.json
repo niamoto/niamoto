@@ -10,7 +10,7 @@
   "app": {
     "windows": [
       {
-        "title": "Niamoto Desktop",
+        "title": "Niamoto",
         "width": 1280,
         "height": 900,
         "minWidth": 800,

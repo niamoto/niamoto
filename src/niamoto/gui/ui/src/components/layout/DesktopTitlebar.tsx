@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Minus, Square, X, Maximize2, Minimize2 } from 'lucide-react'
+import { Minus, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
@@ -10,8 +10,9 @@ interface DesktopTitlebarProps {
 }
 
 /**
- * Custom titlebar for Tauri desktop application
- * Provides native-looking window controls for macOS and Windows
+ * Custom titlebar for Tauri desktop application.
+ * macOS keeps a drag strip for overlay traffic lights, Windows uses custom
+ * controls, and Linux falls back to native window decorations.
  */
 export function DesktopTitlebar({ title = 'Niamoto', className }: DesktopTitlebarProps) {
   const { isMac, isWindows, isDesktop } = usePlatform()
@@ -167,44 +168,7 @@ export function DesktopTitlebar({ title = 'Niamoto', className }: DesktopTitleba
     )
   }
 
-  // Linux/Generic style - similar to Windows
-  return (
-    <div
-      className={cn(
-        'flex h-8 items-center justify-between bg-background border-b select-none cursor-default',
-        className
-      )}
-      onMouseDown={handleMouseDown}
-    >
-      {/* Title - left side */}
-      <div className="flex items-center gap-2 pl-3">
-        <span className="text-xs font-medium text-foreground">{title}</span>
-      </div>
-
-      {/* Window controls - right side */}
-      <div className="flex items-center no-drag">
-        <button
-          onClick={minimizeWindow}
-          className="flex h-8 w-10 items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
-          aria-label="Minimize"
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        <button
-          onClick={toggleMaximize}
-          className="flex h-8 w-10 items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
-          aria-label="Maximize"
-        >
-          {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
-        <button
-          onClick={closeWindow}
-          className="flex h-8 w-10 items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  )
+  // Linux keeps the native window manager titlebar to avoid duplicate chrome
+  // and platform-specific inconsistencies across desktop environments.
+  return null
 }
