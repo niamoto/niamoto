@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Sparkles, StopCircle, WifiOff } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +43,7 @@ interface EnrichmentStatsSummary {
 
 export function EnrichmentView() {
   const { t } = useTranslation('sources')
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: referencesData, isLoading, error } = useReferences()
   const { data: summary } = useImportSummaryDetailed()
@@ -398,28 +400,39 @@ export function EnrichmentView() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {reference.enrichment_enabled ? (
-                        <Button
-                          type="button"
-                          onClick={() => handleStartEnrichment(reference)}
-                          disabled={startingReferenceName === reference.name}
-                        >
-                          {startingReferenceName === reference.name ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="mr-2 h-4 w-4" />
-                          )}
-                          {startingReferenceName === reference.name
-                            ? t('enrichmentTab.state.starting', 'Starting...')
-                            : t('dashboard.actions.enrichNow', 'Enrich now')}
-                        </Button>
+                        <>
+                          <Button
+                            type="button"
+                            onClick={() => handleStartEnrichment(reference)}
+                            disabled={startingReferenceName === reference.name}
+                          >
+                            {startingReferenceName === reference.name ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="mr-2 h-4 w-4" />
+                            )}
+                            {startingReferenceName === reference.name
+                              ? t('enrichmentTab.state.starting', 'Starting...')
+                              : t('dashboard.actions.enrichNow', 'Enrich now')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setActiveReference(reference)}
+                          >
+                            {t('dashboard.actions.quickPanel', 'Quick panel')}
+                          </Button>
+                        </>
                       ) : null}
                       <Button
                         type="button"
-                        variant={reference.enrichment_enabled ? 'outline' : 'default'}
-                        onClick={() => setActiveReference(reference)}
+                        variant={reference.enrichment_enabled ? 'ghost' : 'default'}
+                        onClick={() =>
+                          navigate(`/sources/reference/${encodeURIComponent(reference.name)}?tab=enrichment`)
+                        }
                       >
                         {reference.enrichment_enabled
-                          ? t('dashboard.actions.manageEnrichment', 'Manage enrichment')
+                          ? t('dashboard.actions.openWorkspace', 'Open workspace')
                           : t('dashboard.actions.configureEnrichment', 'Configure enrichment')}
                       </Button>
                     </div>

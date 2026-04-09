@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
+import { ExternalLink } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -6,6 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
 import type { ReferenceInfo } from '@/hooks/useReferences'
@@ -24,39 +27,61 @@ export function EnrichmentWorkspaceSheet({
   onConfigSaved,
 }: EnrichmentWorkspaceSheetProps) {
   const { t } = useTranslation('sources')
+  const navigate = useNavigate()
+
+  const openWorkspace = () => {
+    if (!reference) return
+    onOpenChange(false)
+    navigate(`/sources/reference/${encodeURIComponent(reference.name)}?tab=enrichment`)
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-[min(1100px,96vw)] sm:max-w-[1100px] p-0"
+        className="w-[min(1040px,96vw)] sm:max-w-[1040px] p-0"
       >
-        <SheetHeader className="px-6 pt-6">
-          <SheetTitle>
-            {reference
-              ? t('dashboard.enrichment.sheetTitle', {
-                  name: reference.name,
-                  defaultValue: `Enrichment · ${reference.name}`,
-                })
-              : t('dashboard.enrichment.sheetFallbackTitle', 'Enrichment')}
-          </SheetTitle>
-          <SheetDescription>
-            {reference
-              ? t(
-                  'dashboard.enrichment.sheetDescription',
-                  'Configure and run external enrichment without leaving the data workspace.'
-                )
-              : ''}
-          </SheetDescription>
+        <SheetHeader className="border-b px-6 py-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <SheetTitle>
+                {reference
+                  ? t('dashboard.enrichment.sheetTitle', {
+                      name: reference.name,
+                      defaultValue: `Enrichment · ${reference.name}`,
+                    })
+                  : t('dashboard.enrichment.sheetFallbackTitle', 'Enrichment')}
+              </SheetTitle>
+              <SheetDescription>
+                {reference
+                  ? t(
+                      'dashboard.enrichment.quickSheetDescription',
+                      'Quick panel for running and testing enrichment. Use the workspace for full configuration and results.'
+                    )
+                  : ''}
+              </SheetDescription>
+            </div>
+
+            {reference ? (
+              <Button variant="outline" size="sm" onClick={openWorkspace}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                {t('dashboard.actions.openWorkspace', {
+                  defaultValue: 'Ouvrir le workspace',
+                })}
+              </Button>
+            ) : null}
+          </div>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-96px)]">
-          <div className="px-6 pb-6 pt-2">
+        <ScrollArea className="h-[calc(100vh-92px)]">
+          <div className="px-6 pb-6 pt-4">
             {reference && (
               <EnrichmentTab
                 referenceName={reference.name}
                 hasEnrichment={Boolean(reference.enrichment_enabled)}
                 onConfigSaved={onConfigSaved}
+                mode="quick"
+                onOpenWorkspace={openWorkspace}
               />
             )}
           </div>
