@@ -683,23 +683,27 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
               </div>
 
               {/* Test Connection */}
-              <div className="flex items-center gap-4">
+              <div>
                 <Button
+                  type="button"
                   onClick={testApiConnection}
                   disabled={isTesting || !config.api_url}
+                  aria-busy={isTesting}
                   className="w-full"
                 >
-                  {isTesting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {t('common:status.testing')}
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      {t('common:actions.testConnection')}
-                    </>
-                  )}
+                  <span className="inline-flex w-full items-center justify-center gap-2 text-center">
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        <span>{t('common:status.testing')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 shrink-0" />
+                        <span>{t('common:actions.testConnection')}</span>
+                      </>
+                    )}
+                  </span>
                 </Button>
               </div>
 
