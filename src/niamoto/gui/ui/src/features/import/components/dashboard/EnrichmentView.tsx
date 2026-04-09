@@ -16,16 +16,28 @@ import { useNotificationStore } from '@/stores/notificationStore'
 
 interface EnrichmentJobSummary {
   id: string
+  mode: 'all' | 'single'
   status: 'pending' | 'running' | 'paused' | 'paused_offline' | 'completed' | 'failed' | 'cancelled'
   total: number
   processed: number
   current_entity?: string
+  current_source_label?: string
+}
+
+interface EnrichmentSourceStatsSummary {
+  source_id: string
+  label: string
+  total: number
+  enriched: number
+  pending: number
+  status: 'ready' | 'running' | 'paused' | 'paused_offline' | 'completed' | 'failed' | 'cancelled'
 }
 
 interface EnrichmentStatsSummary {
   total: number
   enriched: number
   pending: number
+  sources: EnrichmentSourceStatsSummary[]
 }
 
 export function EnrichmentView() {
@@ -83,7 +95,7 @@ export function EnrichmentView() {
           const stats =
             statsResult.status === 'fulfilled'
               ? statsResult.value.data
-              : { total: 0, enriched: 0, pending: 0 }
+              : { total: 0, enriched: 0, pending: 0, sources: [] }
 
           const job =
             jobResult.status === 'fulfilled'
@@ -316,6 +328,11 @@ export function EnrichmentView() {
                           <div className="space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
                               {getStatusBadge(job?.status)}
+                              {job?.current_source_label ? (
+                                <span className="text-xs text-muted-foreground">
+                                  {job.current_source_label}
+                                </span>
+                              ) : null}
                               {job?.current_entity ? (
                                 <span className="text-xs text-muted-foreground truncate">
                                   {t('enrichmentTab.currentEntity', { name: job.current_entity })}
@@ -330,15 +347,49 @@ export function EnrichmentView() {
                               <Progress value={currentProgress} className="h-1.5" />
                             </div>
                             {stats ? (
-                              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                  {t('enrichmentTab.stats.enriched')}: {stats.enriched.toLocaleString()}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3 text-orange-500" />
-                                  {t('enrichmentTab.stats.pending')}: {stats.pending.toLocaleString()}
-                                </span>
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                    {t('enrichmentTab.stats.enriched')}: {stats.enriched.toLocaleString()}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3 text-orange-500" />
+                                    {t('enrichmentTab.stats.pending')}: {stats.pending.toLocaleString()}
+                                  </span>
+                                </div>
+
+                                {stats.sources.length > 0 ? (
+                                  <div className="grid gap-2 md:grid-cols-2">
+                                    {stats.sources.map((source) => {
+                                      const sourceProgress = source.total > 0
+                                        ? (source.enriched / source.total) * 100
+                                        : 0
+
+                                      return (
+                                        <div
+                                          key={source.source_id}
+                                          className="rounded-md border bg-muted/20 px-3 py-2"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="truncate text-xs font-medium text-foreground">
+                                              {source.label}
+                                            </span>
+                                            <span className="text-[11px] text-muted-foreground">
+                                              {source.enriched.toLocaleString()} / {source.total.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          <div className="mt-2 flex items-center gap-2">
+                                            <Progress value={sourceProgress} className="h-1.5 flex-1" />
+                                            <span className="text-[11px] text-muted-foreground">
+                                              {Math.round(sourceProgress)}%
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>

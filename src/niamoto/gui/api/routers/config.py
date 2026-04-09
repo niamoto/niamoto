@@ -2659,6 +2659,27 @@ def _extract_extra_data_fields(
     if not extra_data_values:
         return schema
 
+    def collect_scalar_paths(value: Any, prefix: str = "") -> List[tuple[str, Any]]:
+        """Flatten nested dict values into scalar dotted paths."""
+
+        collected: List[tuple[str, Any]] = []
+
+        if isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                next_prefix = f"{prefix}.{nested_key}" if prefix else str(nested_key)
+                collected.extend(collect_scalar_paths(nested_value, next_prefix))
+            return collected
+
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, (dict, list)):
+                    continue
+                collected.append((prefix, item))
+            return collected
+
+        collected.append((prefix, value))
+        return collected
+
     # Extract all keys from extra_data (including nested api_enrichment)
     all_keys = set()
     sample_values = {}
@@ -2674,26 +2695,31 @@ def _extract_extra_data_fields(
         if not isinstance(data, dict):
             continue
 
-        # Check for api_enrichment nested structure
+        # Extract nested api_enrichment fields, including namespaced sources.
         if "api_enrichment" in data and isinstance(data["api_enrichment"], dict):
-            enrichment_data = data["api_enrichment"]
-            for key, value in enrichment_data.items():
-                full_key = f"api_enrichment.{key}"
+            for full_key, value in collect_scalar_paths(
+                data["api_enrichment"], "api_enrichment"
+            ):
+                if not full_key:
+                    continue
                 all_keys.add(full_key)
                 if full_key not in sample_values:
                     sample_values[full_key] = []
-                if value is not None and not isinstance(value, (dict, list)):
+                if value is not None:
                     sample_values[full_key].append(value)
 
-        # Also extract top-level keys (like enriched_at)
+        # Also extract top-level keys outside api_enrichment.
         for key, value in data.items():
             if key == "api_enrichment":
-                continue  # Already handled above
-            all_keys.add(key)
-            if key not in sample_values:
-                sample_values[key] = []
-            if value is not None and not isinstance(value, (dict, list)):
-                sample_values[key].append(value)
+                continue
+            for full_key, nested_value in collect_scalar_paths(value, str(key)):
+                if not full_key:
+                    continue
+                all_keys.add(full_key)
+                if full_key not in sample_values:
+                    sample_values[full_key] = []
+                if nested_value is not None:
+                    sample_values[full_key].append(nested_value)
 
     # Create schema entries for each key
     for key in all_keys:

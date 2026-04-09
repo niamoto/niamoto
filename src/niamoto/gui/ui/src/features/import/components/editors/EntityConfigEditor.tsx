@@ -59,6 +59,8 @@ export interface ReferenceConfig {
     target_field: string
   }>
   enrichment?: Array<{
+    id?: string
+    label?: string
     plugin: string
     enabled: boolean
     config: Record<string, any>

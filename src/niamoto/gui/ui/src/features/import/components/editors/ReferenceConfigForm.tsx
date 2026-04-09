@@ -102,7 +102,7 @@ export function ReferenceConfigForm({
   })
 
   const [enrichmentOpen, setEnrichmentOpen] = useState(
-    config.enrichment?.[0]?.enabled || false
+    config.enrichment?.some((source) => source.enabled) || false
   )
 
   // Update description
@@ -177,11 +177,21 @@ export function ReferenceConfigForm({
   }
 
   const handleEnrichmentChange = (apiConfig: ApiConfig) => {
+    const existingSources = localConfig.enrichment || []
+    const primarySource = existingSources[0] || {
+      id: 'source-1',
+      label: 'Source 1',
+      plugin: 'api_taxonomy_enricher',
+      enabled: false,
+      config: {},
+    }
+
     setLocalConfig({
       ...localConfig,
       enrichment: [
         {
-          plugin: 'api_taxonomy_enricher',
+          ...primarySource,
+          plugin: apiConfig.plugin || primarySource.plugin,
           enabled: apiConfig.enabled,
           config: {
             api_url: apiConfig.api_url,
@@ -193,8 +203,10 @@ export function ReferenceConfigForm({
             rate_limit: apiConfig.rate_limit,
             cache_results: apiConfig.cache_results,
             response_mapping: apiConfig.response_mapping,
+            chained_endpoints: apiConfig.chained_endpoints,
           },
         },
+        ...existingSources.slice(1),
       ],
     })
   }
