@@ -182,6 +182,8 @@ class HierarchyConfig(BaseModel):
 class EnrichmentConfig(BaseModel):
     """Optional enrichment step executed after import."""
 
+    id: Optional[str] = None
+    label: Optional[str] = None
     plugin: str
     enabled: bool = True
     config: Dict[str, Any] = Field(default_factory=dict)

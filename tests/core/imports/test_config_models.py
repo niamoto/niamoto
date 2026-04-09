@@ -48,6 +48,8 @@ def sample_config_dict() -> dict:
                     },
                     "enrichment": [
                         {
+                            "id": "endemia",
+                            "label": "Endemia",
                             "plugin": "api_taxonomy_enricher",
                             "config": {"url": "https://api.example.com"},
                         }
@@ -97,6 +99,8 @@ def test_generic_import_config_parsing():
     assert len(species.schema.fields) == 3
     assert species.hierarchy is not None
     assert species.hierarchy.strategy is HierarchyStrategy.ADJACENCY_LIST
+    assert species.enrichment[0].id == "endemia"
+    assert species.enrichment[0].label == "Endemia"
     # Levels provided as strings should be converted to HierarchyLevel objects
     assert [level.column for level in species.hierarchy.levels] == [
         "family",

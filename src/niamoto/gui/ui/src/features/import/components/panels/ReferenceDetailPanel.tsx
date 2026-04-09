@@ -48,10 +48,15 @@ import { EnrichmentTab } from '@/features/import/components/enrichment/Enrichmen
 import { deleteEntity } from '@/features/import/api/import'
 import { apiClient } from '@/shared/lib/api/client'
 
-interface EnrichmentConfig {
-  plugin: string
+interface EnrichmentConfigSource {
+  id: string
+  label: string
   enabled: boolean
-  api_url?: string
+}
+
+interface EnrichmentConfigResponse {
+  enabled: boolean
+  sources: EnrichmentConfigSource[]
 }
 
 interface ReferenceDetailPanelProps {
@@ -82,7 +87,7 @@ export function ReferenceDetailPanel({
   const requestedTab = searchParams.get('tab')
 
   // Check if enrichment is configured for this reference
-  const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfig | null>(null)
+  const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfigResponse | null>(null)
 
   // Reset to overview tab when reference changes
   useEffect(() => {
@@ -97,13 +102,12 @@ export function ReferenceDetailPanel({
   const reloadEnrichmentConfig = async () => {
     try {
       const response = await apiClient.get(`/enrichment/config/${referenceName}`)
-      if (response.data && response.data.enabled) {
+      if (response.data) {
         setEnrichmentConfig(response.data)
-        return true
-      } else {
-        setEnrichmentConfig(null)
-        return false
+        return Boolean(response.data.sources?.some((source: EnrichmentConfigSource) => source.enabled))
       }
+      setEnrichmentConfig(null)
+      return false
     } catch {
       setEnrichmentConfig(null)
       return false
@@ -114,7 +118,7 @@ export function ReferenceDetailPanel({
     reloadEnrichmentConfig()
   }, [referenceName])
 
-  const hasEnrichment = enrichmentConfig !== null && enrichmentConfig.enabled
+  const hasEnrichment = Boolean(enrichmentConfig?.sources?.some((source) => source.enabled))
 
   const handleConfigSaved = async () => {
     await reloadEnrichmentConfig()

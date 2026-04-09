@@ -142,6 +142,8 @@ export interface SpatialConfig {
  * API enrichment configuration
  */
 export interface EnrichmentConfig {
+  id?: string
+  label?: string
   plugin: string
   enabled: boolean
   config: Record<string, any>

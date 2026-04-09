@@ -1,0 +1,86 @@
+"""Router tests for multi-source enrichment endpoints."""
+
+from __future__ import annotations
+
+import yaml
+
+from niamoto.gui.api.routers import enrichment as enrichment_router
+from niamoto.gui.api.services.enrichment_service import PreviewResponse
+
+
+def test_get_reference_enrichment_config_returns_source_list(
+    gui_duckdb_project, gui_duckdb_client
+):
+    """Reference config endpoint should return normalized multi-source payloads."""
+
+    import_yml = gui_duckdb_project / "config" / "import.yml"
+    import_yml.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "kind": "hierarchical",
+                            "enrichment": [
+                                {
+                                    "id": "endemia",
+                                    "label": "Endemia",
+                                    "plugin": "api_taxonomy_enricher",
+                                    "enabled": True,
+                                    "config": {
+                                        "api_url": "https://api.endemia.nc/v1/taxons"
+                                    },
+                                },
+                                {
+                                    "label": "GBIF",
+                                    "plugin": "api_taxonomy_enricher",
+                                    "enabled": False,
+                                    "config": {
+                                        "api_url": "https://api.gbif.org/v1/species/match"
+                                    },
+                                },
+                            ],
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/enrichment/config/taxons")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reference_name"] == "taxons"
+    assert payload["enabled"] is True
+    assert [source["id"] for source in payload["sources"]] == ["endemia", "gbif"]
+    assert [source["label"] for source in payload["sources"]] == ["Endemia", "GBIF"]
+
+
+def test_preview_legacy_route_forwards_source_id(monkeypatch, gui_duckdb_client):
+    """Legacy preview endpoint must keep the optional source scope."""
+
+    captured = {}
+
+    async def fake_preview_default(taxon_name: str, source_id: str | None = None):
+        captured["taxon_name"] = taxon_name
+        captured["source_id"] = source_id
+        return PreviewResponse(success=True, entity_name=taxon_name, results=[])
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "preview_default_enrichment",
+        fake_preview_default,
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/enrichment/preview",
+        json={"taxon_name": "Araucaria columnaris", "source_id": "gbif"},
+    )
+
+    assert response.status_code == 200
+    assert captured == {
+        "taxon_name": "Araucaria columnaris",
+        "source_id": "gbif",
+    }
