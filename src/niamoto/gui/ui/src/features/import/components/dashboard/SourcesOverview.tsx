@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   ChevronRight,
@@ -60,6 +61,7 @@ export function SourcesOverview({
   onOpenEnrichment,
 }: SourcesOverviewProps) {
   const { t } = useTranslation('sources')
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: summary, isLoading, error } = useImportSummaryDetailed()
   const { data: referencesData } = useReferences()
@@ -362,9 +364,12 @@ export function SourcesOverview({
                   ? [{
                       label:
                         status === 'enrichment_configured'
-                          ? t('dashboard.actions.manageEnrichment')
+                          ? t('dashboard.actions.quickPanel', 'Quick panel')
                           : t('dashboard.actions.configureEnrichment'),
-                      onClick: () => setActiveReference(reference),
+                      onClick: () =>
+                        status === 'enrichment_configured'
+                          ? setActiveReference(reference)
+                          : navigate(`/sources/reference/${encodeURIComponent(reference.name)}?tab=enrichment`),
                       variant: 'ghost' as const,
                       icon: Sparkles,
                     }]
