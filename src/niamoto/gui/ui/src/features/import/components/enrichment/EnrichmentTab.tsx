@@ -28,6 +28,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   StopCircle,
   Trash2,
   WifiOff,
@@ -63,7 +64,6 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -87,7 +87,8 @@ interface EnrichmentTabProps {
   hasEnrichment: boolean
   onConfigSaved?: () => void
   mode?: 'workspace' | 'quick'
-  onOpenWorkspace?: () => void
+  initialSourceId?: string | null
+  onOpenWorkspace?: (sourceId?: string) => void
 }
 
 interface ReferenceConfigPayload {
@@ -163,6 +164,7 @@ interface PreviewSourceResult {
   source_label: string
   success: boolean
   data?: Record<string, any>
+  raw_data?: any
   error?: string
   config_used?: Record<string, any>
 }
@@ -287,16 +289,44 @@ const renderValue = (value: any): React.ReactNode => {
   return String(value)
 }
 
+const renderMappedPreview = (data: Record<string, any>) => (
+  <div className="max-h-[360px] overflow-auto pr-2">
+    <div className="space-y-2">
+      {Object.entries(data).map(([field, value]) => (
+        <div
+          key={field}
+          className="grid items-start grid-cols-[120px_minmax(0,1fr)] gap-3 border-b border-border/60 py-2 last:border-b-0"
+        >
+          <div className="text-xs font-medium text-muted-foreground">{field}</div>
+          <div className="min-w-0 break-words text-sm">{renderValue(value)}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+)
+
+const renderRawPreview = (rawData: any) => (
+  <div className="max-h-[360px] overflow-auto rounded-md bg-background p-3">
+    <pre className="whitespace-pre-wrap break-words text-xs leading-5">
+      {JSON.stringify(rawData, null, 2)}
+    </pre>
+  </div>
+)
+
 export function EnrichmentTab({
   referenceName,
   hasEnrichment,
   onConfigSaved,
   mode = 'workspace',
+  initialSourceId = null,
   onOpenWorkspace,
 }: EnrichmentTabProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { isOffline } = useNetworkStatus()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const previewRequestRef = useRef(0)
+  const previewSourceSignatureRef = useRef<string | null>(null)
+  const workspaceSectionRef = useRef<HTMLDivElement | null>(null)
 
   const [referenceConfig, setReferenceConfig] = useState<ReferenceConfigPayload | null>(null)
   const [configLoading, setConfigLoading] = useState(true)
@@ -321,7 +351,9 @@ export function EnrichmentTab({
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [selectedResult, setSelectedResult] = useState<EnrichmentResult | null>(null)
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null)
-  const [workspacePane, setWorkspacePane] = useState<'preview' | 'results'>('preview')
+  const [pendingInitialSourceId, setPendingInitialSourceId] = useState<string | null>(initialSourceId)
+  const [workspacePane, setWorkspacePane] = useState<'config' | 'preview' | 'results'>('config')
+  const [previewResultMode, setPreviewResultMode] = useState<'mapped' | 'raw'>('mapped')
 
   const [jobLoadingScope, setJobLoadingScope] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -358,13 +390,28 @@ export function EnrichmentTab({
     () => previewableSources.find((source) => source.id === previewScope) ?? previewableSources[0] ?? null,
     [previewScope, previewableSources]
   )
+  const previewSourceSignature = useMemo(() => {
+    const previewSource = mode === 'quick' ? quickSelectedSource : activeSource
+    if (!previewSource) {
+      return null
+    }
+
+    return JSON.stringify({
+      id: previewSource.id,
+      config: previewSource.config,
+    })
+  }, [activeSource, mode, quickSelectedSource])
   const recentResults = useMemo(() => results.slice(0, 6), [results])
 
   useEffect(() => {
     setPersistedEnrichmentEnabled(hasEnrichment)
     setConfigSaved(false)
-    setWorkspacePane('preview')
+    setWorkspacePane('config')
   }, [referenceName, hasEnrichment])
+
+  useEffect(() => {
+    setPendingInitialSourceId(initialSourceId)
+  }, [initialSourceId, referenceName])
 
   useEffect(() => {
     if (!sources.length) {
@@ -551,7 +598,7 @@ export function EnrichmentTab({
 
     if (workspacePane === 'results') {
       void loadResults()
-    } else if (entities.length === 0 && !entitiesLoading) {
+    } else if (workspacePane === 'preview' && entities.length === 0 && !entitiesLoading) {
       void loadEntities()
     }
   }, [
@@ -592,7 +639,7 @@ export function EnrichmentTab({
       newSource,
     ])
     setActiveSourceId(newSource.id ?? null)
-    setWorkspacePane('preview')
+    setWorkspacePane('config')
   }
 
   const updateSource = (sourceId: string, updater: (source: NormalizedEnrichmentSource) => ReferenceEnrichmentConfig) => {
@@ -620,6 +667,11 @@ export function EnrichmentTab({
 
   const updateSourceConfig = (sourceId: string, apiConfig: ApiConfig) => {
     updateSource(sourceId, (source) => apiConfigToEnrichment(source, apiConfig))
+  }
+
+  const applyPresetLabel = (sourceId: string, label: string) => {
+    updateSourceLabel(sourceId, label)
+    resetPreviewState(sourceId)
   }
 
   const toggleSourceEnabled = (sourceId: string, enabled: boolean) => {
@@ -659,7 +711,7 @@ export function EnrichmentTab({
       ]
     })
     setActiveSourceId(duplicate.id ?? null)
-    setWorkspacePane('preview')
+    setWorkspacePane('config')
   }
 
   const moveSource = (sourceId: string, direction: 'up' | 'down') => {
@@ -861,28 +913,88 @@ export function EnrichmentTab({
     }
   }
 
-  const previewEnrichment = async (queryOverride?: string) => {
+  const resetPreviewState = useCallback((nextScope?: string) => {
+    previewRequestRef.current += 1
+    setPreviewLoading(false)
+    setPreviewError(null)
+    setPreviewData(null)
+    if (nextScope !== undefined) {
+      setPreviewScope(nextScope)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pendingInitialSourceId || !sources.some((source) => source.id === pendingInitialSourceId)) {
+      return
+    }
+
+    setActiveSourceId(pendingInitialSourceId)
+    setWorkspacePane('config')
+    resetPreviewState(pendingInitialSourceId)
+    setPendingInitialSourceId(null)
+  }, [pendingInitialSourceId, resetPreviewState, sources])
+
+  useEffect(() => {
+    if (mode !== 'workspace') {
+      return
+    }
+    workspaceSectionRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [activeSource?.id, mode, workspacePane])
+
+  useEffect(() => {
+    if (!previewSourceSignature) {
+      previewSourceSignatureRef.current = null
+      return
+    }
+
+    if (previewSourceSignatureRef.current === null) {
+      previewSourceSignatureRef.current = previewSourceSignature
+      return
+    }
+
+    if (previewSourceSignatureRef.current === previewSourceSignature) {
+      return
+    }
+
+    previewSourceSignatureRef.current = previewSourceSignature
+    resetPreviewState(mode === 'quick' ? quickSelectedSource?.id : activeSource?.id)
+  }, [activeSource?.id, mode, previewSourceSignature, quickSelectedSource?.id, resetPreviewState])
+
+  const previewEnrichment = async (queryOverride?: string, scopeOverride?: string) => {
     const query = (queryOverride ?? previewQuery).trim()
     if (!query) return
+    const nextScope = scopeOverride ?? previewScope
+    const requestId = ++previewRequestRef.current
 
     setPreviewLoading(true)
     setPreviewError(null)
     setPreviewData(null)
+    if (nextScope !== previewScope) {
+      setPreviewScope(nextScope)
+    }
 
     try {
       const response = await apiClient.post<PreviewResponse>(
         `/enrichment/preview/${referenceName}`,
         {
           query,
-          source_id: previewScope === 'all' ? undefined : previewScope,
+          source_id: nextScope === 'all' ? undefined : nextScope,
         }
       )
+      if (requestId !== previewRequestRef.current) {
+        return
+      }
       setPreviewQuery(query)
       setPreviewData(response.data)
     } catch (err: any) {
+      if (requestId !== previewRequestRef.current) {
+        return
+      }
       setPreviewError(err.response?.data?.detail || t('enrichmentTab.errors.preview'))
     } finally {
-      setPreviewLoading(false)
+      if (requestId === previewRequestRef.current) {
+        setPreviewLoading(false)
+      }
     }
   }
 
@@ -913,6 +1025,9 @@ export function EnrichmentTab({
   const activeSourceProgress = activeSource
     ? getSourceProgress(activeSource.id, activeSourceStats)
     : null
+  const activeSourceIndex = activeSource
+    ? sources.findIndex((source) => source.id === activeSource.id)
+    : -1
   const activePreviewResult = activeSource
     ? previewData?.results?.find((result) => result.source_id === activeSource.id) ?? null
     : null
@@ -940,145 +1055,143 @@ export function EnrichmentTab({
           </Alert>
         ) : null}
 
-        <Card className="sticky top-0 z-10 border-border/70 bg-background/95 shadow-sm backdrop-blur">
+        <Card className="sticky top-0 z-20 overflow-hidden border-border/70 bg-background shadow-sm">
           <CardContent className="space-y-4 p-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">
-                    {t('enrichmentTab.summary.enabledSources', {
-                      defaultValue: '{{count}} source(s) enabled',
-                      count: enabledSources.length,
-                    })}
-                  </Badge>
-                  <Badge variant="outline">
-                    {t('enrichmentTab.summary.totalSources', {
-                      defaultValue: '{{count}} source(s) configured',
-                      count: sources.length,
-                    })}
-                  </Badge>
-                  {stats ? (
-                    <>
-                      <Badge variant="outline">
-                        {t('enrichmentTab.stats.enriched')}: {stats.enriched.toLocaleString()}
-                      </Badge>
-                      <Badge variant="outline">
-                        {t('enrichmentTab.stats.pending')}: {stats.pending.toLocaleString()}
-                      </Badge>
-                    </>
-                  ) : null}
-                </div>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  {t('enrichmentTab.summary.enabledSources', {
+                    defaultValue: '{{count}} source(s) enabled',
+                    count: enabledSources.length,
+                  })}
+                </Badge>
+                <Badge variant="outline">
+                  {t('enrichmentTab.summary.totalSources', {
+                    defaultValue: '{{count}} source(s) configured',
+                    count: sources.length,
+                  })}
+                </Badge>
+                {stats ? (
+                  <>
+                    <Badge variant="outline">
+                      {t('enrichmentTab.stats.enriched')}: {stats.enriched.toLocaleString()}
+                    </Badge>
+                    <Badge variant="outline">
+                      {t('enrichmentTab.stats.pending')}: {stats.pending.toLocaleString()}
+                    </Badge>
+                  </>
+                ) : null}
+              </div>
 
-                {job ? (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <Badge variant={job.status === 'running' ? 'default' : 'outline'}>
-                        {t(`enrichmentTab.status.${job.status}`, {
-                          defaultValue: job.status,
-                        })}
-                      </Badge>
-                      {job.current_source_label ? (
-                        <span className="text-muted-foreground">{job.current_source_label}</span>
-                      ) : null}
-                      {job.current_entity ? (
-                        <span className="truncate text-muted-foreground">
-                          {t('enrichmentTab.currentEntity', { name: job.current_entity })}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{t('enrichmentTab.cards.progress')}</span>
-                        <span>
-                          {job.processed.toLocaleString()} / {job.total.toLocaleString()}
-                        </span>
-                      </div>
-                      <Progress value={job.total > 0 ? (job.processed / job.total) * 100 : 0} className="h-1.5" />
-                    </div>
+              {job ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <Badge variant={job.status === 'running' ? 'default' : 'outline'}>
+                      {t(`enrichmentTab.status.${job.status}`, {
+                        defaultValue: job.status,
+                      })}
+                    </Badge>
+                    {job.current_source_label ? (
+                      <span className="text-muted-foreground">{job.current_source_label}</span>
+                    ) : null}
+                    {job.current_entity ? (
+                      <span className="truncate text-muted-foreground">
+                        {t('enrichmentTab.currentEntity', { name: job.current_entity })}
+                      </span>
+                    ) : null}
                   </div>
-                ) : stats?.total ? (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{t('enrichmentTab.cards.progress')}</span>
                       <span>
-                        {stats.enriched.toLocaleString()} / {stats.total.toLocaleString()}
+                        {job.processed.toLocaleString()} / {job.total.toLocaleString()}
                       </span>
                     </div>
-                    <Progress value={stats.total > 0 ? (stats.enriched / stats.total) * 100 : 0} className="h-1.5" />
+                    <Progress value={job.total > 0 ? (job.processed / job.total) * 100 : 0} className="h-1.5" />
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {t('enrichmentTab.actions.description')}
-                  </p>
-                )}
-              </div>
+                </div>
+              ) : stats?.total ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{t('enrichmentTab.cards.progress')}</span>
+                    <span>
+                      {stats.enriched.toLocaleString()} / {stats.total.toLocaleString()}
+                    </span>
+                  </div>
+                  <Progress value={stats.total > 0 ? (stats.enriched / stats.total) * 100 : 0} className="h-1.5" />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t('enrichmentTab.actions.description')}
+                </p>
+              )}
+            </div>
 
-              <div className="flex flex-wrap gap-2">
-                {isTerminalJob ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+              {isTerminalJob ? (
+                <Button
+                  onClick={startGlobalJob}
+                  disabled={jobLoadingScope !== null || !stats || stats.pending === 0 || isOffline}
+                  title={isOffline ? t('enrichmentTab.offline.internetRequired') : undefined}
+                >
+                  {jobLoadingScope === 'all' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  {t('enrichmentTab.runtime.startAll', {
+                    defaultValue: 'Lancer toutes les APIs',
+                  })}
+                </Button>
+              ) : job?.status === 'running' ? (
+                <>
+                  <Button variant="secondary" onClick={() => pauseJob()} disabled={jobLoadingScope !== null}>
+                    {jobLoadingScope === 'all' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Pause className="mr-2 h-4 w-4" />
+                    )}
+                    {t('enrichmentTab.actions.pause')}
+                  </Button>
+                  <Button variant="destructive" onClick={() => cancelJob()} disabled={jobLoadingScope !== null}>
+                    <StopCircle className="mr-2 h-4 w-4" />
+                    {t('common:actions.cancel')}
+                  </Button>
+                </>
+              ) : job?.status === 'paused' || job?.status === 'paused_offline' ? (
+                <>
                   <Button
-                    onClick={startGlobalJob}
-                    disabled={jobLoadingScope !== null || !stats || stats.pending === 0 || isOffline}
-                    title={isOffline ? t('enrichmentTab.offline.internetRequired') : undefined}
+                    onClick={() => resumeJob()}
+                    disabled={jobLoadingScope !== null || isOffline}
+                    title={isOffline ? t('enrichmentTab.offline.internetRequiredResume') : undefined}
                   >
                     {jobLoadingScope === 'all' ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <Play className="mr-2 h-4 w-4" />
                     )}
-                    {t('enrichmentTab.runtime.startAll', {
-                      defaultValue: 'Lancer toutes les APIs',
-                    })}
+                    {t('enrichmentTab.actions.resume')}
                   </Button>
-                ) : job?.status === 'running' ? (
-                  <>
-                    <Button variant="secondary" onClick={() => pauseJob()} disabled={jobLoadingScope !== null}>
-                      {jobLoadingScope === 'all' ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Pause className="mr-2 h-4 w-4" />
-                      )}
-                      {t('enrichmentTab.actions.pause')}
-                    </Button>
-                    <Button variant="destructive" onClick={() => cancelJob()} disabled={jobLoadingScope !== null}>
-                      <StopCircle className="mr-2 h-4 w-4" />
-                      {t('common:actions.cancel')}
-                    </Button>
-                  </>
-                ) : job?.status === 'paused' || job?.status === 'paused_offline' ? (
-                  <>
-                    <Button
-                      onClick={() => resumeJob()}
-                      disabled={jobLoadingScope !== null || isOffline}
-                      title={isOffline ? t('enrichmentTab.offline.internetRequiredResume') : undefined}
-                    >
-                      {jobLoadingScope === 'all' ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="mr-2 h-4 w-4" />
-                      )}
-                      {t('enrichmentTab.actions.resume')}
-                    </Button>
-                    <Button variant="destructive" onClick={() => cancelJob()} disabled={jobLoadingScope !== null}>
-                      <StopCircle className="mr-2 h-4 w-4" />
-                      {t('common:actions.cancel')}
-                    </Button>
-                  </>
-                ) : null}
+                  <Button variant="destructive" onClick={() => cancelJob()} disabled={jobLoadingScope !== null}>
+                    <StopCircle className="mr-2 h-4 w-4" />
+                    {t('common:actions.cancel')}
+                  </Button>
+                </>
+              ) : null}
 
-                <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
-                  <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  {t('common:actions.refresh')}
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {t('common:actions.refresh')}
+              </Button>
+
+              {onOpenWorkspace ? (
+                <Button variant="outline" onClick={() => onOpenWorkspace(quickSelectedSource?.id)}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t('dashboard.actions.openWorkspace', {
+                    defaultValue: 'Ouvrir le workspace',
+                  })}
                 </Button>
-
-                {onOpenWorkspace ? (
-                  <Button variant="outline" onClick={onOpenWorkspace}>
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    {t('dashboard.actions.openWorkspace', {
-                      defaultValue: 'Ouvrir le workspace',
-                    })}
-                  </Button>
-                ) : null}
-              </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -1111,7 +1224,7 @@ export function EnrichmentTab({
                 </p>
               </div>
               {onOpenWorkspace ? (
-                <Button onClick={onOpenWorkspace}>
+                <Button onClick={() => onOpenWorkspace(quickSelectedSource?.id)}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   {t('dashboard.actions.openWorkspace', {
                     defaultValue: 'Ouvrir le workspace',
@@ -1121,7 +1234,7 @@ export function EnrichmentTab({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(400px,1.1fr)]">
             <Card className="border-border/70">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">
@@ -1152,17 +1265,13 @@ export function EnrichmentTab({
                         isSelected ? 'border-primary/40 bg-primary/5' : 'border-border/70 bg-background'
                       }`}
                     >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1 space-y-2">
+                      <div className="space-y-3">
+                        <div className="min-w-0 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               className="truncate text-left font-medium hover:text-primary"
-                              onClick={() => {
-                                setPreviewScope(source.id)
-                                setPreviewData(null)
-                                setPreviewError(null)
-                              }}
+                              onClick={() => resetPreviewState(source.id)}
                             >
                               {source.label}
                             </button>
@@ -1193,16 +1302,12 @@ export function EnrichmentTab({
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
                           <Button
                             type="button"
                             size="sm"
                             variant={isSelected ? 'default' : 'outline'}
-                            onClick={() => {
-                              setPreviewScope(source.id)
-                              setPreviewData(null)
-                              setPreviewError(null)
-                            }}
+                            onClick={() => resetPreviewState(source.id)}
                           >
                             <Eye className="mr-2 h-4 w-4" />
                             {t('dashboard.actions.testApi', {
@@ -1229,7 +1334,12 @@ export function EnrichmentTab({
                           ) : null}
 
                           {onOpenWorkspace ? (
-                            <Button type="button" size="sm" variant="ghost" onClick={onOpenWorkspace}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onOpenWorkspace(source.id)}
+                            >
                               {t('common:actions.edit')}
                             </Button>
                           ) : null}
@@ -1249,13 +1359,20 @@ export function EnrichmentTab({
                       defaultValue: "Tester l'API",
                     })}
                   </CardTitle>
-                  <CardDescription>
-                    {quickSelectedSource
-                      ? quickSelectedSource.label
-                      : t('dashboard.enrichment.quickSelectSource', {
-                          defaultValue: 'Sélectionne une source pour tester sa réponse.',
-                        })}
-                  </CardDescription>
+                  <div className="space-y-1">
+                    <CardDescription>
+                      {quickSelectedSource
+                        ? quickSelectedSource.label
+                        : t('dashboard.enrichment.quickSelectSource', {
+                            defaultValue: 'Sélectionne une source pour tester sa réponse.',
+                          })}
+                    </CardDescription>
+                    {quickSelectedSource?.config.api_url ? (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {quickSelectedSource.config.api_url}
+                      </div>
+                    ) : null}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {quickSelectedSource?.enabled ? (
@@ -1269,13 +1386,13 @@ export function EnrichmentTab({
                             onChange={(event) => setPreviewQuery(event.target.value)}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
-                                void previewEnrichment()
+                                void previewEnrichment(undefined, quickSelectedSource.id)
                               }
                             }}
                           />
                           <Button
                             type="button"
-                            onClick={() => previewEnrichment()}
+                            onClick={() => previewEnrichment(undefined, quickSelectedSource.id)}
                             disabled={previewLoading || !previewQuery.trim()}
                           >
                             {previewLoading ? (
@@ -1303,9 +1420,8 @@ export function EnrichmentTab({
                                 variant="outline"
                                 className="max-w-full"
                                 onClick={() => {
-                                  setPreviewScope(quickSelectedSource.id)
                                   setPreviewQuery(entity.name)
-                                  void previewEnrichment(entity.name)
+                                  void previewEnrichment(entity.name, quickSelectedSource.id)
                                 }}
                               >
                                 <span className="truncate">{entity.name}</span>
@@ -1325,17 +1441,51 @@ export function EnrichmentTab({
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>{previewError}</AlertDescription>
                           </Alert>
-                        ) : quickPreviewResult?.success && quickPreviewResult.data ? (
-                          <ScrollArea className="max-h-[320px]">
-                            <div className="space-y-2">
-                              {Object.entries(quickPreviewResult.data).map(([field, value]) => (
-                                <div key={field} className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 border-b border-border/60 py-2 last:border-b-0">
-                                  <div className="text-xs font-medium text-muted-foreground">{field}</div>
-                                  <div className="min-w-0 text-sm">{renderValue(value)}</div>
-                                </div>
-                              ))}
+                        ) : quickPreviewResult?.success ? (
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background p-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={previewResultMode === 'mapped' ? 'default' : 'ghost'}
+                                onClick={() => setPreviewResultMode('mapped')}
+                              >
+                                {t('dashboard.enrichment.mappedFields', {
+                                  defaultValue: 'Champs mappés',
+                                })}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={previewResultMode === 'raw' ? 'default' : 'ghost'}
+                                onClick={() => setPreviewResultMode('raw')}
+                              >
+                                {t('dashboard.enrichment.rawApiResponse', {
+                                  defaultValue: 'Réponse brute API',
+                                })}
+                              </Button>
                             </div>
-                          </ScrollArea>
+
+                            {previewResultMode === 'mapped' ? (
+                              quickPreviewResult.data && Object.keys(quickPreviewResult.data).length > 0 ? (
+                                renderMappedPreview(quickPreviewResult.data)
+                              ) : (
+                                <div className="py-8 text-center text-sm text-muted-foreground">
+                                  {t('dashboard.enrichment.noMappedFields', {
+                                    defaultValue: 'Aucun champ mappé pour cette source.',
+                                  })}
+                                </div>
+                              )
+                            ) : quickPreviewResult.raw_data !== undefined ? (
+                              renderRawPreview(quickPreviewResult.raw_data)
+                            ) : (
+                              <div className="py-8 text-center text-sm text-muted-foreground">
+                                {t('dashboard.enrichment.noRawApiResponse', {
+                                  defaultValue: 'Aucune réponse brute disponible pour ce test.',
+                                })}
+                              </div>
+                            )}
+                          </div>
                         ) : quickPreviewResult?.error ? (
                           <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
@@ -1404,7 +1554,11 @@ export function EnrichmentTab({
                   )}
 
                   {onOpenWorkspace ? (
-                    <Button variant="outline" className="w-full" onClick={onOpenWorkspace}>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => onOpenWorkspace(quickSelectedSource?.id)}
+                    >
                       <ExternalLink className="mr-2 h-4 w-4" />
                       {t('dashboard.actions.openWorkspace', {
                         defaultValue: 'Ouvrir le workspace',
@@ -1438,7 +1592,7 @@ export function EnrichmentTab({
         </Alert>
       ) : null}
 
-      <Card className="sticky top-0 z-10 border-border/70 bg-background/95 shadow-sm backdrop-blur">
+      <Card className="sticky top-0 z-20 overflow-hidden border-border/70 bg-background shadow-sm">
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
@@ -1632,8 +1786,8 @@ export function EnrichmentTab({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_400px]">
-          <Card className="border-border/70 xl:sticky xl:top-[104px] xl:self-start">
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <Card className="border-border/70">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1654,82 +1808,74 @@ export function EnrichmentTab({
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <ScrollArea className="max-h-[70vh] pr-2">
-                <div className="space-y-2">
-                  {sources.map((source) => {
-                    const sourceStats = stats?.sources.find((item) => item.source_id === source.id)
-                    const sourceProgress = getSourceProgress(source.id, sourceStats)
-                    const isSelected = activeSource?.id === source.id
+              <div className="space-y-2">
+                {sources.map((source) => {
+                  const sourceStats = stats?.sources.find((item) => item.source_id === source.id)
+                  const sourceProgress = getSourceProgress(source.id, sourceStats)
+                  const isSelected = activeSource?.id === source.id
 
-                    return (
-                      <button
-                        key={source.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveSourceId(source.id)
-                          setWorkspacePane('preview')
-                          setPreviewData(null)
-                          setPreviewError(null)
-                        }}
-                        className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
-                          isSelected ? 'border-primary/40 bg-primary/5' : 'border-border/70 bg-background hover:bg-muted/30'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{source.label}</div>
-                            <div className="mt-1 truncate text-xs text-muted-foreground">
-                              {source.config.api_url || source.plugin}
-                            </div>
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveSourceId(source.id)
+                        setWorkspacePane('config')
+                        resetPreviewState(source.id)
+                      }}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
+                        isSelected ? 'border-primary/40 bg-primary/5' : 'border-border/70 bg-background hover:bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{source.label}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
+                            {source.config.api_url || source.plugin}
                           </div>
-                          <Badge variant={source.enabled ? 'secondary' : 'outline'}>
-                            {source.enabled
-                              ? t('sources:configEditor.enabled')
-                              : t('sources:configEditor.disabled')}
-                          </Badge>
                         </div>
+                        <Badge variant={source.enabled ? 'secondary' : 'outline'}>
+                          {source.enabled
+                            ? t('sources:configEditor.enabled')
+                            : t('sources:configEditor.disabled')}
+                        </Badge>
+                      </div>
 
-                        <div className="mt-3 space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span>{sourceStats?.status || t('enrichmentTab.status.ready')}</span>
-                            <span>
-                              {sourceProgress.processed.toLocaleString()} / {sourceProgress.total.toLocaleString()}
-                            </span>
-                          </div>
-                          <Progress value={sourceProgress.percentage} className="h-1.5" />
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span>{sourceStats?.status || t('enrichmentTab.status.ready')}</span>
+                          <span>
+                            {sourceProgress.processed.toLocaleString()} / {sourceProgress.total.toLocaleString()}
+                          </span>
                         </div>
-                        {sourceStats ? (
-                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                            <span>
-                              {t('enrichmentTab.stats.enriched')}: {sourceStats.enriched.toLocaleString()}
-                            </span>
-                            <span>
-                              {t('enrichmentTab.stats.pending')}: {sourceStats.pending.toLocaleString()}
-                            </span>
-                          </div>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                </div>
-              </ScrollArea>
+                        <Progress value={sourceProgress.percentage} className="h-1.5" />
+                      </div>
+                      {sourceStats ? (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <span>
+                            {t('enrichmentTab.stats.enriched')}: {sourceStats.enriched.toLocaleString()}
+                          </span>
+                          <span>
+                            {t('enrichmentTab.stats.pending')}: {sourceStats.pending.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
 
           {activeSource ? (
             <>
-              <div className="space-y-4">
+              <div ref={workspaceSectionRef} className="space-y-4">
                 <Card className="border-border/70">
-                  <CardHeader className="space-y-4 pb-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div className="min-w-0 flex-1 space-y-3">
+                  <CardHeader className="space-y-5 pb-4">
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline">{activeSource.id}</Badge>
-                          <Badge variant={activeSource.enabled ? 'secondary' : 'outline'}>
-                            {activeSource.enabled
-                              ? t('sources:configEditor.enabled')
-                              : t('sources:configEditor.disabled')}
-                          </Badge>
                           <Badge
                             variant={
                               activeSourceStats?.status === 'running' || isRunningSingleSource
@@ -1741,427 +1887,526 @@ export function EnrichmentTab({
                               defaultValue: activeSourceStats?.status || 'ready',
                             })}
                           </Badge>
-                          {activeSourceStats ? (
-                            <>
-                              <Badge variant="outline">
-                                {t('enrichmentTab.stats.enriched')}: {activeSourceStats.enriched.toLocaleString()}
-                              </Badge>
-                              <Badge variant="outline">
-                                {t('enrichmentTab.stats.pending')}: {activeSourceStats.pending.toLocaleString()}
-                              </Badge>
-                            </>
-                          ) : null}
                         </div>
 
-                        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-                          <Input
-                            value={activeSource.label}
-                            onChange={(event) => updateSourceLabel(activeSource.id, event.target.value)}
-                            placeholder={t('enrichmentTab.config.sourceLabel', {
-                              defaultValue: 'Nom de la source',
-                            })}
-                          />
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`source-enabled-${activeSource.id}`} className="text-sm">
+                        <div className="flex items-center justify-between gap-3 rounded-full border border-border/70 bg-muted/20 px-3 py-2 xl:min-w-[230px] xl:justify-start">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                              {t('dashboard.enrichment.sourceAvailability', {
+                                defaultValue: 'Disponibilité',
+                              })}
+                            </div>
+                            <div className="text-sm font-medium">
                               {activeSource.enabled
                                 ? t('sources:configEditor.enabled')
                                 : t('sources:configEditor.disabled')}
-                            </Label>
-                            <Switch
-                              id={`source-enabled-${activeSource.id}`}
-                              checked={activeSource.enabled}
-                              onCheckedChange={(checked) => toggleSourceEnabled(activeSource.id, checked)}
-                            />
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{t('enrichmentTab.cards.progress')}</span>
-                            <span>
-                              {activeSourceProgress?.processed.toLocaleString() ?? 0} / {activeSourceProgress?.total.toLocaleString() ?? 0}
-                            </span>
-                          </div>
-                          <Progress value={activeSourceProgress?.percentage ?? 0} className="h-1.5" />
+                          <Switch
+                            id={`source-enabled-${activeSource.id}`}
+                            checked={activeSource.enabled}
+                            onCheckedChange={(checked) => toggleSourceEnabled(activeSource.id, checked)}
+                          />
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant={workspacePane === 'preview' ? 'default' : 'outline'}
-                          onClick={() => setWorkspacePane('preview')}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          {t('dashboard.actions.testApi', {
-                            defaultValue: "Tester l'API",
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor={`source-label-${activeSource.id}`} className="text-xs font-medium text-muted-foreground">
+                          {t('enrichmentTab.config.sourceLabel', {
+                            defaultValue: 'Nom de la source',
                           })}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={workspacePane === 'results' ? 'default' : 'outline'}
-                          onClick={() => setWorkspacePane('results')}
-                        >
-                          <Database className="mr-2 h-4 w-4" />
-                          {t('enrichmentTab.tabs.results')}
-                        </Button>
-                        {canStartActiveSource ? (
+                        </Label>
+                        <Input
+                          id={`source-label-${activeSource.id}`}
+                          value={activeSource.label}
+                          onChange={(event) => updateSourceLabel(activeSource.id, event.target.value)}
+                          placeholder={t('enrichmentTab.config.sourceLabel', {
+                            defaultValue: 'Nom de la source',
+                          })}
+                          className="max-w-md xl:max-w-lg"
+                        />
+                        <div className="truncate text-xs text-muted-foreground">
+                          {activeSource.config.api_url || activeSource.plugin}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{t('enrichmentTab.cards.progress')}</span>
+                          <span>
+                            {activeSourceProgress?.processed.toLocaleString() ?? 0} / {activeSourceProgress?.total.toLocaleString() ?? 0}
+                          </span>
+                        </div>
+                        <Progress value={activeSourceProgress?.percentage ?? 0} className="h-1.5" />
+                      </div>
+
+                      {activeSourceStats ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={activeSource.enabled ? 'secondary' : 'outline'}>
+                            {activeSource.enabled
+                              ? t('sources:configEditor.enabled')
+                              : t('sources:configEditor.disabled')}
+                          </Badge>
+                          <Badge variant="outline">
+                            {t('enrichmentTab.stats.enriched')}: {activeSourceStats.enriched.toLocaleString()}
+                          </Badge>
+                          <Badge variant="outline">
+                            {t('enrichmentTab.stats.pending')}: {activeSourceStats.pending.toLocaleString()}
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={activeSource.enabled ? 'secondary' : 'outline'}>
+                            {activeSource.enabled
+                              ? t('sources:configEditor.enabled')
+                              : t('sources:configEditor.disabled')}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3 border-t border-border/70 pt-4">
+                      <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/20 p-1">
                           <Button
                             type="button"
-                            onClick={() => startSourceJob(activeSource.id)}
-                            disabled={jobLoadingScope !== null || isOffline}
+                            size="sm"
+                            variant={workspacePane === 'config' ? 'default' : 'ghost'}
+                            onClick={() => setWorkspacePane('config')}
                           >
-                            {jobLoadingScope === activeSource.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Play className="mr-2 h-4 w-4" />
-                            )}
-                            {t('enrichmentTab.runtime.startSource', {
-                              defaultValue: 'Lancer cette API',
+                            <Settings className="mr-2 h-4 w-4" />
+                            {t('reference.configuration', {
+                              defaultValue: 'Configuration',
                             })}
                           </Button>
-                        ) : null}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={workspacePane === 'preview' ? 'default' : 'ghost'}
+                            onClick={() => setWorkspacePane('preview')}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            {t('dashboard.actions.testApi', {
+                              defaultValue: "Tester l'API",
+                            })}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={workspacePane === 'results' ? 'default' : 'ghost'}
+                            onClick={() => setWorkspacePane('results')}
+                          >
+                            <Database className="mr-2 h-4 w-4" />
+                            {t('enrichmentTab.tabs.results')}
+                          </Button>
+                        </div>
 
-                        {isRunningSingleSource && job?.status === 'running' ? (
-                          <>
-                            <Button variant="secondary" onClick={() => pauseJob(activeSource.id)} disabled={jobLoadingScope !== null}>
-                              {jobLoadingScope === activeSource.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Pause className="mr-2 h-4 w-4" />
-                              )}
-                              {t('enrichmentTab.actions.pause')}
-                            </Button>
-                            <Button variant="destructive" onClick={() => cancelJob(activeSource.id)} disabled={jobLoadingScope !== null}>
-                              <StopCircle className="mr-2 h-4 w-4" />
-                              {t('common:actions.cancel')}
-                            </Button>
-                          </>
-                        ) : null}
-
-                        {isRunningSingleSource && (job?.status === 'paused' || job?.status === 'paused_offline') ? (
-                          <>
-                            <Button onClick={() => resumeJob(activeSource.id)} disabled={jobLoadingScope !== null || isOffline}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {canStartActiveSource ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => startSourceJob(activeSource.id)}
+                              disabled={jobLoadingScope !== null || isOffline}
+                            >
                               {jobLoadingScope === activeSource.id ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               ) : (
                                 <Play className="mr-2 h-4 w-4" />
                               )}
-                              {t('enrichmentTab.actions.resume')}
+                              {t('enrichmentTab.runtime.startSource', {
+                                defaultValue: 'Lancer cette API',
+                              })}
                             </Button>
-                            <Button variant="destructive" onClick={() => cancelJob(activeSource.id)} disabled={jobLoadingScope !== null}>
-                              <StopCircle className="mr-2 h-4 w-4" />
-                              {t('common:actions.cancel')}
-                            </Button>
-                          </>
-                        ) : null}
+                          ) : null}
 
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={sources.findIndex((source) => source.id === activeSource.id) === 0}
-                          onClick={() => moveSource(activeSource.id, 'up')}
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={sources.findIndex((source) => source.id === activeSource.id) === sources.length - 1}
-                          onClick={() => moveSource(activeSource.id, 'down')}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={() => duplicateSource(activeSource.id)}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
+                          {isRunningSingleSource && job?.status === 'running' ? (
+                            <>
+                              <Button size="sm" variant="secondary" onClick={() => pauseJob(activeSource.id)} disabled={jobLoadingScope !== null}>
+                                {jobLoadingScope === activeSource.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Pause className="mr-2 h-4 w-4" />
+                                )}
+                                {t('enrichmentTab.actions.pause')}
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => cancelJob(activeSource.id)} disabled={jobLoadingScope !== null}>
+                                <StopCircle className="mr-2 h-4 w-4" />
+                                {t('common:actions.cancel')}
+                              </Button>
+                            </>
+                          ) : null}
+
+                          {isRunningSingleSource && (job?.status === 'paused' || job?.status === 'paused_offline') ? (
+                            <>
+                              <Button size="sm" onClick={() => resumeJob(activeSource.id)} disabled={jobLoadingScope !== null || isOffline}>
+                                {jobLoadingScope === activeSource.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Play className="mr-2 h-4 w-4" />
+                                )}
+                                {t('enrichmentTab.actions.resume')}
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => cancelJob(activeSource.id)} disabled={jobLoadingScope !== null}>
+                                <StopCircle className="mr-2 h-4 w-4" />
+                                {t('common:actions.cancel')}
+                              </Button>
+                            </>
+                          ) : null}
+
+                          <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background p-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={activeSourceIndex === 0}
+                              onClick={() => moveSource(activeSource.id, 'up')}
+                            >
+                              <ChevronUp className="h-4 w-4" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                {t('dashboard.enrichment.deleteSourceTitle', {
-                                  defaultValue: 'Supprimer cette source ?',
-                                })}
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t('dashboard.enrichment.deleteSourceDescription', {
-                                  defaultValue: 'La source sera retirée de la configuration locale jusqu’à la prochaine sauvegarde.',
-                                })}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => removeSource(activeSource.id)}>
-                                {t('common:actions.delete')}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={activeSourceIndex === sources.length - 1}
+                              onClick={() => moveSource(activeSource.id, 'down')}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => duplicateSource(activeSource.id)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    {t('dashboard.enrichment.deleteSourceTitle', {
+                                      defaultValue: 'Supprimer cette source ?',
+                                    })}
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {t('dashboard.enrichment.deleteSourceDescription', {
+                                      defaultValue: 'La source sera retirée de la configuration locale jusqu’à la prochaine sauvegarde.',
+                                    })}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => removeSource(activeSource.id)}>
+                                    {t('common:actions.delete')}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </CardHeader>
-                </Card>
-
-                <Card className="border-border/70">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">
-                      {t('dashboard.enrichment.configTitle', {
-                        defaultValue: 'Configuration détaillée',
-                      })}
-                    </CardTitle>
-                    <CardDescription>
-                      {t('dashboard.enrichment.configDescription', {
-                        defaultValue: 'Règle la connexion, l’authentification et le mapping pour la source active.',
-                      })}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ApiEnrichmentConfig
-                      config={activeSource.config}
-                      onChange={(apiConfig) => updateSourceConfig(activeSource.id, apiConfig)}
-                      category={apiCategory}
-                    />
                   </CardContent>
                 </Card>
-              </div>
 
-              <div className="xl:col-span-2 2xl:col-span-1">
-                <div className="space-y-4 2xl:sticky 2xl:top-[104px]">
+                {workspacePane === 'config' ? (
                   <Card className="border-border/70">
                     <CardHeader className="pb-3">
-                      <div className="flex flex-col gap-3">
-                        <div>
-                          <CardTitle className="text-sm font-medium">
-                            {t('dashboard.enrichment.inspectorTitle', {
-                              defaultValue: 'Inspecteur de source',
-                            })}
-                          </CardTitle>
-                          <CardDescription>
-                            {t('dashboard.enrichment.inspectorDescription', {
-                              defaultValue: 'Teste la source active et consulte ses derniers résultats sans quitter la configuration.',
-                            })}
-                          </CardDescription>
+                      <CardTitle className="text-sm font-medium">
+                        {t('dashboard.enrichment.configTitle', {
+                          defaultValue: 'Configuration détaillée',
+                        })}
+                      </CardTitle>
+                      <CardDescription>
+                        {t('dashboard.enrichment.configDescription', {
+                          defaultValue: 'Règle la connexion, l’authentification et le mapping pour la source active.',
+                        })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ApiEnrichmentConfig
+                        key={activeSource.id}
+                        config={activeSource.config}
+                        onChange={(apiConfig) => updateSourceConfig(activeSource.id, apiConfig)}
+                        onPresetSelect={(presetName) => applyPresetLabel(activeSource.id, presetName)}
+                        category={apiCategory}
+                      />
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {workspacePane === 'preview' ? (
+                  <Card className="border-border/70">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium">
+                        {t('dashboard.actions.testApi', {
+                          defaultValue: "Tester l'API",
+                        })}
+                      </CardTitle>
+                      <CardDescription>
+                        {t('dashboard.enrichment.inspectorDescription', {
+                          defaultValue: 'Teste la source active et consulte ses derniers résultats sans quitter la configuration.',
+                        })}
+                      </CardDescription>
+                      {activeSource.config.api_url ? (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {activeSource.config.api_url}
                         </div>
-                        <Tabs
-                          value={workspacePane}
-                          onValueChange={(value) => setWorkspacePane(value as 'preview' | 'results')}
-                          className="space-y-4"
-                        >
-                          <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="preview">
-                              {t('dashboard.actions.testApi', {
-                                defaultValue: "Tester l'API",
+                      ) : null}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {activeSource.enabled ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">
+                              {t('enrichmentTab.preview.manualInput')}
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder={t('common:labels.name')}
+                                value={previewQuery}
+                                onChange={(event) => setPreviewQuery(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    void previewEnrichment(undefined, activeSource.id)
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                onClick={() => previewEnrichment(undefined, activeSource.id)}
+                                disabled={previewLoading || !previewQuery.trim()}
+                              >
+                                {previewLoading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">
+                              {t('dashboard.enrichment.quickExamples', {
+                                defaultValue: 'Essayer avec une entité existante',
                               })}
-                            </TabsTrigger>
-                            <TabsTrigger value="results">{t('enrichmentTab.tabs.results')}</TabsTrigger>
-                          </TabsList>
+                            </Label>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  placeholder={t('common:actions.search')}
+                                  value={entitySearch}
+                                  onChange={(event) => setEntitySearch(event.target.value)}
+                                  className="pl-9"
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      void loadEntities(entitySearch)
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <Button type="button" variant="outline" onClick={() => loadEntities(entitySearch)}>
+                                <Search className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
 
-                          <TabsContent value="preview" className="space-y-4">
-                            {activeSource.enabled ? (
-                              <>
-                                <div className="space-y-2">
-                                  <Label className="text-xs text-muted-foreground">
-                                    {t('enrichmentTab.preview.manualInput')}
-                                  </Label>
-                                  <div className="flex gap-2">
-                                    <Input
-                                      placeholder={t('common:labels.name')}
-                                      value={previewQuery}
-                                      onChange={(event) => setPreviewQuery(event.target.value)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
-                                          void previewEnrichment()
-                                        }
-                                      }}
-                                    />
-                                    <Button
-                                      type="button"
-                                      onClick={() => previewEnrichment()}
-                                      disabled={previewLoading || !previewQuery.trim()}
-                                    >
-                                      {previewLoading ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-xs text-muted-foreground">
-                                    {t('dashboard.enrichment.quickExamples', {
-                                      defaultValue: 'Essayer avec une entité existante',
-                                    })}
-                                  </Label>
-                                  <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                      <Input
-                                        placeholder={t('common:actions.search')}
-                                        value={entitySearch}
-                                        onChange={(event) => setEntitySearch(event.target.value)}
-                                        className="pl-9"
-                                        onKeyDown={(event) => {
-                                          if (event.key === 'Enter') {
-                                            void loadEntities(entitySearch)
-                                          }
-                                        }}
-                                      />
-                                    </div>
-                                    <Button type="button" variant="outline" onClick={() => loadEntities(entitySearch)}>
-                                      <Search className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <ScrollArea className="h-[220px] rounded-md border">
-                                  {entitiesLoading ? (
-                                    <div className="flex items-center justify-center py-8">
-                                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    </div>
-                                  ) : entities.length === 0 ? (
-                                    <div className="py-8 text-center text-muted-foreground">
-                                      <Database className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                                      <p className="text-sm">{t('enrichmentTab.preview.loadEntities')}</p>
-                                    </div>
-                                  ) : (
-                                    <div className="p-1">
-                                      {entities.map((entity) => (
-                                        <button
-                                          key={entity.id}
-                                          type="button"
-                                          onClick={() => {
-                                            setPreviewQuery(entity.name)
-                                            void previewEnrichment(entity.name)
-                                          }}
-                                          className={`group flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent ${
-                                            previewQuery === entity.name ? 'bg-accent' : ''
-                                          }`}
-                                        >
-                                          <span className="truncate flex-1">{entity.name}</span>
-                                          <Eye className="h-4 w-4 opacity-0 group-hover:opacity-50" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </ScrollArea>
-
-                                <div className="rounded-lg border bg-muted/20 p-3">
-                                  {previewLoading ? (
-                                    <div className="flex min-h-[220px] items-center justify-center">
-                                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                    </div>
-                                  ) : previewError ? (
-                                    <Alert variant="destructive">
-                                      <AlertCircle className="h-4 w-4" />
-                                      <AlertDescription>{previewError}</AlertDescription>
-                                    </Alert>
-                                  ) : activePreviewResult?.success && activePreviewResult.data ? (
-                                    <ScrollArea className="max-h-[360px]">
-                                      <div className="space-y-2">
-                                        {Object.entries(activePreviewResult.data).map(([field, value]) => (
-                                          <div
-                                            key={field}
-                                            className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 border-b border-border/60 py-2 last:border-b-0"
-                                          >
-                                            <div className="text-xs font-medium text-muted-foreground">{field}</div>
-                                            <div className="min-w-0 text-sm">{renderValue(value)}</div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </ScrollArea>
-                                  ) : activePreviewResult?.error ? (
-                                    <Alert variant="destructive">
-                                      <AlertCircle className="h-4 w-4" />
-                                      <AlertDescription>{activePreviewResult.error}</AlertDescription>
-                                    </Alert>
-                                  ) : (
-                                    <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-muted-foreground">
-                                      <Eye className="mb-3 h-10 w-10 opacity-30" />
-                                      <div className="text-sm font-medium">{t('enrichmentTab.preview.emptyTitle')}</div>
-                                      <div className="text-sm">{t('enrichmentTab.preview.emptyDescription')}</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
+                          <ScrollArea className="h-[220px] rounded-md border">
+                            {entitiesLoading ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                              </div>
+                            ) : entities.length === 0 ? (
+                              <div className="py-8 text-center text-muted-foreground">
+                                <Database className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                                <p className="text-sm">{t('enrichmentTab.preview.loadEntities')}</p>
+                              </div>
                             ) : (
-                              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                                {t('dashboard.enrichment.quickTesterDisabled', {
-                                  defaultValue: 'Active cette source pour pouvoir la tester.',
-                                })}
+                              <div className="p-1">
+                                {entities.map((entity) => (
+                                  <button
+                                    key={entity.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewQuery(entity.name)
+                                      void previewEnrichment(entity.name, activeSource.id)
+                                    }}
+                                    className={`group flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent ${
+                                      previewQuery === entity.name ? 'bg-accent' : ''
+                                    }`}
+                                  >
+                                    <span className="truncate flex-1">{entity.name}</span>
+                                    <Eye className="h-4 w-4 opacity-0 group-hover:opacity-50" />
+                                  </button>
+                                ))}
                               </div>
                             )}
-                          </TabsContent>
+                          </ScrollArea>
 
-                          <TabsContent value="results" className="space-y-4">
-                            {resultsLoading ? (
-                              <div className="flex items-center justify-center py-10">
+                          <div className="rounded-lg border bg-muted/20 p-3">
+                            {previewLoading ? (
+                              <div className="flex min-h-[220px] items-center justify-center">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                               </div>
-                            ) : activeSourceResults.length === 0 ? (
-                              <Alert>
+                            ) : previewError ? (
+                              <Alert variant="destructive">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>{t('enrichmentTab.results.emptyTitle')}</AlertTitle>
-                                <AlertDescription>{t('enrichmentTab.results.emptyDescription')}</AlertDescription>
+                                <AlertDescription>{previewError}</AlertDescription>
                               </Alert>
-                            ) : (
-                              <>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline">
-                                    {activeSourceResults.length.toLocaleString()} result(s)
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {t('enrichmentTab.stats.enriched')}: {(activeSourceStats?.enriched ?? 0).toLocaleString()}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {t('enrichmentTab.stats.pending')}: {(activeSourceStats?.pending ?? 0).toLocaleString()}
-                                  </Badge>
+                            ) : activePreviewResult?.success ? (
+                              <div className="space-y-3">
+                                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background p-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={previewResultMode === 'mapped' ? 'default' : 'ghost'}
+                                    onClick={() => setPreviewResultMode('mapped')}
+                                  >
+                                    {t('dashboard.enrichment.mappedFields', {
+                                      defaultValue: 'Champs mappés',
+                                    })}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={previewResultMode === 'raw' ? 'default' : 'ghost'}
+                                    onClick={() => setPreviewResultMode('raw')}
+                                  >
+                                    {t('dashboard.enrichment.rawApiResponse', {
+                                      defaultValue: 'Réponse brute API',
+                                    })}
+                                  </Button>
                                 </div>
 
-                                <ScrollArea className="max-h-[620px]">
-                                  <div className="space-y-2">
-                                    {activeSourceResults.map((result) => (
-                                      <button
-                                        key={`${activeSource.id}-${getResultEntityName(result)}-${result.processed_at}`}
-                                        type="button"
-                                        className="w-full rounded-lg border px-3 py-3 text-left transition-colors hover:bg-muted/30"
-                                        onClick={() => setSelectedResult(result)}
-                                      >
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="min-w-0">
-                                            <div className="truncate text-sm font-medium">
-                                              {getResultEntityName(result)}
-                                            </div>
-                                            <div className="mt-1 text-xs text-muted-foreground">
-                                              {new Date(result.processed_at).toLocaleString()}
-                                            </div>
-                                          </div>
-                                          <Badge variant={result.success ? 'secondary' : 'destructive'}>
-                                            {result.success
-                                              ? t('enrichmentTab.result.success')
-                                              : t('enrichmentTab.result.failed')}
-                                          </Badge>
-                                        </div>
-                                      </button>
-                                    ))}
+                                {previewResultMode === 'mapped' ? (
+                                  activePreviewResult.data && Object.keys(activePreviewResult.data).length > 0 ? (
+                                    renderMappedPreview(activePreviewResult.data)
+                                  ) : (
+                                    <div className="py-8 text-center text-sm text-muted-foreground">
+                                      {t('dashboard.enrichment.noMappedFields', {
+                                        defaultValue: 'Aucun champ mappé pour cette source.',
+                                      })}
+                                    </div>
+                                  )
+                                ) : activePreviewResult.raw_data !== undefined ? (
+                                  renderRawPreview(activePreviewResult.raw_data)
+                                ) : (
+                                  <div className="py-8 text-center text-sm text-muted-foreground">
+                                    {t('dashboard.enrichment.noRawApiResponse', {
+                                      defaultValue: 'Aucune réponse brute disponible pour ce test.',
+                                    })}
                                   </div>
-                                </ScrollArea>
-                              </>
+                                )}
+                              </div>
+                            ) : activePreviewResult?.error ? (
+                              <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{activePreviewResult.error}</AlertDescription>
+                              </Alert>
+                            ) : (
+                              <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-muted-foreground">
+                                <Eye className="mb-3 h-10 w-10 opacity-30" />
+                                <div className="text-sm font-medium">{t('enrichmentTab.preview.emptyTitle')}</div>
+                                <div className="text-sm">{t('enrichmentTab.preview.emptyDescription')}</div>
+                              </div>
                             )}
-                          </TabsContent>
-                        </Tabs>
-                      </div>
-                    </CardHeader>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                          {t('dashboard.enrichment.quickTesterDisabled', {
+                            defaultValue: 'Active cette source pour pouvoir la tester.',
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
                   </Card>
-                </div>
+                ) : null}
+
+                {workspacePane === 'results' ? (
+                  <Card className="border-border/70">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium">
+                        {t('enrichmentTab.tabs.results')}
+                      </CardTitle>
+                      <CardDescription>
+                        {t('dashboard.enrichment.resultsDescription', {
+                          defaultValue: 'Consulte les enrichissements déjà produits pour la source active.',
+                        })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {resultsLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : activeSourceResults.length === 0 ? (
+                        <Alert>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>{t('enrichmentTab.results.emptyTitle')}</AlertTitle>
+                          <AlertDescription>{t('enrichmentTab.results.emptyDescription')}</AlertDescription>
+                        </Alert>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">
+                              {activeSourceResults.length.toLocaleString()} result(s)
+                            </Badge>
+                            <Badge variant="outline">
+                              {t('enrichmentTab.stats.enriched')}: {(activeSourceStats?.enriched ?? 0).toLocaleString()}
+                            </Badge>
+                            <Badge variant="outline">
+                              {t('enrichmentTab.stats.pending')}: {(activeSourceStats?.pending ?? 0).toLocaleString()}
+                            </Badge>
+                          </div>
+
+                          <ScrollArea className="max-h-[620px]">
+                            <div className="space-y-2">
+                              {activeSourceResults.map((result) => (
+                                <button
+                                  key={`${activeSource.id}-${getResultEntityName(result)}-${result.processed_at}`}
+                                  type="button"
+                                  className="w-full rounded-lg border px-3 py-3 text-left transition-colors hover:bg-muted/30"
+                                  onClick={() => setSelectedResult(result)}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="truncate text-sm font-medium">
+                                        {getResultEntityName(result)}
+                                      </div>
+                                      <div className="mt-1 text-xs text-muted-foreground">
+                                        {new Date(result.processed_at).toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <Badge variant={result.success ? 'secondary' : 'destructive'}>
+                                      {result.success
+                                        ? t('enrichmentTab.result.success')
+                                        : t('enrichmentTab.result.failed')}
+                                    </Badge>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -2191,9 +2436,9 @@ export function EnrichmentTab({
                     </TableHeader>
                     <TableBody>
                       {Object.entries(selectedResult.data).map(([field, value]) => (
-                        <TableRow key={field}>
-                          <TableCell className="font-medium">{field}</TableCell>
-                          <TableCell>{renderValue(value)}</TableCell>
+                        <TableRow key={field} className="align-top">
+                          <TableCell className="align-top font-medium">{field}</TableCell>
+                          <TableCell className="align-top break-words">{renderValue(value)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

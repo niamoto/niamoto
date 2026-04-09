@@ -407,6 +407,9 @@
       "updateLayer": "Mettre à jour le fichier",
       "addSource": "Ajouter une source",
       "enrichNow": "Enrichir maintenant",
+      "quickPanel": "Quick panel",
+      "openWorkspace": "Ouvrir le workspace",
+      "testApi": "Tester l’API",
       "configureEnrichment": "Configurer l’enrichissement",
       "manageEnrichment": "Gérer l’enrichissement"
     },
@@ -455,7 +458,25 @@
     "enrichment": {
       "sheetTitle": "Enrichissement · {{name}}",
       "sheetFallbackTitle": "Enrichissement",
-      "sheetDescription": "Configurez et lancez l’enrichissement externe sans quitter le workspace de données."
+      "sheetDescription": "Configurez et lancez l’enrichissement externe sans quitter le workspace de données.",
+      "quickSheetDescription": "Quick panel pour lancer et tester l’enrichissement. Utilisez le workspace pour la configuration complète et les résultats.",
+      "quickEmpty": "Le panel rapide sert à lancer et tester. Ouvrez le workspace pour configurer les sources.",
+      "quickPanelDescription": "Sélectionnez une source pour la tester ou lancer un enrichissement rapide.",
+      "quickSelectSource": "Sélectionnez une source pour tester sa réponse.",
+      "quickExamples": "Essayer avec une entité existante",
+      "mappedFields": "Champs mappés",
+      "rawApiResponse": "Réponse brute API",
+      "noMappedFields": "Aucun champ mappé pour cette source.",
+      "noRawApiResponse": "Aucune réponse brute disponible pour ce test.",
+      "quickTesterEmpty": "Lancez un test pour voir immédiatement la réponse de l’API.",
+      "quickTesterDisabled": "Activez cette source dans le workspace complet pour pouvoir la tester.",
+      "quickResultsDescription": "Aperçu rapide des derniers traitements. Le détail complet est dans le workspace.",
+      "configTitle": "Configuration détaillée",
+      "configDescription": "Réglez la connexion, l’authentification et le mapping pour la source active.",
+      "inspectorDescription": "Testez la source active et consultez ses derniers résultats sans quitter la configuration.",
+      "resultsDescription": "Consultez les enrichissements déjà produits pour la source active.",
+      "deleteSourceTitle": "Supprimer cette source ?",
+      "deleteSourceDescription": "La source sera retirée de la configuration locale jusqu’à la prochaine sauvegarde."
     },
     "verification": {
       "title": "Outils de vérification",
@@ -650,6 +671,7 @@
       "running": "En cours",
       "paused": "En pause",
       "pausedOffline": "Pause (hors ligne)",
+      "paused_offline": "Pause (hors ligne)",
       "completed": "Terminé",
       "failed": "Échec",
       "cancelled": "Annulé"

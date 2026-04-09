@@ -407,6 +407,9 @@
       "updateLayer": "Update file",
       "addSource": "Add source",
       "enrichNow": "Enrich now",
+      "quickPanel": "Quick panel",
+      "openWorkspace": "Open workspace",
+      "testApi": "Test API",
       "configureEnrichment": "Configure enrichment",
       "manageEnrichment": "Manage enrichment"
     },
@@ -455,7 +458,25 @@
     "enrichment": {
       "sheetTitle": "Enrichment · {{name}}",
       "sheetFallbackTitle": "Enrichment",
-      "sheetDescription": "Configure and run external enrichment without leaving the data workspace."
+      "sheetDescription": "Configure and run external enrichment without leaving the data workspace.",
+      "quickSheetDescription": "Quick panel for running and testing enrichment. Use the workspace for full configuration and results.",
+      "quickEmpty": "The quick panel is for running and testing. Open the workspace to configure sources.",
+      "quickPanelDescription": "Select a source to test it or run a quick enrichment.",
+      "quickSelectSource": "Select a source to test its response.",
+      "quickExamples": "Try with an existing entity",
+      "mappedFields": "Mapped fields",
+      "rawApiResponse": "Raw API response",
+      "noMappedFields": "No mapped fields for this source.",
+      "noRawApiResponse": "No raw response is available for this test.",
+      "quickTesterEmpty": "Run a test to immediately see the API response.",
+      "quickTesterDisabled": "Enable this source in the full workspace before testing it.",
+      "quickResultsDescription": "Quick look at recent runs. Full details remain in the workspace.",
+      "configTitle": "Detailed configuration",
+      "configDescription": "Adjust connection, authentication, and mapping for the active source.",
+      "inspectorDescription": "Test the active source and inspect its latest results without leaving the configuration.",
+      "resultsDescription": "Inspect enrichments already produced for the active source.",
+      "deleteSourceTitle": "Delete this source?",
+      "deleteSourceDescription": "The source will be removed from the local configuration until the next save."
     },
     "verification": {
       "title": "Verification tools",
@@ -650,6 +671,7 @@
       "running": "Running",
       "paused": "Paused",
       "pausedOffline": "Paused (offline)",
+      "paused_offline": "Paused (offline)",
       "completed": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled"

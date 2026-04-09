@@ -26,6 +26,7 @@ import axios from 'axios'
 interface ApiEnrichmentConfigProps {
   config: ApiConfig
   onChange: (config: ApiConfig) => void
+  onPresetSelect?: (presetName: string) => void
   category?: ApiCategory
 }
 
@@ -381,7 +382,12 @@ export function getPresetsByCategory(category: ApiCategory): PresetAPIWithCatego
 // Export all presets for external use
 export { PRESET_APIS_ALL }
 
-export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }: ApiEnrichmentConfigProps) {
+export function ApiEnrichmentConfig({
+  config,
+  onChange,
+  onPresetSelect,
+  category = 'taxonomy',
+}: ApiEnrichmentConfigProps) {
   // Filter presets by category
   const filteredPresets = category === 'all'
     ? PRESET_APIS_ALL
@@ -415,6 +421,7 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
         query_param_name: preset.config.query_param_name || 'q',
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
+      onPresetSelect?.(preset.name)
     }
   }
 
@@ -566,10 +573,25 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
   return (
     <div className="space-y-6">
       <Tabs defaultValue="connection" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="connection">{t('apiEnrichment.sections.connection')}</TabsTrigger>
-          <TabsTrigger value="authentication">{t('apiEnrichment.sections.authentication')}</TabsTrigger>
-          <TabsTrigger value="mapping">{t('apiEnrichment.sections.fieldMapping')}</TabsTrigger>
+        <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 rounded-lg bg-muted p-1">
+          <TabsTrigger
+            value="connection"
+            className="min-h-10 flex-1 min-w-[120px] whitespace-normal px-3 py-2 text-center leading-tight"
+          >
+            {t('apiEnrichment.sections.connection')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="authentication"
+            className="min-h-10 flex-1 min-w-[120px] whitespace-normal px-3 py-2 text-center leading-tight"
+          >
+            {t('apiEnrichment.sections.authentication')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="mapping"
+            className="min-h-10 flex-1 min-w-[140px] whitespace-normal px-3 py-2 text-center leading-tight"
+          >
+            {t('apiEnrichment.sections.fieldMapping')}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="connection" className="space-y-4">
@@ -587,7 +609,7 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
               {/* Preset APIs */}
               <div className="space-y-2">
                 <Label>{t('apiEnrichment.connection.quickSetup')}</Label>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex flex-wrap gap-2">
                   {filteredPresets.map(preset => (
                     <Button
                       key={preset.name}
@@ -648,21 +670,22 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
                 <Label>{t('apiEnrichment.connection.additionalParams')}</Label>
                 <div className="space-y-2 rounded-lg border p-3">
                   {Object.entries(config.query_params || {}).map(([key, value]) => (
-                    <div key={key} className="flex items-center gap-2">
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{key}</code>
-                      <span className="text-sm">=</span>
-                      <code className="text-sm bg-muted px-2 py-1 rounded flex-1">{value}</code>
+                    <div key={key} className="grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:items-center">
+                      <code className="break-all rounded bg-muted px-2 py-1 text-sm">{key}</code>
+                      <span className="hidden text-sm sm:block">=</span>
+                      <code className="break-all rounded bg-muted px-2 py-1 text-sm">{value}</code>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => removeQueryParam(key)}
+                        className="justify-self-start sm:justify-self-end"
                       >
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
                   ))}
 
-                  <div className="flex gap-2 mt-2">
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <Input
                       placeholder={t('apiEnrichment.connection.paramName')}
                       value={newQueryParam.key}
@@ -675,7 +698,7 @@ export function ApiEnrichmentConfig({ config, onChange, category = 'taxonomy' }:
                       onChange={(e) => setNewQueryParam({ ...newQueryParam, value: e.target.value })}
                       className="flex-1"
                     />
-                    <Button onClick={addQueryParam} size="sm">
+                    <Button onClick={addQueryParam} size="sm" className="sm:self-stretch">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>

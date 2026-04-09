@@ -85,6 +85,7 @@ export function ReferenceDetailPanel({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const requestedTab = searchParams.get('tab')
+  const requestedSource = searchParams.get('source')
 
   // Check if enrichment is configured for this reference
   const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfigResponse | null>(null)
@@ -246,8 +247,8 @@ export function ReferenceDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 overflow-auto p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <div className="flex-1 overflow-auto px-6 pb-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 pt-6">
           <TabsList>
             <TabsTrigger value="overview" className="gap-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -332,6 +333,7 @@ export function ReferenceDetailPanel({
                   referenceName={referenceName}
                   hasEnrichment={hasEnrichment}
                   onConfigSaved={handleConfigSaved}
+                  initialSourceId={requestedSource}
                 />
               </div>
             ) : (
