@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.13.1] - 2026-04-09
+
+### Features
+
+- Surface enrichment progress on dashboard cards
+- Add desktop update test harness
+
+### Documentation
+
+- Add desktop update harness design
+
+### Other
+
+- Drop macOS Intel matrix (macos-13 runner retired)
+- Add macOS Intel and Linux arm64 to release builds
+- Refresh uv.lock
+
 ## [v0.13.0] - 2026-04-08
 
 ### Features
