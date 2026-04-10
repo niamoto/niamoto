@@ -31,7 +31,7 @@ import {
   CornerDownLeft,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
-import { useTheme } from '@/hooks/use-theme'
+import { useThemeStore } from '@/stores/themeStore'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
 import {
   applyUiLanguagePreference,
@@ -50,7 +50,7 @@ const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = 
 export function CommandPalette() {
   const { t, i18n } = useTranslation('common')
   const navigate = useNavigate()
-  const { setTheme } = useTheme()
+  const setThemeMode = useThemeStore((s) => s.setMode)
   const { commandPaletteOpen, setCommandPaletteOpen } = useNavigationStore()
   const feedback = useFeedback()
   const browserOnline = useBrowserOnline()
@@ -78,7 +78,7 @@ export function CommandPalette() {
         setCommandPaletteOpen(false)
         break
       case 'theme':
-        setTheme(params[0] as 'light' | 'dark' | 'system')
+        setThemeMode(params[0] as 'light' | 'dark' | 'system')
         setCommandPaletteOpen(false)
         break
       case 'language':
@@ -100,7 +100,7 @@ export function CommandPalette() {
       default:
         break
     }
-  }, [navigate, setTheme, setCommandPaletteOpen, feedback])
+  }, [feedback, navigate, setCommandPaletteOpen, setThemeMode])
 
   return (
     <CommandDialog

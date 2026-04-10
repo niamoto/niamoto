@@ -5,36 +5,44 @@
  * It also handles system theme change events.
  */
 
-import { useEffect, type ReactNode } from 'react'
-import { useThemeStore } from '@/stores/themeStore'
+import { useEffect, useLayoutEffect, type ReactNode } from 'react'
+import { getTheme, getSystemMode } from '@/themes'
+import { DEFAULT_THEME_ID, useThemeStore } from '@/stores/themeStore'
 
 interface ThemeProviderProps {
   children: ReactNode
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const applyCurrentTheme = useThemeStore((s) => s.applyCurrentTheme)
+  const themeId = useThemeStore((s) => s.themeId)
   const mode = useThemeStore((s) => s.mode)
+  const systemMode = useThemeStore((s) => s.systemMode)
+  const applyCurrentTheme = useThemeStore((s) => s.applyCurrentTheme)
+  const setTheme = useThemeStore((s) => s.setTheme)
+  const setSystemMode = useThemeStore((s) => s.setSystemMode)
 
-  // Apply theme on mount and when mode changes
-  useEffect(() => {
+  // Validate persisted theme ids and apply the active theme before paint.
+  useLayoutEffect(() => {
+    if (!getTheme(themeId)) {
+      setTheme(DEFAULT_THEME_ID)
+      return
+    }
+
     applyCurrentTheme()
-  }, [applyCurrentTheme, mode])
+  }, [applyCurrentTheme, mode, setTheme, systemMode, themeId])
 
-  // Listen for system preference changes
+  // Listen for system preference changes in a single place.
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    setSystemMode(getSystemMode())
 
-    const handleChange = () => {
-      const currentMode = useThemeStore.getState().mode
-      if (currentMode === 'system') {
-        applyCurrentTheme()
-      }
+    const handleChange = (event: MediaQueryListEvent) => {
+      setSystemMode(event.matches ? 'dark' : 'light')
     }
 
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [applyCurrentTheme])
+  }, [setSystemMode])
 
   return <>{children}</>
 }

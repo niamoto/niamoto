@@ -9,7 +9,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Editor } from '@monaco-editor/react'
-import { useTheme } from '@/hooks/use-theme'
+import { useThemeStore } from '@/stores/themeStore'
 import * as yaml from 'js-yaml'
 import { cn } from '@/lib/utils'
 import { Alert } from '@/components/ui/alert'
@@ -48,7 +48,7 @@ export function WidgetConfigYamlEditor({
   height = '400px',
 }: WidgetConfigYamlEditorProps) {
   const { t } = useTranslation('common')
-  const { theme } = useTheme()
+  const resolvedMode = useThemeStore((s) => s.getResolvedMode())
   const [editorValue, setEditorValue] = useState(initialValue)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -186,7 +186,7 @@ export function WidgetConfigYamlEditor({
             defaultLanguage="yaml"
             value={editorValue}
             onChange={handleEditorChange}
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            theme={resolvedMode === 'dark' ? 'vs-dark' : 'light'}
             options={{
               readOnly,
               minimap: { enabled: false },
