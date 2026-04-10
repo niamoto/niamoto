@@ -6,11 +6,12 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import pandas as pd
-import httpx
+import requests
 from pydantic import BaseModel
 import tempfile
 import zipfile
 import geopandas as gpd
+from starlette.concurrency import run_in_threadpool
 
 from ..context import get_working_directory
 
@@ -192,28 +193,31 @@ def find_matching_columns(
 async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
     """Test an API connection with provided configuration."""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                request.url, headers=request.headers, params=request.params
+        response = await run_in_threadpool(
+            requests.get,
+            request.url,
+            headers=request.headers,
+            params=request.params,
+            timeout=10.0,
+        )
+
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                return ApiTestResponse(success=True, data=data)
+            except json.JSONDecodeError:
+                return ApiTestResponse(
+                    success=False, error="Invalid JSON response from API"
+                )
+        else:
+            return ApiTestResponse(
+                success=False,
+                error=f"API returned status code {response.status_code}: {response.text[:200]}",
             )
 
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    return ApiTestResponse(success=True, data=data)
-                except json.JSONDecodeError:
-                    return ApiTestResponse(
-                        success=False, error="Invalid JSON response from API"
-                    )
-            else:
-                return ApiTestResponse(
-                    success=False,
-                    error=f"API returned status code {response.status_code}: {response.text[:200]}",
-                )
-
-    except httpx.TimeoutException:
+    except requests.exceptions.Timeout:
         return ApiTestResponse(success=False, error="Request timeout")
-    except httpx.RequestError as e:
+    except requests.exceptions.RequestException as e:
         return ApiTestResponse(success=False, error=f"Connection error: {str(e)}")
     except Exception as e:
         return ApiTestResponse(success=False, error=f"Unexpected error: {str(e)}")

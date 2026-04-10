@@ -18,6 +18,14 @@ export interface ReferenceEnrichmentConfig {
     query_params?: Record<string, string>
     query_field?: string
     query_param_name?: string
+    profile?: string
+    taxonomy_source?: string
+    include_taxonomy?: boolean
+    include_occurrences?: boolean
+    include_media?: boolean
+    include_references?: boolean
+    include_distributions?: boolean
+    media_limit?: number
     rate_limit?: number
     cache_results?: boolean
     response_mapping?: Record<string, string>
@@ -42,6 +50,40 @@ const DEFAULT_PLUGIN_BY_CATEGORY: Record<ApiCategory, string> = {
   elevation: 'api_elevation_enricher',
   spatial: 'api_spatial_enricher',
   all: 'api_taxonomy_enricher',
+}
+
+const GBIF_RICH_MATCH_URL = 'https://api.gbif.org/v2/species/match'
+const TROPICOS_RICH_SEARCH_URL = 'https://services.tropicos.org/Name/Search'
+
+function isLegacyGbifEnrichment(enrichment: ReferenceEnrichmentConfig | undefined): boolean {
+  if (!enrichment) return false
+  if (enrichment.config?.profile) return false
+
+  const apiUrl = (enrichment.config?.api_url || '').toLowerCase()
+  if (apiUrl.includes('api.gbif.org') && apiUrl.includes('/species/match')) {
+    return true
+  }
+
+  const label = (enrichment.label || enrichment.id || '').toLowerCase()
+  return label === 'gbif'
+}
+
+function isLegacyTropicosEnrichment(enrichment: ReferenceEnrichmentConfig | undefined): boolean {
+  if (!enrichment) return false
+  if (enrichment.config?.profile) return false
+
+  const plugin = (enrichment.plugin || '').toLowerCase()
+  if (plugin === 'tropicos_enricher') {
+    return true
+  }
+
+  const apiUrl = (enrichment.config?.api_url || '').toLowerCase()
+  if (apiUrl.includes('services.tropicos.org') && apiUrl.includes('/name/search')) {
+    return true
+  }
+
+  const label = (enrichment.label || enrichment.id || '').toLowerCase()
+  return label === 'tropicos'
 }
 
 export function slugifyEnrichmentSourceId(value: string, fallback: string): string {
@@ -78,18 +120,59 @@ export function enrichmentToApiConfig(
   enrichment: ReferenceEnrichmentConfig | undefined,
   category: ApiCategory = 'taxonomy'
 ): ApiConfig {
+  const legacyGbif = isLegacyGbifEnrichment(enrichment)
+  const legacyTropicos = isLegacyTropicosEnrichment(enrichment)
+  const queryParams = enrichment?.config?.query_params
+
   return {
     enabled: enrichment?.enabled ?? false,
-    plugin: enrichment?.plugin ?? DEFAULT_PLUGIN_BY_CATEGORY[category],
-    api_url: enrichment?.config?.api_url ?? '',
+    plugin: legacyTropicos
+      ? 'api_taxonomy_enricher'
+      : (enrichment?.plugin ?? DEFAULT_PLUGIN_BY_CATEGORY[category]),
+    api_url: legacyGbif
+      ? GBIF_RICH_MATCH_URL
+      : legacyTropicos
+        ? TROPICOS_RICH_SEARCH_URL
+        : enrichment?.config?.api_url ?? '',
     auth_method: (enrichment?.config?.auth_method as ApiConfig['auth_method']) ?? 'none',
-    auth_params: enrichment?.config?.auth_params,
-    query_params: enrichment?.config?.query_params,
+    auth_params: legacyTropicos
+      ? {
+          location: 'query',
+          name: 'apikey',
+          key: enrichment?.config?.auth_params?.key || '',
+        }
+      : enrichment?.config?.auth_params,
+    query_params: legacyGbif
+      ? {
+          ...(queryParams ?? {}),
+          verbose: String((queryParams ?? {}).verbose ?? 'true'),
+        }
+      : legacyTropicos
+        ? {
+            ...(queryParams ?? {}),
+            format: String((queryParams ?? {}).format ?? 'json'),
+            type: String((queryParams ?? {}).type ?? 'exact'),
+          }
+        : queryParams,
     query_field: enrichment?.config?.query_field ?? 'full_name',
-    query_param_name: enrichment?.config?.query_param_name ?? 'q',
+    query_param_name: legacyGbif
+      ? 'scientificName'
+      : legacyTropicos
+        ? 'name'
+        : (enrichment?.config?.query_param_name ?? 'q'),
+    profile: enrichment?.config?.profile
+      ?? (legacyGbif ? 'gbif_rich' : undefined)
+      ?? (legacyTropicos ? 'tropicos_rich' : undefined),
+    taxonomy_source: enrichment?.config?.taxonomy_source ?? (legacyGbif ? 'col_xr' : undefined),
+    include_taxonomy: enrichment?.config?.include_taxonomy ?? true,
+    include_occurrences: enrichment?.config?.include_occurrences ?? true,
+    include_media: enrichment?.config?.include_media ?? true,
+    include_references: enrichment?.config?.include_references ?? true,
+    include_distributions: enrichment?.config?.include_distributions ?? true,
+    media_limit: enrichment?.config?.media_limit ?? 3,
     rate_limit: enrichment?.config?.rate_limit ?? 2,
     cache_results: enrichment?.config?.cache_results ?? true,
-    response_mapping: enrichment?.config?.response_mapping,
+    response_mapping: legacyGbif || legacyTropicos ? {} : enrichment?.config?.response_mapping,
     chained_endpoints: enrichment?.config?.chained_endpoints,
   }
 }
@@ -139,6 +222,14 @@ export function apiConfigToEnrichment(
       query_params: apiConfig.query_params,
       query_field: apiConfig.query_field,
       query_param_name: apiConfig.query_param_name,
+      profile: apiConfig.profile,
+      taxonomy_source: apiConfig.taxonomy_source,
+      include_taxonomy: apiConfig.include_taxonomy,
+      include_occurrences: apiConfig.include_occurrences,
+      include_media: apiConfig.include_media,
+      include_references: apiConfig.include_references,
+      include_distributions: apiConfig.include_distributions,
+      media_limit: apiConfig.media_limit,
       rate_limit: apiConfig.rate_limit,
       cache_results: apiConfig.cache_results,
       response_mapping: apiConfig.response_mapping,
@@ -163,6 +254,14 @@ export function createDefaultEnrichmentSource(
       query_params: {},
       query_field: 'full_name',
       query_param_name: 'q',
+      profile: undefined,
+      taxonomy_source: undefined,
+      include_taxonomy: true,
+      include_occurrences: true,
+      include_media: true,
+      include_references: true,
+      include_distributions: true,
+      media_limit: 3,
       rate_limit: 2,
       cache_results: true,
       response_mapping: {},

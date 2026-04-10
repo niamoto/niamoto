@@ -271,7 +271,7 @@
     "providers": {
       "endemia": "Endemia NC",
       "gbif": "GBIF",
-      "wfo": "WFO (World Flora Online)",
+      "wfo": "WFO",
       "ipni": "IPNI",
       "inaturalist": "iNaturalist",
       "tropicos": "Tropicos"
@@ -296,7 +296,11 @@
       "additionalParams": "Additional Query Parameters",
       "paramName": "Parameter name",
       "value": "Value",
-      "testFailed": "API test failed"
+      "testFailed": "API test failed",
+      "links": {
+        "website": "Official website",
+        "apiDocs": "API documentation"
+      }
     },
     "authentication": {
       "title": "Authentication",

@@ -118,3 +118,50 @@ def test_generic_import_config_parsing():
 def test_connector_requires_path_for_file_types():
     with pytest.raises(ValueError):
         ConnectorConfig(type=ConnectorType.FILE)
+
+
+def test_generic_import_config_keeps_structured_enrichment_config():
+    """Structured enrichment config should remain available through the generic model."""
+
+    config = GenericImportConfig.from_dict(
+        {
+            "version": "1.0",
+            "entities": {
+                "references": {
+                    "taxons": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/taxons.csv",
+                        },
+                        "schema": {"id": "id", "fields": []},
+                        "enrichment": [
+                            {
+                                "id": "gbif",
+                                "label": "GBIF",
+                                "plugin": "api_taxonomy_enricher",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://api.gbif.org/v2/species/match",
+                                    "profile": "gbif_rich",
+                                    "taxonomy_source": "col_xr",
+                                    "include_taxonomy": True,
+                                    "include_occurrences": True,
+                                    "include_media": True,
+                                    "include_references": True,
+                                    "include_distributions": True,
+                                    "media_limit": 3,
+                                },
+                            }
+                        ],
+                    }
+                },
+                "datasets": {},
+            },
+        }
+    )
+
+    enrichment = config.entities.references["taxons"].enrichment[0]
+    assert enrichment.id == "gbif"
+    assert enrichment.config["profile"] == "gbif_rich"
+    assert enrichment.config["include_references"] is True
+    assert enrichment.config["media_limit"] == 3

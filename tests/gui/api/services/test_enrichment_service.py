@@ -51,6 +51,121 @@ def test_get_reference_enrichment_config_normalizes_legacy_dict(monkeypatch):
     assert config.sources[0].api_url == "https://api.example.com/v1/taxons"
 
 
+def test_get_reference_enrichment_config_preserves_structured_profile_fields(
+    monkeypatch,
+):
+    """Structured provider config should survive normalization."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "gbif",
+                    "label": "GBIF",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.gbif.org/v2/species/match",
+                        "profile": "gbif_rich",
+                        "taxonomy_source": "col_xr",
+                        "include_taxonomy": True,
+                        "include_occurrences": True,
+                        "include_media": False,
+                        "media_limit": 2,
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.id == "gbif"
+    assert source.profile == "gbif_rich"
+    assert source.taxonomy_source == "col_xr"
+    assert source.include_taxonomy is True
+    assert source.include_occurrences is True
+    assert source.include_media is False
+    assert source.media_limit == 2
+
+
+def test_get_reference_enrichment_config_upgrades_legacy_gbif_source(monkeypatch):
+    """Legacy GBIF match config should be normalized to the rich GBIF profile."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "source-2",
+                    "label": "GBIF",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.gbif.org/v1/species/match",
+                        "query_param_name": "q",
+                        "query_params": {"kingdom": "Plantae"},
+                        "response_mapping": {"gbif_key": "usageKey"},
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.api_url == "https://api.gbif.org/v2/species/match"
+    assert source.profile == "gbif_rich"
+    assert source.taxonomy_source == "col_xr"
+    assert source.query_param_name == "scientificName"
+    assert source.response_mapping == {}
+
+
+def test_get_reference_enrichment_config_upgrades_legacy_tropicos_source(monkeypatch):
+    """Legacy Tropicos config should be normalized to the rich Tropicos profile."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "source-3",
+                    "plugin": "tropicos_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "http://services.tropicos.org/Name/Search",
+                        "query_param_name": "q",
+                        "response_mapping": {"tropicos_id": "NameId"},
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.label == "Tropicos"
+    assert source.plugin == "api_taxonomy_enricher"
+    assert source.api_url == "https://services.tropicos.org/Name/Search"
+    assert source.profile == "tropicos_rich"
+    assert source.query_param_name == "name"
+    assert source.auth_method == "api_key"
+    assert source.auth_params["name"] == "apikey"
+    assert source.query_params["format"] == "json"
+    assert source.query_params["type"] == "exact"
+    assert source.response_mapping == {}
+
+
 def test_merge_source_enrichment_data_keeps_existing_sources():
     """Adding one source must not overwrite previously stored source payloads."""
 
