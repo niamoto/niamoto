@@ -2,11 +2,12 @@
 Plugin for enriching taxonomy data with information from external APIs.
 """
 
-import os
-import requests
-import time
 import logging
-from typing import Dict, Any, Literal, List
+import os
+import time
+from typing import Any, Dict, List, Literal, Optional
+
+import requests
 from pydantic import Field, model_validator, ConfigDict
 
 from niamoto.common.utils.emoji import emoji
@@ -14,6 +15,12 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
 logger = logging.getLogger(__name__)
+
+GBIF_COL_XR_CHECKLIST_KEY = "7ddf754f-d193-4cc9-b351-99906754a03b"
+GBIF_MATCH_ENDPOINT = "https://api.gbif.org/v2/species/match"
+GBIF_SPECIES_ENDPOINT = "https://api.gbif.org/v1/species"
+TROPICOS_SEARCH_ENDPOINT = "https://services.tropicos.org/Name/Search"
+TROPICOS_NAME_ENDPOINT = "https://services.tropicos.org/Name"
 
 
 class ApiTaxonomyEnricherParams(BasePluginParams):
@@ -60,6 +67,47 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         description="Name of the query parameter to use in the API request",
         json_schema_extra={"ui:widget": "text"},
     )
+    profile: Optional[str] = Field(
+        default=None,
+        description="Optional structured provider profile",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    taxonomy_source: Optional[str] = Field(
+        default=None,
+        description="Preferred taxonomy source for structured provider profiles",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    include_taxonomy: bool = Field(
+        default=True,
+        description="Whether to include taxonomy details for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    include_occurrences: bool = Field(
+        default=True,
+        description="Whether to include occurrence summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    include_media: bool = Field(
+        default=True,
+        description="Whether to include media summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    include_references: bool = Field(
+        default=True,
+        description="Whether to include reference summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    include_distributions: bool = Field(
+        default=True,
+        description="Whether to include distribution summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    media_limit: int = Field(
+        default=3,
+        ge=0,
+        description="Maximum number of media items to keep in structured provider summaries",
+        json_schema_extra={"ui:widget": "number"},
+    )
     response_mapping: Dict[str, str] = Field(
         ...,
         description="Mapping between API response fields and extra_data fields",
@@ -98,6 +146,8 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
     @model_validator(mode="after")
     def check_response_mapping(self):
         """Validate that response mapping is properly formatted"""
+        if self.profile in {"gbif_rich", "tropicos_rich"}:
+            return self
         if not self.response_mapping:
             raise ValueError("response_mapping cannot be empty")
         return self
@@ -218,7 +268,12 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return taxon_data
 
         # Check cache if enabled
-        cache_key = f"{query_value}_{params.api_url}"
+        cache_key = (
+            f"{params.profile or 'default'}::{params.api_url}::{params.taxonomy_source or ''}"
+            f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
+            f"::{params.include_references}::{params.include_distributions}"
+            f"::{params.media_limit}::{query_value}"
+        )
         if params.cache_results and cache_key in self._cache:
             logger.debug(f"Using cached data for {query_value}")
             self.log_messages.append(
@@ -257,6 +312,34 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         auth = None
 
         try:
+            if params.profile == "gbif_rich":
+                result = self._load_gbif_rich_data(
+                    taxon_data=taxon_data,
+                    query_value=str(query_value),
+                    params=params,
+                )
+                if params.cache_results and result.get("api_enrichment"):
+                    self._cache[cache_key] = {
+                        "mapped": result.get("api_enrichment", {}),
+                        "processed": result.get("api_response_processed"),
+                        "raw": result.get("api_response_raw"),
+                    }
+                return result
+
+            if params.profile == "tropicos_rich":
+                result = self._load_tropicos_rich_data(
+                    taxon_data=taxon_data,
+                    query_value=str(query_value),
+                    params=params,
+                )
+                if params.cache_results and result.get("api_enrichment"):
+                    self._cache[cache_key] = {
+                        "mapped": result.get("api_enrichment", {}),
+                        "processed": result.get("api_response_processed"),
+                        "raw": result.get("api_response_raw"),
+                    }
+                return result
+
             # Apply appropriate authentication
             if params.auth_method == "api_key":
                 self._setup_api_key_auth(
@@ -478,6 +561,963 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
         except Exception as e:
             logger.error(f"Failed to get OAuth2 token: {str(e)}")
+
+    def _load_gbif_rich_data(
+        self,
+        taxon_data: Dict[str, Any],
+        query_value: str,
+        params: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Load a structured GBIF enrichment summary."""
+
+        summary: Dict[str, Any] = {
+            "match": {},
+            "taxonomy": {},
+            "occurrence_summary": {},
+            "media_summary": {},
+            "links": {},
+            "block_status": {
+                "match": "pending",
+                "taxonomy": "disabled" if not params.include_taxonomy else "pending",
+                "occurrence_summary": (
+                    "disabled" if not params.include_occurrences else "pending"
+                ),
+                "media_summary": "disabled" if not params.include_media else "pending",
+            },
+            "block_errors": {},
+            "provenance": {
+                "profile": "gbif_rich",
+                "profile_version": "gbif-rich-v1",
+                "taxonomy_source": self._gbif_taxonomy_source_label(params),
+                "query": query_value,
+                "endpoints": [],
+            },
+        }
+        raw_payload: Dict[str, Any] = {}
+        processed_payload: Dict[str, Any] = {}
+
+        match_summary, match_raw = self._gbif_match(query_value, params)
+        raw_payload["match"] = match_raw
+        processed_payload["match"] = match_summary
+        summary["match"] = match_summary
+        summary["provenance"]["endpoints"].append("v2/species/match")
+
+        usage_key = match_summary.get("usage_key")
+        if not usage_key:
+            summary["block_status"]["match"] = "no_match"
+            summary["provenance"]["outcome"] = "no_match"
+            self.log_messages.append(
+                f"[yellow]No GBIF match found for {query_value}[/yellow]"
+            )
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        summary["block_status"]["match"] = "complete"
+        summary["links"] = self._gbif_build_links(str(usage_key))
+
+        if params.include_taxonomy:
+            try:
+                taxonomy_summary, taxonomy_raw = self._gbif_taxonomy(str(usage_key))
+                summary["taxonomy"] = taxonomy_summary
+                summary["block_status"]["taxonomy"] = "complete"
+                raw_payload["taxonomy"] = taxonomy_raw
+                processed_payload["taxonomy"] = taxonomy_summary
+                summary["provenance"]["endpoints"].extend(
+                    [
+                        "v1/species/{usageKey}",
+                        "v1/species/{usageKey}/vernacularNames",
+                        "v1/species/{usageKey}/synonyms",
+                        "v1/species/{usageKey}/iucnRedListCategory",
+                    ]
+                )
+            except Exception as exc:
+                summary["block_status"]["taxonomy"] = "error"
+                summary["block_errors"]["taxonomy"] = str(exc)
+
+        if params.include_occurrences:
+            try:
+                occurrence_summary, occurrence_raw = self._gbif_occurrence_summary(
+                    str(usage_key)
+                )
+                summary["occurrence_summary"] = occurrence_summary
+                summary["block_status"]["occurrence_summary"] = "complete"
+                raw_payload["occurrence_summary"] = occurrence_raw
+                processed_payload["occurrence_summary"] = occurrence_summary
+                summary["provenance"]["endpoints"].append("v1/occurrence/search")
+            except Exception as exc:
+                summary["block_status"]["occurrence_summary"] = "error"
+                summary["block_errors"]["occurrence_summary"] = str(exc)
+
+        if params.include_media:
+            try:
+                media_summary, media_raw = self._gbif_media_summary(
+                    str(usage_key), params.media_limit
+                )
+                summary["media_summary"] = media_summary
+                summary["block_status"]["media_summary"] = "complete"
+                raw_payload["media_summary"] = media_raw
+                processed_payload["media_summary"] = media_summary
+                summary["provenance"]["endpoints"].append("v1/species/{usageKey}/media")
+            except Exception as exc:
+                summary["block_status"]["media_summary"] = "error"
+                summary["block_errors"]["media_summary"] = str(exc)
+
+        summary["provenance"]["outcome"] = (
+            "partial" if summary["block_errors"] else "complete"
+        )
+        self.log_messages.append(
+            f"[green][{emoji('✓', '[OK]')}] GBIF data successfully retrieved for {query_value}[/green]"
+        )
+
+        return {
+            **taxon_data,
+            "api_enrichment": summary,
+            "api_response_processed": processed_payload,
+            "api_response_raw": raw_payload,
+        }
+
+    def _load_tropicos_rich_data(
+        self,
+        taxon_data: Dict[str, Any],
+        query_value: str,
+        params: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Load a structured Tropicos enrichment summary."""
+
+        summary: Dict[str, Any] = {
+            "match": {},
+            "nomenclature": {},
+            "taxonomy": {},
+            "references": {},
+            "distribution_summary": {},
+            "media_summary": {},
+            "links": {},
+            "block_status": {
+                "match": "pending",
+                "nomenclature": "pending",
+                "taxonomy": "pending",
+                "references": (
+                    "disabled" if not params.include_references else "pending"
+                ),
+                "distribution_summary": (
+                    "disabled" if not params.include_distributions else "pending"
+                ),
+                "media_summary": "disabled" if not params.include_media else "pending",
+            },
+            "block_errors": {},
+            "provenance": {
+                "profile": "tropicos_rich",
+                "profile_version": "tropicos-rich-v1",
+                "query": query_value,
+                "endpoints": [],
+            },
+        }
+        raw_payload: Dict[str, Any] = {}
+        processed_payload: Dict[str, Any] = {}
+
+        match_summary, match_raw = self._tropicos_match(query_value, params)
+        raw_payload["match"] = match_raw
+        processed_payload["match"] = match_summary
+        summary["match"] = match_summary
+        summary["provenance"]["endpoints"].append("Name/Search")
+
+        name_id = match_summary.get("name_id")
+        if not name_id:
+            summary["block_status"]["match"] = "no_match"
+            summary["provenance"]["outcome"] = "no_match"
+            self.log_messages.append(
+                f"[yellow]No Tropicos match found for {query_value}[/yellow]"
+            )
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        summary["block_status"]["match"] = "complete"
+        summary["links"] = self._tropicos_build_links(str(name_id))
+
+        summary_data, summary_raw = self._tropicos_summary(str(name_id), params)
+        raw_payload["summary"] = summary_raw
+        processed_payload["summary"] = summary_data
+        summary["provenance"]["endpoints"].append("Name/{id}")
+
+        try:
+            nomenclature_summary, nomenclature_raw = self._tropicos_nomenclature(
+                str(name_id), summary_data, params
+            )
+            summary["nomenclature"] = nomenclature_summary
+            summary["block_status"]["nomenclature"] = "complete"
+            raw_payload["nomenclature"] = nomenclature_raw
+            processed_payload["nomenclature"] = nomenclature_summary
+            summary["provenance"]["endpoints"].extend(
+                ["Name/{id}/AcceptedNames", "Name/{id}/Synonyms"]
+            )
+        except Exception as exc:
+            summary["block_status"]["nomenclature"] = "error"
+            summary["block_errors"]["nomenclature"] = str(exc)
+
+        try:
+            taxonomy_summary, taxonomy_raw = self._tropicos_taxonomy(
+                str(name_id), summary_data, params
+            )
+            summary["taxonomy"] = taxonomy_summary
+            summary["block_status"]["taxonomy"] = "complete"
+            raw_payload["taxonomy"] = taxonomy_raw
+            processed_payload["taxonomy"] = taxonomy_summary
+            summary["provenance"]["endpoints"].append("Name/{id}/HigherTaxa")
+        except Exception as exc:
+            summary["taxonomy"] = {
+                "family": summary_data.get("family"),
+                "higher_taxa": [],
+            }
+            summary["block_status"]["taxonomy"] = "error"
+            summary["block_errors"]["taxonomy"] = str(exc)
+
+        if params.include_references:
+            try:
+                references_summary, references_raw = self._tropicos_references(
+                    str(name_id), params
+                )
+                summary["references"] = references_summary
+                summary["block_status"]["references"] = "complete"
+                raw_payload["references"] = references_raw
+                processed_payload["references"] = references_summary
+                summary["provenance"]["endpoints"].append("Name/{id}/References")
+            except Exception as exc:
+                summary["block_status"]["references"] = "error"
+                summary["block_errors"]["references"] = str(exc)
+
+        if params.include_distributions:
+            try:
+                distribution_summary, distribution_raw = (
+                    self._tropicos_distribution_summary(str(name_id), params)
+                )
+                summary["distribution_summary"] = distribution_summary
+                summary["block_status"]["distribution_summary"] = "complete"
+                raw_payload["distribution_summary"] = distribution_raw
+                processed_payload["distribution_summary"] = distribution_summary
+                summary["provenance"]["endpoints"].append("Name/{id}/Distributions")
+            except Exception as exc:
+                summary["block_status"]["distribution_summary"] = "error"
+                summary["block_errors"]["distribution_summary"] = str(exc)
+
+        if params.include_media:
+            try:
+                media_summary, media_raw = self._tropicos_media_summary(
+                    str(name_id), params.media_limit, params
+                )
+                summary["media_summary"] = media_summary
+                summary["block_status"]["media_summary"] = "complete"
+                raw_payload["media_summary"] = media_raw
+                processed_payload["media_summary"] = media_summary
+                summary["provenance"]["endpoints"].append("Name/{id}/Images")
+            except Exception as exc:
+                summary["block_status"]["media_summary"] = "error"
+                summary["block_errors"]["media_summary"] = str(exc)
+
+        summary["provenance"]["outcome"] = (
+            "partial" if summary["block_errors"] else "complete"
+        )
+        self.log_messages.append(
+            f"[green][{emoji('✓', '[OK]')}] Tropicos data successfully retrieved for {query_value}[/green]"
+        )
+
+        return {
+            **taxon_data,
+            "api_enrichment": summary,
+            "api_response_processed": processed_payload,
+            "api_response_raw": raw_payload,
+        }
+
+    def _tropicos_match(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Resolve a Tropicos match summary and raw payload."""
+
+        query_params = dict(params.query_params or {})
+        query_params[params.query_param_name or "name"] = query_value
+        query_params.setdefault("format", "json")
+        query_params.setdefault("type", "exact")
+
+        raw = self._tropicos_request_json(
+            params.api_url or TROPICOS_SEARCH_ENDPOINT,
+            params=query_params,
+            params_model=params,
+        )
+        candidates = self._normalize_list_payload(raw)
+        selected = self._tropicos_select_match(candidates, query_value)
+
+        summary = self._tropicos_extract_name_record(selected)
+        summary["matched_name"] = (
+            summary.get("scientific_name")
+            or summary.get("scientific_name_with_authors")
+            or query_value
+        )
+        summary["candidate_count"] = len(candidates)
+
+        return summary, raw
+
+    def _tropicos_summary(
+        self, name_id: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Build a core Tropicos summary block for a name id."""
+
+        raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}",
+            params={"format": "json"},
+            params_model=params,
+        )
+        record = self._process_api_response(raw)
+        summary = self._tropicos_extract_name_record(record)
+        summary["display_reference"] = self._coerce_string(
+            record.get("DisplayReference")
+        )
+        summary["display_date"] = self._coerce_string(record.get("DisplayDate"))
+        summary["accepted_name_id"] = self._coerce_string(record.get("AcceptedNameId"))
+        summary["accepted_name"] = self._coerce_string(record.get("AcceptedName"))
+        summary["accepted_name_with_authors"] = self._coerce_string(
+            record.get("AcceptedNameWithAuthors")
+        )
+        return summary, raw
+
+    def _tropicos_nomenclature(
+        self,
+        name_id: str,
+        summary_data: Dict[str, Any],
+        params: ApiTaxonomyEnricherParams,
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build accepted-name and synonymy summary blocks for Tropicos."""
+
+        accepted_raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/AcceptedNames",
+            params={"format": "json"},
+            params_model=params,
+        )
+        synonyms_raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/Synonyms",
+            params={"format": "json"},
+            params_model=params,
+        )
+
+        accepted_items = self._normalize_list_payload(accepted_raw)
+        synonym_items = self._normalize_list_payload(synonyms_raw)
+
+        accepted_record = self._tropicos_extract_name_record(
+            accepted_items[0] if accepted_items else None
+        )
+
+        selected_synonyms = []
+        for item in synonym_items[:5]:
+            synonym_record = self._tropicos_extract_name_record(item)
+            synonym_name = synonym_record.get(
+                "scientific_name_with_authors"
+            ) or synonym_record.get("scientific_name")
+            if synonym_name and synonym_name not in selected_synonyms:
+                selected_synonyms.append(synonym_name)
+
+        return (
+            {
+                "accepted_name_id": (
+                    accepted_record.get("name_id")
+                    or summary_data.get("accepted_name_id")
+                    or summary_data.get("name_id")
+                ),
+                "accepted_name": (
+                    accepted_record.get("scientific_name")
+                    or summary_data.get("accepted_name")
+                    or summary_data.get("scientific_name")
+                ),
+                "accepted_name_with_authors": (
+                    accepted_record.get("scientific_name_with_authors")
+                    or summary_data.get("accepted_name_with_authors")
+                    or summary_data.get("scientific_name_with_authors")
+                ),
+                "synonyms_count": len(synonym_items),
+                "accepted_name_count": len(accepted_items),
+                "selected_synonyms": selected_synonyms,
+            },
+            {
+                "accepted_names": accepted_raw,
+                "synonyms": synonyms_raw,
+            },
+        )
+
+    def _tropicos_taxonomy(
+        self,
+        name_id: str,
+        summary_data: Dict[str, Any],
+        params: ApiTaxonomyEnricherParams,
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build taxonomy summary blocks for a Tropicos name id."""
+
+        higher_taxa_raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/HigherTaxa",
+            params={"format": "json"},
+            params_model=params,
+        )
+        higher_taxa_items = self._normalize_list_payload(higher_taxa_raw)
+        higher_taxa = []
+
+        for item in higher_taxa_items:
+            label = self._coerce_string(
+                item.get("DisplayName")
+                or item.get("ScientificNameWithAuthors")
+                or item.get("ScientificName")
+                or item.get("Name")
+            )
+            if label and label not in higher_taxa:
+                higher_taxa.append(label)
+
+        return (
+            {
+                "family": summary_data.get("family"),
+                "higher_taxa": higher_taxa[:10],
+            },
+            {"higher_taxa": higher_taxa_raw},
+        )
+
+    def _tropicos_references(
+        self, name_id: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Build a compact references summary for a Tropicos name id."""
+
+        raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/References",
+            params={"format": "json"},
+            params_model=params,
+        )
+        items = self._normalize_list_payload(raw)
+        selected_items = []
+
+        for item in items[:5]:
+            reference = item.get("Reference") if isinstance(item, dict) else None
+            if not isinstance(reference, dict):
+                reference = item
+            selected_items.append(
+                {
+                    "title": self._coerce_string(reference.get("ArticleTitle")),
+                    "abbreviated_title": self._coerce_string(
+                        reference.get("AbbreviatedTitle")
+                    ),
+                    "year_published": self._coerce_string(
+                        reference.get("YearPublished")
+                    ),
+                    "full_citation": self._coerce_string(reference.get("FullCitation")),
+                }
+            )
+
+        return (
+            {
+                "references_count": len(items),
+                "items": selected_items,
+            },
+            raw,
+        )
+
+    def _tropicos_distribution_summary(
+        self, name_id: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Build a compact distribution summary for a Tropicos name id."""
+
+        raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/Distributions",
+            params={"format": "json"},
+            params_model=params,
+        )
+        items = self._normalize_list_payload(raw)
+
+        countries: List[str] = []
+        regions: List[str] = []
+        for item in items:
+            location = item.get("Location") if isinstance(item, dict) else None
+            if not isinstance(location, dict):
+                location = item
+
+            country = self._coerce_string(
+                location.get("CountryName") or location.get("Country")
+            )
+            if country and country not in countries:
+                countries.append(country)
+
+            region = self._coerce_string(
+                location.get("RegionName") or location.get("Region")
+            )
+            if region and region not in regions:
+                regions.append(region)
+
+        return (
+            {
+                "distribution_count": len(items),
+                "countries": countries[:10],
+                "regions": regions[:10],
+            },
+            raw,
+        )
+
+    def _tropicos_media_summary(
+        self, name_id: str, media_limit: int, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Build a compact media summary for a Tropicos name id."""
+
+        raw = self._tropicos_request_json(
+            f"{TROPICOS_NAME_ENDPOINT}/{name_id}/Images",
+            params={"format": "json"},
+            params_model=params,
+        )
+        items = self._normalize_list_payload(raw)
+        normalized_items = []
+
+        for item in items[:media_limit]:
+            if not isinstance(item, dict):
+                continue
+            normalized_items.append(
+                {
+                    "identifier": self._coerce_string(
+                        item.get("ImageId") or item.get("NameId")
+                    ),
+                    "thumbnail_url": self._coerce_string(
+                        item.get("ThumbnailUrl")
+                        or item.get("ThumbnailURL")
+                        or item.get("Thumbnail")
+                        or item.get("SmallUrl")
+                        or item.get("SmallURL")
+                        or item.get("Url")
+                        or item.get("URL")
+                    ),
+                    "source_url": self._coerce_string(
+                        item.get("Url")
+                        or item.get("URL")
+                        or item.get("ImageUrl")
+                        or item.get("ImageURL")
+                        or item.get("DetailUrl")
+                        or item.get("DetailURL")
+                    ),
+                    "caption": self._coerce_string(
+                        item.get("Caption")
+                        or item.get("Title")
+                        or item.get("Description")
+                        or item.get("ShortDescription")
+                    ),
+                    "creator": self._coerce_string(
+                        item.get("Photographer")
+                        or item.get("Creator")
+                        or item.get("Credit")
+                        or item.get("Copyright")
+                    ),
+                    "license": self._coerce_string(
+                        item.get("LicenseName")
+                        or item.get("License")
+                        or item.get("LicenseUrl")
+                    ),
+                }
+            )
+
+        return (
+            {
+                "media_count": len(items),
+                "items": normalized_items,
+            },
+            raw,
+        )
+
+    def _tropicos_request_json(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        params_model: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Perform a Tropicos JSON request with query-key authentication."""
+
+        request_params = dict(params or {})
+        request_params.setdefault("format", "json")
+
+        if params_model.auth_method == "api_key":
+            auth_location = params_model.auth_params.get("location", "query").lower()
+            if auth_location != "query":
+                raise ValueError(
+                    "tropicos_rich requires query-based api_key authentication"
+                )
+            auth_param_name = params_model.auth_params.get("name", "apikey")
+            request_params[auth_param_name] = self._get_secure_value(
+                params_model.auth_params.get("key", "")
+            )
+
+        return self._request_json(url, request_params)
+
+    def _tropicos_select_match(
+        self, candidates: List[Dict[str, Any]], query_value: str
+    ) -> Dict[str, Any]:
+        """Pick the best Tropicos search result for a query."""
+
+        if not candidates:
+            return {}
+
+        normalized_query = self._normalize_taxon_text(query_value)
+
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int, int]:
+            scientific_name = self._normalize_taxon_text(
+                candidate.get("ScientificName")
+                or candidate.get("Name")
+                or candidate.get("ScientificNameWithAuthors")
+            )
+            has_id = 1 if self._coerce_string(candidate.get("NameId")) else 0
+            has_family = 1 if self._coerce_string(candidate.get("Family")) else 0
+            has_status = (
+                1 if self._coerce_string(candidate.get("NomenclatureStatusName")) else 0
+            )
+            exact_match = 1 if scientific_name == normalized_query else 0
+            return (exact_match, has_id, has_family, has_status)
+
+        return max(candidates, key=score)
+
+    def _tropicos_extract_name_record(
+        self, payload: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Normalize a Tropicos name record from a nested or flat payload."""
+
+        if not isinstance(payload, dict):
+            return {}
+
+        record = payload
+        for nested_key in ("AcceptedName", "SynonymName", "Name"):
+            nested_value = payload.get(nested_key)
+            if isinstance(nested_value, dict):
+                record = nested_value
+                break
+
+        return {
+            "name_id": self._coerce_string(
+                record.get("NameId") or record.get("AcceptedNameId")
+            ),
+            "scientific_name": self._coerce_string(
+                record.get("ScientificName")
+                or record.get("AcceptedName")
+                or record.get("DisplayName")
+            ),
+            "scientific_name_with_authors": self._coerce_string(
+                record.get("ScientificNameWithAuthors")
+                or record.get("AcceptedNameWithAuthors")
+                or record.get("DisplayName")
+            ),
+            "family": self._coerce_string(record.get("Family")),
+            "rank": self._coerce_string(
+                record.get("RankAbbreviation") or record.get("Rank")
+            ),
+            "nomenclature_status": self._coerce_string(
+                record.get("NomenclatureStatusName")
+            ),
+        }
+
+    def _tropicos_build_links(self, name_id: str) -> Dict[str, str]:
+        """Build public Tropicos links for a matched name."""
+
+        return {
+            "record": f"https://www.tropicos.org/name/{name_id}",
+        }
+
+    def _normalize_taxon_text(self, value: Any) -> str:
+        """Normalize a taxon label for comparison."""
+
+        text = self._coerce_string(value)
+        return " ".join(text.lower().split())
+
+    def _coerce_string(self, value: Any) -> str:
+        """Return a clean string value or an empty string."""
+
+        if value is None:
+            return ""
+        text = str(value).strip()
+        return text
+
+    def _gbif_match(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Any]:
+        """Resolve a GBIF match summary and raw payload."""
+
+        query_params = dict(params.query_params or {})
+        query_params[params.query_param_name or "scientificName"] = query_value
+        query_params.setdefault("verbose", "true")
+
+        checklist_key = self._gbif_checklist_key(params)
+        if checklist_key and "checklistKey" not in query_params:
+            query_params["checklistKey"] = checklist_key
+
+        raw = self._request_json(params.api_url or GBIF_MATCH_ENDPOINT, query_params)
+        usage_key = self._gbif_extract_usage_key(raw)
+
+        return (
+            {
+                "usage_key": usage_key,
+                "scientific_name": raw.get("scientificName")
+                or raw.get("matchedScientificName")
+                or query_value,
+                "canonical_name": raw.get("canonicalName"),
+                "rank": raw.get("rank"),
+                "status": raw.get("status"),
+                "confidence": raw.get("confidence"),
+                "match_type": raw.get("matchType"),
+                "taxonomy_source": self._gbif_taxonomy_source_label(params),
+            },
+            raw,
+        )
+
+    def _gbif_taxonomy(self, usage_key: str) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build taxonomy summary blocks for a GBIF usage key."""
+
+        detail = self._request_json(f"{GBIF_SPECIES_ENDPOINT}/{usage_key}")
+        vernacular_raw = self._request_json(
+            f"{GBIF_SPECIES_ENDPOINT}/{usage_key}/vernacularNames"
+        )
+        synonyms_raw = self._request_json(
+            f"{GBIF_SPECIES_ENDPOINT}/{usage_key}/synonyms"
+        )
+
+        try:
+            iucn_raw: Any = self._request_json(
+                f"{GBIF_SPECIES_ENDPOINT}/{usage_key}/iucnRedListCategory"
+            )
+        except requests.RequestException:
+            iucn_raw = None
+
+        vernacular_items = self._normalize_list_payload(vernacular_raw)
+        synonym_items = self._normalize_list_payload(synonyms_raw)
+
+        vernacular_names: List[str] = []
+        for item in vernacular_items:
+            name = (
+                item.get("vernacularName")
+                or item.get("name")
+                or item.get("vernacular_name")
+            )
+            if not name:
+                continue
+            name_str = str(name).strip()
+            if name_str and name_str not in vernacular_names:
+                vernacular_names.append(name_str)
+
+        return (
+            {
+                "kingdom": detail.get("kingdom"),
+                "phylum": detail.get("phylum"),
+                "class": detail.get("class"),
+                "order": detail.get("order"),
+                "family": detail.get("family"),
+                "genus": detail.get("genus"),
+                "species": detail.get("species"),
+                "synonyms_count": len(synonym_items),
+                "vernacular_names": vernacular_names[:5],
+                "iucn_category": self._gbif_extract_iucn_category(iucn_raw, detail),
+            },
+            {
+                "detail": detail,
+                "vernacular_names": vernacular_raw,
+                "synonyms": synonyms_raw,
+                "iucn": iucn_raw,
+            },
+        )
+
+    def _gbif_occurrence_summary(
+        self, usage_key: str
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build an occurrence summary for a GBIF usage key."""
+
+        raw = self._request_json(
+            "https://api.gbif.org/v1/occurrence/search",
+            [
+                ("taxon_key", usage_key),
+                ("limit", "0"),
+                ("facet", "country"),
+                ("facet", "datasetKey"),
+                ("facet", "basisOfRecord"),
+                ("facetLimit", "10"),
+            ],
+        )
+
+        countries = self._gbif_extract_facet_values(raw, "country")
+        dataset_keys = self._gbif_extract_facet_values(raw, "datasetkey")
+        basis_of_record = self._gbif_extract_facet_values(raw, "basisofrecord")
+
+        if not countries or not dataset_keys or not basis_of_record:
+            for item in self._normalize_list_payload(raw):
+                if not countries:
+                    country = item.get("country") or item.get("countryCode")
+                    if country:
+                        countries.append(str(country))
+                dataset_key = item.get("datasetKey")
+                if dataset_key and str(dataset_key) not in dataset_keys:
+                    dataset_keys.append(str(dataset_key))
+                basis = item.get("basisOfRecord")
+                if basis and str(basis) not in basis_of_record:
+                    basis_of_record.append(str(basis))
+
+        return (
+            {
+                "occurrence_count": int(raw.get("count") or 0),
+                "countries": countries[:10],
+                "datasets_count": len(dataset_keys),
+                "basis_of_record": basis_of_record[:10],
+            },
+            raw,
+        )
+
+    def _gbif_media_summary(
+        self, usage_key: str, media_limit: int
+    ) -> tuple[Dict[str, Any], Any]:
+        """Build a compact media summary for a GBIF usage key."""
+
+        raw = self._request_json(f"{GBIF_SPECIES_ENDPOINT}/{usage_key}/media")
+        items = self._normalize_list_payload(raw)
+        normalized_items = [
+            {
+                "identifier": item.get("identifier") or item.get("references"),
+                "thumbnail_url": item.get("identifier")
+                or item.get("references")
+                or item.get("source"),
+                "source_url": item.get("references")
+                or item.get("source")
+                or item.get("identifier"),
+                "creator": item.get("creator"),
+                "license": item.get("license"),
+                "type": item.get("type"),
+            }
+            for item in items[:media_limit]
+            if isinstance(item, dict)
+        ]
+
+        return (
+            {
+                "media_count": len(items),
+                "items": normalized_items,
+            },
+            raw,
+        )
+
+    def _gbif_checklist_key(self, params: ApiTaxonomyEnricherParams) -> Optional[str]:
+        """Resolve the GBIF checklist key to use for matching."""
+
+        source = (params.taxonomy_source or "").strip().lower()
+        if not source or source == "col_xr":
+            return GBIF_COL_XR_CHECKLIST_KEY
+        return params.taxonomy_source
+
+    def _gbif_taxonomy_source_label(self, params: ApiTaxonomyEnricherParams) -> str:
+        """Return the normalized taxonomy source label for summaries."""
+
+        source = (params.taxonomy_source or "").strip().lower()
+        if not source or source == "col_xr":
+            return "COL_XR"
+        return (params.taxonomy_source or "GBIF").strip().upper().replace(" ", "_")
+
+    def _gbif_extract_usage_key(self, raw: Dict[str, Any]) -> str:
+        """Extract a stable GBIF or checklist identifier as a string."""
+
+        for candidate in (
+            raw.get("usageKey"),
+            raw.get("acceptedUsageKey"),
+            raw.get("taxonID"),
+            raw.get("key"),
+        ):
+            if candidate is None:
+                continue
+            value = str(candidate).strip()
+            if value:
+                return value
+        return ""
+
+    def _gbif_build_links(self, usage_key: str) -> Dict[str, str]:
+        """Build public GBIF links for a matched taxon."""
+
+        return {
+            "species": f"https://www.gbif.org/species/{usage_key}",
+            "occurrences": f"https://www.gbif.org/occurrence/search?taxon_key={usage_key}",
+        }
+
+    def _gbif_extract_iucn_category(
+        self, iucn_raw: Any, detail_raw: Dict[str, Any]
+    ) -> Optional[str]:
+        """Extract the most useful IUCN category value available."""
+
+        if isinstance(iucn_raw, str) and iucn_raw.strip():
+            return iucn_raw.strip()
+        if isinstance(iucn_raw, dict):
+            for key in ("category", "code", "value"):
+                value = iucn_raw.get(key)
+                if value:
+                    return str(value)
+        for key in ("threatStatus", "iucnRedListCategory"):
+            value = detail_raw.get(key)
+            if value:
+                return str(value)
+        return None
+
+    def _gbif_extract_facet_values(
+        self, raw: Dict[str, Any], field_name: str
+    ) -> List[str]:
+        """Extract facet values from an occurrence search response."""
+
+        values: List[str] = []
+        facets = raw.get("facets")
+        if not isinstance(facets, list):
+            return values
+
+        normalized_field_name = field_name.replace("_", "").lower()
+        for facet in facets:
+            if not isinstance(facet, dict):
+                continue
+            raw_field = str(facet.get("field") or "").replace("_", "").lower()
+            if raw_field != normalized_field_name:
+                continue
+
+            counts = facet.get("counts")
+            if not isinstance(counts, list):
+                return values
+
+            for item in counts:
+                if not isinstance(item, dict):
+                    continue
+                value = item.get("name") or item.get("value")
+                if value is None:
+                    continue
+                value_str = str(value).strip()
+                if value_str and value_str not in values:
+                    values.append(value_str)
+            return values
+
+        return values
+
+    def _normalize_list_payload(self, payload: Any) -> List[Dict[str, Any]]:
+        """Normalize a JSON payload that may expose a list directly or under a key."""
+
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+
+        if not isinstance(payload, dict):
+            return []
+
+        for key in ("results", "data", "items", "records"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+
+        return []
+
+    def _request_json(self, url: str, params: Any | None = None) -> Dict[str, Any]:
+        """Perform a JSON GET request with a small timeout."""
+
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        if isinstance(data, dict):
+            return data
+        if isinstance(data, list):
+            return {"results": data}
+        return {"value": data}
 
     def _process_api_response(self, data: Any) -> Dict[str, Any]:
         """

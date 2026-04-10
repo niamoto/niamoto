@@ -104,6 +104,48 @@ def test_config_validation_missing_response_mapping():
         ApiTaxonomyEnricherConfig(**config_dict)
 
 
+def test_config_validation_allows_gbif_rich_without_response_mapping():
+    """Structured GBIF profile should not require flat response_mapping."""
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "query_param_name": "scientificName",
+            "response_mapping": {},
+        },
+    }
+
+    config = ApiTaxonomyEnricherConfig(**config_dict)
+    assert config.params.profile == "gbif_rich"
+    assert config.params.response_mapping == {}
+
+
+def test_config_validation_allows_tropicos_rich_without_response_mapping():
+    """Structured Tropicos profile should not require flat response_mapping."""
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://services.tropicos.org/Name/Search",
+            "profile": "tropicos_rich",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
+            "query_param_name": "name",
+            "response_mapping": {},
+        },
+    }
+
+    config = ApiTaxonomyEnricherConfig(**config_dict)
+    assert config.params.profile == "tropicos_rich"
+    assert config.params.response_mapping == {}
+
+
 @pytest.mark.parametrize(
     "auth_method, auth_params, error_message",
     [
@@ -249,6 +291,329 @@ def test_load_data_without_caching_multiple_calls(
     result2 = enricher.load_data(taxon_data, valid_config)
     assert requests_mock.call_count == 2  # API called again
     assert result1 == result2  # Result should be the same, but fetched again
+
+
+def test_load_data_gbif_rich_returns_structured_summary(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """GBIF rich profile should return a structured summary instead of a flat mapping."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_match",
+        lambda query, params: (
+            {
+                "usage_key": "123",
+                "scientific_name": query,
+                "canonical_name": query,
+                "rank": "SPECIES",
+                "status": "ACCEPTED",
+                "confidence": 98,
+                "match_type": "EXACT",
+                "taxonomy_source": "COL_XR",
+            },
+            {"usageKey": "123"},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_taxonomy",
+        lambda usage_key: (
+            {
+                "kingdom": "Plantae",
+                "family": "Rhamnaceae",
+                "genus": "Alphitonia",
+                "species": "Alphitonia neocaledonica",
+                "synonyms_count": 2,
+                "vernacular_names": ["Bois savon"],
+                "iucn_category": "LC",
+            },
+            {"detail": {"key": usage_key}},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_occurrence_summary",
+        lambda usage_key: (
+            {
+                "occurrence_count": 42,
+                "countries": ["NC"],
+                "datasets_count": 3,
+                "basis_of_record": ["HUMAN_OBSERVATION"],
+            },
+            {"count": 42},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_media_summary",
+        lambda usage_key, media_limit: (
+            {
+                "media_count": 5,
+                "items": [{"identifier": "https://img.example.org/1.jpg"}],
+            },
+            {"results": [{"identifier": "https://img.example.org/1.jpg"}]},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "taxonomy_source": "col_xr",
+            "query_field": "full_name",
+            "query_param_name": "scientificName",
+            "include_taxonomy": True,
+            "include_occurrences": True,
+            "include_media": True,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["match"]["usage_key"] == "123"
+    assert enriched["api_enrichment"]["taxonomy"]["family"] == "Rhamnaceae"
+    assert enriched["api_enrichment"]["occurrence_summary"]["occurrence_count"] == 42
+    assert enriched["api_enrichment"]["media_summary"]["media_count"] == 5
+    assert enriched["api_enrichment"]["links"]["species"].endswith("/123")
+    assert enriched["api_response_raw"]["match"] == {"usageKey": "123"}
+
+
+def test_load_data_gbif_rich_handles_no_match(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """GBIF rich profile should return a structured no-match outcome."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_match",
+        lambda query, params: (
+            {
+                "usage_key": "",
+                "scientific_name": query,
+                "canonical_name": None,
+                "rank": None,
+                "status": "NONE",
+                "confidence": 0,
+                "match_type": "NONE",
+                "taxonomy_source": "COL_XR",
+            },
+            {"matchType": "NONE"},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "query_field": "full_name",
+            "query_param_name": "scientificName",
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Unknown species"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
+    assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
+
+
+def test_load_data_tropicos_rich_returns_structured_summary(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """Tropicos rich profile should return a structured summary instead of a flat mapping."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_match",
+        lambda query, params: (
+            {
+                "name_id": "25509881",
+                "scientific_name": query,
+                "scientific_name_with_authors": f"{query} L.",
+                "family": "Poaceae",
+                "rank": "Sp.",
+                "nomenclature_status": "Legitimate",
+                "matched_name": query,
+                "candidate_count": 1,
+            },
+            {"results": [{"NameId": 25509881}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_summary",
+        lambda name_id, params: (
+            {
+                "name_id": name_id,
+                "scientific_name": "Poa annua",
+                "scientific_name_with_authors": "Poa annua L.",
+                "family": "Poaceae",
+                "rank": "Sp.",
+                "nomenclature_status": "Legitimate",
+                "accepted_name_id": name_id,
+                "accepted_name": "Poa annua",
+                "accepted_name_with_authors": "Poa annua L.",
+            },
+            {"NameId": name_id},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_nomenclature",
+        lambda name_id, summary_data, params: (
+            {
+                "accepted_name_id": name_id,
+                "accepted_name": "Poa annua",
+                "accepted_name_with_authors": "Poa annua L.",
+                "synonyms_count": 3,
+                "accepted_name_count": 1,
+                "selected_synonyms": ["Poa annua var. typica"],
+            },
+            {"synonyms": [{"NameId": 1}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_taxonomy",
+        lambda name_id, summary_data, params: (
+            {
+                "family": "Poaceae",
+                "higher_taxa": ["Plantae", "Poales"],
+            },
+            {"higher_taxa": [{"DisplayName": "Poales"}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_references",
+        lambda name_id, params: (
+            {
+                "references_count": 12,
+                "items": [{"title": "Flora Europaea"}],
+            },
+            {"results": [{"Reference": {"ArticleTitle": "Flora Europaea"}}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_distribution_summary",
+        lambda name_id, params: (
+            {
+                "distribution_count": 2,
+                "countries": ["Austria"],
+                "regions": ["Europe"],
+            },
+            {"results": [{"Location": {"CountryName": "Austria"}}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_media_summary",
+        lambda name_id, media_limit, params: (
+            {
+                "media_count": 4,
+                "items": [{"thumbnail_url": "https://img.example.org/1.jpg"}],
+            },
+            {"results": [{"ImageId": 1}]},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://services.tropicos.org/Name/Search",
+            "profile": "tropicos_rich",
+            "query_field": "full_name",
+            "query_param_name": "name",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
+            "include_references": True,
+            "include_distributions": True,
+            "include_media": True,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Poa annua"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["match"]["name_id"] == "25509881"
+    assert enriched["api_enrichment"]["nomenclature"]["synonyms_count"] == 3
+    assert enriched["api_enrichment"]["distribution_summary"]["countries"] == [
+        "Austria"
+    ]
+    assert enriched["api_enrichment"]["media_summary"]["media_count"] == 4
+    assert enriched["api_enrichment"]["links"]["record"].endswith("/25509881")
+    assert enriched["api_response_raw"]["match"] == {"results": [{"NameId": 25509881}]}
+
+
+def test_load_data_tropicos_rich_handles_no_match(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """Tropicos rich profile should return a structured no-match outcome."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_tropicos_match",
+        lambda query, params: (
+            {
+                "name_id": "",
+                "scientific_name": query,
+                "matched_name": query,
+                "candidate_count": 0,
+            },
+            {"results": []},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://services.tropicos.org/Name/Search",
+            "profile": "tropicos_rich",
+            "query_field": "full_name",
+            "query_param_name": "name",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Unknown species"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
+    assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
 
 
 # --- Error Handling Tests ---

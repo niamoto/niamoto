@@ -48,6 +48,9 @@ TERMINAL_JOB_STATUSES = {
     JobStatus.CANCELLED,
 }
 
+GBIF_RICH_MATCH_URL = "https://api.gbif.org/v2/species/match"
+TROPICOS_RICH_SEARCH_URL = "https://services.tropicos.org/Name/Search"
+
 
 class EnrichmentSourceConfig(BaseModel):
     """Normalized enrichment source configuration for a reference."""
@@ -59,6 +62,14 @@ class EnrichmentSourceConfig(BaseModel):
     api_url: str = ""
     query_field: str = "full_name"
     query_param_name: str = "q"
+    profile: Optional[str] = None
+    taxonomy_source: Optional[str] = None
+    include_taxonomy: bool = True
+    include_occurrences: bool = True
+    include_media: bool = True
+    include_references: bool = True
+    include_distributions: bool = True
+    media_limit: int = 3
     response_mapping: Dict[str, str] = Field(default_factory=dict)
     rate_limit: float = 1.0
     cache_results: bool = True
@@ -83,6 +94,14 @@ class EnrichmentSourceConfig(BaseModel):
                 "query_params": self.query_params or {},
                 "query_field": self.query_field,
                 "query_param_name": self.query_param_name,
+                "profile": self.profile,
+                "taxonomy_source": self.taxonomy_source,
+                "include_taxonomy": self.include_taxonomy,
+                "include_occurrences": self.include_occurrences,
+                "include_media": self.include_media,
+                "include_references": self.include_references,
+                "include_distributions": self.include_distributions,
+                "media_limit": self.media_limit,
                 "rate_limit": self.rate_limit,
                 "cache_results": self.cache_results,
                 "response_mapping": self.response_mapping or {},
@@ -225,6 +244,38 @@ def _guess_source_label(entry: Dict[str, Any], index: int) -> str:
     return f"Source {index + 1}"
 
 
+def _is_legacy_gbif_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source looks like the old flat GBIF preset."""
+
+    if config.get("profile"):
+        return False
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "api.gbif.org" in api_url and "/species/match" in api_url:
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label == "gbif"
+
+
+def _is_legacy_tropicos_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source looks like the old flat Tropicos preset/plugin."""
+
+    if config.get("profile"):
+        return False
+
+    plugin = str(item.get("plugin") or "").lower()
+    if plugin == "tropicos_enricher":
+        return True
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "services.tropicos.org" in api_url and "/name/search" in api_url:
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label == "tropicos"
+
+
 def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfig]:
     """Normalize reference enrichment config into a source list."""
 
@@ -241,6 +292,8 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
 
         config = item.get("config") if isinstance(item.get("config"), dict) else {}
         label = _guess_source_label(item, index)
+        is_legacy_gbif = _is_legacy_gbif_source(item, config)
+        is_legacy_tropicos = _is_legacy_tropicos_source(item, config)
         base_id = item.get("id") or _slugify_source_id(label, f"source-{index + 1}")
         source_id = base_id
         dedupe_index = 2
@@ -252,18 +305,88 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
         normalized.append(
             EnrichmentSourceConfig(
                 id=source_id,
-                label=label,
-                plugin=item.get("plugin", "api_taxonomy_enricher"),
+                label="Tropicos"
+                if is_legacy_tropicos and not item.get("label")
+                else label,
+                plugin=(
+                    "api_taxonomy_enricher"
+                    if is_legacy_tropicos
+                    else item.get("plugin", "api_taxonomy_enricher")
+                ),
                 enabled=bool(item.get("enabled", False)),
-                api_url=config.get("api_url", ""),
+                api_url=(
+                    GBIF_RICH_MATCH_URL
+                    if is_legacy_gbif
+                    else (
+                        TROPICOS_RICH_SEARCH_URL
+                        if is_legacy_tropicos
+                        else config.get("api_url", "")
+                    )
+                ),
                 query_field=config.get("query_field", "full_name"),
-                query_param_name=config.get("query_param_name", "q"),
-                response_mapping=config.get("response_mapping") or {},
+                query_param_name=(
+                    "scientificName"
+                    if is_legacy_gbif
+                    else (
+                        "name"
+                        if is_legacy_tropicos
+                        else config.get("query_param_name", "q")
+                    )
+                ),
+                profile=(
+                    config.get("profile")
+                    or ("gbif_rich" if is_legacy_gbif else None)
+                    or ("tropicos_rich" if is_legacy_tropicos else None)
+                ),
+                taxonomy_source=config.get("taxonomy_source")
+                or ("col_xr" if is_legacy_gbif else None),
+                include_taxonomy=bool(config.get("include_taxonomy", True)),
+                include_occurrences=bool(config.get("include_occurrences", True)),
+                include_media=bool(config.get("include_media", True)),
+                include_references=bool(config.get("include_references", True)),
+                include_distributions=bool(config.get("include_distributions", True)),
+                media_limit=int(config.get("media_limit", 3)),
+                response_mapping=(
+                    {}
+                    if is_legacy_gbif or is_legacy_tropicos
+                    else config.get("response_mapping") or {}
+                ),
                 rate_limit=float(config.get("rate_limit", 1.0)),
                 cache_results=bool(config.get("cache_results", True)),
-                auth_method=config.get("auth_method"),
-                auth_params=config.get("auth_params") or {},
-                query_params=config.get("query_params") or {},
+                auth_method=(
+                    "api_key" if is_legacy_tropicos else config.get("auth_method")
+                ),
+                auth_params=(
+                    {
+                        "location": "query",
+                        "name": "apikey",
+                        "key": str((config.get("auth_params") or {}).get("key") or ""),
+                    }
+                    if is_legacy_tropicos
+                    else config.get("auth_params") or {}
+                ),
+                query_params=(
+                    {
+                        **(config.get("query_params") or {}),
+                        "verbose": str(
+                            (config.get("query_params") or {}).get("verbose", "true")
+                        ),
+                    }
+                    if is_legacy_gbif
+                    else (
+                        {
+                            **(config.get("query_params") or {}),
+                            "format": str(
+                                (config.get("query_params") or {}).get("format", "json")
+                            ),
+                            "type": str(
+                                (config.get("query_params") or {}).get("type", "exact")
+                            ),
+                        }
+                        if is_legacy_tropicos
+                        else config.get("query_params") or {}
+                    )
+                ),
                 chained_endpoints=config.get("chained_endpoints") or [],
                 order=index,
             )
@@ -730,6 +853,14 @@ def _build_plugin_config(
             "api_url": source.api_url,
             "query_field": source.query_field,
             "query_param_name": source.query_param_name,
+            "profile": source.profile,
+            "taxonomy_source": source.taxonomy_source,
+            "include_taxonomy": source.include_taxonomy,
+            "include_occurrences": source.include_occurrences,
+            "include_media": source.include_media,
+            "include_references": source.include_references,
+            "include_distributions": source.include_distributions,
+            "media_limit": source.media_limit,
             "response_mapping": source.response_mapping,
             "rate_limit": source.rate_limit,
             "cache_results": source.cache_results
@@ -1311,6 +1442,7 @@ async def preview_reference_enrichment(
                     config_used={
                         "api_url": source.api_url,
                         "query_field": source.query_field,
+                        "profile": source.profile,
                     },
                 )
             )

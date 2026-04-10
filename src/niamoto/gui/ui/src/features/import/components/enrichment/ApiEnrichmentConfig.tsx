@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -19,9 +20,11 @@ import {
   RefreshCw,
   Plus,
   X,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react'
 import axios from 'axios'
+import { cn } from '@/lib/utils'
 
 interface ApiEnrichmentConfigProps {
   config: ApiConfig
@@ -45,6 +48,14 @@ export interface ApiConfig {
   query_params?: Record<string, string>
   query_field: string
   query_param_name?: string  // Name of the query parameter (default: 'q')
+  profile?: string
+  taxonomy_source?: string
+  include_taxonomy?: boolean
+  include_occurrences?: boolean
+  include_media?: boolean
+  include_references?: boolean
+  include_distributions?: boolean
+  media_limit?: number
   rate_limit: number
   cache_results: boolean
   response_mapping?: Record<string, string>
@@ -63,6 +74,9 @@ interface ApiField {
 
 interface PresetAPI {
   name: string
+  iconSrc?: string
+  websiteUrl?: string
+  docsUrl?: string
   config: {
     api_url: string
     auth_method: 'none' | 'api_key' | 'bearer' | 'basic'
@@ -73,7 +87,15 @@ interface PresetAPI {
     }
     query_params?: Record<string, string>
     query_param_name?: string
-    response_mapping: Record<string, string>
+    profile?: string
+    taxonomy_source?: string
+    include_taxonomy?: boolean
+    include_occurrences?: boolean
+    include_media?: boolean
+    include_references?: boolean
+    include_distributions?: boolean
+    media_limit?: number
+    response_mapping?: Record<string, string>
   }
 }
 
@@ -88,7 +110,61 @@ interface PresetAPIWithCategory extends PresetAPI {
 const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   // === TAXONOMY APIs ===
   {
+    name: 'GBIF',
+    iconSrc: '/provider-logos/gbif.ico',
+    websiteUrl: 'https://www.gbif.org/',
+    docsUrl: 'https://techdocs.gbif.org/en/openapi/',
+    category: 'taxonomy',
+    descriptionKey: 'apiEnrichment.presets.gbif.description',
+    config: {
+      api_url: 'https://api.gbif.org/v2/species/match',
+      auth_method: 'none',
+      profile: 'gbif_rich',
+      taxonomy_source: 'col_xr',
+      include_taxonomy: true,
+      include_occurrences: true,
+      include_media: true,
+      media_limit: 3,
+      query_params: {
+        kingdom: 'Plantae',
+        verbose: 'true'
+      },
+      query_param_name: 'scientificName',
+      response_mapping: {}
+    }
+  },
+  {
+    name: 'Tropicos',
+    iconSrc: '/provider-logos/tropicos.ico',
+    websiteUrl: 'https://www.tropicos.org/home',
+    docsUrl: 'https://services.tropicos.org/help',
+    category: 'taxonomy',
+    descriptionKey: 'apiEnrichment.presets.tropicos.description',
+    config: {
+      api_url: 'https://services.tropicos.org/Name/Search',
+      auth_method: 'api_key',
+      profile: 'tropicos_rich',
+      auth_params: {
+        location: 'query',
+        name: 'apikey',
+        key: ''
+      },
+      query_params: {
+        format: 'json',
+        type: 'exact'
+      },
+      query_param_name: 'name',
+      include_references: true,
+      include_distributions: true,
+      include_media: true,
+      media_limit: 3,
+      response_mapping: {}
+    }
+  },
+  {
     name: 'Endemia NC',
+    iconSrc: '/provider-logos/endemia.ico',
+    websiteUrl: 'https://endemia.nc/',
     category: 'taxonomy',
     descriptionKey: 'apiEnrichment.presets.endemia.description',
     config: {
@@ -118,50 +194,9 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
     }
   },
   {
-    name: 'GBIF',
-    category: 'taxonomy',
-    descriptionKey: 'apiEnrichment.presets.gbif.description',
-    config: {
-      api_url: 'https://api.gbif.org/v1/species/match',
-      auth_method: 'none',
-      query_params: {
-        kingdom: 'Plantae'
-      },
-      response_mapping: {
-        gbif_key: 'usageKey',
-        gbif_status: 'status',
-        gbif_confidence: 'confidence',
-        canonical_name: 'canonicalName',
-        authorship: 'authorship',
-        family: 'family',
-        genus: 'genus',
-        species: 'species'
-      }
-    }
-  },
-  {
-    name: 'WFO (World Flora Online)',
-    category: 'taxonomy',
-    descriptionKey: 'apiEnrichment.presets.wfo.description',
-    config: {
-      api_url: 'https://list.worldfloraonline.org/matching_rest',
-      auth_method: 'none',
-      query_params: {
-        limit: '1',
-        matching_includes: 'higher_taxa'
-      },
-      response_mapping: {
-        wfo_id: 'id',
-        wfo_name: 'full_name_plain',
-        wfo_status: 'taxonomic_status',
-        wfo_family: 'family',
-        wfo_genus: 'genus',
-        wfo_authors: 'authors'
-      }
-    }
-  },
-  {
     name: 'IPNI',
+    iconSrc: '/provider-logos/ipni.png',
+    websiteUrl: 'https://www.ipni.org/',
     category: 'taxonomy',
     descriptionKey: 'apiEnrichment.presets.ipni.description',
     config: {
@@ -181,6 +216,9 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   },
   {
     name: 'iNaturalist',
+    iconSrc: '/provider-logos/inaturalist.png',
+    websiteUrl: 'https://www.inaturalist.org/',
+    docsUrl: 'https://www.inaturalist.org/pages/api+reference',
     category: 'taxonomy',
     descriptionKey: 'apiEnrichment.presets.inaturalist.description',
     config: {
@@ -202,38 +240,6 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
       }
     }
   },
-  {
-    name: 'Tropicos',
-    category: 'taxonomy',
-    descriptionKey: 'apiEnrichment.presets.tropicos.description',
-    config: {
-      api_url: 'http://services.tropicos.org/Name/Search',
-      auth_method: 'api_key',
-      auth_params: {
-        location: 'query',
-        name: 'apikey',
-        key: ''
-      },
-      query_params: {
-        format: 'json',
-        type: 'exact'
-      },
-      query_param_name: 'name',
-      response_mapping: {
-        tropicos_id: 'NameId',
-        tropicos_name: 'ScientificName',
-        tropicos_author: 'ScientificNameWithAuthors',
-        tropicos_family: 'Family',
-        tropicos_nomenclatural_status: 'NomenclatureStatusName',
-        tropicos_rank: 'RankAbbreviation',
-        tropicos_accepted_id: 'AcceptedNameId',
-        tropicos_accepted_name: 'AcceptedName',
-        tropicos_display_reference: 'DisplayReference',
-        tropicos_display_date: 'DisplayDate'
-      }
-    }
-  },
-
   // === ELEVATION APIs (for plots) ===
   {
     name: 'Open-Elevation',
@@ -382,6 +388,17 @@ export function getPresetsByCategory(category: ApiCategory): PresetAPIWithCatego
 // Export all presets for external use
 export { PRESET_APIS_ALL }
 
+function normalizeApiUrl(value?: string): string {
+  if (!value) return ''
+
+  try {
+    const url = new URL(value)
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, '').toLowerCase()
+  } catch {
+    return value.trim().replace(/\/+$/, '').toLowerCase()
+  }
+}
+
 export function ApiEnrichmentConfig({
   config,
   onChange,
@@ -401,6 +418,19 @@ export function ApiEnrichmentConfig({
   const [isTesting, setIsTesting] = useState(false)
   const [newQueryParam, setNewQueryParam] = useState({ key: '', value: '' })
   const [newMapping, setNewMapping] = useState({ target: '', source: '' })
+  const isGbifRichProfile = config.profile === 'gbif_rich'
+  const isTropicosRichProfile = config.profile === 'tropicos_rich'
+  const isStructuredProfile = isGbifRichProfile || isTropicosRichProfile
+  const selectedPreset = useMemo(() => {
+    const currentUrl = normalizeApiUrl(config.api_url)
+    if (!currentUrl) return null
+
+    const matchingPreset = filteredPresets.find((preset) => (
+      normalizeApiUrl(preset.config.api_url) === currentUrl
+    ))
+
+    return matchingPreset ?? null
+  }, [config.api_url, filteredPresets])
 
   const handlePresetSelect = (presetName: string) => {
     const preset = PRESET_APIS_ALL.find(p => p.name === presetName)
@@ -419,6 +449,14 @@ export function ApiEnrichmentConfig({
         auth_params: preset.config.auth_params ? { ...preset.config.auth_params } : undefined,
         query_params: preset.config.query_params ? { ...preset.config.query_params } : {},
         query_param_name: preset.config.query_param_name || 'q',
+        profile: preset.config.profile,
+        taxonomy_source: preset.config.taxonomy_source,
+        include_taxonomy: preset.config.include_taxonomy ?? true,
+        include_occurrences: preset.config.include_occurrences ?? true,
+        include_media: preset.config.include_media ?? true,
+        include_references: preset.config.include_references ?? true,
+        include_distributions: preset.config.include_distributions ?? true,
+        media_limit: preset.config.media_limit ?? 3,
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
       onPresetSelect?.(preset.name)
@@ -456,7 +494,7 @@ export function ApiEnrichmentConfig({
       }
 
       // Add a test query
-      params[config.query_field] = 'Pinus'
+      params[config.query_param_name || 'q'] = 'Pinus'
 
       // Make test request via our backend
       const response = await axios.post('/api/files/test-api', {
@@ -615,13 +653,76 @@ export function ApiEnrichmentConfig({
                       key={preset.name}
                       variant="outline"
                       size="sm"
+                      className={cn(
+                        'hover:border-primary/30 hover:bg-primary/5 hover:text-foreground',
+                        selectedPreset?.name === preset.name &&
+                          'border-primary/40 bg-primary/10 text-primary hover:border-primary/45 hover:bg-primary/15 hover:text-primary'
+                      )}
                       onClick={() => handlePresetSelect(preset.name)}
                       title={preset.descriptionKey ? t(preset.descriptionKey) : undefined}
                     >
+                      {preset.iconSrc ? (
+                        <img
+                          src={preset.iconSrc}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 rounded-[2px] object-contain"
+                        />
+                      ) : null}
                       {preset.name}
                     </Button>
                   ))}
                 </div>
+                {selectedPreset ? (
+                  <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                    <div className="flex items-start gap-3">
+                      {selectedPreset.iconSrc ? (
+                        <img
+                          src={selectedPreset.iconSrc}
+                          alt=""
+                          aria-hidden="true"
+                          className="mt-0.5 h-5 w-5 shrink-0 rounded-[3px] object-contain"
+                        />
+                      ) : (
+                        <Globe className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                      )}
+                      <div className="min-w-0 space-y-2">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{selectedPreset.name}</p>
+                          {selectedPreset.descriptionKey ? (
+                            <p className="text-sm text-muted-foreground">
+                              {t(selectedPreset.descriptionKey)}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                          {selectedPreset.websiteUrl ? (
+                            <a
+                              href={selectedPreset.websiteUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                            >
+                              {t('apiEnrichment.connection.links.website')}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : null}
+                          {selectedPreset.docsUrl ? (
+                            <a
+                              href={selectedPreset.docsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                            >
+                              {t('apiEnrichment.connection.links.apiDocs')}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
 
@@ -704,6 +805,139 @@ export function ApiEnrichmentConfig({
                   </div>
                 </div>
               </div>
+
+              {isGbifRichProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>GBIF Rich</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Utilise un pipeline structuré GBIF au lieu d&apos;un simple mapping plat.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="taxonomy-source">Taxonomy source</Label>
+                    <Input
+                      id="taxonomy-source"
+                      value={config.taxonomy_source || 'col_xr'}
+                      onChange={(e) => onChange({ ...config, taxonomy_source: e.target.value })}
+                      placeholder="col_xr"
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Taxonomy</div>
+                        <div className="text-xs text-muted-foreground">Match, synonymes, vernaculaires</div>
+                      </div>
+                      <Switch
+                        checked={config.include_taxonomy ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_taxonomy: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Occurrences</div>
+                        <div className="text-xs text-muted-foreground">Résumé de distribution et de preuves</div>
+                      </div>
+                      <Switch
+                        checked={config.include_occurrences ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Media</div>
+                        <div className="text-xs text-muted-foreground">Miniatures et crédits GBIF</div>
+                      </div>
+                      <Switch
+                        checked={config.include_media ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="media-limit">Media limit</Label>
+                      <Input
+                        id="media-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.media_limit ?? 3)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            media_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : isTropicosRichProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>Tropicos Rich</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Utilise un pipeline structuré Tropicos avec nom accepté, références,
+                      distributions et médias.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Références</div>
+                        <div className="text-xs text-muted-foreground">Résumé bibliographique Tropicos</div>
+                      </div>
+                      <Switch
+                        checked={config.include_references ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Distributions</div>
+                        <div className="text-xs text-muted-foreground">Pays et régions résumés</div>
+                      </div>
+                      <Switch
+                        checked={config.include_distributions ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Media</div>
+                        <div className="text-xs text-muted-foreground">Images et crédits Tropicos</div>
+                      </div>
+                      <Switch
+                        checked={config.include_media ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="media-limit">Media limit</Label>
+                      <Input
+                        id="media-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.media_limit ?? 3)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            media_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Test Connection */}
               <div>
@@ -889,6 +1123,19 @@ export function ApiEnrichmentConfig({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isStructuredProfile ? (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    {isGbifRichProfile
+                      ? "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
+                      : "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              {!isStructuredProfile ? (
+                <>
               {testResult?.fields && testResult.fields.length > 0 && (
                 <Alert>
                   <Info className="h-4 w-4" />
@@ -992,6 +1239,8 @@ export function ApiEnrichmentConfig({
                   </div>
                 </AlertDescription>
               </Alert>
+                </>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>

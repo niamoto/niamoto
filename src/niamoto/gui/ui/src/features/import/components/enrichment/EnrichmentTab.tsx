@@ -313,6 +313,432 @@ const renderRawPreview = (rawData: any) => (
   </div>
 )
 
+const isStructuredSourceSummary = (data: Record<string, any> | undefined): boolean =>
+  Boolean(
+    data &&
+      typeof data === 'object' &&
+      (
+        'match' in data ||
+        'taxonomy' in data ||
+        'occurrence_summary' in data ||
+        'media_summary' in data ||
+        'nomenclature' in data ||
+        'references' in data ||
+        'distribution_summary' in data
+      )
+  )
+
+const renderSummaryRows = (rows: Array<[string, any]>) => (
+  <div className="space-y-2">
+    {rows
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([label, value]) => (
+        <div
+          key={label}
+          className="grid items-start grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-border/50 py-2 last:border-b-0"
+        >
+          <div className="text-xs font-medium text-muted-foreground">{label}</div>
+          <div className="min-w-0 break-words text-sm">{renderValue(value)}</div>
+        </div>
+      ))}
+  </div>
+)
+
+const renderStatusPill = (status: string | undefined) =>
+  status ? (
+    <Badge variant={status === 'complete' ? 'secondary' : 'outline'} className="text-[11px] uppercase">
+      {status}
+    </Badge>
+  ) : null
+
+const renderGbifStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const match = data.match ?? {}
+  const taxonomy = data.taxonomy ?? {}
+  const occurrenceSummary = data.occurrence_summary ?? {}
+  const mediaSummary = data.media_summary ?? {}
+  const links = data.links ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+  const noMatch = blockStatus.match === 'no_match' || !match.usage_key
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      <div className="rounded-lg border border-border/70 bg-background p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">
+            {t('dashboard.enrichment.structured.match', { defaultValue: 'Match' })}
+          </div>
+          {renderStatusPill(blockStatus.match)}
+        </div>
+        {noMatch ? (
+          <div className="text-sm text-muted-foreground">
+            {t('dashboard.enrichment.structured.noMatch', {
+              defaultValue: 'GBIF n’a pas retourné de match exploitable pour ce test.',
+            })}
+          </div>
+        ) : (
+          renderSummaryRows([
+            ['usage_key', match.usage_key],
+            ['scientific_name', match.scientific_name],
+            ['canonical_name', match.canonical_name],
+            ['status', match.status],
+            ['rank', match.rank],
+            ['confidence', match.confidence],
+            ['match_type', match.match_type],
+            ['taxonomy_source', match.taxonomy_source],
+          ])
+        )}
+      </div>
+
+      {!noMatch ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">
+                {t('dashboard.enrichment.structured.taxonomy', { defaultValue: 'Taxonomy' })}
+              </div>
+              {renderStatusPill(blockStatus.taxonomy)}
+            </div>
+            {blockErrors.taxonomy ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['kingdom', taxonomy.kingdom],
+                  ['phylum', taxonomy.phylum],
+                  ['class', taxonomy.class],
+                  ['order', taxonomy.order],
+                  ['family', taxonomy.family],
+                  ['genus', taxonomy.genus],
+                  ['species', taxonomy.species],
+                  ['synonyms_count', taxonomy.synonyms_count],
+                  ['iucn_category', taxonomy.iucn_category],
+                ])}
+                {Array.isArray(taxonomy.vernacular_names) && taxonomy.vernacular_names.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {t('dashboard.enrichment.structured.vernacularNames', {
+                        defaultValue: 'Noms vernaculaires',
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {taxonomy.vernacular_names.map((name: string) => (
+                        <Badge key={name} variant="outline">{name}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">
+                {t('dashboard.enrichment.structured.occurrences', { defaultValue: 'Occurrences' })}
+              </div>
+              {renderStatusPill(blockStatus.occurrence_summary)}
+            </div>
+            {blockErrors.occurrence_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.occurrence_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['occurrence_count', occurrenceSummary.occurrence_count],
+                  ['datasets_count', occurrenceSummary.datasets_count],
+                ])}
+                {Array.isArray(occurrenceSummary.countries) && occurrenceSummary.countries.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Countries</div>
+                    <div className="flex flex-wrap gap-2">
+                      {occurrenceSummary.countries.map((country: string) => (
+                        <Badge key={country} variant="outline">{country}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(occurrenceSummary.basis_of_record) && occurrenceSummary.basis_of_record.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Basis of record</div>
+                    <div className="flex flex-wrap gap-2">
+                      {occurrenceSummary.basis_of_record.map((basis: string) => (
+                        <Badge key={basis} variant="outline">{basis}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">
+                {t('dashboard.enrichment.structured.media', { defaultValue: 'Media' })}
+              </div>
+              {renderStatusPill(blockStatus.media_summary)}
+            </div>
+            {blockErrors.media_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
+            ) : Array.isArray(mediaSummary.items) && mediaSummary.items.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  {t('dashboard.enrichment.structured.mediaCount', {
+                    defaultValue: '{{count}} media item(s)',
+                    count: mediaSummary.media_count ?? mediaSummary.items.length,
+                  })}
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {mediaSummary.items.map((item: Record<string, any>, index: number) => (
+                    <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
+                      <div className="mb-2">{renderValue(item.thumbnail_url || item.identifier || item.source_url)}</div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {item.creator ? <div>{item.creator}</div> : null}
+                        {item.license ? <div>{item.license}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {t('dashboard.enrichment.structured.noMedia', { defaultValue: 'Aucun média résumé.' })}
+              </div>
+            )}
+          </div>
+
+          {Object.keys(links).length > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-background p-3">
+              <div className="mb-3 text-sm font-semibold">
+                {t('dashboard.enrichment.structured.links', { defaultValue: 'Links' })}
+              </div>
+              {renderSummaryRows(Object.entries(links))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+const renderTropicosStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const match = data.match ?? {}
+  const nomenclature = data.nomenclature ?? {}
+  const taxonomy = data.taxonomy ?? {}
+  const references = data.references ?? {}
+  const distributionSummary = data.distribution_summary ?? {}
+  const mediaSummary = data.media_summary ?? {}
+  const links = data.links ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+  const noMatch = blockStatus.match === 'no_match' || !match.name_id
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      <div className="rounded-lg border border-border/70 bg-background p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">Match</div>
+          {renderStatusPill(blockStatus.match)}
+        </div>
+        {noMatch ? (
+          <div className="text-sm text-muted-foreground">
+            {t('dashboard.enrichment.structured.noMatch', {
+              defaultValue: "Tropicos n’a pas retourné de match exploitable pour ce test.",
+            })}
+          </div>
+        ) : (
+          renderSummaryRows([
+            ['name_id', match.name_id],
+            ['scientific_name', match.scientific_name],
+            ['scientific_name_with_authors', match.scientific_name_with_authors],
+            ['family', match.family],
+            ['rank', match.rank],
+            ['nomenclature_status', match.nomenclature_status],
+            ['candidate_count', match.candidate_count],
+          ])
+        )}
+      </div>
+
+      {!noMatch ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Nomenclature</div>
+              {renderStatusPill(blockStatus.nomenclature)}
+            </div>
+            {blockErrors.nomenclature ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.nomenclature)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['accepted_name_id', nomenclature.accepted_name_id],
+                  ['accepted_name', nomenclature.accepted_name],
+                  ['accepted_name_with_authors', nomenclature.accepted_name_with_authors],
+                  ['synonyms_count', nomenclature.synonyms_count],
+                  ['accepted_name_count', nomenclature.accepted_name_count],
+                ])}
+                {Array.isArray(nomenclature.selected_synonyms) && nomenclature.selected_synonyms.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Synonyms</div>
+                    <div className="flex flex-wrap gap-2">
+                      {nomenclature.selected_synonyms.map((name: string) => (
+                        <Badge key={name} variant="outline">{name}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Taxonomy</div>
+              {renderStatusPill(blockStatus.taxonomy)}
+            </div>
+            {blockErrors.taxonomy ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['family', taxonomy.family]])}
+                {Array.isArray(taxonomy.higher_taxa) && taxonomy.higher_taxa.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Higher taxa</div>
+                    <div className="flex flex-wrap gap-2">
+                      {taxonomy.higher_taxa.map((taxon: string) => (
+                        <Badge key={taxon} variant="outline">{taxon}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">References</div>
+              {renderStatusPill(blockStatus.references)}
+            </div>
+            {blockErrors.references ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.references)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['references_count', references.references_count]])}
+                {Array.isArray(references.items) && references.items.length > 0 ? (
+                  <div className="space-y-2">
+                    {references.items.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.title || item.full_citation || index}`} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">{item.title || item.full_citation || 'Reference'}</div>
+                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          {item.abbreviated_title ? <div>{item.abbreviated_title}</div> : null}
+                          {item.year_published ? <div>{item.year_published}</div> : null}
+                          {item.full_citation ? <div className="break-words">{item.full_citation}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Distribution</div>
+              {renderStatusPill(blockStatus.distribution_summary)}
+            </div>
+            {blockErrors.distribution_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.distribution_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['distribution_count', distributionSummary.distribution_count]])}
+                {Array.isArray(distributionSummary.countries) && distributionSummary.countries.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Countries</div>
+                    <div className="flex flex-wrap gap-2">
+                      {distributionSummary.countries.map((country: string) => (
+                        <Badge key={country} variant="outline">{country}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(distributionSummary.regions) && distributionSummary.regions.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Regions</div>
+                    <div className="flex flex-wrap gap-2">
+                      {distributionSummary.regions.map((region: string) => (
+                        <Badge key={region} variant="outline">{region}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Media</div>
+              {renderStatusPill(blockStatus.media_summary)}
+            </div>
+            {blockErrors.media_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
+            ) : Array.isArray(mediaSummary.items) && mediaSummary.items.length > 0 ? (
+              <div className="space-y-3">
+                {renderSummaryRows([['media_count', mediaSummary.media_count]])}
+                <div className="grid gap-3 md:grid-cols-2">
+                  {mediaSummary.items.map((item: Record<string, any>, index: number) => (
+                    <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
+                      <div className="mb-2">{renderValue(item.thumbnail_url || item.source_url || item.identifier)}</div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {item.caption ? <div>{item.caption}</div> : null}
+                        {item.creator ? <div>{item.creator}</div> : null}
+                        {item.license ? <div>{item.license}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Aucun média résumé.</div>
+            )}
+          </div>
+
+          {Object.keys(links).length > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-background p-3">
+              <div className="mb-3 text-sm font-semibold">Links</div>
+              {renderSummaryRows(Object.entries(links))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+const renderStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  if (
+    data?.provenance?.profile === 'tropicos_rich' ||
+    'nomenclature' in data ||
+    'references' in data ||
+    'distribution_summary' in data
+  ) {
+    return renderTropicosStructuredSummary(data, t)
+  }
+
+  return renderGbifStructuredSummary(data, t)
+}
+
 export function EnrichmentTab({
   referenceName,
   hasEnrichment,
@@ -1468,7 +1894,9 @@ export function EnrichmentTab({
 
                             {previewResultMode === 'mapped' ? (
                               quickPreviewResult.data && Object.keys(quickPreviewResult.data).length > 0 ? (
-                                renderMappedPreview(quickPreviewResult.data)
+                                isStructuredSourceSummary(quickPreviewResult.data)
+                                  ? renderStructuredSummary(quickPreviewResult.data, t)
+                                  : renderMappedPreview(quickPreviewResult.data)
                               ) : (
                                 <div className="py-8 text-center text-sm text-muted-foreground">
                                   {t('dashboard.enrichment.noMappedFields', {
@@ -2294,7 +2722,9 @@ export function EnrichmentTab({
 
                                 {previewResultMode === 'mapped' ? (
                                   activePreviewResult.data && Object.keys(activePreviewResult.data).length > 0 ? (
-                                    renderMappedPreview(activePreviewResult.data)
+                                    isStructuredSourceSummary(activePreviewResult.data)
+                                      ? renderStructuredSummary(activePreviewResult.data, t)
+                                      : renderMappedPreview(activePreviewResult.data)
                                   ) : (
                                     <div className="py-8 text-center text-sm text-muted-foreground">
                                       {t('dashboard.enrichment.noMappedFields', {
@@ -2426,24 +2856,28 @@ export function EnrichmentTab({
           {selectedResult ? (
             selectedResult.success && selectedResult.data ? (
               <ScrollArea className="max-h-[60vh]">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('enrichmentTab.table.field')}</TableHead>
-                        <TableHead>{t('enrichmentTab.table.value')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.entries(selectedResult.data).map(([field, value]) => (
-                        <TableRow key={field} className="align-top">
-                          <TableCell className="align-top font-medium">{field}</TableCell>
-                          <TableCell className="align-top break-words">{renderValue(value)}</TableCell>
+                {isStructuredSourceSummary(selectedResult.data) ? (
+                  renderStructuredSummary(selectedResult.data, t)
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('enrichmentTab.table.field')}</TableHead>
+                          <TableHead>{t('enrichmentTab.table.value')}</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(selectedResult.data).map(([field, value]) => (
+                          <TableRow key={field} className="align-top">
+                            <TableCell className="align-top font-medium">{field}</TableCell>
+                            <TableCell className="align-top break-words">{renderValue(value)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </ScrollArea>
             ) : (
               <Alert variant="destructive">
