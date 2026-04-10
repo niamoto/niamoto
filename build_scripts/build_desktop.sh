@@ -105,7 +105,7 @@ echo ""
 echo -e "${BLUE}🐍 Step 3: Building Python sidecar bundle...${NC}"
 echo "This may take several minutes..."
 
-NIAMOTO_PYINSTALLER_MODE=onedir "${PYINSTALLER_CMD[@]}" build_scripts/niamoto.spec --clean --noconfirm
+NIAMOTO_PYINSTALLER_MODE=onedir NIAMOTO_PYINSTALLER_CONSOLE=false "${PYINSTALLER_CMD[@]}" build_scripts/niamoto.spec --clean --noconfirm
 
 if [ ! -d "dist/niamoto" ]; then
     echo -e "${RED}❌ PyInstaller onedir build failed${NC}"
