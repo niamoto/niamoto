@@ -187,6 +187,8 @@ export function useEnrichmentState({
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const previewRequestRef = useRef(0)
   const previewSourceSignatureRef = useRef<string | null>(null)
+  const entitiesPreloadedRef = useRef(false)
+  const resultsPreloadedRef = useRef(false)
   const workspaceSectionRef = useRef<HTMLDivElement | null>(null)
 
   // -- Config state ---------------------------------------------------------
@@ -388,6 +390,8 @@ export function useEnrichmentState({
     setPersistedEnrichmentEnabled(hasEnrichment)
     setConfigSaved(false)
     setWorkspacePane('config')
+    entitiesPreloadedRef.current = false
+    resultsPreloadedRef.current = false
   }, [referenceName, hasEnrichment])
 
   useEffect(() => {
@@ -458,30 +462,33 @@ export function useEnrichmentState({
 
   useEffect(() => {
     if (mode === 'quick') {
-      if (effectiveHasEnrichment && results.length === 0) {
+      if (effectiveHasEnrichment && !resultsPreloadedRef.current) {
+        resultsPreloadedRef.current = true
         void loadResults()
       }
-      if (canLoadEntities && entities.length === 0 && !entitiesLoading) {
+      if (canLoadEntities && !entitiesPreloadedRef.current && !entitiesLoading) {
+        entitiesPreloadedRef.current = true
         void loadEntities()
       }
       return
     }
 
-    if (effectiveHasEnrichment && workspacePane === 'results') {
+    if (effectiveHasEnrichment && !resultsPreloadedRef.current) {
+      resultsPreloadedRef.current = true
       void loadResults()
-    } else if (workspacePane === 'preview' && canLoadEntities && entities.length === 0 && !entitiesLoading) {
+    }
+
+    if (canLoadEntities && !entitiesPreloadedRef.current && !entitiesLoading) {
+      entitiesPreloadedRef.current = true
       void loadEntities()
     }
   }, [
     canLoadEntities,
-    workspacePane,
     effectiveHasEnrichment,
-    entities.length,
     entitiesLoading,
     loadEntities,
     loadResults,
     mode,
-    results.length,
   ])
 
   // -- Source manipulation --------------------------------------------------
@@ -795,13 +802,13 @@ export function useEnrichmentState({
       await Promise.all([
         loadStats(),
         loadJobStatus(),
-        mode === 'quick' || workspacePane === 'results' ? loadResults() : Promise.resolve(),
-        mode === 'quick' ? loadEntities(entitySearch) : Promise.resolve(),
+        effectiveHasEnrichment ? loadResults() : Promise.resolve(),
+        canLoadEntities ? loadEntities(entitySearch) : Promise.resolve(),
       ])
     } finally {
       setIsRefreshing(false)
     }
-  }, [entitySearch, loadEntities, loadJobStatus, loadResults, loadStats, mode, workspacePane])
+  }, [canLoadEntities, effectiveHasEnrichment, entitySearch, loadEntities, loadJobStatus, loadResults, loadStats])
 
   // Preview-related effects
   useEffect(() => {

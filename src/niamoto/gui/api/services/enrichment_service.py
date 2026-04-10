@@ -333,6 +333,17 @@ def _is_legacy_inaturalist_source(item: Dict[str, Any], config: Dict[str, Any]) 
     return label == "inaturalist"
 
 
+def _is_endemia_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source targets the public Endemia taxonomy API."""
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "api.endemia.nc" in api_url and "/taxons" in api_url:
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label in {"endemia", "endemia nc"}
+
+
 def _col_search_url(dataset_key: int) -> str:
     """Build the default ChecklistBank search URL for a dataset."""
 
@@ -388,6 +399,7 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
         is_legacy_gbif = _is_legacy_gbif_source(item, config)
         is_legacy_tropicos = _is_legacy_tropicos_source(item, config)
         is_legacy_inaturalist = _is_legacy_inaturalist_source(item, config)
+        is_endemia = _is_endemia_source(item, config)
         is_legacy_openmeteo = _is_legacy_openmeteo_source(item, config)
         is_legacy_geonames = _is_legacy_geonames_source(item, config)
         legacy_inaturalist_params = {
@@ -576,16 +588,34 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 rate_limit=float(config.get("rate_limit", 1.0)),
                 cache_results=bool(config.get("cache_results", True)),
                 auth_method=(
-                    "api_key" if is_legacy_tropicos else config.get("auth_method")
+                    "none"
+                    if is_endemia
+                    and config.get("auth_method") == "api_key"
+                    and not str(
+                        (config.get("auth_params") or {}).get("key") or ""
+                    ).strip()
+                    else (
+                        "api_key" if is_legacy_tropicos else config.get("auth_method")
+                    )
                 ),
                 auth_params=(
-                    {
-                        "location": "query",
-                        "name": "apikey",
-                        "key": str((config.get("auth_params") or {}).get("key") or ""),
-                    }
-                    if is_legacy_tropicos
-                    else config.get("auth_params") or {}
+                    {}
+                    if is_endemia
+                    and config.get("auth_method") == "api_key"
+                    and not str(
+                        (config.get("auth_params") or {}).get("key") or ""
+                    ).strip()
+                    else (
+                        {
+                            "location": "query",
+                            "name": "apikey",
+                            "key": str(
+                                (config.get("auth_params") or {}).get("key") or ""
+                            ),
+                        }
+                        if is_legacy_tropicos
+                        else config.get("auth_params") or {}
+                    )
                 ),
                 query_params=(
                     {

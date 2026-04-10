@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { cn } from '@/lib/utils'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import { buildColSearchUrl } from './enrichmentSources'
 
 interface ApiEnrichmentConfigProps {
@@ -211,12 +212,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
     descriptionKey: 'apiEnrichment.presets.endemia.description',
     config: {
       api_url: 'https://api.endemia.nc/v1/taxons',
-      auth_method: 'api_key',
-      auth_params: {
-        location: 'query',
-        name: 'apiKey',
-        key: ''
-      },
+      auth_method: 'none',
       query_params: {
         section: 'flore',
         maxitem: '1',
@@ -451,6 +447,14 @@ export function ApiEnrichmentConfig({
     return matchingPreset ?? null
   }, [config.api_url, filteredPresets])
 
+  const [showPresetPicker, setShowPresetPicker] = useState(() => !selectedPreset)
+
+  useEffect(() => {
+    if (!selectedPreset) {
+      setShowPresetPicker(true)
+    }
+  }, [selectedPreset])
+
   const handlePresetSelect = (presetName: string) => {
     const preset = PRESET_APIS_ALL.find(p => p.name === presetName)
     if (preset) {
@@ -496,8 +500,24 @@ export function ApiEnrichmentConfig({
         geometry_field: preset.config.geometry_field,
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
+      setShowPresetPicker(false)
       onPresetSelect?.(preset.name)
     }
+  }
+
+  const renderPresetLink = (label: string, url?: string) => {
+    if (!url) return null
+
+    return (
+      <button
+        type="button"
+        onClick={() => void openExternalUrl(url)}
+        className="inline-flex items-center gap-1.5 text-primary hover:underline"
+      >
+        {label}
+        <ExternalLink className="h-3.5 w-3.5" />
+      </button>
+    )
   }
 
   const testApiConnection = async () => {
@@ -663,8 +683,8 @@ export function ApiEnrichmentConfig({
                 <Plug className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-left">Connexion</p>
-                <p className="text-xs text-muted-foreground text-left">URL, preset, paramètres</p>
+                <p className="text-sm font-medium text-left">{t('apiEnrichment.connection.title')}</p>
+                <p className="text-xs text-muted-foreground text-left">{t('apiEnrichment.connection.description')}</p>
               </div>
             </div>
           </AccordionTrigger>
@@ -673,93 +693,127 @@ export function ApiEnrichmentConfig({
               {/* Preset APIs */}
               <div className="space-y-2">
                 <Label>{t('apiEnrichment.connection.quickSetup')}</Label>
-                <div className="flex flex-wrap gap-2">
-                  {filteredPresets.map(preset => (
-                    <Button
-                      key={preset.name}
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        'hover:border-primary/30 hover:bg-primary/5 hover:text-foreground',
-                        selectedPreset?.name === preset.name &&
-                          'border-primary/40 bg-primary/10 text-primary hover:border-primary/45 hover:bg-primary/15 hover:text-primary'
-                      )}
-                      onClick={() => handlePresetSelect(preset.name)}
-                      title={preset.descriptionKey ? t(preset.descriptionKey) : undefined}
-                    >
-                      {preset.iconSrc ? (
-                        <img
-                          src={preset.iconSrc}
-                          alt=""
-                          aria-hidden="true"
-                          className="h-4 w-4 shrink-0 rounded-[2px] object-contain"
-                        />
-                      ) : null}
-                      {preset.name}
-                    </Button>
-                  ))}
-                </div>
-                {selectedPreset ? (
+                {selectedPreset && !showPresetPicker ? (
                   <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-                    <div className="flex items-start gap-3">
-                      {selectedPreset.iconSrc ? (
-                        <img
-                          src={selectedPreset.iconSrc}
-                          alt=""
-                          aria-hidden="true"
-                          className="mt-0.5 h-5 w-5 shrink-0 rounded-[3px] object-contain"
-                        />
-                      ) : (
-                        <Globe className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-                      )}
-                      <div className="min-w-0 space-y-2">
-                        <div className="space-y-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        {selectedPreset.iconSrc ? (
+                          <img
+                            src={selectedPreset.iconSrc}
+                            alt=""
+                            aria-hidden="true"
+                            className="mt-0.5 h-5 w-5 shrink-0 rounded-[3px] object-contain"
+                          />
+                        ) : (
+                          <Globe className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {t('apiEnrichment.connection.selectedPreset')}
+                          </p>
                           <p className="text-sm font-medium">{selectedPreset.name}</p>
                           {selectedPreset.descriptionKey ? (
                             <p className="text-sm text-muted-foreground">
                               {t(selectedPreset.descriptionKey)}
                             </p>
                           ) : null}
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                          {selectedPreset.websiteUrl ? (
-                            <a
-                              href={selectedPreset.websiteUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                            >
-                              {t('apiEnrichment.connection.links.website')}
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          ) : null}
-                          {selectedPreset.docsUrl ? (
-                            <a
-                              href={selectedPreset.docsUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                            >
-                              {t('apiEnrichment.connection.links.apiDocs')}
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          ) : null}
-                          {selectedPreset.keyFormUrl ? (
-                            <a
-                              href={selectedPreset.keyFormUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                            >
-                              {t('apiEnrichment.connection.links.apiKeyForm')}
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          ) : null}
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1 text-sm">
+                            {renderPresetLink(
+                              t('apiEnrichment.connection.links.website'),
+                              selectedPreset.websiteUrl,
+                            )}
+                            {renderPresetLink(
+                              t('apiEnrichment.connection.links.apiDocs'),
+                              selectedPreset.docsUrl,
+                            )}
+                            {renderPresetLink(
+                              t('apiEnrichment.connection.links.apiKeyForm'),
+                              selectedPreset.keyFormUrl,
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => setShowPresetPicker(true)}
+                      >
+                        {t('common:actions.change')}
+                      </Button>
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {filteredPresets.map(preset => (
+                        <Button
+                          key={preset.name}
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            'hover:border-primary/30 hover:bg-primary/5 hover:text-foreground',
+                            selectedPreset?.name === preset.name &&
+                              'border-primary/40 bg-primary/10 text-primary hover:border-primary/45 hover:bg-primary/15 hover:text-primary'
+                          )}
+                          onClick={() => handlePresetSelect(preset.name)}
+                          title={preset.descriptionKey ? t(preset.descriptionKey) : undefined}
+                        >
+                          {preset.iconSrc ? (
+                            <img
+                              src={preset.iconSrc}
+                              alt=""
+                              aria-hidden="true"
+                              className="h-4 w-4 shrink-0 rounded-[2px] object-contain"
+                            />
+                          ) : null}
+                          {preset.name}
+                        </Button>
+                      ))}
+                    </div>
+                    {selectedPreset ? (
+                      <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                        <div className="flex items-start gap-3">
+                          {selectedPreset.iconSrc ? (
+                            <img
+                              src={selectedPreset.iconSrc}
+                              alt=""
+                              aria-hidden="true"
+                              className="mt-0.5 h-5 w-5 shrink-0 rounded-[3px] object-contain"
+                            />
+                          ) : (
+                            <Globe className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0 space-y-2">
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium">{selectedPreset.name}</p>
+                              {selectedPreset.descriptionKey ? (
+                                <p className="text-sm text-muted-foreground">
+                                  {t(selectedPreset.descriptionKey)}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                              {renderPresetLink(
+                                t('apiEnrichment.connection.links.website'),
+                                selectedPreset.websiteUrl,
+                              )}
+                              {renderPresetLink(
+                                t('apiEnrichment.connection.links.apiDocs'),
+                                selectedPreset.docsUrl,
+                              )}
+                              {renderPresetLink(
+                                t('apiEnrichment.connection.links.apiKeyForm'),
+                                selectedPreset.keyFormUrl,
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
 
               {/* API URL */}
@@ -889,8 +943,8 @@ export function ApiEnrichmentConfig({
                 <KeyRound className="h-4 w-4 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-left">Authentification</p>
-                <p className="text-xs text-muted-foreground text-left">Méthode, clé API, token</p>
+                <p className="text-sm font-medium text-left">{t('apiEnrichment.authentication.title')}</p>
+                <p className="text-xs text-muted-foreground text-left">{t('apiEnrichment.authentication.description')}</p>
               </div>
             </div>
           </AccordionTrigger>
@@ -1029,8 +1083,8 @@ export function ApiEnrichmentConfig({
                   <SlidersHorizontal className="h-4 w-4 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-left">Options profil</p>
-                  <p className="text-xs text-muted-foreground text-left">Données incluses, vérificateur de noms</p>
+                  <p className="text-sm font-medium text-left">{t('apiEnrichment.profileOptions.title')}</p>
+                  <p className="text-xs text-muted-foreground text-left">{t('apiEnrichment.profileOptions.description')}</p>
                 </div>
               </div>
             </AccordionTrigger>
@@ -1039,14 +1093,14 @@ export function ApiEnrichmentConfig({
                 {isGbifRichProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>GBIF Rich</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.gbif.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Utilise un pipeline structuré GBIF au lieu d&apos;un simple mapping plat.
+                        {t('apiEnrichment.profileOptions.providers.gbif.description')}
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="taxonomy-source">Taxonomy source</Label>
+                      <Label htmlFor="taxonomy-source">{t('apiEnrichment.profileOptions.common.taxonomySource')}</Label>
                       <Input
                         id="taxonomy-source"
                         value={config.taxonomy_source || 'col_xr'}
@@ -1058,8 +1112,8 @@ export function ApiEnrichmentConfig({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Taxonomy</div>
-                          <div className="text-xs text-muted-foreground">Match, synonymes, vernaculaires</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.taxonomy')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.taxonomyDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_taxonomy ?? true}
@@ -1069,8 +1123,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Occurrences</div>
-                          <div className="text-xs text-muted-foreground">Résumé de distribution et de preuves</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.occurrences')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.occurrencesDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_occurrences ?? true}
@@ -1080,8 +1134,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Media</div>
-                          <div className="text-xs text-muted-foreground">Miniatures et crédits GBIF</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.media')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.gbif.mediaDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_media ?? true}
@@ -1090,7 +1144,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="media-limit">Media limit</Label>
+                        <Label htmlFor="media-limit">{t('apiEnrichment.profileOptions.common.mediaLimit')}</Label>
                         <Input
                           id="media-limit"
                           type="number"
@@ -1109,15 +1163,15 @@ export function ApiEnrichmentConfig({
                 ) : isOpenMeteoElevationProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>Open-Meteo Elevation</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.openMeteo.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Résume l&apos;altitude d&apos;un point ou d&apos;une géométrie échantillonnée.
+                        {t('apiEnrichment.profileOptions.providers.openMeteo.description')}
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="sample-mode">Sample mode</Label>
+                        <Label htmlFor="sample-mode">{t('apiEnrichment.profileOptions.common.sampleMode')}</Label>
                         <Select
                           value={config.sample_mode || 'bbox_grid'}
                           onValueChange={(value) => onChange({ ...config, sample_mode: value })}
@@ -1126,14 +1180,14 @@ export function ApiEnrichmentConfig({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="bbox_grid">BBox grid</SelectItem>
-                            <SelectItem value="boundary">Boundary</SelectItem>
+                            <SelectItem value="bbox_grid">{t('apiEnrichment.profileOptions.common.sampleModeOptions.bboxGrid')}</SelectItem>
+                            <SelectItem value="boundary">{t('apiEnrichment.profileOptions.common.sampleModeOptions.boundary')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="sample-count">Sample count</Label>
+                        <Label htmlFor="sample-count">{t('apiEnrichment.profileOptions.common.sampleCount')}</Label>
                         <Input
                           id="sample-count"
                           type="number"
@@ -1151,10 +1205,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 sm:col-span-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">BBox summary</div>
-                          <div className="text-xs text-muted-foreground">
-                            Conserve le centroïde et la bbox dans le résumé enrichi.
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.bboxSummary')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.bboxSummaryDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_bbox_summary ?? true}
@@ -1166,15 +1218,15 @@ export function ApiEnrichmentConfig({
                 ) : isGeoNamesSpatialProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>GeoNames Spatial</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.geoNames.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Résume le contexte administratif d&apos;un point ou d&apos;une géométrie échantillonnée.
+                        {t('apiEnrichment.profileOptions.providers.geoNames.description')}
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="sample-mode">Sample mode</Label>
+                        <Label htmlFor="sample-mode">{t('apiEnrichment.profileOptions.common.sampleMode')}</Label>
                         <Select
                           value={config.sample_mode || 'bbox_grid'}
                           onValueChange={(value) => onChange({ ...config, sample_mode: value })}
@@ -1183,14 +1235,14 @@ export function ApiEnrichmentConfig({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="bbox_grid">BBox grid</SelectItem>
-                            <SelectItem value="boundary">Boundary</SelectItem>
+                            <SelectItem value="bbox_grid">{t('apiEnrichment.profileOptions.common.sampleModeOptions.bboxGrid')}</SelectItem>
+                            <SelectItem value="boundary">{t('apiEnrichment.profileOptions.common.sampleModeOptions.boundary')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="sample-count">Sample count</Label>
+                        <Label htmlFor="sample-count">{t('apiEnrichment.profileOptions.common.sampleCount')}</Label>
                         <Input
                           id="sample-count"
                           type="number"
@@ -1208,10 +1260,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">BBox summary</div>
-                          <div className="text-xs text-muted-foreground">
-                            Conserve le centroïde et la bbox dans le résumé enrichi.
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.bboxSummary')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.bboxSummaryDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_bbox_summary ?? true}
@@ -1221,10 +1271,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Nearby places</div>
-                          <div className="text-xs text-muted-foreground">
-                            Ajoute les lieux proches sur le centroïde et quelques points d&apos;échantillonnage.
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.nearbyPlaces')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.nearbyPlacesDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_nearby_places ?? true}
@@ -1236,18 +1284,17 @@ export function ApiEnrichmentConfig({
                 ) : isTropicosRichProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>Tropicos Rich</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.tropicos.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Utilise un pipeline structuré Tropicos avec nom accepté, références,
-                        distributions et médias.
+                        {t('apiEnrichment.profileOptions.providers.tropicos.description')}
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Références</div>
-                          <div className="text-xs text-muted-foreground">Résumé bibliographique Tropicos</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.references')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.tropicos.referencesDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_references ?? true}
@@ -1257,8 +1304,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Distributions</div>
-                          <div className="text-xs text-muted-foreground">Pays et régions résumés</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.distributions')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.tropicos.distributionsDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_distributions ?? true}
@@ -1268,8 +1315,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Media</div>
-                          <div className="text-xs text-muted-foreground">Images et crédits Tropicos</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.media')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.tropicos.mediaDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_media ?? true}
@@ -1278,7 +1325,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="media-limit">Media limit</Label>
+                        <Label htmlFor="media-limit">{t('apiEnrichment.profileOptions.common.mediaLimit')}</Label>
                         <Input
                           id="media-limit"
                           type="number"
@@ -1297,15 +1344,14 @@ export function ApiEnrichmentConfig({
                 ) : isColRichProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>Catalogue of Life Rich</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.col.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Utilise un pipeline structuré ChecklistBank avec taxonomie,
-                        synonymes, noms vernaculaires, distributions et références.
+                        {t('apiEnrichment.profileOptions.providers.col.description')}
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="col-dataset-key">ChecklistBank dataset key</Label>
+                      <Label htmlFor="col-dataset-key">{t('apiEnrichment.profileOptions.common.datasetKey')}</Label>
                       <Input
                         id="col-dataset-key"
                         type="number"
@@ -1321,15 +1367,15 @@ export function ApiEnrichmentConfig({
                         }}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Clé de release ChecklistBank utilisée pour la recherche et les détails du taxon.
+                        {t('apiEnrichment.profileOptions.common.datasetKeyDescription')}
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Vernaculars</div>
-                          <div className="text-xs text-muted-foreground">Noms vernaculaires par langue</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.vernaculars')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.col.vernacularsDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_vernaculars ?? true}
@@ -1339,8 +1385,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Distributions</div>
-                          <div className="text-xs text-muted-foreground">Régions et pays quand disponibles</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.distributions')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.col.distributionsDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_distributions ?? true}
@@ -1350,8 +1396,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">References</div>
-                          <div className="text-xs text-muted-foreground">Citations ChecklistBank résumées</div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.references')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.col.referencesDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_references ?? true}
@@ -1360,7 +1406,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="reference-limit">Reference limit</Label>
+                        <Label htmlFor="reference-limit">{t('apiEnrichment.profileOptions.common.referenceLimit')}</Label>
                         <Input
                           id="reference-limit"
                           type="number"
@@ -1379,24 +1425,21 @@ export function ApiEnrichmentConfig({
                 ) : isBhlReferencesProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>BHL References</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.bhl.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Utilise un pipeline documentaire structuré BHL avec titres, mentions
-                        bibliographiques et pages représentatives.
+                        {t('apiEnrichment.profileOptions.providers.bhl.description')}
                       </p>
                     </div>
 
                     <div className="rounded-md border bg-background px-3 py-3 text-xs text-muted-foreground">
-                      La clé API BHL est obligatoire pour tester et exécuter cette source.
+                      {t('apiEnrichment.profileOptions.providers.bhl.apiKeyRequired')}
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Publication details</div>
-                          <div className="text-xs text-muted-foreground">
-                            Hydrate les meilleurs titres avec leurs métadonnées BHL
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.publicationDetails')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.publicationDetailsDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_publication_details ?? true}
@@ -1406,10 +1449,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Page preview</div>
-                          <div className="text-xs text-muted-foreground">
-                            Charge quelques pages avec miniature et lien direct
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.pagePreview')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.pagePreviewDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_page_preview ?? true}
@@ -1418,7 +1459,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="bhl-title-limit">Title limit</Label>
+                        <Label htmlFor="bhl-title-limit">{t('apiEnrichment.profileOptions.common.titleLimit')}</Label>
                         <Input
                           id="bhl-title-limit"
                           type="number"
@@ -1434,7 +1475,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="bhl-page-limit">Page limit</Label>
+                        <Label htmlFor="bhl-page-limit">{t('apiEnrichment.profileOptions.common.pageLimit')}</Label>
                         <Input
                           id="bhl-page-limit"
                           type="number"
@@ -1453,20 +1494,17 @@ export function ApiEnrichmentConfig({
                 ) : isInaturalistRichProfile ? (
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                     <div className="space-y-1">
-                      <Label>iNaturalist Rich</Label>
+                      <Label>{t('apiEnrichment.profileOptions.providers.inaturalist.title')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Utilise un pipeline structuré iNaturalist avec fiche taxon légère,
-                        résumé d&apos;observations, médias et lieux principaux.
+                        {t('apiEnrichment.profileOptions.providers.inaturalist.description')}
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Observations</div>
-                          <div className="text-xs text-muted-foreground">
-                            Résumé des observations communautaires récentes
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.observations')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.inaturalist.observationsDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_occurrences ?? true}
@@ -1476,10 +1514,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Media</div>
-                          <div className="text-xs text-muted-foreground">
-                            Sélection d&apos;images issues du taxon et des observations
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.media')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.providers.inaturalist.mediaDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_media ?? true}
@@ -1489,10 +1525,8 @@ export function ApiEnrichmentConfig({
 
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Places</div>
-                          <div className="text-xs text-muted-foreground">
-                            Résumé compact des principaux lieux remontés
-                          </div>
+                          <div className="text-sm font-medium">{t('apiEnrichment.profileOptions.common.places')}</div>
+                          <div className="text-xs text-muted-foreground">{t('apiEnrichment.profileOptions.common.placesDescription')}</div>
                         </div>
                         <Switch
                           checked={config.include_places ?? true}
@@ -1501,7 +1535,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                        <Label htmlFor="inat-observation-limit">Observation limit</Label>
+                        <Label htmlFor="inat-observation-limit">{t('apiEnrichment.profileOptions.common.observationLimit')}</Label>
                         <Input
                           id="inat-observation-limit"
                           type="number"
@@ -1517,7 +1551,7 @@ export function ApiEnrichmentConfig({
                       </div>
 
                       <div className="space-y-2 rounded-md border bg-background px-3 py-2 sm:col-span-2">
-                        <Label htmlFor="inat-media-limit">Media limit</Label>
+                        <Label htmlFor="inat-media-limit">{t('apiEnrichment.profileOptions.common.mediaLimit')}</Label>
                         <Input
                           id="inat-media-limit"
                           type="number"
@@ -1573,8 +1607,8 @@ export function ApiEnrichmentConfig({
                 <Braces className="h-4 w-4 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-left">Mapping avancé</p>
-                <p className="text-xs text-muted-foreground text-left">Mapping réponse, endpoints chaînés</p>
+                <p className="text-sm font-medium text-left">{t('apiEnrichment.fieldMapping.advancedTitle')}</p>
+                <p className="text-xs text-muted-foreground text-left">{t('apiEnrichment.fieldMapping.advancedDescription')}</p>
               </div>
             </div>
           </AccordionTrigger>
@@ -1585,18 +1619,18 @@ export function ApiEnrichmentConfig({
                   <Info className="h-4 w-4" />
                   <AlertDescription>
                     {isGbifRichProfile
-                      ? "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
+                      ? t('apiEnrichment.fieldMapping.structuredPresetInfo.gbif')
                       : isOpenMeteoElevationProfile
-                        ? "Open-Meteo Elevation produit un résumé structuré par blocs (`Location`, `Elevation`) ou (`Geometry summary`, `Elevation summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset."
+                        ? t('apiEnrichment.fieldMapping.structuredPresetInfo.openMeteo')
                         : isGeoNamesSpatialProfile
-                          ? "GeoNames Spatial produit un résumé structuré par blocs (`Location`, `Administrative context`, `Nearby place`) ou (`Geometry summary`, `Administrative summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset."
+                          ? t('apiEnrichment.fieldMapping.structuredPresetInfo.geoNames')
                       : isTropicosRichProfile
-                        ? "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
+                        ? t('apiEnrichment.fieldMapping.structuredPresetInfo.tropicos')
                         : isColRichProfile
-                          ? "Catalogue of Life Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Le mapping manuel n'est pas requis pour ce preset."
+                          ? t('apiEnrichment.fieldMapping.structuredPresetInfo.col')
                           : isBhlReferencesProfile
-                            ? "BHL References produit un résumé structuré par blocs (`Match`, `Titles`, `Mentions`, `Pages`, `Links`). Le mapping manuel n'est pas requis pour ce preset."
-                            : "iNaturalist Rich produit un résumé structuré par blocs (`Match`, `Taxon`, `Observations`, `Media`, `Places`). Le mapping manuel n'est pas requis pour ce preset."}
+                            ? t('apiEnrichment.fieldMapping.structuredPresetInfo.bhl')
+                            : t('apiEnrichment.fieldMapping.structuredPresetInfo.inaturalist')}
                   </AlertDescription>
                 </Alert>
               ) : null}

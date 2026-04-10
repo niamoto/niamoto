@@ -293,6 +293,7 @@
       "title": "API Connection",
       "description": "Configure the API endpoint and test the connection",
       "quickSetup": "Quick Setup",
+      "selectedPreset": "Selected preset",
       "apiUrl": "API URL",
       "urlRequired": "Please enter an API URL",
       "queryFieldName": "Data Source Field",
@@ -335,16 +336,106 @@
       "username": "Username",
       "password": "Password"
     },
+    "profileOptions": {
+      "title": "Profile options",
+      "description": "Included data and structured profile behavior",
+      "common": {
+        "taxonomySource": "Taxonomy source",
+        "taxonomy": "Taxonomy",
+        "taxonomyDescription": "Match, synonyms, and vernacular names",
+        "occurrences": "Occurrences",
+        "occurrencesDescription": "Distribution and evidence summary",
+        "media": "Media",
+        "mediaLimit": "Media limit",
+        "sampleMode": "Sample mode",
+        "sampleModeOptions": {
+          "bboxGrid": "BBox grid",
+          "boundary": "Boundary"
+        },
+        "sampleCount": "Sample count",
+        "bboxSummary": "BBox summary",
+        "bboxSummaryDescription": "Keep the centroid and bbox in the enriched summary.",
+        "nearbyPlaces": "Nearby places",
+        "nearbyPlacesDescription": "Adds nearby places on the centroid and a few sampled points.",
+        "references": "References",
+        "referenceLimit": "Reference limit",
+        "distributions": "Distributions",
+        "vernaculars": "Vernaculars",
+        "datasetKey": "ChecklistBank dataset key",
+        "datasetKeyDescription": "ChecklistBank release key used for search and taxon details.",
+        "publicationDetails": "Publication details",
+        "publicationDetailsDescription": "Hydrates the best titles with their BHL metadata.",
+        "pagePreview": "Page preview",
+        "pagePreviewDescription": "Loads a few pages with thumbnail and direct link.",
+        "titleLimit": "Title limit",
+        "pageLimit": "Page limit",
+        "observations": "Observations",
+        "observationLimit": "Observation limit",
+        "places": "Places",
+        "placesDescription": "Compact summary of the main reported places."
+      },
+      "providers": {
+        "gbif": {
+          "title": "GBIF Rich",
+          "description": "Uses a structured GBIF pipeline instead of a flat mapping only.",
+          "mediaDescription": "GBIF thumbnails and credits"
+        },
+        "openMeteo": {
+          "title": "Open-Meteo Elevation",
+          "description": "Summarizes the elevation of a point or sampled geometry."
+        },
+        "geoNames": {
+          "title": "GeoNames Spatial",
+          "description": "Summarizes the administrative context of a point or sampled geometry."
+        },
+        "tropicos": {
+          "title": "Tropicos Rich",
+          "description": "Uses a structured Tropicos pipeline with accepted name, references, distributions, and media.",
+          "referencesDescription": "Tropicos bibliographic summary",
+          "distributionsDescription": "Summarized countries and regions",
+          "mediaDescription": "Tropicos images and credits"
+        },
+        "col": {
+          "title": "Catalogue of Life Rich",
+          "description": "Uses a structured ChecklistBank pipeline with taxonomy, synonyms, vernaculars, distributions, and references.",
+          "vernacularsDescription": "Vernacular names by language",
+          "distributionsDescription": "Regions and countries when available",
+          "referencesDescription": "Summarized ChecklistBank citations"
+        },
+        "bhl": {
+          "title": "BHL References",
+          "description": "Uses a structured BHL documentary pipeline with titles, bibliographic mentions, and representative pages.",
+          "apiKeyRequired": "A BHL API key is required to test and run this source."
+        },
+        "inaturalist": {
+          "title": "iNaturalist Rich",
+          "description": "Uses a structured iNaturalist pipeline with a lightweight taxon card, observation summary, media, and main places.",
+          "observationsDescription": "Summary of recent community observations",
+          "mediaDescription": "Image selection from the taxon and observations"
+        }
+      }
+    },
     "fieldMapping": {
       "title": "Response Field Mapping",
       "description": "Map API response fields to Niamoto database fields",
+      "advancedTitle": "Advanced mapping",
+      "advancedDescription": "Response mapping and chained endpoints",
       "availableFields": "Available fields detected from API test. Click to add to mapping.",
       "currentMappings": "Current Mappings",
       "addNewMapping": "Add New Mapping",
       "niamotoFieldPlaceholder": "Niamoto field (e.g., endemic)",
       "apiPathPlaceholder": "API path (e.g., endemique)",
       "availableApiFields": "Available API Fields",
-      "commonFields": "Common Niamoto fields you might want to map:"
+      "commonFields": "Common Niamoto fields you might want to map:",
+      "structuredPresetInfo": {
+        "gbif": "GBIF Rich produces a structured summary by blocks (`Match`, `Taxonomy`, `Occurrences`, `Media`). Manual mapping is not required for this preset.",
+        "openMeteo": "Open-Meteo Elevation produces a structured summary by blocks (`Location`, `Elevation`) or (`Geometry summary`, `Elevation summary`, `Sampling`). Manual mapping is not required for this preset.",
+        "geoNames": "GeoNames Spatial produces a structured summary by blocks (`Location`, `Administrative context`, `Nearby place`) or (`Geometry summary`, `Administrative summary`, `Sampling`). Manual mapping is not required for this preset.",
+        "tropicos": "Tropicos Rich produces a structured summary by blocks (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Manual mapping is not required for this preset.",
+        "col": "Catalogue of Life Rich produces a structured summary by blocks (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Manual mapping is not required for this preset.",
+        "bhl": "BHL References produces a structured summary by blocks (`Match`, `Titles`, `Mentions`, `Pages`, `Links`). Manual mapping is not required for this preset.",
+        "inaturalist": "iNaturalist Rich produces a structured summary by blocks (`Match`, `Taxon`, `Observations`, `Media`, `Places`). Manual mapping is not required for this preset."
+      }
     }
   },
   "plotHierarchy": {
