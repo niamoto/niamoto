@@ -256,6 +256,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   },
   {
     name: 'BHL',
+    iconSrc: '/provider-logos/bhl.ico',
     websiteUrl: 'https://www.biodiversitylibrary.org/',
     docsUrl: 'https://www.biodiversitylibrary.org/docs/api3.html',
     keyFormUrl: 'https://www.biodiversitylibrary.org/getapikey.aspx',
@@ -328,6 +329,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   },
   {
     name: 'Open-Meteo Elevation',
+    iconSrc: '/provider-logos/open-meteo.ico',
     websiteUrl: 'https://open-meteo.com/',
     docsUrl: 'https://open-meteo.com/en/docs/elevation-api',
     category: 'elevation',
@@ -349,6 +351,7 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
   // === SPATIAL APIs (for shapes/plots) ===
   {
     name: 'GeoNames',
+    iconSrc: '/provider-logos/geonames.gif',
     websiteUrl: 'https://www.geonames.org/',
     docsUrl: 'https://www.geonames.org/export/web-services.html',
     category: 'spatial',
