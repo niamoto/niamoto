@@ -50,6 +50,8 @@ TERMINAL_JOB_STATUSES = {
 
 GBIF_RICH_MATCH_URL = "https://api.gbif.org/v2/species/match"
 TROPICOS_RICH_SEARCH_URL = "https://services.tropicos.org/Name/Search"
+COL_DEFAULT_DATASET_KEY = 314774
+COL_API_BASE = "https://api.checklistbank.org"
 
 
 class EnrichmentSourceConfig(BaseModel):
@@ -64,12 +66,15 @@ class EnrichmentSourceConfig(BaseModel):
     query_param_name: str = "q"
     profile: Optional[str] = None
     taxonomy_source: Optional[str] = None
+    dataset_key: int = COL_DEFAULT_DATASET_KEY
     include_taxonomy: bool = True
     include_occurrences: bool = True
     include_media: bool = True
     include_references: bool = True
+    include_vernaculars: bool = True
     include_distributions: bool = True
     media_limit: int = 3
+    reference_limit: int = 5
     response_mapping: Dict[str, str] = Field(default_factory=dict)
     rate_limit: float = 1.0
     cache_results: bool = True
@@ -96,12 +101,15 @@ class EnrichmentSourceConfig(BaseModel):
                 "query_param_name": self.query_param_name,
                 "profile": self.profile,
                 "taxonomy_source": self.taxonomy_source,
+                "dataset_key": self.dataset_key,
                 "include_taxonomy": self.include_taxonomy,
                 "include_occurrences": self.include_occurrences,
                 "include_media": self.include_media,
                 "include_references": self.include_references,
+                "include_vernaculars": self.include_vernaculars,
                 "include_distributions": self.include_distributions,
                 "media_limit": self.media_limit,
+                "reference_limit": self.reference_limit,
                 "rate_limit": self.rate_limit,
                 "cache_results": self.cache_results,
                 "response_mapping": self.response_mapping or {},
@@ -276,6 +284,12 @@ def _is_legacy_tropicos_source(item: Dict[str, Any], config: Dict[str, Any]) -> 
     return label == "tropicos"
 
 
+def _col_search_url(dataset_key: int) -> str:
+    """Build the default ChecklistBank search URL for a dataset."""
+
+    return f"{COL_API_BASE}/dataset/{dataset_key}/nameusage/search"
+
+
 def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfig]:
     """Normalize reference enrichment config into a source list."""
 
@@ -320,7 +334,20 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     else (
                         TROPICOS_RICH_SEARCH_URL
                         if is_legacy_tropicos
-                        else config.get("api_url", "")
+                        else (
+                            config.get("api_url")
+                            or (
+                                _col_search_url(
+                                    int(
+                                        config.get(
+                                            "dataset_key", COL_DEFAULT_DATASET_KEY
+                                        )
+                                    )
+                                )
+                                if config.get("profile") == "col_rich"
+                                else ""
+                            )
+                        )
                     )
                 ),
                 query_field=config.get("query_field", "full_name"),
@@ -330,7 +357,11 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     else (
                         "name"
                         if is_legacy_tropicos
-                        else config.get("query_param_name", "q")
+                        else (
+                            "q"
+                            if config.get("profile") == "col_rich"
+                            else config.get("query_param_name", "q")
+                        )
                     )
                 ),
                 profile=(
@@ -340,12 +371,15 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 ),
                 taxonomy_source=config.get("taxonomy_source")
                 or ("col_xr" if is_legacy_gbif else None),
+                dataset_key=int(config.get("dataset_key", COL_DEFAULT_DATASET_KEY)),
                 include_taxonomy=bool(config.get("include_taxonomy", True)),
                 include_occurrences=bool(config.get("include_occurrences", True)),
                 include_media=bool(config.get("include_media", True)),
                 include_references=bool(config.get("include_references", True)),
+                include_vernaculars=bool(config.get("include_vernaculars", True)),
                 include_distributions=bool(config.get("include_distributions", True)),
                 media_limit=int(config.get("media_limit", 3)),
+                reference_limit=int(config.get("reference_limit", 5)),
                 response_mapping=(
                     {}
                     if is_legacy_gbif or is_legacy_tropicos
@@ -855,12 +889,15 @@ def _build_plugin_config(
             "query_param_name": source.query_param_name,
             "profile": source.profile,
             "taxonomy_source": source.taxonomy_source,
+            "dataset_key": source.dataset_key,
             "include_taxonomy": source.include_taxonomy,
             "include_occurrences": source.include_occurrences,
             "include_media": source.include_media,
             "include_references": source.include_references,
+            "include_vernaculars": source.include_vernaculars,
             "include_distributions": source.include_distributions,
             "media_limit": source.media_limit,
+            "reference_limit": source.reference_limit,
             "response_mapping": source.response_mapping,
             "rate_limit": source.rate_limit,
             "cache_results": source.cache_results
@@ -1443,6 +1480,7 @@ async def preview_reference_enrichment(
                         "api_url": source.api_url,
                         "query_field": source.query_field,
                         "profile": source.profile,
+                        "dataset_key": source.dataset_key,
                     },
                 )
             )

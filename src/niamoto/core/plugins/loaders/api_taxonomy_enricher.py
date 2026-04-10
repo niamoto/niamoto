@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 GBIF_COL_XR_CHECKLIST_KEY = "7ddf754f-d193-4cc9-b351-99906754a03b"
 GBIF_MATCH_ENDPOINT = "https://api.gbif.org/v2/species/match"
 GBIF_SPECIES_ENDPOINT = "https://api.gbif.org/v1/species"
+COL_API_BASE = "https://api.checklistbank.org"
+COL_DEFAULT_DATASET_KEY = 314774
 TROPICOS_SEARCH_ENDPOINT = "https://services.tropicos.org/Name/Search"
 TROPICOS_NAME_ENDPOINT = "https://services.tropicos.org/Name"
 
@@ -77,6 +79,12 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         description="Preferred taxonomy source for structured provider profiles",
         json_schema_extra={"ui:widget": "text"},
     )
+    dataset_key: int = Field(
+        default=COL_DEFAULT_DATASET_KEY,
+        ge=1,
+        description="ChecklistBank dataset key for Catalogue of Life structured profiles",
+        json_schema_extra={"ui:widget": "number"},
+    )
     include_taxonomy: bool = Field(
         default=True,
         description="Whether to include taxonomy details for structured provider profiles",
@@ -97,6 +105,11 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         description="Whether to include reference summary for structured provider profiles",
         json_schema_extra={"ui:widget": "checkbox"},
     )
+    include_vernaculars: bool = Field(
+        default=True,
+        description="Whether to include vernacular summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
     include_distributions: bool = Field(
         default=True,
         description="Whether to include distribution summary for structured provider profiles",
@@ -106,6 +119,12 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         default=3,
         ge=0,
         description="Maximum number of media items to keep in structured provider summaries",
+        json_schema_extra={"ui:widget": "number"},
+    )
+    reference_limit: int = Field(
+        default=5,
+        ge=0,
+        description="Maximum number of references to keep in structured provider summaries",
         json_schema_extra={"ui:widget": "number"},
     )
     response_mapping: Dict[str, str] = Field(
@@ -146,7 +165,7 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
     @model_validator(mode="after")
     def check_response_mapping(self):
         """Validate that response mapping is properly formatted"""
-        if self.profile in {"gbif_rich", "tropicos_rich"}:
+        if self.profile in {"gbif_rich", "tropicos_rich", "col_rich"}:
             return self
         if not self.response_mapping:
             raise ValueError("response_mapping cannot be empty")
@@ -270,9 +289,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         # Check cache if enabled
         cache_key = (
             f"{params.profile or 'default'}::{params.api_url}::{params.taxonomy_source or ''}"
+            f"::{params.dataset_key}"
             f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
-            f"::{params.include_references}::{params.include_distributions}"
-            f"::{params.media_limit}::{query_value}"
+            f"::{params.include_references}::{params.include_vernaculars}"
+            f"::{params.include_distributions}::{params.media_limit}::{params.reference_limit}"
+            f"::{query_value}"
         )
         if params.cache_results and cache_key in self._cache:
             logger.debug(f"Using cached data for {query_value}")
@@ -328,6 +349,20 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             if params.profile == "tropicos_rich":
                 result = self._load_tropicos_rich_data(
+                    taxon_data=taxon_data,
+                    query_value=str(query_value),
+                    params=params,
+                )
+                if params.cache_results and result.get("api_enrichment"):
+                    self._cache[cache_key] = {
+                        "mapped": result.get("api_enrichment", {}),
+                        "processed": result.get("api_response_processed"),
+                        "raw": result.get("api_response_raw"),
+                    }
+                return result
+
+            if params.profile == "col_rich":
+                result = self._load_col_rich_data(
                     taxon_data=taxon_data,
                     query_value=str(query_value),
                     params=params,
@@ -826,6 +861,203 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         )
         self.log_messages.append(
             f"[green][{emoji('✓', '[OK]')}] Tropicos data successfully retrieved for {query_value}[/green]"
+        )
+
+        return {
+            **taxon_data,
+            "api_enrichment": summary,
+            "api_response_processed": processed_payload,
+            "api_response_raw": raw_payload,
+        }
+
+    def _load_col_rich_data(
+        self,
+        taxon_data: Dict[str, Any],
+        query_value: str,
+        params: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Load a structured Catalogue of Life enrichment summary."""
+
+        dataset_key = self._col_dataset_key(params)
+        summary: Dict[str, Any] = {
+            "match": {},
+            "taxonomy": {},
+            "nomenclature": {},
+            "vernaculars": {},
+            "distribution_summary": {},
+            "references": {},
+            "links": {},
+            "block_status": {
+                "match": "pending",
+                "taxonomy": "disabled" if not params.include_taxonomy else "pending",
+                "nomenclature": "pending",
+                "vernaculars": (
+                    "disabled" if not params.include_vernaculars else "pending"
+                ),
+                "distribution_summary": (
+                    "disabled" if not params.include_distributions else "pending"
+                ),
+                "references": (
+                    "disabled" if not params.include_references else "pending"
+                ),
+            },
+            "block_errors": {},
+            "provenance": {
+                "profile": "col_rich",
+                "profile_version": "col-rich-v1",
+                "dataset_key": dataset_key,
+                "query": query_value,
+                "endpoints": ["dataset/{key}/nameusage/search"],
+            },
+        }
+        raw_payload: Dict[str, Any] = {}
+        processed_payload: Dict[str, Any] = {}
+
+        try:
+            dataset_raw = self._col_dataset_metadata(dataset_key)
+            raw_payload["dataset"] = dataset_raw
+            summary["provenance"]["release_label"] = self._col_release_label(
+                dataset_raw, dataset_key
+            )
+        except Exception as exc:
+            summary["provenance"]["release_label"] = f"dataset:{dataset_key}"
+            summary["block_errors"]["dataset"] = str(exc)
+
+        match_summary, match_raw = self._col_match(query_value, dataset_key)
+        raw_payload["search"] = match_raw
+        processed_payload["match"] = match_summary
+        summary["match"] = match_summary
+
+        taxon_id = match_summary.get("taxon_id")
+        if not taxon_id:
+            summary["block_status"]["match"] = "no_match"
+            summary["provenance"]["outcome"] = "no_match"
+            self.log_messages.append(
+                f"[yellow]No Catalogue of Life match found for {query_value}[/yellow]"
+            )
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        summary["block_status"]["match"] = "complete"
+
+        try:
+            taxon_summary, taxon_raw = self._col_taxon_detail(
+                dataset_key, str(taxon_id)
+            )
+            summary["match"] = {**summary["match"], **taxon_summary}
+            summary["links"] = self._col_build_links(
+                dataset_key, str(taxon_id), taxon_raw
+            )
+            raw_payload["taxon"] = taxon_raw
+            processed_payload["match"] = summary["match"]
+            summary["provenance"]["endpoints"].append("dataset/{key}/taxon/{id}")
+        except Exception as exc:
+            summary["block_errors"]["match"] = str(exc)
+            summary["provenance"]["outcome"] = "partial"
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        if params.include_taxonomy:
+            try:
+                taxonomy_summary, taxonomy_raw = self._col_taxonomy(
+                    dataset_key,
+                    str(taxon_id),
+                    summary["match"].get("scientific_name") or query_value,
+                )
+                summary["taxonomy"] = taxonomy_summary
+                summary["block_status"]["taxonomy"] = "complete"
+                raw_payload["classification"] = taxonomy_raw
+                processed_payload["taxonomy"] = taxonomy_summary
+                summary["provenance"]["endpoints"].append(
+                    "dataset/{key}/taxon/{id}/classification"
+                )
+            except Exception as exc:
+                summary["block_status"]["taxonomy"] = "error"
+                summary["block_errors"]["taxonomy"] = str(exc)
+
+        try:
+            nomenclature_summary, nomenclature_raw = self._col_nomenclature(
+                dataset_key,
+                str(taxon_id),
+                summary["match"],
+            )
+            summary["nomenclature"] = nomenclature_summary
+            summary["block_status"]["nomenclature"] = "complete"
+            raw_payload["synonyms"] = nomenclature_raw
+            processed_payload["nomenclature"] = nomenclature_summary
+            summary["provenance"]["endpoints"].append(
+                "dataset/{key}/taxon/{id}/synonyms"
+            )
+        except Exception as exc:
+            summary["block_status"]["nomenclature"] = "error"
+            summary["block_errors"]["nomenclature"] = str(exc)
+
+        vernacular_items: List[Dict[str, Any]] = []
+        if params.include_vernaculars:
+            try:
+                vernacular_summary, vernacular_raw, vernacular_items = (
+                    self._col_vernaculars(dataset_key, str(taxon_id))
+                )
+                summary["vernaculars"] = vernacular_summary
+                summary["block_status"]["vernaculars"] = "complete"
+                raw_payload["vernaculars"] = vernacular_raw
+                processed_payload["vernaculars"] = vernacular_summary
+                summary["provenance"]["endpoints"].append(
+                    "dataset/{key}/taxon/{id}/vernacular"
+                )
+            except Exception as exc:
+                summary["block_status"]["vernaculars"] = "error"
+                summary["block_errors"]["vernaculars"] = str(exc)
+
+        if params.include_distributions:
+            try:
+                distribution_summary, distribution_raw = self._col_distribution_summary(
+                    dataset_key, str(taxon_id)
+                )
+                summary["distribution_summary"] = distribution_summary
+                summary["block_status"]["distribution_summary"] = "complete"
+                raw_payload["distributions"] = distribution_raw
+                processed_payload["distribution_summary"] = distribution_summary
+                summary["provenance"]["endpoints"].append(
+                    "dataset/{key}/taxon/{id}/distribution"
+                )
+            except Exception as exc:
+                summary["block_status"]["distribution_summary"] = "error"
+                summary["block_errors"]["distribution_summary"] = str(exc)
+
+        if params.include_references:
+            try:
+                references_summary, references_raw = self._col_references(
+                    dataset_key=dataset_key,
+                    taxon_raw=raw_payload.get("taxon", {}),
+                    nomenclature_raw=raw_payload.get("synonyms", {}),
+                    vernacular_items=vernacular_items,
+                    reference_limit=params.reference_limit,
+                )
+                summary["references"] = references_summary
+                summary["block_status"]["references"] = "complete"
+                raw_payload["references"] = references_raw
+                processed_payload["references"] = references_summary
+                summary["provenance"]["endpoints"].append(
+                    "dataset/{key}/reference/{id}"
+                )
+            except Exception as exc:
+                summary["block_status"]["references"] = "error"
+                summary["block_errors"]["references"] = str(exc)
+
+        summary["provenance"]["outcome"] = (
+            "partial" if summary["block_errors"] else "complete"
+        )
+        self.log_messages.append(
+            f"[green][{emoji('✓', '[OK]')}] Catalogue of Life data successfully retrieved for {query_value}[/green]"
         )
 
         return {
@@ -1438,6 +1670,380 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             "occurrences": f"https://www.gbif.org/occurrence/search?taxon_key={usage_key}",
         }
 
+    def _col_dataset_key(self, params: ApiTaxonomyEnricherParams) -> int:
+        """Resolve the ChecklistBank dataset key to use for Catalogue of Life."""
+
+        return int(params.dataset_key or COL_DEFAULT_DATASET_KEY)
+
+    def _col_search_url(self, dataset_key: int) -> str:
+        """Build the ChecklistBank nameusage search URL."""
+
+        return f"{COL_API_BASE}/dataset/{dataset_key}/nameusage/search"
+
+    def _col_dataset_metadata(self, dataset_key: int) -> Dict[str, Any]:
+        """Fetch metadata for a ChecklistBank dataset."""
+
+        return self._request_json(f"{COL_API_BASE}/dataset/{dataset_key}")
+
+    def _col_release_label(self, dataset_raw: Dict[str, Any], dataset_key: int) -> str:
+        """Extract a human-readable release label for provenance."""
+
+        for key in ("label", "version", "alias", "title"):
+            value = dataset_raw.get(key)
+            if value:
+                return str(value)
+        return f"dataset:{dataset_key}"
+
+    def _col_match(
+        self, query_value: str, dataset_key: int
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Resolve a Catalogue of Life match summary and raw payload."""
+
+        raw = self._request_json(
+            self._col_search_url(dataset_key),
+            {"q": query_value, "limit": 10},
+        )
+        candidates = self._normalize_list_payload(raw)
+        selected = self._col_select_match(candidates, query_value)
+        summary = self._col_extract_match_summary(selected, dataset_key, query_value)
+        return summary, raw
+
+    def _col_select_match(
+        self, candidates: List[Dict[str, Any]], query_value: str
+    ) -> Dict[str, Any]:
+        """Pick the best ChecklistBank search result for a query."""
+
+        if not candidates:
+            return {}
+
+        normalized_query = self._normalize_taxon_text(query_value)
+
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int, int]:
+            usage = (
+                candidate.get("usage")
+                if isinstance(candidate.get("usage"), dict)
+                else candidate
+            )
+            name_info = usage.get("name") if isinstance(usage.get("name"), dict) else {}
+            scientific_name = self._normalize_taxon_text(
+                name_info.get("scientificName")
+                or usage.get("label")
+                or candidate.get("name")
+            )
+            status = self._coerce_string(usage.get("status")).lower()
+            exact = 1 if scientific_name == normalized_query else 0
+            accepted = 2 if status == "accepted" else 1 if "accepted" in status else 0
+            has_classification = (
+                len(candidate.get("classification"))
+                if isinstance(candidate.get("classification"), list)
+                else 0
+            )
+            has_id = (
+                1 if self._coerce_string(usage.get("id") or candidate.get("id")) else 0
+            )
+            return (exact, accepted, has_classification, has_id)
+
+        return max(candidates, key=score)
+
+    def _col_extract_match_summary(
+        self,
+        candidate: Dict[str, Any],
+        dataset_key: int,
+        query_value: str,
+    ) -> Dict[str, Any]:
+        """Normalize a ChecklistBank search result into the match block."""
+
+        if not isinstance(candidate, dict):
+            return {
+                "taxon_id": "",
+                "name_id": "",
+                "scientific_name": "",
+                "authorship": "",
+                "canonical_name": "",
+                "rank": "",
+                "status": "",
+                "matched_name": query_value,
+                "dataset_key": dataset_key,
+            }
+
+        usage = (
+            candidate.get("usage")
+            if isinstance(candidate.get("usage"), dict)
+            else candidate
+        )
+        name_info = usage.get("name") if isinstance(usage.get("name"), dict) else {}
+        scientific_name = self._coerce_string(name_info.get("scientificName"))
+        authorship = self._coerce_string(name_info.get("authorship"))
+
+        return {
+            "taxon_id": self._coerce_string(usage.get("id") or candidate.get("id")),
+            "name_id": self._coerce_string(name_info.get("id")),
+            "scientific_name": scientific_name,
+            "authorship": authorship,
+            "canonical_name": scientific_name,
+            "rank": self._coerce_string(name_info.get("rank") or usage.get("rank")),
+            "status": self._coerce_string(usage.get("status")),
+            "matched_name": query_value,
+            "dataset_key": dataset_key,
+        }
+
+    def _col_taxon_detail(
+        self, dataset_key: int, taxon_id: str
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Fetch the ChecklistBank taxon record and normalize the match block."""
+
+        raw = self._request_json(
+            f"{COL_API_BASE}/dataset/{dataset_key}/taxon/{taxon_id}"
+        )
+        name_info = raw.get("name") if isinstance(raw.get("name"), dict) else {}
+        scientific_name = self._coerce_string(name_info.get("scientificName"))
+        authorship = self._coerce_string(name_info.get("authorship"))
+
+        return (
+            {
+                "taxon_id": self._coerce_string(raw.get("id") or taxon_id),
+                "name_id": self._coerce_string(name_info.get("id")),
+                "scientific_name": scientific_name,
+                "authorship": authorship,
+                "canonical_name": scientific_name,
+                "rank": self._coerce_string(name_info.get("rank") or raw.get("rank")),
+                "status": self._coerce_string(raw.get("status")),
+                "matched_name": scientific_name
+                or self._coerce_string(raw.get("label")),
+                "dataset_key": dataset_key,
+            },
+            raw,
+        )
+
+    def _col_taxonomy(
+        self, dataset_key: int, taxon_id: str, fallback_species: str
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build the taxonomy block for a ChecklistBank taxon."""
+
+        raw = self._request_json(
+            f"{COL_API_BASE}/dataset/{dataset_key}/taxon/{taxon_id}/classification"
+        )
+        items = self._normalize_list_payload(raw)
+        classification = [
+            {
+                "rank": self._coerce_string(item.get("rank")).lower(),
+                "name": self._coerce_string(item.get("name")),
+            }
+            for item in items
+            if isinstance(item, dict)
+            and self._coerce_string(item.get("rank"))
+            and self._coerce_string(item.get("name"))
+        ]
+
+        taxonomy: Dict[str, Any] = {
+            "classification": classification,
+            "kingdom": None,
+            "phylum": None,
+            "class": None,
+            "order": None,
+            "family": None,
+            "genus": None,
+            "species": fallback_species or None,
+        }
+
+        for item in classification:
+            rank = item["rank"]
+            if rank in taxonomy:
+                taxonomy[rank] = item["name"]
+
+        return taxonomy, raw
+
+    def _col_nomenclature(
+        self,
+        dataset_key: int,
+        taxon_id: str,
+        match_summary: Dict[str, Any],
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build the nomenclature block for a ChecklistBank taxon."""
+
+        raw = self._request_json(
+            f"{COL_API_BASE}/dataset/{dataset_key}/taxon/{taxon_id}/synonyms"
+        )
+        homotypic = self._normalize_list_payload(raw.get("homotypic"))
+        heterotypic = self._normalize_list_payload(raw.get("heterotypic"))
+        all_items = homotypic + heterotypic
+
+        samples: List[str] = []
+        for item in all_items:
+            name_info = item.get("name") if isinstance(item.get("name"), dict) else {}
+            scientific_name = self._coerce_string(name_info.get("scientificName"))
+            authorship = self._coerce_string(name_info.get("authorship"))
+            label = " ".join(
+                part for part in (scientific_name, authorship) if part
+            ).strip()
+            if label and label not in samples:
+                samples.append(label)
+            if len(samples) >= 5:
+                break
+
+        scientific_name = self._coerce_string(match_summary.get("scientific_name"))
+        authorship = self._coerce_string(match_summary.get("authorship"))
+
+        return (
+            {
+                "accepted_name": scientific_name,
+                "accepted_name_with_authors": " ".join(
+                    part for part in (scientific_name, authorship) if part
+                ).strip(),
+                "synonyms_count": len(all_items),
+                "synonyms_sample": samples,
+            },
+            raw,
+        )
+
+    def _col_vernaculars(
+        self, dataset_key: int, taxon_id: str
+    ) -> tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]:
+        """Build the vernaculars block for a ChecklistBank taxon."""
+
+        raw = self._request_json(
+            f"{COL_API_BASE}/dataset/{dataset_key}/taxon/{taxon_id}/vernacular",
+            {"limit": 50},
+        )
+        items = self._normalize_list_payload(raw)
+        by_language: Dict[str, List[str]] = {}
+        sample: List[Dict[str, Any]] = []
+
+        for item in items:
+            name = self._coerce_string(item.get("name"))
+            if not name:
+                continue
+            language = self._coerce_string(item.get("language")) or "und"
+            language_bucket = by_language.setdefault(language, [])
+            if name not in language_bucket:
+                language_bucket.append(name)
+            if len(sample) < 8:
+                sample.append(
+                    {
+                        "name": name,
+                        "language": language,
+                        "country": self._coerce_string(item.get("country")),
+                        "area": self._coerce_string(item.get("area")),
+                    }
+                )
+
+        return (
+            {
+                "vernacular_count": len(items),
+                "by_language": {
+                    language: names[:5] for language, names in by_language.items()
+                },
+                "sample": sample,
+            },
+            raw,
+            items,
+        )
+
+    def _col_distribution_summary(
+        self, dataset_key: int, taxon_id: str
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build a compact ChecklistBank distribution summary."""
+
+        raw = self._request_json(
+            f"{COL_API_BASE}/dataset/{dataset_key}/taxon/{taxon_id}/distribution",
+            {"limit": 50},
+        )
+        items = self._normalize_list_payload(raw)
+        areas: List[str] = []
+        gazetteers: List[str] = []
+
+        for item in items:
+            area = item.get("area") if isinstance(item.get("area"), dict) else {}
+            name = self._coerce_string(area.get("name"))
+            gazetteer = self._coerce_string(area.get("gazetteer"))
+            if name and name not in areas:
+                areas.append(name)
+            if gazetteer and gazetteer not in gazetteers:
+                gazetteers.append(gazetteer)
+
+        return (
+            {
+                "distribution_count": len(items),
+                "areas": areas[:10],
+                "gazetteers": gazetteers[:5],
+            },
+            raw,
+        )
+
+    def _col_references(
+        self,
+        dataset_key: int,
+        taxon_raw: Dict[str, Any],
+        nomenclature_raw: Dict[str, Any],
+        vernacular_items: List[Dict[str, Any]],
+        reference_limit: int,
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Build a compact ChecklistBank reference summary."""
+
+        reference_ids: List[str] = []
+
+        def collect_reference_ids(value: Any) -> None:
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        reference_id = item.strip()
+                        if reference_id and reference_id not in reference_ids:
+                            reference_ids.append(reference_id)
+                    elif isinstance(item, dict):
+                        collect_reference_ids(item.get("referenceIds"))
+                        collect_reference_ids(item.get("referenceId"))
+            elif isinstance(value, str):
+                reference_id = value.strip()
+                if reference_id and reference_id not in reference_ids:
+                    reference_ids.append(reference_id)
+
+        collect_reference_ids(taxon_raw.get("referenceIds"))
+        collect_reference_ids(nomenclature_raw.get("homotypic"))
+        collect_reference_ids(nomenclature_raw.get("heterotypic"))
+        for item in vernacular_items:
+            collect_reference_ids(item.get("referenceId"))
+
+        references_raw: List[Dict[str, Any]] = []
+        items: List[Dict[str, Any]] = []
+        for reference_id in reference_ids[:reference_limit]:
+            raw = self._request_json(
+                f"{COL_API_BASE}/dataset/{dataset_key}/reference/{reference_id}"
+            )
+            references_raw.append(raw)
+            items.append(
+                {
+                    "id": self._coerce_string(raw.get("id") or reference_id),
+                    "citation": self._coerce_string(raw.get("citation")),
+                    "title": self._coerce_string(
+                        (raw.get("csl") or {}).get("title")
+                        if isinstance(raw.get("csl"), dict)
+                        else None
+                    ),
+                    "year": raw.get("year"),
+                }
+            )
+
+        return (
+            {
+                "references_count": len(reference_ids),
+                "items": items,
+            },
+            references_raw,
+        )
+
+    def _col_build_links(
+        self, dataset_key: int, taxon_id: str, taxon_raw: Dict[str, Any]
+    ) -> Dict[str, str]:
+        """Build public ChecklistBank links for a matched taxon."""
+
+        links = {
+            "checklistbank_taxon": f"https://www.checklistbank.org/dataset/{dataset_key}/taxon/{taxon_id}",
+        }
+        source_link = self._coerce_string(taxon_raw.get("link"))
+        if source_link:
+            links["source_record"] = source_link
+        return links
+
     def _gbif_extract_iucn_category(
         self, iucn_raw: Any, detail_raw: Dict[str, Any]
     ) -> Optional[str]:
@@ -1500,7 +2106,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         if not isinstance(payload, dict):
             return []
 
-        for key in ("results", "data", "items", "records"):
+        for key in ("results", "result", "data", "items", "records"):
             value = payload.get(key)
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]

@@ -323,6 +323,7 @@ const isStructuredSourceSummary = (data: Record<string, any> | undefined): boole
         'occurrence_summary' in data ||
         'media_summary' in data ||
         'nomenclature' in data ||
+        'vernaculars' in data ||
         'references' in data ||
         'distribution_summary' in data
       )
@@ -723,10 +724,250 @@ const renderTropicosStructuredSummary = (
   )
 }
 
+const renderColStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const match = data.match ?? {}
+  const taxonomy = data.taxonomy ?? {}
+  const nomenclature = data.nomenclature ?? {}
+  const vernaculars = data.vernaculars ?? {}
+  const distributionSummary = data.distribution_summary ?? {}
+  const references = data.references ?? {}
+  const links = data.links ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+  const noMatch = blockStatus.match === 'no_match' || !match.taxon_id
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      <div className="rounded-lg border border-border/70 bg-background p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">Match</div>
+          {renderStatusPill(blockStatus.match)}
+        </div>
+        {noMatch ? (
+          <div className="text-sm text-muted-foreground">
+            {t('dashboard.enrichment.structured.noMatch', {
+              defaultValue: "Catalogue of Life n’a pas retourné de match exploitable pour ce test.",
+            })}
+          </div>
+        ) : (
+          renderSummaryRows([
+            ['taxon_id', match.taxon_id],
+            ['name_id', match.name_id],
+            ['scientific_name', match.scientific_name],
+            ['authorship', match.authorship],
+            ['rank', match.rank],
+            ['status', match.status],
+            ['dataset_key', match.dataset_key],
+          ])
+        )}
+      </div>
+
+      {!noMatch ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Taxonomy</div>
+              {renderStatusPill(blockStatus.taxonomy)}
+            </div>
+            {blockErrors.taxonomy ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['kingdom', taxonomy.kingdom],
+                  ['phylum', taxonomy.phylum],
+                  ['class', taxonomy.class],
+                  ['order', taxonomy.order],
+                  ['family', taxonomy.family],
+                  ['genus', taxonomy.genus],
+                  ['species', taxonomy.species],
+                ])}
+                {Array.isArray(taxonomy.classification) && taxonomy.classification.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Classification</div>
+                    <div className="flex flex-wrap gap-2">
+                      {taxonomy.classification.map((item: Record<string, any>, index: number) => {
+                        const label = [item.rank, item.name].filter(Boolean).join(': ')
+                        return (
+                          <Badge key={`${item.rank || 'rank'}-${item.name || index}`} variant="outline">
+                            {label}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Nomenclature</div>
+              {renderStatusPill(blockStatus.nomenclature)}
+            </div>
+            {blockErrors.nomenclature ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.nomenclature)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['accepted_name', nomenclature.accepted_name],
+                  ['accepted_name_with_authors', nomenclature.accepted_name_with_authors],
+                  ['synonyms_count', nomenclature.synonyms_count],
+                ])}
+                {Array.isArray(nomenclature.synonyms_sample) && nomenclature.synonyms_sample.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Synonyms</div>
+                    <div className="flex flex-wrap gap-2">
+                      {nomenclature.synonyms_sample.map((name: string) => (
+                        <Badge key={name} variant="outline">{name}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Vernaculars</div>
+              {renderStatusPill(blockStatus.vernaculars)}
+            </div>
+            {blockErrors.vernaculars ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.vernaculars)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['vernacular_count', vernaculars.vernacular_count]])}
+                {Array.isArray(vernaculars.sample) && vernaculars.sample.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Sample</div>
+                    <div className="flex flex-wrap gap-2">
+                      {vernaculars.sample.map((item: Record<string, any>, index: number) => {
+                        const label = [item.name, item.language ? `(${item.language})` : '']
+                          .filter(Boolean)
+                          .join(' ')
+                        return (
+                          <Badge key={`${item.name || 'vernacular'}-${item.language || index}`} variant="outline">
+                            {label}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                {vernaculars.by_language && typeof vernaculars.by_language === 'object' ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">By language</div>
+                    <div className="space-y-2">
+                      {Object.entries(vernaculars.by_language).map(([language, names]) => (
+                        <div key={language} className="rounded-md border p-3">
+                          <div className="mb-2 text-xs font-medium text-muted-foreground">{language}</div>
+                          <div className="flex flex-wrap gap-2">
+                            {Array.isArray(names)
+                              ? names.map((name) => (
+                                  <Badge key={`${language}-${String(name)}`} variant="outline">
+                                    {String(name)}
+                                  </Badge>
+                                ))
+                              : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Distribution</div>
+              {renderStatusPill(blockStatus.distribution_summary)}
+            </div>
+            {blockErrors.distribution_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.distribution_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['distribution_count', distributionSummary.distribution_count]])}
+                {Array.isArray(distributionSummary.areas) && distributionSummary.areas.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Areas</div>
+                    <div className="flex flex-wrap gap-2">
+                      {distributionSummary.areas.map((area: string) => (
+                        <Badge key={area} variant="outline">{area}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(distributionSummary.gazetteers) && distributionSummary.gazetteers.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Gazetteers</div>
+                    <div className="flex flex-wrap gap-2">
+                      {distributionSummary.gazetteers.map((gazetteer: string) => (
+                        <Badge key={gazetteer} variant="outline">{gazetteer}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">References</div>
+              {renderStatusPill(blockStatus.references)}
+            </div>
+            {blockErrors.references ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.references)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['references_count', references.references_count]])}
+                {Array.isArray(references.items) && references.items.length > 0 ? (
+                  <div className="space-y-2">
+                    {references.items.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.id || item.citation || index}`} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">{item.title || item.citation || 'Reference'}</div>
+                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          {item.year ? <div>{String(item.year)}</div> : null}
+                          {item.citation ? <div className="break-words">{item.citation}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {Object.keys(links).length > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-background p-3">
+              <div className="mb-3 text-sm font-semibold">Links</div>
+              {renderSummaryRows(Object.entries(links))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 const renderStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
 ) => {
+  if (
+    data?.provenance?.profile === 'col_rich' ||
+    'vernaculars' in data
+  ) {
+    return renderColStructuredSummary(data, t)
+  }
+
   if (
     data?.provenance?.profile === 'tropicos_rich' ||
     'nomenclature' in data ||

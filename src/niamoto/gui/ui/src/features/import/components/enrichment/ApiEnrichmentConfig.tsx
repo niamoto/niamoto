@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { cn } from '@/lib/utils'
+import { buildColSearchUrl } from './enrichmentSources'
 
 interface ApiEnrichmentConfigProps {
   config: ApiConfig
@@ -50,12 +51,15 @@ export interface ApiConfig {
   query_param_name?: string  // Name of the query parameter (default: 'q')
   profile?: string
   taxonomy_source?: string
+  dataset_key?: number
   include_taxonomy?: boolean
   include_occurrences?: boolean
   include_media?: boolean
   include_references?: boolean
+  include_vernaculars?: boolean
   include_distributions?: boolean
   media_limit?: number
+  reference_limit?: number
   rate_limit: number
   cache_results: boolean
   response_mapping?: Record<string, string>
@@ -89,18 +93,23 @@ interface PresetAPI {
     query_param_name?: string
     profile?: string
     taxonomy_source?: string
+    dataset_key?: number
     include_taxonomy?: boolean
     include_occurrences?: boolean
     include_media?: boolean
     include_references?: boolean
+    include_vernaculars?: boolean
     include_distributions?: boolean
     media_limit?: number
+    reference_limit?: number
     response_mapping?: Record<string, string>
   }
 }
 
 // API Categories for filtering presets
 export type ApiCategory = 'taxonomy' | 'elevation' | 'spatial' | 'all'
+
+const COL_DEFAULT_DATASET_KEY = 314774
 
 interface PresetAPIWithCategory extends PresetAPI {
   category: ApiCategory
@@ -191,6 +200,27 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
         image_small_thumb: 'image.small_thumb',
         image_big_thumb: 'image.big_thumb'
       }
+    }
+  },
+  {
+    name: 'Catalogue of Life',
+    iconSrc: '/provider-logos/col.jpg',
+    websiteUrl: 'https://www.catalogueoflife.org/',
+    docsUrl: 'https://api.checklistbank.org/',
+    category: 'taxonomy',
+    descriptionKey: 'apiEnrichment.presets.col.description',
+    config: {
+      api_url: buildColSearchUrl(COL_DEFAULT_DATASET_KEY),
+      auth_method: 'none',
+      profile: 'col_rich',
+      dataset_key: COL_DEFAULT_DATASET_KEY,
+      include_vernaculars: true,
+      include_distributions: true,
+      include_references: true,
+      reference_limit: 5,
+      query_param_name: 'q',
+      query_params: {},
+      response_mapping: {}
     }
   },
   {
@@ -420,8 +450,14 @@ export function ApiEnrichmentConfig({
   const [newMapping, setNewMapping] = useState({ target: '', source: '' })
   const isGbifRichProfile = config.profile === 'gbif_rich'
   const isTropicosRichProfile = config.profile === 'tropicos_rich'
-  const isStructuredProfile = isGbifRichProfile || isTropicosRichProfile
+  const isColRichProfile = config.profile === 'col_rich'
+  const isStructuredProfile = isGbifRichProfile || isTropicosRichProfile || isColRichProfile
   const selectedPreset = useMemo(() => {
+    const structuredPreset = filteredPresets.find((preset) => (
+      preset.config.profile && preset.config.profile === config.profile
+    ))
+    if (structuredPreset) return structuredPreset
+
     const currentUrl = normalizeApiUrl(config.api_url)
     if (!currentUrl) return null
 
@@ -451,12 +487,15 @@ export function ApiEnrichmentConfig({
         query_param_name: preset.config.query_param_name || 'q',
         profile: preset.config.profile,
         taxonomy_source: preset.config.taxonomy_source,
+        dataset_key: preset.config.dataset_key,
         include_taxonomy: preset.config.include_taxonomy ?? true,
         include_occurrences: preset.config.include_occurrences ?? true,
         include_media: preset.config.include_media ?? true,
         include_references: preset.config.include_references ?? true,
+        include_vernaculars: preset.config.include_vernaculars ?? true,
         include_distributions: preset.config.include_distributions ?? true,
         media_limit: preset.config.media_limit ?? 3,
+        reference_limit: preset.config.reference_limit ?? 5,
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
       onPresetSelect?.(preset.name)
@@ -937,6 +976,88 @@ export function ApiEnrichmentConfig({
                     </div>
                   </div>
                 </div>
+              ) : isColRichProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>Catalogue of Life Rich</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Utilise un pipeline structuré ChecklistBank avec taxonomie,
+                      synonymes, noms vernaculaires, distributions et références.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="col-dataset-key">ChecklistBank dataset key</Label>
+                    <Input
+                      id="col-dataset-key"
+                      type="number"
+                      min={1}
+                      value={String(config.dataset_key ?? COL_DEFAULT_DATASET_KEY)}
+                      onChange={(e) => {
+                        const datasetKey = Number.parseInt(e.target.value || '0', 10) || COL_DEFAULT_DATASET_KEY
+                        onChange({
+                          ...config,
+                          dataset_key: datasetKey,
+                          api_url: buildColSearchUrl(datasetKey),
+                        })
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Clé de release ChecklistBank utilisée pour la recherche et les détails du taxon.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Vernaculars</div>
+                        <div className="text-xs text-muted-foreground">Noms vernaculaires par langue</div>
+                      </div>
+                      <Switch
+                        checked={config.include_vernaculars ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_vernaculars: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Distributions</div>
+                        <div className="text-xs text-muted-foreground">Régions et pays quand disponibles</div>
+                      </div>
+                      <Switch
+                        checked={config.include_distributions ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">References</div>
+                        <div className="text-xs text-muted-foreground">Citations ChecklistBank résumées</div>
+                      </div>
+                      <Switch
+                        checked={config.include_references ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="reference-limit">Reference limit</Label>
+                      <Input
+                        id="reference-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.reference_limit ?? 5)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            reference_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : null}
 
               {/* Test Connection */}
@@ -1129,7 +1250,9 @@ export function ApiEnrichmentConfig({
                   <AlertDescription>
                     {isGbifRichProfile
                       ? "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
-                      : "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."}
+                      : isTropicosRichProfile
+                        ? "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
+                        : "Catalogue of Life Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Le mapping manuel n'est pas requis pour ce preset."}
                   </AlertDescription>
                 </Alert>
               ) : null}

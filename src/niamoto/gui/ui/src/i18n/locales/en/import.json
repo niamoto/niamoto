@@ -231,6 +231,9 @@
       "endemia": {
         "description": "Floristic database for New Caledonia"
       },
+      "col": {
+        "description": "Taxonomic consolidation through Catalogue of Life and ChecklistBank"
+      },
       "gbif": {
         "description": "Global Biodiversity Information Facility"
       },
@@ -270,6 +273,7 @@
     },
     "providers": {
       "endemia": "Endemia NC",
+      "col": "Catalogue of Life",
       "gbif": "GBIF",
       "wfo": "WFO",
       "ipni": "IPNI",

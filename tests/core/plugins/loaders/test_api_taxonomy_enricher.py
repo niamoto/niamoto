@@ -146,6 +146,26 @@ def test_config_validation_allows_tropicos_rich_without_response_mapping():
     assert config.params.response_mapping == {}
 
 
+def test_config_validation_allows_col_rich_without_response_mapping():
+    """Structured COL profile should not require flat response_mapping."""
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
+            "profile": "col_rich",
+            "dataset_key": 314774,
+            "query_param_name": "q",
+            "response_mapping": {},
+        },
+    }
+
+    config = ApiTaxonomyEnricherConfig(**config_dict)
+    assert config.params.profile == "col_rich"
+    assert config.params.dataset_key == 314774
+    assert config.params.response_mapping == {}
+
+
 @pytest.mark.parametrize(
     "auth_method, auth_params, error_message",
     [
@@ -601,6 +621,232 @@ def test_load_data_tropicos_rich_handles_no_match(
                 "name": "apikey",
                 "key": "secret",
             },
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Unknown species"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
+    assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
+
+
+def test_load_data_col_rich_returns_structured_summary(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """Catalogue of Life rich profile should return a structured summary."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_col_dataset_metadata",
+        lambda dataset_key: {
+            "key": dataset_key,
+            "label": "Catalogue of Life (2026-04-07 XR)",
+            "version": "2026-04-07 XR",
+        },
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_match",
+        lambda query, dataset_key: (
+            {
+                "taxon_id": "C66X",
+                "name_id": "3FNWHqciKg9O2_kT0ohQ8",
+                "scientific_name": query,
+                "authorship": "(Schltr.) Guillaumin",
+                "canonical_name": query,
+                "rank": "species",
+                "status": "accepted",
+                "matched_name": query,
+                "dataset_key": dataset_key,
+            },
+            {"result": [{"id": "C66X"}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_taxon_detail",
+        lambda dataset_key, taxon_id: (
+            {
+                "taxon_id": taxon_id,
+                "name_id": "3FNWHqciKg9O2_kT0ohQ8",
+                "scientific_name": "Alphitonia neocaledonica",
+                "authorship": "(Schltr.) Guillaumin",
+                "canonical_name": "Alphitonia neocaledonica",
+                "rank": "species",
+                "status": "accepted",
+                "matched_name": "Alphitonia neocaledonica",
+                "dataset_key": dataset_key,
+            },
+            {"id": taxon_id, "link": "https://example.org/source"},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_build_links",
+        lambda dataset_key, taxon_id, taxon_raw: {
+            "checklistbank_taxon": f"https://www.checklistbank.org/dataset/{dataset_key}/taxon/{taxon_id}",
+            "source_record": taxon_raw["link"],
+        },
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_taxonomy",
+        lambda dataset_key, taxon_id, fallback_species: (
+            {
+                "classification": [{"rank": "family", "name": "Rhamnaceae"}],
+                "kingdom": "Plantae",
+                "family": "Rhamnaceae",
+                "genus": "Alphitonia",
+                "species": fallback_species,
+            },
+            {"results": [{"rank": "family", "name": "Rhamnaceae"}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_nomenclature",
+        lambda dataset_key, taxon_id, match_summary: (
+            {
+                "accepted_name": "Alphitonia neocaledonica",
+                "accepted_name_with_authors": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+                "synonyms_count": 2,
+                "synonyms_sample": ["Pomaderris neocaledonica Schltr."],
+            },
+            {"homotypic": [], "heterotypic": []},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_vernaculars",
+        lambda dataset_key, taxon_id: (
+            {
+                "vernacular_count": 2,
+                "by_language": {"eng": ["Soap tree"]},
+                "sample": [{"name": "Soap tree", "language": "eng"}],
+            },
+            {"results": [{"name": "Soap tree", "language": "eng"}]},
+            [{"name": "Soap tree", "language": "eng"}],
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_distribution_summary",
+        lambda dataset_key, taxon_id: (
+            {
+                "distribution_count": 1,
+                "areas": ["New Caledonia"],
+                "gazetteers": ["text"],
+            },
+            {"results": [{"area": {"name": "New Caledonia", "gazetteer": "text"}}]},
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_references",
+        lambda dataset_key,
+        taxon_raw,
+        nomenclature_raw,
+        vernacular_items,
+        reference_limit: (
+            {
+                "references_count": 1,
+                "items": [
+                    {
+                        "id": "ref-1",
+                        "citation": "Guillaumin. (1911).",
+                        "title": "Notul. Syst.",
+                    }
+                ],
+            },
+            [{"id": "ref-1"}],
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
+            "profile": "col_rich",
+            "dataset_key": 314774,
+            "query_field": "full_name",
+            "query_param_name": "q",
+            "include_vernaculars": True,
+            "include_distributions": True,
+            "include_references": True,
+            "reference_limit": 5,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["match"]["taxon_id"] == "C66X"
+    assert enriched["api_enrichment"]["taxonomy"]["family"] == "Rhamnaceae"
+    assert enriched["api_enrichment"]["nomenclature"]["synonyms_count"] == 2
+    assert enriched["api_enrichment"]["vernaculars"]["vernacular_count"] == 2
+    assert enriched["api_enrichment"]["distribution_summary"]["areas"] == [
+        "New Caledonia"
+    ]
+    assert enriched["api_enrichment"]["references"]["references_count"] == 1
+    assert enriched["api_enrichment"]["provenance"]["dataset_key"] == 314774
+    assert (
+        enriched["api_enrichment"]["provenance"]["release_label"]
+        == "Catalogue of Life (2026-04-07 XR)"
+    )
+    assert enriched["api_response_raw"]["search"] == {"result": [{"id": "C66X"}]}
+
+
+def test_load_data_col_rich_handles_no_match(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """Catalogue of Life rich profile should return a structured no-match outcome."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_col_dataset_metadata",
+        lambda dataset_key: {
+            "key": dataset_key,
+            "label": "Catalogue of Life (2026-04-07 XR)",
+        },
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_col_match",
+        lambda query, dataset_key: (
+            {
+                "taxon_id": "",
+                "name_id": "",
+                "scientific_name": "",
+                "authorship": "",
+                "canonical_name": "",
+                "rank": "",
+                "status": "",
+                "matched_name": query,
+                "dataset_key": dataset_key,
+            },
+            {"result": []},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
+            "profile": "col_rich",
+            "dataset_key": 314774,
+            "query_field": "full_name",
+            "query_param_name": "q",
             "response_mapping": {},
             "cache_results": False,
         },

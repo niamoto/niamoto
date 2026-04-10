@@ -231,6 +231,9 @@
       "endemia": {
         "description": "Base de données floristique de Nouvelle-Calédonie"
       },
+      "col": {
+        "description": "Consolidation taxonomique via Catalogue of Life et ChecklistBank"
+      },
       "gbif": {
         "description": "Global Biodiversity Information Facility"
       },
@@ -270,6 +273,7 @@
     },
     "providers": {
       "endemia": "Endemia NC",
+      "col": "Catalogue of Life",
       "gbif": "GBIF",
       "wfo": "WFO",
       "ipni": "IPNI",
