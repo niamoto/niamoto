@@ -1,40 +1,20 @@
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { AlertCircle, CheckCircle, Database, FolderOpen, FileText } from 'lucide-react';
-
-interface DiagnosticInfo {
-  working_directory: string;
-  database: {
-    path: string | null;
-    exists: boolean;
-    tables: string[];
-  };
-  config_files: {
-    [key: string]: {
-      exists: boolean;
-      path: string;
-    };
-  };
-}
+import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { AlertCircle, CheckCircle, Database, FolderOpen, FileText } from 'lucide-react'
+import { getDiagnosticInfo } from '@/shared/lib/api/diagnostics'
+import { sharedQueryKeys } from '@/shared/lib/api/queryKeys'
 
 export function DiagnosticPanel() {
-  const { t } = useTranslation('common');
-  const [diagnostic, setDiagnostic] = useState<DiagnosticInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health/diagnostic')
-      .then((res) => res.json())
-      .then((data) => {
-        setDiagnostic(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+  const { t } = useTranslation('common')
+  const {
+    data: diagnostic,
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: sharedQueryKeys.diagnostic(),
+    queryFn: getDiagnosticInfo,
+    staleTime: 30_000,
+  })
 
   if (loading) {
     return (
@@ -51,13 +31,13 @@ export function DiagnosticPanel() {
           <AlertCircle className="h-5 w-5 text-destructive" />
           <p className="text-sm font-medium">{t('diagnostic.diagnosticError')}</p>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
       </div>
-    );
+    )
   }
 
   if (!diagnostic) {
-    return null;
+    return null
   }
 
   return (
@@ -129,5 +109,5 @@ export function DiagnosticPanel() {
         </div>
       </div>
     </div>
-  );
+  )
 }

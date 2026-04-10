@@ -1,134 +1,51 @@
-import { useEffect, useState } from 'react'
-
-export type PluginType = 'loader' | 'transformer' | 'exporter' | 'widget'
-
-export interface ParameterSchema {
-  name: string
-  type: string
-  required?: boolean
-  default?: any
-  description?: string
-  enum?: any[]
-  min?: number
-  max?: number
-}
-
-export interface Plugin {
-  id: string
-  name: string
-  type: PluginType
-  description: string
-  version?: string
-  author?: string
-  category?: string
-  parameters_schema: ParameterSchema[]
-  compatible_inputs: string[]
-  output_format?: string
-  example_config?: Record<string, any>
-}
+import { useQuery } from '@tanstack/react-query'
+import {
+  getPlugin,
+  listPluginCategories,
+  listPlugins,
+  type ParameterSchema,
+  type Plugin,
+  type PluginType,
+} from '@/features/tools/api/plugins'
+import { toolsQueryKeys } from '@/features/tools/queryKeys'
+export type { ParameterSchema, Plugin, PluginType }
 
 export function usePlugins(type?: PluginType, category?: string) {
-  const [plugins, setPlugins] = useState<Plugin[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: toolsQueryKeys.plugins(type, category),
+    queryFn: () => listPlugins(type, category),
+  })
 
-  useEffect(() => {
-    const fetchPlugins = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const params = new URLSearchParams()
-        if (type) params.append('type', type)
-        if (category) params.append('category', category)
-
-        const response = await fetch(`/api/plugins/${params.toString() ? `?${params.toString()}` : ''}`)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch plugins: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setPlugins(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch plugins')
-        console.error('Error fetching plugins:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPlugins()
-  }, [type, category])
-
-  return { plugins, loading, error }
+  return {
+    plugins: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+  }
 }
 
 export function usePlugin(pluginId: string) {
-  const [plugin, setPlugin] = useState<Plugin | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: toolsQueryKeys.plugin(pluginId),
+    queryFn: () => getPlugin(pluginId),
+    enabled: pluginId.length > 0,
+  })
 
-  useEffect(() => {
-    if (!pluginId) {
-      setPlugin(null)
-      setLoading(false)
-      return
-    }
-
-    const fetchPlugin = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const response = await fetch(`/api/plugins/${pluginId}/`)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch plugin: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setPlugin(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch plugin')
-        console.error('Error fetching plugin:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPlugin()
-  }, [pluginId])
-
-  return { plugin, loading, error }
+  return {
+    plugin: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+  }
 }
 
 export function usePluginCategories() {
-  const [categories, setCategories] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: toolsQueryKeys.pluginCategories(),
+    queryFn: listPluginCategories,
+  })
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const response = await fetch('/api/plugins/categories/list')
-        if (!response.ok) {
-          throw new Error(`Failed to fetch categories: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setCategories(data.categories || [])
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch categories')
-        console.error('Error fetching categories:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchCategories()
-  }, [])
-
-  return { categories, loading, error }
+  return {
+    categories: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+  }
 }

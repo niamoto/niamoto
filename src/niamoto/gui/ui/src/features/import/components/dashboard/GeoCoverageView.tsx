@@ -4,7 +4,8 @@
  * Shows quick FK-based coverage + on-demand spatial analysis button
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,143 +26,50 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-
-interface ShapeInfo {
-  table_name: string
-  display_name: string
-  shape_count: number
-  has_geometry: boolean
-  shape_types: string[]
-}
-
-interface GeoCoverage {
-  total_occurrences: number
-  occurrences_with_geo: number
-  geo_column: string | null
-  available_shapes: ShapeInfo[]
-  ready_for_analysis: boolean
-}
-
-interface ShapeCoverageDetail {
-  shape_type: string
-  shape_table: string
-  total_shapes: number
-  occurrences_covered: number
-  coverage_percent: number
-}
-
-interface SpatialAnalysisResult {
-  total_occurrences: number
-  occurrences_with_geo: number
-  occurrences_without_geo: number
-  shape_coverage: ShapeCoverageDetail[]
-  analysis_time_seconds: number
-  geo_column: string | null
-  status: 'success' | 'no_geo_column' | 'no_shapes' | 'error'
-  message: string | null
-}
-
-interface ShapeOccurrenceCount {
-  shape_id: number
-  shape_name: string
-  shape_type: string
-  occurrence_count: number
-  percent_of_total: number
-}
-
-interface ShapeDistributionResult {
-  total_occurrences_with_geo: number
-  shapes: ShapeOccurrenceCount[]
-  analysis_time_seconds: number
-  status: string
-  message: string | null
-}
+import {
+  getGeoCoverage,
+  getGeoCoverageDistribution,
+  runGeoCoverageAnalysis,
+} from '@/features/import/api/dashboard'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 export function GeoCoverageView() {
   const { t } = useTranslation(['sources', 'common'])
-  const [quickData, setQuickData] = useState<GeoCoverage | null>(null)
-  const [analysisResult, setAnalysisResult] = useState<SpatialAnalysisResult | null>(null)
-  const [distribution, setDistribution] = useState<ShapeDistributionResult | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [loadingDistribution, setLoadingDistribution] = useState(false)
   const [showDistribution, setShowDistribution] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    data: quickData,
+    isLoading: loading,
+    error: quickDataError,
+  } = useQuery({
+    queryKey: importQueryKeys.dashboard.geoCoverage(),
+    queryFn: getGeoCoverage,
+  })
+  const analysisMutation = useMutation({
+    mutationFn: runGeoCoverageAnalysis,
+  })
+  const distributionMutation = useMutation({
+    mutationFn: getGeoCoverageDistribution,
+  })
 
-  // Fetch quick coverage data on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        const response = await fetch('/api/stats/geo-coverage')
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-        const result = await response.json()
-        setQuickData(result)
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : t('geoCoverage.errors.loadCoverage', 'Failed to load coverage data')
-        )
-      } finally {
-        setLoading(false)
-      }
-    }
+  const analysisResult = analysisMutation.data ?? null
+  const distribution = distributionMutation.data ?? null
+  const analyzing = analysisMutation.isPending
+  const loadingDistribution = distributionMutation.isPending
+  const error =
+    analysisMutation.error?.message ??
+    distributionMutation.error?.message ??
+    quickDataError?.message ??
+    null
 
-    fetchData()
-  }, [])
-
-  // Run spatial analysis on demand
   const runAnalysis = async () => {
-    setAnalyzing(true)
-    setError(null)
-    setDistribution(null)
     setShowDistribution(false)
-    try {
-      const response = await fetch('/api/stats/geo-coverage/analyze', {
-        method: 'POST',
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const result = await response.json()
-      setAnalysisResult(result)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t('geoCoverage.errors.analysis', 'Analysis failed')
-      )
-    } finally {
-      setAnalyzing(false)
-    }
+    distributionMutation.reset()
+    await analysisMutation.mutateAsync()
   }
 
-  // Fetch distribution by individual shape
   const fetchDistribution = async () => {
-    setLoadingDistribution(true)
-    setError(null)
-    try {
-      const response = await fetch('/api/stats/geo-coverage/distribution', {
-        method: 'POST',
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const result = await response.json()
-      setDistribution(result)
-      setShowDistribution(true)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t('geoCoverage.errors.distribution', 'Failed to load distribution')
-      )
-    } finally {
-      setLoadingDistribution(false)
-    }
+    await distributionMutation.mutateAsync()
+    setShowDistribution(true)
   }
 
   if (loading) {
