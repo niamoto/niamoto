@@ -3,9 +3,14 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
+import { usePlatform } from '@/shared/hooks/usePlatform'
+import {
+  createInitialDownloadProgressState,
+  reduceDownloadProgressEvent,
+} from './downloadProgress'
 
 export interface UpdateInfo {
-  status: 'idle' | 'checking' | 'available' | 'downloading'
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'installing'
   version?: string
   progress?: number
 }
@@ -17,6 +22,7 @@ const APP_VERSION = __APP_VERSION__
 
 export function useAppUpdater() {
   const { isDesktop } = useRuntimeMode()
+  const { isLinux } = usePlatform()
   const [info, setInfo] = useState<UpdateInfo>({ status: 'idle' })
   const updateRef = useRef<Awaited<ReturnType<typeof check>> | null>(null)
   const toastIdRef = useRef<string | number | undefined>(undefined)
@@ -31,30 +37,39 @@ export function useAppUpdater() {
       toast.dismiss(toastIdRef.current)
     }
 
-    setInfo(prev => ({ ...prev, status: 'downloading', progress: 0 }))
+    setInfo(prev => ({ ...prev, status: 'downloading', progress: undefined }))
     toastIdRef.current = toast.loading('Mise à jour en cours...', {
       duration: Infinity,
     })
 
     try {
-      let downloaded = 0
-      let total = 0
+      let downloadState = createInitialDownloadProgressState()
 
       await update.downloadAndInstall((event) => {
-        if (event.event === 'Started') {
-          total = (event.data as { contentLength?: number }).contentLength ?? 0
-        } else if (event.event === 'Progress') {
-          downloaded += (event.data as { chunkLength: number }).chunkLength
-          if (total > 0) {
-            const pct = Math.min(100, Math.round((downloaded / total) * 100))
-            setInfo(prev => ({ ...prev, progress: pct }))
-            toast.loading(`Mise à jour en cours... ${pct}%`, {
-              id: toastIdRef.current,
-              duration: Infinity,
-            })
-          }
-        }
+        downloadState = reduceDownloadProgressEvent(downloadState, event, { isLinux })
+        setInfo(prev => ({
+          ...prev,
+          status: downloadState.status,
+          progress: downloadState.progress,
+        }))
+        toast.loading(downloadState.label, {
+          id: toastIdRef.current,
+          duration: Infinity,
+        })
       })
+
+      updateRef.current = null
+      setInfo({ status: 'idle' })
+
+      if (isLinux) {
+        toast.success('Mise à jour installée', {
+          id: toastIdRef.current,
+          description:
+            "L'installation est terminée. Fermez puis relancez l'application pour utiliser la nouvelle version.",
+          duration: 10000,
+        })
+        return
+      }
 
       toast.success('Mise à jour installée, redémarrage...', {
         id: toastIdRef.current,
@@ -64,7 +79,6 @@ export function useAppUpdater() {
       try {
         await relaunch()
       } catch (err) {
-        updateRef.current = null
         setInfo({ status: 'idle' })
         toast('Mise à jour installée', {
           id: toastIdRef.current,
@@ -85,7 +99,7 @@ export function useAppUpdater() {
     } finally {
       isInstallingRef.current = false
     }
-  }, [])
+  }, [isLinux])
 
   const checkForUpdate = useCallback(async () => {
     if (!isDesktop || isInstallingRef.current) return

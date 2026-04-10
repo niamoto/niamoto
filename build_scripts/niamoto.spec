@@ -6,7 +6,12 @@ Bundles the entire Python application with all dependencies
 
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata, collect_data_files
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+)
 
 # Base directories
 # PyInstaller runs from project root, so paths are relative to that
@@ -63,6 +68,8 @@ for package_name in [
 
 # Include pyproj coordinate reference data (proj.db)
 datas += collect_data_files('pyproj')
+# Include pyogrio bundled GDAL/PROJ data required by geospatial imports.
+datas += collect_data_files('pyogrio')
 
 # CRITICAL: Include React build (src/niamoto/gui/ui/dist)
 ui_dist = NIAMOTO_SRC / 'gui' / 'ui' / 'dist'
@@ -163,7 +170,14 @@ hiddenimports = [
 ]
 
 # Binaries - additional binary dependencies
-binaries = []
+binaries = collect_dynamic_libs('pyogrio')
+
+# Collect pyogrio extension modules explicitly. Without them, frozen Linux builds
+# can fail at runtime with missing native module errors such as pyogrio_geometry.
+hiddenimports += collect_submodules(
+    'pyogrio',
+    filter=lambda name: not name.startswith('pyogrio.tests'),
+)
 
 # Analysis
 a = Analysis(

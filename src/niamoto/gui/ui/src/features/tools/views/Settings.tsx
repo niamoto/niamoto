@@ -276,10 +276,12 @@ export function Settings() {
                       version: updateVersion,
                     })}
                   </Button>
-                ) : status === 'downloading' ? (
+                ) : status === 'downloading' || status === 'installing' ? (
                   <Button disabled size="sm">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('settings.installingUpdate', 'Installing update...')}
+                    {status === 'installing'
+                      ? t('settings.installingUpdate', 'Installing update...')
+                      : t('settings.downloadingUpdate', 'Downloading update...')}
                   </Button>
                 ) : (
                   <Button

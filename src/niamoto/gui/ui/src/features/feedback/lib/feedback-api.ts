@@ -9,16 +9,27 @@ interface FeedbackSubmission {
 }
 
 export async function sendFeedback({ payload, screenshot }: FeedbackSubmission): Promise<FeedbackResponse> {
+  const workerUrl = WORKER_URL.trim()
+  const apiKey = API_KEY.trim()
+
+  if (!workerUrl) {
+    throw new Error("Feedback endpoint not configured in this build.")
+  }
+
+  if (!apiKey) {
+    throw new Error("Feedback API key not configured in this build.")
+  }
+
   const formData = new FormData()
   formData.append('payload', JSON.stringify(payload))
   if (screenshot) {
     formData.append('screenshot', screenshot, 'feedback.jpg')
   }
 
-  const response = await fetch(`${WORKER_URL}/feedback`, {
+  const response = await fetch(`${workerUrl}/feedback`, {
     method: 'POST',
     headers: {
-      'X-Feedback-Key': API_KEY,
+      'X-Feedback-Key': apiKey,
     },
     body: formData,
   })
