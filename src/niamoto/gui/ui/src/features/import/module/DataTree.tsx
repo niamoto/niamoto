@@ -27,8 +27,8 @@ import {
   Table2,
   Upload,
 } from 'lucide-react'
-import type { DatasetInfo } from '@/hooks/useDatasets'
-import type { ReferenceInfo } from '@/hooks/useReferences'
+import type { DatasetInfo } from '@/features/import/hooks/useDatasets'
+import type { ReferenceInfo } from '@/features/import/hooks/useReferences'
 
 // ---------------------------------------------------------------------------
 // Types

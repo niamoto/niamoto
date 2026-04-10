@@ -42,8 +42,8 @@ import type { FileAnalysisStatus } from '@/features/import/components/upload/Fil
 import { useAutoConfigureJob } from '@/features/import/hooks/useAutoConfigureJob'
 import { useImportJob } from '@/features/import/hooks/useImportJob'
 import { requestBugReport } from '@/features/feedback'
-import { useDatasets } from '@/hooks/useDatasets'
-import { useReferences } from '@/hooks/useReferences'
+import { useDatasets } from '@/features/import/hooks/useDatasets'
+import { useReferences } from '@/features/import/hooks/useReferences'
 
 type ImportPhase =
   | 'idle'

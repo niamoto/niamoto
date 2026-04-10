@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:stats": "pnpm build && node scripts/print-bundle-stats.mjs",
     "test": "vitest run",
     "lint": "eslint .",
     "preview": "vite preview"

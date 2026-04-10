@@ -23,9 +23,9 @@ import { SourcesOverview } from '@/features/import/components/dashboard/SourcesO
 import { VerificationView } from '@/features/import/components/dashboard/VerificationView'
 import { DatasetDetailPanel } from '@/features/import/components/panels/DatasetDetailPanel'
 import { ReferenceDetailPanel } from '@/features/import/components/panels/ReferenceDetailPanel'
-import { useDatasets } from '@/hooks/useDatasets'
-import { useImportSummary } from '@/hooks/useImportSummary'
-import { useReferences } from '@/hooks/useReferences'
+import { useDatasets } from '@/features/import/hooks/useDatasets'
+import { useImportSummary } from '@/features/import/hooks/useImportSummary'
+import { useReferences } from '@/features/import/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
 

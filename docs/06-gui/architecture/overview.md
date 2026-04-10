@@ -41,6 +41,20 @@ The current frontend structure is feature-oriented:
 - [src/features](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features)
 - [src/shared](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/shared)
 
+Transitional root folders still exist, but they are no longer the default extension points:
+
+- [src/hooks](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/hooks): compatibility façades for hooks that are being moved into `src/features` or `src/shared`
+- [src/lib/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/api): compatibility façades for feature APIs that are being moved closer to their domain
+- [src/components](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components): shared UI primitives plus legacy domain components still awaiting migration
+
+Current architecture guardrails:
+
+- new domain logic should land in a feature folder first
+- only truly cross-feature code should land in `src/shared`
+- route modules should be imported by leaf path instead of feature barrels to preserve lazy chunk boundaries
+- feature APIs and query keys should live next to the feature they serve
+- large optional editors or third-party modules should remain behind lazy boundaries
+
 ## Main GUI domains
 
 - `dashboard`: home route and project hub

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
-import type { ReferenceInfo } from '@/hooks/useReferences'
+import type { ReferenceInfo } from '@/features/import/hooks/useReferences'
 
 interface EnrichmentWorkspaceSheetProps {
   open: boolean
