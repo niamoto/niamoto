@@ -1037,19 +1037,19 @@ export function EnrichmentTab({
             </div>
           </div>
 
-          <div className="rounded-md border">
+          <div className="max-h-[180px] overflow-auto rounded-md border">
             {entitiesLoading ? (
-              <div className="flex items-center justify-center py-6">
+              <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             ) : entities.length === 0 ? (
-              <div className="py-6 text-center text-muted-foreground">
-                <Database className="mx-auto mb-1.5 h-6 w-6 opacity-40" />
+              <div className="py-4 text-center text-muted-foreground">
+                <Database className="mx-auto mb-1 h-5 w-5 opacity-40" />
                 <p className="text-xs">{t('enrichmentTab.preview.loadEntities')}</p>
               </div>
             ) : (
               <div className="p-0.5">
-                {entities.map((entity) => (
+                {entities.slice(0, 15).map((entity) => (
                   <button
                     key={entity.id}
                     type="button"
@@ -1066,6 +1066,14 @@ export function EnrichmentTab({
                     <Eye className="h-3 w-3 opacity-0 group-hover:opacity-40" />
                   </button>
                 ))}
+                {entities.length > 15 ? (
+                  <p className="px-2 py-1 text-[10px] text-muted-foreground">
+                    {t('enrichmentTab.preview.moreEntities', {
+                      defaultValue: '{{count}} more — use search to filter',
+                      count: entities.length - 15,
+                    })}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
