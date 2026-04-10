@@ -48,6 +48,7 @@ class ReferencePreviewRequest(BaseModel):
     query: str
     source_id: Optional[str] = None
     source_config: Optional[dict[str, Any]] = None
+    entity_id: Optional[Any] = None
 
 
 def _raise_http_error(message: str) -> None:
@@ -266,6 +267,7 @@ async def preview_enrichment_for_reference(
         request.query,
         source_id=request.source_id,
         source_override=request.source_config,
+        entity_id=request.entity_id,
     )
 
 

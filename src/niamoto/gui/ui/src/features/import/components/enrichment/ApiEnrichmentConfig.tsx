@@ -69,6 +69,11 @@ export interface ApiConfig {
   include_page_preview?: boolean
   title_limit?: number
   page_limit?: number
+  sample_mode?: string
+  sample_count?: number
+  include_bbox_summary?: boolean
+  include_nearby_places?: boolean
+  geometry_field?: string
   rate_limit: number
   cache_results: boolean
   response_mapping?: Record<string, string>
@@ -100,6 +105,7 @@ interface PresetAPI {
       name?: string
     }
     query_params?: Record<string, string>
+    query_field?: string
     query_param_name?: string
     profile?: string
     use_name_verifier?: boolean
@@ -121,6 +127,11 @@ interface PresetAPI {
     include_page_preview?: boolean
     title_limit?: number
     page_limit?: number
+    sample_mode?: string
+    sample_count?: number
+    include_bbox_summary?: boolean
+    include_nearby_places?: boolean
+    geometry_field?: string
     response_mapping?: Record<string, string>
   }
 }
@@ -315,141 +326,50 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
       response_mapping: {}
     }
   },
-  // === ELEVATION APIs (for plots) ===
-  {
-    name: 'Open-Elevation',
-    category: 'elevation',
-    descriptionKey: 'apiEnrichment.presets.openElevation.description',
-    config: {
-      api_url: 'https://api.open-elevation.com/api/v1/lookup',
-      auth_method: 'none',
-      query_params: {},
-      query_param_name: 'locations',
-      response_mapping: {
-        elevation: 'results[0].elevation',
-        elevation_lat: 'results[0].latitude',
-        elevation_lng: 'results[0].longitude'
-      }
-    }
-  },
-  {
-    name: 'Open Topo Data',
-    category: 'elevation',
-    descriptionKey: 'apiEnrichment.presets.openTopoData.description',
-    config: {
-      api_url: 'https://api.opentopodata.org/v1/srtm90m',
-      auth_method: 'none',
-      query_params: {},
-      query_param_name: 'locations',
-      response_mapping: {
-        elevation: 'results[0].elevation',
-        dataset: 'results[0].dataset'
-      }
-    }
-  },
   {
     name: 'Open-Meteo Elevation',
+    websiteUrl: 'https://open-meteo.com/',
+    docsUrl: 'https://open-meteo.com/en/docs/elevation-api',
     category: 'elevation',
     descriptionKey: 'apiEnrichment.presets.openMeteo.description',
     config: {
       api_url: 'https://api.open-meteo.com/v1/elevation',
       auth_method: 'none',
+      profile: 'openmeteo_elevation_v1',
       query_params: {},
-      response_mapping: {
-        elevation: 'elevation[0]'
-      }
+      query_field: 'geometry',
+      query_param_name: 'latitude',
+      sample_mode: 'bbox_grid',
+      sample_count: 9,
+      include_bbox_summary: true,
+      response_mapping: {}
     }
   },
 
   // === SPATIAL APIs (for shapes/plots) ===
   {
     name: 'GeoNames',
+    websiteUrl: 'https://www.geonames.org/',
+    docsUrl: 'https://www.geonames.org/export/web-services.html',
     category: 'spatial',
     descriptionKey: 'apiEnrichment.presets.geoNames.description',
     config: {
-      api_url: 'http://api.geonames.org/countrySubdivisionJSON',
+      api_url: 'https://secure.geonames.org/countrySubdivisionJSON',
       auth_method: 'api_key',
+      profile: 'geonames_spatial_v1',
       auth_params: {
         location: 'query',
         name: 'username',
         key: ''
       },
       query_params: {},
-      query_param_name: 'username',
-      response_mapping: {
-        country_code: 'countryCode',
-        country_name: 'countryName',
-        admin_code1: 'adminCode1',
-        admin_name1: 'adminName1',
-        admin_code2: 'adminCode2',
-        admin_name2: 'adminName2'
-      }
-    }
-  },
-  {
-    name: 'GeoNames FindNearby',
-    category: 'spatial',
-    descriptionKey: 'apiEnrichment.presets.geoNamesNearby.description',
-    config: {
-      api_url: 'http://api.geonames.org/findNearbyJSON',
-      auth_method: 'api_key',
-      auth_params: {
-        location: 'query',
-        name: 'username',
-        key: ''
-      },
-      query_params: {
-        featureClass: 'P',
-        maxRows: '5'
-      },
-      query_param_name: 'username',
-      response_mapping: {
-        nearby_name: 'geonames[0].name',
-        nearby_distance: 'geonames[0].distance',
-        nearby_country: 'geonames[0].countryName',
-        nearby_admin1: 'geonames[0].adminName1',
-        nearby_population: 'geonames[0].population'
-      }
-    }
-  },
-  {
-    name: 'Nominatim (OSM)',
-    category: 'spatial',
-    descriptionKey: 'apiEnrichment.presets.nominatim.description',
-    config: {
-      api_url: 'https://nominatim.openstreetmap.org/reverse',
-      auth_method: 'none',
-      query_params: {
-        format: 'json',
-        addressdetails: '1'
-      },
-      response_mapping: {
-        display_name: 'display_name',
-        osm_type: 'osm_type',
-        osm_id: 'osm_id',
-        address_country: 'address.country',
-        address_state: 'address.state',
-        address_county: 'address.county',
-        address_city: 'address.city'
-      }
-    }
-  },
-  {
-    name: 'geoBoundaries',
-    category: 'spatial',
-    descriptionKey: 'apiEnrichment.presets.geoBoundaries.description',
-    config: {
-      api_url: 'https://www.geoboundaries.org/api/current/gbOpen',
-      auth_method: 'none',
-      query_params: {
-        adm: 'ADM1'
-      },
-      response_mapping: {
-        boundary_name: 'boundaryName',
-        boundary_iso: 'boundaryISO',
-        boundary_type: 'boundaryType',
-        geojson_url: 'gjDownloadURL'
-      }
+      query_field: 'geometry',
+      query_param_name: 'lat',
+      sample_mode: 'bbox_grid',
+      sample_count: 9,
+      include_bbox_summary: true,
+      include_nearby_places: true,
+      response_mapping: {}
     }
   }
 ]
@@ -457,6 +377,9 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
 // Helper to get presets by category
 export function getPresetsByCategory(category: ApiCategory): PresetAPIWithCategory[] {
   if (category === 'all') return PRESET_APIS_ALL
+  if (category === 'spatial') {
+    return PRESET_APIS_ALL.filter((preset) => preset.category === 'spatial' || preset.category === 'elevation')
+  }
   return PRESET_APIS_ALL.filter(p => p.category === category)
 }
 
@@ -480,10 +403,7 @@ export function ApiEnrichmentConfig({
   onPresetSelect,
   category = 'taxonomy',
 }: ApiEnrichmentConfigProps) {
-  // Filter presets by category
-  const filteredPresets = category === 'all'
-    ? PRESET_APIS_ALL
-    : PRESET_APIS_ALL.filter(p => p.category === category)
+  const filteredPresets = getPresetsByCategory(category)
   const { t } = useTranslation(['import', 'common'])
   const [testResult, setTestResult] = useState<{
     success: boolean
@@ -498,8 +418,16 @@ export function ApiEnrichmentConfig({
   const isColRichProfile = config.profile === 'col_rich'
   const isBhlReferencesProfile = config.profile === 'bhl_references'
   const isInaturalistRichProfile = config.profile === 'inaturalist_rich'
+  const isOpenMeteoElevationProfile = config.profile === 'openmeteo_elevation_v1'
+  const isGeoNamesSpatialProfile = config.profile === 'geonames_spatial_v1'
   const isStructuredProfile =
-    isGbifRichProfile || isTropicosRichProfile || isColRichProfile || isBhlReferencesProfile || isInaturalistRichProfile
+    isGbifRichProfile ||
+    isTropicosRichProfile ||
+    isColRichProfile ||
+    isBhlReferencesProfile ||
+    isInaturalistRichProfile ||
+    isOpenMeteoElevationProfile ||
+    isGeoNamesSpatialProfile
   const supportsNameResolution =
     isGbifRichProfile || isTropicosRichProfile || isColRichProfile
   const selectedPreset = useMemo(() => {
@@ -534,6 +462,7 @@ export function ApiEnrichmentConfig({
         auth_method: preset.config.auth_method,
         auth_params: preset.config.auth_params ? { ...preset.config.auth_params } : undefined,
         query_params: preset.config.query_params ? { ...preset.config.query_params } : {},
+        query_field: preset.config.query_field || config.query_field,
         query_param_name: preset.config.query_param_name || 'q',
         profile: preset.config.profile,
         use_name_verifier: preset.config.use_name_verifier ?? false,
@@ -555,6 +484,11 @@ export function ApiEnrichmentConfig({
         include_page_preview: preset.config.include_page_preview ?? true,
         title_limit: preset.config.title_limit ?? 5,
         page_limit: preset.config.page_limit ?? 5,
+        sample_mode: preset.config.sample_mode ?? 'bbox_grid',
+        sample_count: preset.config.sample_count ?? 9,
+        include_bbox_summary: preset.config.include_bbox_summary ?? true,
+        include_nearby_places: preset.config.include_nearby_places ?? true,
+        geometry_field: preset.config.geometry_field,
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
       onPresetSelect?.(preset.name)
@@ -591,8 +525,15 @@ export function ApiEnrichmentConfig({
         params[config.auth_params.name || 'apiKey'] = config.auth_params.key || ''
       }
 
-      // Add a test query
-      params[config.query_param_name || 'q'] = 'Pinus'
+      if (isOpenMeteoElevationProfile) {
+        params.latitude = '-22.274'
+        params.longitude = '166.458'
+      } else if (isGeoNamesSpatialProfile) {
+        params.lat = '-22.274'
+        params.lng = '166.458'
+      } else {
+        params[config.query_param_name || 'q'] = 'Pinus'
+      }
 
       // Make test request via our backend
       const response = await axios.post('/api/files/test-api', {
@@ -981,6 +922,133 @@ export function ApiEnrichmentConfig({
                             media_limit: Number.parseInt(e.target.value || '0', 10),
                           })
                         }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : isOpenMeteoElevationProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>Open-Meteo Elevation</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Résume l&apos;altitude d&apos;un point ou d&apos;une géométrie échantillonnée.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="sample-mode">Sample mode</Label>
+                      <Select
+                        value={config.sample_mode || 'bbox_grid'}
+                        onValueChange={(value) => onChange({ ...config, sample_mode: value })}
+                      >
+                        <SelectTrigger id="sample-mode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bbox_grid">BBox grid</SelectItem>
+                          <SelectItem value="boundary">Boundary</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="sample-count">Sample count</Label>
+                      <Input
+                        id="sample-count"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={String(config.sample_count ?? 9)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            sample_count: Number.parseInt(e.target.value || '1', 10),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 sm:col-span-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">BBox summary</div>
+                        <div className="text-xs text-muted-foreground">
+                          Conserve le centroïde et la bbox dans le résumé enrichi.
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_bbox_summary ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : isGeoNamesSpatialProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>GeoNames Spatial</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Résume le contexte administratif d&apos;un point ou d&apos;une géométrie échantillonnée.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="sample-mode">Sample mode</Label>
+                      <Select
+                        value={config.sample_mode || 'bbox_grid'}
+                        onValueChange={(value) => onChange({ ...config, sample_mode: value })}
+                      >
+                        <SelectTrigger id="sample-mode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bbox_grid">BBox grid</SelectItem>
+                          <SelectItem value="boundary">Boundary</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="sample-count">Sample count</Label>
+                      <Input
+                        id="sample-count"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={String(config.sample_count ?? 9)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            sample_count: Number.parseInt(e.target.value || '1', 10),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">BBox summary</div>
+                        <div className="text-xs text-muted-foreground">
+                          Conserve le centroïde et la bbox dans le résumé enrichi.
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_bbox_summary ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Nearby places</div>
+                        <div className="text-xs text-muted-foreground">
+                          Ajoute les lieux proches sur le centroïde et quelques points d&apos;échantillonnage.
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_nearby_places ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_nearby_places: checked })}
                       />
                     </div>
                   </div>
@@ -1503,6 +1571,10 @@ export function ApiEnrichmentConfig({
                   <AlertDescription>
                     {isGbifRichProfile
                       ? "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
+                      : isOpenMeteoElevationProfile
+                        ? "Open-Meteo Elevation produit un résumé structuré par blocs (`Location`, `Elevation`) ou (`Geometry summary`, `Elevation summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset."
+                        : isGeoNamesSpatialProfile
+                          ? "GeoNames Spatial produit un résumé structuré par blocs (`Location`, `Administrative context`, `Nearby place`) ou (`Geometry summary`, `Administrative summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset."
                       : isTropicosRichProfile
                         ? "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
                         : isColRichProfile

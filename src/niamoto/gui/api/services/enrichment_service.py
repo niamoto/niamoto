@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import re
@@ -54,6 +55,8 @@ COL_DEFAULT_DATASET_KEY = 314774
 COL_API_BASE = "https://api.checklistbank.org"
 BHL_API_ENDPOINT = "https://www.biodiversitylibrary.org/api3"
 INAT_TAXA_ENDPOINT = "https://api.inaturalist.org/v1/taxa"
+OPEN_METEO_ELEVATION_ENDPOINT = "https://api.open-meteo.com/v1/elevation"
+GEONAMES_SUBDIVISION_ENDPOINT = "https://secure.geonames.org/countrySubdivisionJSON"
 
 
 class EnrichmentSourceConfig(BaseModel):
@@ -86,6 +89,11 @@ class EnrichmentSourceConfig(BaseModel):
     include_page_preview: bool = True
     title_limit: int = 5
     page_limit: int = 5
+    sample_mode: str = "bbox_grid"
+    sample_count: int = 9
+    include_bbox_summary: bool = True
+    include_nearby_places: bool = True
+    geometry_field: Optional[str] = None
     response_mapping: Dict[str, str] = Field(default_factory=dict)
     rate_limit: float = 1.0
     cache_results: bool = True
@@ -132,6 +140,11 @@ class EnrichmentSourceConfig(BaseModel):
                 "include_page_preview": self.include_page_preview,
                 "title_limit": self.title_limit,
                 "page_limit": self.page_limit,
+                "sample_mode": self.sample_mode,
+                "sample_count": self.sample_count,
+                "include_bbox_summary": self.include_bbox_summary,
+                "include_nearby_places": self.include_nearby_places,
+                "geometry_field": self.geometry_field,
                 "rate_limit": self.rate_limit,
                 "cache_results": self.cache_results,
                 "response_mapping": self.response_mapping or {},
@@ -326,6 +339,36 @@ def _col_search_url(dataset_key: int) -> str:
     return f"{COL_API_BASE}/dataset/{dataset_key}/nameusage/search"
 
 
+def _is_legacy_openmeteo_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source looks like the old flat Open-Meteo preset."""
+
+    if config.get("profile"):
+        return False
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "api.open-meteo.com" in api_url and "/elevation" in api_url:
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label in {"open-meteo", "open-meteo elevation"}
+
+
+def _is_legacy_geonames_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source looks like the old flat GeoNames preset."""
+
+    if config.get("profile"):
+        return False
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "geonames.org" in api_url and (
+        "countrysubdivision" in api_url or "findnearby" in api_url
+    ):
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label.startswith("geonames")
+
+
 def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfig]:
     """Normalize reference enrichment config into a source list."""
 
@@ -345,6 +388,8 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
         is_legacy_gbif = _is_legacy_gbif_source(item, config)
         is_legacy_tropicos = _is_legacy_tropicos_source(item, config)
         is_legacy_inaturalist = _is_legacy_inaturalist_source(item, config)
+        is_legacy_openmeteo = _is_legacy_openmeteo_source(item, config)
+        is_legacy_geonames = _is_legacy_geonames_source(item, config)
         legacy_inaturalist_params = {
             key: value
             for key, value in (config.get("query_params") or {}).items()
@@ -370,13 +415,29 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     else (
                         "iNaturalist"
                         if is_legacy_inaturalist and not item.get("label")
-                        else label
+                        else (
+                            "Open-Meteo Elevation"
+                            if is_legacy_openmeteo and not item.get("label")
+                            else (
+                                "GeoNames"
+                                if is_legacy_geonames and not item.get("label")
+                                else label
+                            )
+                        )
                     )
                 ),
                 plugin=(
                     "api_taxonomy_enricher"
                     if is_legacy_tropicos
-                    else item.get("plugin", "api_taxonomy_enricher")
+                    else (
+                        "api_elevation_enricher"
+                        if is_legacy_openmeteo
+                        else (
+                            "api_spatial_enricher"
+                            if is_legacy_geonames
+                            else item.get("plugin", "api_taxonomy_enricher")
+                        )
+                    )
                 ),
                 enabled=bool(item.get("enabled", False)),
                 api_url=(
@@ -389,33 +450,59 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                             INAT_TAXA_ENDPOINT
                             if is_legacy_inaturalist
                             else (
-                                config.get("api_url")
-                                or (
-                                    _col_search_url(
-                                        int(
-                                            config.get(
-                                                "dataset_key", COL_DEFAULT_DATASET_KEY
+                                OPEN_METEO_ELEVATION_ENDPOINT
+                                if is_legacy_openmeteo
+                                else (
+                                    GEONAMES_SUBDIVISION_ENDPOINT
+                                    if is_legacy_geonames
+                                    else (
+                                        config.get("api_url")
+                                        or (
+                                            _col_search_url(
+                                                int(
+                                                    config.get(
+                                                        "dataset_key",
+                                                        COL_DEFAULT_DATASET_KEY,
+                                                    )
+                                                )
+                                            )
+                                            if config.get("profile") == "col_rich"
+                                            else (
+                                                BHL_API_ENDPOINT
+                                                if config.get("profile")
+                                                == "bhl_references"
+                                                else ""
                                             )
                                         )
-                                    )
-                                    if config.get("profile") == "col_rich"
-                                    else (
-                                        BHL_API_ENDPOINT
-                                        if config.get("profile") == "bhl_references"
-                                        else ""
                                     )
                                 )
                             )
                         )
                     )
                 ),
-                query_field=config.get("query_field", "full_name"),
+                query_field=config.get("query_field")
+                or (
+                    "geometry"
+                    if is_legacy_openmeteo
+                    or is_legacy_geonames
+                    or config.get("profile")
+                    in {"openmeteo_elevation_v1", "geonames_spatial_v1"}
+                    else "full_name"
+                ),
                 query_param_name=config.get("query_param_name", "q")
                 if config.get("profile")
-                not in {"col_rich", "bhl_references", "inaturalist_rich"}
+                not in {
+                    "col_rich",
+                    "bhl_references",
+                    "inaturalist_rich",
+                    "openmeteo_elevation_v1",
+                    "geonames_spatial_v1",
+                }
                 and not is_legacy_gbif
                 and not is_legacy_tropicos
                 and not is_legacy_inaturalist
+                and not is_legacy_openmeteo
+                and not is_legacy_geonames
                 else (
                     "scientificName"
                     if is_legacy_gbif
@@ -423,7 +510,12 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                         "name"
                         if is_legacy_tropicos
                         or config.get("profile") == "bhl_references"
-                        else "q"
+                        else (
+                            "latitude"
+                            if is_legacy_openmeteo
+                            or config.get("profile") == "openmeteo_elevation_v1"
+                            else "lat"
+                        )
                     )
                 ),
                 profile=(
@@ -431,6 +523,8 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     or ("gbif_rich" if is_legacy_gbif else None)
                     or ("tropicos_rich" if is_legacy_tropicos else None)
                     or ("inaturalist_rich" if is_legacy_inaturalist else None)
+                    or ("openmeteo_elevation_v1" if is_legacy_openmeteo else None)
+                    or ("geonames_spatial_v1" if is_legacy_geonames else None)
                 ),
                 use_name_verifier=bool(config.get("use_name_verifier", False)),
                 name_verifier_preferred_sources=[
@@ -462,9 +556,21 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 include_page_preview=bool(config.get("include_page_preview", True)),
                 title_limit=int(config.get("title_limit", 5)),
                 page_limit=int(config.get("page_limit", 5)),
+                sample_mode=str(config.get("sample_mode", "bbox_grid")),
+                sample_count=int(config.get("sample_count", 9)),
+                include_bbox_summary=bool(config.get("include_bbox_summary", True)),
+                include_nearby_places=bool(config.get("include_nearby_places", True)),
+                geometry_field=(
+                    str(config.get("geometry_field"))
+                    if config.get("geometry_field")
+                    else None
+                ),
                 response_mapping=(
                     {}
-                    if is_legacy_gbif or is_legacy_tropicos
+                    if is_legacy_gbif
+                    or is_legacy_tropicos
+                    or is_legacy_openmeteo
+                    or is_legacy_geonames
                     else config.get("response_mapping") or {}
                 ),
                 rate_limit=float(config.get("rate_limit", 1.0)),
@@ -518,7 +624,7 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                                     ),
                                 }
                                 if config.get("profile") == "bhl_references"
-                                else config.get("query_params") or {}
+                                else {**(config.get("query_params") or {})}
                             )
                         )
                     )
@@ -551,6 +657,94 @@ def _load_reference_config_section(reference_name: str) -> Optional[Dict[str, An
     references = entities.get("references") or {}
     reference = references.get(reference_name)
     return reference if isinstance(reference, dict) else None
+
+
+def _reference_schema(reference_name: str) -> Dict[str, Any]:
+    """Return the raw schema section for a reference."""
+
+    reference_config = _load_reference_config_section(reference_name) or {}
+    schema = reference_config.get("schema")
+    return schema if isinstance(schema, dict) else {}
+
+
+def _reference_kind(reference_name: str) -> Optional[str]:
+    """Return the configured kind for a reference."""
+
+    reference_config = _load_reference_config_section(reference_name) or {}
+    kind = reference_config.get("kind")
+    return str(kind) if kind else None
+
+
+def _reference_has_geometry(reference_name: str) -> bool:
+    """Return whether a reference should be treated as spatial."""
+
+    if _reference_kind(reference_name) == "spatial":
+        return True
+
+    fields = _reference_schema(reference_name).get("fields") or []
+    return any(
+        isinstance(field, dict) and str(field.get("type") or "").lower() == "geometry"
+        for field in fields
+    )
+
+
+def _reference_geometry_fields(reference_name: str) -> List[str]:
+    """Return geometry-declared fields from import.yml."""
+
+    fields = _reference_schema(reference_name).get("fields") or []
+    geometry_fields = [
+        str(field.get("name"))
+        for field in fields
+        if isinstance(field, dict)
+        and field.get("name")
+        and str(field.get("type") or "").lower() == "geometry"
+    ]
+    if geometry_fields:
+        return geometry_fields
+    return ["geo_pt", "location", "geometry", "geo_pt_geom", "geom"]
+
+
+def _reference_id_field(
+    reference_name: str, table_columns: Optional[Sequence[str]] = None
+) -> str:
+    """Return the configured identifier field for a reference."""
+
+    schema = _reference_schema(reference_name)
+    configured = schema.get("id_field") or schema.get("id")
+    if configured:
+        configured_value = str(configured)
+        if not table_columns or configured_value in table_columns:
+            return configured_value
+
+    if table_columns:
+        return "id" if "id" in table_columns else str(table_columns[0])
+
+    return "id"
+
+
+def _normalize_loaded_row(
+    reference_name: str, row: Dict[str, Any], id_field: Optional[str] = None
+) -> Dict[str, Any]:
+    """Attach helper metadata to a loaded reference row."""
+
+    normalized = dict(row)
+    resolved_id_field = id_field or _reference_id_field(reference_name, row.keys())
+    entity_id = row.get(resolved_id_field)
+    if entity_id is None and resolved_id_field != "id":
+        entity_id = row.get("id")
+
+    if entity_id is not None and normalized.get("id") is None:
+        normalized["id"] = entity_id
+    normalized["_entity_id"] = entity_id
+    normalized["_entity_id_field"] = resolved_id_field
+    normalized["_geometry_fields"] = _reference_geometry_fields(reference_name)
+    return normalized
+
+
+def _row_entity_id(row: Dict[str, Any]) -> Any:
+    """Return the normalized entity identifier for a loaded row."""
+
+    return row.get("_entity_id", row.get("id"))
 
 
 def get_reference_enrichment_config(
@@ -773,12 +967,67 @@ def _load_reference_rows(reference_name: str) -> List[Dict[str, Any]]:
         try:
             quoted_table_name = quote_identifier(db, table_name)
             df = pd.read_sql(text(f"SELECT * FROM {quoted_table_name}"), db.engine)
-            return df.to_dict("records")
+            rows = df.to_dict("records")
+            id_field = _reference_id_field(reference_name, df.columns.tolist())
+            return [
+                _normalize_loaded_row(reference_name, row, id_field=id_field)
+                for row in rows
+            ]
         finally:
             db.close_db_session()
     except Exception as exc:
         logger.warning("Error loading rows for '%s': %s", reference_name, exc)
         return []
+
+
+def _load_reference_row(
+    reference_name: str, entity_id: Any
+) -> Optional[Dict[str, Any]]:
+    """Load a single reference row by its configured identifier field."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    try:
+        import pandas as pd
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            if not table_columns:
+                return None
+
+            id_field = _reference_id_field(reference_name, table_columns)
+            quoted_id_field = quote_identifier(db, id_field)
+            df = pd.read_sql(
+                text(
+                    f"SELECT * FROM {quoted_table_name} "
+                    f"WHERE {quoted_id_field} = :entity_id LIMIT 1"
+                ),
+                db.engine,
+                params={"entity_id": entity_id},
+            )
+            if df.empty:
+                return None
+
+            row = df.to_dict("records")[0]
+            return _normalize_loaded_row(reference_name, row, id_field=id_field)
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning(
+            "Error loading row for '%s' entity %s: %s", reference_name, entity_id, exc
+        )
+        return None
 
 
 def _save_source_enrichment_to_db(
@@ -800,9 +1049,16 @@ def _save_source_enrichment_to_db(
         return None
 
     try:
+        import pandas as pd
+
         db = Database(str(db_path))
         try:
             quoted_table_name = quote_identifier(db, table_name)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            id_field = _reference_id_field(reference_name, table_columns)
+            quoted_id_field = quote_identifier(db, id_field)
             merged = _merge_source_enrichment_data(
                 existing_extra_data, source, source_data
             )
@@ -810,7 +1066,7 @@ def _save_source_enrichment_to_db(
                 connection.execute(
                     text(
                         f"UPDATE {quoted_table_name} "
-                        "SET extra_data = :extra_data WHERE id = :entity_id"
+                        f"SET extra_data = :extra_data WHERE {quoted_id_field} = :entity_id"
                     ),
                     {
                         "extra_data": json.dumps(merged),
@@ -1011,6 +1267,11 @@ def _build_plugin_config(
             "include_page_preview": source.include_page_preview,
             "title_limit": source.title_limit,
             "page_limit": source.page_limit,
+            "sample_mode": source.sample_mode,
+            "sample_count": source.sample_count,
+            "include_bbox_summary": source.include_bbox_summary,
+            "include_nearby_places": source.include_nearby_places,
+            "geometry_field": source.geometry_field,
             "response_mapping": source.response_mapping,
             "rate_limit": source.rate_limit,
             "cache_results": source.cache_results
@@ -1058,6 +1319,101 @@ def _row_display_name(row: Dict[str, Any]) -> str:
         if value:
             return value
     return "Unknown entity"
+
+
+def _configured_reference_display_field(
+    reference_name: str, table_columns: Sequence[str], id_field: str
+) -> str:
+    """Pick a configured human-readable column for a reference when available."""
+
+    reference_config = _load_reference_config_section(reference_name) or {}
+    schema = reference_config.get("schema")
+    if isinstance(schema, dict):
+        name_field = schema.get("name_field")
+        if name_field and str(name_field) in table_columns:
+            return str(name_field)
+
+    relation = reference_config.get("relation")
+    if isinstance(relation, dict):
+        reference_key = relation.get("reference_key")
+        if reference_key and str(reference_key) in table_columns:
+            return str(reference_key)
+
+    return _resolve_reference_display_field(table_columns, id_field)
+
+
+def _reference_row_display_name(reference_name: str, row: Dict[str, Any]) -> str:
+    """Resolve the display name for a row using reference-specific config first."""
+
+    display_field = _configured_reference_display_field(
+        reference_name, list(row.keys()), row.get("_entity_id_field") or "id"
+    )
+    candidate = row.get(display_field)
+    if candidate is not None:
+        value = str(candidate).strip()
+        if value:
+            return value
+    return _row_display_name(row)
+
+
+def _resolve_reference_display_field(
+    table_columns: Sequence[str], id_field: str
+) -> str:
+    """Pick the most human-friendly column to display reference entities."""
+
+    for candidate in ("full_name", "name", "label", "title", id_field):
+        if candidate in table_columns:
+            return candidate
+    return id_field
+
+
+def _is_invalid_unicode_error(exc: Exception) -> bool:
+    """Return whether an exception comes from invalid unicode in DuckDB rows."""
+
+    return "Invalid unicode" in str(exc)
+
+
+def _load_reference_display_name_map(
+    reference_name: str, id_field: str, display_field: str
+) -> Dict[str, str]:
+    """Load display names from the source CSV when DB text decoding is broken."""
+
+    reference_config = _load_reference_config_section(reference_name) or {}
+    connector = reference_config.get("connector")
+    if not isinstance(connector, dict):
+        return {}
+    if connector.get("type") != "file" or connector.get("format") != "csv":
+        return {}
+
+    relative_path = connector.get("path")
+    if not relative_path:
+        return {}
+
+    file_path = get_working_directory() / str(relative_path)
+    if not file_path.exists():
+        return {}
+
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            with open(file_path, "r", encoding=encoding, newline="") as handle:
+                reader = csv.DictReader(handle)
+                mapping: Dict[str, str] = {}
+                for row in reader:
+                    raw_id = row.get(id_field)
+                    raw_name = row.get(display_field)
+                    if raw_id is None or raw_name is None:
+                        continue
+                    label = str(raw_name).strip()
+                    if not label:
+                        continue
+                    mapping[str(raw_id)] = label
+                return mapping
+        except UnicodeDecodeError:
+            continue
+        except OSError:
+            return {}
+
+    return {}
 
 
 def _ensure_startable_sources(
@@ -1170,7 +1526,32 @@ def _preview_config_used(source: EnrichmentSourceConfig) -> Dict[str, Any]:
                 "observation_limit": source.observation_limit,
             }
         )
+    elif source.profile == "openmeteo_elevation_v1":
+        config.update(
+            {
+                "sample_mode": source.sample_mode,
+                "sample_count": source.sample_count,
+                "include_bbox_summary": source.include_bbox_summary,
+                "geometry_field": source.geometry_field,
+            }
+        )
+    elif source.profile == "geonames_spatial_v1":
+        config.update(
+            {
+                "sample_mode": source.sample_mode,
+                "sample_count": source.sample_count,
+                "include_bbox_summary": source.include_bbox_summary,
+                "include_nearby_places": source.include_nearby_places,
+                "geometry_field": source.geometry_field,
+            }
+        )
     return config
+
+
+def _source_requires_row_preview(source: EnrichmentSourceConfig) -> bool:
+    """Return whether preview should use a full entity row instead of a name string."""
+
+    return source.plugin in {"api_elevation_enricher", "api_spatial_enricher"}
 
 
 def _get_current_job(reference_name: Optional[str] = None) -> Optional[EnrichmentJob]:
@@ -1313,11 +1694,12 @@ async def _run_enrichment_job(
                     _build_plugin_config(source),
                 )
                 source_data = result.get("api_enrichment", {})
+                entity_id = _row_entity_id(row)
 
-                if source_data and row.get("id") is not None:
+                if source_data and entity_id is not None:
                     merged_extra_data = _save_source_enrichment_to_db(
                         reference_name,
-                        row.get("id"),
+                        entity_id,
                         source,
                         source_data,
                         row.get("extra_data"),
@@ -1576,7 +1958,7 @@ def get_results(
         persisted_results: List[EnrichmentResult] = []
 
         for row in _load_reference_rows(resolved_reference_name):
-            entity_name = _row_display_name(row)
+            entity_name = _reference_row_display_name(resolved_reference_name, row)
             stored_sources = _extract_stored_sources(
                 _deserialize_extra_data(row.get("extra_data")),
                 preferred_source_ids,
@@ -1635,6 +2017,7 @@ async def preview_reference_enrichment(
     query: str,
     source_id: Optional[str] = None,
     source_override: Optional[Dict[str, Any]] = None,
+    entity_id: Optional[Any] = None,
 ) -> PreviewResponse:
     """Preview enrichment for one entity across one or many sources."""
 
@@ -1648,12 +2031,38 @@ async def preview_reference_enrichment(
         return PreviewResponse(success=False, entity_name=query, error=str(exc))
 
     results: List[PreviewSourceResult] = []
+    spatial_row = (
+        _load_reference_row(reference_name, entity_id)
+        if entity_id is not None and _reference_has_geometry(reference_name)
+        else None
+    )
+    if (
+        entity_id is not None
+        and _reference_has_geometry(reference_name)
+        and spatial_row is None
+    ):
+        return PreviewResponse(
+            success=False,
+            entity_name=query,
+            error=f"No entity '{entity_id}' found for reference '{reference_name}'",
+        )
+    entity_name = (
+        _reference_row_display_name(reference_name, spatial_row)
+        if spatial_row
+        else query
+    )
 
     for source in sources:
         config_used = _preview_config_used(source)
         try:
             enricher = _build_enricher(source.plugin)
-            payload = {source.query_field: query}
+            if _source_requires_row_preview(source):
+                payload = dict(spatial_row) if spatial_row is not None else {}
+                if source.query_field and source.query_field not in payload:
+                    payload[source.query_field] = query
+                payload.setdefault("name", entity_name or query)
+            else:
+                payload = {source.query_field: query}
             result = await asyncio.wait_for(
                 asyncio.to_thread(
                     enricher.load_data,
@@ -1701,7 +2110,7 @@ async def preview_reference_enrichment(
 
     return PreviewResponse(
         success=any(result.success for result in results),
-        entity_name=query,
+        entity_name=entity_name,
         results=results,
         error=None
         if any(result.success for result in results)
@@ -1757,16 +2166,24 @@ def get_entities_for_reference(
             if not table_columns:
                 return {"entities": [], "total": 0, "query_field": query_field}
 
-            id_field = "id" if "id" in table_columns else table_columns[0]
+            id_field = _reference_id_field(reference_name, table_columns)
+            display_field = _configured_reference_display_field(
+                reference_name, table_columns, id_field
+            )
             if query_field not in table_columns:
-                for candidate in ("full_name", "name", "label", "title"):
-                    if candidate in table_columns:
-                        query_field = candidate
-                        break
+                if query_field == "geometry":
+                    query_field = next(
+                        (
+                            field
+                            for field in _reference_geometry_fields(reference_name)
+                            if field in table_columns
+                        ),
+                        display_field,
+                    )
                 else:
-                    query_field = id_field
+                    query_field = display_field
 
-            quoted_query_field = quote_identifier(db, query_field)
+            quoted_display_field = quote_identifier(db, display_field)
             params: Dict[str, Any] = {
                 "limit": max(1, int(limit)),
                 "offset": max(0, int(offset)),
@@ -1774,7 +2191,7 @@ def get_entities_for_reference(
             where_clause = ""
             if search:
                 where_clause = (
-                    f"WHERE CAST({quoted_query_field} AS VARCHAR) ILIKE :search"
+                    f"WHERE CAST({quoted_display_field} AS VARCHAR) ILIKE :search"
                 )
                 params["search"] = f"%{search}%"
 
@@ -1787,21 +2204,70 @@ def get_entities_for_reference(
             )
             total = int(count_df.iloc[0]["count"])
 
-            df = pd.read_sql(
-                text(
-                    f"""
-                    SELECT * FROM {quoted_table_name}
-                    {where_clause}
-                    ORDER BY {quoted_query_field}
-                    LIMIT :limit OFFSET :offset
-                    """
-                ),
-                db.engine,
-                params=params,
+            selected_fields = [id_field, display_field]
+            if "extra_data" in table_columns:
+                selected_fields.append("extra_data")
+            selected_fields_sql = ", ".join(
+                quote_identifier(db, field) for field in dict.fromkeys(selected_fields)
             )
+
+            try:
+                df = pd.read_sql(
+                    text(
+                        f"""
+                        SELECT {selected_fields_sql} FROM {quoted_table_name}
+                        {where_clause}
+                        ORDER BY {quoted_display_field}
+                        LIMIT :limit OFFSET :offset
+                        """
+                    ),
+                    db.engine,
+                    params=params,
+                )
+            except Exception as exc:
+                if not _is_invalid_unicode_error(exc):
+                    raise
+
+                logger.warning(
+                    "Falling back to source-file labels for '%s' because '%s' contains invalid unicode",
+                    reference_name,
+                    display_field,
+                )
+                display_name_map = _load_reference_display_name_map(
+                    reference_name, id_field, display_field
+                )
+                if not display_name_map:
+                    raise
+
+                fallback_fields = [id_field]
+                if "extra_data" in table_columns:
+                    fallback_fields.append("extra_data")
+                fallback_fields_sql = ", ".join(
+                    quote_identifier(db, field)
+                    for field in dict.fromkeys(fallback_fields)
+                )
+                fallback_df = pd.read_sql(
+                    text(f"SELECT {fallback_fields_sql} FROM {quoted_table_name}"),
+                    db.engine,
+                )
+                fallback_rows = []
+                lowered_search = search.lower().strip()
+                for row in fallback_df.to_dict("records"):
+                    label = display_name_map.get(str(row.get(id_field)))
+                    if not label:
+                        continue
+                    if lowered_search and lowered_search not in label.lower():
+                        continue
+                    row[display_field] = label
+                    fallback_rows.append(row)
+
+                fallback_rows.sort(key=lambda row: str(row.get(display_field) or ""))
+                total = len(fallback_rows)
+                df = pd.DataFrame(fallback_rows[offset : offset + max(1, int(limit))])
 
             entities: List[Dict[str, Any]] = []
             for row in df.to_dict("records"):
+                row["_entity_id_field"] = id_field
                 extra_data = _deserialize_extra_data(row.get("extra_data"))
                 enriched_sources = [
                     source_id
@@ -1816,7 +2282,7 @@ def get_entities_for_reference(
                 entities.append(
                     {
                         "id": row.get(id_field),
-                        "name": row.get(query_field),
+                        "name": _reference_row_display_name(reference_name, row),
                         "enriched": is_fully_enriched,
                         "enriched_sources": enriched_sources,
                         "enriched_count": len(enriched_sources),
@@ -1824,7 +2290,12 @@ def get_entities_for_reference(
                     }
                 )
 
-            return {"entities": entities, "total": total, "query_field": query_field}
+            return {
+                "entities": entities,
+                "total": total,
+                "query_field": query_field,
+                "display_field": display_field,
+            }
         finally:
             db.close_db_session()
     except Exception as exc:

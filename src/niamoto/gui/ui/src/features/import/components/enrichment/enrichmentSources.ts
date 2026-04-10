@@ -38,6 +38,11 @@ export interface ReferenceEnrichmentConfig {
     include_page_preview?: boolean
     title_limit?: number
     page_limit?: number
+    sample_mode?: string
+    sample_count?: number
+    include_bbox_summary?: boolean
+    include_nearby_places?: boolean
+    geometry_field?: string
     rate_limit?: number
     cache_results?: boolean
     response_mapping?: Record<string, string>
@@ -68,6 +73,8 @@ const GBIF_RICH_MATCH_URL = 'https://api.gbif.org/v2/species/match'
 const TROPICOS_RICH_SEARCH_URL = 'https://services.tropicos.org/Name/Search'
 const COL_DEFAULT_DATASET_KEY = 314774
 const BHL_API_ENDPOINT = 'https://www.biodiversitylibrary.org/api3'
+const OPEN_METEO_ELEVATION_ENDPOINT = 'https://api.open-meteo.com/v1/elevation'
+const GEONAMES_SUBDIVISION_ENDPOINT = 'https://secure.geonames.org/countrySubdivisionJSON'
 const INAT_TAXA_ENDPOINT = 'https://api.inaturalist.org/v1/taxa'
 
 export function buildColSearchUrl(datasetKey: number): string {
@@ -118,6 +125,32 @@ function isLegacyInaturalistEnrichment(enrichment: ReferenceEnrichmentConfig | u
   return label === 'inaturalist'
 }
 
+function isLegacyOpenMeteoEnrichment(enrichment: ReferenceEnrichmentConfig | undefined): boolean {
+  if (!enrichment) return false
+  if (enrichment.config?.profile) return false
+
+  const apiUrl = (enrichment.config?.api_url || '').toLowerCase()
+  if (apiUrl.includes('api.open-meteo.com') && apiUrl.includes('/elevation')) {
+    return true
+  }
+
+  const label = (enrichment.label || enrichment.id || '').toLowerCase()
+  return label === 'open-meteo' || label === 'open-meteo elevation'
+}
+
+function isLegacyGeoNamesEnrichment(enrichment: ReferenceEnrichmentConfig | undefined): boolean {
+  if (!enrichment) return false
+  if (enrichment.config?.profile) return false
+
+  const apiUrl = (enrichment.config?.api_url || '').toLowerCase()
+  if (apiUrl.includes('geonames.org') && (apiUrl.includes('countrysubdivision') || apiUrl.includes('findnearby'))) {
+    return true
+  }
+
+  const label = (enrichment.label || enrichment.id || '').toLowerCase()
+  return label.startsWith('geonames')
+}
+
 export function slugifyEnrichmentSourceId(value: string, fallback: string): string {
   const slug = value
     .toLowerCase()
@@ -155,6 +188,8 @@ export function enrichmentToApiConfig(
   const legacyGbif = isLegacyGbifEnrichment(enrichment)
   const legacyTropicos = isLegacyTropicosEnrichment(enrichment)
   const legacyInaturalist = isLegacyInaturalistEnrichment(enrichment)
+  const legacyOpenMeteo = isLegacyOpenMeteoEnrichment(enrichment)
+  const legacyGeoNames = isLegacyGeoNamesEnrichment(enrichment)
   const queryParams = enrichment?.config?.query_params
   const legacyInaturalistParams = Object.fromEntries(
     Object.entries(queryParams ?? {}).filter(([key]) => !['q', 'taxon_id', 'per_page'].includes(key))
@@ -164,6 +199,10 @@ export function enrichmentToApiConfig(
     enabled: enrichment?.enabled ?? false,
     plugin: legacyTropicos
       ? 'api_taxonomy_enricher'
+      : legacyOpenMeteo
+        ? 'api_elevation_enricher'
+        : legacyGeoNames
+          ? 'api_spatial_enricher'
       : (enrichment?.plugin ?? DEFAULT_PLUGIN_BY_CATEGORY[category]),
     api_url: legacyGbif
       ? GBIF_RICH_MATCH_URL
@@ -171,6 +210,10 @@ export function enrichmentToApiConfig(
         ? TROPICOS_RICH_SEARCH_URL
         : legacyInaturalist
           ? INAT_TAXA_ENDPOINT
+        : legacyOpenMeteo
+          ? OPEN_METEO_ELEVATION_ENDPOINT
+        : legacyGeoNames
+          ? GEONAMES_SUBDIVISION_ENDPOINT
         : enrichment?.config?.profile === 'col_rich'
           ? (enrichment?.config?.api_url ?? buildColSearchUrl(enrichment?.config?.dataset_key ?? COL_DEFAULT_DATASET_KEY))
         : enrichment?.config?.profile === 'bhl_references'
@@ -183,7 +226,7 @@ export function enrichmentToApiConfig(
           name: 'apikey',
           key: enrichment?.config?.auth_params?.key || '',
         }
-      : enrichment?.config?.auth_params,
+        : enrichment?.config?.auth_params,
     query_params: legacyGbif
       ? {
           ...(queryParams ?? {}),
@@ -207,22 +250,34 @@ export function enrichmentToApiConfig(
               format: String((queryParams ?? {}).format ?? 'json'),
             }
         : queryParams,
-    query_field: enrichment?.config?.query_field ?? 'full_name',
+    query_field:
+      enrichment?.config?.query_field
+      ?? (legacyOpenMeteo || legacyGeoNames ? 'geometry' : 'full_name'),
     query_param_name: legacyGbif
       ? 'scientificName'
       : legacyTropicos
         ? 'name'
         : legacyInaturalist
           ? 'q'
+        : legacyOpenMeteo
+          ? 'latitude'
+        : legacyGeoNames
+          ? 'lat'
         : enrichment?.config?.profile === 'col_rich'
           ? 'q'
         : enrichment?.config?.profile === 'bhl_references'
           ? 'name'
+        : enrichment?.config?.profile === 'openmeteo_elevation_v1'
+          ? 'latitude'
+        : enrichment?.config?.profile === 'geonames_spatial_v1'
+          ? 'lat'
         : (enrichment?.config?.query_param_name ?? 'q'),
     profile: enrichment?.config?.profile
       ?? (legacyGbif ? 'gbif_rich' : undefined)
       ?? (legacyTropicos ? 'tropicos_rich' : undefined)
-      ?? (legacyInaturalist ? 'inaturalist_rich' : undefined),
+      ?? (legacyInaturalist ? 'inaturalist_rich' : undefined)
+      ?? (legacyOpenMeteo ? 'openmeteo_elevation_v1' : undefined)
+      ?? (legacyGeoNames ? 'geonames_spatial_v1' : undefined),
     use_name_verifier: enrichment?.config?.use_name_verifier ?? false,
     name_verifier_preferred_sources: enrichment?.config?.name_verifier_preferred_sources ?? [],
     name_verifier_threshold: enrichment?.config?.name_verifier_threshold,
@@ -242,9 +297,17 @@ export function enrichmentToApiConfig(
     include_page_preview: enrichment?.config?.include_page_preview ?? true,
     title_limit: enrichment?.config?.title_limit ?? 5,
     page_limit: enrichment?.config?.page_limit ?? 5,
+    sample_mode: enrichment?.config?.sample_mode ?? 'bbox_grid',
+    sample_count: enrichment?.config?.sample_count ?? 9,
+    include_bbox_summary: enrichment?.config?.include_bbox_summary ?? true,
+    include_nearby_places: enrichment?.config?.include_nearby_places ?? true,
+    geometry_field: enrichment?.config?.geometry_field,
     rate_limit: enrichment?.config?.rate_limit ?? 2,
     cache_results: enrichment?.config?.cache_results ?? true,
-    response_mapping: legacyGbif || legacyTropicos || legacyInaturalist ? {} : enrichment?.config?.response_mapping,
+    response_mapping:
+      legacyGbif || legacyTropicos || legacyInaturalist || legacyOpenMeteo || legacyGeoNames
+        ? {}
+        : enrichment?.config?.response_mapping,
     chained_endpoints: enrichment?.config?.chained_endpoints,
   }
 }
@@ -259,6 +322,10 @@ export function normalizeEnrichmentSources(
   return rawSources.map((enrichment, index) => {
     const label = isLegacyInaturalistEnrichment(enrichment) && !enrichment.label
       ? 'iNaturalist'
+      : isLegacyOpenMeteoEnrichment(enrichment) && !enrichment.label
+        ? 'Open-Meteo Elevation'
+      : isLegacyGeoNamesEnrichment(enrichment) && !enrichment.label
+        ? 'GeoNames'
       : inferSourceLabel(enrichment, index)
     const baseId = enrichment.id || slugifyEnrichmentSourceId(label, `source-${index + 1}`)
     let sourceId = baseId
@@ -316,6 +383,11 @@ export function apiConfigToEnrichment(
       include_page_preview: apiConfig.include_page_preview,
       title_limit: apiConfig.title_limit,
       page_limit: apiConfig.page_limit,
+      sample_mode: apiConfig.sample_mode,
+      sample_count: apiConfig.sample_count,
+      include_bbox_summary: apiConfig.include_bbox_summary,
+      include_nearby_places: apiConfig.include_nearby_places,
+      geometry_field: apiConfig.geometry_field,
       rate_limit: apiConfig.rate_limit,
       cache_results: apiConfig.cache_results,
       response_mapping: apiConfig.response_mapping,
@@ -329,6 +401,7 @@ export function createDefaultEnrichmentSource(
   index = 0
 ): ReferenceEnrichmentConfig {
   const sourceId = `source-${index + 1}`
+  const isSpatialCategory = category === 'spatial'
   return {
     id: sourceId,
     label: `Source ${index + 1}`,
@@ -338,8 +411,8 @@ export function createDefaultEnrichmentSource(
       api_url: '',
       auth_method: 'none',
       query_params: {},
-      query_field: 'full_name',
-      query_param_name: 'q',
+      query_field: isSpatialCategory ? 'geometry' : 'full_name',
+      query_param_name: isSpatialCategory ? 'lat' : 'q',
       profile: undefined,
       use_name_verifier: false,
       name_verifier_preferred_sources: [],
@@ -360,6 +433,11 @@ export function createDefaultEnrichmentSource(
       include_page_preview: true,
       title_limit: 5,
       page_limit: 5,
+      sample_mode: 'bbox_grid',
+      sample_count: 9,
+      include_bbox_summary: true,
+      include_nearby_places: true,
+      geometry_field: undefined,
       rate_limit: 2,
       cache_results: true,
       response_mapping: {},

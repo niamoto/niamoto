@@ -24,6 +24,7 @@ def sample_config_dict() -> dict:
                     },
                     "schema": {
                         "id": "species_id",
+                        "name_field": "species_name",
                         "fields": [
                             {
                                 "name": "family",
@@ -96,6 +97,7 @@ def test_generic_import_config_parsing():
     species = config.entities.references["species"]
     assert species.connector.type is ConnectorType.DUCKDB_CSV
     assert species.schema.id_field == "species_id"
+    assert species.schema.name_field == "species_name"
     assert len(species.schema.fields) == 3
     assert species.hierarchy is not None
     assert species.hierarchy.strategy is HierarchyStrategy.ADJACENCY_LIST

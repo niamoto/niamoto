@@ -98,11 +98,13 @@ def test_preview_reference_route_forwards_source_override(
         query: str,
         source_id: str | None = None,
         source_override: dict | None = None,
+        entity_id: int | str | None = None,
     ):
         captured["reference_name"] = reference_name
         captured["query"] = query
         captured["source_id"] = source_id
         captured["source_override"] = source_override
+        captured["entity_id"] = entity_id
         return PreviewResponse(success=True, entity_name=query, results=[])
 
     monkeypatch.setattr(
@@ -116,6 +118,7 @@ def test_preview_reference_route_forwards_source_override(
         json={
             "query": "Alphitonia neocaledonica",
             "source_id": "source-4",
+            "entity_id": 42,
             "source_config": {
                 "id": "source-4",
                 "label": "BHL",
@@ -144,4 +147,5 @@ def test_preview_reference_route_forwards_source_override(
                 "api_url": "https://www.biodiversitylibrary.org/api3",
             },
         },
+        "entity_id": 42,
     }

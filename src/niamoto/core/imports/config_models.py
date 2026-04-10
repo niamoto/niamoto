@@ -193,6 +193,7 @@ class EntitySchema(BaseModel):
     """Schema definition shared by references and datasets."""
 
     id_field: str = Field(default="id", alias="id")
+    name_field: Optional[str] = None
     fields: List[FieldConfig] = Field(default_factory=list)
     extras: Dict[str, Any] = Field(default_factory=dict)
 

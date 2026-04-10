@@ -177,7 +177,7 @@ interface PreviewResponse {
 }
 
 interface EntityOption {
-  id: number
+  id: number | string
   name: string
   enriched: boolean
   enriched_count?: number
@@ -194,6 +194,19 @@ function normalizeReferenceConfigPayload(
     return normalizeReferenceConfigPayload(payload.config)
   }
   return payload as ReferenceConfigPayload
+}
+
+function referenceHasGeometry(config: ReferenceConfigPayload | null | undefined): boolean {
+  if (!config || typeof config !== 'object') {
+    return false
+  }
+
+  if (config.kind === 'spatial') {
+    return true
+  }
+
+  const fields = Array.isArray(config.schema?.fields) ? config.schema.fields : []
+  return fields.some((field) => field && typeof field === 'object' && field.type === 'geometry')
 }
 
 function getResultEntityName(result: EnrichmentResult): string {
@@ -318,6 +331,14 @@ const isStructuredSourceSummary = (data: Record<string, any> | undefined): boole
     data &&
       typeof data === 'object' &&
       (
+        'location' in data ||
+        'elevation' in data ||
+        'admin' in data ||
+        'nearby_place' in data ||
+        'geometry_summary' in data ||
+        'elevation_summary' in data ||
+        'admin_summary' in data ||
+        'sampling' in data ||
         'match' in data ||
         'taxonomy' in data ||
         'occurrence_summary' in data ||
@@ -394,6 +415,288 @@ const renderNameResolutionSummary = (nameResolution: Record<string, any>) => {
           </div>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+const renderOpenMeteoStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const location = data.location ?? {}
+  const elevation = data.elevation ?? {}
+  const geometrySummary = data.geometry_summary ?? {}
+  const elevationSummary = data.elevation_summary ?? {}
+  const sampling = data.sampling ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      {(Object.keys(location).length > 0 || Object.keys(elevation).length > 0) ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Location</div>
+              {renderStatusPill(blockStatus.location)}
+            </div>
+            {blockErrors.location ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.location)}</div>
+            ) : (
+              renderSummaryRows([
+                ['latitude', location.latitude],
+                ['longitude', location.longitude],
+              ])
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Elevation</div>
+              {renderStatusPill(blockStatus.elevation)}
+            </div>
+            {blockErrors.elevation ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.elevation)}</div>
+            ) : (
+              renderSummaryRows([
+                ['value_m', elevation.value_m],
+                ['source_dataset', elevation.source_dataset],
+              ])
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {(Object.keys(geometrySummary).length > 0 || Object.keys(elevationSummary).length > 0) ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Geometry summary</div>
+              {renderStatusPill(blockStatus.geometry_summary)}
+            </div>
+            {blockErrors.geometry_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.geometry_summary)}</div>
+            ) : (
+              renderSummaryRows([
+                ['geometry_type', geometrySummary.geometry_type],
+                ['sample_mode', geometrySummary.sample_mode],
+                ['sample_count', geometrySummary.sample_count],
+                ['centroid', geometrySummary.centroid],
+                ['bbox', geometrySummary.bbox],
+              ])
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Elevation summary</div>
+              {renderStatusPill(blockStatus.elevation_summary)}
+            </div>
+            {blockErrors.elevation_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.elevation_summary)}</div>
+            ) : (
+              renderSummaryRows([
+                ['centroid_elevation_m', elevationSummary.centroid_elevation_m],
+                ['min_elevation_m', elevationSummary.min_elevation_m],
+                ['max_elevation_m', elevationSummary.max_elevation_m],
+                ['mean_elevation_m', elevationSummary.mean_elevation_m],
+                ['source_dataset', elevationSummary.source_dataset],
+              ])
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {Object.keys(sampling).length > 0 ? (
+        <div className="rounded-lg border border-border/70 bg-background p-3">
+          <div className="mb-3 text-sm font-semibold">Sampling</div>
+          {renderSummaryRows([
+            ['strategy', sampling.strategy],
+            ['sample_mode', sampling.sample_mode],
+            ['sample_count', sampling.sample_count],
+          ])}
+        </div>
+      ) : null}
+
+      {Object.keys(data.provenance ?? {}).length > 0 ? (
+        <div className="rounded-lg border border-border/70 bg-background p-3">
+          <div className="mb-3 text-sm font-semibold">
+            {t('dashboard.enrichment.structured.provenance', { defaultValue: 'Provenance' })}
+          </div>
+          {renderSummaryRows(Object.entries(data.provenance ?? {}))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const renderGeoNamesStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const location = data.location ?? {}
+  const admin = data.admin ?? {}
+  const nearbyPlace = data.nearby_place ?? {}
+  const geometrySummary = data.geometry_summary ?? {}
+  const adminSummary = data.admin_summary ?? {}
+  const sampling = data.sampling ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      {(Object.keys(location).length > 0 || Object.keys(admin).length > 0 || Object.keys(nearbyPlace).length > 0) ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Location</div>
+              {renderStatusPill(blockStatus.location)}
+            </div>
+            {blockErrors.location ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.location)}</div>
+            ) : (
+              renderSummaryRows([
+                ['latitude', location.latitude],
+                ['longitude', location.longitude],
+              ])
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Administrative context</div>
+              {renderStatusPill(blockStatus.admin)}
+            </div>
+            {blockErrors.admin ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.admin)}</div>
+            ) : (
+              renderSummaryRows([
+                ['country_code', admin.country_code],
+                ['country_name', admin.country_name],
+                ['admin1', admin.admin1],
+                ['admin2', admin.admin2],
+              ])
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Nearby place</div>
+              {renderStatusPill(blockStatus.nearby_place)}
+            </div>
+            {blockErrors.nearby_place ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.nearby_place)}</div>
+            ) : (
+              renderSummaryRows([
+                ['name', nearbyPlace.name],
+                ['distance_km', nearbyPlace.distance_km],
+                ['country_name', nearbyPlace.country_name],
+                ['admin1', nearbyPlace.admin1],
+                ['population', nearbyPlace.population],
+              ])
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {(Object.keys(geometrySummary).length > 0 || Object.keys(adminSummary).length > 0) ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Geometry summary</div>
+              {renderStatusPill(blockStatus.geometry_summary)}
+            </div>
+            {blockErrors.geometry_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.geometry_summary)}</div>
+            ) : (
+              renderSummaryRows([
+                ['geometry_type', geometrySummary.geometry_type],
+                ['sample_mode', geometrySummary.sample_mode],
+                ['sample_count', geometrySummary.sample_count],
+                ['centroid', geometrySummary.centroid],
+                ['bbox', geometrySummary.bbox],
+              ])
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Administrative summary</div>
+              {renderStatusPill(blockStatus.admin_summary)}
+            </div>
+            {blockErrors.admin_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.admin_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['sample_count', adminSummary.sample_count]])}
+                {Array.isArray(adminSummary.countries) && adminSummary.countries.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Countries</div>
+                    <div className="flex flex-wrap gap-2">
+                      {adminSummary.countries.map((country: string) => (
+                        <Badge key={country} variant="outline">{country}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(adminSummary.admin1_values) && adminSummary.admin1_values.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Admin 1</div>
+                    <div className="flex flex-wrap gap-2">
+                      {adminSummary.admin1_values.map((item: string) => (
+                        <Badge key={item} variant="outline">{item}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(adminSummary.admin2_values) && adminSummary.admin2_values.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Admin 2</div>
+                    <div className="flex flex-wrap gap-2">
+                      {adminSummary.admin2_values.map((item: string) => (
+                        <Badge key={item} variant="outline">{item}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {Array.isArray(adminSummary.nearest_places) && adminSummary.nearest_places.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Nearby places</div>
+                    <div className="space-y-2">
+                      {adminSummary.nearest_places.map((item: Record<string, any>) => (
+                        <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                          <span className="truncate">{String(item.name)}</span>
+                          {item.distance_km ? <Badge variant="outline">{String(item.distance_km)} km</Badge> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {Object.keys(sampling).length > 0 ? (
+        <div className="rounded-lg border border-border/70 bg-background p-3">
+          <div className="mb-3 text-sm font-semibold">Sampling</div>
+          {renderSummaryRows([
+            ['strategy', sampling.strategy],
+            ['sample_mode', sampling.sample_mode],
+            ['sample_count', sampling.sample_count],
+          ])}
+        </div>
+      ) : null}
+
+      {Object.keys(data.provenance ?? {}).length > 0 ? (
+        <div className="rounded-lg border border-border/70 bg-background p-3">
+          <div className="mb-3 text-sm font-semibold">
+            {t('dashboard.enrichment.structured.provenance', { defaultValue: 'Provenance' })}
+          </div>
+          {renderSummaryRows(Object.entries(data.provenance ?? {}))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1346,6 +1649,23 @@ const renderStructuredSummary = (
   t: (key: string, options?: Record<string, any>) => string
 ) => {
   if (
+    data?.provenance?.profile === 'openmeteo_elevation_v1' ||
+    'elevation_summary' in data ||
+    'elevation' in data
+  ) {
+    return renderOpenMeteoStructuredSummary(data, t)
+  }
+
+  if (
+    data?.provenance?.profile === 'geonames_spatial_v1' ||
+    'admin_summary' in data ||
+    'admin' in data ||
+    'nearby_place' in data
+  ) {
+    return renderGeoNamesStructuredSummary(data, t)
+  }
+
+  if (
     data?.provenance?.profile === 'bhl_references' ||
     'title_summary' in data ||
     'name_mentions' in data ||
@@ -1427,8 +1747,8 @@ export function EnrichmentTab({
   const [jobLoadingScope, setJobLoadingScope] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const apiCategory: ApiCategory =
-    referenceConfig?.kind === 'spatial' ? 'spatial' : 'taxonomy'
+  const isSpatialReference = useMemo(() => referenceHasGeometry(referenceConfig), [referenceConfig])
+  const apiCategory: ApiCategory = isSpatialReference ? 'spatial' : 'taxonomy'
 
   const sources = useMemo(
     () => normalizeEnrichmentSources(referenceConfig?.enrichment, apiCategory),
@@ -1455,6 +1775,7 @@ export function EnrichmentTab({
     () => (mode === 'quick' ? (enabledSources.length > 0 ? enabledSources : sources) : enabledSources),
     [enabledSources, mode, sources]
   )
+  const canLoadEntities = sources.length > 0
   const quickSelectedSource = useMemo(
     () => previewableSources.find((source) => source.id === previewScope) ?? previewableSources[0] ?? null,
     [previewScope, previewableSources]
@@ -1653,24 +1974,23 @@ export function EnrichmentTab({
   }, [effectiveHasEnrichment, loadJobStatus, loadStats, referenceName, startPolling, stopPolling])
 
   useEffect(() => {
-    if (!effectiveHasEnrichment) return
-
     if (mode === 'quick') {
-      if (results.length === 0) {
+      if (effectiveHasEnrichment && results.length === 0) {
         void loadResults()
       }
-      if (entities.length === 0 && !entitiesLoading) {
+      if (canLoadEntities && entities.length === 0 && !entitiesLoading) {
         void loadEntities()
       }
       return
     }
 
-    if (workspacePane === 'results') {
+    if (effectiveHasEnrichment && workspacePane === 'results') {
       void loadResults()
-    } else if (workspacePane === 'preview' && entities.length === 0 && !entitiesLoading) {
+    } else if (workspacePane === 'preview' && canLoadEntities && entities.length === 0 && !entitiesLoading) {
       void loadEntities()
     }
   }, [
+    canLoadEntities,
     workspacePane,
     effectiveHasEnrichment,
     entities.length,
@@ -2029,8 +2349,12 @@ export function EnrichmentTab({
     resetPreviewState(mode === 'quick' ? quickSelectedSource?.id : activeSource?.id)
   }, [activeSource?.id, mode, previewSourceSignature, quickSelectedSource?.id, resetPreviewState])
 
-  const previewEnrichment = async (queryOverride?: string, scopeOverride?: string) => {
-    const query = (queryOverride ?? previewQuery).trim()
+  const previewEnrichment = async (
+    queryOverride?: string,
+    scopeOverride?: string,
+    entityIdOverride?: string | number
+  ) => {
+    const query = String(queryOverride ?? previewQuery ?? '').trim()
     if (!query) return
     const nextScope = scopeOverride ?? previewScope
     const requestId = ++previewRequestRef.current
@@ -2051,6 +2375,7 @@ export function EnrichmentTab({
         {
           query,
           source_id: nextScope === 'all' ? undefined : nextScope,
+          entity_id: entityIdOverride,
           source_config: previewSourceOverride
             ? apiConfigToEnrichment(previewSourceOverride, previewSourceOverride.config)
             : undefined,
@@ -2453,10 +2778,22 @@ export function EnrichmentTab({
                   {quickSelectedSource?.enabled ? (
                     <>
                       <div className="space-y-2">
-                        <Label>{t('common:labels.name')}</Label>
+                        <Label>
+                          {isSpatialReference
+                            ? t('dashboard.enrichment.manualGeometryLabel', {
+                                defaultValue: 'Coordinates or geometry',
+                              })
+                            : t('common:labels.name')}
+                        </Label>
                         <div className="flex gap-2">
                           <Input
-                            placeholder={t('enrichmentTab.preview.manualInput')}
+                            placeholder={
+                              isSpatialReference
+                                ? t('dashboard.enrichment.manualGeometryPlaceholder', {
+                                    defaultValue: 'Latitude, longitude or WKT geometry',
+                                  })
+                                : t('enrichmentTab.preview.manualInput')
+                            }
                             value={previewQuery}
                             onChange={(event) => setPreviewQuery(event.target.value)}
                             onKeyDown={(event) => {
@@ -2468,7 +2805,7 @@ export function EnrichmentTab({
                           <Button
                             type="button"
                             onClick={() => previewEnrichment(undefined, quickSelectedSource.id)}
-                            disabled={previewLoading || !previewQuery.trim()}
+                            disabled={previewLoading || !String(previewQuery ?? '').trim()}
                           >
                             {previewLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -2495,8 +2832,9 @@ export function EnrichmentTab({
                                 variant="outline"
                                 className="max-w-full"
                                 onClick={() => {
-                                  setPreviewQuery(entity.name)
-                                  void previewEnrichment(entity.name, quickSelectedSource.id)
+                                  const entityName = String(entity.name ?? '')
+                                  setPreviewQuery(entityName)
+                                  void previewEnrichment(entityName, quickSelectedSource.id, entity.id)
                                 }}
                               >
                                 <span className="truncate">{entity.name}</span>
@@ -3252,7 +3590,13 @@ export function EnrichmentTab({
                             </Label>
                             <div className="flex gap-2">
                               <Input
-                                placeholder={t('common:labels.name')}
+                                placeholder={
+                                  isSpatialReference
+                                    ? t('dashboard.enrichment.manualGeometryPlaceholder', {
+                                        defaultValue: 'Latitude, longitude or WKT geometry',
+                                      })
+                                    : t('common:labels.name')
+                                }
                                 value={previewQuery}
                                 onChange={(event) => setPreviewQuery(event.target.value)}
                                 onKeyDown={(event) => {
@@ -3264,7 +3608,7 @@ export function EnrichmentTab({
                               <Button
                                 type="button"
                                 onClick={() => previewEnrichment(undefined, activeSource.id)}
-                                disabled={previewLoading || !previewQuery.trim()}
+                                disabled={previewLoading || !String(previewQuery ?? '').trim()}
                               >
                                 {previewLoading ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -3319,11 +3663,12 @@ export function EnrichmentTab({
                                     key={entity.id}
                                     type="button"
                                     onClick={() => {
-                                      setPreviewQuery(entity.name)
-                                      void previewEnrichment(entity.name, activeSource.id)
+                                      const entityName = String(entity.name ?? '')
+                                      setPreviewQuery(entityName)
+                                      void previewEnrichment(entityName, activeSource.id, entity.id)
                                     }}
                                     className={`group flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent ${
-                                      previewQuery === entity.name ? 'bg-accent' : ''
+                                      previewQuery === String(entity.name ?? '') ? 'bg-accent' : ''
                                     }`}
                                   >
                                     <span className="truncate flex-1">{entity.name}</span>

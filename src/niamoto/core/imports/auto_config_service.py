@@ -721,11 +721,68 @@ class AutoConfigService:
         for candidate in ("label", "name"):
             if candidate in lowered:
                 return lowered[candidate]
-        name_columns = analysis.get("name_columns", [])
-        return name_columns[0] if name_columns else None
+        id_columns = analysis.get("id_columns", [])
+        id_field = id_columns[0] if id_columns else "id"
+        return self._pick_display_name_column(analysis, id_field=id_field)
 
     def _auxiliary_source_name(self, entity_name: str) -> str:
         return entity_name[4:] if entity_name.startswith("raw_") else entity_name
+
+    def _pick_display_name_column(
+        self,
+        analysis: Dict[str, Any],
+        *,
+        id_field: str,
+        entity_name: Optional[str] = None,
+    ) -> Optional[str]:
+        """Pick a human-readable display column for a reference entity."""
+        name_columns = [
+            col for col in analysis.get("name_columns", []) if col != id_field
+        ]
+        columns = analysis.get("columns", []) or analysis.get("name_columns", [])
+        lowered = {column.lower(): column for column in columns if column != id_field}
+
+        candidates = [
+            "full_name",
+            "name",
+            "label",
+            "title",
+            entity_name,
+            entity_name[:-1] if entity_name and entity_name.endswith("s") else None,
+            "plot",
+            "plot_name",
+            "plot_code",
+            "code",
+            "site",
+            "station",
+            "zone",
+            "region",
+        ]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            resolved = lowered.get(candidate.lower())
+            if resolved:
+                return resolved
+
+        token_priority = (
+            "full_name",
+            "name",
+            "label",
+            "title",
+            "plot",
+            "code",
+            "site",
+            "station",
+            "zone",
+            "region",
+        )
+        for token in token_priority:
+            match = next((col for col in name_columns if token in col.lower()), None)
+            if match:
+                return match
+
+        return name_columns[0] if name_columns else None
 
     def _build_hierarchy_reference_config(
         self,
@@ -790,12 +847,15 @@ class AutoConfigService:
         decision_summary: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         id_column = analysis["id_columns"][0] if analysis["id_columns"] else "id"
-        name_columns = analysis.get("name_columns", [])
-        name_column = name_columns[0] if name_columns else None
+        name_column = self._pick_display_name_column(
+            analysis,
+            id_field=id_column,
+            entity_name=Path(filepath).stem,
+        )
 
         config = {
             "connector": {"type": "file", "format": "csv", "path": filepath},
-            "schema": {"id_field": id_column, "fields": []},
+            "schema": {"id_field": id_column, "name_field": name_column, "fields": []},
         }
 
         if analysis["geometry_columns"]:
@@ -854,6 +914,7 @@ class AutoConfigService:
             "description": "Geographic reference features for spatial analysis",
             "connector": {"type": "file_multi_feature", "sources": sources},
             "schema": {
+                "name_field": "name",
                 "fields": [
                     {
                         "name": "name",
@@ -870,7 +931,7 @@ class AutoConfigService:
                         "type": "string",
                         "description": "Source type",
                     },
-                ]
+                ],
             },
         }
 
@@ -899,8 +960,12 @@ class AutoConfigService:
         id_col = find_taxon_identifier_column(analysis["columns"])
         name_col = find_taxon_name_column(analysis["columns"])
 
-        if not name_col and analysis["name_columns"]:
-            name_col = analysis["name_columns"][0]
+        if not name_col:
+            name_col = self._pick_display_name_column(
+                analysis,
+                id_field=id_col,
+                entity_name=source_dataset,
+            )
 
         return {
             "kind": "hierarchical",
@@ -920,5 +985,9 @@ class AutoConfigService:
                 "strategy": "adjacency_list",
                 "levels": hierarchy["levels"],
             },
-            "schema": {"id_field": "id", "fields": []},
+            "schema": {
+                "id_field": "id",
+                "name_field": "full_name" if name_col else None,
+                "fields": [],
+            },
         }
