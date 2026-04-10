@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+import pandas as pd
 
 from niamoto.gui.api.services import enrichment_service
 
@@ -606,3 +607,400 @@ def test_preview_reference_enrichment_falls_back_when_raw_payload_missing(monkey
 
     assert response.success is True
     assert response.results[0].raw_data == {"usageKey": 6, "status": "ACCEPTED"}
+
+
+def test_get_reference_enrichment_config_upgrades_legacy_openmeteo_source(monkeypatch):
+    """Legacy Open-Meteo config should be normalized to the structured elevation profile."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "label": "Open-Meteo Elevation",
+                    "plugin": "api_elevation_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.open-meteo.com/v1/elevation",
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("plots")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.label == "Open-Meteo Elevation"
+    assert source.plugin == "api_elevation_enricher"
+    assert source.profile == "openmeteo_elevation_v1"
+    assert source.query_field == "geometry"
+    assert source.query_param_name == "latitude"
+    assert source.response_mapping == {}
+
+
+def test_get_reference_enrichment_config_upgrades_legacy_geonames_source(monkeypatch):
+    """Legacy GeoNames config should be normalized to the structured spatial profile."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "plugin": "api_spatial_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "http://api.geonames.org/countrySubdivisionJSON",
+                        "auth_method": "api_key",
+                        "auth_params": {
+                            "location": "query",
+                            "name": "username",
+                            "key": "demo",
+                        },
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("plots")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.label == "GeoNames"
+    assert source.plugin == "api_spatial_enricher"
+    assert source.profile == "geonames_spatial_v1"
+    assert source.query_field == "geometry"
+    assert source.query_param_name == "lat"
+    assert source.response_mapping == {}
+
+
+def test_preview_reference_enrichment_uses_entity_row_for_spatial_sources(monkeypatch):
+    """Spatial previews should load the referenced entity row when entity_id is provided."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="open-meteo",
+        label="Open-Meteo Elevation",
+        enabled=True,
+        plugin="api_elevation_enricher",
+        api_url="https://api.open-meteo.com/v1/elevation",
+        profile="openmeteo_elevation_v1",
+        query_field="geometry",
+        query_param_name="latitude",
+    )
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            assert payload["id_plot"] == 42
+            assert payload["geo_pt"] == "POINT (166.45 -22.27)"
+            assert payload["geometry"] == "Alphitonia neocaledonica"
+            assert config["params"]["profile"] == "openmeteo_elevation_v1"
+            return {
+                "api_enrichment": {"elevation": {"value_m": 412}},
+                "api_response_raw": {"elevation": [412]},
+            }
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_ensure_startable_sources",
+        lambda _reference_name, source_id=None: [source],
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_reference_has_geometry", lambda _reference_name: True
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_row",
+        lambda _reference_name, _entity_id: {
+            "id_plot": 42,
+            "full_name": "Alphitonia neocaledonica",
+            "geo_pt": "POINT (166.45 -22.27)",
+        },
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_build_enricher",
+        lambda _plugin: FakeEnricher(),
+    )
+
+    response = asyncio.run(
+        enrichment_service.preview_reference_enrichment(
+            "plots",
+            "Alphitonia neocaledonica",
+            source_id="open-meteo",
+            entity_id=42,
+        )
+    )
+
+    assert response.success is True
+    assert response.entity_name == "Alphitonia neocaledonica"
+    assert response.results[0].data == {"elevation": {"value_m": 412}}
+    assert response.results[0].config_used["sample_mode"] == "bbox_grid"
+
+
+def test_get_entities_for_reference_uses_human_display_field(monkeypatch, tmp_path):
+    """Spatial entity listings should display a label, not raw geometry bytes."""
+
+    db_path = tmp_path / "db" / "niamoto.duckdb"
+    db_path.parent.mkdir(parents=True)
+    db_path.touch()
+
+    captured_queries: list[str] = []
+
+    class DummyDatabase:
+        def __init__(self, *_args, **_kwargs):
+            self.engine = object()
+
+        def close_db_session(self):
+            return None
+
+    def fake_read_sql(query, _engine, params=None):
+        query_text = str(query)
+        captured_queries.append(query_text)
+        if "LIMIT 0" in query_text:
+            return pd.DataFrame(columns=["id", "name", "geometry", "extra_data"])
+        if "COUNT(*) as count" in query_text:
+            return pd.DataFrame([{"count": 1}])
+        return pd.DataFrame(
+            [
+                {
+                    "id": 1,
+                    "name": "Bogota",
+                    "geometry": b"\x01\x02binary-geometry",
+                    "extra_data": None,
+                }
+            ]
+        )
+
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_reference_table_name",
+        lambda _reference_name: "shapes",
+    )
+    monkeypatch.setattr(enrichment_service, "Database", DummyDatabase)
+    monkeypatch.setattr(
+        enrichment_service, "quote_identifier", lambda _db, field: field
+    )
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda _reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name="shapes",
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="open-meteo",
+                    label="Open-Meteo Elevation",
+                    enabled=True,
+                    plugin="api_elevation_enricher",
+                    query_field="geometry",
+                )
+            ],
+        ),
+    )
+
+    result = enrichment_service.get_entities_for_reference("shapes", search="Bog")
+
+    assert result["entities"][0]["name"] == "Bogota"
+    assert result["query_field"] == "geometry"
+    assert result["display_field"] == "name"
+    assert any(
+        "CAST(name AS VARCHAR) ILIKE :search" in query for query in captured_queries
+    )
+    assert any("ORDER BY name" in query for query in captured_queries)
+    assert any(
+        "SELECT id, name, extra_data FROM shapes" in query for query in captured_queries
+    )
+
+
+def test_get_entities_for_reference_prefers_relation_reference_key(
+    monkeypatch, tmp_path
+):
+    """Plot references should prefer schema.name_field over relation.reference_key."""
+
+    db_path = tmp_path / "db" / "niamoto.duckdb"
+    db_path.parent.mkdir(parents=True)
+    db_path.touch()
+
+    captured_queries: list[str] = []
+
+    class DummyDatabase:
+        def __init__(self, *_args, **_kwargs):
+            self.engine = object()
+
+        def close_db_session(self):
+            return None
+
+    def fake_read_sql(query, _engine, params=None):
+        query_text = str(query)
+        captured_queries.append(query_text)
+        if "LIMIT 0" in query_text:
+            return pd.DataFrame(columns=["id_plot", "plot", "geo_pt", "extra_data"])
+        if "COUNT(*) as count" in query_text:
+            return pd.DataFrame([{"count": 1}])
+        return pd.DataFrame(
+            [
+                {
+                    "id_plot": 10,
+                    "plot": "Forêt Plate P12",
+                    "geo_pt": "POINT (165.12036133 -21.14814186)",
+                    "extra_data": None,
+                }
+            ]
+        )
+
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        enrichment_service, "_get_reference_table_name", lambda _reference_name: "plots"
+    )
+    monkeypatch.setattr(enrichment_service, "Database", DummyDatabase)
+    monkeypatch.setattr(
+        enrichment_service, "quote_identifier", lambda _db, field: field
+    )
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "schema": {"name_field": "plot"},
+            "relation": {"reference_key": "id_plot"},
+        },
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_reference_geometry_fields",
+        lambda _reference_name: ["geo_pt"],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda _reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name="plots",
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="open-meteo",
+                    label="Open-Meteo Elevation",
+                    enabled=True,
+                    plugin="api_elevation_enricher",
+                    query_field="geometry",
+                )
+            ],
+        ),
+    )
+
+    result = enrichment_service.get_entities_for_reference("plots", search="Forêt")
+
+    assert result["entities"][0]["name"] == "Forêt Plate P12"
+    assert result["query_field"] == "geo_pt"
+    assert result["display_field"] == "plot"
+    assert any(
+        "CAST(plot AS VARCHAR) ILIKE :search" in query for query in captured_queries
+    )
+    assert any("ORDER BY plot" in query for query in captured_queries)
+    assert any(
+        "SELECT id_plot, plot, extra_data FROM plots" in query
+        for query in captured_queries
+    )
+
+
+def test_get_entities_for_reference_falls_back_to_csv_labels_on_invalid_unicode(
+    monkeypatch, tmp_path
+):
+    """Plot listings should fall back to source CSV labels when DB text is corrupted."""
+
+    db_path = tmp_path / "db" / "niamoto.duckdb"
+    db_path.parent.mkdir(parents=True)
+    db_path.touch()
+
+    captured_queries: list[str] = []
+
+    class DummyDatabase:
+        def __init__(self, *_args, **_kwargs):
+            self.engine = object()
+
+        def close_db_session(self):
+            return None
+
+    def fake_read_sql(query, _engine, params=None):
+        query_text = str(query)
+        captured_queries.append(query_text)
+        if "LIMIT 0" in query_text:
+            return pd.DataFrame(
+                columns=["id_plot", "plot", "extra_data", "geo_pt_geom"]
+            )
+        if "COUNT(*) as count" in query_text:
+            return pd.DataFrame([{"count": 1}])
+        if "SELECT id_plot, plot, extra_data FROM plots" in query_text:
+            raise Exception("Invalid unicode (byte sequence mismatch)")
+        if "SELECT id_plot, extra_data FROM plots" in query_text:
+            return pd.DataFrame(
+                [
+                    {"id_plot": 10, "extra_data": None},
+                    {"id_plot": 11, "extra_data": None},
+                ]
+            )
+        raise AssertionError(f"Unexpected SQL: {query_text}")
+
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        enrichment_service, "_get_reference_table_name", lambda _reference_name: "plots"
+    )
+    monkeypatch.setattr(enrichment_service, "Database", DummyDatabase)
+    monkeypatch.setattr(
+        enrichment_service, "quote_identifier", lambda _db, field: field
+    )
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "connector": {"type": "file", "format": "csv", "path": "imports/plots.csv"},
+            "schema": {"id_field": "id_plot", "name_field": "plot"},
+            "relation": {"reference_key": "plot"},
+        },
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_display_name_map",
+        lambda _reference_name, _id_field, _display_field: {
+            "10": "Forêt Plate P12",
+            "11": "Forêt Plate P17",
+        },
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_reference_geometry_fields",
+        lambda _reference_name: ["geo_pt_geom"],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda _reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name="plots",
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="open-meteo",
+                    label="Open-Meteo Elevation",
+                    enabled=True,
+                    plugin="api_elevation_enricher",
+                    query_field="geometry",
+                )
+            ],
+        ),
+    )
+
+    result = enrichment_service.get_entities_for_reference("plots")
+
+    assert result["total"] == 2
+    assert result["entities"][0]["name"] == "Forêt Plate P12"
+    assert result["entities"][1]["name"] == "Forêt Plate P17"
+    assert any(
+        "SELECT id_plot, extra_data FROM plots" in query for query in captured_queries
+    )
