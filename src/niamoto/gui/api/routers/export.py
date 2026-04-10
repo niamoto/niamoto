@@ -105,7 +105,7 @@ def get_export_config(config_path: str) -> Dict[str, Any]:
         )
 
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except Exception as e:
         raise HTTPException(

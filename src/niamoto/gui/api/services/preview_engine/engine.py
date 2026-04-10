@@ -827,9 +827,9 @@ class PreviewEngine:
         css_file = assets_path / "css" / "niamoto_hierarchical_nav.css"
         js_file = assets_path / "js" / "niamoto_hierarchical_nav.js"
         if css_file.exists():
-            css_content = css_file.read_text()
+            css_content = css_file.read_text(encoding="utf-8")
         if js_file.exists():
-            js_content = js_file.read_text()
+            js_content = js_file.read_text(encoding="utf-8")
 
         widget_id = f"hierarchical-nav-{reference_name.replace('_', '-')}"
         container_id = f"{widget_id}-container"

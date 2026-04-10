@@ -971,13 +971,13 @@ def export_statistics(stats: Dict[str, Any], filepath: str) -> None:
             else:
                 serializable_stats[key] = value
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(serializable_stats, f, indent=2)
 
     elif path.suffix.lower() == ".csv":
         import csv
 
-        with open(path, "w", newline="") as f:
+        with open(path, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["Category", "Metric", "Value"])
 

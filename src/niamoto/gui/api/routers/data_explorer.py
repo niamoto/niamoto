@@ -568,7 +568,7 @@ async def preview_enrichment(request: EnrichmentPreviewRequest):
         )
 
     try:
-        with open(import_config_path, "r") as f:
+        with open(import_config_path, "r", encoding="utf-8") as f:
             import_config = yaml.safe_load(f)
 
         # Extract API enrichment config from taxonomy section

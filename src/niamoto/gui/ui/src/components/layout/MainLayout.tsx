@@ -75,7 +75,7 @@ export function MainLayout() {
         <NavigationSidebar />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          {isDesktop && !isMac && <DesktopTitlebar />}
+          {isDesktop && isMac && <DesktopTitlebar />}
           <TopBar />
           <BreadcrumbNav />
 

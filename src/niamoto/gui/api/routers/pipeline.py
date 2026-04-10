@@ -79,7 +79,7 @@ def _get_transform_group_configs(work_dir: Path) -> list[dict]:
     if not config_path.exists():
         return []
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
         if isinstance(config, list):
             return [g for g in config if isinstance(g, dict) and g.get("group_by")]
@@ -182,7 +182,7 @@ def _get_groups_summary(work_dir: Path) -> Optional[dict]:
     if not config_path.exists():
         return None
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
         if not isinstance(config, list):
             return None
@@ -218,7 +218,7 @@ def _get_site_summary(work_dir: Path) -> Optional[dict]:
     if not config_path.exists():
         return None
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             export_config = yaml.safe_load(f)
         if not isinstance(export_config, dict):
             return None
@@ -467,7 +467,7 @@ async def get_pipeline_status(http_request: Request):
     site_configured = False
     if site_config_path.exists():
         try:
-            with open(site_config_path, "r") as f:
+            with open(site_config_path, "r", encoding="utf-8") as f:
                 export_config = yaml.safe_load(f)
             if isinstance(export_config, dict):
                 for exp in export_config.get("exports", []):
