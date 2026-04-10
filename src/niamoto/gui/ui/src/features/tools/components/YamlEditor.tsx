@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { useTheme } from '@/hooks/use-theme'
+import { useThemeStore } from '@/stores/themeStore'
 import * as yaml from 'js-yaml'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,7 @@ export function YamlEditor({
   showToolbar = true,
   configName,
 }: YamlEditorProps) {
-  const { theme } = useTheme()
+  const resolvedMode = useThemeStore((s) => s.getResolvedMode())
   const [editorValue, setEditorValue] = useState(initialValue)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -159,7 +159,7 @@ export function YamlEditor({
             defaultLanguage="yaml"
             value={editorValue}
             onChange={handleEditorChange}
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            theme={resolvedMode === 'dark' ? 'vs-dark' : 'light'}
             options={{
               readOnly,
               minimap: { enabled: true },

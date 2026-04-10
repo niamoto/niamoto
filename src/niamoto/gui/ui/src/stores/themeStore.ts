@@ -27,6 +27,8 @@ import {
   inkTheme,
 } from '@/themes'
 
+export const DEFAULT_THEME_ID = 'frond'
+
 // Register all built-in themes
 registerTheme(frondTheme)     // Brand default
 registerTheme(slateTheme)
@@ -43,6 +45,7 @@ interface ThemeStore {
   // State
   themeId: string
   mode: ThemeMode
+  systemMode: 'light' | 'dark'
 
   // Computed-like getters (call as functions)
   getResolvedMode: () => 'light' | 'dark'
@@ -52,6 +55,7 @@ interface ThemeStore {
   // Actions
   setTheme: (themeId: string) => void
   setMode: (mode: ThemeMode) => void
+  setSystemMode: (systemMode: 'light' | 'dark') => void
   cycleMode: () => void
   applyCurrentTheme: () => void
 }
@@ -60,14 +64,16 @@ export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
       // Initial state — frond is the default for fresh installs
-      themeId: 'frond',
+      themeId: DEFAULT_THEME_ID,
       mode: 'system',
+      systemMode:
+        typeof window !== 'undefined' ? getSystemMode() : 'light',
 
       // Getters
       getResolvedMode: () => {
-        const { mode } = get()
+        const { mode, systemMode } = get()
         if (mode === 'system') {
-          return getSystemMode()
+          return systemMode
         }
         return mode
       },
@@ -82,23 +88,13 @@ export const useThemeStore = create<ThemeStore>()(
 
       // Actions
       setTheme: (themeId: string) => {
-        const theme = getTheme(themeId)
-        if (theme) {
+        if (getTheme(themeId)) {
           set({ themeId })
-          // Apply immediately
-          const resolvedMode = get().getResolvedMode()
-          applyTheme(theme, resolvedMode)
         }
       },
 
       setMode: (mode: ThemeMode) => {
         set({ mode })
-        // Apply immediately
-        const theme = get().getCurrentTheme()
-        if (theme) {
-          const resolvedMode = mode === 'system' ? getSystemMode() : mode
-          applyTheme(theme, resolvedMode)
-        }
       },
 
       cycleMode: () => {
@@ -116,6 +112,10 @@ export const useThemeStore = create<ThemeStore>()(
           applyTheme(theme, resolvedMode)
         }
       },
+
+      setSystemMode: (systemMode: 'light' | 'dark') => {
+        set({ systemMode })
+      },
     }),
     {
       name: 'niamoto-theme',
@@ -126,31 +126,6 @@ export const useThemeStore = create<ThemeStore>()(
     }
   )
 )
-
-// Default theme id used for fresh installs and invalid persisted values
-const DEFAULT_THEME_ID = 'frond'
-
-// Initialize theme on module load
-if (typeof window !== 'undefined') {
-  const state = useThemeStore.getState()
-
-  // Validate persisted theme — fall back to default if missing or removed
-  if (!getTheme(state.themeId)) {
-    state.setTheme(DEFAULT_THEME_ID)
-  }
-
-  // Apply theme immediately
-  state.applyCurrentTheme()
-
-  // Listen for system theme changes
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  mediaQuery.addEventListener('change', () => {
-    const { mode, applyCurrentTheme } = useThemeStore.getState()
-    if (mode === 'system') {
-      applyCurrentTheme()
-    }
-  })
-}
 
 // Helper hook for common operations
 export function useTheme() {
