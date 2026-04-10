@@ -234,6 +234,9 @@
       "col": {
         "description": "Taxonomic consolidation through Catalogue of Life and ChecklistBank"
       },
+      "bhl": {
+        "description": "Bibliographic references and source pages from the Biodiversity Heritage Library"
+      },
       "gbif": {
         "description": "Global Biodiversity Information Facility"
       },
@@ -274,6 +277,7 @@
     "providers": {
       "endemia": "Endemia NC",
       "col": "Catalogue of Life",
+      "bhl": "BHL",
       "gbif": "GBIF",
       "wfo": "WFO",
       "ipni": "IPNI",
@@ -309,7 +313,8 @@
       },
       "links": {
         "website": "Official website",
-        "apiDocs": "API documentation"
+        "apiDocs": "API documentation",
+        "apiKeyForm": "Get an API key"
       }
     },
     "authentication": {

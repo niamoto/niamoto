@@ -210,6 +210,78 @@ def test_get_reference_enrichment_config_preserves_col_rich_fields(monkeypatch):
     assert source.reference_limit == 7
 
 
+def test_get_reference_enrichment_config_preserves_bhl_fields(monkeypatch):
+    """Structured BHL config should survive normalization."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "bhl",
+                    "label": "BHL",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://www.biodiversitylibrary.org/api3",
+                        "profile": "bhl_references",
+                        "auth_method": "api_key",
+                        "auth_params": {
+                            "location": "query",
+                            "name": "apikey",
+                            "key": "secret",
+                        },
+                        "include_publication_details": True,
+                        "include_page_preview": False,
+                        "title_limit": 4,
+                        "page_limit": 2,
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.id == "bhl"
+    assert source.profile == "bhl_references"
+    assert source.auth_method == "api_key"
+    assert source.auth_params["name"] == "apikey"
+    assert source.include_publication_details is True
+    assert source.include_page_preview is False
+    assert source.title_limit == 4
+    assert source.page_limit == 2
+
+
+def test_ensure_startable_sources_rejects_missing_api_key(monkeypatch):
+    """Preview and runs should fail early when a source requires an API key but has none."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda _reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name="taxons",
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="bhl",
+                    label="BHL",
+                    enabled=True,
+                    api_url="https://www.biodiversitylibrary.org/api3",
+                    auth_method="api_key",
+                    auth_params={"location": "query", "name": "apikey", "key": ""},
+                )
+            ],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Missing API key for source 'BHL'"):
+        enrichment_service._ensure_startable_sources("taxons")
+
+
 def test_merge_source_enrichment_data_keeps_existing_sources():
     """Adding one source must not overwrite previously stored source payloads."""
 
@@ -337,6 +409,74 @@ def test_preview_default_enrichment_forwards_source_id(monkeypatch):
         "reference_name": "taxons",
         "query": "Araucaria columnaris",
         "source_id": "gbif",
+    }
+
+
+def test_preview_reference_enrichment_uses_source_override(monkeypatch):
+    """Preview should use the unsaved source draft when provided."""
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            assert payload == {"full_name": "Alphitonia neocaledonica"}
+            assert config["params"]["profile"] == "bhl_references"
+            assert config["params"]["auth_params"]["key"] == "secret"
+            return {
+                "api_enrichment": {"references_count": 3},
+                "api_response_raw": {"Result": [{"Title": "Example title"}]},
+            }
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda _reference_name: pytest.fail(
+            "saved config should not be consulted when a preview override is provided"
+        ),
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_build_enricher",
+        lambda _plugin: FakeEnricher(),
+    )
+
+    response = asyncio.run(
+        enrichment_service.preview_reference_enrichment(
+            "taxons",
+            "Alphitonia neocaledonica",
+            source_id="source-4",
+            source_override={
+                "id": "source-4",
+                "label": "BHL",
+                "plugin": "api_taxonomy_enricher",
+                "enabled": False,
+                "config": {
+                    "api_url": "https://www.biodiversitylibrary.org/api3",
+                    "profile": "bhl_references",
+                    "auth_method": "api_key",
+                    "auth_params": {
+                        "location": "query",
+                        "name": "apikey",
+                        "key": "secret",
+                    },
+                    "query_param_name": "name",
+                    "query_params": {"op": "NameSearch", "format": "json"},
+                    "response_mapping": {},
+                },
+            },
+        )
+    )
+
+    assert response.success is True
+    assert response.results[0].data == {"references_count": 3}
+    assert response.results[0].config_used == {
+        "api_url": "https://www.biodiversitylibrary.org/api3",
+        "query_field": "full_name",
+        "profile": "bhl_references",
+        "use_name_verifier": False,
+        "dataset_key": 314774,
+        "include_publication_details": True,
+        "include_page_preview": True,
+        "title_limit": 5,
+        "page_limit": 5,
     }
 
 

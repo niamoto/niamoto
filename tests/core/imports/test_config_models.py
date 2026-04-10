@@ -213,3 +213,55 @@ def test_generic_import_config_keeps_col_rich_fields():
     assert enrichment.config["dataset_key"] == 314774
     assert enrichment.config["include_vernaculars"] is True
     assert enrichment.config["reference_limit"] == 5
+
+
+def test_generic_import_config_keeps_bhl_reference_fields():
+    """BHL structured fields should stay available in the generic model."""
+
+    config = GenericImportConfig.from_dict(
+        {
+            "version": "1.0",
+            "entities": {
+                "references": {
+                    "taxons": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/taxons.csv",
+                        },
+                        "schema": {"id": "id", "fields": []},
+                        "enrichment": [
+                            {
+                                "id": "bhl",
+                                "label": "BHL",
+                                "plugin": "api_taxonomy_enricher",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://www.biodiversitylibrary.org/api3",
+                                    "profile": "bhl_references",
+                                    "auth_method": "api_key",
+                                    "auth_params": {
+                                        "location": "query",
+                                        "name": "apikey",
+                                        "key": "secret",
+                                    },
+                                    "include_publication_details": True,
+                                    "include_page_preview": False,
+                                    "title_limit": 3,
+                                    "page_limit": 2,
+                                },
+                            }
+                        ],
+                    }
+                },
+                "datasets": {},
+            },
+        }
+    )
+
+    enrichment = config.entities.references["taxons"].enrichment[0]
+    assert enrichment.id == "bhl"
+    assert enrichment.config["profile"] == "bhl_references"
+    assert enrichment.config["include_publication_details"] is True
+    assert enrichment.config["include_page_preview"] is False
+    assert enrichment.config["title_limit"] == 3
+    assert enrichment.config["page_limit"] == 2

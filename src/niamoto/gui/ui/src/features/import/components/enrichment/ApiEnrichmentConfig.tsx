@@ -63,6 +63,10 @@ export interface ApiConfig {
   include_distributions?: boolean
   media_limit?: number
   reference_limit?: number
+  include_publication_details?: boolean
+  include_page_preview?: boolean
+  title_limit?: number
+  page_limit?: number
   rate_limit: number
   cache_results: boolean
   response_mapping?: Record<string, string>
@@ -84,6 +88,7 @@ interface PresetAPI {
   iconSrc?: string
   websiteUrl?: string
   docsUrl?: string
+  keyFormUrl?: string
   config: {
     api_url: string
     auth_method: 'none' | 'api_key' | 'bearer' | 'basic'
@@ -108,6 +113,10 @@ interface PresetAPI {
     include_distributions?: boolean
     media_limit?: number
     reference_limit?: number
+    include_publication_details?: boolean
+    include_page_preview?: boolean
+    title_limit?: number
+    page_limit?: number
     response_mapping?: Record<string, string>
   }
 }
@@ -116,6 +125,7 @@ interface PresetAPI {
 export type ApiCategory = 'taxonomy' | 'elevation' | 'spatial' | 'all'
 
 const COL_DEFAULT_DATASET_KEY = 314774
+const BHL_API_ENDPOINT = 'https://www.biodiversitylibrary.org/api3'
 
 interface PresetAPIWithCategory extends PresetAPI {
   category: ApiCategory
@@ -226,6 +236,34 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
       reference_limit: 5,
       query_param_name: 'q',
       query_params: {},
+      response_mapping: {}
+    }
+  },
+  {
+    name: 'BHL',
+    websiteUrl: 'https://www.biodiversitylibrary.org/',
+    docsUrl: 'https://www.biodiversitylibrary.org/docs/api3.html',
+    keyFormUrl: 'https://www.biodiversitylibrary.org/getapikey.aspx',
+    category: 'taxonomy',
+    descriptionKey: 'apiEnrichment.presets.bhl.description',
+    config: {
+      api_url: BHL_API_ENDPOINT,
+      auth_method: 'api_key',
+      auth_params: {
+        location: 'query',
+        name: 'apikey',
+        key: ''
+      },
+      profile: 'bhl_references',
+      query_param_name: 'name',
+      query_params: {
+        op: 'NameSearch',
+        format: 'json'
+      },
+      include_publication_details: true,
+      include_page_preview: true,
+      title_limit: 5,
+      page_limit: 5,
       response_mapping: {}
     }
   },
@@ -457,7 +495,11 @@ export function ApiEnrichmentConfig({
   const isGbifRichProfile = config.profile === 'gbif_rich'
   const isTropicosRichProfile = config.profile === 'tropicos_rich'
   const isColRichProfile = config.profile === 'col_rich'
-  const isStructuredProfile = isGbifRichProfile || isTropicosRichProfile || isColRichProfile
+  const isBhlReferencesProfile = config.profile === 'bhl_references'
+  const isStructuredProfile =
+    isGbifRichProfile || isTropicosRichProfile || isColRichProfile || isBhlReferencesProfile
+  const supportsNameResolution =
+    isGbifRichProfile || isTropicosRichProfile || isColRichProfile
   const selectedPreset = useMemo(() => {
     const structuredPreset = filteredPresets.find((preset) => (
       preset.config.profile && preset.config.profile === config.profile
@@ -505,6 +547,10 @@ export function ApiEnrichmentConfig({
         include_distributions: preset.config.include_distributions ?? true,
         media_limit: preset.config.media_limit ?? 3,
         reference_limit: preset.config.reference_limit ?? 5,
+        include_publication_details: preset.config.include_publication_details ?? true,
+        include_page_preview: preset.config.include_page_preview ?? true,
+        title_limit: preset.config.title_limit ?? 5,
+        page_limit: preset.config.page_limit ?? 5,
         response_mapping: preset.config.response_mapping ? { ...preset.config.response_mapping } : {},
       })
       onPresetSelect?.(preset.name)
@@ -763,6 +809,17 @@ export function ApiEnrichmentConfig({
                               className="inline-flex items-center gap-1.5 text-primary hover:underline"
                             >
                               {t('apiEnrichment.connection.links.apiDocs')}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : null}
+                          {selectedPreset.keyFormUrl ? (
+                            <a
+                              href={selectedPreset.keyFormUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                            >
+                              {t('apiEnrichment.connection.links.apiKeyForm')}
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           ) : null}
@@ -1067,9 +1124,83 @@ export function ApiEnrichmentConfig({
                     </div>
                   </div>
                 </div>
+              ) : isBhlReferencesProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>BHL References</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Utilise un pipeline documentaire structuré BHL avec titres, mentions
+                      bibliographiques et pages représentatives.
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border bg-background px-3 py-3 text-xs text-muted-foreground">
+                    La clé API BHL est obligatoire pour tester et exécuter cette source.
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Publication details</div>
+                        <div className="text-xs text-muted-foreground">
+                          Hydrate les meilleurs titres avec leurs métadonnées BHL
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_publication_details ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_publication_details: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Page preview</div>
+                        <div className="text-xs text-muted-foreground">
+                          Charge quelques pages avec miniature et lien direct
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_page_preview ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_page_preview: checked })}
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="bhl-title-limit">Title limit</Label>
+                      <Input
+                        id="bhl-title-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.title_limit ?? 5)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            title_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="bhl-page-limit">Page limit</Label>
+                      <Input
+                        id="bhl-page-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.page_limit ?? 5)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            page_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : null}
 
-              {isStructuredProfile ? (
+              {supportsNameResolution ? (
                 <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
                   <div className="space-y-1">
                     <Label>{t('apiEnrichment.connection.nameResolution.title')}</Label>

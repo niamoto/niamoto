@@ -169,6 +169,31 @@ def test_config_validation_allows_col_rich_without_response_mapping():
     assert config.params.response_mapping == {}
 
 
+def test_config_validation_allows_bhl_references_without_response_mapping():
+    """Structured BHL profile should not require flat response_mapping."""
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://www.biodiversitylibrary.org/api3",
+            "profile": "bhl_references",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
+            "query_param_name": "name",
+            "response_mapping": {},
+        },
+    }
+
+    config = ApiTaxonomyEnricherConfig(**config_dict)
+    assert config.params.profile == "bhl_references"
+    assert config.params.auth_method == "api_key"
+    assert config.params.response_mapping == {}
+
+
 @pytest.mark.parametrize(
     "auth_method, auth_params, error_message",
     [
@@ -993,6 +1018,224 @@ def test_load_data_col_rich_handles_no_match(
             "dataset_key": 314774,
             "query_field": "full_name",
             "query_param_name": "q",
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Unknown species"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
+    assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
+
+
+def test_load_data_bhl_references_returns_structured_summary(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """BHL structured profile should return a documentary summary."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_name_search",
+        lambda query, params: (
+            {
+                "submitted_name": query,
+                "name_confirmed": "Alphitonia neocaledonica",
+                "name_canonical": "Alphitonia neocaledonica",
+                "namebank_id": "5775264",
+                "match_status": "confirmed",
+            },
+            {"Status": "ok", "Result": [{"NameConfirmed": "Alphitonia neocaledonica"}]},
+            "Alphitonia neocaledonica",
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_name_metadata",
+        lambda query, params: (
+            {
+                "match": {
+                    "name_confirmed": query,
+                    "name_canonical": query,
+                    "namebank_id": "5775264",
+                    "match_status": "confirmed",
+                },
+                "title_summary": {
+                    "title_count": 2,
+                    "item_count": 3,
+                    "page_count": 4,
+                },
+                "name_mentions": {
+                    "mentions_count": 2,
+                    "sample": [
+                        {
+                            "name_found": query,
+                            "name_confirmed": query,
+                            "name_canonical": query,
+                        }
+                    ],
+                },
+                "references_count": {"titles": 2, "items": 3, "pages": 4},
+            },
+            {"Status": "ok", "Result": [{"NameConfirmed": query}]},
+            [
+                {
+                    "title_id": "84482",
+                    "title_url": "https://www.biodiversitylibrary.org/title/84482",
+                    "short_title": "Repertorium specierum novarum regni vegetabilis",
+                }
+            ],
+            [
+                {
+                    "page_id": "5904859",
+                    "page_url": "https://www.biodiversitylibrary.org/page/5904859",
+                    "thumbnail_url": "https://www.biodiversitylibrary.org/pagethumb/5904859",
+                    "page_type": "Text",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_publications",
+        lambda title_candidates, params: (
+            {
+                "sample": [
+                    {
+                        "title_id": "84482",
+                        "short_title": "Repertorium specierum novarum regni vegetabilis",
+                        "publication_date": "1911-1941",
+                        "publisher_name": "Verlag des Repertoriums",
+                        "title_url": "https://www.biodiversitylibrary.org/title/84482",
+                        "item_count": 2,
+                    }
+                ]
+            },
+            [{"Status": "ok"}],
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_page_links",
+        lambda page_candidates, params: (
+            {
+                "sample": [
+                    {
+                        "page_id": "5904859",
+                        "page_url": "https://www.biodiversitylibrary.org/page/5904859",
+                        "thumbnail_url": "https://www.biodiversitylibrary.org/pagethumb/5904859",
+                        "page_type": "Text",
+                    }
+                ]
+            },
+            [{"Status": "ok"}],
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://www.biodiversitylibrary.org/api3",
+            "profile": "bhl_references",
+            "query_field": "full_name",
+            "query_param_name": "name",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
+            "include_publication_details": True,
+            "include_page_preview": True,
+            "title_limit": 5,
+            "page_limit": 5,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica"},
+        valid_config,
+    )
+
+    assert (
+        enriched["api_enrichment"]["match"]["name_confirmed"]
+        == "Alphitonia neocaledonica"
+    )
+    assert enriched["api_enrichment"]["title_summary"]["title_count"] == 2
+    assert enriched["api_enrichment"]["references_count"]["pages"] == 4
+    assert (
+        enriched["api_enrichment"]["publications"]["sample"][0]["title_id"] == "84482"
+    )
+    assert enriched["api_enrichment"]["page_links"]["sample"][0]["page_id"] == "5904859"
+    assert "name_search" in enriched["api_enrichment"]["links"]
+    assert "apikey" not in str(enriched["api_response_raw"])
+
+
+def test_load_data_bhl_references_handles_no_match(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """BHL profile should return a structured no-match outcome."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_name_search",
+        lambda query, params: (
+            {
+                "submitted_name": query,
+                "name_confirmed": "",
+                "name_canonical": "",
+                "namebank_id": "",
+                "match_status": "no_match",
+            },
+            {"Status": "ok", "Result": []},
+            query,
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_bhl_name_metadata",
+        lambda query, params: (
+            {
+                "match": {
+                    "name_confirmed": "",
+                    "name_canonical": "",
+                    "namebank_id": "",
+                    "match_status": "no_match",
+                },
+                "title_summary": {
+                    "title_count": 0,
+                    "item_count": 0,
+                    "page_count": 0,
+                },
+                "name_mentions": {"mentions_count": 0, "sample": []},
+                "references_count": {"titles": 0, "items": 0, "pages": 0},
+            },
+            {"Status": "ok", "Result": []},
+            [],
+            [],
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://www.biodiversitylibrary.org/api3",
+            "profile": "bhl_references",
+            "query_field": "full_name",
+            "query_param_name": "name",
+            "auth_method": "api_key",
+            "auth_params": {
+                "location": "query",
+                "name": "apikey",
+                "key": "secret",
+            },
             "response_mapping": {},
             "cache_results": False,
         },
