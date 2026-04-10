@@ -190,7 +190,7 @@ async def get_project_info() -> Dict[str, Any]:
         return {"name": "Niamoto Project", "version": "1.0.0"}
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         # Extract project section
@@ -733,7 +733,7 @@ async def get_config(config_name: str):
         return default_configs.get(config_name, {})
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             content = yaml.safe_load(f) or {}
         return content
     except Exception as e:
@@ -774,7 +774,7 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
             backup_path = create_backup(config_path)
 
         # Write new configuration
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(update.content, f, default_flow_style=False, sort_keys=False)
 
         return ConfigResponse(
@@ -975,7 +975,7 @@ async def restore_backup(
         shutil.copy2(backup_path, config_path)
 
         # Read the restored content
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             content = yaml.safe_load(f)
 
         return ConfigResponse(

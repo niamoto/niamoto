@@ -37,7 +37,7 @@ class AliasRegistry:
         aliases (same normalized form → multiple concepts) are excluded and
         left for the ML classifier to resolve.
         """
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             self._raw = yaml.safe_load(f) or {}
 
         # First pass: collect all concepts for each normalized alias

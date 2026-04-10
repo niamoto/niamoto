@@ -197,7 +197,7 @@ async def get_available_references():
                 detail="import.yml not found. Please configure imports first.",
             )
 
-        with open(import_config_path, "r") as f:
+        with open(import_config_path, "r", encoding="utf-8") as f:
             import_config = yaml.safe_load(f)
 
         if not import_config:

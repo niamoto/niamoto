@@ -129,7 +129,9 @@ class JobFileStore:
             # Chercher dans l'historique
             if not self._history_path.exists():
                 return None
-            for line in reversed(self._history_path.read_text().strip().splitlines()):
+            for line in reversed(
+                self._history_path.read_text(encoding="utf-8").strip().splitlines()
+            ):
                 try:
                     entry = json.loads(line)
                     if entry.get("id") == job_id:
@@ -154,7 +156,7 @@ class JobFileStore:
         with self._lock:
             if not self._history_path.exists():
                 return []
-            lines = self._history_path.read_text().strip().splitlines()
+            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
             entries = []
             for line in lines[-limit:]:
                 try:
@@ -184,7 +186,7 @@ class JobFileStore:
             # Sinon chercher dans l'historique
             if not self._history_path.exists():
                 return None
-            lines = self._history_path.read_text().strip().splitlines()
+            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
             for line in reversed(lines):
                 try:
                     entry = json.loads(line)
@@ -236,12 +238,12 @@ class JobFileStore:
         with self._lock:
             if not self._history_path.exists():
                 return 0
-            lines = self._history_path.read_text().strip().splitlines()
+            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
             if len(lines) <= keep_last:
                 return 0
             removed = len(lines) - keep_last
             kept = lines[-keep_last:]
-            self._history_path.write_text("\n".join(kept) + "\n")
+            self._history_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
             return removed
 
     def clear_history(self, job_type: str | None = None) -> int:
@@ -261,7 +263,7 @@ class JobFileStore:
             if not self._history_path.exists():
                 return removed
 
-            lines = self._history_path.read_text().strip().splitlines()
+            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
             if not lines:
                 self._history_path.unlink(missing_ok=True)
                 return removed
@@ -284,7 +286,7 @@ class JobFileStore:
                 kept.append(line)
 
             if kept:
-                self._history_path.write_text("\n".join(kept) + "\n")
+                self._history_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
             else:
                 self._history_path.unlink(missing_ok=True)
 
@@ -297,7 +299,7 @@ class JobFileStore:
         if not self._active_path.exists():
             return None
         try:
-            data = json.loads(self._active_path.read_text())
+            data = json.loads(self._active_path.read_text(encoding="utf-8"))
             return data
         except (json.JSONDecodeError, OSError):
             # Fichier corrompu → backup et retourner None
@@ -312,13 +314,16 @@ class JobFileStore:
     def _write_active(self, job: dict) -> None:
         """Écriture atomique (write tmp + os.replace). Sans lock."""
         tmp = self._active_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(job, ensure_ascii=False, indent=2, default=str))
+        tmp.write_text(
+            json.dumps(job, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
         os.replace(str(tmp), str(self._active_path))
 
     def _archive(self, job: dict) -> None:
         """Append dans l'historique JSONL. Sans lock."""
         archived = {k: v for k, v in job.items() if k != "pid"}
-        with self._history_path.open("a") as f:
+        with self._history_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(archived, ensure_ascii=False) + "\n")
 
     @staticmethod

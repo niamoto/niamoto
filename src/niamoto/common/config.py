@@ -235,7 +235,7 @@ class Config:
         deploy_path = os.path.join(self.config_dir, "deploy.yml")
         if os.path.exists(deploy_path):
             try:
-                with open(deploy_path, "r") as f:
+                with open(deploy_path, "r", encoding="utf-8") as f:
                     self.deploy = yaml.safe_load(f) or {}
             except Exception:
                 self.deploy = {}

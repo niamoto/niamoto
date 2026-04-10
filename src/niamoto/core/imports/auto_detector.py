@@ -480,5 +480,5 @@ class AutoDetector:
 
     def save_config(self, config: Dict[str, Any], output_path: Path) -> None:
         """Save configuration to YAML file."""
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)

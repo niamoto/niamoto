@@ -10,7 +10,7 @@ def clean_unused_config(config_path: Path) -> None:
     if not config_path.exists():
         return
 
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
     # Remove plots if empty or None
@@ -22,7 +22,7 @@ def clean_unused_config(config_path: Path) -> None:
         del config["shapes"]
 
     # Write back the cleaned config
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
@@ -37,7 +37,7 @@ def update_import_config(
 
     # Read existing config
     if config_path.exists():
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
     else:
         config = {}
@@ -201,5 +201,5 @@ def update_import_config(
             config["shapes"].append(shape_config)
 
     # Write updated config back to file
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)

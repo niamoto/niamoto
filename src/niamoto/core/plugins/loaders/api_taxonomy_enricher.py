@@ -3543,7 +3543,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         if value.startswith("$FILE:"):
             file_path = value[6:]
             try:
-                with open(file_path, "r") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     return f.read().strip()
             except Exception as e:
                 logger.error(f"Failed to read value from file {file_path}: {str(e)}")

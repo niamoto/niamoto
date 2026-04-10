@@ -2325,7 +2325,7 @@ async def get_validation_rules():
         )
 
     try:
-        with open(rules_path, "r") as f:
+        with open(rules_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         rules = []
@@ -2373,7 +2373,7 @@ async def update_validation_rules(rules: ValidationRules):
             ]
         }
 
-        with open(rules_path, "w") as f:
+        with open(rules_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(rules_data, f, default_flow_style=False)
 
         return rules
