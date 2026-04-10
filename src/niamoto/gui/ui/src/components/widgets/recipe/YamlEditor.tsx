@@ -1,10 +1,11 @@
 import { useCallback, useState, useEffect } from 'react'
-import Editor, { type OnMount, type OnChange } from '@monaco-editor/react'
+import type { OnMount, OnChange } from '@monaco-editor/react'
 import type { editor, Position } from 'monaco-editor'
 import * as yaml from 'js-yaml'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, CheckCircle2, Copy, FileCode2 } from 'lucide-react'
+import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 
 interface YamlEditorProps {
   value: string
@@ -183,7 +184,7 @@ export function YamlEditor({
 
       {/* Editor */}
       <div className="relative border rounded-md overflow-hidden">
-        <Editor
+        <LazyMonacoEditor
           height={height}
           defaultLanguage="yaml"
           value={value}

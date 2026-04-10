@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles, FileCode, Globe, Package, ExternalLink } from 'lucide-react'
@@ -22,7 +22,7 @@ import {
   type ExportFileContent,
 } from '@/features/tools/api/exports'
 import { toast } from 'sonner'
-const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 
 export function DataExplorer() {
   const { t } = useTranslation(['tools', 'common'])
@@ -782,27 +782,24 @@ export function DataExplorer() {
           ) : selectedJsonFile ? (
             <div className="flex-1 min-h-0">
               <div className="h-[600px] border rounded-lg overflow-hidden">
-                <Suspense
-                  fallback={
+                <LazyMonacoEditor
+                  height="100%"
+                  language="json"
+                  value={selectedJsonFile.content}
+                  theme="vs-dark"
+                  suspenseFallback={
                     <div className="flex h-full items-center justify-center text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
                   }
-                >
-                  <MonacoEditor
-                    height="100%"
-                    language="json"
-                    value={selectedJsonFile.content}
-                    theme="vs-dark"
-                    options={{
-                      readOnly: true,
-                      minimap: { enabled: true },
-                      scrollBeyondLastLine: false,
-                      wordWrap: 'on',
-                      automaticLayout: true,
-                    }}
-                  />
-                </Suspense>
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                  }}
+                />
               </div>
               <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                 <span>Taille : {(selectedJsonFile.size / 1024).toFixed(1)} KB</span>
