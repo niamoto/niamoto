@@ -16,6 +16,11 @@ ROOT_DIR = Path(SPECPATH).parent  # SPECPATH is the directory containing this .s
 SRC_DIR = ROOT_DIR / 'src'
 NIAMOTO_SRC = SRC_DIR / 'niamoto'
 BUILD_MODE = os.environ.get('NIAMOTO_PYINSTALLER_MODE', 'onefile').strip().lower()
+CONSOLE_ENABLED = os.environ.get('NIAMOTO_PYINSTALLER_CONSOLE', 'true').strip().lower() not in {
+    '0',
+    'false',
+    'no',
+}
 
 # Collect all Niamoto data files (YAML, templates, static files)
 datas = []
@@ -216,7 +221,7 @@ common_exe_kwargs = dict(
         'api-ms-win-*.dll',
     ],
     runtime_tmpdir=None if sys.platform != 'win32' else os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'niamoto'),
-    console=True,  # Keep console for debugging
+    console=CONSOLE_ENABLED,
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
@@ -234,7 +239,7 @@ if BUILD_MODE == 'onedir':
         bootloader_ignore_signals=False,
         strip=False,
         upx=False,
-        console=True,
+        console=CONSOLE_ENABLED,
         disable_windowed_traceback=False,
         target_arch=None,
         codesign_identity=None,

@@ -95,6 +95,7 @@ jobs:
       - name: Build Python binary (PyInstaller)
         env:
           NIAMOTO_PYINSTALLER_MODE: onedir
+          NIAMOTO_PYINSTALLER_CONSOLE: "false"
         run: uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
 
       - name: Place sidecar resources (Unix)
