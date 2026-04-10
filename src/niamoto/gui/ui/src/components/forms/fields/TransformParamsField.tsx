@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,17 +40,12 @@ export default function TransformParamsField({
   transformSchemas,
 }: TransformParamsFieldProps) {
   const { t } = useTranslation(['widgets', 'common'])
-  const [localParams, setLocalParams] = useState<Record<string, unknown>>(value || {})
-  const lastEmittedValueRef = useRef('')
-
   const currentSchema = selectedTransform && transformSchemas
     ? transformSchemas[selectedTransform]
     : null
-
-  useEffect(() => {
+  const resolvedParams = useMemo<Record<string, unknown>>(() => {
     if (!currentSchema) {
-      setLocalParams((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      return
+      return {}
     }
 
     const nextParams: Record<string, unknown> = {}
@@ -61,12 +56,19 @@ export default function TransformParamsField({
         nextParams[key] = def.default
       }
     })
-    setLocalParams((prev) => {
-      const prevKey = JSON.stringify(prev)
-      const nextKey = JSON.stringify(nextParams)
-      return prevKey === nextKey ? prev : nextParams
-    })
-  }, [currentSchema, selectedTransform, value])
+
+    return nextParams
+  }, [currentSchema, value])
+  const sourceKey = useMemo(
+    () => JSON.stringify([selectedTransform ?? null, resolvedParams]),
+    [resolvedParams, selectedTransform]
+  )
+  const [localState, setLocalState] = useState(() => ({
+    sourceKey,
+    params: resolvedParams,
+  }))
+  const lastEmittedValueRef = useRef('')
+  const localParams = localState.sourceKey === sourceKey ? localState.params : resolvedParams
 
   useEffect(() => {
     const hasValues = Object.values(localParams).some(
@@ -112,7 +114,10 @@ export default function TransformParamsField({
                 <Switch
                   checked={Boolean(localParams[key] ?? def.default)}
                   onCheckedChange={(checked) =>
-                    setLocalParams((prev) => ({ ...prev, [key]: checked }))
+                    setLocalState({
+                      sourceKey,
+                      params: { ...localParams, [key]: checked },
+                    })
                   }
                   disabled={disabled}
                 />
@@ -128,10 +133,13 @@ export default function TransformParamsField({
                     .split(',')
                     .map((item) => item.trim())
                     .filter(Boolean)
-                  setLocalParams((prev) => ({
-                    ...prev,
-                    [key]: vals.length > 0 ? vals : undefined,
-                  }))
+                  setLocalState({
+                    sourceKey,
+                    params: {
+                      ...localParams,
+                      [key]: vals.length > 0 ? vals : undefined,
+                    },
+                  })
                 }}
                 placeholder={t('widgets:form.commaSeparatedValues')}
                 disabled={disabled}
@@ -142,10 +150,13 @@ export default function TransformParamsField({
                 className="h-8"
                 value={String(localParams[key] ?? def.default ?? '')}
                 onChange={(e) =>
-                  setLocalParams((prev) => ({
-                    ...prev,
-                    [key]: e.target.value ? Number(e.target.value) : undefined,
-                  }))
+                  setLocalState({
+                    sourceKey,
+                    params: {
+                      ...localParams,
+                      [key]: e.target.value ? Number(e.target.value) : undefined,
+                    },
+                  })
                 }
                 disabled={disabled}
               />
@@ -154,10 +165,13 @@ export default function TransformParamsField({
                 className="h-8"
                 value={String(localParams[key] ?? def.default ?? '')}
                 onChange={(e) =>
-                  setLocalParams((prev) => ({
-                    ...prev,
-                    [key]: e.target.value || undefined,
-                  }))
+                  setLocalState({
+                    sourceKey,
+                    params: {
+                      ...localParams,
+                      [key]: e.target.value || undefined,
+                    },
+                  })
                 }
                 placeholder={def.default ? String(def.default) : undefined}
                 disabled={disabled}

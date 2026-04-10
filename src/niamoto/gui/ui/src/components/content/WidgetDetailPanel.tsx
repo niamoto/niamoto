@@ -7,7 +7,7 @@
  * - Three tabs: Preview / Parameters / YAML
  * - Edit and delete capabilities
  */
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import yaml from 'js-yaml'
@@ -104,11 +104,71 @@ export function WidgetDetailPanel({
 }: WidgetDetailPanelProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'params' | 'yaml'>('params')
+  const [panelState, setPanelState] = useState<{
+    widgetId: string
+    activeTab: 'params' | 'yaml'
+    previewDraft: Partial<ConfiguredWidget> | null
+    formInstanceKey: number
+  }>(() => ({
+    widgetId: widget.id,
+    activeTab: 'params',
+    previewDraft: null,
+    formInstanceKey: 0,
+  }))
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [previewDraft, setPreviewDraft] = useState<Partial<ConfiguredWidget> | null>(null)
-  const [formInstanceKey, setFormInstanceKey] = useState(0)
+  const activeTab = panelState.widgetId === widget.id ? panelState.activeTab : 'params'
+  const previewDraft = panelState.widgetId === widget.id ? panelState.previewDraft : null
+  const formInstanceKey = panelState.widgetId === widget.id ? panelState.formInstanceKey : 0
+
+  const updatePanelState = useCallback(
+    (
+      updater:
+        | {
+            activeTab: 'params' | 'yaml'
+            previewDraft: Partial<ConfiguredWidget> | null
+            formInstanceKey: number
+          }
+        | ((prev: {
+            activeTab: 'params' | 'yaml'
+            previewDraft: Partial<ConfiguredWidget> | null
+            formInstanceKey: number
+          }) => {
+            activeTab: 'params' | 'yaml'
+            previewDraft: Partial<ConfiguredWidget> | null
+            formInstanceKey: number
+          }),
+    ) => {
+      setPanelState((prev) => {
+        const base =
+          prev.widgetId === widget.id
+            ? prev
+            : {
+                widgetId: widget.id,
+                activeTab: 'params' as const,
+                previewDraft: null,
+                formInstanceKey: 0,
+              }
+
+        const next =
+          typeof updater === 'function'
+            ? updater({
+                activeTab: base.activeTab,
+                previewDraft: base.previewDraft,
+                formInstanceKey: base.formInstanceKey,
+              })
+            : updater
+
+        return {
+          widgetId: widget.id,
+          activeTab: next.activeTab,
+          previewDraft: next.previewDraft,
+          formInstanceKey: next.formInstanceKey,
+        }
+      })
+    },
+    [widget.id]
+  )
 
   // Category info
   const category = widget.category || 'chart'
@@ -191,13 +251,6 @@ export function WidgetDetailPanel({
     }
   }, [widget])
 
-  // Reset tab when widget changes
-  useEffect(() => {
-    setActiveTab('params')
-    setPreviewDraft(null)
-    setFormInstanceKey(0)
-  }, [widget.id])
-
   const handleRefresh = useCallback(() => {
     invalidateAllPreviews(queryClient)
   }, [queryClient])
@@ -205,16 +258,23 @@ export function WidgetDetailPanel({
   const handleSave = useCallback(async (config: Partial<ConfiguredWidget>): Promise<boolean> => {
     const success = await onUpdate(config)
     if (success) {
-      setPreviewDraft(null)
+      updatePanelState((prev) => ({
+        ...prev,
+        previewDraft: null,
+      }))
       invalidateAllPreviews(queryClient)
     }
     return success
-  }, [onUpdate, queryClient])
+  }, [onUpdate, queryClient, updatePanelState])
 
   const handleCancelEdit = useCallback(() => {
-    setPreviewDraft(null)
-    setFormInstanceKey((current) => current + 1)
-  }, [])
+    updatePanelState((prev) => ({
+      ...prev,
+      activeTab: 'params',
+      previewDraft: null,
+      formInstanceKey: prev.formInstanceKey + 1,
+    }))
+  }, [updatePanelState])
 
   const handleConfirmDelete = useCallback(async () => {
     setIsDeleting(true)
@@ -296,7 +356,12 @@ export function WidgetDetailPanel({
       {/* Tabs */}
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        onValueChange={(value) =>
+          updatePanelState((prev) => ({
+            ...prev,
+            activeTab: value as 'params' | 'yaml',
+          }))
+        }
         className="flex-1 flex flex-col min-h-0"
       >
         <div className="px-4 pt-2 border-b">
@@ -323,7 +388,12 @@ export function WidgetDetailPanel({
                 availableFields={availableFields}
                 onSave={handleSave}
                 onCancel={handleCancelEdit}
-                onChange={(config) => setPreviewDraft(config)}
+                onChange={(config) =>
+                  updatePanelState((prev) => ({
+                    ...prev,
+                    previewDraft: config,
+                  }))
+                }
               />
             </div>
 

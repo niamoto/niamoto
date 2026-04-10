@@ -1,6 +1,6 @@
 // src/components/forms/fields/FilePickerField.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 // Select components removed - using custom file browser instead
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
@@ -74,7 +74,7 @@ const FilePickerField: React.FC<FilePickerFieldProps> = ({
   const [showBrowser, setShowBrowser] = useState(false);
 
   // Filter files by type
-  const filterFiles = (items: FileInfo[]): FileInfo[] => {
+  const filterFiles = useCallback((items: FileInfo[]): FileInfo[] => {
     if (accept === 'all') return items;
 
     const extensions = FILE_EXTENSIONS[accept];
@@ -83,10 +83,10 @@ const FilePickerField: React.FC<FilePickerFieldProps> = ({
       const ext = item.name.toLowerCase().slice(item.name.lastIndexOf('.'));
       return extensions.includes(ext);
     });
-  };
+  }, [accept]);
 
   // Fetch files from API
-  const fetchFiles = async (path: string) => {
+  const fetchFiles = useCallback(async (path: string) => {
     try {
       setLoading(true);
       setFetchError(null);
@@ -113,24 +113,24 @@ const FilePickerField: React.FC<FilePickerFieldProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterFiles]);
 
   // Load files when browser is opened
   useEffect(() => {
     if (showBrowser) {
       fetchFiles(currentPath);
     }
-  }, [showBrowser]);
+  }, [currentPath, fetchFiles, showBrowser]);
 
   // Navigate to a directory
   const navigateTo = (path: string) => {
-    fetchFiles(path);
+    setCurrentPath(path);
   };
 
   // Go up one directory
   const goUp = () => {
     const parentPath = currentPath.split('/').slice(0, -1).join('/') || '.';
-    fetchFiles(parentPath);
+    setCurrentPath(parentPath);
   };
 
   // Select a file

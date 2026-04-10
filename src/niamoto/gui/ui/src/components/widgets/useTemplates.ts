@@ -170,7 +170,7 @@ export function useGenerateConfig(): UseGenerateConfigReturn {
     } catch {
       return null
     }
-  }, [mutation.mutateAsync])
+  }, [mutation])
 
   return { generate, loading: mutation.isPending, error }
 }
@@ -221,7 +221,7 @@ export function useSaveConfig(): UseSaveConfigReturn {
     } catch {
       return null
     }
-  }, [mutation.mutateAsync])
+  }, [mutation])
 
   return { save, loading: mutation.isPending, error }
 }
@@ -277,23 +277,23 @@ export function useTemplateSelection(
 
   // Select based on existing config or auto-select high-confidence suggestions
   useEffect(() => {
-    if (existingIds && existingIds.size > 0) {
-      // Mode édition: use existing configured IDs
-      const validExisting = new Set(
-        Array.from(existingIds).filter(id =>
-          initialSuggestions.some(s => s.template_id === id)
+    const nextSelected = existingIds && existingIds.size > 0
+      ? new Set(
+          Array.from(existingIds).filter(id =>
+            initialSuggestions.some(s => s.template_id === id)
+          )
         )
-      )
-      setSelected(validExisting)
-    } else {
-      // Mode création: auto-select high-confidence suggestions
-      const autoSelected = new Set(
-        initialSuggestions
-          .filter(s => s.confidence >= 0.7 || s.is_recommended)
-          .map(s => s.template_id)
-      )
-      setSelected(autoSelected)
-    }
+      : new Set(
+          initialSuggestions
+            .filter(s => s.confidence >= 0.7 || s.is_recommended)
+            .map(s => s.template_id)
+        )
+
+    const frameId = window.requestAnimationFrame(() => {
+      setSelected(nextSelected)
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
   }, [initialSuggestions, existingIds])
 
   const toggle = useCallback((templateId: string) => {

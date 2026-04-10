@@ -61,8 +61,29 @@ export function PreviewSkeleton({ width, height, compact, descriptor }: PreviewS
     : {}
 
   const widgetPlugin = resolveWidgetPlugin(descriptor)
-  const Icon = (widgetPlugin && WIDGET_ICONS[widgetPlugin]) || LayoutGrid
   const iconSize = compact ? 'h-5 w-5' : 'h-8 w-8'
+
+  const renderIcon = () => {
+    const iconClassName = `relative z-10 text-muted-foreground/25 ${iconSize}`
+
+    switch (widgetPlugin) {
+      case 'bar_plot':
+      case 'stacked_bar_plot':
+        return <BarChart3 className={iconClassName} />
+      case 'donut_chart':
+        return <PieChart className={iconClassName} />
+      case 'radial_gauge':
+        return <Gauge className={iconClassName} />
+      case 'interactive_map':
+        return <Map className={iconClassName} />
+      case 'general_info':
+        return <Info className={iconClassName} />
+      case 'navigation':
+        return <Navigation className={iconClassName} />
+      default:
+        return <LayoutGrid className={iconClassName} />
+    }
+  }
 
   return (
     <div
@@ -73,7 +94,7 @@ export function PreviewSkeleton({ width, height, compact, descriptor }: PreviewS
       <div className="absolute inset-0 shimmer-sweep" />
 
       {/* Icône centrale */}
-      <Icon className={`relative z-10 text-muted-foreground/25 ${iconSize}`} />
+      {renderIcon()}
     </div>
   )
 }

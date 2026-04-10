@@ -7,7 +7,7 @@
  * - Configuration: Reference settings
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -100,7 +100,7 @@ export function ReferenceDetailPanel({
   }, [referenceName, requestedTab])
 
   // Function to reload enrichment config (called after config changes)
-  const reloadEnrichmentConfig = async () => {
+  const reloadEnrichmentConfig = useCallback(async () => {
     try {
       const response = await apiClient.get(`/enrichment/config/${referenceName}`)
       if (response.data) {
@@ -113,11 +113,11 @@ export function ReferenceDetailPanel({
       setEnrichmentConfig(null)
       return false
     }
-  }
+  }, [referenceName])
 
   useEffect(() => {
     reloadEnrichmentConfig()
-  }, [referenceName])
+  }, [reloadEnrichmentConfig])
 
   const hasEnrichment = Boolean(enrichmentConfig?.sources?.some((source) => source.enabled))
 

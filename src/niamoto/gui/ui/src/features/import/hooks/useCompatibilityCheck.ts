@@ -62,7 +62,7 @@ export function useCompatibilityCheck() {
       })
 
       return { matched: hasImpacts ? matched : [], unmatched }
-    } catch (err: any) {
+    } catch {
       // Non-blocking: if everything fails, skip the check
       setState({
         isChecking: false,

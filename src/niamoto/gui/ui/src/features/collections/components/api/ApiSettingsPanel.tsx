@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Loader2, RotateCcw, Save } from 'lucide-react'
@@ -27,48 +27,9 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
     error,
     refetch,
   } = useApiExportTargetSettings(target.name)
-  const saveMutation = useUpdateApiExportTargetSettings(target.name)
-  const [localSettings, setLocalSettings] = useState<ApiExportTargetSettings | null>(null)
-  const [resetCounter, setResetCounter] = useState(0)
-
-  useEffect(() => {
-    if (serverSettings) {
-      setLocalSettings(serverSettings)
-    }
-  }, [serverSettings])
-
-  const isDirty =
-    serverSettings !== undefined &&
-    localSettings !== null &&
-    JSON.stringify(serverSettings) !== JSON.stringify(localSettings)
-
   const activeGroups = target.groups.filter((g) => g.enabled)
 
-  const handleSave = async () => {
-    if (!localSettings) return
-    try {
-      await saveMutation.mutateAsync(localSettings)
-      toast.success(
-        t('collectionPanel.api.globalConfigSaved', { exportName: target.name })
-      )
-      await refetch()
-    } catch (mutationError) {
-      toast.error(
-        mutationError instanceof Error
-          ? mutationError.message
-          : t('collectionPanel.api.saveFailed')
-      )
-    }
-  }
-
-  const handleReset = () => {
-    if (serverSettings) {
-      setLocalSettings(serverSettings)
-      setResetCounter((c) => c + 1)
-    }
-  }
-
-  if (isLoading || !localSettings) {
+  if (isLoading || !serverSettings) {
     return (
       <Card>
         <CardContent className="flex min-h-[120px] items-center justify-center">
@@ -89,6 +50,61 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
         </CardHeader>
       </Card>
     )
+  }
+
+  return (
+    <ApiTargetSettingsCardForm
+      key={`${target.name}:${JSON.stringify(serverSettings)}`}
+      target={target}
+      serverSettings={serverSettings}
+      activeGroups={activeGroups}
+      onRefetch={refetch}
+      onNavigate={navigate}
+    />
+  )
+}
+
+interface ApiTargetSettingsCardFormProps {
+  target: ApiExportTargetSummary
+  serverSettings: ApiExportTargetSettings
+  activeGroups: ApiExportTargetSummary['groups']
+  onRefetch: () => Promise<unknown>
+  onNavigate: ReturnType<typeof useNavigate>
+}
+
+function ApiTargetSettingsCardForm({
+  target,
+  serverSettings,
+  activeGroups,
+  onRefetch,
+  onNavigate,
+}: ApiTargetSettingsCardFormProps) {
+  const { t } = useTranslation(['sources', 'common'])
+  const saveMutation = useUpdateApiExportTargetSettings(target.name)
+  const [localSettings, setLocalSettings] = useState<ApiExportTargetSettings>(serverSettings)
+  const [resetCounter, setResetCounter] = useState(0)
+
+  const isDirty = JSON.stringify(serverSettings) !== JSON.stringify(localSettings)
+
+  const handleSave = async () => {
+    try {
+      await saveMutation.mutateAsync(localSettings)
+      toast.success(
+        t('collectionPanel.api.globalConfigSaved', { exportName: target.name })
+      )
+      await onRefetch()
+    } catch (mutationError) {
+      toast.error(
+        mutationError instanceof Error
+          ? mutationError.message
+          : t('collectionPanel.api.saveFailed')
+      )
+    }
+  }
+
+  const handleReset = () => {
+    setLocalSettings(serverSettings)
+    setResetCounter((c) => c + 1)
   }
 
   // Build a short summary
@@ -181,7 +197,7 @@ function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
                   variant="outline"
                   size="sm"
                   className="h-6 gap-1 px-2 text-xs"
-                  onClick={() => navigate(`/groups/${g.group_by}`)}
+                  onClick={() => onNavigate(`/groups/${g.group_by}`)}
                 >
                   {g.group_by}
                   <ExternalLink className="h-3 w-3" />

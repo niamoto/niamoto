@@ -44,6 +44,7 @@ import { useImportJob } from '@/features/import/hooks/useImportJob'
 import { requestBugReport } from '@/features/feedback'
 import { useDatasets } from '@/features/import/hooks/useDatasets'
 import { useReferences } from '@/features/import/hooks/useReferences'
+import type { UploadedFileInfo } from '@/features/import/api/upload'
 
 type ImportPhase =
   | 'idle'
@@ -102,8 +103,8 @@ export function ImportWizard() {
         })
         setConfigResult(result)
         setPhase('reviewing')
-      } catch (err: any) {
-        setError(err.message || autoConfigureJob.error || t('wizard.autoConfigError'))
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : autoConfigureJob.error || t('wizard.autoConfigError'))
         setPhase('error')
       }
     },
@@ -112,7 +113,7 @@ export function ImportWizard() {
 
   // Handle files ready from upload
   const handleFilesReady = useCallback(
-    async (files: any[], paths: string[]) => {
+    async (files: UploadedFileInfo[], paths: string[]) => {
       setUploadedFiles(
         files.map((file) => ({
           name: file.filename,
@@ -278,8 +279,8 @@ export function ImportWizard() {
 
       setConfigResult(configResponse)
       setPhase('editing')
-    } catch (err: any) {
-      setError(err.message || t('wizard.loadConfigError'))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('wizard.loadConfigError'))
       setPhase('error')
     }
   }, [t])
@@ -320,8 +321,8 @@ export function ImportWizard() {
         .then(() => {
           handleImportComplete()
         })
-        .catch((err: any) => {
-          handleImportError(err.message || importJob.state.error || t('wizard.importFailed'))
+        .catch((err: unknown) => {
+          handleImportError(err instanceof Error ? err.message : importJob.state.error || t('wizard.importFailed'))
         })
     }
   }, [configResult, handleImportComplete, handleImportError, importJob, phase, t])

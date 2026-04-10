@@ -36,7 +36,7 @@ interface TaxonomyLevel {
 interface TaxonomyConsistency {
   total_taxa: number
   levels: TaxonomyLevel[]
-  orphan_records: Array<Record<string, any>>
+  orphan_records: Array<Record<string, unknown>>
   duplicate_names: Array<{ name: string; count: number }>
   hierarchy_depth: number
 }
@@ -69,7 +69,7 @@ export function TaxonomicConsistencyView() {
     }
 
     fetchData()
-  }, [])
+  }, [t])
 
   if (loading) {
     return (

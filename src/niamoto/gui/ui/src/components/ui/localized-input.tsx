@@ -12,10 +12,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useLanguages } from "@/shared/contexts/LanguageContext"
-
-// Type alias matching backend LocalizedString
-export type LocalizedString = string | Record<string, string>
+import { useLanguages } from "@/shared/contexts/useLanguages"
+import type { LocalizedString } from "@/components/ui/localized-string"
 
 interface LocalizedInputProps {
   /** Current value (string or localized dict) */
@@ -233,42 +231,6 @@ export function LocalizedInput({
   )
 }
 
-/**
- * Helper hook to work with LocalizedString values.
- * Uses LanguageContext for default language if not provided.
- */
-export function useLocalizedString(
-  value: LocalizedString | undefined,
-  defaultLangProp?: string
-) {
-  const languageContext = useLanguages()
-  const defaultLang = defaultLangProp ?? languageContext.defaultLang
-
-  const isLocalized = typeof value === "object" && value !== null
-
-  const resolve = (lang?: string): string => {
-    if (value === undefined || value === null) return ""
-    if (typeof value === "string") return value
-    const targetLang = lang || defaultLang
-    return value[targetLang] || value[defaultLang] || Object.values(value)[0] || ""
-  }
-
-  const getAllTranslations = (): Record<string, string> => {
-    if (typeof value === "string") {
-      return { [defaultLang]: value }
-    }
-    if (typeof value === "object" && value !== null) {
-      return value
-    }
-    return {}
-  }
-
-  return {
-    isLocalized,
-    resolve,
-    getAllTranslations,
-    raw: value,
-  }
-}
+export type { LocalizedString } from "./localized-string"
 
 export { LocalizedInput as default }

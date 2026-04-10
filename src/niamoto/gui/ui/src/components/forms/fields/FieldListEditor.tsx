@@ -77,7 +77,7 @@ const FieldListEditor: React.FC<FieldListEditorProps> = ({
   };
 
   // Update a field
-  const handleFieldChange = (index: number, key: keyof FieldConfig, fieldValue: any) => {
+  const handleFieldChange = (index: number, key: keyof FieldConfig, fieldValue: FieldConfig[keyof FieldConfig]) => {
     const newFields = [...value];
     newFields[index] = { ...newFields[index], [key]: fieldValue };
     onChange?.(newFields);

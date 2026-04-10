@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -12,6 +12,7 @@ import { EnrichmentWorkspaceSheet } from './EnrichmentWorkspaceSheet'
 import { useImportSummaryDetailed } from '@/features/import/hooks/useImportSummaryDetailed'
 import { useReferences, type ReferenceInfo } from '@/features/import/hooks/useReferences'
 import { apiClient } from '@/shared/lib/api/client'
+import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { toast } from 'sonner'
 import { useNotificationStore } from '@/stores/notificationStore'
 
@@ -41,6 +42,8 @@ interface EnrichmentStatsSummary {
   sources: EnrichmentSourceStatsSummary[]
 }
 
+const EMPTY_REFERENCES: ReferenceInfo[] = []
+
 export function EnrichmentView() {
   const { t } = useTranslation('sources')
   const navigate = useNavigate()
@@ -53,10 +56,15 @@ export function EnrichmentView() {
   const [statsByReference, setStatsByReference] = useState<Record<string, EnrichmentStatsSummary>>({})
   const [progressLoadingByReference, setProgressLoadingByReference] = useState<Record<string, boolean>>({})
 
-  const references = referencesData?.references ?? []
-  const enrichableReferences = references.filter((reference) => reference.can_enrich)
-  const configuredReferences = enrichableReferences.filter((reference) => reference.enrichment_enabled)
-  const configuredReferenceKey = configuredReferences.map((reference) => reference.name).join('|')
+  const references = useMemo(() => referencesData?.references ?? EMPTY_REFERENCES, [referencesData?.references])
+  const enrichableReferences = useMemo(
+    () => references.filter((reference) => reference.can_enrich),
+    [references]
+  )
+  const configuredReferences = useMemo(
+    () => enrichableReferences.filter((reference) => reference.enrichment_enabled),
+    [enrichableReferences]
+  )
 
   const entityRows = new Map(summary?.entities.map((entity) => [entity.name, entity]) ?? [])
 
@@ -155,7 +163,7 @@ export function EnrichmentView() {
       isCancelled = true
       window.clearInterval(intervalId)
     }
-  }, [configuredReferenceKey])
+  }, [configuredReferences])
 
   const getStatusBadge = (status?: EnrichmentJobSummary['status']) => {
     switch (status) {
@@ -210,9 +218,9 @@ export function EnrichmentView() {
           count: pendingCount,
         }),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.startJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.startJob')),
       })
     } finally {
       setStartingReferenceName(null)

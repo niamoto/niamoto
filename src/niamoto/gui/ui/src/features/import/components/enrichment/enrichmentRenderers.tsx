@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next'
 import { ExternalLink, ImageIcon, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
+type SourceSummary = Record<string, unknown>
+
 const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
   const { t } = useTranslation(['sources'])
   const [loading, setLoading] = useState(true)
@@ -55,7 +57,7 @@ const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
   )
 }
 
-const renderValue = (value: any): React.ReactNode => {
+const renderValue = (value: unknown): React.ReactNode => {
   if (value === null || value === undefined) return '-'
 
   if (typeof value === 'string') {
@@ -100,7 +102,7 @@ const renderValue = (value: any): React.ReactNode => {
   return String(value)
 }
 
-const renderMappedPreview = (data: Record<string, any>) => (
+const renderMappedPreview = (data: SourceSummary) => (
   <div className="max-h-[360px] overflow-auto pr-2">
     <div className="space-y-2">
       {Object.entries(data).map(([field, value]) => (
@@ -116,7 +118,7 @@ const renderMappedPreview = (data: Record<string, any>) => (
   </div>
 )
 
-const renderRawPreview = (rawData: any) => (
+const renderRawPreview = (rawData: unknown) => (
   <div className="max-h-[360px] overflow-auto rounded-md bg-background p-3">
     <pre className="whitespace-pre-wrap break-words text-xs leading-5">
       {JSON.stringify(rawData, null, 2)}
@@ -124,7 +126,7 @@ const renderRawPreview = (rawData: any) => (
   </div>
 )
 
-const isStructuredSourceSummary = (data: Record<string, any> | undefined): boolean =>
+const isStructuredSourceSummary = (data: SourceSummary | undefined): boolean =>
   Boolean(
     data &&
       typeof data === 'object' &&
@@ -155,7 +157,7 @@ const isStructuredSourceSummary = (data: Record<string, any> | undefined): boole
       )
   )
 
-const renderSummaryRows = (rows: Array<[string, any]>) => (
+const renderSummaryRows = (rows: Array<[string, unknown]>) => (
   <div className="space-y-2">
     {rows
       .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -178,7 +180,7 @@ const renderStatusPill = (status: string | undefined) =>
     </Badge>
   ) : null
 
-const renderNameResolutionSummary = (nameResolution: Record<string, any>) => {
+const renderNameResolutionSummary = (nameResolution: SourceSummary) => {
   if (!nameResolution || Object.keys(nameResolution).length === 0) {
     return null
   }
@@ -218,8 +220,8 @@ const renderNameResolutionSummary = (nameResolution: Record<string, any>) => {
 }
 
 const renderOpenMeteoStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const location = data.location ?? {}
   const elevation = data.elevation ?? {}
@@ -329,8 +331,8 @@ const renderOpenMeteoStructuredSummary = (
 }
 
 const renderGeoNamesStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const location = data.location ?? {}
   const admin = data.admin ?? {}
@@ -461,7 +463,7 @@ const renderGeoNamesStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Nearby places</div>
                     <div className="space-y-2">
-                      {adminSummary.nearest_places.map((item: Record<string, any>) => (
+                      {adminSummary.nearest_places.map((item) => (
                         <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                           <span className="truncate">{String(item.name)}</span>
                           {item.distance_km ? <Badge variant="outline">{String(item.distance_km)} km</Badge> : null}
@@ -500,8 +502,8 @@ const renderGeoNamesStructuredSummary = (
 }
 
 const renderGbifStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
@@ -642,7 +644,7 @@ const renderGbifStructuredSummary = (
                   })}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {mediaSummary.items.map((item: Record<string, any>, index: number) => (
+                  {mediaSummary.items.map((item, index: number) => (
                     <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
                       <div className="mb-2">{renderValue(item.thumbnail_url || item.identifier || item.source_url)}</div>
                       <div className="space-y-1 text-xs text-muted-foreground">
@@ -675,8 +677,8 @@ const renderGbifStructuredSummary = (
 }
 
 const renderTropicosStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
@@ -785,7 +787,7 @@ const renderTropicosStructuredSummary = (
                 {renderSummaryRows([['references_count', references.references_count]])}
                 {Array.isArray(references.items) && references.items.length > 0 ? (
                   <div className="space-y-2">
-                    {references.items.map((item: Record<string, any>, index: number) => (
+                    {references.items.map((item, index: number) => (
                       <div key={`${item.title || item.full_citation || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.title || item.full_citation || 'Reference'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -846,7 +848,7 @@ const renderTropicosStructuredSummary = (
               <div className="space-y-3">
                 {renderSummaryRows([['media_count', mediaSummary.media_count]])}
                 <div className="grid gap-3 md:grid-cols-2">
-                  {mediaSummary.items.map((item: Record<string, any>, index: number) => (
+                  {mediaSummary.items.map((item, index: number) => (
                     <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
                       <div className="mb-2">{renderValue(item.thumbnail_url || item.source_url || item.identifier)}</div>
                       <div className="space-y-1 text-xs text-muted-foreground">
@@ -876,8 +878,8 @@ const renderTropicosStructuredSummary = (
 }
 
 const renderInaturalistStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const match = data.match ?? {}
   const taxon = data.taxon ?? {}
@@ -967,7 +969,7 @@ const renderInaturalistStructuredSummary = (
                 ])}
                 {Array.isArray(observationSummary.recent_observations) && observationSummary.recent_observations.length > 0 ? (
                   <div className="space-y-2">
-                    {observationSummary.recent_observations.map((item: Record<string, any>, index: number) => (
+                    {observationSummary.recent_observations.map((item, index: number) => (
                       <div key={`${item.observation_id || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">
                           Observation {String(item.observation_id || index + 1)}
@@ -1000,7 +1002,7 @@ const renderInaturalistStructuredSummary = (
                 {renderSummaryRows([['media_count', mediaSummary.media_count]])}
                 {Array.isArray(mediaSummary.sample) && mediaSummary.sample.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2">
-                    {mediaSummary.sample.map((item: Record<string, any>, index: number) => (
+                    {mediaSummary.sample.map((item, index: number) => (
                       <div key={`${item.medium_url || item.square_url || index}`} className="rounded-md border p-3">
                         <div className="mb-2">
                           {renderValue(item.medium_url || item.square_url)}
@@ -1034,7 +1036,7 @@ const renderInaturalistStructuredSummary = (
                 {renderSummaryRows([['places_count', places.places_count]])}
                 {Array.isArray(places.top_places) && places.top_places.length > 0 ? (
                   <div className="space-y-2">
-                    {places.top_places.map((item: Record<string, any>) => (
+                    {places.top_places.map((item) => (
                       <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                         <span>{String(item.name)}</span>
                         <Badge variant="outline">{String(item.count)}</Badge>
@@ -1061,8 +1063,8 @@ const renderInaturalistStructuredSummary = (
 }
 
 const renderBhlStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const match = data.match ?? {}
   const titleSummary = data.title_summary ?? {}
@@ -1121,7 +1123,7 @@ const renderBhlStructuredSummary = (
                   <div className="text-sm text-muted-foreground">{String(blockErrors.publications)}</div>
                 ) : Array.isArray(publications.sample) && publications.sample.length > 0 ? (
                   <div className="space-y-2">
-                    {publications.sample.map((item: Record<string, any>, index: number) => (
+                    {publications.sample.map((item, index: number) => (
                       <div key={`${item.title_id || item.title_url || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.short_title || item.full_title || 'Title'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1150,7 +1152,7 @@ const renderBhlStructuredSummary = (
                 {renderSummaryRows([['mentions_count', nameMentions.mentions_count]])}
                 {Array.isArray(nameMentions.sample) && nameMentions.sample.length > 0 ? (
                   <div className="space-y-2">
-                    {nameMentions.sample.map((item: Record<string, any>, index: number) => (
+                    {nameMentions.sample.map((item, index: number) => (
                       <div key={`${item.name_confirmed || item.name_found || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.name_confirmed || item.name_found || 'Mention'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1177,7 +1179,7 @@ const renderBhlStructuredSummary = (
                 {renderSummaryRows([['pages', referencesCount.pages]])}
                 {Array.isArray(pageLinks.sample) && pageLinks.sample.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2">
-                    {pageLinks.sample.map((item: Record<string, any>, index: number) => (
+                    {pageLinks.sample.map((item, index: number) => (
                       <div key={`${item.page_id || item.page_url || index}`} className="rounded-md border p-3">
                         <div className="mb-2">{renderValue(item.thumbnail_url || item.page_url || item.page_id)}</div>
                         <div className="space-y-1 text-xs text-muted-foreground">
@@ -1208,8 +1210,8 @@ const renderBhlStructuredSummary = (
 }
 
 const renderColStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
@@ -1274,7 +1276,7 @@ const renderColStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Classification</div>
                     <div className="flex flex-wrap gap-2">
-                      {taxonomy.classification.map((item: Record<string, any>, index: number) => {
+                      {taxonomy.classification.map((item, index: number) => {
                         const label = [item.rank, item.name].filter(Boolean).join(': ')
                         return (
                           <Badge key={`${item.rank || 'rank'}-${item.name || index}`} variant="outline">
@@ -1331,7 +1333,7 @@ const renderColStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Sample</div>
                     <div className="flex flex-wrap gap-2">
-                      {vernaculars.sample.map((item: Record<string, any>, index: number) => {
+                      {vernaculars.sample.map((item, index: number) => {
                         const label = [item.name, item.language ? `(${item.language})` : '']
                           .filter(Boolean)
                           .join(' ')
@@ -1415,7 +1417,7 @@ const renderColStructuredSummary = (
                 {renderSummaryRows([['references_count', references.references_count]])}
                 {Array.isArray(references.items) && references.items.length > 0 ? (
                   <div className="space-y-2">
-                    {references.items.map((item: Record<string, any>, index: number) => (
+                    {references.items.map((item, index: number) => (
                       <div key={`${item.id || item.citation || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.title || item.citation || 'Reference'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1443,8 +1445,8 @@ const renderColStructuredSummary = (
 }
 
 const renderStructuredSummary = (
-  data: Record<string, any>,
-  t: (key: string, options?: Record<string, any>) => string
+  data: SourceSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   if (
     data?.provenance?.profile === 'openmeteo_elevation_v1' ||

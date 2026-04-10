@@ -70,10 +70,10 @@ function getPageIcon(name: string) {
   const normalizedName = name.toLowerCase()
   for (const [key, Icon] of Object.entries(PAGE_ICONS)) {
     if (normalizedName.includes(key)) {
-      return Icon
+      return <Icon className="h-4 w-4 shrink-0" />
     }
   }
-  return FileText
+  return <FileText className="h-4 w-4 shrink-0" />
 }
 
 // Static page item
@@ -88,7 +88,6 @@ function StaticPageItem({
   onSelect: () => void
   onDelete: () => void
 }) {
-  const Icon = getPageIcon(page.name)
   const hasContent = page.context?.content_markdown || page.context?.content_source
 
   return (
@@ -99,7 +98,7 @@ function StaticPageItem({
       )}
       onClick={onSelect}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      {getPageIcon(page.name)}
       <span className="flex-1 truncate">{page.name}</span>
       {hasContent && (
         <Badge variant="secondary" className="text-[10px] px-1 py-0">

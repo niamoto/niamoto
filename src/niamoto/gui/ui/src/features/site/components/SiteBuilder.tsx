@@ -10,7 +10,7 @@
  * sub-components handle display.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -114,30 +114,40 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     : previewPageForAppearance?.context?.content_source ?? null
   const { data: previewFileData } = useFileContent(previewFilePath)
 
-  const loadGroupIndexPreview = () => {
-    if (state.selection?.type === 'group' && groupHasIndex && state.selection.id) {
-      groupIndexPreviewMutation.mutate(
-        {
-          groupName: state.selection.id,
-          request: {
-            site: state.editedSite as Record<string, unknown>,
-            navigation: state.editedNavigation.map(n => ({
-              text: n.text as string,
-              url: n.url,
-              children: n.children,
-            })),
-            gui_lang: state.i18nLanguage?.split('-')[0] || 'fr',
-          },
-        },
-        {
-          onSuccess: (data) => setGroupIndexHtml(data.html),
-          onError: (error) => {
-            setGroupIndexHtml(`<div style="padding: 20px; color: #ef4444;">Erreur: ${error.message}</div>`)
-          },
-        }
-      )
+  const loadGroupIndexPreview = useCallback(() => {
+    if (state.selection?.type !== 'group' || !groupHasIndex || !state.selection.id) {
+      return
     }
-  }
+
+    groupIndexPreviewMutation.mutate(
+      {
+        groupName: state.selection.id,
+        request: {
+          site: state.editedSite as Record<string, unknown>,
+          navigation: state.editedNavigation.map(n => ({
+            text: n.text as string,
+            url: n.url,
+            children: n.children,
+          })),
+          gui_lang: state.i18nLanguage?.split('-')[0] || 'fr',
+        },
+      },
+      {
+        onSuccess: (data) => setGroupIndexHtml(data.html),
+        onError: (error) => {
+          setGroupIndexHtml(`<div style="padding: 20px; color: #ef4444;">Erreur: ${error.message}</div>`)
+        },
+      }
+    )
+  }, [
+    groupHasIndex,
+    groupIndexPreviewMutation,
+    state.editedNavigation,
+    state.editedSite,
+    state.i18nLanguage,
+    state.selection?.id,
+    state.selection?.type,
+  ])
 
   useEffect(() => {
     if (state.selection?.type === 'group' && groupHasIndex && previewEnabled && state.selection.id) {
@@ -145,7 +155,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     } else if (state.selection?.type !== 'group') {
       setGroupIndexHtml(null)
     }
-  }, [state.selection?.type, state.selection?.id, groupHasIndex, previewEnabled])
+  }, [groupHasIndex, loadGroupIndexPreview, previewEnabled, state.selection?.id, state.selection?.type])
 
   // Current page for preview
   const currentPage = state.selection?.type === 'page'

@@ -10,7 +10,7 @@
  * - Import wizard: ImportWizard
  */
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
@@ -66,18 +66,10 @@ export function DataModule() {
   const layerCount = importSummary?.layer_count ?? 0
   const hasImportedData = datasets.length > 0 || references.length > 0 || layerCount > 0
 
-  const [selection, setSelection] = useState<DataSelection>(() =>
-    selectionFromLocation(location.pathname)
-  )
-
-  // Sync selection from URL on navigation (back/forward)
-  useEffect(() => {
-    setSelection(selectionFromLocation(location.pathname))
-  }, [location.pathname])
+  const selection = useMemo(() => selectionFromLocation(location.pathname), [location.pathname])
 
   // Update URL when selection changes via sidebar
   const handleSelect = (sel: DataSelection) => {
-    setSelection(sel)
     switch (sel.type) {
       case 'dataset':
         navigate(`/sources/dataset/${encodeURIComponent(sel.name)}`)

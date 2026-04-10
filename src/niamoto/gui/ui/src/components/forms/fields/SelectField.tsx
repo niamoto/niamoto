@@ -5,19 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
+import type { SelectOption, SelectOptionValue } from '../formSchemaTypes';
 
-interface SelectOption {
-  value: any;
-  label: string;
-}
-
-interface SelectFieldProps {
+interface SelectFieldProps<T extends SelectOptionValue = SelectOptionValue> {
   name: string;
   label?: string;
   description?: string;
-  value?: any;
-  onChange?: (value: any) => void;
-  options: SelectOption[];
+  value?: T;
+  onChange?: (value: T | undefined) => void;
+  options: SelectOption<T>[];
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
@@ -25,7 +21,7 @@ interface SelectFieldProps {
   className?: string;
 }
 
-const SelectField: React.FC<SelectFieldProps> = ({
+const SelectField = <T extends SelectOptionValue = SelectOptionValue>({
   name,
   label,
   description,
@@ -37,7 +33,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
   disabled = false,
   error,
   className = ''
-}) => {
+}: SelectFieldProps<T>) => {
   const { t } = useTranslation('common');
 
   return (

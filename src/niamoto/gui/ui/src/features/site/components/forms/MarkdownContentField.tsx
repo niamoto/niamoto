@@ -31,7 +31,7 @@ import {
   useProjectFiles,
   useUploadFile,
 } from '@/shared/hooks/useSiteConfig'
-import { useLanguages } from '@/shared/contexts/LanguageContext'
+import { useLanguages } from '@/shared/contexts/useLanguages'
 
 const MarkdownEditor = lazy(() =>
   import('@/features/site/components/MarkdownEditor').then((module) => ({

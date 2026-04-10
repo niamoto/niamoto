@@ -49,9 +49,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useLanguages } from '@/shared/contexts/LanguageContext'
+import { useLanguages } from '@/shared/contexts/useLanguages'
 import type { UnifiedTreeItem } from '../hooks/useUnifiedSiteTree'
-import { getTemplateIcon } from './PagesOverview'
+import { getTemplateIcon } from './PagesOverviewUtils'
 import type { Selection, SelectionType } from '../hooks/useSiteBuilderState'
 import {
   flattenTree,
@@ -78,7 +78,7 @@ function getItemIcon(item: UnifiedTreeItem) {
 }
 
 /** Resolve a LocalizedString to a display string in the given language */
-export function resolveLabel(
+function resolveLabel(
   label: import('@/components/ui/localized-input').LocalizedString | undefined,
   lang?: string,
   fallbackLang?: string,

@@ -60,7 +60,7 @@ export function useJobPolling() {
     } finally {
       activeGuard.current = false
     }
-  }, [])
+  }, [store])
 
   // Timer de découverte (5s) — toujours actif
   useEffect(() => {
@@ -70,7 +70,7 @@ export function useJobPolling() {
     return () => {
       if (discoveryTimerRef.current) clearInterval(discoveryTimerRef.current)
     }
-  }, [discoverJobs])
+  }, [discoverJobs, store])
 
   // Timer actif (1s) — conditionnel sur les jobs traqués
   useEffect(() => {
@@ -101,7 +101,7 @@ export function useJobPolling() {
       unsub()
       stopActive()
     }
-  }, [pollActiveJobs])
+  }, [pollActiveJobs, store])
 
   // Relancer immédiatement au retour de visibilité
   useEffect(() => {
@@ -112,7 +112,7 @@ export function useJobPolling() {
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [discoverJobs, pollActiveJobs])
+  }, [discoverJobs, pollActiveJobs, store])
 }
 
 // --- Fonctions de découverte par type ---

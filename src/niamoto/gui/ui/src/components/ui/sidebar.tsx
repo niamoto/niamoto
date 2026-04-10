@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SidebarProps = React.HTMLAttributes<HTMLDivElement>
 
 export function Sidebar({ className, ...props }: SidebarProps) {
   return (
@@ -15,7 +15,7 @@ export function Sidebar({ className, ...props }: SidebarProps) {
   )
 }
 
-interface SidebarHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SidebarHeaderProps = React.HTMLAttributes<HTMLDivElement>
 
 export function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   return (
@@ -26,7 +26,7 @@ export function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   )
 }
 
-interface SidebarContentProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SidebarContentProps = React.HTMLAttributes<HTMLDivElement>
 
 export function SidebarContent({ className, ...props }: SidebarContentProps) {
   return (
@@ -37,7 +37,7 @@ export function SidebarContent({ className, ...props }: SidebarContentProps) {
   )
 }
 
-interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {}
+type SidebarNavProps = React.HTMLAttributes<HTMLElement>
 
 export function SidebarNav({ className, ...props }: SidebarNavProps) {
   return (
@@ -71,7 +71,7 @@ export function SidebarNavItem({
   )
 }
 
-interface SidebarFooterProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SidebarFooterProps = React.HTMLAttributes<HTMLDivElement>
 
 export function SidebarFooter({ className, ...props }: SidebarFooterProps) {
   return (

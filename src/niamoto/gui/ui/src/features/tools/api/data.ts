@@ -37,10 +37,18 @@ export interface EnrichmentPreviewRequest {
   table?: string
 }
 
+export interface EnrichmentPreviewImage {
+  auteur?: string
+  big_thumb?: string
+  small_thumb?: string
+}
+
 export interface EnrichmentPreviewResponse {
   success: boolean
   taxon_name: string
-  api_enrichment: Record<string, any>
+  api_enrichment: Record<string, unknown> & {
+    images?: EnrichmentPreviewImage[]
+  }
   config_used: {
     api_url: string
     query_field: string

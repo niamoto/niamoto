@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { type Locale, formatDistanceToNow } from 'date-fns'
@@ -60,11 +60,12 @@ import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/features/publish/api/export'
 import { apiClient } from '@/shared/lib/api/client'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
-import PublishDeployContent, {
+import PublishDeployContent from '@/features/publish/views/deploy'
+import {
   getProjectName,
   PLATFORM_ORDER,
   PLATFORMS,
-} from '@/features/publish/views/deploy'
+} from '@/features/publish/views/deployPlatformConfig'
 import PublishHistoryContent from '@/features/publish/views/history'
 import { cn } from '@/lib/utils'
 
@@ -366,7 +367,7 @@ export default function PublishOverview() {
         const targets: { name: string; files: number }[] = []
         let totalFiles = 0
 
-        Object.entries(exports).forEach(([name, exportData]: [string, any]) => {
+        Object.entries(exports).forEach(([name, exportData]: [string, Record<string, unknown>]) => {
           if (exportData && exportData.data) {
             const filesGenerated = exportData.data.files_generated || 0
             if (filesGenerated > 0) {
@@ -505,7 +506,7 @@ export default function PublishOverview() {
     }
   }
 
-  const loadPagePreview = (page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
+  const loadPagePreview = useCallback((page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
     if (!siteConfig || !page) return
     previewMutation.mutate({
       template: page.template || 'page.html',
@@ -525,9 +526,9 @@ export default function PublishOverview() {
     }, {
       onSuccess: (data) => setDynamicHtml(data.html),
     })
-  }
+  }, [i18n.language, previewMutation, siteConfig])
 
-  const loadDynamicPreview = () => {
+  const loadDynamicPreview = useCallback(() => {
     if (!siteConfig) return
     const indexPage = siteConfig.static_pages.find((page) =>
       page.template === 'index.html' || page.output_file === 'index.html' || page.name === 'index'
@@ -536,7 +537,7 @@ export default function PublishOverview() {
     if (indexPage) {
       loadPagePreview(indexPage)
     }
-  }
+  }, [loadPagePreview, siteConfig])
 
   const handlePreviewLinkClick = (href: string) => {
     if (!siteConfig) return
@@ -586,7 +587,7 @@ export default function PublishOverview() {
     if (!hasSuccessfulBuild && siteConfig && dynamicHtml === null) {
       loadDynamicPreview()
     }
-  }, [dynamicHtml, hasSuccessfulBuild, siteConfig])
+  }, [dynamicHtml, hasSuccessfulBuild, loadDynamicPreview, siteConfig])
 
   const activityItems = [
     ...buildHistory.slice(0, 3).map((job) => ({ type: 'build' as const, ...job })),

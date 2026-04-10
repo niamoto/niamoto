@@ -486,7 +486,7 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     } catch {
       return false
     }
-  }, [updateMutation.mutateAsync])
+  }, [updateMutation])
 
   const deleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
     try {
@@ -495,7 +495,7 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     } catch {
       return false
     }
-  }, [deleteMutation.mutateAsync])
+  }, [deleteMutation])
 
   const duplicateWidget = useCallback(async (
     widgetId: string,
@@ -507,7 +507,7 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     } catch {
       return false
     }
-  }, [duplicateMutation.mutateAsync])
+  }, [duplicateMutation])
 
   const reorderWidgets = useCallback(async (widgetIds: string[]): Promise<boolean> => {
     try {
@@ -516,7 +516,7 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     } catch {
       return false
     }
-  }, [reorderMutation.mutateAsync])
+  }, [reorderMutation])
 
   return {
     configuredWidgets,

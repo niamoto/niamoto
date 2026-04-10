@@ -24,9 +24,9 @@ interface PluginDetail {
   status?: 'active' | 'beta' | 'deprecated'
   compatible_inputs?: string[]
   output_format?: string
-  parameters_schema?: any
+  parameters_schema?: unknown
   dependencies?: string[]
-  examples?: any[]
+  examples?: unknown[]
   documentation?: string
   stats?: {
     usage_count: number
@@ -41,9 +41,15 @@ interface PluginDetailViewProps {
   onClose: () => void
 }
 
+interface PluginTestResult {
+  success: boolean
+  message: string
+  output?: Record<string, unknown>
+}
+
 export function PluginDetailView({ plugin, onClose }: PluginDetailViewProps) {
   const [activeTab, setActiveTab] = useState('overview')
-  const [testResult, setTestResult] = useState<any>(null)
+  const [testResult, setTestResult] = useState<PluginTestResult | null>(null)
   const [isTesting, setIsTesting] = useState(false)
 
   const handleTest = async () => {
@@ -77,17 +83,15 @@ export function PluginDetailView({ plugin, onClose }: PluginDetailViewProps) {
     }
   }
 
-  const getTypeIcon = () => {
+  const renderTypeIcon = () => {
     switch (plugin.type) {
-      case 'loader': return Database
-      case 'transformer': return Settings
-      case 'widget': return BarChart3
-      case 'exporter': return Download
-      default: return Package
+      case 'loader': return <Database className="h-5 w-5 text-primary" />
+      case 'transformer': return <Settings className="h-5 w-5 text-primary" />
+      case 'widget': return <BarChart3 className="h-5 w-5 text-primary" />
+      case 'exporter': return <Download className="h-5 w-5 text-primary" />
+      default: return <Package className="h-5 w-5 text-primary" />
     }
   }
-
-  const TypeIcon = getTypeIcon()
 
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
@@ -98,7 +102,7 @@ export function PluginDetailView({ plugin, onClose }: PluginDetailViewProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-primary/10 p-2">
-                  <TypeIcon className="h-5 w-5 text-primary" />
+                  {renderTypeIcon()}
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold">{plugin.name}</h2>

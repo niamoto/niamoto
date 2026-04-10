@@ -125,6 +125,7 @@ export function WidgetPreviewPanel({
   const isConfiguredMode = !!configuredWidget && !template
   const activeWidget = configuredWidget
   const activeTemplate = template
+  const activeItemKey = activeTemplate?.template_id ?? activeWidget?.id ?? null
 
   // Build PreviewDescriptor
   const previewDescriptor: PreviewDescriptor | null = useMemo(() => {
@@ -152,10 +153,13 @@ export function WidgetPreviewPanel({
 
   // Reset edit mode when switching items
   useEffect(() => {
-    if (activeTemplate || activeWidget) {
-      setEditMode(false)
+    if (activeItemKey) {
+      const frameId = window.requestAnimationFrame(() => {
+        setEditMode(false)
+      })
+      return () => window.cancelAnimationFrame(frameId)
     }
-  }, [activeTemplate?.template_id, activeWidget?.id])
+  }, [activeItemKey])
 
   // Extract transformer from template_id (format: column_transformer_widget)
   const transformer = useMemo(() => {

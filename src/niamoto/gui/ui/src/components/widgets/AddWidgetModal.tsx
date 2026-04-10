@@ -169,7 +169,7 @@ const WidgetPreview = memo(function WidgetPreview({
 }: WidgetPreviewProps) {
   const descriptor: PreviewDescriptor = useMemo(() =>
     buildInlineDescriptor({ mode: 'thumbnail', groupBy, templateId, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle }),
-  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetTitle])
+  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle])
 
   return (
     <div
@@ -204,6 +204,10 @@ interface LargePreviewProps {
 const LARGE_PREVIEW_WIDTH = 388  // Right panel width (420px) - padding
 const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
+function getCombinedSuggestionKey(suggestion: CombinedWidgetSuggestion): string {
+  return `${suggestion.pattern_type}:${suggestion.name}:${suggestion.fields.join('|')}`
+}
+
 function LargePreview({
   templateId,
   groupBy,
@@ -219,7 +223,7 @@ function LargePreview({
 
   const descriptor: PreviewDescriptor = useMemo(() =>
     buildInlineDescriptor({ mode: 'full', groupBy, templateId, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle }),
-  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetTitle])
+  [templateId, groupBy, source, transformerPlugin, transformerConfig, widgetPlugin, widgetParams, widgetTitle])
 
   const handleRefresh = useCallback(() => {
     invalidateAllPreviews(queryClient)
@@ -487,7 +491,7 @@ export function AddWidgetModal({
 
   // Combined tab state
   const [selectedFields, setSelectedFields] = useState<string[]>([])
-  const [selectedCombined, setSelectedCombined] = useState<CombinedWidgetSuggestion | null>(null)
+  const [selectedCombinedKey, setSelectedCombinedKey] = useState<string | null>(null)
 
   // Custom tab state
   const [wizardStep, setWizardStep] = useState(1)
@@ -542,36 +546,44 @@ export function AddWidgetModal({
     return Array.from(fields).sort()
   }, [visibleSuggestions])
 
+  const selectedCombined = useMemo(() => {
+    if (combinedSuggestions.length === 0) return null
+    if (selectedCombinedKey) {
+      const selected = combinedSuggestions.find(
+        (suggestion) => getCombinedSuggestionKey(suggestion) === selectedCombinedKey,
+      )
+      if (selected) return selected
+    }
+    return combinedSuggestions.find((suggestion) => suggestion.is_recommended) ?? combinedSuggestions[0]
+  }, [combinedSuggestions, selectedCombinedKey])
+
+  const resetModalState = useCallback(() => {
+    setActiveTab(defaultTab)
+    setSelectedSuggestions([])
+    setFocusedSuggestion(null)
+    setCustomizations({})
+    setSearchQuery('')
+    setCollapsedSections(new Set())
+    setExpandedGroups(new Set())
+    setCategoryFilter(null)
+    setSourceFilter(null)
+    setQuickEditFields([])
+    setInitialRecipe(undefined)
+    setSelectedFields([])
+    setSelectedCombinedKey(null)
+    setWizardStep(1)
+  }, [defaultTab])
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
-      setActiveTab(defaultTab)
-      setSelectedSuggestions([])
-      setFocusedSuggestion(null)
-      setCustomizations({})
-      setSearchQuery('')
-      setCollapsedSections(new Set())
-      setExpandedGroups(new Set())
-      setCategoryFilter(null)
-      setSourceFilter(null)
-      setQuickEditFields([])
-      setInitialRecipe(undefined)
-      setSelectedFields([])
-      setSelectedCombined(null)
-      setWizardStep(1)
+      const frameId = window.requestAnimationFrame(resetModalState)
+      return () => window.cancelAnimationFrame(frameId)
     } else {
       // Annuler les previews en attente quand la modale se ferme
-      queryClient.cancelQueries({ queryKey: ['preview'] })
+      void queryClient.cancelQueries({ queryKey: ['preview'] })
     }
-  }, [open, defaultTab])
-
-  // Auto-select first combined suggestion
-  useEffect(() => {
-    if (combinedSuggestions.length > 0 && !selectedCombined) {
-      const recommended = combinedSuggestions.find((s) => s.is_recommended)
-      setSelectedCombined(recommended || combinedSuggestions[0])
-    }
-  }, [combinedSuggestions, selectedCombined])
+  }, [open, queryClient, resetModalState])
 
   // Defer right-panel preview updates so card selection feels instant.
   const deferredFocusedSuggestion = useDeferredValue(focusedSuggestion)
@@ -580,20 +592,28 @@ export function AddWidgetModal({
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
     if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
-      setQuickEditFields([])
-      return
+      const timeoutId = window.setTimeout(() => {
+        setQuickEditFields([])
+        setLoadingSchema(false)
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
 
     const pluginId = previewSuggestion.plugin
 
     // Check cache first
     if (pluginId in pluginSchemaCache) {
-      setQuickEditFields(pluginSchemaCache[pluginId] || [])
-      return
+      const timeoutId = window.setTimeout(() => {
+        setQuickEditFields(pluginSchemaCache[pluginId] || [])
+        setLoadingSchema(false)
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
 
     // Fetch schema
-    setLoadingSchema(true)
+    const loadingTimeoutId = window.setTimeout(() => {
+      setLoadingSchema(true)
+    }, 0)
     fetch(`/api/plugins/${pluginId}/schema`)
       .then((res) => res.json())
       .then((data) => {
@@ -611,6 +631,7 @@ export function AddWidgetModal({
         setQuickEditFields([])
       })
       .finally(() => setLoadingSchema(false))
+    return () => window.clearTimeout(loadingTimeoutId)
   }, [previewSuggestion, selectedSuggestionIds])
 
   // Group suggestions with smart ordering:
@@ -779,13 +800,13 @@ export function AddWidgetModal({
       if (prev.length >= 5) return prev // Max 5 fields
       return [...prev, field]
     })
-    setSelectedCombined(null)
+    setSelectedCombinedKey(null)
   }, [])
 
   // Handle semantic group click
   const handleSemanticGroupClick = useCallback((group: SemanticGroup) => {
     setSelectedFields(group.fields)
-    setSelectedCombined(null)
+    setSelectedCombinedKey(null)
   }, [])
 
   // Handle adding suggestion widgets
@@ -1562,7 +1583,7 @@ export function AddWidgetModal({
                               return (
                                 <button
                                   key={idx}
-                                  onClick={() => setSelectedCombined(suggestion)}
+                                  onClick={() => setSelectedCombinedKey(getCombinedSuggestionKey(suggestion))}
                                   className={cn(
                                     'w-full text-left rounded-lg border p-3 transition-all',
                                     isSelected

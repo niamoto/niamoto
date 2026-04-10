@@ -9,7 +9,7 @@
  * - Views configuration (grid/list)
  * - Live preview panel
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -98,25 +98,26 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null)
   const previewMutation = useGroupIndexPreview()
 
+  const loadPreview = useCallback(() => {
+    if (!config.enabled) {
+      return
+    }
+
+    previewMutation.mutate(
+      { groupName: groupBy },
+      {
+        onSuccess: (data) => setPreviewHtml(data.html),
+        onError: () => setPreviewHtml(null),
+      }
+    )
+  }, [config.enabled, groupBy, previewMutation])
+
   // Load preview when enabled and showPreview is true
   useEffect(() => {
     if (showPreview && config.enabled) {
       loadPreview()
     }
-  }, [showPreview, config.enabled, groupBy])
-
-  // Function to load/refresh preview
-  const loadPreview = () => {
-    if (config.enabled) {
-      previewMutation.mutate(
-        { groupName: groupBy },
-        {
-          onSuccess: (data) => setPreviewHtml(data.html),
-          onError: () => setPreviewHtml(null),
-        }
-      )
-    }
-  }
+  }, [config.enabled, loadPreview, showPreview])
 
   // Handle save
   const handleSave = async () => {
@@ -587,6 +588,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             <ResizablePanel defaultSize="45%" minSize="30%">
               {editingFieldIndex !== null && config.display_fields[editingFieldIndex] ? (
                 <DisplayFieldEditorPanel
+                  key={`${editingFieldIndex}-${config.display_fields[editingFieldIndex].name}-${config.display_fields[editingFieldIndex].source}`}
                   field={config.display_fields[editingFieldIndex]}
                   fieldIndex={editingFieldIndex}
                   onSave={handleSaveField}

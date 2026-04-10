@@ -700,9 +700,9 @@ export function AutoConfigDisplay({
   }
 
   const renderEntryDetails = (entry: ListEntry) => {
-    const datasetLinks =
+    const datasetLinks: Array<{ field: string; entity: string }> =
       entry.type === 'dataset'
-        ? ((entry.config as unknown as { links?: any[] }).links ?? [])
+        ? ((entry.config as { links?: Array<{ field: string; entity: string }> }).links ?? [])
         : []
 
     if (entry.type === 'auxiliary') {
@@ -781,7 +781,7 @@ export function AutoConfigDisplay({
           })()}
           {entry.type === 'dataset' && datasetLinks.length > 0 && (
               <div className="space-y-1">
-                {datasetLinks.map((link: any) => (
+                {datasetLinks.map((link) => (
                   <div key={`${entry.name}-${link.field}-${link.entity}`} className="flex items-center gap-1">
                     <Link2 className="h-3.5 w-3.5" />
                     {link.field} → {link.entity}

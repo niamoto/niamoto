@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles, FileCode, Globe, Package, ExternalLink } from 'lucide-react'
@@ -11,6 +11,7 @@ import {
   getTables,
   queryTable,
   previewEnrichment,
+  type EnrichmentPreviewImage,
   type TableInfo,
   type QueryResponse,
   type EnrichmentPreviewResponse,
@@ -49,19 +50,7 @@ export function DataExplorer() {
   const [selectedJsonFile, setSelectedJsonFile] = useState<ExportFileContent | null>(null)
   const [jsonFileLoading, setJsonFileLoading] = useState(false)
 
-  // Load tables on mount
-  useEffect(() => {
-    loadTables()
-  }, [])
-
-  // Load exports when tab changes
-  useEffect(() => {
-    if (activeTab === 'exports') {
-      loadExports()
-    }
-  }, [activeTab])
-
-  const loadExports = async () => {
+  const loadExports = useCallback(async () => {
     setExportsLoading(true)
     try {
       const data = await listExports()
@@ -72,7 +61,52 @@ export function DataExplorer() {
     } finally {
       setExportsLoading(false)
     }
-  }
+  }, [t])
+
+  const loadTables = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getTables()
+      setTables(data)
+    } catch (error) {
+      console.error('Failed to load tables:', error)
+      toast.error(t('errors.loadTables'))
+    } finally {
+      setLoading(false)
+    }
+  }, [t])
+
+  const loadTableData = useCallback(async () => {
+    if (!selectedTable) return
+
+    setQuerying(true)
+    try {
+      const result = await queryTable({
+        table: selectedTable,
+        limit: pageSize,
+        offset: currentPage * pageSize,
+        where: searchQuery || undefined
+      })
+      setQueryResult(result)
+    } catch (error) {
+      console.error('Failed to query table:', error)
+      toast.error(t('errors.query'))
+    } finally {
+      setQuerying(false)
+    }
+  }, [currentPage, searchQuery, selectedTable, t])
+
+  // Load tables on mount
+  useEffect(() => {
+    void loadTables()
+  }, [loadTables])
+
+  // Load exports when tab changes
+  useEffect(() => {
+    if (activeTab === 'exports') {
+      void loadExports()
+    }
+  }, [activeTab, loadExports])
 
   const handleJsonFileClick = async (filePath: string) => {
     setJsonFileLoading(true)
@@ -94,46 +128,16 @@ export function DataExplorer() {
   // Load query results when table changes
   useEffect(() => {
     if (selectedTable) {
-      loadTableData()
+      void loadTableData()
     }
-  }, [selectedTable, currentPage])
-
-  const loadTables = async () => {
-    setLoading(true)
-    try {
-      const data = await getTables()
-      setTables(data)
-    } catch (error) {
-      console.error('Failed to load tables:', error)
-      toast.error(t('errors.loadTables'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadTableData = async () => {
-    if (!selectedTable) return
-
-    setQuerying(true)
-    try {
-      const result = await queryTable({
-        table: selectedTable,
-        limit: pageSize,
-        offset: currentPage * pageSize,
-        where: searchQuery || undefined
-      })
-      setQueryResult(result)
-    } catch (error) {
-      console.error('Failed to query table:', error)
-      toast.error(t('errors.query'))
-    } finally {
-      setQuerying(false)
-    }
-  }
+  }, [loadTableData, selectedTable])
 
   const handleSearch = () => {
-    setCurrentPage(0)
-    loadTableData()
+    if (currentPage !== 0) {
+      setCurrentPage(0)
+      return
+    }
+    void loadTableData()
   }
 
   const handleTableSelect = (tableName: string) => {
@@ -672,7 +676,7 @@ export function DataExplorer() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {enrichmentData.api_enrichment.images.slice(0, 6).map((img: any, idx: number) => (
+                      {enrichmentData.api_enrichment.images.slice(0, 6).map((img: EnrichmentPreviewImage, idx: number) => (
                         <div key={idx} className="space-y-2">
                           <img
                             src={img.big_thumb || img.small_thumb}

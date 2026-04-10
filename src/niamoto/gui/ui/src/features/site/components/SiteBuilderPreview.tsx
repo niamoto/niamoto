@@ -5,16 +5,17 @@
  * (collection index preview), extracted from SiteBuilder.tsx.
  */
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PreviewFrame, type DeviceSize } from '@/components/ui/preview-frame'
 import {
-  useTemplatePreview,
   type SiteSettings,
   type NavigationItem,
   type FooterSection,
   type StaticPage,
 } from '@/shared/hooks/useSiteConfig'
+import { previewTemplate } from '@/shared/hooks/site-config/siteConfigApi'
 
 // =============================================================================
 // SITE PREVIEW (static page template preview)
@@ -34,59 +35,70 @@ export interface SitePreviewProps {
 
 export function SitePreview({ page, site, navigation, footerNavigation, device, onDeviceChange, fileContent, onLinkClick, onClose }: SitePreviewProps) {
   const { t, i18n } = useTranslation(['site', 'common'])
-  const previewMutation = useTemplatePreview()
-  const [html, setHtml] = useState('')
-
-  const loadPreview = () => {
-    if (page) {
-      const context: Record<string, unknown> = { ...page.context }
-
-      if (fileContent && page.context?.content_source) {
-        context.content_markdown = fileContent
-        delete context.content_source
-      }
-
-      if (page.context?.title) {
-        context.title = page.context.title
-      }
-
-      previewMutation.mutate({
-        template: page.template || 'page.html',
-        context,
-        site: site as Record<string, unknown>,
-        navigation: navigation.map(n => ({
-          text: n.text,
-          url: n.url,
-          children: n.children,
-        })),
-        footer_navigation: footerNavigation.map(s => ({
-          title: s.title,
-          links: s.links,
-        })),
-        output_file: page.output_file,
-        gui_lang: i18n.language?.split('-')[0] || 'fr',
-      }, {
-        onSuccess: (data) => setHtml(data.html),
-        onError: (error) => {
-          setHtml(`<div class="text-red-500 p-4">Erreur: ${error.message}</div>`)
-        },
-      })
-    } else {
-      setHtml('')
+  const previewRequest = useMemo(() => {
+    if (!page) {
+      return null
     }
-  }
 
-  useEffect(() => {
-    loadPreview()
-  }, [page, site, navigation, footerNavigation, fileContent])
+    const context: Record<string, unknown> = { ...page.context }
+
+    if (fileContent && page.context?.content_source) {
+      context.content_markdown = fileContent
+      delete context.content_source
+    }
+
+    if (page.context?.title) {
+      context.title = page.context.title
+    }
+
+    return {
+      template: page.template || 'page.html',
+      context,
+      site: site as Record<string, unknown>,
+      navigation: navigation.map((item) => ({
+        text: item.text,
+        url: item.url,
+        children: item.children,
+      })),
+      footer_navigation: footerNavigation.map((section) => ({
+        title: section.title,
+        links: section.links,
+      })),
+      output_file: page.output_file,
+      gui_lang: i18n.language?.split('-')[0] || 'fr',
+    }
+  }, [fileContent, footerNavigation, i18n.language, navigation, page, site])
+
+  const {
+    data: previewData,
+    error: previewError,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ['site-template-preview', previewRequest],
+    queryFn: () => previewTemplate(previewRequest!),
+    enabled: Boolean(previewRequest),
+  })
+
+  const html = previewRequest
+    ? (previewData?.html ?? (
+        previewError instanceof Error
+          ? `<div class="text-red-500 p-4">Erreur: ${previewError.message}</div>`
+          : ''
+      ))
+    : ''
 
   return (
     <PreviewFrame
       html={html}
-      isLoading={previewMutation.isPending}
+      isLoading={isFetching}
       device={device}
       onDeviceChange={onDeviceChange}
-      onRefresh={loadPreview}
+      onRefresh={() => {
+        if (previewRequest) {
+          void refetch()
+        }
+      }}
       onClose={onClose}
       onLinkClick={onLinkClick}
       title={t('preview.title')}

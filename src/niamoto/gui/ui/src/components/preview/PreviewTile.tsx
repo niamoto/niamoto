@@ -5,9 +5,9 @@
  * et usePreviewFrame pour le chargement via TanStack Query.
  */
 
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import type { PreviewDescriptor } from '@/lib/preview/types'
-import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
+import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
 
@@ -23,6 +23,8 @@ function useIntersectionObserver(
   options?: IntersectionObserverInit,
 ): boolean {
   const [visible, setVisible] = useState(false)
+  const rootMargin = options?.rootMargin ?? '120px'
+  const threshold = options?.threshold
 
   useEffect(() => {
     const el = ref.current
@@ -30,11 +32,11 @@ function useIntersectionObserver(
 
     const observer = new IntersectionObserver(
       ([entry]) => setVisible(entry.isIntersecting),
-      { rootMargin: '120px', ...options },
+      { rootMargin, threshold },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [ref, options?.rootMargin, options?.threshold])
+  }, [ref, rootMargin, threshold])
 
   return visible
 }
@@ -50,21 +52,16 @@ export function PreviewTile({
   const visible = useIntersectionObserver(containerRef)
 
   // Stabiliser le descriptor pour éviter les re-renders
-  const thumbDescriptor = useMemo(
-    () => ({ ...descriptor, mode: 'thumbnail' as const }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    descriptorDeps(descriptor),
-  )
+  const thumbDescriptor = { ...descriptor, mode: 'thumbnail' as const }
 
   // Debounce la visibilité pour éviter le strobe au scroll rapide
   const [debouncedVisible, setDebouncedVisible] = useState(false)
   useEffect(() => {
-    if (visible) {
-      setDebouncedVisible(true)
-    } else {
-      const t = setTimeout(() => setDebouncedVisible(false), 32)
-      return () => clearTimeout(t)
-    }
+    const timeoutId = window.setTimeout(
+      () => setDebouncedVisible(visible),
+      visible ? 0 : 32,
+    )
+    return () => window.clearTimeout(timeoutId)
   }, [visible])
 
   const { html, loading, error } = usePreviewFrame(thumbDescriptor, debouncedVisible)
@@ -72,13 +69,13 @@ export function PreviewTile({
   // Nettoyage Plotly au démontage — on lit la ref au cleanup car l'iframe
   // est rendue conditionnellement et n'existe pas encore au mount.
   useEffect(() => {
+    const iframe = iframeRef.current
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      if (iframeRef.current) {
-        iframeRef.current.srcdoc = ''
+      if (iframe) {
+        iframe.srcdoc = ''
       }
     }
-  }, [])
+  }, [html])
 
   return (
     <div

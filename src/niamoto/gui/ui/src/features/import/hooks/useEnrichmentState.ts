@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiClient } from '@/shared/lib/api/client'
+import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import { useNotificationStore } from '@/stores/notificationStore'
 
@@ -30,9 +31,9 @@ import {
 export interface ReferenceConfigPayload {
   kind?: string
   description?: string
-  connector?: Record<string, any>
-  hierarchy?: Record<string, any>
-  schema?: Record<string, any>
+  connector?: Record<string, unknown>
+  hierarchy?: Record<string, unknown>
+  schema?: Record<string, unknown>
   enrichment?: ReferenceEnrichmentConfig[]
 }
 
@@ -90,7 +91,7 @@ export interface EnrichmentResult {
   entity_name?: string
   taxon_name?: string
   success: boolean
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   error?: string
   processed_at: string
 }
@@ -99,10 +100,10 @@ export interface PreviewSourceResult {
   source_id: string
   source_label: string
   success: boolean
-  data?: Record<string, any>
-  raw_data?: any
+  data?: Record<string, unknown>
+  raw_data?: unknown
   error?: string
-  config_used?: Record<string, any>
+  config_used?: Record<string, unknown>
 }
 
 export interface PreviewResponse {
@@ -283,9 +284,9 @@ export function useEnrichmentState({
       const nextPersistedEnabled = Boolean(normalized?.enrichment?.some((source) => source.enabled))
       setReferenceConfig(normalized)
       setPersistedEnrichmentEnabled(nextPersistedEnabled)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load reference config:', err)
-      setConfigError(err.response?.data?.detail || t('enrichmentTab.errors.loadConfig'))
+      setConfigError(getApiErrorMessage(err, t('enrichmentTab.errors.loadConfig')))
       setPersistedEnrichmentEnabled(false)
       setReferenceConfig(null)
     } finally {
@@ -322,8 +323,17 @@ export function useEnrichmentState({
       const response = await apiClient.get<EnrichmentJob>(`/enrichment/job/${referenceName}`)
       setJob(response.data)
       return response.data
-    } catch (err: any) {
-      if (err.response?.status !== 404) {
+    } catch (err: unknown) {
+      const isNotFound =
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof err.response === 'object' &&
+        err.response !== null &&
+        'status' in err.response &&
+        err.response.status === 404
+
+      if (!isNotFound) {
         console.error('Failed to load job status:', err)
       }
       setJob(null)
@@ -648,11 +658,12 @@ export function useEnrichmentState({
       await loadStats(true)
       onConfigSaved?.()
       toast.success(t('enrichmentTab.toasts.configSaved'))
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to save enrichment config:', err)
-      setConfigError(err.response?.data?.detail || t('enrichmentTab.errors.saveConfig'))
+      const message = getApiErrorMessage(err, t('enrichmentTab.errors.saveConfig'))
+      setConfigError(message)
       toast.error(t('enrichmentTab.toasts.saveErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.saveConfig'),
+        description: message,
       })
     } finally {
       setConfigSaving(false)
@@ -689,10 +700,10 @@ export function useEnrichmentState({
           count: stats?.pending ?? 0,
         }),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to start job:', err)
       toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.startJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.startJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -714,10 +725,10 @@ export function useEnrichmentState({
           count: sourceStats?.pending ?? 0,
         }),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to start source job:', err)
       toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.startJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.startJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -735,10 +746,10 @@ export function useEnrichmentState({
       toast.info(t('enrichmentTab.toasts.pausedTitle'), {
         description: t('enrichmentTab.toasts.pausedDescription'),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to pause job:', err)
       toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.pauseJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.pauseJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -759,10 +770,10 @@ export function useEnrichmentState({
       toast.success(t('enrichmentTab.toasts.resumedTitle'), {
         description: t('enrichmentTab.toasts.resumedDescription'),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to resume job:', err)
       toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.resumeJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.resumeJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -784,10 +795,10 @@ export function useEnrichmentState({
           count: job?.processed ?? 0,
         }),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to cancel job:', err)
       toast.error(t('enrichmentTab.toasts.genericErrorTitle'), {
-        description: err.response?.data?.detail || t('enrichmentTab.errors.cancelJob'),
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.cancelJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -885,11 +896,11 @@ export function useEnrichmentState({
       }
       setPreviewQuery(query)
       setPreviewData(response.data)
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (requestId !== previewRequestRef.current) {
         return
       }
-      setPreviewError(err.response?.data?.detail || t('enrichmentTab.errors.preview'))
+      setPreviewError(getApiErrorMessage(err, t('enrichmentTab.errors.preview')))
     } finally {
       if (requestId === previewRequestRef.current) {
         setPreviewLoading(false)

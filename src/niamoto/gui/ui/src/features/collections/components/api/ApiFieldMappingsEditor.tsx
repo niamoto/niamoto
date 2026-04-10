@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react'
 
@@ -113,16 +113,30 @@ export function ApiFieldMappingsEditor({
   title,
   description,
 }: ApiFieldMappingsEditorProps) {
+  return (
+    <ApiFieldMappingsEditorForm
+      key={JSON.stringify(value)}
+      value={value}
+      onChange={onChange}
+      suggestions={suggestions}
+      title={title}
+      description={description}
+    />
+  )
+}
+
+function ApiFieldMappingsEditorForm({
+  value = [],
+  onChange,
+  suggestions = [],
+  title,
+  description,
+}: ApiFieldMappingsEditorProps) {
   const { t } = useTranslation('sources')
   const [rows, setRows] = useState<ApiFieldMappingRow[]>(() =>
     value.length > 0 ? parseRows(value) : [createEmptyRow()]
   )
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setRows(value.length > 0 ? parseRows(value) : [createEmptyRow()])
-    setError(null)
-  }, [value])
 
   const availableSuggestions = useMemo(
     () =>

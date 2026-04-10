@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { isAxiosError } from 'axios'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,7 +47,7 @@ export function TableBrowser({
       }),
     staleTime: 30000,
     retry: (failureCount, err) => {
-      if ((err as any)?.response?.status === 404) return false
+      if (isAxiosError(err) && err.response?.status === 404) return false
       return failureCount < 2
     },
   })
@@ -60,7 +61,7 @@ export function TableBrowser({
   }
 
   if (error) {
-    const is404 = (error as any)?.response?.status === 404
+    const is404 = isAxiosError(error) && error.response?.status === 404
     if (is404) {
       return (
         <div className="py-4 text-center text-sm text-muted-foreground">
@@ -91,7 +92,7 @@ export function TableBrowser({
   const canNext = page < totalPages - 1
 
   // Truncate long values
-  const truncateValue = (value: any, maxLength: number = 50) => {
+  const truncateValue = (value: unknown, maxLength: number = 50) => {
     if (value === null || value === undefined) return '-'
     const str = String(value)
     if (str.length > maxLength) {

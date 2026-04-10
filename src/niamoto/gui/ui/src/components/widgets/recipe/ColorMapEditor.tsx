@@ -54,7 +54,7 @@ export function ColorMapEditor({ value, onChange, placeholder }: ColorMapEditorP
         color,
       })))
     }
-  }, [value])
+  }, [entries, value])
 
   // Emit changes to parent
   const emitChange = useCallback((newEntries: ColorEntry[]) => {

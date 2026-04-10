@@ -15,137 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import {
-  // Nature & Ecology
-  Leaf,
-  TreePine,
-  TreeDeciduous,
-  Flower2,
-  Sprout,
-  Mountain,
-  Waves,
-  Sun,
-  Cloud,
-  Droplets,
-  // Animals
-  Bird,
-  Bug,
-  Fish,
-  // Data & Stats
-  BarChart3,
-  TrendingUp,
-  PieChart,
-  Activity,
-  Target,
-  Gauge,
-  // Geography
-  Map,
-  MapPin,
-  Globe,
-  Compass,
-  Navigation,
-  // Data & Files
-  Database,
-  Folder,
-  FileText,
-  Files,
-  Archive,
-  // Research
-  Search,
-  Microscope,
-  FlaskConical,
-  BookOpen,
-  GraduationCap,
-  // UI & Navigation
-  Eye,
-  Info,
-  HelpCircle,
-  Settings,
-  Users,
-  User,
-  Home,
-  Link,
-  ExternalLink,
-  Download,
-  Upload,
-  // Misc
-  Layers,
-  Grid3X3,
-  LayoutGrid,
-  Calendar,
-  Clock,
-  Zap,
-  Star,
-  Heart,
-  Award,
-  type LucideIcon,
-} from 'lucide-react'
-
-// Icon registry with names
-const ICON_REGISTRY: Record<string, LucideIcon> = {
-  // Nature
-  leaf: Leaf,
-  'tree-pine': TreePine,
-  'tree-deciduous': TreeDeciduous,
-  flower: Flower2,
-  sprout: Sprout,
-  mountain: Mountain,
-  waves: Waves,
-  sun: Sun,
-  cloud: Cloud,
-  droplets: Droplets,
-  // Animals
-  bird: Bird,
-  bug: Bug,
-  fish: Fish,
-  // Stats
-  'bar-chart': BarChart3,
-  'trending-up': TrendingUp,
-  'pie-chart': PieChart,
-  activity: Activity,
-  target: Target,
-  gauge: Gauge,
-  // Geography
-  map: Map,
-  'map-pin': MapPin,
-  globe: Globe,
-  compass: Compass,
-  navigation: Navigation,
-  // Data
-  database: Database,
-  folder: Folder,
-  'file-text': FileText,
-  files: Files,
-  archive: Archive,
-  // Research
-  search: Search,
-  microscope: Microscope,
-  flask: FlaskConical,
-  book: BookOpen,
-  graduation: GraduationCap,
-  // UI
-  eye: Eye,
-  info: Info,
-  help: HelpCircle,
-  settings: Settings,
-  users: Users,
-  user: User,
-  home: Home,
-  link: Link,
-  'external-link': ExternalLink,
-  download: Download,
-  upload: Upload,
-  // Misc
-  layers: Layers,
-  'grid-3x3': Grid3X3,
-  'layout-grid': LayoutGrid,
-  calendar: Calendar,
-  clock: Clock,
-  zap: Zap,
-  star: Star,
-  heart: Heart,
-  award: Award,
-}
+import { Leaf } from 'lucide-react'
+import { ICON_REGISTRY } from './lucideIconRegistry'
 
 // Grouped icons for better organization
 const ICON_GROUPS = {
@@ -242,16 +113,6 @@ export function LucideIconPicker({ value, onChange, className }: LucideIconPicke
       </PopoverContent>
     </Popover>
   )
-}
-
-// Export the registry for use in rendering
-export { ICON_REGISTRY }
-
-// Helper to render an icon by name
-export function renderLucideIcon(name: string, className?: string) {
-  const Icon = ICON_REGISTRY[name]
-  if (!Icon) return null
-  return <Icon className={className} />
 }
 
 export default LucideIconPicker

@@ -1,6 +1,6 @@
 // src/components/forms/widgets/JsonField.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -12,14 +12,37 @@ interface JsonFieldProps {
   name: string;
   label?: string;
   description?: string;
-  value?: any;
-  onChange?: (value: any) => void;
+  value?: unknown;
+  onChange?: (value: unknown) => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
   error?: string;
   className?: string;
-  schema?: any; // JSON schema for validation
+  schema?: unknown; // JSON schema for validation
+}
+
+function formatJsonValue(value: unknown): {
+  sourceKey: string;
+  textValue: string;
+  isFormatted: boolean;
+} {
+  try {
+    const textValue =
+      value !== undefined && value !== null ? JSON.stringify(value, null, 2) : '';
+    return {
+      sourceKey: textValue,
+      textValue,
+      isFormatted: true,
+    };
+  } catch {
+    const textValue = value !== undefined && value !== null ? String(value) : '';
+    return {
+      sourceKey: textValue,
+      textValue,
+      isFormatted: false,
+    };
+  }
 }
 
 const JsonField: React.FC<JsonFieldProps> = ({
@@ -36,40 +59,53 @@ const JsonField: React.FC<JsonFieldProps> = ({
   schema: _schema
 }) => {
   const { t } = useTranslation('common');
-  const [textValue, setTextValue] = useState<string>('');
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [isFormatted, setIsFormatted] = useState(false);
+  const formattedValue = formatJsonValue(value);
+  const [editorState, setEditorState] = useState<{
+    sourceKey: string;
+    textValue: string;
+    parseError: string | null;
+    isFormatted: boolean;
+  }>(() => ({
+    ...formattedValue,
+    parseError: null,
+  }));
 
-  // Initialize text value from prop value
-  useEffect(() => {
-    try {
-      const formatted = value ? JSON.stringify(value, null, 2) : '';
-      setTextValue(formatted);
-      setIsFormatted(true);
-    } catch (err) {
-      setTextValue(String(value || ''));
-      setIsFormatted(false);
-    }
-  }, [value]);
+  const isCurrentValue = editorState.sourceKey === formattedValue.sourceKey;
+  const textValue = isCurrentValue ? editorState.textValue : formattedValue.textValue;
+  const parseError = isCurrentValue ? editorState.parseError : null;
+  const isFormatted = isCurrentValue ? editorState.isFormatted : formattedValue.isFormatted;
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    setTextValue(newText);
-    setIsFormatted(false);
 
     // Try to parse and update the value
     if (newText.trim() === '') {
-      setParseError(null);
+      setEditorState({
+        sourceKey: formattedValue.sourceKey,
+        textValue: newText,
+        parseError: null,
+        isFormatted: false,
+      });
       onChange?.(undefined);
       return;
     }
 
     try {
       const parsed = JSON.parse(newText);
-      setParseError(null);
+      setEditorState({
+        sourceKey: formattedValue.sourceKey,
+        textValue: newText,
+        parseError: null,
+        isFormatted: false,
+      });
       onChange?.(parsed);
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'Invalid JSON');
+      setEditorState({
+        sourceKey: formattedValue.sourceKey,
+        textValue: newText,
+        parseError: err instanceof Error ? err.message : 'Invalid JSON',
+        isFormatted: false,
+      });
     }
   };
 
@@ -77,18 +113,30 @@ const JsonField: React.FC<JsonFieldProps> = ({
     try {
       const parsed = JSON.parse(textValue);
       const formatted = JSON.stringify(parsed, null, 2);
-      setTextValue(formatted);
-      setIsFormatted(true);
-      setParseError(null);
+      setEditorState({
+        sourceKey: formattedValue.sourceKey,
+        textValue: formatted,
+        parseError: null,
+        isFormatted: true,
+      });
       onChange?.(parsed);
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'Invalid JSON');
+      setEditorState({
+        sourceKey: formattedValue.sourceKey,
+        textValue,
+        parseError: err instanceof Error ? err.message : 'Invalid JSON',
+        isFormatted: false,
+      });
     }
   };
 
   const handleClear = () => {
-    setTextValue('');
-    setParseError(null);
+    setEditorState({
+      sourceKey: formattedValue.sourceKey,
+      textValue: '',
+      parseError: null,
+      isFormatted: false,
+    });
     onChange?.(undefined);
   };
 

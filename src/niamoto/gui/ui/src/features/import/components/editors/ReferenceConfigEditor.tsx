@@ -8,7 +8,7 @@
  * - Schema fields
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -80,80 +80,10 @@ export function ReferenceConfigEditor({
   onSaved,
 }: ReferenceConfigEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const queryClient = useQueryClient()
-  const [localConfig, setLocalConfig] = useState<ReferenceConfig | null>(null)
-  const [hasChanges, setHasChanges] = useState(false)
-
   const { data, isLoading, error } = useQuery({
     queryKey: ['reference-config', referenceName],
     queryFn: () => fetchReferenceConfig(referenceName),
   })
-
-  const mutation = useMutation({
-    mutationFn: (config: ReferenceConfig) => saveReferenceConfig(referenceName, config),
-    onSuccess: () => {
-      setHasChanges(false)
-      queryClient.invalidateQueries({ queryKey: ['references'] })
-      queryClient.invalidateQueries({ queryKey: ['reference-config', referenceName] })
-      onSaved?.()
-    },
-  })
-
-  useEffect(() => {
-    if (data?.config) {
-      setLocalConfig(data.config)
-      setHasChanges(false)
-    }
-  }, [data])
-
-  const updateConfig = (updates: Partial<ReferenceConfig>) => {
-    if (!localConfig) return
-    setLocalConfig({ ...localConfig, ...updates })
-    setHasChanges(true)
-  }
-
-  const updateHierarchy = (updates: Partial<NonNullable<ReferenceConfig['hierarchy']>>) => {
-    if (!localConfig) return
-    setLocalConfig({
-      ...localConfig,
-      hierarchy: { ...localConfig.hierarchy, ...updates },
-    })
-    setHasChanges(true)
-  }
-
-  const updateConnector = (updates: Partial<NonNullable<ReferenceConfig['connector']>>) => {
-    if (!localConfig) return
-    setLocalConfig({
-      ...localConfig,
-      connector: { ...localConfig.connector, ...updates },
-    })
-    setHasChanges(true)
-  }
-
-  const addHierarchyLevel = () => {
-    if (!localConfig?.hierarchy) return
-    const levels = localConfig.hierarchy.levels || []
-    updateHierarchy({ levels: [...levels, ''] })
-  }
-
-  const updateHierarchyLevel = (index: number, value: string) => {
-    if (!localConfig?.hierarchy?.levels) return
-    const levels = [...localConfig.hierarchy.levels]
-    levels[index] = value
-    updateHierarchy({ levels })
-  }
-
-  const removeHierarchyLevel = (index: number) => {
-    if (!localConfig?.hierarchy?.levels) return
-    const levels = localConfig.hierarchy.levels.filter((_, i) => i !== index)
-    updateHierarchy({ levels })
-  }
-
-  const handleSave = () => {
-    if (localConfig) {
-      mutation.mutate(localConfig)
-    }
-  }
 
   if (isLoading) {
     return (
@@ -174,7 +104,87 @@ export function ReferenceConfigEditor({
     )
   }
 
-  if (!localConfig) return null
+  if (!data?.config) return null
+
+  return (
+    <ReferenceConfigEditorForm
+      key={`${referenceName}:${JSON.stringify(data.config)}`}
+      referenceName={referenceName}
+      initialConfig={data.config}
+      onSaved={onSaved}
+    />
+  )
+}
+
+interface ReferenceConfigEditorFormProps {
+  referenceName: string
+  initialConfig: ReferenceConfig
+  onSaved?: () => void
+}
+
+function ReferenceConfigEditorForm({
+  referenceName,
+  initialConfig,
+  onSaved,
+}: ReferenceConfigEditorFormProps) {
+  const { t } = useTranslation(['sources', 'common'])
+  const queryClient = useQueryClient()
+  const [localConfig, setLocalConfig] = useState<ReferenceConfig>(initialConfig)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: (config: ReferenceConfig) => saveReferenceConfig(referenceName, config),
+    onSuccess: () => {
+      setHasChanges(false)
+      queryClient.invalidateQueries({ queryKey: ['references'] })
+      queryClient.invalidateQueries({ queryKey: ['reference-config', referenceName] })
+      onSaved?.()
+    },
+  })
+
+  const updateConfig = (updates: Partial<ReferenceConfig>) => {
+    setLocalConfig({ ...localConfig, ...updates })
+    setHasChanges(true)
+  }
+
+  const updateHierarchy = (updates: Partial<NonNullable<ReferenceConfig['hierarchy']>>) => {
+    setLocalConfig({
+      ...localConfig,
+      hierarchy: { ...localConfig.hierarchy, ...updates },
+    })
+    setHasChanges(true)
+  }
+
+  const updateConnector = (updates: Partial<NonNullable<ReferenceConfig['connector']>>) => {
+    setLocalConfig({
+      ...localConfig,
+      connector: { ...localConfig.connector, ...updates },
+    })
+    setHasChanges(true)
+  }
+
+  const addHierarchyLevel = () => {
+    if (!localConfig.hierarchy) return
+    const levels = localConfig.hierarchy.levels || []
+    updateHierarchy({ levels: [...levels, ''] })
+  }
+
+  const updateHierarchyLevel = (index: number, value: string) => {
+    if (!localConfig.hierarchy?.levels) return
+    const levels = [...localConfig.hierarchy.levels]
+    levels[index] = value
+    updateHierarchy({ levels })
+  }
+
+  const removeHierarchyLevel = (index: number) => {
+    if (!localConfig.hierarchy?.levels) return
+    const levels = localConfig.hierarchy.levels.filter((_, i) => i !== index)
+    updateHierarchy({ levels })
+  }
+
+  const handleSave = () => {
+    mutation.mutate(localConfig)
+  }
 
   const isHierarchical = localConfig.kind === 'hierarchical'
   return (

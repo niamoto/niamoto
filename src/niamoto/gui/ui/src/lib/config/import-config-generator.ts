@@ -12,6 +12,20 @@ import type {
   HierarchyConfig
 } from './import-config-types'
 
+type ImportConfigScalar = string | number | boolean | null
+type ImportConfigValue = ImportConfigScalar | ImportConfigNode | ImportConfigValue[]
+interface ImportConfigNode {
+  [key: string]: ImportConfigValue | undefined
+}
+
+interface RootImportConfig extends ImportConfigNode {
+  version: string
+  entities: {
+    datasets: Record<string, ImportConfigNode>
+    references: Record<string, ImportConfigNode>
+  }
+}
+
 /**
  * Generate import.yml YAML from entity configuration state
  */
@@ -23,8 +37,8 @@ export function generateImportYAML(state: EntityConfigState): string {
 /**
  * Build configuration object from state
  */
-function buildConfigObject(state: EntityConfigState): any {
-  const config: any = {
+function buildConfigObject(state: EntityConfigState): RootImportConfig {
+  const config: RootImportConfig = {
     version: '1.0',
     entities: {
       datasets: {},
@@ -49,8 +63,8 @@ function buildConfigObject(state: EntityConfigState): any {
 /**
  * Build configuration for a single entity
  */
-function buildEntityConfig(entity: EntityConfig): any {
-  const config: any = {}
+function buildEntityConfig(entity: EntityConfig): ImportConfigNode {
+  const config: ImportConfigNode = {}
 
   // Add description if present
   if (entity.description) {
@@ -79,12 +93,15 @@ function buildEntityConfig(entity: EntityConfig): any {
 
   // Add options if present
   if (entity.options) {
-    config.options = {}
+    const options: ImportConfigNode = {}
     if (entity.options.mode) {
-      config.options.mode = entity.options.mode
+      options.mode = entity.options.mode
     }
     if (entity.options.chunk_size) {
-      config.options.chunk_size = entity.options.chunk_size
+      options.chunk_size = entity.options.chunk_size
+    }
+    if (Object.keys(options).length > 0) {
+      config.options = options
     }
   }
 
@@ -107,8 +124,8 @@ function buildEntityConfig(entity: EntityConfig): any {
 /**
  * Build connector configuration
  */
-function buildConnectorConfig(connector: ConnectorConfig): any {
-  const config: any = {
+function buildConnectorConfig(connector: ConnectorConfig): ImportConfigNode {
+  const config: ImportConfigNode = {
     type: connector.type
   }
 
@@ -165,8 +182,8 @@ function buildConnectorConfig(connector: ConnectorConfig): any {
 /**
  * Build schema configuration
  */
-function buildSchemaConfig(entity: EntityConfig): any {
-  const config: any = {}
+function buildSchemaConfig(entity: EntityConfig): ImportConfigNode {
+  const config: ImportConfigNode = {}
 
   if (entity.schema.id_field) {
     config.id_field = entity.schema.id_field
@@ -189,8 +206,8 @@ function buildSchemaConfig(entity: EntityConfig): any {
 /**
  * Build hierarchy configuration
  */
-function buildHierarchyConfig(hierarchy: HierarchyConfig): any {
-  const config: any = {
+function buildHierarchyConfig(hierarchy: HierarchyConfig): ImportConfigNode {
+  const config: ImportConfigNode = {
     type: hierarchy.strategy,
     levels: hierarchy.levels
   }
@@ -210,7 +227,7 @@ function buildHierarchyConfig(hierarchy: HierarchyConfig): any {
  * Convert object to YAML string
  * Simple implementation - for production, consider using js-yaml library
  */
-function objectToYAML(obj: any, indent = 0): string {
+function objectToYAML(obj: ImportConfigValue, indent = 0): string {
   const indentStr = '  '.repeat(indent)
   let yaml = ''
 
@@ -246,7 +263,7 @@ function objectToYAML(obj: any, indent = 0): string {
 /**
  * Format a value for YAML
  */
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === null || value === undefined) {
     return 'null'
   }
@@ -350,7 +367,7 @@ export function generateExampleYAML(
   entityType: 'dataset' | 'reference',
   entityKind?: 'hierarchical' | 'spatial' | 'generic'
 ): string {
-  const examples: Record<string, any> = {
+  const examples: Record<string, ImportConfigNode> = {
     dataset: {
       version: '1.0',
       entities: {

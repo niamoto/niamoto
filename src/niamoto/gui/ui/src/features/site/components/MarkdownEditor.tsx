@@ -9,7 +9,7 @@
  * - Real-time editing
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   EditorRoot,
@@ -24,11 +24,14 @@ import {
   TaskItem,
   TiptapLink,
   Command,
-  createSuggestionItems,
   renderItems,
   handleCommandNavigation,
   type JSONContent,
+  type EditorInstance,
+  type SuggestionItem,
 } from 'novel'
+import type { EditorEvents } from '@tiptap/core'
+import type { PlaceholderOptions } from '@tiptap/extension-placeholder'
 import ImageResize from 'tiptap-extension-resize-image'
 import {
   CheckSquare,
@@ -52,6 +55,22 @@ interface MarkdownEditorProps {
   className?: string
   readOnly?: boolean
 }
+
+type SuggestionItemKey =
+  | 'text'
+  | 'heading1'
+  | 'heading2'
+  | 'heading3'
+  | 'image'
+  | 'list'
+  | 'numberedList'
+  | 'tasks'
+  | 'quote'
+  | 'code'
+type SuggestionCommand = NonNullable<SuggestionItem['command']>
+type SuggestionCommandProps = Parameters<SuggestionCommand>[0]
+type PlaceholderContext = Parameters<Exclude<PlaceholderOptions['placeholder'], string>>[0]
+type SuggestionMenuItem = Omit<SuggestionItem, 'command'> & { key: SuggestionItemKey }
 
 // Extract all images from a line (handles multiple images on same line)
 // e.g., "![a](x.png) ![b](y.png)" → [{alt, src}, ...]
@@ -518,110 +537,190 @@ export function MarkdownEditor({
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
 
   // Store editor reference for inserting image after dialog closes
-  const editorRef = useRef<any>(null)
+  const editorRef = useRef<EditorInstance | null>(null)
 
-  // Store onChange ref to always have latest version in callbacks
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
 
-  // Create suggestion items with image command
-  const suggestionItems = useMemo(
-    () =>
-      createSuggestionItems([
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
+
+  const openImagePicker = useCallback((editor: EditorInstance) => {
+    editorRef.current = editor
+    setImageDialogOpen(true)
+  }, [])
+
+  const runParagraphCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').run()
+  }, [])
+
+  const runHeadingCommand = useCallback(
+    (level: 1 | 2 | 3) =>
+      ({ editor, range }: SuggestionCommandProps) => {
+        editor.chain().focus().deleteRange(range).setNode('heading', { level }).run()
+      },
+    []
+  )
+
+  const runImageCommand = useCallback(
+    ({ editor, range }: SuggestionCommandProps) => {
+      editor.chain().focus().deleteRange(range).run()
+      openImagePicker(editor)
+    },
+    [openImagePicker]
+  )
+
+  const runBulletListCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleBulletList().run()
+  }, [])
+
+  const runOrderedListCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleOrderedList().run()
+  }, [])
+
+  const runTaskListCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleTaskList().run()
+  }, [])
+
+  const runBlockquoteCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleBlockquote().run()
+  }, [])
+
+  const runCodeBlockCommand = useCallback(({ editor, range }: SuggestionCommandProps) => {
+    editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
+  }, [])
+
+  const runSuggestionCommand = useCallback(
+    (key: SuggestionItemKey, props: SuggestionCommandProps) => {
+      switch (key) {
+        case 'text':
+          runParagraphCommand(props)
+          break
+        case 'heading1':
+          runHeadingCommand(1)(props)
+          break
+        case 'heading2':
+          runHeadingCommand(2)(props)
+          break
+        case 'heading3':
+          runHeadingCommand(3)(props)
+          break
+        case 'image':
+          runImageCommand(props)
+          break
+        case 'list':
+          runBulletListCommand(props)
+          break
+        case 'numberedList':
+          runOrderedListCommand(props)
+          break
+        case 'tasks':
+          runTaskListCommand(props)
+          break
+        case 'quote':
+          runBlockquoteCommand(props)
+          break
+        case 'code':
+          runCodeBlockCommand(props)
+          break
+      }
+    },
+    [
+      runBlockquoteCommand,
+      runBulletListCommand,
+      runCodeBlockCommand,
+      runHeadingCommand,
+      runImageCommand,
+      runOrderedListCommand,
+      runParagraphCommand,
+      runTaskListCommand,
+    ]
+  )
+
+  const suggestionMenuItems = useMemo(
+    (): SuggestionMenuItem[] => [
         {
+          key: 'text',
           title: t('markdownEditor.commands.text'),
           description: t('markdownEditor.commands.textDesc'),
           icon: <Text size={18} />,
           searchTerms: ['p', 'paragraph', 'texte', 'text'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').run()
-          },
         },
         {
+          key: 'heading1',
           title: t('markdownEditor.commands.heading1'),
           description: t('markdownEditor.commands.heading1Desc'),
           icon: <Heading1 size={18} />,
           searchTerms: ['title', 'h1', 'heading', 'titre'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run()
-          },
         },
         {
+          key: 'heading2',
           title: t('markdownEditor.commands.heading2'),
           description: t('markdownEditor.commands.heading2Desc'),
           icon: <Heading2 size={18} />,
           searchTerms: ['subtitle', 'h2', 'heading', 'titre'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
-          },
         },
         {
+          key: 'heading3',
           title: t('markdownEditor.commands.heading3'),
           description: t('markdownEditor.commands.heading3Desc'),
           icon: <Heading3 size={18} />,
           searchTerms: ['h3', 'heading', 'titre'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
-          },
         },
         {
+          key: 'image',
           title: t('markdownEditor.commands.image'),
           description: t('markdownEditor.commands.imageDesc'),
           icon: <ImageIcon size={18} />,
           searchTerms: ['image', 'photo', 'picture', 'img'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).run()
-            editorRef.current = editor
-            setImageDialogOpen(true)
-          },
         },
         {
+          key: 'list',
           title: t('markdownEditor.commands.list'),
           description: t('markdownEditor.commands.listDesc'),
           icon: <List size={18} />,
           searchTerms: ['unordered', 'ul', 'bullet', 'liste', 'list'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleBulletList().run()
-          },
         },
         {
+          key: 'numberedList',
           title: t('markdownEditor.commands.numberedList'),
           description: t('markdownEditor.commands.numberedListDesc'),
           icon: <ListOrdered size={18} />,
           searchTerms: ['ordered', 'ol', 'number', 'liste', 'list'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleOrderedList().run()
-          },
         },
         {
+          key: 'tasks',
           title: t('markdownEditor.commands.tasks'),
           description: t('markdownEditor.commands.tasksDesc'),
           icon: <CheckSquare size={18} />,
           searchTerms: ['todo', 'task', 'checkbox', 'tache', 'tasks'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleTaskList().run()
-          },
         },
         {
+          key: 'quote',
           title: t('markdownEditor.commands.quote'),
           description: t('markdownEditor.commands.quoteDesc'),
           icon: <TextQuote size={18} />,
           searchTerms: ['blockquote', 'quote', 'citation'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleBlockquote().run()
-          },
         },
         {
+          key: 'code',
           title: t('markdownEditor.commands.code'),
           description: t('markdownEditor.commands.codeDesc'),
           icon: <Code size={18} />,
           searchTerms: ['codeblock', 'code', 'pre'],
-          command: ({ editor, range }: any) => {
-            editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
-          },
         },
-      ]),
+      ],
     [t]
+  )
+
+  // Create suggestion items with executable commands for Novel
+  const suggestionItems = useMemo(
+    (): SuggestionItem[] =>
+      suggestionMenuItems.map(({ key, ...item }) => ({
+        ...item,
+        command: (props) => runSuggestionCommand(key, props),
+      })),
+    [runSuggestionCommand, suggestionMenuItems]
   )
 
   // Configure slash command extension
@@ -692,7 +791,7 @@ export function MarkdownEditor({
         nested: true,
       }),
       Placeholder.configure({
-        placeholder: ({ node }: any) => {
+        placeholder: ({ node }: PlaceholderContext) => {
           if (node.type.name === 'heading') {
             return t('markdownEditor.placeholder.heading', { level: node.attrs.level })
           }
@@ -711,7 +810,7 @@ export function MarkdownEditor({
   const editorExtensions = readOnly ? extensions.filter((ext) => ext.name !== 'command') : extensions
 
   // Helper to serialize editor content to markdown
-  const serializeToMarkdown = useCallback((editor: any): string => {
+  const serializeToMarkdown = useCallback((editor: EditorInstance): string => {
     const json = editor.getJSON()
     return contentToMarkdownWithWidths(json)
   }, [])
@@ -824,14 +923,11 @@ export function MarkdownEditor({
               // The extension's dispatchNodeView() uses view.dispatch(tr.setNodeMarkup(...))
               // which sets transaction.docChanged = true
               if (!readOnly) {
-                editor.on('transaction', ({ transaction }: { transaction: any }) => {
+                editor.on('transaction', ({ transaction }: EditorEvents['transaction']) => {
                   if (!transaction.docChanged) return
-                  const currentOnChange = onChangeRef.current
-                  if (currentOnChange) {
-                    const md = serializeToMarkdown(editor)
-                    currentOnChange(md)
-                    setIsEmpty(!md || md.trim() === '')
-                  }
+                  const markdown = serializeToMarkdown(editor)
+                  onChangeRef.current?.(markdown)
+                  setIsEmpty(!markdown || markdown.trim() === '')
                 })
               }
             }}
@@ -858,10 +954,10 @@ export function MarkdownEditor({
                   {t('markdownEditor.help.noResult')}
                 </EditorCommandEmpty>
                 <EditorCommandList>
-                  {suggestionItems.map((item) => (
+                  {suggestionMenuItems.map((item) => (
                     <EditorCommandItem
                       value={item.title}
-                      onCommand={(val) => item.command?.(val)}
+                      onCommand={(props) => runSuggestionCommand(item.key, props)}
                       className="flex w-full items-center space-x-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent aria-selected:bg-accent"
                       key={item.title}
                     >

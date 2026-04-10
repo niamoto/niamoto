@@ -7,9 +7,9 @@ export interface ParameterSchema {
   name: string
   type: string
   required?: boolean
-  default?: any
+  default?: unknown
   description?: string
-  enum?: any[]
+  enum?: unknown[]
   min?: number
   max?: number
 }
@@ -25,7 +25,7 @@ export interface Plugin {
   parameters_schema: ParameterSchema[]
   compatible_inputs: string[]
   output_format?: string
-  example_config?: Record<string, any>
+  example_config?: Record<string, unknown>
 }
 
 export interface PluginCategoriesResponse {

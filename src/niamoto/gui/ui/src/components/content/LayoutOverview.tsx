@@ -472,42 +472,86 @@ export function LayoutOverview({
   })
 
   // Local state
-  const [localWidgets, setLocalWidgets] = useState<WidgetLayout[]>([])
-  const [hasChanges, setHasChanges] = useState(false)
+  const [layoutDraftState, setLayoutDraftState] = useState<{
+    layoutSignature: string | null
+    widgets: WidgetLayout[]
+    hasChanges: boolean
+  }>({
+    layoutSignature: null,
+    widgets: [],
+    hasChanges: false,
+  })
   const [showPreviews, setShowPreviews] = useState(true)
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
+  const [selectedEntityState, setSelectedEntityState] = useState<{
+    groupBy: string
+    entityId: string | null
+  }>({
+    groupBy,
+    entityId: null,
+  })
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  // Reset entity selection when group changes
-  useEffect(() => {
-    setSelectedEntityId(null)
-  }, [groupBy])
+  const layoutSignature = layout?.widgets ? JSON.stringify(layout.widgets) : null
 
-  // Set default entity when representatives are loaded
-  useEffect(() => {
-    if (!selectedEntityId && representatives) {
-      const fallbackEntityId =
-        representatives.default_entity?.id ?? representatives.entities[0]?.id ?? null
-      if (fallbackEntityId) {
-        setSelectedEntityId(fallbackEntityId)
+  const localWidgets =
+    layoutDraftState.layoutSignature === layoutSignature
+      ? layoutDraftState.widgets
+      : (layout?.widgets ? [...layout.widgets] : [])
+  const hasChanges =
+    layoutDraftState.layoutSignature === layoutSignature
+      ? layoutDraftState.hasChanges
+      : false
+
+  const selectedEntityId = useMemo(() => {
+    const explicitEntityId =
+      selectedEntityState.groupBy === groupBy ? selectedEntityState.entityId : null
+
+    if (explicitEntityId) {
+      return explicitEntityId
+    }
+
+    return representatives?.default_entity?.id ?? representatives?.entities[0]?.id ?? null
+  }, [groupBy, representatives, selectedEntityState.entityId, selectedEntityState.groupBy])
+
+  const updateLocalWidgets = (
+    updater: WidgetLayout[] | ((widgets: WidgetLayout[]) => WidgetLayout[]),
+    nextHasChanges: boolean,
+  ) => {
+    if (!layoutSignature) {
+      return
+    }
+
+    setLayoutDraftState((prev) => {
+      const baseWidgets =
+        prev.layoutSignature === layoutSignature
+          ? prev.widgets
+          : (layout?.widgets ? [...layout.widgets] : [])
+      const widgets =
+        typeof updater === 'function'
+          ? updater(baseWidgets)
+          : updater
+
+      return {
+        layoutSignature,
+        widgets,
+        hasChanges: nextHasChanges,
       }
-    }
-  }, [representatives, selectedEntityId])
+    })
+  }
 
-  // Initialize local widgets from layout data
-  useEffect(() => {
-    if (layout?.widgets) {
-      setLocalWidgets([...layout.widgets])
-      setHasChanges(false)
-    }
-  }, [layout])
+  const handleSelectedEntityChange = useCallback((entityId: string) => {
+    setSelectedEntityState({
+      groupBy,
+      entityId,
+    })
+  }, [groupBy])
 
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: (updates: LayoutUpdateRequest) => saveLayout(groupBy, updates),
     onSuccess: () => {
-      setHasChanges(false)
+      setLayoutDraftState((prev) => ({ ...prev, hasChanges: false }))
       queryClient.invalidateQueries({ queryKey: ['layout', groupBy] })
       queryClient.invalidateQueries({ queryKey: ['widget-config', groupBy] })
       // Notify parent to refresh widget list
@@ -535,7 +579,7 @@ export function LayoutOverview({
     setActiveId(event.active.id as string)
   }, [])
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     setIsDragging(false)
     setActiveId(null)
 
@@ -553,10 +597,9 @@ export function LayoutOverview({
         order: idx,
       }))
       const navWidgets = localWidgets.filter((w) => w.is_navigation)
-      setLocalWidgets([...navWidgets, ...updatedContent])
-      setHasChanges(true)
+      updateLocalWidgets([...navWidgets, ...updatedContent], true)
     }
-  }, [localWidgets])
+  }
 
   const handleDragCancel = useCallback(() => {
     setIsDragging(false)
@@ -564,19 +607,18 @@ export function LayoutOverview({
   }, [])
 
   // Colspan toggle
-  const handleColspanToggle = useCallback((widgetIndex: number) => {
-    setLocalWidgets((prev) =>
+  const handleColspanToggle = (widgetIndex: number) => {
+    updateLocalWidgets((prev) =>
       prev.map((w) =>
         w.index === widgetIndex
           ? { ...w, colspan: w.colspan === 1 ? 2 : 1 }
           : w
       )
-    )
-    setHasChanges(true)
-  }, [])
+    , true)
+  }
 
   // Save handler
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     const updates: WidgetLayoutUpdate[] = localWidgets.map((w) => ({
       index: w.index,
       title: w.title,
@@ -585,7 +627,7 @@ export function LayoutOverview({
       order: w.order,
     }))
     saveMutation.mutate({ widgets: updates })
-  }, [localWidgets, saveMutation])
+  }
 
   // Handle widget selection - find the matching ConfiguredWidget
   const handleSelectWidget = useCallback((layoutWidget: WidgetLayout) => {
@@ -686,7 +728,7 @@ export function LayoutOverview({
         {showPreviews && representatives && representatives.entities.length > 0 && (
           <Select
             value={selectedEntityId || ''}
-            onValueChange={setSelectedEntityId}
+            onValueChange={handleSelectedEntityChange}
           >
             <SelectTrigger className="w-[180px] h-8">
               <Leaf className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
