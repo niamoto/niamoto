@@ -53,7 +53,7 @@ export interface PresetAPIWithCategory extends PresetAPI {
   descriptionKey?: string
 }
 
-const COL_DEFAULT_DATASET_KEY = 314774
+export const COL_DEFAULT_DATASET_KEY = 314774
 const BHL_API_ENDPOINT = 'https://www.biodiversitylibrary.org/api3'
 
 export const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
@@ -262,3 +262,5 @@ export function getPresetsByCategory(category: ApiCategory): PresetAPIWithCatego
   }
   return PRESET_APIS_ALL.filter((preset) => preset.category === category)
 }
+
+export { buildColSearchUrl }

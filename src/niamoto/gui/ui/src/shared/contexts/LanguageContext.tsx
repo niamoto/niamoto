@@ -17,7 +17,7 @@ import type { ReactNode } from "react"
 import {
   LanguageContext,
   type LanguageContextValue,
-} from "./languageContext"
+} from "./language-context"
 
 interface LanguageProviderProps {
   children: ReactNode
