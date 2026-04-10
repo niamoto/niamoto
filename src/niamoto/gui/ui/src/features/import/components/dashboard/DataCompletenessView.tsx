@@ -22,10 +22,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { BarChart3 } from 'lucide-react'
-import {
-  getEntityCompleteness,
-  type EntityCompleteness,
-} from '@/features/import/api/dashboard'
+import { getEntityCompleteness } from '@/features/import/api/dashboard'
 import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface EntityInfo {

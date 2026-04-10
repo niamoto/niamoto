@@ -12,7 +12,7 @@ interface DesktopTitlebarProps {
  * macOS keeps a drag strip for overlay traffic lights, while Windows and Linux
  * use native window decorations to avoid duplicate chrome.
  */
-export function DesktopTitlebar({ title = 'Niamoto', className }: DesktopTitlebarProps) {
+export function DesktopTitlebar({ className }: DesktopTitlebarProps) {
   const { isMac, isDesktop } = usePlatform()
   const { isDesktop: isDesktopMode } = useRuntimeMode()
 
