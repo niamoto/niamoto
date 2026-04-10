@@ -88,6 +88,13 @@ cd src/niamoto/gui/ui
 echo "Installing pnpm dependencies..."
 pnpm install --frozen-lockfile
 
+# Forward feedback worker env vars to Vite builds.
+export VITE_FEEDBACK_WORKER_URL="${VITE_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL:-}}"
+export VITE_FEEDBACK_API_KEY="${VITE_FEEDBACK_API_KEY:-${FEEDBACK_API_KEY:-}}"
+if [ -z "$VITE_FEEDBACK_WORKER_URL" ] || [ -z "$VITE_FEEDBACK_API_KEY" ]; then
+    echo -e "${YELLOW}⚠ Feedback worker env vars missing; desktop feedback will be disabled in this build.${NC}"
+fi
+
 # Build
 pnpm run build
 

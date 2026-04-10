@@ -147,14 +147,21 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         setIsOpen(false)
         setCooldownEnd(Date.now() + COOLDOWN_SECONDS * 1000)
       } catch (error) {
+        console.error('[feedback] Send failed:', error)
+        const description = error instanceof Error ? error.message : undefined
+
         if (error instanceof FeedbackError) {
           if (error.status === 429) {
             toast.error(t('rate_limited'))
           } else {
-            toast.error(t('send_error'))
+            toast.error(t('send_error'), {
+              description,
+            })
           }
         } else {
-          toast.error(t('send_error'))
+          toast.error(t('send_error'), {
+            description,
+          })
         }
         // Modal stays open — no data loss
       } finally {
