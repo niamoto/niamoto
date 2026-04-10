@@ -18,20 +18,18 @@ import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizar
 import { useProjectCreationStore } from '@/stores/projectCreationStore'
 
 // Lazy load pages
-const WelcomeScreen = lazy(() => import('@/features/welcome/views'))
-const ProjectHub = lazy(() =>
-  import('@/features/dashboard').then((m) => ({ default: m.ProjectHub }))
-)
+const WelcomeScreen = lazy(() => import('@/features/welcome/views/WelcomeScreen'))
+const ProjectHub = lazy(() => import('@/features/dashboard/views/ProjectHub'))
 
 // Module components (not lazy — they manage their own content)
 const DataModule = lazy(() =>
-  import('@/features/import').then((m) => ({ default: m.DataModule }))
+  import('@/features/import/module/DataModule').then((m) => ({ default: m.DataModule }))
 )
 const CollectionsModule = lazy(() =>
-  import('@/features/collections').then((m) => ({ default: m.CollectionsModule }))
+  import('@/features/collections/components/CollectionsModule').then((m) => ({ default: m.CollectionsModule }))
 )
 const PublishModule = lazy(() =>
-  import('@/features/publish').then((m) => ({ default: m.PublishModule }))
+  import('@/features/publish/components/PublishModule').then((m) => ({ default: m.PublishModule }))
 )
 
 // Site pages

@@ -8,8 +8,6 @@
  */
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Editor } from '@monaco-editor/react'
-import { useThemeStore } from '@/stores/themeStore'
 import * as yaml from 'js-yaml'
 import { cn } from '@/lib/utils'
 import { Alert } from '@/components/ui/alert'
@@ -27,6 +25,7 @@ import {
 } from 'lucide-react'
 import type { ClassObjectSuggestion } from '@/lib/api/widget-suggestions'
 import { CATEGORY_INFO } from '@/lib/api/widget-suggestions'
+import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 
 interface WidgetConfigYamlEditorProps {
   value: string
@@ -48,7 +47,6 @@ export function WidgetConfigYamlEditor({
   height = '400px',
 }: WidgetConfigYamlEditorProps) {
   const { t } = useTranslation('common')
-  const resolvedMode = useThemeStore((s) => s.getResolvedMode())
   const [editorValue, setEditorValue] = useState(initialValue)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -181,12 +179,11 @@ export function WidgetConfigYamlEditor({
       <div className="flex-1 flex min-h-0">
         {/* Editor */}
         <div className="flex-1 min-w-0">
-          <Editor
+          <LazyMonacoEditor
             height={height}
             defaultLanguage="yaml"
             value={editorValue}
             onChange={handleEditorChange}
-            theme={resolvedMode === 'dark' ? 'vs-dark' : 'light'}
             options={{
               readOnly,
               minimap: { enabled: false },

@@ -1,12 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { useThemeStore } from '@/stores/themeStore'
+import { useEffect, useState } from 'react'
 import * as yaml from 'js-yaml'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AlertCircle, Loader2, Save, Undo2 } from 'lucide-react'
-
-const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 
 interface YamlEditorProps {
   value: string
@@ -27,7 +25,6 @@ export function YamlEditor({
   showToolbar = true,
   configName,
 }: YamlEditorProps) {
-  const resolvedMode = useThemeStore((s) => s.getResolvedMode())
   const [editorValue, setEditorValue] = useState(initialValue)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -144,8 +141,12 @@ export function YamlEditor({
       )}
 
       <Card className="overflow-hidden">
-        <Suspense
-          fallback={
+        <LazyMonacoEditor
+          height={height}
+          defaultLanguage="yaml"
+          value={editorValue}
+          onChange={handleEditorChange}
+          suspenseFallback={
             <div
               className="flex items-center justify-center text-muted-foreground"
               style={{ height }}
@@ -153,29 +154,21 @@ export function YamlEditor({
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           }
-        >
-          <MonacoEditor
-            height={height}
-            defaultLanguage="yaml"
-            value={editorValue}
-            onChange={handleEditorChange}
-            theme={resolvedMode === 'dark' ? 'vs-dark' : 'light'}
-            options={{
-              readOnly,
-              minimap: { enabled: true },
-              fontSize: 13,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              wrappingIndent: 'indent',
-              automaticLayout: true,
-              tabSize: 2,
-              insertSpaces: true,
-              formatOnPaste: true,
-              formatOnType: true,
-            }}
-          />
-        </Suspense>
+          options={{
+            readOnly,
+            minimap: { enabled: true },
+            fontSize: 13,
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            wrappingIndent: 'indent',
+            automaticLayout: true,
+            tabSize: 2,
+            insertSpaces: true,
+            formatOnPaste: true,
+            formatOnType: true,
+          }}
+        />
       </Card>
     </div>
   )
