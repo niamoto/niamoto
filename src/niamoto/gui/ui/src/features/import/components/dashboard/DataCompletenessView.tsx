@@ -2,7 +2,8 @@
  * DataCompletenessView - Heatmap of column fill rate
  */
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -21,6 +22,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { BarChart3 } from 'lucide-react'
+import {
+  getEntityCompleteness,
+  type EntityCompleteness,
+} from '@/features/import/api/dashboard'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface EntityInfo {
   name: string
@@ -28,22 +34,6 @@ interface EntityInfo {
   row_count: number
   column_count: number
   columns: string[]
-}
-
-interface ColumnCompleteness {
-  column: string
-  type: string
-  total_count: number
-  null_count: number
-  non_null_count: number
-  completeness: number
-  unique_count: number
-}
-
-interface EntityCompleteness {
-  entity: string
-  columns: ColumnCompleteness[]
-  overall_completeness: number
 }
 
 interface DataCompletenessViewProps {
@@ -55,29 +45,18 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
   const [selectedEntity, setSelectedEntity] = useState<string>(
     entities[0]?.name || ''
   )
-  const [completeness, setCompleteness] = useState<EntityCompleteness | null>(null)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!selectedEntity) return
-
-    const fetchCompleteness = async () => {
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/stats/completeness/${selectedEntity}`)
-        if (response.ok) {
-          const data = await response.json()
-          setCompleteness(data)
-        }
-      } catch (err) {
-        console.error('Failed to fetch completeness:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (!entities.some((entity) => entity.name === selectedEntity)) {
+      setSelectedEntity(entities[0]?.name || '')
     }
+  }, [entities, selectedEntity])
 
-    fetchCompleteness()
-  }, [selectedEntity])
+  const { data: completeness, isLoading: loading } = useQuery({
+    queryKey: importQueryKeys.dashboard.completeness(selectedEntity),
+    queryFn: () => getEntityCompleteness(selectedEntity),
+    enabled: selectedEntity.length > 0,
+  })
 
   const getCompletenessColor = (value: number) => {
     if (value >= 0.95) return 'bg-green-500'
