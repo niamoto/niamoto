@@ -5,6 +5,7 @@ import requests_mock
 from niamoto.core.plugins.loaders.api_taxonomy_enricher import (
     ApiTaxonomyEnricher,
     ApiTaxonomyEnricherConfig,
+    ApiTaxonomyEnricherParams,
 )
 
 
@@ -154,6 +155,7 @@ def test_config_validation_allows_col_rich_without_response_mapping():
         "params": {
             "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
             "profile": "col_rich",
+            "use_name_verifier": True,
             "dataset_key": 314774,
             "query_param_name": "q",
             "response_mapping": {},
@@ -162,6 +164,7 @@ def test_config_validation_allows_col_rich_without_response_mapping():
 
     config = ApiTaxonomyEnricherConfig(**config_dict)
     assert config.params.profile == "col_rich"
+    assert config.params.use_name_verifier is True
     assert config.params.dataset_key == 314774
     assert config.params.response_mapping == {}
 
@@ -449,6 +452,149 @@ def test_load_data_gbif_rich_handles_no_match(
 
     assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
     assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
+
+
+def test_resolve_name_with_verifier_uses_profile_default_source(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """GN resolution should use the profile default source and canonical query name."""
+
+    captured: dict[str, object] = {}
+
+    def fake_request(url: str, params: object = None) -> dict[str, object]:
+        captured["url"] = url
+        captured["params"] = params
+        return {
+            "names": [
+                {
+                    "name": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+                    "bestResult": {
+                        "dataSourceId": 11,
+                        "dataSourceTitleShort": "GBIF Backbone Taxonomy",
+                        "sortScore": 9.41,
+                        "currentCanonicalSimple": "Alphitonia neocaledonica",
+                        "currentName": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+                        "matchedName": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+                        "matchType": "Exact",
+                    },
+                }
+            ]
+        }
+
+    monkeypatch.setattr(enricher, "_request_json", fake_request)
+
+    config = ApiTaxonomyEnricherConfig(
+        plugin="api_taxonomy_enricher",
+        params={
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "use_name_verifier": True,
+            "query_param_name": "scientificName",
+            "response_mapping": {},
+        },
+    )
+
+    query_name, summary, raw = enricher._resolve_name_with_verifier(
+        "Alphitonia neocaledonica (Schltr.) Guillaumin",
+        config.params,
+    )
+
+    assert str(captured["url"]).endswith(
+        "/Alphitonia+neocaledonica+%28Schltr.%29+Guillaumin"
+    )
+    assert captured["params"] == {"data_sources": "11"}
+    assert query_name == "Alphitonia neocaledonica"
+    assert summary["status"] == "resolved"
+    assert summary["data_source_id"] == 11
+    assert summary["was_corrected"] is True
+    assert (
+        raw["names"][0]["bestResult"]["dataSourceTitleShort"]
+        == "GBIF Backbone Taxonomy"
+    )
+
+
+def test_load_data_gbif_rich_uses_name_verifier_result(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """Structured providers should consume the resolved query when GN is enabled."""
+
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        enricher,
+        "_resolve_name_with_verifier",
+        lambda query, params: (
+            "Alphitonia neocaledonica",
+            {
+                "enabled": True,
+                "status": "resolved",
+                "submitted_name": query,
+                "query_name": "Alphitonia neocaledonica",
+                "matched_name": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+                "best_result": "Alphitonia neocaledonica",
+                "data_source_title": "GBIF Backbone Taxonomy",
+                "data_source_id": 11,
+                "score": 9.41,
+                "was_corrected": True,
+                "alternatives": ["Alphitonia neocaledonica"],
+            },
+            {"names": [{"name": query}]},
+        ),
+    )
+
+    def fake_gbif_match(query: str, params: ApiTaxonomyEnricherParams):
+        captured["query"] = query
+        return (
+            {
+                "usage_key": "123",
+                "scientific_name": query,
+                "canonical_name": query,
+                "rank": "SPECIES",
+                "status": "ACCEPTED",
+                "confidence": 98,
+                "match_type": "EXACT",
+                "taxonomy_source": "COL_XR",
+            },
+            {"usageKey": "123"},
+        )
+
+    monkeypatch.setattr(enricher, "_gbif_match", fake_gbif_match)
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "use_name_verifier": True,
+            "query_field": "full_name",
+            "query_param_name": "scientificName",
+            "include_taxonomy": False,
+            "include_occurrences": False,
+            "include_media": False,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica (Schltr.) Guillaumin"},
+        valid_config,
+    )
+
+    assert captured["query"] == "Alphitonia neocaledonica"
+    assert enriched["api_enrichment"]["name_resolution"]["status"] == "resolved"
+    assert (
+        enriched["api_enrichment"]["provenance"]["query_submitted"]
+        == "Alphitonia neocaledonica (Schltr.) Guillaumin"
+    )
+    assert (
+        enriched["api_enrichment"]["provenance"]["query_used"]
+        == "Alphitonia neocaledonica"
+    )
+    assert enriched["api_response_raw"]["name_resolution"] == {
+        "names": [{"name": "Alphitonia neocaledonica (Schltr.) Guillaumin"}]
+    }
 
 
 def test_load_data_tropicos_rich_returns_structured_summary(

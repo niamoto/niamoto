@@ -19,6 +19,9 @@ export interface ReferenceEnrichmentConfig {
     query_field?: string
     query_param_name?: string
     profile?: string
+    use_name_verifier?: boolean
+    name_verifier_preferred_sources?: string[]
+    name_verifier_threshold?: number
     taxonomy_source?: string
     dataset_key?: number
     include_taxonomy?: boolean
@@ -175,6 +178,9 @@ export function enrichmentToApiConfig(
     profile: enrichment?.config?.profile
       ?? (legacyGbif ? 'gbif_rich' : undefined)
       ?? (legacyTropicos ? 'tropicos_rich' : undefined),
+    use_name_verifier: enrichment?.config?.use_name_verifier ?? false,
+    name_verifier_preferred_sources: enrichment?.config?.name_verifier_preferred_sources ?? [],
+    name_verifier_threshold: enrichment?.config?.name_verifier_threshold,
     taxonomy_source: enrichment?.config?.taxonomy_source ?? (legacyGbif ? 'col_xr' : undefined),
     dataset_key: enrichment?.config?.dataset_key ?? COL_DEFAULT_DATASET_KEY,
     include_taxonomy: enrichment?.config?.include_taxonomy ?? true,
@@ -238,6 +244,9 @@ export function apiConfigToEnrichment(
       query_field: apiConfig.query_field,
       query_param_name: apiConfig.query_param_name,
       profile: apiConfig.profile,
+      use_name_verifier: apiConfig.use_name_verifier,
+      name_verifier_preferred_sources: apiConfig.name_verifier_preferred_sources,
+      name_verifier_threshold: apiConfig.name_verifier_threshold,
       taxonomy_source: apiConfig.taxonomy_source,
       dataset_key: apiConfig.dataset_key,
       include_taxonomy: apiConfig.include_taxonomy,
@@ -273,6 +282,9 @@ export function createDefaultEnrichmentSource(
       query_field: 'full_name',
       query_param_name: 'q',
       profile: undefined,
+      use_name_verifier: false,
+      name_verifier_preferred_sources: [],
+      name_verifier_threshold: undefined,
       taxonomy_source: undefined,
       dataset_key: COL_DEFAULT_DATASET_KEY,
       include_taxonomy: true,

@@ -352,10 +352,50 @@ const renderStatusPill = (status: string | undefined) =>
     </Badge>
   ) : null
 
+const renderNameResolutionSummary = (nameResolution: Record<string, any>) => {
+  if (!nameResolution || Object.keys(nameResolution).length === 0) {
+    return null
+  }
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-background p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">Name resolution</div>
+        {renderStatusPill(typeof nameResolution.status === 'string' ? nameResolution.status : undefined)}
+      </div>
+      <div className="space-y-3">
+        {renderSummaryRows([
+          ['submitted_name', nameResolution.submitted_name],
+          ['query_name', nameResolution.query_name],
+          ['matched_name', nameResolution.matched_name],
+          ['best_result', nameResolution.best_result],
+          ['data_source_title', nameResolution.data_source_title],
+          ['data_source_id', nameResolution.data_source_id],
+          ['score', nameResolution.score],
+          ['match_type', nameResolution.match_type],
+          ['was_corrected', nameResolution.was_corrected],
+          ['error', nameResolution.error],
+        ])}
+        {Array.isArray(nameResolution.alternatives) && nameResolution.alternatives.length > 0 ? (
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">Alternatives</div>
+            <div className="flex flex-wrap gap-2">
+              {nameResolution.alternatives.map((alternative: string) => (
+                <Badge key={alternative} variant="outline">{alternative}</Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 const renderGbifStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
 ) => {
+  const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
   const taxonomy = data.taxonomy ?? {}
   const occurrenceSummary = data.occurrence_summary ?? {}
@@ -367,6 +407,7 @@ const renderGbifStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      {renderNameResolutionSummary(nameResolution)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">
@@ -529,6 +570,7 @@ const renderTropicosStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
 ) => {
+  const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
   const nomenclature = data.nomenclature ?? {}
   const taxonomy = data.taxonomy ?? {}
@@ -542,6 +584,7 @@ const renderTropicosStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      {renderNameResolutionSummary(nameResolution)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>
@@ -728,6 +771,7 @@ const renderColStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
 ) => {
+  const nameResolution = data.name_resolution ?? {}
   const match = data.match ?? {}
   const taxonomy = data.taxonomy ?? {}
   const nomenclature = data.nomenclature ?? {}
@@ -741,6 +785,7 @@ const renderColStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      {renderNameResolutionSummary(nameResolution)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>

@@ -190,6 +190,7 @@ def test_generic_import_config_keeps_col_rich_fields():
                                 "config": {
                                     "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
                                     "profile": "col_rich",
+                                    "use_name_verifier": True,
                                     "dataset_key": 314774,
                                     "include_vernaculars": True,
                                     "include_distributions": True,
@@ -208,6 +209,7 @@ def test_generic_import_config_keeps_col_rich_fields():
     enrichment = config.entities.references["taxons"].enrichment[0]
     assert enrichment.id == "col"
     assert enrichment.config["profile"] == "col_rich"
+    assert enrichment.config["use_name_verifier"] is True
     assert enrichment.config["dataset_key"] == 314774
     assert enrichment.config["include_vernaculars"] is True
     assert enrichment.config["reference_limit"] == 5

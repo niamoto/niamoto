@@ -65,6 +65,9 @@ class EnrichmentSourceConfig(BaseModel):
     query_field: str = "full_name"
     query_param_name: str = "q"
     profile: Optional[str] = None
+    use_name_verifier: bool = False
+    name_verifier_preferred_sources: List[str] = Field(default_factory=list)
+    name_verifier_threshold: Optional[float] = None
     taxonomy_source: Optional[str] = None
     dataset_key: int = COL_DEFAULT_DATASET_KEY
     include_taxonomy: bool = True
@@ -100,6 +103,11 @@ class EnrichmentSourceConfig(BaseModel):
                 "query_field": self.query_field,
                 "query_param_name": self.query_param_name,
                 "profile": self.profile,
+                "use_name_verifier": self.use_name_verifier,
+                "name_verifier_preferred_sources": (
+                    self.name_verifier_preferred_sources or []
+                ),
+                "name_verifier_threshold": self.name_verifier_threshold,
                 "taxonomy_source": self.taxonomy_source,
                 "dataset_key": self.dataset_key,
                 "include_taxonomy": self.include_taxonomy,
@@ -368,6 +376,17 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     config.get("profile")
                     or ("gbif_rich" if is_legacy_gbif else None)
                     or ("tropicos_rich" if is_legacy_tropicos else None)
+                ),
+                use_name_verifier=bool(config.get("use_name_verifier", False)),
+                name_verifier_preferred_sources=[
+                    str(value)
+                    for value in (config.get("name_verifier_preferred_sources") or [])
+                    if value is not None and str(value).strip()
+                ],
+                name_verifier_threshold=(
+                    float(config.get("name_verifier_threshold"))
+                    if config.get("name_verifier_threshold") is not None
+                    else None
                 ),
                 taxonomy_source=config.get("taxonomy_source")
                 or ("col_xr" if is_legacy_gbif else None),
@@ -888,6 +907,11 @@ def _build_plugin_config(
             "query_field": source.query_field,
             "query_param_name": source.query_param_name,
             "profile": source.profile,
+            "use_name_verifier": source.use_name_verifier,
+            "name_verifier_preferred_sources": (
+                source.name_verifier_preferred_sources or []
+            ),
+            "name_verifier_threshold": source.name_verifier_threshold,
             "taxonomy_source": source.taxonomy_source,
             "dataset_key": source.dataset_key,
             "include_taxonomy": source.include_taxonomy,
@@ -1480,6 +1504,7 @@ async def preview_reference_enrichment(
                         "api_url": source.api_url,
                         "query_field": source.query_field,
                         "profile": source.profile,
+                        "use_name_verifier": source.use_name_verifier,
                         "dataset_key": source.dataset_key,
                     },
                 )

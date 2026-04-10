@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from typing import Any, Dict, List, Literal, Optional
+from urllib.parse import quote_plus
 
 import requests
 from pydantic import Field, model_validator, ConfigDict
@@ -23,6 +24,25 @@ COL_API_BASE = "https://api.checklistbank.org"
 COL_DEFAULT_DATASET_KEY = 314774
 TROPICOS_SEARCH_ENDPOINT = "https://services.tropicos.org/Name/Search"
 TROPICOS_NAME_ENDPOINT = "https://services.tropicos.org/Name"
+GN_VERIFIER_ENDPOINT = "https://resolver.globalnames.org/api/v1/verifications"
+GN_DEFAULT_SOURCE_IDS_BY_PROFILE = {
+    "gbif_rich": 11,
+    "tropicos_rich": 165,
+    "col_rich": 1,
+}
+GN_SOURCE_ALIASES = {
+    "catalogue of life": 1,
+    "catalogue-of-life": 1,
+    "col": 1,
+    "checklistbank": 1,
+    "gbif": 11,
+    "gbif backbone": 11,
+    "gbif backbone taxonomy": 11,
+    "global biodiversity information facility": 11,
+    "global biodiversity information facility backbone taxonomy": 11,
+    "tropicos": 165,
+    "tropicos - missouri botanical garden": 165,
+}
 
 
 class ApiTaxonomyEnricherParams(BasePluginParams):
@@ -73,6 +93,21 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         default=None,
         description="Optional structured provider profile",
         json_schema_extra={"ui:widget": "text"},
+    )
+    use_name_verifier: bool = Field(
+        default=False,
+        description="Whether to use Global Names Verifier before structured provider matching",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    name_verifier_preferred_sources: List[str] = Field(
+        default_factory=list,
+        description="Optional preferred Global Names data sources",
+        json_schema_extra={"ui:widget": "array"},
+    )
+    name_verifier_threshold: Optional[float] = Field(
+        default=None,
+        description="Optional minimum GN sort score required to replace the submitted query name",
+        json_schema_extra={"ui:widget": "number"},
     )
     taxonomy_source: Optional[str] = Field(
         default=None,
@@ -290,6 +325,9 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         cache_key = (
             f"{params.profile or 'default'}::{params.api_url}::{params.taxonomy_source or ''}"
             f"::{params.dataset_key}"
+            f"::{params.use_name_verifier}"
+            f"::{'|'.join(params.name_verifier_preferred_sources)}"
+            f"::{params.name_verifier_threshold if params.name_verifier_threshold is not None else ''}"
             f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
             f"::{params.include_references}::{params.include_vernaculars}"
             f"::{params.include_distributions}::{params.media_limit}::{params.reference_limit}"
@@ -333,11 +371,27 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         auth = None
 
         try:
+            resolved_query_value = str(query_value)
+            name_resolution_summary: Dict[str, Any] = {}
+            name_resolution_raw: Dict[str, Any] | None = None
+
+            if params.profile in {"gbif_rich", "tropicos_rich", "col_rich"} and (
+                params.use_name_verifier
+            ):
+                (
+                    resolved_query_value,
+                    name_resolution_summary,
+                    name_resolution_raw,
+                ) = self._resolve_name_with_verifier(str(query_value), params)
+
             if params.profile == "gbif_rich":
                 result = self._load_gbif_rich_data(
                     taxon_data=taxon_data,
-                    query_value=str(query_value),
+                    query_value=resolved_query_value,
+                    submitted_query_value=str(query_value),
                     params=params,
+                    name_resolution=name_resolution_summary,
+                    name_resolution_raw=name_resolution_raw,
                 )
                 if params.cache_results and result.get("api_enrichment"):
                     self._cache[cache_key] = {
@@ -350,8 +404,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             if params.profile == "tropicos_rich":
                 result = self._load_tropicos_rich_data(
                     taxon_data=taxon_data,
-                    query_value=str(query_value),
+                    query_value=resolved_query_value,
+                    submitted_query_value=str(query_value),
                     params=params,
+                    name_resolution=name_resolution_summary,
+                    name_resolution_raw=name_resolution_raw,
                 )
                 if params.cache_results and result.get("api_enrichment"):
                     self._cache[cache_key] = {
@@ -364,8 +421,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             if params.profile == "col_rich":
                 result = self._load_col_rich_data(
                     taxon_data=taxon_data,
-                    query_value=str(query_value),
+                    query_value=resolved_query_value,
+                    submitted_query_value=str(query_value),
                     params=params,
+                    name_resolution=name_resolution_summary,
+                    name_resolution_raw=name_resolution_raw,
                 )
                 if params.cache_results and result.get("api_enrichment"):
                     self._cache[cache_key] = {
@@ -601,11 +661,15 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         self,
         taxon_data: Dict[str, Any],
         query_value: str,
+        submitted_query_value: str,
         params: ApiTaxonomyEnricherParams,
+        name_resolution: Optional[Dict[str, Any]] = None,
+        name_resolution_raw: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Load a structured GBIF enrichment summary."""
 
         summary: Dict[str, Any] = {
+            "name_resolution": name_resolution or {},
             "match": {},
             "taxonomy": {},
             "occurrence_summary": {},
@@ -625,11 +689,19 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 "profile_version": "gbif-rich-v1",
                 "taxonomy_source": self._gbif_taxonomy_source_label(params),
                 "query": query_value,
+                "query_submitted": submitted_query_value,
+                "query_used": query_value,
                 "endpoints": [],
             },
         }
-        raw_payload: Dict[str, Any] = {}
-        processed_payload: Dict[str, Any] = {}
+        raw_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution_raw}
+            if name_resolution_raw is not None
+            else {}
+        )
+        processed_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution} if name_resolution else {}
+        )
 
         match_summary, match_raw = self._gbif_match(query_value, params)
         raw_payload["match"] = match_raw
@@ -719,11 +791,15 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         self,
         taxon_data: Dict[str, Any],
         query_value: str,
+        submitted_query_value: str,
         params: ApiTaxonomyEnricherParams,
+        name_resolution: Optional[Dict[str, Any]] = None,
+        name_resolution_raw: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Load a structured Tropicos enrichment summary."""
 
         summary: Dict[str, Any] = {
+            "name_resolution": name_resolution or {},
             "match": {},
             "nomenclature": {},
             "taxonomy": {},
@@ -748,11 +824,19 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 "profile": "tropicos_rich",
                 "profile_version": "tropicos-rich-v1",
                 "query": query_value,
+                "query_submitted": submitted_query_value,
+                "query_used": query_value,
                 "endpoints": [],
             },
         }
-        raw_payload: Dict[str, Any] = {}
-        processed_payload: Dict[str, Any] = {}
+        raw_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution_raw}
+            if name_resolution_raw is not None
+            else {}
+        )
+        processed_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution} if name_resolution else {}
+        )
 
         match_summary, match_raw = self._tropicos_match(query_value, params)
         raw_payload["match"] = match_raw
@@ -874,12 +958,16 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         self,
         taxon_data: Dict[str, Any],
         query_value: str,
+        submitted_query_value: str,
         params: ApiTaxonomyEnricherParams,
+        name_resolution: Optional[Dict[str, Any]] = None,
+        name_resolution_raw: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Load a structured Catalogue of Life enrichment summary."""
 
         dataset_key = self._col_dataset_key(params)
         summary: Dict[str, Any] = {
+            "name_resolution": name_resolution or {},
             "match": {},
             "taxonomy": {},
             "nomenclature": {},
@@ -907,11 +995,19 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 "profile_version": "col-rich-v1",
                 "dataset_key": dataset_key,
                 "query": query_value,
+                "query_submitted": submitted_query_value,
+                "query_used": query_value,
                 "endpoints": ["dataset/{key}/nameusage/search"],
             },
         }
-        raw_payload: Dict[str, Any] = {}
-        processed_payload: Dict[str, Any] = {}
+        raw_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution_raw}
+            if name_resolution_raw is not None
+            else {}
+        )
+        processed_payload: Dict[str, Any] = (
+            {"name_resolution": name_resolution} if name_resolution else {}
+        )
 
         try:
             dataset_raw = self._col_dataset_metadata(dataset_key)
@@ -1466,6 +1562,157 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return ""
         text = str(value).strip()
         return text
+
+    def _resolve_name_with_verifier(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[str, Dict[str, Any], Optional[Dict[str, Any]]]:
+        """Resolve a cleaner query name with Global Names Verifier when enabled."""
+
+        submitted_name = self._coerce_string(query_value)
+        empty_summary = {
+            "enabled": False,
+            "status": "bypassed",
+            "submitted_name": submitted_name,
+            "parsed_name": submitted_name,
+            "query_name": submitted_name,
+            "matched_name": submitted_name,
+            "best_result": submitted_name,
+            "was_corrected": False,
+            "alternatives": [],
+        }
+
+        if not params.use_name_verifier:
+            return submitted_name, empty_summary, None
+
+        preferred_source_id = self._name_verifier_source_id(params)
+        request_params: Dict[str, Any] = {}
+        if preferred_source_id is not None:
+            request_params["data_sources"] = str(preferred_source_id)
+
+        try:
+            raw = self._request_json(
+                f"{GN_VERIFIER_ENDPOINT}/{quote_plus(submitted_name)}",
+                request_params or None,
+            )
+        except Exception as exc:
+            summary = {
+                **empty_summary,
+                "enabled": True,
+                "status": "bypassed",
+                "error": str(exc),
+            }
+            return submitted_name, summary, {"error": str(exc)}
+
+        names = raw.get("names") if isinstance(raw.get("names"), list) else []
+        candidate = next((item for item in names if isinstance(item, dict)), {})
+        best_result = (
+            candidate.get("bestResult")
+            if isinstance(candidate.get("bestResult"), dict)
+            else {}
+        )
+        score = best_result.get("sortScore")
+        score_value = float(score) if isinstance(score, (int, float)) else None
+        resolved_query = self._coerce_string(
+            best_result.get("currentCanonicalSimple")
+            or best_result.get("matchedCanonicalSimple")
+            or candidate.get("name")
+        )
+        matched_name = self._coerce_string(
+            best_result.get("currentName")
+            or best_result.get("matchedName")
+            or resolved_query
+        )
+        best_label = self._coerce_string(
+            best_result.get("currentCanonicalFull")
+            or best_result.get("matchedCanonicalFull")
+            or matched_name
+            or resolved_query
+        )
+
+        if not resolved_query or (
+            params.name_verifier_threshold is not None
+            and (score_value is None or score_value < params.name_verifier_threshold)
+        ):
+            status = (
+                "bypassed"
+                if best_result
+                and params.name_verifier_threshold is not None
+                and (
+                    score_value is None or score_value < params.name_verifier_threshold
+                )
+                else "no_match"
+            )
+            summary = {
+                **empty_summary,
+                "enabled": True,
+                "status": status,
+                "best_result": best_label or submitted_name,
+                "matched_name": matched_name or submitted_name,
+                "data_source_title": self._coerce_string(
+                    best_result.get("dataSourceTitleShort")
+                ),
+                "data_source_id": best_result.get("dataSourceId"),
+                "score": score_value,
+                "match_type": self._coerce_string(
+                    best_result.get("matchType") or candidate.get("matchType")
+                ),
+            }
+            return submitted_name, summary, raw
+
+        alternatives = []
+        for alternative in (
+            best_result.get("matchedCanonicalSimple"),
+            best_result.get("currentCanonicalSimple"),
+            best_result.get("matchedName"),
+            best_result.get("currentName"),
+        ):
+            alternative_str = self._coerce_string(alternative)
+            if alternative_str and alternative_str not in alternatives:
+                alternatives.append(alternative_str)
+
+        summary = {
+            "enabled": True,
+            "status": "resolved",
+            "submitted_name": submitted_name,
+            "parsed_name": self._coerce_string(candidate.get("name")) or submitted_name,
+            "query_name": resolved_query,
+            "matched_name": matched_name or resolved_query,
+            "best_result": best_label or matched_name or resolved_query,
+            "data_source_title": self._coerce_string(
+                best_result.get("dataSourceTitleShort")
+            ),
+            "data_source_id": best_result.get("dataSourceId"),
+            "score": score_value,
+            "match_type": self._coerce_string(
+                best_result.get("matchType") or candidate.get("matchType")
+            ),
+            "was_corrected": self._normalize_taxon_text(resolved_query)
+            != self._normalize_taxon_text(submitted_name),
+            "alternatives": alternatives[:5],
+        }
+
+        return resolved_query, summary, raw
+
+    def _name_verifier_source_id(
+        self, params: ApiTaxonomyEnricherParams
+    ) -> Optional[int]:
+        """Resolve the preferred Global Names data source id for a profile."""
+
+        for source in params.name_verifier_preferred_sources:
+            source_str = self._coerce_string(source)
+            if not source_str:
+                continue
+            if source_str.isdigit():
+                return int(source_str)
+            normalized = self._normalize_taxon_text(source_str)
+            if normalized in GN_SOURCE_ALIASES:
+                return GN_SOURCE_ALIASES[normalized]
+
+        profile = self._coerce_string(params.profile)
+        if profile in GN_DEFAULT_SOURCE_IDS_BY_PROFILE:
+            return GN_DEFAULT_SOURCE_IDS_BY_PROFILE[profile]
+
+        return None
 
     def _gbif_match(
         self, query_value: str, params: ApiTaxonomyEnricherParams
