@@ -1,18 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import {
   Info,
-  Key,
   Globe,
   Loader2,
   CheckCircle2,
@@ -21,7 +19,11 @@ import {
   Plus,
   X,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Plug,
+  KeyRound,
+  SlidersHorizontal,
+  Braces,
 } from 'lucide-react'
 import axios from 'axios'
 import { cn } from '@/lib/utils'
@@ -651,41 +653,23 @@ export function ApiEnrichmentConfig({
   }
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="connection" className="w-full">
-        <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 rounded-lg bg-muted p-1">
-          <TabsTrigger
-            value="connection"
-            className="min-h-10 flex-1 min-w-[120px] whitespace-normal px-3 py-2 text-center leading-tight"
-          >
-            {t('apiEnrichment.sections.connection')}
-          </TabsTrigger>
-          <TabsTrigger
-            value="authentication"
-            className="min-h-10 flex-1 min-w-[120px] whitespace-normal px-3 py-2 text-center leading-tight"
-          >
-            {t('apiEnrichment.sections.authentication')}
-          </TabsTrigger>
-          <TabsTrigger
-            value="mapping"
-            className="min-h-10 flex-1 min-w-[140px] whitespace-normal px-3 py-2 text-center leading-tight"
-          >
-            {t('apiEnrichment.sections.fieldMapping')}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="connection" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                {t('apiEnrichment.connection.title')}
-              </CardTitle>
-              <CardDescription>
-                {t('apiEnrichment.connection.description')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+    <div className="space-y-2">
+      <Accordion type="multiple" defaultValue={['connection', 'profile-options']} className="space-y-2">
+        {/* ---- Connexion ---- */}
+        <AccordionItem value="connection" className="border rounded-lg">
+          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 border border-blue-200">
+                <Plug className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-left">Connexion</p>
+                <p className="text-xs text-muted-foreground text-left">URL, preset, paramètres</p>
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4">
+            <div className="space-y-4">
               {/* Preset APIs */}
               <div className="space-y-2">
                 <Label>{t('apiEnrichment.connection.quickSetup')}</Label>
@@ -778,7 +762,6 @@ export function ApiEnrichmentConfig({
                 ) : null}
               </div>
 
-
               {/* API URL */}
               <div className="space-y-2">
                 <Label htmlFor="api-url">{t('apiEnrichment.connection.apiUrl')}</Label>
@@ -859,531 +842,6 @@ export function ApiEnrichmentConfig({
                 </div>
               </div>
 
-              {isGbifRichProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>GBIF Rich</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Utilise un pipeline structuré GBIF au lieu d&apos;un simple mapping plat.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="taxonomy-source">Taxonomy source</Label>
-                    <Input
-                      id="taxonomy-source"
-                      value={config.taxonomy_source || 'col_xr'}
-                      onChange={(e) => onChange({ ...config, taxonomy_source: e.target.value })}
-                      placeholder="col_xr"
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Taxonomy</div>
-                        <div className="text-xs text-muted-foreground">Match, synonymes, vernaculaires</div>
-                      </div>
-                      <Switch
-                        checked={config.include_taxonomy ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_taxonomy: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Occurrences</div>
-                        <div className="text-xs text-muted-foreground">Résumé de distribution et de preuves</div>
-                      </div>
-                      <Switch
-                        checked={config.include_occurrences ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Media</div>
-                        <div className="text-xs text-muted-foreground">Miniatures et crédits GBIF</div>
-                      </div>
-                      <Switch
-                        checked={config.include_media ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="media-limit">Media limit</Label>
-                      <Input
-                        id="media-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.media_limit ?? 3)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            media_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isOpenMeteoElevationProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>Open-Meteo Elevation</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Résume l&apos;altitude d&apos;un point ou d&apos;une géométrie échantillonnée.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="sample-mode">Sample mode</Label>
-                      <Select
-                        value={config.sample_mode || 'bbox_grid'}
-                        onValueChange={(value) => onChange({ ...config, sample_mode: value })}
-                      >
-                        <SelectTrigger id="sample-mode">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bbox_grid">BBox grid</SelectItem>
-                          <SelectItem value="boundary">Boundary</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="sample-count">Sample count</Label>
-                      <Input
-                        id="sample-count"
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={String(config.sample_count ?? 9)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            sample_count: Number.parseInt(e.target.value || '1', 10),
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 sm:col-span-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">BBox summary</div>
-                        <div className="text-xs text-muted-foreground">
-                          Conserve le centroïde et la bbox dans le résumé enrichi.
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_bbox_summary ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isGeoNamesSpatialProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>GeoNames Spatial</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Résume le contexte administratif d&apos;un point ou d&apos;une géométrie échantillonnée.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="sample-mode">Sample mode</Label>
-                      <Select
-                        value={config.sample_mode || 'bbox_grid'}
-                        onValueChange={(value) => onChange({ ...config, sample_mode: value })}
-                      >
-                        <SelectTrigger id="sample-mode">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bbox_grid">BBox grid</SelectItem>
-                          <SelectItem value="boundary">Boundary</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="sample-count">Sample count</Label>
-                      <Input
-                        id="sample-count"
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={String(config.sample_count ?? 9)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            sample_count: Number.parseInt(e.target.value || '1', 10),
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">BBox summary</div>
-                        <div className="text-xs text-muted-foreground">
-                          Conserve le centroïde et la bbox dans le résumé enrichi.
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_bbox_summary ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Nearby places</div>
-                        <div className="text-xs text-muted-foreground">
-                          Ajoute les lieux proches sur le centroïde et quelques points d&apos;échantillonnage.
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_nearby_places ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_nearby_places: checked })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isTropicosRichProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>Tropicos Rich</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Utilise un pipeline structuré Tropicos avec nom accepté, références,
-                      distributions et médias.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Références</div>
-                        <div className="text-xs text-muted-foreground">Résumé bibliographique Tropicos</div>
-                      </div>
-                      <Switch
-                        checked={config.include_references ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Distributions</div>
-                        <div className="text-xs text-muted-foreground">Pays et régions résumés</div>
-                      </div>
-                      <Switch
-                        checked={config.include_distributions ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Media</div>
-                        <div className="text-xs text-muted-foreground">Images et crédits Tropicos</div>
-                      </div>
-                      <Switch
-                        checked={config.include_media ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="media-limit">Media limit</Label>
-                      <Input
-                        id="media-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.media_limit ?? 3)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            media_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isColRichProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>Catalogue of Life Rich</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Utilise un pipeline structuré ChecklistBank avec taxonomie,
-                      synonymes, noms vernaculaires, distributions et références.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="col-dataset-key">ChecklistBank dataset key</Label>
-                    <Input
-                      id="col-dataset-key"
-                      type="number"
-                      min={1}
-                      value={String(config.dataset_key ?? COL_DEFAULT_DATASET_KEY)}
-                      onChange={(e) => {
-                        const datasetKey = Number.parseInt(e.target.value || '0', 10) || COL_DEFAULT_DATASET_KEY
-                        onChange({
-                          ...config,
-                          dataset_key: datasetKey,
-                          api_url: buildColSearchUrl(datasetKey),
-                        })
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Clé de release ChecklistBank utilisée pour la recherche et les détails du taxon.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Vernaculars</div>
-                        <div className="text-xs text-muted-foreground">Noms vernaculaires par langue</div>
-                      </div>
-                      <Switch
-                        checked={config.include_vernaculars ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_vernaculars: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Distributions</div>
-                        <div className="text-xs text-muted-foreground">Régions et pays quand disponibles</div>
-                      </div>
-                      <Switch
-                        checked={config.include_distributions ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">References</div>
-                        <div className="text-xs text-muted-foreground">Citations ChecklistBank résumées</div>
-                      </div>
-                      <Switch
-                        checked={config.include_references ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="reference-limit">Reference limit</Label>
-                      <Input
-                        id="reference-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.reference_limit ?? 5)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            reference_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isBhlReferencesProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>BHL References</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Utilise un pipeline documentaire structuré BHL avec titres, mentions
-                      bibliographiques et pages représentatives.
-                    </p>
-                  </div>
-
-                  <div className="rounded-md border bg-background px-3 py-3 text-xs text-muted-foreground">
-                    La clé API BHL est obligatoire pour tester et exécuter cette source.
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Publication details</div>
-                        <div className="text-xs text-muted-foreground">
-                          Hydrate les meilleurs titres avec leurs métadonnées BHL
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_publication_details ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_publication_details: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Page preview</div>
-                        <div className="text-xs text-muted-foreground">
-                          Charge quelques pages avec miniature et lien direct
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_page_preview ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_page_preview: checked })}
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="bhl-title-limit">Title limit</Label>
-                      <Input
-                        id="bhl-title-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.title_limit ?? 5)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            title_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="bhl-page-limit">Page limit</Label>
-                      <Input
-                        id="bhl-page-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.page_limit ?? 5)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            page_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : isInaturalistRichProfile ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>iNaturalist Rich</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Utilise un pipeline structuré iNaturalist avec fiche taxon légère,
-                      résumé d&apos;observations, médias et lieux principaux.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Observations</div>
-                        <div className="text-xs text-muted-foreground">
-                          Résumé des observations communautaires récentes
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_occurrences ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Media</div>
-                        <div className="text-xs text-muted-foreground">
-                          Sélection d&apos;images issues du taxon et des observations
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_media ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">Places</div>
-                        <div className="text-xs text-muted-foreground">
-                          Résumé compact des principaux lieux remontés
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.include_places ?? true}
-                        onCheckedChange={(checked) => onChange({ ...config, include_places: checked })}
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
-                      <Label htmlFor="inat-observation-limit">Observation limit</Label>
-                      <Input
-                        id="inat-observation-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.observation_limit ?? 5)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            observation_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2 rounded-md border bg-background px-3 py-2 sm:col-span-2">
-                      <Label htmlFor="inat-media-limit">Media limit</Label>
-                      <Input
-                        id="inat-media-limit"
-                        type="number"
-                        min={0}
-                        value={String(config.media_limit ?? 3)}
-                        onChange={(e) =>
-                          onChange({
-                            ...config,
-                            media_limit: Number.parseInt(e.target.value || '0', 10),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {supportsNameResolution ? (
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <div className="space-y-1">
-                    <Label>{t('apiEnrichment.connection.nameResolution.title')}</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t('apiEnrichment.connection.nameResolution.description')}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-                    <div className="space-y-0.5">
-                      <div className="text-sm font-medium">
-                        {t('apiEnrichment.connection.nameResolution.enable')}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t('apiEnrichment.connection.nameResolution.enableDescription')}
-                      </div>
-                    </div>
-                    <Switch
-                      checked={config.use_name_verifier ?? false}
-                      onCheckedChange={(checked) => onChange({ ...config, use_name_verifier: checked })}
-                    />
-                  </div>
-                </div>
-              ) : null}
-
               {/* Test Connection */}
               <div>
                 <Button
@@ -1419,22 +877,25 @@ export function ApiEnrichmentConfig({
                   <AlertDescription>{testResult.message}</AlertDescription>
                 </Alert>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-        <TabsContent value="authentication" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                {t('apiEnrichment.authentication.title')}
-              </CardTitle>
-              <CardDescription>
-                {t('apiEnrichment.authentication.description')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* ---- Authentification ---- */}
+        <AccordionItem value="authentication" className="border rounded-lg">
+          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
+                <KeyRound className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-left">Authentification</p>
+                <p className="text-xs text-muted-foreground text-left">Méthode, clé API, token</p>
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4">
+            <div className="space-y-4">
               {/* Auth Method */}
               <div className="space-y-2">
                 <Label htmlFor="auth-method">{t('apiEnrichment.authentication.method')}</Label>
@@ -1555,19 +1016,570 @@ export function ApiEnrichmentConfig({
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-        <TabsContent value="mapping" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('apiEnrichment.fieldMapping.title')}</CardTitle>
-              <CardDescription>
-                {t('apiEnrichment.fieldMapping.description')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* ---- Options profil ---- */}
+        {isStructuredProfile ? (
+          <AccordionItem value="profile-options" className="border rounded-lg">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 border border-green-200">
+                  <SlidersHorizontal className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-left">Options profil</p>
+                  <p className="text-xs text-muted-foreground text-left">Données incluses, vérificateur de noms</p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="space-y-4">
+                {isGbifRichProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>GBIF Rich</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Utilise un pipeline structuré GBIF au lieu d&apos;un simple mapping plat.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="taxonomy-source">Taxonomy source</Label>
+                      <Input
+                        id="taxonomy-source"
+                        value={config.taxonomy_source || 'col_xr'}
+                        onChange={(e) => onChange({ ...config, taxonomy_source: e.target.value })}
+                        placeholder="col_xr"
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Taxonomy</div>
+                          <div className="text-xs text-muted-foreground">Match, synonymes, vernaculaires</div>
+                        </div>
+                        <Switch
+                          checked={config.include_taxonomy ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_taxonomy: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Occurrences</div>
+                          <div className="text-xs text-muted-foreground">Résumé de distribution et de preuves</div>
+                        </div>
+                        <Switch
+                          checked={config.include_occurrences ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Media</div>
+                          <div className="text-xs text-muted-foreground">Miniatures et crédits GBIF</div>
+                        </div>
+                        <Switch
+                          checked={config.include_media ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="media-limit">Media limit</Label>
+                        <Input
+                          id="media-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.media_limit ?? 3)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              media_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isOpenMeteoElevationProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>Open-Meteo Elevation</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Résume l&apos;altitude d&apos;un point ou d&apos;une géométrie échantillonnée.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="sample-mode">Sample mode</Label>
+                        <Select
+                          value={config.sample_mode || 'bbox_grid'}
+                          onValueChange={(value) => onChange({ ...config, sample_mode: value })}
+                        >
+                          <SelectTrigger id="sample-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bbox_grid">BBox grid</SelectItem>
+                            <SelectItem value="boundary">Boundary</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="sample-count">Sample count</Label>
+                        <Input
+                          id="sample-count"
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={String(config.sample_count ?? 9)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              sample_count: Number.parseInt(e.target.value || '1', 10),
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 sm:col-span-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">BBox summary</div>
+                          <div className="text-xs text-muted-foreground">
+                            Conserve le centroïde et la bbox dans le résumé enrichi.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_bbox_summary ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isGeoNamesSpatialProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>GeoNames Spatial</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Résume le contexte administratif d&apos;un point ou d&apos;une géométrie échantillonnée.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="sample-mode">Sample mode</Label>
+                        <Select
+                          value={config.sample_mode || 'bbox_grid'}
+                          onValueChange={(value) => onChange({ ...config, sample_mode: value })}
+                        >
+                          <SelectTrigger id="sample-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bbox_grid">BBox grid</SelectItem>
+                            <SelectItem value="boundary">Boundary</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="sample-count">Sample count</Label>
+                        <Input
+                          id="sample-count"
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={String(config.sample_count ?? 9)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              sample_count: Number.parseInt(e.target.value || '1', 10),
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">BBox summary</div>
+                          <div className="text-xs text-muted-foreground">
+                            Conserve le centroïde et la bbox dans le résumé enrichi.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_bbox_summary ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_bbox_summary: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Nearby places</div>
+                          <div className="text-xs text-muted-foreground">
+                            Ajoute les lieux proches sur le centroïde et quelques points d&apos;échantillonnage.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_nearby_places ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_nearby_places: checked })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isTropicosRichProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>Tropicos Rich</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Utilise un pipeline structuré Tropicos avec nom accepté, références,
+                        distributions et médias.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Références</div>
+                          <div className="text-xs text-muted-foreground">Résumé bibliographique Tropicos</div>
+                        </div>
+                        <Switch
+                          checked={config.include_references ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Distributions</div>
+                          <div className="text-xs text-muted-foreground">Pays et régions résumés</div>
+                        </div>
+                        <Switch
+                          checked={config.include_distributions ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Media</div>
+                          <div className="text-xs text-muted-foreground">Images et crédits Tropicos</div>
+                        </div>
+                        <Switch
+                          checked={config.include_media ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="media-limit">Media limit</Label>
+                        <Input
+                          id="media-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.media_limit ?? 3)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              media_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isColRichProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>Catalogue of Life Rich</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Utilise un pipeline structuré ChecklistBank avec taxonomie,
+                        synonymes, noms vernaculaires, distributions et références.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="col-dataset-key">ChecklistBank dataset key</Label>
+                      <Input
+                        id="col-dataset-key"
+                        type="number"
+                        min={1}
+                        value={String(config.dataset_key ?? COL_DEFAULT_DATASET_KEY)}
+                        onChange={(e) => {
+                          const datasetKey = Number.parseInt(e.target.value || '0', 10) || COL_DEFAULT_DATASET_KEY
+                          onChange({
+                            ...config,
+                            dataset_key: datasetKey,
+                            api_url: buildColSearchUrl(datasetKey),
+                          })
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Clé de release ChecklistBank utilisée pour la recherche et les détails du taxon.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Vernaculars</div>
+                          <div className="text-xs text-muted-foreground">Noms vernaculaires par langue</div>
+                        </div>
+                        <Switch
+                          checked={config.include_vernaculars ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_vernaculars: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Distributions</div>
+                          <div className="text-xs text-muted-foreground">Régions et pays quand disponibles</div>
+                        </div>
+                        <Switch
+                          checked={config.include_distributions ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_distributions: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">References</div>
+                          <div className="text-xs text-muted-foreground">Citations ChecklistBank résumées</div>
+                        </div>
+                        <Switch
+                          checked={config.include_references ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_references: checked })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="reference-limit">Reference limit</Label>
+                        <Input
+                          id="reference-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.reference_limit ?? 5)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              reference_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isBhlReferencesProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>BHL References</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Utilise un pipeline documentaire structuré BHL avec titres, mentions
+                        bibliographiques et pages représentatives.
+                      </p>
+                    </div>
+
+                    <div className="rounded-md border bg-background px-3 py-3 text-xs text-muted-foreground">
+                      La clé API BHL est obligatoire pour tester et exécuter cette source.
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Publication details</div>
+                          <div className="text-xs text-muted-foreground">
+                            Hydrate les meilleurs titres avec leurs métadonnées BHL
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_publication_details ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_publication_details: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Page preview</div>
+                          <div className="text-xs text-muted-foreground">
+                            Charge quelques pages avec miniature et lien direct
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_page_preview ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_page_preview: checked })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="bhl-title-limit">Title limit</Label>
+                        <Input
+                          id="bhl-title-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.title_limit ?? 5)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              title_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="bhl-page-limit">Page limit</Label>
+                        <Input
+                          id="bhl-page-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.page_limit ?? 5)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              page_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : isInaturalistRichProfile ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>iNaturalist Rich</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Utilise un pipeline structuré iNaturalist avec fiche taxon légère,
+                        résumé d&apos;observations, médias et lieux principaux.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Observations</div>
+                          <div className="text-xs text-muted-foreground">
+                            Résumé des observations communautaires récentes
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_occurrences ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Media</div>
+                          <div className="text-xs text-muted-foreground">
+                            Sélection d&apos;images issues du taxon et des observations
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_media ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Places</div>
+                          <div className="text-xs text-muted-foreground">
+                            Résumé compact des principaux lieux remontés
+                          </div>
+                        </div>
+                        <Switch
+                          checked={config.include_places ?? true}
+                          onCheckedChange={(checked) => onChange({ ...config, include_places: checked })}
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                        <Label htmlFor="inat-observation-limit">Observation limit</Label>
+                        <Input
+                          id="inat-observation-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.observation_limit ?? 5)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              observation_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2 rounded-md border bg-background px-3 py-2 sm:col-span-2">
+                        <Label htmlFor="inat-media-limit">Media limit</Label>
+                        <Input
+                          id="inat-media-limit"
+                          type="number"
+                          min={0}
+                          value={String(config.media_limit ?? 3)}
+                          onChange={(e) =>
+                            onChange({
+                              ...config,
+                              media_limit: Number.parseInt(e.target.value || '0', 10),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {supportsNameResolution ? (
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label>{t('apiEnrichment.connection.nameResolution.title')}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {t('apiEnrichment.connection.nameResolution.description')}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">
+                          {t('apiEnrichment.connection.nameResolution.enable')}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t('apiEnrichment.connection.nameResolution.enableDescription')}
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.use_name_verifier ?? false}
+                        onCheckedChange={(checked) => onChange({ ...config, use_name_verifier: checked })}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ) : null}
+
+        {/* ---- Mapping avancé ---- */}
+        <AccordionItem value="mapping" className="border rounded-lg">
+          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 border border-purple-200">
+                <Braces className="h-4 w-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-left">Mapping avancé</p>
+                <p className="text-xs text-muted-foreground text-left">Mapping réponse, endpoints chaînés</p>
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4">
+            <div className="space-y-4">
               {isStructuredProfile ? (
                 <Alert>
                   <Info className="h-4 w-4" />
@@ -1591,115 +1603,115 @@ export function ApiEnrichmentConfig({
 
               {!isStructuredProfile ? (
                 <>
-              {testResult?.fields && testResult.fields.length > 0 && (
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    {t('apiEnrichment.fieldMapping.availableFields')}
-                  </AlertDescription>
-                </Alert>
-              )}
+                  {testResult?.fields && testResult.fields.length > 0 && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        {t('apiEnrichment.fieldMapping.availableFields')}
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
-              {/* Current Mappings */}
-              <div className="space-y-2">
-                <Label>{t('apiEnrichment.fieldMapping.currentMappings')}</Label>
-                <ScrollArea className="h-[200px] rounded-lg border p-3">
+                  {/* Current Mappings */}
                   <div className="space-y-2">
-                    {Object.entries(config.response_mapping || {}).map(([target, source]) => (
-                      <div key={target} className="flex items-center gap-2">
-                        <Badge variant="outline">{target}</Badge>
-                        <ArrowRight className="h-3 w-3" />
-                        <code className="text-sm bg-muted px-2 py-1 rounded flex-1">{source}</code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeMapping(target)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              {/* Add New Mapping */}
-              <div className="space-y-2">
-                <Label>{t('apiEnrichment.fieldMapping.addNewMapping')}</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={t('apiEnrichment.fieldMapping.niamotoFieldPlaceholder')}
-                    value={newMapping.target}
-                    onChange={(e) => setNewMapping({ ...newMapping, target: e.target.value })}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder={t('apiEnrichment.fieldMapping.apiPathPlaceholder')}
-                    value={newMapping.source}
-                    onChange={(e) => setNewMapping({ ...newMapping, source: e.target.value })}
-                    className="flex-1"
-                  />
-                  <Button onClick={addMapping} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Detected Fields */}
-              {testResult?.fields && testResult.fields.length > 0 && (
-                <div className="space-y-2">
-                  <Label>{t('apiEnrichment.fieldMapping.availableApiFields')}</Label>
-                  <ScrollArea className="h-[200px] rounded-lg border p-3">
-                    <div className="space-y-2">
-                      {testResult.fields.map((field) => (
-                        <div
-                          key={field.path}
-                          className="flex items-center justify-between p-2 hover:bg-accent rounded cursor-pointer"
-                          onClick={() => setNewMapping({ ...newMapping, source: field.path })}
-                        >
-                          <div>
-                            <code className="text-sm">{field.path}</code>
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              ({field.type})
-                            </span>
+                    <Label>{t('apiEnrichment.fieldMapping.currentMappings')}</Label>
+                    <ScrollArea className="h-[200px] rounded-lg border p-3">
+                      <div className="space-y-2">
+                        {Object.entries(config.response_mapping || {}).map(([target, source]) => (
+                          <div key={target} className="flex items-center gap-2">
+                            <Badge variant="outline">{target}</Badge>
+                            <ArrowRight className="h-3 w-3" />
+                            <code className="text-sm bg-muted px-2 py-1 rounded flex-1">{source}</code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMapping(target)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
                           </div>
-                          {field.example !== undefined && (
-                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                              {String(field.example)}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Common Fields Suggestions */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  <p className="mb-2">{t('apiEnrichment.fieldMapping.commonFields')}</p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {['endemic', 'protected', 'redlist_cat', 'image_url', 'external_id', 'external_url'].map(field => (
-                      <Badge
-                        key={field}
-                        variant="secondary"
-                        className="cursor-pointer"
-                        onClick={() => setNewMapping({ ...newMapping, target: field })}
-                      >
-                        {field}
-                      </Badge>
-                    ))}
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </div>
-                </AlertDescription>
-              </Alert>
+
+                  {/* Add New Mapping */}
+                  <div className="space-y-2">
+                    <Label>{t('apiEnrichment.fieldMapping.addNewMapping')}</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder={t('apiEnrichment.fieldMapping.niamotoFieldPlaceholder')}
+                        value={newMapping.target}
+                        onChange={(e) => setNewMapping({ ...newMapping, target: e.target.value })}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder={t('apiEnrichment.fieldMapping.apiPathPlaceholder')}
+                        value={newMapping.source}
+                        onChange={(e) => setNewMapping({ ...newMapping, source: e.target.value })}
+                        className="flex-1"
+                      />
+                      <Button onClick={addMapping} size="sm">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Detected Fields */}
+                  {testResult?.fields && testResult.fields.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>{t('apiEnrichment.fieldMapping.availableApiFields')}</Label>
+                      <ScrollArea className="h-[200px] rounded-lg border p-3">
+                        <div className="space-y-2">
+                          {testResult.fields.map((field) => (
+                            <div
+                              key={field.path}
+                              className="flex items-center justify-between p-2 hover:bg-accent rounded cursor-pointer"
+                              onClick={() => setNewMapping({ ...newMapping, source: field.path })}
+                            >
+                              <div>
+                                <code className="text-sm">{field.path}</code>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  ({field.type})
+                                </span>
+                              </div>
+                              {field.example !== undefined && (
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {String(field.example)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Common Fields Suggestions */}
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="mb-2">{t('apiEnrichment.fieldMapping.commonFields')}</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {['endemic', 'protected', 'redlist_cat', 'image_url', 'external_id', 'external_url'].map(field => (
+                          <Badge
+                            key={field}
+                            variant="secondary"
+                            className="cursor-pointer"
+                            onClick={() => setNewMapping({ ...newMapping, target: field })}
+                          >
+                            {field}
+                          </Badge>
+                        ))}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
                 </>
               ) : null}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }
