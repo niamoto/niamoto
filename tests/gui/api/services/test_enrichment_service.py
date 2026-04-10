@@ -169,6 +169,44 @@ def test_get_reference_enrichment_config_upgrades_legacy_tropicos_source(monkeyp
     assert source.response_mapping == {}
 
 
+def test_get_reference_enrichment_config_normalizes_legacy_endemia_auth(monkeypatch):
+    """Legacy Endemia config should not require an API key."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "endemia",
+                    "label": "Endemia NC",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.endemia.nc/v1/taxons",
+                        "auth_method": "api_key",
+                        "auth_params": {
+                            "location": "query",
+                            "name": "apiKey",
+                            "key": "",
+                        },
+                        "query_params": {"section": "flore"},
+                        "response_mapping": {"id_endemia": "id"},
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.id == "endemia"
+    assert source.auth_method == "none"
+    assert source.auth_params == {}
+
+
 def test_get_reference_enrichment_config_preserves_col_rich_fields(monkeypatch):
     """Structured Catalogue of Life config should survive normalization."""
 
