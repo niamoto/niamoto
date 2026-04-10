@@ -165,3 +165,49 @@ def test_generic_import_config_keeps_structured_enrichment_config():
     assert enrichment.config["profile"] == "gbif_rich"
     assert enrichment.config["include_references"] is True
     assert enrichment.config["media_limit"] == 3
+
+
+def test_generic_import_config_keeps_col_rich_fields():
+    """Catalogue of Life structured fields should stay available in the generic model."""
+
+    config = GenericImportConfig.from_dict(
+        {
+            "version": "1.0",
+            "entities": {
+                "references": {
+                    "taxons": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/taxons.csv",
+                        },
+                        "schema": {"id": "id", "fields": []},
+                        "enrichment": [
+                            {
+                                "id": "col",
+                                "label": "Catalogue of Life",
+                                "plugin": "api_taxonomy_enricher",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
+                                    "profile": "col_rich",
+                                    "dataset_key": 314774,
+                                    "include_vernaculars": True,
+                                    "include_distributions": True,
+                                    "include_references": True,
+                                    "reference_limit": 5,
+                                },
+                            }
+                        ],
+                    }
+                },
+                "datasets": {},
+            },
+        }
+    )
+
+    enrichment = config.entities.references["taxons"].enrichment[0]
+    assert enrichment.id == "col"
+    assert enrichment.config["profile"] == "col_rich"
+    assert enrichment.config["dataset_key"] == 314774
+    assert enrichment.config["include_vernaculars"] is True
+    assert enrichment.config["reference_limit"] == 5

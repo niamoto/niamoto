@@ -166,6 +166,46 @@ def test_get_reference_enrichment_config_upgrades_legacy_tropicos_source(monkeyp
     assert source.response_mapping == {}
 
 
+def test_get_reference_enrichment_config_preserves_col_rich_fields(monkeypatch):
+    """Structured Catalogue of Life config should survive normalization."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "col",
+                    "label": "Catalogue of Life",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
+                        "profile": "col_rich",
+                        "dataset_key": 314774,
+                        "include_vernaculars": True,
+                        "include_distributions": False,
+                        "include_references": True,
+                        "reference_limit": 7,
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.id == "col"
+    assert source.profile == "col_rich"
+    assert source.dataset_key == 314774
+    assert source.include_vernaculars is True
+    assert source.include_distributions is False
+    assert source.include_references is True
+    assert source.reference_limit == 7
+
+
 def test_merge_source_enrichment_data_keeps_existing_sources():
     """Adding one source must not overwrite previously stored source payloads."""
 
