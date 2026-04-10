@@ -25,6 +25,8 @@ COL_DEFAULT_DATASET_KEY = 314774
 TROPICOS_SEARCH_ENDPOINT = "https://services.tropicos.org/Name/Search"
 TROPICOS_NAME_ENDPOINT = "https://services.tropicos.org/Name"
 BHL_API_ENDPOINT = "https://www.biodiversitylibrary.org/api3"
+INAT_TAXA_ENDPOINT = "https://api.inaturalist.org/v1/taxa"
+INAT_OBSERVATIONS_ENDPOINT = "https://api.inaturalist.org/v1/observations"
 GN_VERIFIER_ENDPOINT = "https://resolver.globalnames.org/api/v1/verifications"
 GN_DEFAULT_SOURCE_IDS_BY_PROFILE = {
     "gbif_rich": 11,
@@ -136,6 +138,11 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         description="Whether to include media summary for structured provider profiles",
         json_schema_extra={"ui:widget": "checkbox"},
     )
+    include_places: bool = Field(
+        default=True,
+        description="Whether to include place summary for structured provider profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
     include_references: bool = Field(
         default=True,
         description="Whether to include reference summary for structured provider profiles",
@@ -155,6 +162,12 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         default=3,
         ge=0,
         description="Maximum number of media items to keep in structured provider summaries",
+        json_schema_extra={"ui:widget": "number"},
+    )
+    observation_limit: int = Field(
+        default=5,
+        ge=0,
+        description="Maximum number of observations to keep in structured provider summaries",
         json_schema_extra={"ui:widget": "number"},
     )
     reference_limit: int = Field(
@@ -223,7 +236,13 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
     @model_validator(mode="after")
     def check_response_mapping(self):
         """Validate that response mapping is properly formatted"""
-        if self.profile in {"gbif_rich", "tropicos_rich", "col_rich", "bhl_references"}:
+        if self.profile in {
+            "gbif_rich",
+            "tropicos_rich",
+            "col_rich",
+            "bhl_references",
+            "inaturalist_rich",
+        }:
             return self
         if not self.response_mapping:
             raise ValueError("response_mapping cannot be empty")
@@ -352,8 +371,10 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             f"::{'|'.join(params.name_verifier_preferred_sources)}"
             f"::{params.name_verifier_threshold if params.name_verifier_threshold is not None else ''}"
             f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
+            f"::{params.include_places}"
             f"::{params.include_references}::{params.include_vernaculars}"
-            f"::{params.include_distributions}::{params.media_limit}::{params.reference_limit}"
+            f"::{params.include_distributions}::{params.media_limit}::{params.observation_limit}"
+            f"::{params.reference_limit}"
             f"::{params.include_publication_details}::{params.include_page_preview}"
             f"::{params.title_limit}::{params.page_limit}"
             f"::{query_value}"
@@ -462,6 +483,21 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             if params.profile == "bhl_references":
                 result = self._load_bhl_references_data(
+                    taxon_data=taxon_data,
+                    query_value=resolved_query_value,
+                    submitted_query_value=str(query_value),
+                    params=params,
+                )
+                if params.cache_results and result.get("api_enrichment"):
+                    self._cache[cache_key] = {
+                        "mapped": result.get("api_enrichment", {}),
+                        "processed": result.get("api_response_processed"),
+                        "raw": result.get("api_response_raw"),
+                    }
+                return result
+
+            if params.profile == "inaturalist_rich":
+                result = self._load_inaturalist_rich_data(
                     taxon_data=taxon_data,
                     query_value=resolved_query_value,
                     submitted_query_value=str(query_value),
@@ -1328,6 +1364,151 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         )
         self.log_messages.append(
             f"[green][{emoji('✓', '[OK]')}] BHL data successfully retrieved for {query_value}[/green]"
+        )
+
+        return {
+            **taxon_data,
+            "api_enrichment": summary,
+            "api_response_processed": processed_payload,
+            "api_response_raw": raw_payload,
+        }
+
+    def _load_inaturalist_rich_data(
+        self,
+        taxon_data: Dict[str, Any],
+        query_value: str,
+        submitted_query_value: str,
+        params: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Load a structured iNaturalist enrichment summary."""
+
+        summary: Dict[str, Any] = {
+            "match": {},
+            "taxon": {},
+            "observation_summary": {},
+            "media_summary": {},
+            "places": {},
+            "links": {},
+            "block_status": {
+                "match": "pending",
+                "taxon": "pending",
+                "observation_summary": (
+                    "disabled" if not params.include_occurrences else "pending"
+                ),
+                "media_summary": "disabled" if not params.include_media else "pending",
+                "places": "disabled" if not params.include_places else "pending",
+            },
+            "block_errors": {},
+            "provenance": {
+                "profile": "inaturalist_rich",
+                "profile_version": "inaturalist-rich-v1",
+                "query": query_value,
+                "query_submitted": submitted_query_value,
+                "query_used": query_value,
+                "endpoints": ["/v1/taxa"],
+            },
+        }
+        raw_payload: Dict[str, Any] = {}
+        processed_payload: Dict[str, Any] = {}
+
+        match_summary, match_raw, selected_taxon = self._inaturalist_match(
+            query_value, params
+        )
+        raw_payload["match"] = match_raw
+        processed_payload["match"] = match_summary
+        summary["match"] = match_summary
+
+        taxon_id = match_summary.get("taxon_id")
+        if not taxon_id:
+            summary["block_status"]["match"] = "no_match"
+            summary["block_status"]["taxon"] = "no_match"
+            summary["provenance"]["outcome"] = "no_match"
+            self.log_messages.append(
+                f"[yellow]No iNaturalist match found for {query_value}[/yellow]"
+            )
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        summary["block_status"]["match"] = "complete"
+        summary["taxon"] = self._inaturalist_taxon_summary(selected_taxon)
+        summary["block_status"]["taxon"] = "complete"
+        summary["links"] = self._inaturalist_build_links(str(taxon_id), selected_taxon)
+        raw_payload["taxon"] = selected_taxon
+        processed_payload["taxon"] = summary["taxon"]
+
+        observation_items: List[Dict[str, Any]] = []
+        observation_sample_raw: Dict[str, Any] | None = None
+        observation_counts_raw: Dict[str, Any] | None = None
+        needs_observations = (
+            params.include_occurrences or params.include_media or params.include_places
+        )
+
+        if needs_observations:
+            try:
+                (
+                    observation_summary,
+                    observation_raw,
+                    observation_items,
+                    observation_counts_raw,
+                ) = self._inaturalist_observation_summary(
+                    str(taxon_id),
+                    params.observation_limit,
+                )
+                observation_sample_raw = observation_raw
+                raw_payload["observations"] = observation_raw
+                raw_payload["observation_counts"] = observation_counts_raw
+                summary["provenance"]["endpoints"].append("/v1/observations")
+
+                if params.include_occurrences:
+                    summary["observation_summary"] = observation_summary
+                    summary["block_status"]["observation_summary"] = "complete"
+                    processed_payload["observation_summary"] = observation_summary
+            except Exception as exc:
+                if params.include_occurrences:
+                    summary["block_status"]["observation_summary"] = "error"
+                    summary["block_errors"]["observation_summary"] = str(exc)
+                if params.include_places:
+                    summary["block_status"]["places"] = "error"
+                    summary["block_errors"]["places"] = str(exc)
+
+        if params.include_media:
+            try:
+                media_summary = self._inaturalist_media_summary(
+                    selected_taxon,
+                    observation_items,
+                    params.media_limit,
+                )
+                summary["media_summary"] = media_summary
+                summary["block_status"]["media_summary"] = "complete"
+                processed_payload["media_summary"] = media_summary
+                raw_payload["media_summary"] = {
+                    "taxon": selected_taxon,
+                    "observations": observation_sample_raw,
+                }
+            except Exception as exc:
+                summary["block_status"]["media_summary"] = "error"
+                summary["block_errors"]["media_summary"] = str(exc)
+
+        if params.include_places and summary["block_status"]["places"] != "error":
+            try:
+                places_summary = self._inaturalist_places_summary(observation_items)
+                summary["places"] = places_summary
+                summary["block_status"]["places"] = "complete"
+                processed_payload["places"] = places_summary
+                raw_payload["places"] = observation_sample_raw
+            except Exception as exc:
+                summary["block_status"]["places"] = "error"
+                summary["block_errors"]["places"] = str(exc)
+
+        summary["provenance"]["outcome"] = (
+            "partial" if summary["block_errors"] else "complete"
+        )
+        self.log_messages.append(
+            f"[green][{emoji('✓', '[OK]')}] iNaturalist data successfully retrieved for {query_value}[/green]"
         )
 
         return {
@@ -2767,6 +2948,279 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         return {
             "name_search": f"https://www.biodiversitylibrary.org/name/{quote_plus(query_value)}",
         }
+
+    def _inaturalist_match(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """Resolve an iNaturalist taxon match summary and selected taxon payload."""
+
+        query_params = {
+            **(params.query_params or {}),
+            (params.query_param_name or "q"): query_value,
+            "is_active": str((params.query_params or {}).get("is_active", "true")),
+            "per_page": str(max(params.observation_limit or 5, 10)),
+        }
+        raw = self._request_json(params.api_url or INAT_TAXA_ENDPOINT, query_params)
+        candidates = self._normalize_list_payload(raw)
+        selected = self._inaturalist_select_match(candidates, query_value)
+
+        summary = {
+            "taxon_id": self._coerce_string(selected.get("id")),
+            "scientific_name": self._coerce_string(selected.get("name")) or query_value,
+            "preferred_common_name": self._coerce_string(
+                selected.get("preferred_common_name")
+            ),
+            "rank": self._coerce_string(selected.get("rank")),
+            "iconic_taxon_name": self._coerce_string(selected.get("iconic_taxon_name")),
+            "matched_name": self._coerce_string(
+                selected.get("matched_term") or selected.get("name")
+            )
+            or query_value,
+        }
+        return summary, raw, selected
+
+    def _inaturalist_select_match(
+        self, candidates: List[Dict[str, Any]], query_value: str
+    ) -> Dict[str, Any]:
+        """Pick the best iNaturalist taxon search result for a query."""
+
+        if not candidates:
+            return {}
+
+        normalized_query = self._normalize_taxon_text(query_value)
+
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int, int]:
+            scientific_name = self._normalize_taxon_text(candidate.get("name"))
+            matched_term = self._normalize_taxon_text(candidate.get("matched_term"))
+            preferred_common_name = self._normalize_taxon_text(
+                candidate.get("preferred_common_name")
+            )
+            exact_name = 1 if scientific_name == normalized_query else 0
+            exact_term = 1 if matched_term == normalized_query else 0
+            active = 1 if candidate.get("is_active") else 0
+            common_name_hit = 1 if preferred_common_name == normalized_query else 0
+            return (
+                exact_name,
+                exact_term,
+                active,
+                int(candidate.get("observations_count") or 0) + common_name_hit,
+            )
+
+        return max(candidates, key=score)
+
+    def _inaturalist_taxon_summary(self, taxon_raw: Dict[str, Any]) -> Dict[str, Any]:
+        """Build a lightweight iNaturalist taxon card from a search result."""
+
+        conservation = taxon_raw.get("conservation_status")
+        conservation_status = (
+            self._coerce_string(conservation.get("status"))
+            if isinstance(conservation, dict)
+            else self._coerce_string(conservation)
+        )
+
+        return {
+            "wikipedia_url": self._coerce_string(taxon_raw.get("wikipedia_url")),
+            "default_photo": self._inaturalist_photo_summary(
+                taxon_raw.get("default_photo")
+            ),
+            "observations_count": int(taxon_raw.get("observations_count") or 0),
+            "conservation_status": conservation_status,
+            "iconic_taxon_name": self._coerce_string(
+                taxon_raw.get("iconic_taxon_name")
+            ),
+            "preferred_common_name": self._coerce_string(
+                taxon_raw.get("preferred_common_name")
+            ),
+        }
+
+    def _inaturalist_observation_summary(
+        self, taxon_id: str, observation_limit: int
+    ) -> tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+        """Build a compact observations summary for an iNaturalist taxon."""
+
+        sample_raw = self._request_json(
+            INAT_OBSERVATIONS_ENDPOINT,
+            {
+                "taxon_id": taxon_id,
+                "per_page": max(observation_limit, 1),
+                "order_by": "observed_on",
+                "order": "desc",
+            },
+        )
+        items = self._normalize_list_payload(sample_raw)
+
+        counts_raw = {
+            "research": self._request_json(
+                INAT_OBSERVATIONS_ENDPOINT,
+                {"taxon_id": taxon_id, "per_page": 1, "quality_grade": "research"},
+            ),
+            "casual": self._request_json(
+                INAT_OBSERVATIONS_ENDPOINT,
+                {"taxon_id": taxon_id, "per_page": 1, "quality_grade": "casual"},
+            ),
+            "needs_id": self._request_json(
+                INAT_OBSERVATIONS_ENDPOINT,
+                {"taxon_id": taxon_id, "per_page": 1, "quality_grade": "needs_id"},
+            ),
+        }
+
+        recent_observations = []
+        for item in items[:observation_limit]:
+            observation_id = self._coerce_string(item.get("id"))
+            observed_on = self._coerce_string(item.get("observed_on"))
+            if not observed_on:
+                observed_on = self._coerce_string(item.get("time_observed_at"))[:10]
+            recent_observations.append(
+                {
+                    "observation_id": observation_id,
+                    "observed_on": observed_on,
+                    "quality_grade": self._coerce_string(item.get("quality_grade")),
+                    "place_guess": self._coerce_string(item.get("place_guess")),
+                    "observation_url": self._coerce_string(item.get("uri"))
+                    or (
+                        f"https://www.inaturalist.org/observations/{observation_id}"
+                        if observation_id
+                        else ""
+                    ),
+                }
+            )
+
+        return (
+            {
+                "observations_count": int(sample_raw.get("total_results") or 0),
+                "research_grade_count": int(
+                    counts_raw["research"].get("total_results") or 0
+                ),
+                "casual_count": int(counts_raw["casual"].get("total_results") or 0),
+                "needs_id_count": int(counts_raw["needs_id"].get("total_results") or 0),
+                "recent_observations": recent_observations,
+            },
+            sample_raw,
+            items,
+            counts_raw,
+        )
+
+    def _inaturalist_media_summary(
+        self,
+        taxon_raw: Dict[str, Any],
+        observation_items: List[Dict[str, Any]],
+        media_limit: int,
+    ) -> Dict[str, Any]:
+        """Build a compact photo summary from iNaturalist observations."""
+
+        sample: List[Dict[str, Any]] = []
+        seen_identifiers: set[str] = set()
+        media_count = 0
+
+        for item in observation_items:
+            photos = item.get("photos")
+            if not isinstance(photos, list):
+                continue
+
+            observation_id = self._coerce_string(item.get("id"))
+            observation_url = self._coerce_string(item.get("uri")) or (
+                f"https://www.inaturalist.org/observations/{observation_id}"
+                if observation_id
+                else ""
+            )
+            for photo in photos:
+                if not isinstance(photo, dict):
+                    continue
+                normalized = self._inaturalist_photo_summary(photo)
+                identifier = (
+                    self._coerce_string(photo.get("id"))
+                    or normalized.get("medium_url")
+                    or normalized.get("square_url")
+                )
+                if not identifier or identifier in seen_identifiers:
+                    continue
+                seen_identifiers.add(identifier)
+                media_count += 1
+                if len(sample) < media_limit:
+                    sample.append(
+                        {
+                            "observation_id": observation_id,
+                            "observation_url": observation_url,
+                            **normalized,
+                        }
+                    )
+
+        if not sample and media_limit > 0:
+            default_photo = self._inaturalist_photo_summary(
+                taxon_raw.get("default_photo")
+            )
+            if default_photo.get("medium_url") or default_photo.get("square_url"):
+                sample.append(default_photo)
+                media_count = 1
+
+        return {
+            "media_count": media_count,
+            "sample": sample,
+        }
+
+    def _inaturalist_places_summary(
+        self, observation_items: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Build a compact place summary from recent iNaturalist observations."""
+
+        counts: Dict[str, int] = {}
+        for item in observation_items:
+            place = self._coerce_string(item.get("place_guess"))
+            if not place:
+                continue
+            counts[place] = counts.get(place, 0) + 1
+
+        top_places = [
+            {"name": name, "count": count}
+            for name, count in sorted(
+                counts.items(), key=lambda entry: (-entry[1], entry[0].lower())
+            )[:5]
+        ]
+
+        return {
+            "places_count": len(counts),
+            "top_places": top_places,
+        }
+
+    def _inaturalist_photo_summary(self, photo: Any) -> Dict[str, Any]:
+        """Normalize an iNaturalist photo object for preview and storage."""
+
+        if not isinstance(photo, dict):
+            return {}
+
+        return {
+            "square_url": self._coerce_string(
+                photo.get("square_url") or photo.get("url")
+            ),
+            "medium_url": self._coerce_string(
+                photo.get("medium_url") or photo.get("url")
+            ),
+            "attribution": self._coerce_string(photo.get("attribution")),
+            "license_code": self._coerce_string(
+                photo.get("license_code") or photo.get("license")
+            ),
+        }
+
+    def _inaturalist_build_links(
+        self, taxon_id: str, taxon_raw: Dict[str, Any]
+    ) -> Dict[str, str]:
+        """Build public iNaturalist links for a matched taxon."""
+
+        taxon_link = self._coerce_string(taxon_raw.get("uri")) or (
+            f"https://www.inaturalist.org/taxa/{taxon_id}" if taxon_id else ""
+        )
+        observations_link = (
+            f"https://www.inaturalist.org/observations?taxon_id={taxon_id}"
+            if taxon_id
+            else ""
+        )
+
+        links: Dict[str, str] = {}
+        if taxon_link:
+            links["taxon"] = taxon_link
+        if observations_link:
+            links["observations"] = observations_link
+        return links
 
     def _bhl_collect_titles(self, payload: Any) -> List[Dict[str, Any]]:
         """Collect unique title candidates from nested BHL payloads."""

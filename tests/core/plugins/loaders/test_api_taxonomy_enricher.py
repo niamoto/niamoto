@@ -194,6 +194,24 @@ def test_config_validation_allows_bhl_references_without_response_mapping():
     assert config.params.response_mapping == {}
 
 
+def test_config_validation_allows_inaturalist_rich_without_response_mapping():
+    """Structured iNaturalist profile should not require flat response_mapping."""
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.inaturalist.org/v1/taxa",
+            "profile": "inaturalist_rich",
+            "query_param_name": "q",
+            "response_mapping": {},
+        },
+    }
+
+    config = ApiTaxonomyEnricherConfig(**config_dict)
+    assert config.params.profile == "inaturalist_rich"
+    assert config.params.response_mapping == {}
+
+
 @pytest.mark.parametrize(
     "auth_method, auth_params, error_message",
     [
@@ -1236,6 +1254,165 @@ def test_load_data_bhl_references_handles_no_match(
                 "name": "apikey",
                 "key": "secret",
             },
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Unknown species"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "no_match"
+    assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
+
+
+def test_load_data_inaturalist_rich_returns_structured_summary(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """iNaturalist rich profile should return a structured summary."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_inaturalist_match",
+        lambda query, params: (
+            {
+                "taxon_id": "12345",
+                "scientific_name": query,
+                "preferred_common_name": "Soap tree",
+                "rank": "species",
+                "iconic_taxon_name": "Plantae",
+                "matched_name": query,
+            },
+            {"results": [{"id": 12345}]},
+            {
+                "id": 12345,
+                "name": query,
+                "preferred_common_name": "Soap tree",
+                "wikipedia_url": "https://en.wikipedia.org/wiki/Alphitonia_neocaledonica",
+                "default_photo": {
+                    "medium_url": "https://static.inaturalist.org/photos/1/medium.jpg",
+                    "square_url": "https://static.inaturalist.org/photos/1/square.jpg",
+                    "attribution": "(c) Example user",
+                    "license_code": "cc-by-nc",
+                },
+                "observations_count": 84,
+                "conservation_status": {"status": "least_concern"},
+                "iconic_taxon_name": "Plantae",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        enricher,
+        "_inaturalist_observation_summary",
+        lambda taxon_id, observation_limit: (
+            {
+                "observations_count": 84,
+                "research_grade_count": 61,
+                "casual_count": 12,
+                "needs_id_count": 11,
+                "recent_observations": [
+                    {
+                        "observation_id": "98765",
+                        "observed_on": "2026-01-17",
+                        "quality_grade": "research",
+                        "place_guess": "Nouméa, Nouvelle-Calédonie",
+                        "observation_url": "https://www.inaturalist.org/observations/98765",
+                    }
+                ],
+            },
+            {"results": [{"id": 98765}]},
+            [
+                {
+                    "id": 98765,
+                    "uri": "https://www.inaturalist.org/observations/98765",
+                    "place_guess": "Nouméa, Nouvelle-Calédonie",
+                    "photos": [
+                        {
+                            "id": 1,
+                            "medium_url": "https://static.inaturalist.org/photos/2/medium.jpg",
+                            "square_url": "https://static.inaturalist.org/photos/2/square.jpg",
+                            "attribution": "(c) Example observer",
+                            "license_code": "cc-by",
+                        }
+                    ],
+                }
+            ],
+            {
+                "research": {"total_results": 61},
+                "casual": {"total_results": 12},
+                "needs_id": {"total_results": 11},
+            },
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.inaturalist.org/v1/taxa",
+            "profile": "inaturalist_rich",
+            "query_field": "full_name",
+            "query_param_name": "q",
+            "include_occurrences": True,
+            "include_media": True,
+            "include_places": True,
+            "media_limit": 3,
+            "observation_limit": 5,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["match"]["taxon_id"] == "12345"
+    assert enriched["api_enrichment"]["taxon"]["observations_count"] == 84
+    assert (
+        enriched["api_enrichment"]["observation_summary"]["research_grade_count"] == 61
+    )
+    assert enriched["api_enrichment"]["media_summary"]["media_count"] == 1
+    assert enriched["api_enrichment"]["places"]["top_places"] == [
+        {"name": "Nouméa, Nouvelle-Calédonie", "count": 1}
+    ]
+    assert enriched["api_enrichment"]["links"]["taxon"].endswith("/12345")
+    assert enriched["api_response_raw"]["match"] == {"results": [{"id": 12345}]}
+
+
+def test_load_data_inaturalist_rich_handles_no_match(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """iNaturalist rich profile should return a structured no-match outcome."""
+
+    monkeypatch.setattr(
+        enricher,
+        "_inaturalist_match",
+        lambda query, params: (
+            {
+                "taxon_id": "",
+                "scientific_name": query,
+                "preferred_common_name": "",
+                "rank": "",
+                "iconic_taxon_name": "",
+                "matched_name": query,
+            },
+            {"results": []},
+            {},
+        ),
+    )
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.inaturalist.org/v1/taxa",
+            "profile": "inaturalist_rich",
+            "query_field": "full_name",
+            "query_param_name": "q",
             "response_mapping": {},
             "cache_results": False,
         },

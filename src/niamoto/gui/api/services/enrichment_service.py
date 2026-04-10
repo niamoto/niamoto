@@ -53,6 +53,7 @@ TROPICOS_RICH_SEARCH_URL = "https://services.tropicos.org/Name/Search"
 COL_DEFAULT_DATASET_KEY = 314774
 COL_API_BASE = "https://api.checklistbank.org"
 BHL_API_ENDPOINT = "https://www.biodiversitylibrary.org/api3"
+INAT_TAXA_ENDPOINT = "https://api.inaturalist.org/v1/taxa"
 
 
 class EnrichmentSourceConfig(BaseModel):
@@ -74,10 +75,12 @@ class EnrichmentSourceConfig(BaseModel):
     include_taxonomy: bool = True
     include_occurrences: bool = True
     include_media: bool = True
+    include_places: bool = True
     include_references: bool = True
     include_vernaculars: bool = True
     include_distributions: bool = True
     media_limit: int = 3
+    observation_limit: int = 5
     reference_limit: int = 5
     include_publication_details: bool = True
     include_page_preview: bool = True
@@ -118,10 +121,12 @@ class EnrichmentSourceConfig(BaseModel):
                 "include_taxonomy": self.include_taxonomy,
                 "include_occurrences": self.include_occurrences,
                 "include_media": self.include_media,
+                "include_places": self.include_places,
                 "include_references": self.include_references,
                 "include_vernaculars": self.include_vernaculars,
                 "include_distributions": self.include_distributions,
                 "media_limit": self.media_limit,
+                "observation_limit": self.observation_limit,
                 "reference_limit": self.reference_limit,
                 "include_publication_details": self.include_publication_details,
                 "include_page_preview": self.include_page_preview,
@@ -301,6 +306,20 @@ def _is_legacy_tropicos_source(item: Dict[str, Any], config: Dict[str, Any]) -> 
     return label == "tropicos"
 
 
+def _is_legacy_inaturalist_source(item: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    """Return whether a source looks like the old flat iNaturalist preset."""
+
+    if config.get("profile"):
+        return False
+
+    api_url = str(config.get("api_url") or "").lower()
+    if "api.inaturalist.org" in api_url and "/v1/taxa" in api_url:
+        return True
+
+    label = str(item.get("label") or item.get("id") or "").lower()
+    return label == "inaturalist"
+
+
 def _col_search_url(dataset_key: int) -> str:
     """Build the default ChecklistBank search URL for a dataset."""
 
@@ -325,6 +344,15 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
         label = _guess_source_label(item, index)
         is_legacy_gbif = _is_legacy_gbif_source(item, config)
         is_legacy_tropicos = _is_legacy_tropicos_source(item, config)
+        is_legacy_inaturalist = _is_legacy_inaturalist_source(item, config)
+        legacy_inaturalist_params = {
+            key: value
+            for key, value in (config.get("query_params") or {}).items()
+            if key not in {"q", "taxon_id", "per_page"}
+        }
+        legacy_inaturalist_params["is_active"] = str(
+            legacy_inaturalist_params.get("is_active", "true")
+        )
         base_id = item.get("id") or _slugify_source_id(label, f"source-{index + 1}")
         source_id = base_id
         dedupe_index = 2
@@ -336,9 +364,15 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
         normalized.append(
             EnrichmentSourceConfig(
                 id=source_id,
-                label="Tropicos"
-                if is_legacy_tropicos and not item.get("label")
-                else label,
+                label=(
+                    "Tropicos"
+                    if is_legacy_tropicos and not item.get("label")
+                    else (
+                        "iNaturalist"
+                        if is_legacy_inaturalist and not item.get("label")
+                        else label
+                    )
+                ),
                 plugin=(
                     "api_taxonomy_enricher"
                     if is_legacy_tropicos
@@ -352,20 +386,24 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                         TROPICOS_RICH_SEARCH_URL
                         if is_legacy_tropicos
                         else (
-                            config.get("api_url")
-                            or (
-                                _col_search_url(
-                                    int(
-                                        config.get(
-                                            "dataset_key", COL_DEFAULT_DATASET_KEY
+                            INAT_TAXA_ENDPOINT
+                            if is_legacy_inaturalist
+                            else (
+                                config.get("api_url")
+                                or (
+                                    _col_search_url(
+                                        int(
+                                            config.get(
+                                                "dataset_key", COL_DEFAULT_DATASET_KEY
+                                            )
                                         )
                                     )
-                                )
-                                if config.get("profile") == "col_rich"
-                                else (
-                                    BHL_API_ENDPOINT
-                                    if config.get("profile") == "bhl_references"
-                                    else ""
+                                    if config.get("profile") == "col_rich"
+                                    else (
+                                        BHL_API_ENDPOINT
+                                        if config.get("profile") == "bhl_references"
+                                        else ""
+                                    )
                                 )
                             )
                         )
@@ -373,9 +411,11 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 ),
                 query_field=config.get("query_field", "full_name"),
                 query_param_name=config.get("query_param_name", "q")
-                if config.get("profile") not in {"col_rich", "bhl_references"}
+                if config.get("profile")
+                not in {"col_rich", "bhl_references", "inaturalist_rich"}
                 and not is_legacy_gbif
                 and not is_legacy_tropicos
+                and not is_legacy_inaturalist
                 else (
                     "scientificName"
                     if is_legacy_gbif
@@ -390,6 +430,7 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                     config.get("profile")
                     or ("gbif_rich" if is_legacy_gbif else None)
                     or ("tropicos_rich" if is_legacy_tropicos else None)
+                    or ("inaturalist_rich" if is_legacy_inaturalist else None)
                 ),
                 use_name_verifier=bool(config.get("use_name_verifier", False)),
                 name_verifier_preferred_sources=[
@@ -408,10 +449,12 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 include_taxonomy=bool(config.get("include_taxonomy", True)),
                 include_occurrences=bool(config.get("include_occurrences", True)),
                 include_media=bool(config.get("include_media", True)),
+                include_places=bool(config.get("include_places", True)),
                 include_references=bool(config.get("include_references", True)),
                 include_vernaculars=bool(config.get("include_vernaculars", True)),
                 include_distributions=bool(config.get("include_distributions", True)),
                 media_limit=int(config.get("media_limit", 3)),
+                observation_limit=int(config.get("observation_limit", 5)),
                 reference_limit=int(config.get("reference_limit", 5)),
                 include_publication_details=bool(
                     config.get("include_publication_details", True)
@@ -458,21 +501,25 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                         }
                         if is_legacy_tropicos
                         else (
-                            {
-                                **(config.get("query_params") or {}),
-                                "op": str(
-                                    (config.get("query_params") or {}).get(
-                                        "op", "NameSearch"
-                                    )
-                                ),
-                                "format": str(
-                                    (config.get("query_params") or {}).get(
-                                        "format", "json"
-                                    )
-                                ),
-                            }
-                            if config.get("profile") == "bhl_references"
-                            else config.get("query_params") or {}
+                            legacy_inaturalist_params
+                            if is_legacy_inaturalist
+                            else (
+                                {
+                                    **(config.get("query_params") or {}),
+                                    "op": str(
+                                        (config.get("query_params") or {}).get(
+                                            "op", "NameSearch"
+                                        )
+                                    ),
+                                    "format": str(
+                                        (config.get("query_params") or {}).get(
+                                            "format", "json"
+                                        )
+                                    ),
+                                }
+                                if config.get("profile") == "bhl_references"
+                                else config.get("query_params") or {}
+                            )
                         )
                     )
                 ),
@@ -953,10 +1000,12 @@ def _build_plugin_config(
             "include_taxonomy": source.include_taxonomy,
             "include_occurrences": source.include_occurrences,
             "include_media": source.include_media,
+            "include_places": source.include_places,
             "include_references": source.include_references,
             "include_vernaculars": source.include_vernaculars,
             "include_distributions": source.include_distributions,
             "media_limit": source.media_limit,
+            "observation_limit": source.observation_limit,
             "reference_limit": source.reference_limit,
             "include_publication_details": source.include_publication_details,
             "include_page_preview": source.include_page_preview,
@@ -1085,17 +1134,43 @@ def _ensure_override_sources(
 def _preview_config_used(source: EnrichmentSourceConfig) -> Dict[str, Any]:
     """Return the safe subset of source config exposed in preview responses."""
 
-    return {
+    config = {
         "api_url": source.api_url,
         "query_field": source.query_field,
         "profile": source.profile,
         "use_name_verifier": source.use_name_verifier,
-        "dataset_key": source.dataset_key,
-        "include_publication_details": source.include_publication_details,
-        "include_page_preview": source.include_page_preview,
-        "title_limit": source.title_limit,
-        "page_limit": source.page_limit,
     }
+    if source.profile == "col_rich":
+        config.update(
+            {
+                "dataset_key": source.dataset_key,
+                "include_vernaculars": source.include_vernaculars,
+                "include_distributions": source.include_distributions,
+                "include_references": source.include_references,
+                "reference_limit": source.reference_limit,
+            }
+        )
+    elif source.profile == "bhl_references":
+        config.update(
+            {
+                "dataset_key": source.dataset_key,
+                "include_publication_details": source.include_publication_details,
+                "include_page_preview": source.include_page_preview,
+                "title_limit": source.title_limit,
+                "page_limit": source.page_limit,
+            }
+        )
+    elif source.profile == "inaturalist_rich":
+        config.update(
+            {
+                "include_occurrences": source.include_occurrences,
+                "include_media": source.include_media,
+                "include_places": source.include_places,
+                "media_limit": source.media_limit,
+                "observation_limit": source.observation_limit,
+            }
+        )
+    return config
 
 
 def _get_current_job(reference_name: Optional[str] = None) -> Optional[EnrichmentJob]:

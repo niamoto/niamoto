@@ -58,10 +58,12 @@ export interface ApiConfig {
   include_taxonomy?: boolean
   include_occurrences?: boolean
   include_media?: boolean
+  include_places?: boolean
   include_references?: boolean
   include_vernaculars?: boolean
   include_distributions?: boolean
   media_limit?: number
+  observation_limit?: number
   reference_limit?: number
   include_publication_details?: boolean
   include_page_preview?: boolean
@@ -108,10 +110,12 @@ interface PresetAPI {
     include_taxonomy?: boolean
     include_occurrences?: boolean
     include_media?: boolean
+    include_places?: boolean
     include_references?: boolean
     include_vernaculars?: boolean
     include_distributions?: boolean
     media_limit?: number
+    observation_limit?: number
     reference_limit?: number
     include_publication_details?: boolean
     include_page_preview?: boolean
@@ -298,20 +302,17 @@ const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
     config: {
       api_url: 'https://api.inaturalist.org/v1/taxa',
       auth_method: 'none',
+      profile: 'inaturalist_rich',
       query_params: {
-        q: '',
-        is_active: 'true',
-        taxon_id: '47126',
-        per_page: '1'
+        is_active: 'true'
       },
-      response_mapping: {
-        inat_id: 'results[0].id',
-        inat_name: 'results[0].name',
-        inat_rank: 'results[0].rank',
-        inat_conservation_status: 'results[0].conservation_status.status',
-        inat_photo: 'results[0].default_photo.medium_url',
-        inat_observations_count: 'results[0].observations_count'
-      }
+      query_param_name: 'q',
+      include_occurrences: true,
+      include_media: true,
+      include_places: true,
+      media_limit: 3,
+      observation_limit: 5,
+      response_mapping: {}
     }
   },
   // === ELEVATION APIs (for plots) ===
@@ -496,8 +497,9 @@ export function ApiEnrichmentConfig({
   const isTropicosRichProfile = config.profile === 'tropicos_rich'
   const isColRichProfile = config.profile === 'col_rich'
   const isBhlReferencesProfile = config.profile === 'bhl_references'
+  const isInaturalistRichProfile = config.profile === 'inaturalist_rich'
   const isStructuredProfile =
-    isGbifRichProfile || isTropicosRichProfile || isColRichProfile || isBhlReferencesProfile
+    isGbifRichProfile || isTropicosRichProfile || isColRichProfile || isBhlReferencesProfile || isInaturalistRichProfile
   const supportsNameResolution =
     isGbifRichProfile || isTropicosRichProfile || isColRichProfile
   const selectedPreset = useMemo(() => {
@@ -542,10 +544,12 @@ export function ApiEnrichmentConfig({
         include_taxonomy: preset.config.include_taxonomy ?? true,
         include_occurrences: preset.config.include_occurrences ?? true,
         include_media: preset.config.include_media ?? true,
+        include_places: preset.config.include_places ?? true,
         include_references: preset.config.include_references ?? true,
         include_vernaculars: preset.config.include_vernaculars ?? true,
         include_distributions: preset.config.include_distributions ?? true,
         media_limit: preset.config.media_limit ?? 3,
+        observation_limit: preset.config.observation_limit ?? 5,
         reference_limit: preset.config.reference_limit ?? 5,
         include_publication_details: preset.config.include_publication_details ?? true,
         include_page_preview: preset.config.include_page_preview ?? true,
@@ -1198,6 +1202,89 @@ export function ApiEnrichmentConfig({
                     </div>
                   </div>
                 </div>
+              ) : isInaturalistRichProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>iNaturalist Rich</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Utilise un pipeline structuré iNaturalist avec fiche taxon légère,
+                      résumé d&apos;observations, médias et lieux principaux.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Observations</div>
+                        <div className="text-xs text-muted-foreground">
+                          Résumé des observations communautaires récentes
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_occurrences ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_occurrences: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Media</div>
+                        <div className="text-xs text-muted-foreground">
+                          Sélection d&apos;images issues du taxon et des observations
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_media ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_media: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Places</div>
+                        <div className="text-xs text-muted-foreground">
+                          Résumé compact des principaux lieux remontés
+                        </div>
+                      </div>
+                      <Switch
+                        checked={config.include_places ?? true}
+                        onCheckedChange={(checked) => onChange({ ...config, include_places: checked })}
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                      <Label htmlFor="inat-observation-limit">Observation limit</Label>
+                      <Input
+                        id="inat-observation-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.observation_limit ?? 5)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            observation_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2 rounded-md border bg-background px-3 py-2 sm:col-span-2">
+                      <Label htmlFor="inat-media-limit">Media limit</Label>
+                      <Input
+                        id="inat-media-limit"
+                        type="number"
+                        min={0}
+                        value={String(config.media_limit ?? 3)}
+                        onChange={(e) =>
+                          onChange({
+                            ...config,
+                            media_limit: Number.parseInt(e.target.value || '0', 10),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : null}
 
               {supportsNameResolution ? (
@@ -1418,7 +1505,11 @@ export function ApiEnrichmentConfig({
                       ? "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
                       : isTropicosRichProfile
                         ? "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset."
-                        : "Catalogue of Life Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Le mapping manuel n'est pas requis pour ce preset."}
+                        : isColRichProfile
+                          ? "Catalogue of Life Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Le mapping manuel n'est pas requis pour ce preset."
+                          : isBhlReferencesProfile
+                            ? "BHL References produit un résumé structuré par blocs (`Match`, `Titles`, `Mentions`, `Pages`, `Links`). Le mapping manuel n'est pas requis pour ce preset."
+                            : "iNaturalist Rich produit un résumé structuré par blocs (`Match`, `Taxon`, `Observations`, `Media`, `Places`). Le mapping manuel n'est pas requis pour ce preset."}
                   </AlertDescription>
                 </Alert>
               ) : null}

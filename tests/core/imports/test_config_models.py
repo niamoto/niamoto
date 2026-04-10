@@ -265,3 +265,49 @@ def test_generic_import_config_keeps_bhl_reference_fields():
     assert enrichment.config["include_page_preview"] is False
     assert enrichment.config["title_limit"] == 3
     assert enrichment.config["page_limit"] == 2
+
+
+def test_generic_import_config_keeps_inaturalist_rich_fields():
+    """iNaturalist structured fields should stay available in the generic model."""
+
+    config = GenericImportConfig.from_dict(
+        {
+            "version": "1.0",
+            "entities": {
+                "references": {
+                    "taxons": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/taxons.csv",
+                        },
+                        "schema": {"id": "id", "fields": []},
+                        "enrichment": [
+                            {
+                                "id": "inat",
+                                "label": "iNaturalist",
+                                "plugin": "api_taxonomy_enricher",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://api.inaturalist.org/v1/taxa",
+                                    "profile": "inaturalist_rich",
+                                    "include_occurrences": True,
+                                    "include_media": True,
+                                    "include_places": True,
+                                    "media_limit": 3,
+                                    "observation_limit": 5,
+                                },
+                            }
+                        ],
+                    }
+                },
+                "datasets": {},
+            },
+        }
+    )
+
+    enrichment = config.entities.references["taxons"].enrichment[0]
+    assert enrichment.id == "inat"
+    assert enrichment.config["profile"] == "inaturalist_rich"
+    assert enrichment.config["include_occurrences"] is True
+    assert enrichment.config["include_places"] is True
+    assert enrichment.config["observation_limit"] == 5

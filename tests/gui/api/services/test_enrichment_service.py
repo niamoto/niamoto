@@ -256,6 +256,46 @@ def test_get_reference_enrichment_config_preserves_bhl_fields(monkeypatch):
     assert source.page_limit == 2
 
 
+def test_get_reference_enrichment_config_preserves_inaturalist_fields(monkeypatch):
+    """Structured iNaturalist config should survive normalization."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {
+            "enrichment": [
+                {
+                    "id": "inat",
+                    "label": "iNaturalist",
+                    "plugin": "api_taxonomy_enricher",
+                    "enabled": True,
+                    "config": {
+                        "api_url": "https://api.inaturalist.org/v1/taxa",
+                        "profile": "inaturalist_rich",
+                        "include_occurrences": True,
+                        "include_media": True,
+                        "include_places": False,
+                        "media_limit": 4,
+                        "observation_limit": 7,
+                    },
+                }
+            ]
+        },
+    )
+
+    config = enrichment_service.get_reference_enrichment_config("taxons")
+
+    assert len(config.sources) == 1
+    source = config.sources[0]
+    assert source.id == "inat"
+    assert source.profile == "inaturalist_rich"
+    assert source.include_occurrences is True
+    assert source.include_media is True
+    assert source.include_places is False
+    assert source.media_limit == 4
+    assert source.observation_limit == 7
+
+
 def test_ensure_startable_sources_rejects_missing_api_key(monkeypatch):
     """Preview and runs should fail early when a source requires an API key but has none."""
 
