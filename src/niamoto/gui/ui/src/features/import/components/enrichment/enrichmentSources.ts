@@ -32,6 +32,10 @@ export interface ReferenceEnrichmentConfig {
     include_distributions?: boolean
     media_limit?: number
     reference_limit?: number
+    include_publication_details?: boolean
+    include_page_preview?: boolean
+    title_limit?: number
+    page_limit?: number
     rate_limit?: number
     cache_results?: boolean
     response_mapping?: Record<string, string>
@@ -61,6 +65,7 @@ const DEFAULT_PLUGIN_BY_CATEGORY: Record<ApiCategory, string> = {
 const GBIF_RICH_MATCH_URL = 'https://api.gbif.org/v2/species/match'
 const TROPICOS_RICH_SEARCH_URL = 'https://services.tropicos.org/Name/Search'
 const COL_DEFAULT_DATASET_KEY = 314774
+const BHL_API_ENDPOINT = 'https://www.biodiversitylibrary.org/api3'
 
 export function buildColSearchUrl(datasetKey: number): string {
   return `https://api.checklistbank.org/dataset/${datasetKey}/nameusage/search`
@@ -146,6 +151,8 @@ export function enrichmentToApiConfig(
         ? TROPICOS_RICH_SEARCH_URL
         : enrichment?.config?.profile === 'col_rich'
           ? (enrichment?.config?.api_url ?? buildColSearchUrl(enrichment?.config?.dataset_key ?? COL_DEFAULT_DATASET_KEY))
+        : enrichment?.config?.profile === 'bhl_references'
+          ? (enrichment?.config?.api_url ?? BHL_API_ENDPOINT)
         : enrichment?.config?.api_url ?? '',
     auth_method: (enrichment?.config?.auth_method as ApiConfig['auth_method']) ?? 'none',
     auth_params: legacyTropicos
@@ -166,6 +173,12 @@ export function enrichmentToApiConfig(
             format: String((queryParams ?? {}).format ?? 'json'),
             type: String((queryParams ?? {}).type ?? 'exact'),
           }
+        : enrichment?.config?.profile === 'bhl_references'
+          ? {
+              ...(queryParams ?? {}),
+              op: String((queryParams ?? {}).op ?? 'NameSearch'),
+              format: String((queryParams ?? {}).format ?? 'json'),
+            }
         : queryParams,
     query_field: enrichment?.config?.query_field ?? 'full_name',
     query_param_name: legacyGbif
@@ -174,6 +187,8 @@ export function enrichmentToApiConfig(
         ? 'name'
         : enrichment?.config?.profile === 'col_rich'
           ? 'q'
+        : enrichment?.config?.profile === 'bhl_references'
+          ? 'name'
         : (enrichment?.config?.query_param_name ?? 'q'),
     profile: enrichment?.config?.profile
       ?? (legacyGbif ? 'gbif_rich' : undefined)
@@ -191,6 +206,10 @@ export function enrichmentToApiConfig(
     include_distributions: enrichment?.config?.include_distributions ?? true,
     media_limit: enrichment?.config?.media_limit ?? 3,
     reference_limit: enrichment?.config?.reference_limit ?? 5,
+    include_publication_details: enrichment?.config?.include_publication_details ?? true,
+    include_page_preview: enrichment?.config?.include_page_preview ?? true,
+    title_limit: enrichment?.config?.title_limit ?? 5,
+    page_limit: enrichment?.config?.page_limit ?? 5,
     rate_limit: enrichment?.config?.rate_limit ?? 2,
     cache_results: enrichment?.config?.cache_results ?? true,
     response_mapping: legacyGbif || legacyTropicos ? {} : enrichment?.config?.response_mapping,
@@ -257,6 +276,10 @@ export function apiConfigToEnrichment(
       include_distributions: apiConfig.include_distributions,
       media_limit: apiConfig.media_limit,
       reference_limit: apiConfig.reference_limit,
+      include_publication_details: apiConfig.include_publication_details,
+      include_page_preview: apiConfig.include_page_preview,
+      title_limit: apiConfig.title_limit,
+      page_limit: apiConfig.page_limit,
       rate_limit: apiConfig.rate_limit,
       cache_results: apiConfig.cache_results,
       response_mapping: apiConfig.response_mapping,
@@ -295,6 +318,10 @@ export function createDefaultEnrichmentSource(
       include_distributions: true,
       media_limit: 3,
       reference_limit: 5,
+      include_publication_details: true,
+      include_page_preview: true,
+      title_limit: 5,
+      page_limit: 5,
       rate_limit: 2,
       cache_results: true,
       response_mapping: {},

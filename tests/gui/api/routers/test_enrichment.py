@@ -84,3 +84,64 @@ def test_preview_legacy_route_forwards_source_id(monkeypatch, gui_duckdb_client)
         "taxon_name": "Araucaria columnaris",
         "source_id": "gbif",
     }
+
+
+def test_preview_reference_route_forwards_source_override(
+    monkeypatch, gui_duckdb_client
+):
+    """Reference preview route should forward unsaved source overrides."""
+
+    captured = {}
+
+    async def fake_preview_reference(
+        reference_name: str,
+        query: str,
+        source_id: str | None = None,
+        source_override: dict | None = None,
+    ):
+        captured["reference_name"] = reference_name
+        captured["query"] = query
+        captured["source_id"] = source_id
+        captured["source_override"] = source_override
+        return PreviewResponse(success=True, entity_name=query, results=[])
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "preview_reference_enrichment",
+        fake_preview_reference,
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/enrichment/preview/taxons",
+        json={
+            "query": "Alphitonia neocaledonica",
+            "source_id": "source-4",
+            "source_config": {
+                "id": "source-4",
+                "label": "BHL",
+                "plugin": "api_taxonomy_enricher",
+                "enabled": False,
+                "config": {
+                    "profile": "bhl_references",
+                    "api_url": "https://www.biodiversitylibrary.org/api3",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured == {
+        "reference_name": "taxons",
+        "query": "Alphitonia neocaledonica",
+        "source_id": "source-4",
+        "source_override": {
+            "id": "source-4",
+            "label": "BHL",
+            "plugin": "api_taxonomy_enricher",
+            "enabled": False,
+            "config": {
+                "profile": "bhl_references",
+                "api_url": "https://www.biodiversitylibrary.org/api3",
+            },
+        },
+    }

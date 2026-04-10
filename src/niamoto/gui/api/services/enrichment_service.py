@@ -52,6 +52,7 @@ GBIF_RICH_MATCH_URL = "https://api.gbif.org/v2/species/match"
 TROPICOS_RICH_SEARCH_URL = "https://services.tropicos.org/Name/Search"
 COL_DEFAULT_DATASET_KEY = 314774
 COL_API_BASE = "https://api.checklistbank.org"
+BHL_API_ENDPOINT = "https://www.biodiversitylibrary.org/api3"
 
 
 class EnrichmentSourceConfig(BaseModel):
@@ -78,6 +79,10 @@ class EnrichmentSourceConfig(BaseModel):
     include_distributions: bool = True
     media_limit: int = 3
     reference_limit: int = 5
+    include_publication_details: bool = True
+    include_page_preview: bool = True
+    title_limit: int = 5
+    page_limit: int = 5
     response_mapping: Dict[str, str] = Field(default_factory=dict)
     rate_limit: float = 1.0
     cache_results: bool = True
@@ -118,6 +123,10 @@ class EnrichmentSourceConfig(BaseModel):
                 "include_distributions": self.include_distributions,
                 "media_limit": self.media_limit,
                 "reference_limit": self.reference_limit,
+                "include_publication_details": self.include_publication_details,
+                "include_page_preview": self.include_page_preview,
+                "title_limit": self.title_limit,
+                "page_limit": self.page_limit,
                 "rate_limit": self.rate_limit,
                 "cache_results": self.cache_results,
                 "response_mapping": self.response_mapping or {},
@@ -353,23 +362,28 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                                     )
                                 )
                                 if config.get("profile") == "col_rich"
-                                else ""
+                                else (
+                                    BHL_API_ENDPOINT
+                                    if config.get("profile") == "bhl_references"
+                                    else ""
+                                )
                             )
                         )
                     )
                 ),
                 query_field=config.get("query_field", "full_name"),
-                query_param_name=(
+                query_param_name=config.get("query_param_name", "q")
+                if config.get("profile") not in {"col_rich", "bhl_references"}
+                and not is_legacy_gbif
+                and not is_legacy_tropicos
+                else (
                     "scientificName"
                     if is_legacy_gbif
                     else (
                         "name"
                         if is_legacy_tropicos
-                        else (
-                            "q"
-                            if config.get("profile") == "col_rich"
-                            else config.get("query_param_name", "q")
-                        )
+                        or config.get("profile") == "bhl_references"
+                        else "q"
                     )
                 ),
                 profile=(
@@ -399,6 +413,12 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                 include_distributions=bool(config.get("include_distributions", True)),
                 media_limit=int(config.get("media_limit", 3)),
                 reference_limit=int(config.get("reference_limit", 5)),
+                include_publication_details=bool(
+                    config.get("include_publication_details", True)
+                ),
+                include_page_preview=bool(config.get("include_page_preview", True)),
+                title_limit=int(config.get("title_limit", 5)),
+                page_limit=int(config.get("page_limit", 5)),
                 response_mapping=(
                     {}
                     if is_legacy_gbif or is_legacy_tropicos
@@ -437,7 +457,23 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
                             ),
                         }
                         if is_legacy_tropicos
-                        else config.get("query_params") or {}
+                        else (
+                            {
+                                **(config.get("query_params") or {}),
+                                "op": str(
+                                    (config.get("query_params") or {}).get(
+                                        "op", "NameSearch"
+                                    )
+                                ),
+                                "format": str(
+                                    (config.get("query_params") or {}).get(
+                                        "format", "json"
+                                    )
+                                ),
+                            }
+                            if config.get("profile") == "bhl_references"
+                            else config.get("query_params") or {}
+                        )
                     )
                 ),
                 chained_endpoints=config.get("chained_endpoints") or [],
@@ -922,6 +958,10 @@ def _build_plugin_config(
             "include_distributions": source.include_distributions,
             "media_limit": source.media_limit,
             "reference_limit": source.reference_limit,
+            "include_publication_details": source.include_publication_details,
+            "include_page_preview": source.include_page_preview,
+            "title_limit": source.title_limit,
+            "page_limit": source.page_limit,
             "response_mapping": source.response_mapping,
             "rate_limit": source.rate_limit,
             "cache_results": source.cache_results
@@ -1000,8 +1040,62 @@ def _ensure_startable_sources(
     for source in sources:
         if not source.api_url:
             raise ValueError(f"No API URL configured for source '{source.label}'")
+        if (
+            source.auth_method == "api_key"
+            and not str((source.auth_params or {}).get("key") or "").strip()
+        ):
+            raise ValueError(f"Missing API key for source '{source.label}'")
 
     return sources
+
+
+def _ensure_override_sources(
+    source_override: Dict[str, Any], source_id: Optional[str] = None
+) -> List[EnrichmentSourceConfig]:
+    """Validate and return previewable sources from an unsaved override."""
+
+    override_entry = dict(source_override)
+    if source_id and not override_entry.get("id"):
+        override_entry["id"] = source_id
+
+    sources = _normalize_source_entries([override_entry])
+    if not sources:
+        raise ValueError("No enrichment source configuration provided for preview")
+
+    if source_id:
+        matching_source = next(
+            (source for source in sources if source.id == source_id), None
+        )
+        if not matching_source:
+            raise ValueError(f"No enrichment source '{source_id}' provided for preview")
+        sources = [matching_source]
+
+    for source in sources:
+        if not source.api_url:
+            raise ValueError(f"No API URL configured for source '{source.label}'")
+        if (
+            source.auth_method == "api_key"
+            and not str((source.auth_params or {}).get("key") or "").strip()
+        ):
+            raise ValueError(f"Missing API key for source '{source.label}'")
+
+    return sources
+
+
+def _preview_config_used(source: EnrichmentSourceConfig) -> Dict[str, Any]:
+    """Return the safe subset of source config exposed in preview responses."""
+
+    return {
+        "api_url": source.api_url,
+        "query_field": source.query_field,
+        "profile": source.profile,
+        "use_name_verifier": source.use_name_verifier,
+        "dataset_key": source.dataset_key,
+        "include_publication_details": source.include_publication_details,
+        "include_page_preview": source.include_page_preview,
+        "title_limit": source.title_limit,
+        "page_limit": source.page_limit,
+    }
 
 
 def _get_current_job(reference_name: Optional[str] = None) -> Optional[EnrichmentJob]:
@@ -1465,17 +1559,23 @@ async def preview_reference_enrichment(
     reference_name: str,
     query: str,
     source_id: Optional[str] = None,
+    source_override: Optional[Dict[str, Any]] = None,
 ) -> PreviewResponse:
     """Preview enrichment for one entity across one or many sources."""
 
     try:
-        sources = _ensure_startable_sources(reference_name, source_id)
+        sources = (
+            _ensure_override_sources(source_override, source_id)
+            if source_override is not None
+            else _ensure_startable_sources(reference_name, source_id)
+        )
     except ValueError as exc:
         return PreviewResponse(success=False, entity_name=query, error=str(exc))
 
     results: List[PreviewSourceResult] = []
 
     for source in sources:
+        config_used = _preview_config_used(source)
         try:
             enricher = _build_enricher(source.plugin)
             payload = {source.query_field: query}
@@ -1500,13 +1600,7 @@ async def preview_reference_enrichment(
                     success=True,
                     data=source_data,
                     raw_data=raw_data,
-                    config_used={
-                        "api_url": source.api_url,
-                        "query_field": source.query_field,
-                        "profile": source.profile,
-                        "use_name_verifier": source.use_name_verifier,
-                        "dataset_key": source.dataset_key,
-                    },
+                    config_used=config_used,
                 )
             )
         except asyncio.TimeoutError:
@@ -1516,6 +1610,7 @@ async def preview_reference_enrichment(
                     source_label=source.label,
                     success=False,
                     error="Preview timeout after 10 seconds",
+                    config_used=config_used,
                 )
             )
         except Exception as exc:
@@ -1525,6 +1620,7 @@ async def preview_reference_enrichment(
                     source_label=source.label,
                     success=False,
                     error=str(exc),
+                    config_used=config_used,
                 )
             )
 

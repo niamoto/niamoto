@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -47,6 +47,7 @@ class ReferencePreviewRequest(BaseModel):
 
     query: str
     source_id: Optional[str] = None
+    source_config: Optional[dict[str, Any]] = None
 
 
 def _raise_http_error(message: str) -> None:
@@ -261,7 +262,10 @@ async def preview_enrichment_for_reference(
     """Preview one query against one or many configured sources."""
 
     return await preview_reference_enrichment(
-        reference_name, request.query, source_id=request.source_id
+        reference_name,
+        request.query,
+        source_id=request.source_id,
+        source_override=request.source_config,
     )
 
 

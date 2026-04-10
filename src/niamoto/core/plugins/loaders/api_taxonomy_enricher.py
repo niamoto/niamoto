@@ -24,6 +24,7 @@ COL_API_BASE = "https://api.checklistbank.org"
 COL_DEFAULT_DATASET_KEY = 314774
 TROPICOS_SEARCH_ENDPOINT = "https://services.tropicos.org/Name/Search"
 TROPICOS_NAME_ENDPOINT = "https://services.tropicos.org/Name"
+BHL_API_ENDPOINT = "https://www.biodiversitylibrary.org/api3"
 GN_VERIFIER_ENDPOINT = "https://resolver.globalnames.org/api/v1/verifications"
 GN_DEFAULT_SOURCE_IDS_BY_PROFILE = {
     "gbif_rich": 11,
@@ -162,6 +163,28 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
         description="Maximum number of references to keep in structured provider summaries",
         json_schema_extra={"ui:widget": "number"},
     )
+    include_publication_details: bool = Field(
+        default=True,
+        description="Whether to include publication details for BHL structured profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    include_page_preview: bool = Field(
+        default=True,
+        description="Whether to include representative page previews for BHL structured profiles",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    title_limit: int = Field(
+        default=5,
+        ge=0,
+        description="Maximum number of BHL titles to keep in structured provider summaries",
+        json_schema_extra={"ui:widget": "number"},
+    )
+    page_limit: int = Field(
+        default=5,
+        ge=0,
+        description="Maximum number of BHL pages to keep in structured provider summaries",
+        json_schema_extra={"ui:widget": "number"},
+    )
     response_mapping: Dict[str, str] = Field(
         ...,
         description="Mapping between API response fields and extra_data fields",
@@ -200,7 +223,7 @@ class ApiTaxonomyEnricherParams(BasePluginParams):
     @model_validator(mode="after")
     def check_response_mapping(self):
         """Validate that response mapping is properly formatted"""
-        if self.profile in {"gbif_rich", "tropicos_rich", "col_rich"}:
+        if self.profile in {"gbif_rich", "tropicos_rich", "col_rich", "bhl_references"}:
             return self
         if not self.response_mapping:
             raise ValueError("response_mapping cannot be empty")
@@ -331,6 +354,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
             f"::{params.include_references}::{params.include_vernaculars}"
             f"::{params.include_distributions}::{params.media_limit}::{params.reference_limit}"
+            f"::{params.include_publication_details}::{params.include_page_preview}"
+            f"::{params.title_limit}::{params.page_limit}"
             f"::{query_value}"
         )
         if params.cache_results and cache_key in self._cache:
@@ -426,6 +451,21 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     params=params,
                     name_resolution=name_resolution_summary,
                     name_resolution_raw=name_resolution_raw,
+                )
+                if params.cache_results and result.get("api_enrichment"):
+                    self._cache[cache_key] = {
+                        "mapped": result.get("api_enrichment", {}),
+                        "processed": result.get("api_response_processed"),
+                        "raw": result.get("api_response_raw"),
+                    }
+                return result
+
+            if params.profile == "bhl_references":
+                result = self._load_bhl_references_data(
+                    taxon_data=taxon_data,
+                    query_value=resolved_query_value,
+                    submitted_query_value=str(query_value),
+                    params=params,
                 )
                 if params.cache_results and result.get("api_enrichment"):
                     self._cache[cache_key] = {
@@ -1154,6 +1194,140 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         )
         self.log_messages.append(
             f"[green][{emoji('✓', '[OK]')}] Catalogue of Life data successfully retrieved for {query_value}[/green]"
+        )
+
+        return {
+            **taxon_data,
+            "api_enrichment": summary,
+            "api_response_processed": processed_payload,
+            "api_response_raw": raw_payload,
+        }
+
+    def _load_bhl_references_data(
+        self,
+        taxon_data: Dict[str, Any],
+        query_value: str,
+        submitted_query_value: str,
+        params: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Load a structured BHL references summary."""
+
+        summary: Dict[str, Any] = {
+            "match": {},
+            "title_summary": {},
+            "publications": {},
+            "name_mentions": {},
+            "page_links": {},
+            "references_count": {},
+            "links": {},
+            "block_status": {
+                "match": "pending",
+                "title_summary": "pending",
+                "name_mentions": "pending",
+                "publications": (
+                    "disabled" if not params.include_publication_details else "pending"
+                ),
+                "page_links": (
+                    "disabled" if not params.include_page_preview else "pending"
+                ),
+            },
+            "block_errors": {},
+            "provenance": {
+                "profile": "bhl_references",
+                "profile_version": "bhl-references-v1",
+                "query": query_value,
+                "query_submitted": submitted_query_value,
+                "query_used": query_value,
+                "endpoints": ["NameSearch", "GetNameMetadata"],
+            },
+        }
+        raw_payload: Dict[str, Any] = {}
+        processed_payload: Dict[str, Any] = {}
+
+        match_summary, match_raw, matched_query = self._bhl_name_search(
+            query_value, params
+        )
+        raw_payload["match"] = match_raw
+        processed_payload["match"] = match_summary
+        summary["match"] = match_summary
+        summary["provenance"]["query_used"] = matched_query
+        summary["links"] = self._bhl_build_links(
+            match_summary.get("name_confirmed") or matched_query
+        )
+
+        (
+            metadata_summary,
+            metadata_raw,
+            title_candidates,
+            page_candidates,
+        ) = self._bhl_name_metadata(matched_query, params)
+        raw_payload["name_metadata"] = metadata_raw
+
+        summary["match"] = {**summary["match"], **metadata_summary.get("match", {})}
+        summary["title_summary"] = metadata_summary.get("title_summary", {})
+        summary["name_mentions"] = metadata_summary.get("name_mentions", {})
+        summary["references_count"] = metadata_summary.get("references_count", {})
+        processed_payload["match"] = summary["match"]
+        processed_payload["title_summary"] = summary["title_summary"]
+        processed_payload["name_mentions"] = summary["name_mentions"]
+        processed_payload["references_count"] = summary["references_count"]
+
+        if (
+            not summary["match"].get("name_confirmed")
+            and not summary["references_count"].get("titles")
+            and not summary["references_count"].get("pages")
+        ):
+            summary["block_status"]["match"] = "no_match"
+            summary["block_status"]["title_summary"] = "no_match"
+            summary["block_status"]["name_mentions"] = "no_match"
+            summary["provenance"]["outcome"] = "no_match"
+            self.log_messages.append(
+                f"[yellow]No BHL references found for {query_value}[/yellow]"
+            )
+            return {
+                **taxon_data,
+                "api_enrichment": summary,
+                "api_response_processed": processed_payload,
+                "api_response_raw": raw_payload,
+            }
+
+        summary["block_status"]["match"] = "complete"
+        summary["block_status"]["title_summary"] = "complete"
+        summary["block_status"]["name_mentions"] = "complete"
+
+        if params.include_publication_details:
+            try:
+                publications_summary, publications_raw = self._bhl_publications(
+                    title_candidates, params
+                )
+                summary["publications"] = publications_summary
+                summary["block_status"]["publications"] = "complete"
+                processed_payload["publications"] = publications_summary
+                raw_payload["publications"] = publications_raw
+                summary["provenance"]["endpoints"].append("GetTitleMetadata")
+            except Exception as exc:
+                summary["block_status"]["publications"] = "error"
+                summary["block_errors"]["publications"] = str(exc)
+
+        if params.include_page_preview:
+            try:
+                page_links_summary, page_links_raw = self._bhl_page_links(
+                    page_candidates, params
+                )
+                summary["page_links"] = page_links_summary
+                summary["block_status"]["page_links"] = "complete"
+                processed_payload["page_links"] = page_links_summary
+                raw_payload["page_links"] = page_links_raw
+                summary["provenance"]["endpoints"].append("GetPageMetadata")
+            except Exception as exc:
+                summary["block_status"]["page_links"] = "error"
+                summary["block_errors"]["page_links"] = str(exc)
+
+        summary["provenance"]["outcome"] = (
+            "partial" if summary["block_errors"] else "complete"
+        )
+        self.log_messages.append(
+            f"[green][{emoji('✓', '[OK]')}] BHL data successfully retrieved for {query_value}[/green]"
         )
 
         return {
@@ -2291,6 +2465,410 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             links["source_record"] = source_link
         return links
 
+    def _bhl_name_search(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[Dict[str, Any], Dict[str, Any], str]:
+        """Resolve a BHL name match summary and the best query value for metadata."""
+
+        raw = self._bhl_request_json(
+            "NameSearch",
+            {"name": query_value},
+            params,
+        )
+        items = self._bhl_result_items(raw)
+        selected = self._bhl_select_name_match(items, query_value)
+        confirmed_name = (
+            self._coerce_string(selected.get("NameConfirmed")) or query_value
+        )
+        canonical_name = (
+            self._coerce_string(selected.get("NameCanonical")) or confirmed_name
+        )
+        namebank_id = self._coerce_string(
+            selected.get("NameBankID")
+            or selected.get("NameBankId")
+            or selected.get("NamebankID")
+        )
+
+        return (
+            {
+                "submitted_name": query_value,
+                "name_confirmed": confirmed_name,
+                "name_canonical": canonical_name,
+                "namebank_id": namebank_id,
+                "match_status": "confirmed" if items else "no_match",
+            },
+            raw,
+            confirmed_name or query_value,
+        )
+
+    def _bhl_name_metadata(
+        self, query_value: str, params: ApiTaxonomyEnricherParams
+    ) -> tuple[
+        Dict[str, Any], Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]
+    ]:
+        """Build core BHL documentary blocks from name metadata."""
+
+        raw = self._bhl_request_json(
+            "GetNameMetadata",
+            {"name": query_value},
+            params,
+        )
+        items = self._bhl_result_items(raw)
+        first_item = items[0] if items else {}
+
+        titles = self._bhl_collect_titles(raw)
+        item_ids = self._bhl_collect_item_ids(raw)
+        pages = self._bhl_collect_pages(raw)
+        mentions = self._bhl_collect_name_mentions(raw)
+
+        match_summary = {
+            "name_confirmed": self._coerce_string(
+                first_item.get("NameConfirmed") or query_value
+            ),
+            "name_canonical": self._coerce_string(
+                first_item.get("NameCanonical")
+                or first_item.get("NameConfirmed")
+                or query_value
+            ),
+            "namebank_id": self._coerce_string(
+                first_item.get("NameBankID")
+                or first_item.get("NameBankId")
+                or first_item.get("NamebankID")
+            ),
+            "match_status": "confirmed" if items or titles or pages else "no_match",
+        }
+
+        return (
+            {
+                "match": match_summary,
+                "title_summary": {
+                    "title_count": len(titles),
+                    "item_count": len(item_ids),
+                    "page_count": len(pages),
+                },
+                "name_mentions": {
+                    "mentions_count": len(mentions),
+                    "sample": mentions[:10],
+                },
+                "references_count": {
+                    "titles": len(titles),
+                    "items": len(item_ids),
+                    "pages": len(pages),
+                },
+            },
+            raw,
+            titles,
+            pages,
+        )
+
+    def _bhl_publications(
+        self,
+        title_candidates: List[Dict[str, Any]],
+        params: ApiTaxonomyEnricherParams,
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Hydrate representative BHL publication summaries."""
+
+        items: List[Dict[str, Any]] = []
+        raw_payload: List[Dict[str, Any]] = []
+
+        for candidate in title_candidates[: params.title_limit]:
+            title_id = self._coerce_string(candidate.get("title_id"))
+            if not title_id:
+                continue
+
+            detail_raw = self._bhl_request_json(
+                "GetTitleMetadata",
+                {"id": title_id, "idtype": "bhl", "items": "true"},
+                params,
+            )
+            raw_payload.append(detail_raw)
+            detail_item = (
+                self._bhl_result_items(detail_raw)[0]
+                if self._bhl_result_items(detail_raw)
+                else {}
+            )
+            item_count = len(self._bhl_collect_item_ids(detail_raw))
+
+            items.append(
+                {
+                    "title_id": title_id,
+                    "short_title": self._coerce_string(
+                        detail_item.get("ShortTitle")
+                        or detail_item.get("Title")
+                        or candidate.get("short_title")
+                        or candidate.get("full_title")
+                    ),
+                    "full_title": self._coerce_string(
+                        detail_item.get("FullTitle")
+                        or candidate.get("full_title")
+                        or candidate.get("short_title")
+                    ),
+                    "publication_date": self._coerce_string(
+                        detail_item.get("PublicationDate")
+                        or detail_item.get("Date")
+                        or candidate.get("publication_date")
+                    ),
+                    "publisher_name": self._coerce_string(
+                        detail_item.get("PublisherName")
+                        or candidate.get("publisher_name")
+                    ),
+                    "title_url": self._coerce_string(
+                        detail_item.get("TitleUrl") or candidate.get("title_url")
+                    ),
+                    "item_count": item_count,
+                }
+            )
+
+        return (
+            {
+                "sample": items,
+            },
+            raw_payload,
+        )
+
+    def _bhl_page_links(
+        self,
+        page_candidates: List[Dict[str, Any]],
+        params: ApiTaxonomyEnricherParams,
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Hydrate representative BHL page summaries."""
+
+        items: List[Dict[str, Any]] = []
+        raw_payload: List[Dict[str, Any]] = []
+
+        for candidate in page_candidates[: params.page_limit]:
+            page_id = self._coerce_string(candidate.get("page_id"))
+            if not page_id:
+                continue
+
+            detail_raw = self._bhl_request_json(
+                "GetPageMetadata",
+                {"pageid": page_id},
+                params,
+            )
+            raw_payload.append(detail_raw)
+            detail_item = (
+                self._bhl_result_items(detail_raw)[0]
+                if self._bhl_result_items(detail_raw)
+                else {}
+            )
+            page_types = detail_item.get("PageTypes")
+            page_type = ""
+            if isinstance(page_types, list) and page_types:
+                first_page_type = page_types[0]
+                if isinstance(first_page_type, dict):
+                    page_type = self._coerce_string(first_page_type.get("PageTypeName"))
+
+            items.append(
+                {
+                    "page_id": page_id,
+                    "page_url": self._coerce_string(
+                        detail_item.get("PageUrl") or candidate.get("page_url")
+                    ),
+                    "thumbnail_url": self._coerce_string(
+                        detail_item.get("ThumbnailUrl")
+                        or candidate.get("thumbnail_url")
+                    ),
+                    "page_type": page_type
+                    or self._coerce_string(candidate.get("page_type")),
+                    "ocr_url": self._coerce_string(detail_item.get("OcrUrl")),
+                }
+            )
+
+        return (
+            {
+                "sample": items,
+            },
+            raw_payload,
+        )
+
+    def _bhl_api_key(self, params: ApiTaxonomyEnricherParams) -> str:
+        """Resolve the BHL API key from query-based api_key auth."""
+
+        if params.auth_method != "api_key":
+            raise ValueError("BHL requires API key authentication")
+
+        auth_location = params.auth_params.get("location", "query").lower()
+        if auth_location != "query":
+            raise ValueError("BHL requires query-based API key authentication")
+
+        api_key = self._get_secure_value(params.auth_params.get("key", ""))
+        if not api_key.strip():
+            raise ValueError("Missing BHL API key")
+        return api_key.strip()
+
+    def _bhl_request_json(
+        self,
+        operation: str,
+        request_params: Dict[str, Any],
+        params_model: ApiTaxonomyEnricherParams,
+    ) -> Dict[str, Any]:
+        """Perform a BHL API request and validate the wrapped response."""
+
+        api_key = self._bhl_api_key(params_model)
+        raw = self._request_json(
+            params_model.api_url or BHL_API_ENDPOINT,
+            {
+                "op": operation,
+                "format": "json",
+                "apikey": api_key,
+                **(request_params or {}),
+            },
+        )
+        status = self._coerce_string(raw.get("Status")).lower()
+        if status and status != "ok":
+            raise ValueError(
+                self._coerce_string(raw.get("ErrorMessage"))
+                or f"BHL request failed for operation {operation}"
+            )
+        return raw
+
+    def _bhl_result_items(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return BHL Result items as a list of dictionaries."""
+
+        result = payload.get("Result")
+        if isinstance(result, list):
+            return [item for item in result if isinstance(item, dict)]
+        if isinstance(result, dict):
+            return [result]
+        return []
+
+    def _bhl_select_name_match(
+        self, candidates: List[Dict[str, Any]], query_value: str
+    ) -> Dict[str, Any]:
+        """Pick the best BHL name match for a query."""
+
+        if not candidates:
+            return {}
+
+        normalized_query = self._normalize_taxon_text(query_value)
+
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int]:
+            confirmed = self._normalize_taxon_text(candidate.get("NameConfirmed"))
+            canonical = self._normalize_taxon_text(candidate.get("NameCanonical"))
+            exact_confirmed = 1 if confirmed == normalized_query else 0
+            exact_canonical = 1 if canonical == normalized_query else 0
+            has_namebank = (
+                1
+                if self._coerce_string(
+                    candidate.get("NameBankID")
+                    or candidate.get("NameBankId")
+                    or candidate.get("NamebankID")
+                )
+                else 0
+            )
+            return (exact_confirmed, exact_canonical, has_namebank)
+
+        return max(candidates, key=score)
+
+    def _bhl_build_links(self, query_value: str) -> Dict[str, str]:
+        """Build public BHL links for a matched name."""
+
+        return {
+            "name_search": f"https://www.biodiversitylibrary.org/name/{quote_plus(query_value)}",
+        }
+
+    def _bhl_collect_titles(self, payload: Any) -> List[Dict[str, Any]]:
+        """Collect unique title candidates from nested BHL payloads."""
+
+        titles: Dict[str, Dict[str, Any]] = {}
+        for item in self._walk_nested_dicts(payload):
+            title_id = self._coerce_string(item.get("TitleID"))
+            title_url = self._coerce_string(item.get("TitleUrl"))
+            full_title = self._coerce_string(item.get("FullTitle") or item.get("Title"))
+            short_title = self._coerce_string(item.get("ShortTitle"))
+            if not any((title_id, title_url, full_title, short_title)):
+                continue
+
+            key = title_id or title_url or full_title or short_title
+            titles[key] = {
+                "title_id": title_id,
+                "title_url": title_url,
+                "full_title": full_title,
+                "short_title": short_title or full_title,
+                "publication_date": self._coerce_string(
+                    item.get("PublicationDate") or item.get("Date")
+                ),
+                "publisher_name": self._coerce_string(item.get("PublisherName")),
+            }
+
+        return list(titles.values())
+
+    def _bhl_collect_item_ids(self, payload: Any) -> List[str]:
+        """Collect unique BHL item ids from nested payloads."""
+
+        item_ids: List[str] = []
+        for item in self._walk_nested_dicts(payload):
+            item_id = self._coerce_string(item.get("ItemID"))
+            if item_id and item_id not in item_ids:
+                item_ids.append(item_id)
+        return item_ids
+
+    def _bhl_collect_pages(self, payload: Any) -> List[Dict[str, Any]]:
+        """Collect unique BHL page candidates from nested payloads."""
+
+        pages: Dict[str, Dict[str, Any]] = {}
+        for item in self._walk_nested_dicts(payload):
+            page_id = self._coerce_string(item.get("PageID"))
+            page_url = self._coerce_string(item.get("PageUrl"))
+            thumbnail_url = self._coerce_string(item.get("ThumbnailUrl"))
+            if not any((page_id, page_url, thumbnail_url)):
+                continue
+
+            page_types = item.get("PageTypes")
+            page_type = ""
+            if isinstance(page_types, list) and page_types:
+                first_page_type = page_types[0]
+                if isinstance(first_page_type, dict):
+                    page_type = self._coerce_string(first_page_type.get("PageTypeName"))
+
+            key = page_id or page_url or thumbnail_url
+            pages[key] = {
+                "page_id": page_id,
+                "page_url": page_url,
+                "thumbnail_url": thumbnail_url,
+                "page_type": page_type,
+            }
+
+        return list(pages.values())
+
+    def _bhl_collect_name_mentions(self, payload: Any) -> List[Dict[str, Any]]:
+        """Collect unique BHL name mentions from nested payloads."""
+
+        mentions: Dict[str, Dict[str, Any]] = {}
+        for item in self._walk_nested_dicts(payload):
+            name_found = self._coerce_string(item.get("NameFound"))
+            name_confirmed = self._coerce_string(item.get("NameConfirmed"))
+            name_canonical = self._coerce_string(item.get("NameCanonical"))
+            if not any((name_found, name_confirmed, name_canonical)):
+                continue
+
+            key = name_confirmed or name_canonical or name_found
+            mentions[key] = {
+                "name_found": name_found,
+                "name_confirmed": name_confirmed,
+                "name_canonical": name_canonical,
+            }
+
+        return list(mentions.values())
+
+    def _walk_nested_dicts(self, payload: Any) -> List[Dict[str, Any]]:
+        """Return every nested dictionary found in a payload tree."""
+
+        items: List[Dict[str, Any]] = []
+
+        def visit(value: Any) -> None:
+            if isinstance(value, dict):
+                items.append(value)
+                for nested in value.values():
+                    visit(nested)
+            elif isinstance(value, list):
+                for nested in value:
+                    visit(nested)
+
+        visit(payload)
+        return items
+
     def _gbif_extract_iucn_category(
         self, iucn_raw: Any, detail_raw: Dict[str, Any]
     ) -> Optional[str]:
@@ -2353,7 +2931,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         if not isinstance(payload, dict):
             return []
 
-        for key in ("results", "result", "data", "items", "records"):
+        for key in ("results", "result", "data", "items", "records", "Result"):
             value = payload.get(key)
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]

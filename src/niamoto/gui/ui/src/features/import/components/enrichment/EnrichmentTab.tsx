@@ -325,7 +325,11 @@ const isStructuredSourceSummary = (data: Record<string, any> | undefined): boole
         'nomenclature' in data ||
         'vernaculars' in data ||
         'references' in data ||
-        'distribution_summary' in data
+        'distribution_summary' in data ||
+        'title_summary' in data ||
+        'name_mentions' in data ||
+        'page_links' in data ||
+        'references_count' in data
       )
   )
 
@@ -767,6 +771,153 @@ const renderTropicosStructuredSummary = (
   )
 }
 
+const renderBhlStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const match = data.match ?? {}
+  const titleSummary = data.title_summary ?? {}
+  const publications = data.publications ?? {}
+  const nameMentions = data.name_mentions ?? {}
+  const pageLinks = data.page_links ?? {}
+  const referencesCount = data.references_count ?? {}
+  const links = data.links ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+  const noMatch =
+    blockStatus.match === 'no_match' ||
+    (!match.name_confirmed && !referencesCount.titles && !referencesCount.pages)
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      <div className="rounded-lg border border-border/70 bg-background p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">Match</div>
+          {renderStatusPill(blockStatus.match)}
+        </div>
+        {noMatch ? (
+          <div className="text-sm text-muted-foreground">
+            {t('dashboard.enrichment.structured.noMatch', {
+              defaultValue: "BHL n’a pas retourné de référence exploitable pour ce test.",
+            })}
+          </div>
+        ) : (
+          renderSummaryRows([
+            ['submitted_name', match.submitted_name],
+            ['name_confirmed', match.name_confirmed],
+            ['name_canonical', match.name_canonical],
+            ['namebank_id', match.namebank_id],
+            ['match_status', match.match_status],
+          ])
+        )}
+      </div>
+
+      {!noMatch ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Titles</div>
+              {renderStatusPill(blockStatus.title_summary)}
+            </div>
+            {blockErrors.title_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.title_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['title_count', titleSummary.title_count ?? referencesCount.titles],
+                  ['item_count', titleSummary.item_count ?? referencesCount.items],
+                  ['page_count', titleSummary.page_count ?? referencesCount.pages],
+                ])}
+                {blockErrors.publications ? (
+                  <div className="text-sm text-muted-foreground">{String(blockErrors.publications)}</div>
+                ) : Array.isArray(publications.sample) && publications.sample.length > 0 ? (
+                  <div className="space-y-2">
+                    {publications.sample.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.title_id || item.title_url || index}`} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">{item.short_title || item.full_title || 'Title'}</div>
+                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          {item.publication_date ? <div>{item.publication_date}</div> : null}
+                          {item.publisher_name ? <div>{item.publisher_name}</div> : null}
+                          {item.item_count !== undefined ? <div>{String(item.item_count)} item(s)</div> : null}
+                          {item.title_url ? <div className="break-words">{item.title_url}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Mentions</div>
+              {renderStatusPill(blockStatus.name_mentions)}
+            </div>
+            {blockErrors.name_mentions ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.name_mentions)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['mentions_count', nameMentions.mentions_count]])}
+                {Array.isArray(nameMentions.sample) && nameMentions.sample.length > 0 ? (
+                  <div className="space-y-2">
+                    {nameMentions.sample.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.name_confirmed || item.name_found || index}`} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">{item.name_confirmed || item.name_found || 'Mention'}</div>
+                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          {item.name_found ? <div>Found: {item.name_found}</div> : null}
+                          {item.name_canonical ? <div>Canonical: {item.name_canonical}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Pages</div>
+              {renderStatusPill(blockStatus.page_links)}
+            </div>
+            {blockErrors.page_links ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.page_links)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['pages', referencesCount.pages]])}
+                {Array.isArray(pageLinks.sample) && pageLinks.sample.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {pageLinks.sample.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.page_id || item.page_url || index}`} className="rounded-md border p-3">
+                        <div className="mb-2">{renderValue(item.thumbnail_url || item.page_url || item.page_id)}</div>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {item.page_id ? <div>Page {String(item.page_id)}</div> : null}
+                          {item.page_type ? <div>{item.page_type}</div> : null}
+                          {item.page_url ? <div className="break-words">{item.page_url}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : blockStatus.page_links === 'disabled' ? (
+                  <div className="text-sm text-muted-foreground">Page preview disabled.</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {Object.keys(links).length > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-background p-3">
+              <div className="mb-3 text-sm font-semibold">Links</div>
+              {renderSummaryRows(Object.entries(links))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 const renderColStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
@@ -1006,6 +1157,15 @@ const renderStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
 ) => {
+  if (
+    data?.provenance?.profile === 'bhl_references' ||
+    'title_summary' in data ||
+    'name_mentions' in data ||
+    'page_links' in data
+  ) {
+    return renderBhlStructuredSummary(data, t)
+  }
+
   if (
     data?.provenance?.profile === 'col_rich' ||
     'vernaculars' in data
@@ -1677,6 +1837,9 @@ export function EnrichmentTab({
     if (!query) return
     const nextScope = scopeOverride ?? previewScope
     const requestId = ++previewRequestRef.current
+    const previewSourceOverride = nextScope === 'all'
+      ? undefined
+      : sources.find((source) => source.id === nextScope)
 
     setPreviewLoading(true)
     setPreviewError(null)
@@ -1691,6 +1854,9 @@ export function EnrichmentTab({
         {
           query,
           source_id: nextScope === 'all' ? undefined : nextScope,
+          source_config: previewSourceOverride
+            ? apiConfigToEnrichment(previewSourceOverride, previewSourceOverride.config)
+            : undefined,
         }
       )
       if (requestId !== previewRequestRef.current) {
