@@ -301,6 +301,12 @@
       "paramName": "Nom du paramètre",
       "value": "Valeur",
       "testFailed": "Test de l'API échoué",
+      "nameResolution": {
+        "title": "Pré-résolution du nom",
+        "description": "Utilise Global Names Verifier pour normaliser le nom scientifique avant d'interroger la source structurée.",
+        "enable": "Activer la pré-résolution",
+        "enableDescription": "Améliore les correspondances en nettoyant le nom soumis sans bloquer l'enrichissement en cas d'échec."
+      },
       "links": {
         "website": "Site officiel",
         "apiDocs": "Documentation API"

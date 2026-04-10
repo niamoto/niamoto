@@ -50,6 +50,9 @@ export interface ApiConfig {
   query_field: string
   query_param_name?: string  // Name of the query parameter (default: 'q')
   profile?: string
+  use_name_verifier?: boolean
+  name_verifier_preferred_sources?: string[]
+  name_verifier_threshold?: number
   taxonomy_source?: string
   dataset_key?: number
   include_taxonomy?: boolean
@@ -92,6 +95,9 @@ interface PresetAPI {
     query_params?: Record<string, string>
     query_param_name?: string
     profile?: string
+    use_name_verifier?: boolean
+    name_verifier_preferred_sources?: string[]
+    name_verifier_threshold?: number
     taxonomy_source?: string
     dataset_key?: number
     include_taxonomy?: boolean
@@ -486,6 +492,9 @@ export function ApiEnrichmentConfig({
         query_params: preset.config.query_params ? { ...preset.config.query_params } : {},
         query_param_name: preset.config.query_param_name || 'q',
         profile: preset.config.profile,
+        use_name_verifier: preset.config.use_name_verifier ?? false,
+        name_verifier_preferred_sources: preset.config.name_verifier_preferred_sources ?? [],
+        name_verifier_threshold: preset.config.name_verifier_threshold,
         taxonomy_source: preset.config.taxonomy_source,
         dataset_key: preset.config.dataset_key,
         include_taxonomy: preset.config.include_taxonomy ?? true,
@@ -1056,6 +1065,32 @@ export function ApiEnrichmentConfig({
                         }
                       />
                     </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {isStructuredProfile ? (
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <Label>{t('apiEnrichment.connection.nameResolution.title')}</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('apiEnrichment.connection.nameResolution.description')}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-medium">
+                        {t('apiEnrichment.connection.nameResolution.enable')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('apiEnrichment.connection.nameResolution.enableDescription')}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={config.use_name_verifier ?? false}
+                      onCheckedChange={(checked) => onChange({ ...config, use_name_verifier: checked })}
+                    />
                   </div>
                 </div>
               ) : null}

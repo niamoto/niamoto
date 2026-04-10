@@ -69,6 +69,7 @@ def test_get_reference_enrichment_config_preserves_structured_profile_fields(
                     "config": {
                         "api_url": "https://api.gbif.org/v2/species/match",
                         "profile": "gbif_rich",
+                        "use_name_verifier": True,
                         "taxonomy_source": "col_xr",
                         "include_taxonomy": True,
                         "include_occurrences": True,
@@ -86,6 +87,7 @@ def test_get_reference_enrichment_config_preserves_structured_profile_fields(
     source = config.sources[0]
     assert source.id == "gbif"
     assert source.profile == "gbif_rich"
+    assert source.use_name_verifier is True
     assert source.taxonomy_source == "col_xr"
     assert source.include_taxonomy is True
     assert source.include_occurrences is True
@@ -182,6 +184,7 @@ def test_get_reference_enrichment_config_preserves_col_rich_fields(monkeypatch):
                     "config": {
                         "api_url": "https://api.checklistbank.org/dataset/314774/nameusage/search",
                         "profile": "col_rich",
+                        "use_name_verifier": True,
                         "dataset_key": 314774,
                         "include_vernaculars": True,
                         "include_distributions": False,
@@ -199,6 +202,7 @@ def test_get_reference_enrichment_config_preserves_col_rich_fields(monkeypatch):
     source = config.sources[0]
     assert source.id == "col"
     assert source.profile == "col_rich"
+    assert source.use_name_verifier is True
     assert source.dataset_key == 314774
     assert source.include_vernaculars is True
     assert source.include_distributions is False
