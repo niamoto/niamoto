@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/lib/api-config';
 
 interface ConfigUpdate {
-  content: Record<string, any>;
+  content: Record<string, unknown>;
   backup?: boolean;
 }
 
 interface ConfigResponse {
   success: boolean;
   message: string;
-  content?: Record<string, any>;
+  content?: Record<string, unknown>;
   backup_path?: string;
 }
 
@@ -22,7 +22,7 @@ interface ValidationResult {
 export type ConfigType = 'import' | 'transform' | 'export' | 'config';
 
 export function useConfig(configName: ConfigType) {
-  const [config, setConfig] = useState<Record<string, any> | null>(null);
+  const [config, setConfig] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -82,7 +82,7 @@ export function useConfig(configName: ConfigType) {
   }, [configName]);
 
   // Validate configuration
-  const validateConfig = useCallback(async (content: Record<string, any>): Promise<ValidationResult> => {
+  const validateConfig = useCallback(async (content: Record<string, unknown>): Promise<ValidationResult> => {
     try {
       const response = await fetch(`${API_BASE_URL}/config/${configName}/validate`, {
         method: 'POST',

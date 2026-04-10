@@ -31,60 +31,38 @@ import FilePickerField from './fields/FilePickerField';
 import FieldListEditor from './fields/FieldListEditor';
 import LayerSelectField from './fields/LayerSelectField';
 import TransformParamsField from './fields/TransformParamsField';
+import type {
+  FieldSchema,
+  FormValue,
+  FormValues,
+  PluginSchemaResponse,
+  SelectOption,
+} from './formSchemaTypes';
+import {
+  isFormValues,
+  isSelectOptionValue,
+  isStringArray,
+} from './formSchemaTypes';
 
 interface JsonSchemaFormProps {
   pluginId: string;
   pluginType?: string;
   groupBy?: string;
-  form?: UseFormReturn<any>;
-  onSubmit?: (data: any) => void;
-  onChange?: (data: any) => void;
+  form?: UseFormReturn<Record<string, unknown>>;
+  onSubmit?: (data: FormValues) => void;
+  onChange?: (data: FormValues) => void;
   readOnly?: boolean;
   className?: string;
   showTitle?: boolean;
   availableFields?: string[]; // For field-select widgets
-  initialValues?: Record<string, any>; // Initial values to populate the form
+  initialValues?: FormValues; // Initial values to populate the form
   hiddenFields?: string[];
-}
-
-interface PluginSchema {
-  plugin_id: string;
-  plugin_type: string;
-  has_params: boolean;
-  schema?: {
-    title?: string;
-    description?: string;
-    type: string;
-    properties: Record<string, any>;
-    required?: string[];
-    json_schema_extra?: Record<string, any>;
-    $defs?: Record<string, any>;
-  };
-  message?: string;
-}
-
-interface FieldSchema {
-  type: string | string[];
-  title?: string;
-  description?: string;
-  default?: any;
-  enum?: any[];
-  minimum?: number;
-  maximum?: number;
-  minItems?: number;
-  maxItems?: number;
-  items?: any;
-  properties?: Record<string, any>;
-  additionalProperties?: { type?: string };
-  json_schema_extra?: Record<string, any>;
-  anyOf?: any[];
-  allOf?: any[];
 }
 
 function addCompatibilityFields(
   pluginId: string,
-  properties: Record<string, any>,
-): Record<string, any> {
+  properties: Record<string, FieldSchema>,
+): Record<string, FieldSchema> {
   if (pluginId !== 'donut_chart' || properties.show_legend) {
     return properties;
   }
@@ -113,10 +91,10 @@ function addCompatibilityFields(
   ]);
 }
 
-const pluginSchemaCache = new Map<string, PluginSchema>();
-const pluginSchemaRequests = new Map<string, Promise<PluginSchema>>();
+const pluginSchemaCache = new Map<string, PluginSchemaResponse>();
+const pluginSchemaRequests = new Map<string, Promise<PluginSchemaResponse>>();
 
-async function loadPluginSchema(pluginId: string): Promise<PluginSchema> {
+async function loadPluginSchema(pluginId: string): Promise<PluginSchemaResponse> {
   const cachedSchema = pluginSchemaCache.get(pluginId);
   if (cachedSchema) {
     return cachedSchema;
@@ -135,7 +113,8 @@ async function loadPluginSchema(pluginId: string): Promise<PluginSchema> {
         throw new Error(`Failed to fetch schema: ${response.statusText}`);
       }
 
-      const data: PluginSchema = await response.json();
+      const data: PluginSchemaResponse = await response.json();
+      pluginSchemaCache.set(pluginId, data);
       return data;
     })
     .finally(() => {
@@ -144,6 +123,17 @@ async function loadPluginSchema(pluginId: string): Promise<PluginSchema> {
 
   pluginSchemaRequests.set(pluginId, request);
   return request;
+}
+
+function toStringRecord(value: FormValue | undefined): Record<string, string> | undefined {
+  if (!isFormValues(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string'
+  );
+  return Object.fromEntries(entries);
 }
 
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
@@ -161,10 +151,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   hiddenFields = []
 }) => {
   const { t } = useTranslation(['common', 'widgets']);
-  const [schema, setSchema] = useState<PluginSchema | null>(null);
+  const [schema, setSchema] = useState<PluginSchemaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<FormValues>({});
   const hiddenFieldSet = useMemo(() => new Set(hiddenFields), [hiddenFields]);
   const lastSyncedValuesRef = React.useRef<string>('');
 
@@ -172,10 +162,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   const initializedRef = React.useRef(false);
 
   const filterHiddenValues = React.useCallback(
-    (values: Record<string, any>) =>
+    (values: FormValues) =>
       Object.fromEntries(
         Object.entries(values).filter(([key]) => !hiddenFieldSet.has(key))
-      ),
+      ) as FormValues,
     [hiddenFieldSet]
   );
 
@@ -189,30 +179,6 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
         const data = await loadPluginSchema(pluginId);
         setSchema(data);
-
-        // Initialize form data with defaults
-        if (data.schema?.properties) {
-          const defaults: Record<string, any> = {};
-          Object.entries(data.schema.properties).forEach(([key, field]) => {
-            if (hiddenFieldSet.has(key)) {
-              return;
-            }
-            const fieldSchema = field as FieldSchema;
-            if (fieldSchema.default !== undefined) {
-              defaults[key] = fieldSchema.default;
-            }
-          });
-          // Merge: defaults first, then initialValues override
-          const initialData = { ...defaults, ...filterHiddenValues(initialValues) };
-          setFormData(initialData);
-          lastSyncedValuesRef.current = JSON.stringify(filterHiddenValues(initialData));
-          initializedRef.current = true;
-        } else if (Object.keys(initialValues).length > 0) {
-          const initialData = filterHiddenValues(initialValues);
-          setFormData(initialData);
-          lastSyncedValuesRef.current = JSON.stringify(initialData);
-          initializedRef.current = true;
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load plugin schema');
       } finally {
@@ -221,9 +187,40 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     };
 
     if (pluginId) {
-      fetchSchema();
+      void fetchSchema();
     }
   }, [pluginId]);
+
+  useEffect(() => {
+    if (!schema || loading || initializedRef.current) {
+      return;
+    }
+
+    if (schema.schema?.properties) {
+      const defaults: FormValues = {};
+      Object.entries(schema.schema.properties).forEach(([key, field]) => {
+        if (hiddenFieldSet.has(key)) {
+          return;
+        }
+        if (field.default !== undefined) {
+          defaults[key] = field.default;
+        }
+      });
+
+      const initialData = { ...defaults, ...filterHiddenValues(initialValues) };
+      setFormData(initialData);
+      lastSyncedValuesRef.current = JSON.stringify(filterHiddenValues(initialData));
+      initializedRef.current = true;
+      return;
+    }
+
+    if (Object.keys(initialValues).length > 0) {
+      const initialData = filterHiddenValues(initialValues);
+      setFormData(initialData);
+      lastSyncedValuesRef.current = JSON.stringify(initialData);
+      initializedRef.current = true;
+    }
+  }, [filterHiddenValues, hiddenFieldSet, initialValues, loading, schema]);
 
   // Update form data when initialValues change (after initial load)
   useEffect(() => {
@@ -253,6 +250,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   const sourceValue = sourceFieldName ? formData[sourceFieldName] : undefined;
   const selectedSource = typeof sourceValue === 'string' && sourceValue.trim() !== '' ? sourceValue : null;
   const { columns: sourceColumns } = useSourceColumns(groupBy ?? '', selectedSource);
+  const pluginSchemaType = schema?.plugin_type;
 
   const resolvedAvailableFields = useMemo(() => {
     const fromSource = flattenColumnTree(sourceColumns);
@@ -274,7 +272,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     });
   }, [t]);
 
-  const translateOptionLabel = React.useCallback((fieldName: string, option: { value: any; label: string }) => {
+  const translateOptionLabel = React.useCallback((fieldName: string, option: SelectOption) => {
     if (option.value === undefined || option.value === null) {
       return option.label;
     }
@@ -285,7 +283,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   }, [t]);
 
   // Handle field changes
-  const handleFieldChange = (fieldName: string, value: any) => {
+  const handleFieldChange = React.useCallback((fieldName: string, value: FormValue | undefined) => {
     const newData = { ...formData, [fieldName]: value };
     setFormData(newData);
     lastSyncedValuesRef.current = JSON.stringify(filterHiddenValues(newData));
@@ -295,18 +293,18 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     }
 
     if (form) {
-      form.setValue(fieldName, value);
+      form.setValue(fieldName as never, value as never);
     }
-  };
+  }, [filterHiddenValues, form, formData, onChange]);
 
   // Helper function to resolve $ref in schema
-  const resolveRef = (ref: string): any => {
+  const resolveRef = React.useCallback((ref: string): FieldSchema | null => {
     if (!schema?.schema?.$defs) return null;
     const refName = ref.split('/').pop();
     return refName ? schema.schema.$defs[refName] : null;
-  };
+  }, [schema]);
 
-  const resolveFieldSchema = (fieldSchema: FieldSchema): FieldSchema => {
+  const resolveFieldSchema = React.useCallback((fieldSchema: FieldSchema): FieldSchema => {
     const schemaWithRef = fieldSchema as FieldSchema & { $ref?: string };
 
     if (schemaWithRef.$ref) {
@@ -329,10 +327,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     }
 
     return fieldSchema;
-  };
+  }, [resolveRef]);
 
   // Render a single field based on its schema
-  const renderField = (fieldName: string, fieldSchema: FieldSchema, required: boolean = false) => {
+  const renderField = React.useCallback((fieldName: string, fieldSchema: FieldSchema, required: boolean = false) => {
     const resolvedFieldSchema = resolveFieldSchema(fieldSchema);
     const fieldCondition = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:condition');
     if (!evaluateUiCondition(fieldCondition, formData)) {
@@ -344,7 +342,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     const uiWidget =
       getUiSchemaValue<string>(resolvedFieldSchema, 'ui:widget');
     const dependsOn = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:depends');
-    const fieldValue = form ? form.watch(fieldName) : formData[fieldName];
+    const fieldValue = form
+      ? (form.watch(fieldName as never) as FormValue | undefined)
+      : formData[fieldName];
     const dependsValue = dependsOn ? formData[dependsOn] : undefined;
     const hasSelectableFields = resolvedAvailableFields.length > 0;
     const hasExistingFieldValue = Array.isArray(fieldValue)
@@ -356,8 +356,6 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       name: fieldName,
       label: resolveFieldLabel(fieldName, resolvedFieldSchema.title),
       description: resolveFieldDescription(fieldName, resolvedFieldSchema.description),
-      value: fieldValue,
-      onChange: (value: any) => handleFieldChange(fieldName, value),
       required,
       disabled: readOnly || (!!dependsOn && (dependsValue === undefined || dependsValue === null || dependsValue === '')),
       error: (form?.formState.errors[fieldName]?.message || undefined) as string | undefined
@@ -367,40 +365,75 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     if (uiWidget) {
       switch (uiWidget) {
         case 'text':
-          return <TextField key={fieldName} {...commonProps} />;
+          return (
+            <TextField
+              key={fieldName}
+              {...commonProps}
+              value={typeof fieldValue === 'string' ? fieldValue : ''}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'textarea':
-          return <TextAreaField key={fieldName} {...commonProps} />;
+          return (
+            <TextAreaField
+              key={fieldName}
+              {...commonProps}
+              value={typeof fieldValue === 'string' ? fieldValue : ''}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'number':
           return (
             <NumberField
               key={fieldName}
               {...commonProps}
+              value={typeof fieldValue === 'number' ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               min={resolvedFieldSchema.minimum}
               max={resolvedFieldSchema.maximum}
             />
           );
 
         case 'select':
-          // Options can be in json_schema_extra['ui:options'] or directly in fieldSchema['ui:options']
-          const rawOptions = resolvedFieldSchema.json_schema_extra?.['ui:options'] ||
-                            (resolvedFieldSchema as any)['ui:options'] ||
-                            resolvedFieldSchema.enum?.map(val => ({ value: val, label: val })) || [];
-          const options = rawOptions.map((option: { value: any; label: string }) => ({
-            ...option,
-            label: translateOptionLabel(fieldName, option),
-          }));
-          return (
-            <SelectField
-              key={fieldName}
-              {...commonProps}
-              options={options}
-            />
-          );
+          {
+            // Options can be in json_schema_extra['ui:options'] or directly in fieldSchema['ui:options']
+            const rawOptions =
+              getUiSchemaValue<Array<string | SelectOption>>(resolvedFieldSchema, 'ui:options') ||
+              resolvedFieldSchema.enum?.map((val) => ({ value: val, label: String(val) })) ||
+              [];
+            const options: SelectOption[] = rawOptions
+              .map((option) =>
+                typeof option === 'string'
+                  ? { value: option, label: option }
+                  : option
+              )
+              .filter((option): option is SelectOption => isSelectOptionValue(option.value))
+              .map((option) => ({
+                ...option,
+                label: translateOptionLabel(fieldName, option),
+              }));
+            return (
+              <SelectField
+                key={fieldName}
+                {...commonProps}
+                value={isSelectOptionValue(fieldValue) ? fieldValue : undefined}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                options={options}
+              />
+            );
+          }
 
         case 'checkbox':
-          return <CheckboxField key={fieldName} {...commonProps} />;
+          return (
+            <CheckboxField
+              key={fieldName}
+              {...commonProps}
+              value={typeof fieldValue === 'boolean' ? fieldValue : false}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'field-select':
           if (!hasSelectableFields && !hasExistingFieldValue) {
@@ -410,56 +443,76 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <FieldSelectField
               key={fieldName}
               {...commonProps}
+              value={typeof fieldValue === 'string' ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               availableFields={resolvedAvailableFields}
             />
           );
 
         case 'entity-select':
-          const entityKind = getUiSchemaValue<{ kind?: 'dataset' | 'reference' }>(
-            resolvedFieldSchema,
-            'ui:entity-filter'
-          )?.kind;
-          if (schema?.plugin_type === 'transformer' && fieldName === 'source' && groupBy) {
+          {
+            const entityKind = getUiSchemaValue<{ kind?: 'dataset' | 'reference' }>(
+              resolvedFieldSchema,
+              'ui:entity-filter'
+            )?.kind;
+            if (pluginSchemaType === 'transformer' && fieldName === 'source' && groupBy) {
+              return (
+                <TransformSourceSelectField
+                  key={fieldName}
+                  {...commonProps}
+                  value={typeof fieldValue === 'string' ? fieldValue : undefined}
+                  onChange={(value) => handleFieldChange(fieldName, value)}
+                  groupBy={groupBy}
+                  kind={entityKind}
+                />
+              );
+            }
+            return (
+              <EntitySelectField
+                key={fieldName}
+                {...commonProps}
+                value={typeof fieldValue === 'string' ? fieldValue : undefined}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                kind={entityKind}
+                groupBy={groupBy}
+              />
+            );
+          }
+
+        case 'class-object-select':
+          {
+            const coSource = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:source');
+            const coMultiple = getUiSchemaValue<boolean>(resolvedFieldSchema, 'ui:multiple');
+            return (
+              <ClassObjectSelectField
+                key={fieldName}
+                {...commonProps}
+                value={
+                  typeof fieldValue === 'string' || isStringArray(fieldValue)
+                    ? fieldValue
+                    : undefined
+                }
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                groupBy={groupBy}
+                source={coSource}
+                multiple={coMultiple}
+              />
+            );
+          }
+
+        case 'transform-source-select':
+          {
+            const sourceGroupBy = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:groupBy');
             return (
               <TransformSourceSelectField
                 key={fieldName}
                 {...commonProps}
-                groupBy={groupBy}
-                kind={entityKind}
+                value={typeof fieldValue === 'string' ? fieldValue : undefined}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                groupBy={sourceGroupBy || groupBy}
               />
             );
           }
-          return (
-            <EntitySelectField
-              key={fieldName}
-              {...commonProps}
-              kind={entityKind}
-              groupBy={groupBy}
-            />
-          );
-
-        case 'class-object-select':
-          const coSource = resolvedFieldSchema.json_schema_extra?.['ui:source'] || (resolvedFieldSchema as any)['ui:source'];
-          const coMultiple = resolvedFieldSchema.json_schema_extra?.['ui:multiple'] || (resolvedFieldSchema as any)['ui:multiple'];
-          return (
-            <ClassObjectSelectField
-              key={fieldName}
-              {...commonProps}
-              groupBy={groupBy}
-              source={coSource}
-              multiple={coMultiple}
-            />
-          );
-
-        case 'transform-source-select':
-          const sourceGroupBy = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:groupBy');
-          return (
-            <TransformSourceSelectField
-              key={fieldName}
-              {...commonProps}
-              groupBy={sourceGroupBy || groupBy}
-            />
-          );
 
         case 'multi-field-select':
           if (!hasSelectableFields && !hasExistingFieldValue) {
@@ -469,6 +522,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <ArrayField
               key={fieldName}
               {...commonProps}
+              value={Array.isArray(fieldValue) ? fieldValue : []}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               itemType="field-select"
               availableFields={resolvedAvailableFields}
               minItems={resolvedFieldSchema.minItems}
@@ -482,6 +537,14 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <FieldListEditor
               key={fieldName}
               {...commonProps}
+              value={Array.isArray(fieldValue) ? fieldValue as Array<{
+                source?: string | null;
+                class_object: string | string[];
+                target: string;
+                units?: string | null;
+                format?: 'range' | 'number' | 'text' | null;
+              }> : []}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               groupBy={groupBy}
               minItems={resolvedFieldSchema.minItems}
               maxItems={resolvedFieldSchema.maxItems}
@@ -489,105 +552,162 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'array':
-          const itemWidget = resolvedFieldSchema.json_schema_extra?.['ui:item-widget'];
+          {
+            const itemWidget = resolvedFieldSchema.json_schema_extra?.['ui:item-widget'];
 
-          // Determine the item type based on the items schema
-          let itemType = itemWidget || 'text';
-          let resolvedItemSchema = resolvedFieldSchema.items;
+            // Determine the item type based on the items schema
+            let itemType = itemWidget || 'text';
+            let resolvedItemSchema = resolvedFieldSchema.items;
 
-
-          if (!itemWidget && resolvedFieldSchema.items) {
-            // Check if items reference a $def (object type)
-            if (resolvedFieldSchema.items.$ref) {
-              itemType = 'object';
-              // Resolve the reference
-              const resolved = resolveRef(resolvedFieldSchema.items.$ref);
-              if (resolved) {
-                resolvedItemSchema = resolved;
+            if (!itemWidget && resolvedFieldSchema.items) {
+              // Check if items reference a $def (object type)
+              if (resolvedFieldSchema.items.$ref) {
+                itemType = 'object';
+                const resolved = resolveRef(resolvedFieldSchema.items.$ref);
+                if (resolved) {
+                  resolvedItemSchema = resolved;
+                }
+              } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
+                itemType = 'object';
+              } else if (resolvedFieldSchema.items.type) {
+                itemType = resolvedFieldSchema.items.type;
               }
-            } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
-              itemType = 'object';
-            } else if (resolvedFieldSchema.items.type) {
-              itemType = resolvedFieldSchema.items.type;
             }
-          }
 
-
-          return (
-            <ArrayField
-              key={fieldName}
-              {...commonProps}
-              itemType={itemType}
-              itemSchema={resolvedItemSchema}
-              minItems={resolvedFieldSchema.minItems}
-              maxItems={resolvedFieldSchema.maxItems}
-              availableFields={itemWidget === 'field-select' ? resolvedAvailableFields : undefined}
-            />
-          );
-
-        case 'json':
-          const transformSchemas = getUiSchemaValue<Record<string, Record<string, { type: string; default?: unknown; description?: string }>>>(
-            resolvedFieldSchema,
-            'ui:transform_schemas'
-          );
-          if (transformSchemas) {
             return (
-              <TransformParamsField
+              <ArrayField
                 key={fieldName}
                 {...commonProps}
-                selectedTransform={typeof formData.transform === 'string' ? formData.transform : undefined}
-                transformSchemas={transformSchemas}
+                value={Array.isArray(fieldValue) ? fieldValue : []}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                itemType={itemType}
+                itemSchema={resolvedItemSchema}
+                minItems={resolvedFieldSchema.minItems}
+                maxItems={resolvedFieldSchema.maxItems}
+                availableFields={itemWidget === 'field-select' ? resolvedAvailableFields : undefined}
               />
             );
           }
-          if (fieldName === 'field_mapping' || resolvedFieldSchema.additionalProperties?.type === 'string') {
-            return <KeyValuePairsField key={fieldName} {...commonProps} />;
+
+        case 'json':
+          {
+            const transformSchemas = getUiSchemaValue<Record<string, Record<string, { type: string; default?: unknown; description?: string }>>>(
+              resolvedFieldSchema,
+              'ui:transform_schemas'
+            );
+            if (transformSchemas) {
+              return (
+                <TransformParamsField
+                  key={fieldName}
+                  {...commonProps}
+                  value={isFormValues(fieldValue) ? fieldValue : undefined}
+                  onChange={(value) => handleFieldChange(fieldName, value)}
+                  selectedTransform={typeof formData.transform === 'string' ? formData.transform : undefined}
+                  transformSchemas={transformSchemas}
+                />
+              );
+            }
+            if (fieldName === 'field_mapping' || resolvedFieldSchema.additionalProperties?.type === 'string') {
+              return (
+                <KeyValuePairsField
+                  key={fieldName}
+                  {...commonProps}
+                  value={toStringRecord(fieldValue)}
+                  onChange={(value) => handleFieldChange(fieldName, value)}
+                />
+              );
+            }
+            return (
+              <JsonField
+                key={fieldName}
+                {...commonProps}
+                value={fieldValue}
+                onChange={(value) => handleFieldChange(fieldName, value as FormValue | undefined)}
+              />
+            );
           }
-          return <JsonField key={fieldName} {...commonProps} />;
 
         case 'key-value-pairs':
-          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+          return (
+            <KeyValuePairsField
+              key={fieldName}
+              {...commonProps}
+              value={toStringRecord(fieldValue)}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'tags':
-          return <TagsField key={fieldName} {...commonProps} />;
+          return (
+            <TagsField
+              key={fieldName}
+              {...commonProps}
+              value={isStringArray(fieldValue) ? fieldValue : []}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'object':
           return (
             <ObjectField
               key={fieldName}
               {...commonProps}
+              value={isFormValues(fieldValue) ? fieldValue : {}}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               properties={resolvedFieldSchema.properties || {}}
             />
           );
 
         case 'color':
-          return <ColorField key={fieldName} {...commonProps} />;
+          return (
+            <ColorField
+              key={fieldName}
+              {...commonProps}
+              value={typeof fieldValue === 'string' ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'directory-select':
-          return <DirectorySelectField key={fieldName} {...commonProps} />;
+          return (
+            <DirectorySelectField
+              key={fieldName}
+              {...commonProps}
+              value={typeof fieldValue === 'string' ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
 
         case 'file-select':
         case 'file-picker':
-          const fileAccept = resolvedFieldSchema.json_schema_extra?.['ui:accept'] || (resolvedFieldSchema as any)['ui:accept'] || 'all';
-          const fileBasePath = resolvedFieldSchema.json_schema_extra?.['ui:basePath'] || (resolvedFieldSchema as any)['ui:basePath'] || 'imports/';
-          return (
-            <FilePickerField
-              key={fieldName}
-              {...commonProps}
-              accept={fileAccept}
-              basePath={fileBasePath}
-            />
-          );
+          {
+            const fileAccept = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:accept') || 'all';
+            const fileBasePath = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:basePath') || 'imports/';
+            return (
+              <FilePickerField
+                key={fieldName}
+                {...commonProps}
+                value={typeof fieldValue === 'string' ? fieldValue : undefined}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                accept={fileAccept}
+                basePath={fileBasePath}
+              />
+            );
+          }
 
         case 'layer-select':
-          const layerAccept = resolvedFieldSchema.json_schema_extra?.['ui:accept'] || (resolvedFieldSchema as any)['ui:accept'] || 'all';
-          return (
-            <LayerSelectField
-              key={fieldName}
-              {...commonProps}
-              accept={layerAccept}
-            />
-          );
+          {
+            const layerAccept = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:accept') || 'all';
+            return (
+              <LayerSelectField
+                key={fieldName}
+                {...commonProps}
+                value={typeof fieldValue === 'string' ? fieldValue : undefined}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+                accept={layerAccept}
+              />
+            );
+          }
 
         case 'hidden':
           return null; // Don't render hidden fields
@@ -610,6 +730,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <SelectField
               key={fieldName}
               {...commonProps}
+              value={isSelectOptionValue(fieldValue) ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               options={resolvedFieldSchema.enum.map(val => ({
                 value: val,
                 label: translateOptionLabel(fieldName, { value: val, label: String(val) }),
@@ -617,7 +739,14 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             />
           );
         }
-        return <TextField key={fieldName} {...commonProps} />;
+        return (
+          <TextField
+            key={fieldName}
+            {...commonProps}
+            value={typeof fieldValue === 'string' ? fieldValue : ''}
+            onChange={(value) => handleFieldChange(fieldName, value)}
+          />
+        );
 
       case 'number':
       case 'integer':
@@ -625,70 +754,113 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             <NumberField
               key={fieldName}
               {...commonProps}
+              value={typeof fieldValue === 'number' ? fieldValue : undefined}
+              onChange={(value) => handleFieldChange(fieldName, value)}
               min={resolvedFieldSchema.minimum}
               max={resolvedFieldSchema.maximum}
             />
         );
 
       case 'boolean':
-        return <CheckboxField key={fieldName} {...commonProps} />;
-
-      case 'array':
-        // Check if it's a simple string array (tags)
-        if (resolvedFieldSchema.items?.type === 'string' && !resolvedFieldSchema.items.enum) {
-          return <TagsField key={fieldName} {...commonProps} />;
-        }
-
-        // Determine the item type based on the items schema
-        let itemType = 'text';
-        let resolvedItemSchema = resolvedFieldSchema.items;
-
-
-        if (resolvedFieldSchema.items) {
-          // Check if items reference a $def (object type)
-          if (resolvedFieldSchema.items.$ref) {
-            itemType = 'object';
-            // Resolve the reference
-            const resolved = resolveRef(resolvedFieldSchema.items.$ref);
-            if (resolved) {
-              resolvedItemSchema = resolved;
-            }
-          } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
-            itemType = 'object';
-          } else if (resolvedFieldSchema.items.type) {
-            itemType = resolvedFieldSchema.items.type;
-          }
-        }
-
-
         return (
-          <ArrayField
+          <CheckboxField
             key={fieldName}
             {...commonProps}
-            itemType={itemType}
-            itemSchema={resolvedItemSchema}
-            minItems={resolvedFieldSchema.minItems}
-            maxItems={resolvedFieldSchema.maxItems}
+            value={typeof fieldValue === 'boolean' ? fieldValue : false}
+            onChange={(value) => handleFieldChange(fieldName, value)}
           />
         );
+
+      case 'array':
+        {
+          if (resolvedFieldSchema.items?.type === 'string' && !resolvedFieldSchema.items.enum) {
+            return (
+              <TagsField
+                key={fieldName}
+                {...commonProps}
+                value={isStringArray(fieldValue) ? fieldValue : []}
+                onChange={(value) => handleFieldChange(fieldName, value)}
+              />
+            );
+          }
+
+          let itemType = 'text';
+          let resolvedItemSchema = resolvedFieldSchema.items;
+
+          if (resolvedFieldSchema.items) {
+            if (resolvedFieldSchema.items.$ref) {
+              itemType = 'object';
+              const resolved = resolveRef(resolvedFieldSchema.items.$ref);
+              if (resolved) {
+                resolvedItemSchema = resolved;
+              }
+            } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
+              itemType = 'object';
+            } else if (resolvedFieldSchema.items.type) {
+              itemType = resolvedFieldSchema.items.type;
+            }
+          }
+
+          return (
+            <ArrayField
+              key={fieldName}
+              {...commonProps}
+              value={Array.isArray(fieldValue) ? fieldValue : []}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+              itemType={itemType}
+              itemSchema={resolvedItemSchema}
+              minItems={resolvedFieldSchema.minItems}
+              maxItems={resolvedFieldSchema.maxItems}
+            />
+          );
+        }
 
       case 'object':
         // Check if it's a Dict[str, str] (additionalProperties with string type)
         if (resolvedFieldSchema.additionalProperties?.type === 'string') {
-          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+          return (
+            <KeyValuePairsField
+              key={fieldName}
+              {...commonProps}
+              value={toStringRecord(fieldValue)}
+              onChange={(value) => handleFieldChange(fieldName, value)}
+            />
+          );
         }
         return (
           <ObjectField
             key={fieldName}
             {...commonProps}
+            value={isFormValues(fieldValue) ? fieldValue : {}}
+            onChange={(value) => handleFieldChange(fieldName, value)}
             properties={resolvedFieldSchema.properties || {}}
           />
         );
 
       default:
-        return <TextField key={fieldName} {...commonProps} />;
+        return (
+          <TextField
+            key={fieldName}
+            {...commonProps}
+            value={typeof fieldValue === 'string' ? fieldValue : ''}
+            onChange={(value) => handleFieldChange(fieldName, value)}
+          />
+        );
     }
-  };
+  }, [
+    form,
+    formData,
+    groupBy,
+    handleFieldChange,
+    readOnly,
+    resolveFieldDescription,
+    resolveFieldLabel,
+    resolveRef,
+    resolveFieldSchema,
+    resolvedAvailableFields,
+    pluginSchemaType,
+    translateOptionLabel,
+  ]);
 
   // Render all fields from schema
   const renderFields = useMemo(() => {
@@ -773,7 +945,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       .filter(Boolean);
 
     return <div className="space-y-4">{fields}</div>;
-  }, [schema, pluginId, formData, form, readOnly, resolvedAvailableFields, hiddenFieldSet, groupBy, t]);
+  }, [hiddenFieldSet, pluginId, renderField, schema]);
 
   // Loading state
   if (loading) {

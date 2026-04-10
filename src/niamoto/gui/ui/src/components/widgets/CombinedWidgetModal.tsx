@@ -5,7 +5,7 @@
  * the user to select one to add to their configuration.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Loader2,
   Combine,
@@ -51,6 +51,10 @@ const PATTERN_ICONS: Record<string, LucideIcon> = {
   Leaf,
 }
 
+function getSuggestionKey(suggestion: CombinedWidgetSuggestion): string {
+  return `${suggestion.pattern_type}:${suggestion.name}:${suggestion.fields.join('|')}`
+}
+
 interface CombinedWidgetModalProps {
   isOpen: boolean
   onClose: () => void
@@ -68,7 +72,7 @@ export function CombinedWidgetModal({
   sourceName = 'occurrences',
   onAddWidget,
 }: CombinedWidgetModalProps) {
-  const [selectedSuggestion, setSelectedSuggestion] = useState<CombinedWidgetSuggestion | null>(null)
+  const [selectedSuggestionKey, setSelectedSuggestionKey] = useState<string | null>(null)
 
   // React Query auto-fetch quand selectedFields >= 2
   const {
@@ -78,20 +82,16 @@ export function CombinedWidgetModal({
     fetchSuggestions,
   } = useCombinedWidgetSuggestions(referenceName, selectedFields, sourceName)
 
-  // Auto-select the recommended suggestion
-  useEffect(() => {
-    if (suggestions.length > 0 && !selectedSuggestion) {
-      const recommended = suggestions.find(s => s.is_recommended)
-      setSelectedSuggestion(recommended || suggestions[0])
+  const selectedSuggestion = useMemo(() => {
+    if (suggestions.length === 0) return null
+    if (selectedSuggestionKey) {
+      const selected = suggestions.find(
+        (suggestion) => getSuggestionKey(suggestion) === selectedSuggestionKey,
+      )
+      if (selected) return selected
     }
-  }, [suggestions, selectedSuggestion])
-
-  // Reset selection when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedSuggestion(null)
-    }
-  }, [isOpen])
+    return suggestions.find(s => s.is_recommended) ?? suggestions[0]
+  }, [selectedSuggestionKey, suggestions])
 
   const handleAddWidget = useCallback(() => {
     if (selectedSuggestion) {
@@ -110,7 +110,12 @@ export function CombinedWidgetModal({
   }, [selectedSuggestion, onAddWidget, onClose])
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        setSelectedSuggestionKey(null)
+        onClose()
+      }
+    }}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -176,7 +181,7 @@ export function CombinedWidgetModal({
                     key={`${suggestion.pattern_type}-${index}`}
                     suggestion={suggestion}
                     isSelected={selectedSuggestion === suggestion}
-                    onSelect={() => setSelectedSuggestion(suggestion)}
+                    onSelect={() => setSelectedSuggestionKey(getSuggestionKey(suggestion))}
                   />
                 ))}
               </div>

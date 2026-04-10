@@ -66,7 +66,7 @@ export function JsonKeyValueEditor({
         value: val,
       })))
     }
-  }, [value])
+  }, [entries, value])
 
   // Emit changes to parent
   const emitChange = useCallback((newEntries: KeyValueEntry[]) => {

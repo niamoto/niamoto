@@ -7,7 +7,7 @@
  * - Links to references
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,79 +74,10 @@ async function saveDatasetConfig(name: string, config: DatasetConfig): Promise<v
 
 export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const queryClient = useQueryClient()
-  const [localConfig, setLocalConfig] = useState<DatasetConfig | null>(null)
-  const [hasChanges, setHasChanges] = useState(false)
-
   const { data, isLoading, error } = useQuery({
     queryKey: ['dataset-config', datasetName],
     queryFn: () => fetchDatasetConfig(datasetName),
   })
-
-  const mutation = useMutation({
-    mutationFn: (config: DatasetConfig) => saveDatasetConfig(datasetName, config),
-    onSuccess: () => {
-      setHasChanges(false)
-      queryClient.invalidateQueries({ queryKey: ['datasets'] })
-      queryClient.invalidateQueries({ queryKey: ['dataset-config', datasetName] })
-      onSaved?.()
-    },
-  })
-
-  useEffect(() => {
-    if (data?.config) {
-      setLocalConfig(data.config)
-      setHasChanges(false)
-    }
-  }, [data])
-
-  const updateConfig = (updates: Partial<DatasetConfig>) => {
-    if (!localConfig) return
-    setLocalConfig({ ...localConfig, ...updates })
-    setHasChanges(true)
-  }
-
-  const updateConnector = (updates: Partial<NonNullable<DatasetConfig['connector']>>) => {
-    if (!localConfig) return
-    setLocalConfig({
-      ...localConfig,
-      connector: { ...localConfig.connector, ...updates },
-    })
-    setHasChanges(true)
-  }
-
-  const updateSchema = (updates: Partial<NonNullable<DatasetConfig['schema']>>) => {
-    if (!localConfig) return
-    setLocalConfig({
-      ...localConfig,
-      schema: { ...localConfig.schema, ...updates },
-    })
-    setHasChanges(true)
-  }
-
-  const addLink = () => {
-    const links = localConfig?.links || []
-    updateConfig({ links: [...links, { entity: '', field: '', target_field: '' }] })
-  }
-
-  const updateLink = (index: number, updates: Partial<LinkConfig>) => {
-    if (!localConfig?.links) return
-    const links = [...localConfig.links]
-    links[index] = { ...links[index], ...updates }
-    updateConfig({ links })
-  }
-
-  const removeLink = (index: number) => {
-    if (!localConfig?.links) return
-    const links = localConfig.links.filter((_, i) => i !== index)
-    updateConfig({ links })
-  }
-
-  const handleSave = () => {
-    if (localConfig) {
-      mutation.mutate(localConfig)
-    }
-  }
 
   if (isLoading) {
     return (
@@ -167,7 +98,87 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
     )
   }
 
-  if (!localConfig) return null
+  if (!data?.config) return null
+
+  return (
+    <DatasetConfigEditorForm
+      key={`${datasetName}:${JSON.stringify(data.config)}`}
+      datasetName={datasetName}
+      initialConfig={data.config}
+      onSaved={onSaved}
+    />
+  )
+}
+
+interface DatasetConfigEditorFormProps {
+  datasetName: string
+  initialConfig: DatasetConfig
+  onSaved?: () => void
+}
+
+function DatasetConfigEditorForm({
+  datasetName,
+  initialConfig,
+  onSaved,
+}: DatasetConfigEditorFormProps) {
+  const { t } = useTranslation(['sources', 'common'])
+  const queryClient = useQueryClient()
+  const [localConfig, setLocalConfig] = useState<DatasetConfig>(initialConfig)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: (config: DatasetConfig) => saveDatasetConfig(datasetName, config),
+    onSuccess: () => {
+      setHasChanges(false)
+      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+      queryClient.invalidateQueries({ queryKey: ['dataset-config', datasetName] })
+      onSaved?.()
+    },
+  })
+
+  const updateConfig = (updates: Partial<DatasetConfig>) => {
+    setLocalConfig({ ...localConfig, ...updates })
+    setHasChanges(true)
+  }
+
+  const updateConnector = (updates: Partial<NonNullable<DatasetConfig['connector']>>) => {
+    setLocalConfig({
+      ...localConfig,
+      connector: { ...localConfig.connector, ...updates },
+    })
+    setHasChanges(true)
+  }
+
+  const updateSchema = (updates: Partial<NonNullable<DatasetConfig['schema']>>) => {
+    if (!localConfig) return
+    setLocalConfig({
+      ...localConfig,
+      schema: { ...localConfig.schema, ...updates },
+    })
+    setHasChanges(true)
+  }
+
+  const addLink = () => {
+    const links = localConfig.links || []
+    updateConfig({ links: [...links, { entity: '', field: '', target_field: '' }] })
+  }
+
+  const updateLink = (index: number, updates: Partial<LinkConfig>) => {
+    if (!localConfig.links) return
+    const links = [...localConfig.links]
+    links[index] = { ...links[index], ...updates }
+    updateConfig({ links })
+  }
+
+  const removeLink = (index: number) => {
+    if (!localConfig.links) return
+    const links = localConfig.links.filter((_, i) => i !== index)
+    updateConfig({ links })
+  }
+
+  const handleSave = () => {
+    mutation.mutate(localConfig)
+  }
 
   return (
     <div className="space-y-6">

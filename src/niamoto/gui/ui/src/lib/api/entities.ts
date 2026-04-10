@@ -10,7 +10,7 @@ export interface EntityDetail {
   id: string  // Changed to string to preserve large integer precision
   name: string
   group_by: string
-  widgets_data: Record<string, any>
+  widgets_data: Record<string, unknown>
 }
 
 export interface TransformationPreview {
@@ -18,7 +18,7 @@ export interface TransformationPreview {
   entity_name: string
   group_by: string
   transformation_key: string
-  transformation_data: Record<string, any>
+  transformation_data: Record<string, unknown>
   widget_plugin?: string
 }
 

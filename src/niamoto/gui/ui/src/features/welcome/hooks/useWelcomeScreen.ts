@@ -197,16 +197,11 @@ export function useWelcomeScreen() {
 
   // Browse and open a project
   const browseAndOpen = useCallback(async (): Promise<string | null> => {
-    try {
-      const path = await browseProject();
-      if (path) {
-        await openProject(path);
-      }
-      return path;
-    } catch (err) {
-      // Error already handled in openProject
-      throw err;
+    const path = await browseProject();
+    if (path) {
+      await openProject(path);
     }
+    return path;
   }, [browseProject, openProject]);
 
   // Browse for a folder (for project location)

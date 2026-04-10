@@ -16,7 +16,7 @@ export interface QueryRequest {
 
 export interface QueryResponse {
   columns: string[]
-  rows: Array<Record<string, any>>
+  rows: Array<Record<string, unknown>>
   total_count: number
   page_count: number
 }

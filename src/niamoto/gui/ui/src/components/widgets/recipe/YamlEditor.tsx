@@ -61,9 +61,12 @@ export function YamlEditor({
   // Validate on initial load
   useEffect(() => {
     if (value) {
-      validateYaml(value)
+      const timeoutId = window.setTimeout(() => {
+        validateYaml(value)
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
-  }, [])
+  }, [validateYaml, value])
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     // Configure YAML language

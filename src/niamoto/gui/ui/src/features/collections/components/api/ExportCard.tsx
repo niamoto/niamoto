@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ChevronRight,
@@ -97,62 +97,8 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
     refetch,
   } = useApiExportGroupConfig(exportTarget.name, groupBy)
   const suggestionsQuery = useApiExportSuggestions(exportTarget.name, groupBy)
-  const saveMutation = useUpdateApiExportGroupConfig(exportTarget.name, groupBy)
-  const [localConfig, setLocalConfig] = useState<ApiExportGroupConfig | null>(null)
-  const [resetCounter, setResetCounter] = useState(0)
 
-  useEffect(() => {
-    if (serverConfig) {
-      setLocalConfig(buildDefaultLocalConfig(serverConfig))
-    }
-  }, [serverConfig])
-
-  const availableFields = useMemo(
-    () => buildAvailableFields(suggestionsQuery.data),
-    [suggestionsQuery.data]
-  )
-
-  const isDirty =
-    serverConfig !== undefined &&
-    localConfig !== null &&
-    JSON.stringify(buildDefaultLocalConfig(serverConfig)) !== JSON.stringify(localConfig)
-
-  const isDwcTransformer =
-    localConfig?.transformer_plugin === 'niamoto_to_dwc_occurrence'
-
-  const summary = formatExportSummary(localConfig, suggestionsQuery.data, t)
-
-  const updateLocalConfig = (
-    updater: (current: ApiExportGroupConfig) => ApiExportGroupConfig
-  ) => {
-    setLocalConfig((current) => (current ? updater(current) : current))
-  }
-
-  const handleSave = async () => {
-    if (!localConfig) return
-    try {
-      await saveMutation.mutateAsync(localConfig)
-      toast.success(
-        t('collectionPanel.api.groupConfigSaved', { exportName: exportTarget.name, groupBy })
-      )
-      await refetch()
-    } catch (mutationError) {
-      toast.error(
-        mutationError instanceof Error
-          ? mutationError.message
-          : t('collectionPanel.api.saveFailed')
-      )
-    }
-  }
-
-  const handleReset = () => {
-    if (serverConfig) {
-      setLocalConfig(buildDefaultLocalConfig(serverConfig))
-      setResetCounter((c) => c + 1)
-    }
-  }
-
-  if (isLoading || !localConfig) {
+  if (isLoading || !serverConfig) {
     return (
       <Card>
         <CardContent className="flex min-h-[100px] items-center justify-center">
@@ -173,6 +119,80 @@ export function ExportCard({ exportTarget, groupBy }: ExportCardProps) {
         </CardHeader>
       </Card>
     )
+  }
+
+  return (
+    <ExportCardForm
+      key={`${exportTarget.name}:${groupBy}:${JSON.stringify(serverConfig)}`}
+      exportTarget={exportTarget}
+      groupBy={groupBy}
+      serverConfig={serverConfig}
+      suggestions={suggestionsQuery.data}
+      onRefetch={refetch}
+    />
+  )
+}
+
+interface ExportCardFormProps {
+  exportTarget: ApiExportTargetSummary
+  groupBy: string
+  serverConfig: ApiExportGroupConfig
+  suggestions: ReturnType<typeof useApiExportSuggestions>['data']
+  onRefetch: () => Promise<unknown>
+}
+
+function ExportCardForm({
+  exportTarget,
+  groupBy,
+  serverConfig,
+  suggestions,
+  onRefetch,
+}: ExportCardFormProps) {
+  const { t } = useTranslation(['sources', 'common'])
+  const saveMutation = useUpdateApiExportGroupConfig(exportTarget.name, groupBy)
+  const [localConfig, setLocalConfig] = useState<ApiExportGroupConfig>(
+    buildDefaultLocalConfig(serverConfig)
+  )
+  const [resetCounter, setResetCounter] = useState(0)
+
+  const availableFields = useMemo(
+    () => buildAvailableFields(suggestions),
+    [suggestions]
+  )
+
+  const isDirty =
+    JSON.stringify(buildDefaultLocalConfig(serverConfig)) !== JSON.stringify(localConfig)
+
+  const isDwcTransformer =
+    localConfig.transformer_plugin === 'niamoto_to_dwc_occurrence'
+
+  const summary = formatExportSummary(localConfig, suggestions, t)
+
+  const updateLocalConfig = (
+    updater: (current: ApiExportGroupConfig) => ApiExportGroupConfig
+  ) => {
+    setLocalConfig((current) => (current ? updater(current) : current))
+  }
+
+  const handleSave = async () => {
+    try {
+      await saveMutation.mutateAsync(localConfig)
+      toast.success(
+        t('collectionPanel.api.groupConfigSaved', { exportName: exportTarget.name, groupBy })
+      )
+      await onRefetch()
+    } catch (mutationError) {
+      toast.error(
+        mutationError instanceof Error
+          ? mutationError.message
+          : t('collectionPanel.api.saveFailed')
+      )
+    }
+  }
+
+  const handleReset = () => {
+    setLocalConfig(buildDefaultLocalConfig(serverConfig))
+    setResetCounter((c) => c + 1)
   }
 
   const indexFieldCount = localConfig.index?.fields?.length ?? 0

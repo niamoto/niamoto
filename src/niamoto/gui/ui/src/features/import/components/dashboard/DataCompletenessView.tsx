@@ -2,7 +2,7 @@
  * DataCompletenessView - Heatmap of column fill rate
  */
 
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,17 +42,18 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
   const [selectedEntity, setSelectedEntity] = useState<string>(
     entities[0]?.name || ''
   )
-
-  useEffect(() => {
-    if (!entities.some((entity) => entity.name === selectedEntity)) {
-      setSelectedEntity(entities[0]?.name || '')
+  const resolvedSelectedEntity = useMemo(() => {
+    if (entities.some((entity) => entity.name === selectedEntity)) {
+      return selectedEntity
     }
+
+    return entities[0]?.name || ''
   }, [entities, selectedEntity])
 
   const { data: completeness, isLoading: loading } = useQuery({
-    queryKey: importQueryKeys.dashboard.completeness(selectedEntity),
-    queryFn: () => getEntityCompleteness(selectedEntity),
-    enabled: selectedEntity.length > 0,
+    queryKey: importQueryKeys.dashboard.completeness(resolvedSelectedEntity),
+    queryFn: () => getEntityCompleteness(resolvedSelectedEntity),
+    enabled: resolvedSelectedEntity.length > 0,
   })
 
   const getCompletenessColor = (value: number) => {
@@ -75,7 +76,7 @@ export function DataCompletenessView({ entities }: DataCompletenessViewProps) {
     <div className="space-y-4">
       {/* Entity selector */}
       <div className="flex items-center gap-4">
-        <Select value={selectedEntity} onValueChange={setSelectedEntity}>
+        <Select value={resolvedSelectedEntity} onValueChange={setSelectedEntity}>
           <SelectTrigger className="w-64">
             <SelectValue
               placeholder={t('dashboard.completeness.selectEntity', 'Select entity')}

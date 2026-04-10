@@ -42,7 +42,7 @@ export interface ImportJobStatus {
   total_records?: number
   count?: number
   imported_count?: number
-  result?: any
+  result?: Record<string, unknown> & { count?: number }
 }
 
 // Estimate import duration based on entity type and data size
@@ -68,10 +68,19 @@ export interface FileAnalysis {
   rowCount: number
   columns: string[]
   encoding: string
-  preview: any[]
+  preview: Record<string, unknown>[]
   suggestions: Record<string, string[]>
   uniqueTaxonCount?: number
   error?: string
+}
+
+export interface ImportExecutionResponse {
+  job_id: string
+  [key: string]: unknown
+}
+
+export interface ImportExecutionResult extends ImportJobStatus {
+  count: number
 }
 
 export interface ImportRequest {
@@ -95,7 +104,10 @@ export async function analyzeFile(file: File, entityType: string): Promise<FileA
   return response.data
 }
 
-export async function executeImport(request: ImportRequest, file?: File): Promise<any> {
+export async function executeImport(
+  request: ImportRequest,
+  file?: File
+): Promise<ImportExecutionResponse> {
   const formData = new FormData()
   formData.append('reset_table', String(request.reset_table || false))
   const fileToUpload = file ?? request.file
@@ -110,7 +122,7 @@ export async function executeImport(request: ImportRequest, file?: File): Promis
     endpoint = `/imports/execute/dataset/${request.entity_name}`
   }
 
-  const response = await apiClient.post(endpoint, formData, {
+  const response = await apiClient.post<ImportExecutionResponse>(endpoint, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -119,11 +131,11 @@ export async function executeImport(request: ImportRequest, file?: File): Promis
   return response.data
 }
 
-export async function executeImportAll(resetTable: boolean = false): Promise<any> {
+export async function executeImportAll(resetTable: boolean = false): Promise<ImportExecutionResponse> {
   const formData = new FormData()
   formData.append('reset_table', String(resetTable))
 
-  const response = await apiClient.post('/imports/execute/all', formData, {
+  const response = await apiClient.post<ImportExecutionResponse>('/imports/execute/all', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -143,8 +155,8 @@ export async function executeImportFromConfig(
   maxWaitTime: number = 300000,
   onProgress?: (progress: number) => void,
   dataSize?: number,
-  onStatusUpdate?: (status: any) => void
-): Promise<any> {
+  onStatusUpdate?: (status: ImportJobStatus) => void
+): Promise<ImportExecutionResult> {
   try {
     const response = await executeImport(request)
     const jobId = response.job_id
@@ -207,14 +219,13 @@ export async function executeImportAndWait(
   maxWaitTime: number = 300000, // 5 minutes max
   onProgress?: (progress: number) => void,
   dataSize?: number // Number of rows or features to process
-): Promise<any> {
+): Promise<ImportExecutionResult> {
   // Start the import and get the job ID
   const importResponse = await executeImport(request, file)
   const jobId = importResponse.job_id
 
   // Poll for completion
   const startTime = Date.now()
-  let pollCount = 0
   let currentProgress = 0
 
   // Estimate processing speed based on entity type and data size
@@ -251,7 +262,6 @@ export async function executeImportAndWait(
 
     // Wait before polling again
     await new Promise(resolve => setTimeout(resolve, pollInterval))
-    pollCount++
   }
 
   throw new Error('Import timed out')

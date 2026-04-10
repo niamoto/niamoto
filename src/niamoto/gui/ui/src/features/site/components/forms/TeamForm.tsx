@@ -9,7 +9,8 @@
  * - Supports externalizing team members to a JSON file for large teams
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,9 +23,11 @@ import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
+  type DataContentResponse,
   useDataContent,
   useUpdateDataContent,
 } from '@/shared/hooks/useSiteConfig'
+import { siteConfigQueryKeys } from '@/shared/hooks/site-config/queryKeys'
 
 // Types for team.html context
 interface SocialLink {
@@ -79,6 +82,7 @@ export function TeamForm({
   pageName,
 }: TeamFormProps) {
   const { t } = useTranslation('site')
+  const queryClient = useQueryClient()
 
   // Check if using external file for team members
   const isExternalMode = !!context.team_source
@@ -88,17 +92,9 @@ export function TeamForm({
   const { data: externalData } = useDataContent(externalFilePath)
   const updateDataMutation = useUpdateDataContent()
 
-  // Local state for team members (either from inline or external)
-  const [localTeam, setLocalTeam] = useState<TeamMember[]>(context.team || [])
-
-  // Sync local team with external data when it changes
-  useEffect(() => {
-    if (isExternalMode && externalData?.data) {
-      setLocalTeam(externalData.data as TeamMember[])
-    } else if (!isExternalMode) {
-      setLocalTeam(context.team || [])
-    }
-  }, [isExternalMode, externalData?.data, context.team])
+  const team = isExternalMode
+    ? ((externalData?.data as TeamMember[] | undefined) ?? [])
+    : (context.team || [])
 
   const updateField = useCallback(
     <K extends keyof TeamPageContext>(field: K, value: TeamPageContext[K]) => {
@@ -110,20 +106,30 @@ export function TeamForm({
   // Handle team change (for both inline and external modes)
   const handleTeamChange = useCallback(
     async (team: TeamMember[]) => {
-      setLocalTeam(team)
-
       if (isExternalMode && externalFilePath) {
-        // Save to external file
-        await updateDataMutation.mutateAsync({
-          path: externalFilePath,
+        const queryKey = siteConfigQueryKeys.dataContent(externalFilePath)
+        const previousData = queryClient.getQueryData<DataContentResponse>(queryKey)
+
+        queryClient.setQueryData<DataContentResponse>(queryKey, {
           data: team,
+          path: externalFilePath,
+          count: team.length,
         })
+
+        try {
+          await updateDataMutation.mutateAsync({
+            path: externalFilePath,
+            data: team,
+          })
+        } catch (error) {
+          queryClient.setQueryData(queryKey, previousData)
+          throw error
+        }
       } else {
-        // Save inline
         updateField('team', team)
       }
     },
-    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+    [externalFilePath, isExternalMode, queryClient, updateDataMutation, updateField]
   )
 
   return (
@@ -166,7 +172,7 @@ export function TeamForm({
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            {t('forms.team.tabTeam')} ({context.team?.length || 0})
+            {t('forms.team.tabTeam')} ({team.length})
           </TabsTrigger>
           <TabsTrigger value="partners" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
@@ -191,7 +197,7 @@ export function TeamForm({
           />
 
           <RepeatableField<TeamMember>
-            items={localTeam}
+            items={team}
             onChange={handleTeamChange}
             createItem={() => ({
               name: '',

@@ -439,8 +439,8 @@ describe('quickValidate', () => {
     const entity: EntityConfig = {
       id: 'e1',
       name: 'valid_name',
-      type: undefined as any, // Missing type
-      connector: { type: undefined as any }, // Missing connector type
+      type: undefined as unknown as EntityConfig['type'], // Missing type
+      connector: { type: undefined as unknown as EntityConfig['connector']['type'] }, // Missing connector type
       schema: { fields: [] },
       links: []
     }

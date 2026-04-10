@@ -12,24 +12,12 @@
  * This eliminates prop drilling for language settings across all form components.
  */
 
-import { createContext, useContext, type ReactNode } from "react"
+import type { ReactNode } from "react"
 
-interface LanguageContextValue {
-  /** Available languages for content (e.g., ['fr', 'en']) */
-  languages: string[]
-  /** Default/primary language code */
-  defaultLang: string
-  /** Whether multilingual mode is active (more than one language) */
-  isMultilingual: boolean
-}
-
-const defaultValue: LanguageContextValue = {
-  languages: ["fr"],
-  defaultLang: "fr",
-  isMultilingual: false,
-}
-
-const LanguageContext = createContext<LanguageContextValue>(defaultValue)
+import {
+  LanguageContext,
+  type LanguageContextValue,
+} from "./languageContext"
 
 interface LanguageProviderProps {
   children: ReactNode
@@ -66,23 +54,4 @@ export function LanguageProvider({
   )
 }
 
-/**
- * Hook to access language settings from any component.
- *
- * @example
- * const { languages, defaultLang, isMultilingual } = useLanguages()
- *
- * // Use in LocalizedInput
- * <LocalizedInput
- *   value={title}
- *   onChange={setTitle}
- *   // No need to pass languages/defaultLang - uses context!
- * />
- */
-export function useLanguages(): LanguageContextValue {
-  const context = useContext(LanguageContext)
-  return context
-}
-
-export { LanguageContext }
 export type { LanguageContextValue, LanguageProviderProps }

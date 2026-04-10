@@ -126,7 +126,7 @@ export function ReferenceConfigForm({
       }
     : defaultEnrichmentConfig
 
-  const updateConnector = (key: string, value: any) => {
+  const updateConnector = (key: string, value: unknown) => {
     setLocalConfig({
       ...localConfig,
       connector: {
@@ -136,7 +136,7 @@ export function ReferenceConfigForm({
     })
   }
 
-  const updateExtraction = (key: string, value: any) => {
+  const updateExtraction = (key: string, value: unknown) => {
     setLocalConfig({
       ...localConfig,
       connector: {

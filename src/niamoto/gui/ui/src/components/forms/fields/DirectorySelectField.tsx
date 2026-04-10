@@ -1,6 +1,6 @@
 // src/components/forms/widgets/DirectorySelectField.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -56,7 +56,7 @@ const DirectorySelectField: React.FC<DirectorySelectFieldProps> = ({
   const [loading, setLoading] = useState(false);
   const [_selectedPath, setSelectedPath] = useState(value);
 
-  const fetchDirectory = async (path: string) => {
+  const fetchDirectory = useCallback(async (path: string) => {
     setLoading(true);
     try {
       const response = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
@@ -79,13 +79,13 @@ const DirectorySelectField: React.FC<DirectorySelectFieldProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [extensions, fileMode]);
 
   useEffect(() => {
     if (showDialog) {
       fetchDirectory(currentPath);
     }
-  }, [currentPath, showDialog]);
+  }, [currentPath, fetchDirectory, showDialog]);
 
   const handleItemClick = (item: FileItem) => {
     if (item.is_directory) {

@@ -84,6 +84,23 @@ function findTreeItem(
   return null
 }
 
+function mapSectionToSelection(section: string): Selection | null {
+  switch (section) {
+    case 'general':
+    case 'identity':
+      return { type: 'general' }
+    case 'appearance':
+    case 'theme':
+      return { type: 'appearance' }
+    case 'navigation':
+      return { type: 'navigation' }
+    case 'pages':
+      return null
+    default:
+      return { type: 'general' }
+  }
+}
+
 // =============================================================================
 // HOOK
 // =============================================================================
@@ -110,30 +127,23 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   const [pageToDelete, setPageToDelete] = useState<string | null>(null)
 
   // UI state
-  const mapSectionToSelection = (section: string): Selection | null => {
-    switch (section) {
-      case 'general':
-      case 'identity':
-        return { type: 'general' }
-      case 'appearance':
-      case 'theme':
-        return { type: 'appearance' }
-      case 'navigation':
-        return { type: 'navigation' }
-      case 'pages':
-        return null
-      default:
-        return { type: 'general' }
-    }
-  }
-  const [selection, setSelection] = useState<Selection | null>(() => mapSectionToSelection(initialSection))
-
-  useEffect(() => {
-    setSelection(mapSectionToSelection(initialSection))
+  const [selectionState, setSelectionState] = useState(() => ({
+    initialSection,
+    value: mapSectionToSelection(initialSection),
+  }))
+  const selection =
+    selectionState.initialSection === initialSection
+      ? selectionState.value
+      : mapSectionToSelection(initialSection)
+  const setSelection = useCallback((value: Selection | null) => {
+    setSelectionState({
+      initialSection,
+      value,
+    })
   }, [initialSection])
 
   // Groups from API (read-only)
-  const groups: GroupInfo[] = groupsData?.groups ?? []
+  const groups = useMemo<GroupInfo[]>(() => groupsData?.groups ?? [], [groupsData?.groups])
 
   // Sync local state from API data.
   // First load: wait for groups to avoid misclassifying collections as external links.
@@ -142,6 +152,9 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   const prevSiteConfigRef = useRef(siteConfig)
   const initialBuildDone = useRef(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect --
+     This effect rehydrates the editable draft from freshly loaded server data.
+     The draft intentionally resets after the initial load and after persisted config changes. */
   useEffect(() => {
     if (!siteConfig) return
 
@@ -165,10 +178,14 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
     setUnifiedTree(
       buildUnifiedTree(siteConfig.navigation, siteConfig.static_pages, groups)
     )
-  }, [siteConfig, groupsLoading])
+  }, [groups, groupsLoading, siteConfig])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // When groups change (e.g. after enabling index page), patch hasIndex on existing
   // tree items without discarding unsaved edits
+  /* eslint-disable react-hooks/set-state-in-effect --
+     Group metadata updates come from an external query and must patch the existing draft tree
+     without discarding unsaved edits. */
   useEffect(() => {
     if (!initialBuildDone.current || groups.length === 0) return
     setUnifiedTree(prev => {
@@ -192,6 +209,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       return prev.map(updateItem)
     })
   }, [groups])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ---------------------------------------------------------------------------
   // Derived state from tree + allPages
@@ -632,12 +650,12 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
       return [...menuItems, newItem, ...hiddenItems]
     })
     setSelection({ type: 'external-link', id: newItem.id })
-  }, [])
+  }, [setSelection])
 
   const removeExternalLink = useCallback((itemId: string) => {
     setUnifiedTree(prev => removeTreeItem(prev, itemId))
     setSelection(null)
-  }, [])
+  }, [setSelection])
 
   const updateExternalLink = useCallback((itemId: string, label: import('@/components/ui/localized-input').LocalizedString, url: string) => {
     setUnifiedTree(prev => updateTreeItem(prev, itemId, item => ({

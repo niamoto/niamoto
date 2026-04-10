@@ -6,7 +6,7 @@
  * - Widget selected: Shows widget detail panel (preview + params + YAML)
  */
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PanelLeft, Plus } from 'lucide-react'
 import type { PanelImperativeHandle } from 'react-resizable-panels'
@@ -48,13 +48,18 @@ interface ContentTabProps {
 
 export function ContentTab({ reference }: ContentTabProps) {
   const { t } = useTranslation(['widgets', 'common'])
-  // Selection state
-  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
-
-  // Reset selection when reference changes (group switch)
-  useEffect(() => {
-    setSelectedWidgetId(null)
-  }, [reference.name])
+  // Selection state is scoped to the current reference to avoid resetting it in an effect.
+  const [selectedWidgetState, setSelectedWidgetState] = useState<{
+    referenceName: string
+    widgetId: string | null
+  }>(() => ({
+    referenceName: reference.name,
+    widgetId: null,
+  }))
+  const selectedWidgetId =
+    selectedWidgetState.referenceName === reference.name
+      ? selectedWidgetState.widgetId
+      : null
 
   // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -113,13 +118,19 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   // Handle widget selection
   const handleSelectWidget = useCallback((widget: ConfiguredWidget | null) => {
-    setSelectedWidgetId(widget?.id || null)
-  }, [])
+    setSelectedWidgetState({
+      referenceName: reference.name,
+      widgetId: widget?.id || null,
+    })
+  }, [reference.name])
 
   // Handle back to layout overview
   const handleBackToLayout = useCallback(() => {
-    setSelectedWidgetId(null)
-  }, [])
+    setSelectedWidgetState({
+      referenceName: reference.name,
+      widgetId: null,
+    })
+  }, [reference.name])
 
   // Handle widget update (updateWidget fait déjà fetchConfigs en interne)
   const handleUpdateWidget = useCallback(async (
@@ -133,10 +144,13 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleDeleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
     const success = await deleteWidget(widgetId)
     if (success && selectedWidgetId === widgetId) {
-      setSelectedWidgetId(null)
+      setSelectedWidgetState({
+        referenceName: reference.name,
+        widgetId: null,
+      })
     }
     return success
-  }, [deleteWidget, selectedWidgetId])
+  }, [deleteWidget, reference.name, selectedWidgetId])
 
   // Handle widget duplicate (duplicateWidget fait déjà fetchConfigs en interne)
   const handleDuplicateWidget = useCallback(async (
@@ -161,8 +175,11 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
-    setSelectedWidgetId(null)
-  }, [refetchWidgets])
+    setSelectedWidgetState({
+      referenceName: reference.name,
+      widgetId: null,
+    })
+  }, [reference.name, refetchWidgets])
 
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)

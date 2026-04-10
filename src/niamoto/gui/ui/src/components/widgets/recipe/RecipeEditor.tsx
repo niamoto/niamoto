@@ -557,7 +557,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
     } else {
       toast.error(t('widgets:form.saveError'))
     }
-  }, [activeTab, isValidYaml, parsedRecipe, widgetId, selectedTransformer, selectedWidget, wizardRecipe, groupBy, validate, save, onSave])
+  }, [activeTab, isValidYaml, parsedRecipe, widgetId, selectedTransformer, selectedWidget, wizardRecipe, groupBy, validate, save, onSave, t])
 
   // Update transformer param
   const updateTransformerParam = useCallback((key: string, value: unknown) => {

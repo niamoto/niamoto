@@ -7,7 +7,7 @@
  * - Display: format, badge options
  * - Advanced: link settings, mapping
  */
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,18 +78,6 @@ export function DisplayFieldEditorPanel({
   // State for filter options
   const [newFilterValue, setNewFilterValue] = useState('')
   const [newFilterLabel, setNewFilterLabel] = useState('')
-
-  // Reset local state when field changes
-  useEffect(() => {
-    setLocalField(field)
-    setIsDirty(false)
-    setMappingText(stringifyJsonObject(field.mapping))
-    setMappingError(null)
-    setBadgeColorsText(stringifyJsonObject(field.badge_colors))
-    setBadgeColorsError(null)
-    setNewFilterValue('')
-    setNewFilterLabel('')
-  }, [field, fieldIndex])
 
   // Update local field
   const updateField = (updates: Partial<IndexDisplayField>) => {

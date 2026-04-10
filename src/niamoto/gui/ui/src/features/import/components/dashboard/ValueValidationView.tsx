@@ -76,7 +76,7 @@ interface ColumnValidation {
   median_value: number | null
   std_dev: number | null
   outlier_count: number
-  outliers: Array<Record<string, any>>
+  outliers: Array<Record<string, unknown>>
   // Enhanced outlier data
   lower_bound: number | null
   upper_bound: number | null

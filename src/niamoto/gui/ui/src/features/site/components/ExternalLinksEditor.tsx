@@ -8,7 +8,7 @@
  * - Reordering via drag & drop
  */
 
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   DndContext,
@@ -68,11 +68,6 @@ interface ExternalLinksEditorProps {
   onChange: (links: ExternalLink[]) => void
 }
 
-function getLinkIcon(type?: string | null) {
-  const linkType = LINK_TYPES.find((t) => t.value === type)
-  return linkType?.icon || Globe
-}
-
 function detectLinkType(url: string): LinkType {
   for (const type of LINK_TYPES) {
     if (type.pattern && type.pattern.test(url)) {
@@ -100,7 +95,7 @@ function SortableLinkItem({ id, link, onUpdate, onRemove, t }: SortableLinkItemP
     transition,
   }
 
-  const Icon = getLinkIcon(link.type)
+  const selectedLinkType = LINK_TYPES.find((type) => type.value === (link.type || 'website'))
 
   const handleUrlChange = (url: string) => {
     const detectedType = detectLinkType(url)
@@ -137,8 +132,8 @@ function SortableLinkItem({ id, link, onUpdate, onRemove, t }: SortableLinkItemP
         <SelectTrigger className="w-[140px]">
           <SelectValue>
             <span className="flex items-center gap-2">
-              <Icon className="h-4 w-4" />
-              {LINK_TYPES.find((t) => t.value === (link.type || 'website'))?.label}
+              {selectedLinkType ? <selectedLinkType.icon className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+              {selectedLinkType?.label}
             </span>
           </SelectValue>
         </SelectTrigger>
@@ -180,22 +175,16 @@ function SortableLinkItem({ id, link, onUpdate, onRemove, t }: SortableLinkItemP
 
 export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProps) {
   const { t } = useTranslation('site')
+  const sortableIds = useMemo(() => {
+    const signatureCounts = new Map<string, number>()
 
-  // Generate stable IDs for sortable items
-  const [idMap] = useState(() => {
-    const map = new Map<number, string>()
-    links.forEach((_, index) => {
-      map.set(index, `link-${index}-${Date.now()}`)
+    return links.map((link) => {
+      const signature = [link.type || 'website', link.name, link.url].join('::')
+      const occurrence = signatureCounts.get(signature) ?? 0
+      signatureCounts.set(signature, occurrence + 1)
+      return `${signature}::${occurrence}`
     })
-    return map
-  })
-
-  const getId = (index: number): string => {
-    if (!idMap.has(index)) {
-      idMap.set(index, `link-${index}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`)
-    }
-    return idMap.get(index)!
-  }
+  }, [links])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -208,8 +197,8 @@ export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProp
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      const oldIndex = links.findIndex((_, i) => getId(i) === active.id)
-      const newIndex = links.findIndex((_, i) => getId(i) === over.id)
+      const oldIndex = sortableIds.findIndex((id) => id === active.id)
+      const newIndex = sortableIds.findIndex((id) => id === over.id)
 
       if (oldIndex !== -1 && newIndex !== -1) {
         onChange(arrayMove(links, oldIndex, newIndex))
@@ -260,15 +249,12 @@ export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProp
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={links.map((_, i) => getId(i))}
-              strategy={verticalListSortingStrategy}
-            >
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-2">
                 {links.map((link, index) => (
                   <SortableLinkItem
-                    key={getId(index)}
-                    id={getId(index)}
+                    key={sortableIds[index]}
+                    id={sortableIds[index]}
                     link={link}
                     onUpdate={(updated) => handleUpdate(index, updated)}
                     onRemove={() => handleRemove(index)}

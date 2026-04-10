@@ -30,10 +30,13 @@ export function NumberArrayInput({
     if (!isFocused) {
       const newText = Array.isArray(value) ? value.join(', ') : ''
       if (newText !== text) {
-        setText(newText)
+        const timeoutId = window.setTimeout(() => {
+          setText(newText)
+        }, 0)
+        return () => window.clearTimeout(timeoutId)
       }
     }
-  }, [value, isFocused])
+  }, [value, isFocused, text])
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value)

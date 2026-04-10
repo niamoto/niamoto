@@ -134,8 +134,11 @@ export function WidgetGallery({
   // Initialize expanded state for all fields on first render only
   useEffect(() => {
     if (!initializedRef.current && groupedSuggestions.length > 0) {
-      setExpandedFields(new Set(groupedSuggestions.map(g => g.field)))
-      initializedRef.current = true
+      const frameId = window.requestAnimationFrame(() => {
+        setExpandedFields(new Set(groupedSuggestions.map(g => g.field)))
+        initializedRef.current = true
+      })
+      return () => window.cancelAnimationFrame(frameId)
     }
   }, [groupedSuggestions])
 

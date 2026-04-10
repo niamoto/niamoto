@@ -63,7 +63,7 @@ export interface ReferenceConfig {
     label?: string
     plugin: string
     enabled: boolean
-    config: Record<string, any>
+    config: Record<string, unknown>
   }>
 }
 

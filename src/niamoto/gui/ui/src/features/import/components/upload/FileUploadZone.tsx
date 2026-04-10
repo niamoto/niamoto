@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -138,9 +139,8 @@ export function FileUploadZone({
         setError(errMsg)
         onError?.(errMsg)
       }
-    } catch (err: any) {
-      const errMsg =
-        err.response?.data?.detail || err.message || t('upload.failed', { ns: 'sources' })
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, t('upload.failed', { ns: 'sources' }))
       setError(errMsg)
       onError?.(errMsg)
     } finally {

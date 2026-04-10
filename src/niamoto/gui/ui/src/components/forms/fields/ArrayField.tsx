@@ -11,19 +11,28 @@ import SelectField from './SelectField';
 import CheckboxField from './CheckboxField';
 import FieldSelectField from './FieldSelectField';
 import ObjectField from './ObjectField';
+import type {
+  FieldSchema,
+  FormValue,
+  SelectOption,
+} from '../formSchemaTypes';
+import {
+  isFormValues,
+  isSelectOptionValue,
+} from '../formSchemaTypes';
 
 interface ArrayFieldProps {
   name: string;
   label?: string;
   description?: string;
-  value?: any[];
-  onChange?: (value: any[]) => void;
+  value?: FormValue[];
+  onChange?: (value: FormValue[]) => void;
   required?: boolean;
   disabled?: boolean;
   error?: string;
   className?: string;
   itemType?: string;
-  itemSchema?: any;
+  itemSchema?: FieldSchema;
   minItems?: number;
   maxItems?: number;
   availableFields?: string[];
@@ -49,7 +58,7 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
   const value = Array.isArray(rawValue) ? rawValue : [];
   const handleAddItem = () => {
     const newValue = [...value];
-    let defaultValue: any;
+    let defaultValue: FormValue = '';
 
     if (itemType === 'number') {
       defaultValue = 0;
@@ -61,19 +70,19 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
       // For objects, create a default object with all required fields
       defaultValue = {};
       if (itemSchema?.properties) {
-        Object.entries(itemSchema.properties).forEach(([key, prop]: [string, any]) => {
+        Object.entries(itemSchema.properties).forEach(([key, prop]) => {
           if (prop.default !== undefined) {
-            defaultValue[key] = prop.default;
+            (defaultValue as Record<string, FormValue | undefined>)[key] = prop.default;
           } else if (prop.type === 'string') {
-            defaultValue[key] = '';
+            (defaultValue as Record<string, FormValue | undefined>)[key] = '';
           } else if (prop.type === 'number') {
-            defaultValue[key] = 0;
+            (defaultValue as Record<string, FormValue | undefined>)[key] = 0;
           } else if (prop.type === 'boolean') {
-            defaultValue[key] = false;
+            (defaultValue as Record<string, FormValue | undefined>)[key] = false;
           } else if (prop.type === 'array') {
-            defaultValue[key] = [];
+            (defaultValue as Record<string, FormValue | undefined>)[key] = [];
           } else if (prop.type === 'object') {
-            defaultValue[key] = {};
+            (defaultValue as Record<string, FormValue | undefined>)[key] = {};
           }
         });
       }
@@ -95,7 +104,7 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
     onChange?.(newValue);
   };
 
-  const handleItemChange = (index: number, itemValue: any) => {
+  const handleItemChange = (index: number, itemValue: FormValue | undefined) => {
     const newValue = [...value];
     newValue[index] = itemValue;
     onChange?.(newValue);
@@ -124,14 +133,15 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
     setCollapsedItems(newCollapsed);
   };
 
-  const getItemSummary = (item: any, index: number) => {
+  const getItemSummary = (item: FormValue, index: number) => {
     // For objects, try to create a meaningful summary
-    if (itemType === 'object' && typeof item === 'object' && item !== null) {
+    if (itemType === 'object' && isFormValues(item)) {
       // Try common field names for summary
       const summaryFields = ['name', 'label', 'title', 'target', 'source', 'field'];
       for (const field of summaryFields) {
-        if (item[field]) {
-          return `${item[field]}`;
+        const fieldValue = item[field];
+        if (typeof fieldValue === 'string' && fieldValue) {
+          return fieldValue;
         }
       }
       // Fallback to showing first non-empty field
@@ -143,11 +153,9 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
     return `Item ${index + 1}`;
   };
 
-  const renderItem = (item: any, index: number) => {
+  const renderItem = (item: FormValue, index: number) => {
     const itemProps = {
       name: `${name}[${index}]`,
-      value: item,
-      onChange: (val: any) => handleItemChange(index, val),
       disabled,
     };
 
@@ -159,45 +167,70 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
         itemComponent = (
           <NumberField
             {...itemProps}
+            value={typeof item === 'number' ? item : undefined}
+            onChange={(val) => handleItemChange(index, val)}
             min={itemSchema?.minimum}
             max={itemSchema?.maximum}
           />
         );
         break;
       case 'select':
-        const options = itemSchema?.enum?.map((val: any) => ({ value: val, label: val })) || [];
-        itemComponent = (
-          <SelectField
-            {...itemProps}
-            options={options}
-          />
-        );
+        {
+          const options: SelectOption[] = itemSchema?.enum?.map((val) => ({
+            value: val,
+            label: String(val),
+          })) || [];
+          itemComponent = (
+            <SelectField
+              {...itemProps}
+              value={isSelectOptionValue(item) ? item : undefined}
+              onChange={(val) => handleItemChange(index, val)}
+              options={options}
+            />
+          );
+        }
         break;
       case 'checkbox':
-        itemComponent = <CheckboxField {...itemProps} />;
+        itemComponent = (
+          <CheckboxField
+            {...itemProps}
+            value={typeof item === 'boolean' ? item : false}
+            onChange={(val) => handleItemChange(index, val)}
+          />
+        );
         break;
       case 'field-select':
         itemComponent = (
           <FieldSelectField
             {...itemProps}
+            value={typeof item === 'string' ? item : undefined}
+            onChange={(val) => handleItemChange(index, val)}
             availableFields={availableFields}
           />
         );
         break;
       case 'object':
-        // itemSchema should already be resolved by JsonSchemaForm
-        const objectProperties = itemSchema?.properties || {};
+        {
+          const objectProperties = itemSchema?.properties || {};
 
-
-        itemComponent = (
-          <ObjectField
-            {...itemProps}
-            properties={objectProperties}
-          />
-        );
+          itemComponent = (
+            <ObjectField
+              {...itemProps}
+              value={isFormValues(item) ? item : {}}
+              onChange={(val) => handleItemChange(index, val)}
+              properties={objectProperties}
+            />
+          );
+        }
         break;
       default:
-        itemComponent = <TextField {...itemProps} />;
+        itemComponent = (
+          <TextField
+            {...itemProps}
+            value={typeof item === 'string' ? item : ''}
+            onChange={(val) => handleItemChange(index, val)}
+          />
+        );
     }
 
     // Special layout for objects to save space

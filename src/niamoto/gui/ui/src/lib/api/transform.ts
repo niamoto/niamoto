@@ -24,7 +24,7 @@ export interface TransformStatus {
   completed_at?: string | null
   result?: {
     metrics: TransformMetrics
-    transformations: Record<string, any>
+    transformations: Record<string, unknown>
   } | null
   error?: string | null
 }
@@ -39,7 +39,7 @@ export interface TransformMetrics {
 }
 
 export interface TransformConfig {
-  config: any
+  config: Record<string, unknown>
   summary: {
     total_widgets: number
     widget_types: Record<string, number>

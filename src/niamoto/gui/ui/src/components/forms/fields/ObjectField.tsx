@@ -13,18 +13,30 @@ import TextAreaField from './TextAreaField';
 import JsonField from './JsonField';
 import KeyValuePairsField from './KeyValuePairsField';
 import TagsField from './TagsField';
+import type {
+  FieldSchema,
+  FormValue,
+  FormValues,
+  SelectOption,
+  SelectOptionValue,
+} from '../formSchemaTypes';
+import {
+  isFormValues,
+  isSelectOptionValue,
+  isStringArray,
+} from '../formSchemaTypes';
 
 interface ObjectFieldProps {
   name: string;
   label?: string;
   description?: string;
-  value?: Record<string, any>;
-  onChange?: (value: Record<string, any>) => void;
+  value?: FormValues;
+  onChange?: (value: FormValues) => void;
   required?: boolean;
   disabled?: boolean;
   error?: string;
   className?: string;
-  properties?: Record<string, any>;
+  properties?: Record<string, FieldSchema>;
 }
 
 const ObjectField: React.FC<ObjectFieldProps> = ({
@@ -41,12 +53,12 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
 }) => {
   const { t } = useTranslation(['common', 'widgets']);
 
-  const handleFieldChange = (fieldName: string, fieldValue: any) => {
+  const handleFieldChange = (fieldName: string, fieldValue: FormValue | undefined) => {
     const newValue = { ...value, [fieldName]: fieldValue };
     onChange?.(newValue);
   };
 
-  const renderField = (fieldName: string, fieldSchema: any) => {
+  const renderField = (fieldName: string, fieldSchema: FieldSchema) => {
     const fieldType = Array.isArray(fieldSchema.type) ? fieldSchema.type[0] : fieldSchema.type;
     const fieldValue = value[fieldName];
     const uiCondition = getUiSchemaValue<string>(fieldSchema, 'ui:condition');
@@ -59,14 +71,14 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
     const uiWidget = getUiSchemaValue<string>(fieldSchema, 'ui:widget');
     const uiPlaceholder = getUiSchemaValue<string>(fieldSchema, 'ui:placeholder');
     const uiHelp = getUiSchemaValue<string>(fieldSchema, 'ui:help');
-    const uiOptions = getUiSchemaValue<Array<string | { value: any; label: string }>>(fieldSchema, 'ui:options');
+    const uiOptions = getUiSchemaValue<Array<string | SelectOption>>(fieldSchema, 'ui:options');
     const autoTitle = humanizeFieldName(fieldName);
     const resolvedLabel =
       fieldSchema.title && fieldSchema.title !== autoTitle
         ? fieldSchema.title
         : t(`widgets:form.fieldLabels.${fieldName}`, { defaultValue: autoTitle });
 
-    const translateOptionLabel = (optionValue: any, fallbackLabel: string) =>
+    const translateOptionLabel = (optionValue: SelectOptionValue, fallbackLabel: string) =>
       t(`widgets:form.fieldOptions.${fieldName}.${String(optionValue)}`, {
         defaultValue: fallbackLabel,
       });
@@ -76,8 +88,6 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
       label: resolvedLabel,
       description: uiHelp || fieldSchema.description,
       placeholder: uiPlaceholder,
-      value: fieldValue,
-      onChange: (val: any) => handleFieldChange(fieldName, val),
       disabled,
       required: fieldSchema.required || false
     };
@@ -89,37 +99,74 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
           return <TextAreaField {...commonProps} />;
 
         case 'select':
-          const selectOptions = uiOptions?.map((opt) => {
-            if (typeof opt === 'string') {
-              return { value: opt, label: translateOptionLabel(opt, opt) };
-            }
-            return {
-              value: opt.value,
-              label: translateOptionLabel(opt.value, opt.label),
-            };
-          }) ||
-            fieldSchema.enum?.map((val: any) => ({
-              value: val,
-              label: translateOptionLabel(val, String(val)),
-            })) || [];
-          return <SelectField {...commonProps} options={selectOptions} />;
+          {
+            const selectOptions = uiOptions?.map((opt) => {
+              if (typeof opt === 'string') {
+                return { value: opt, label: translateOptionLabel(opt, opt) };
+              }
+              return {
+                value: opt.value,
+                label: translateOptionLabel(opt.value, opt.label),
+              };
+            }) ||
+              fieldSchema.enum?.map((val) => ({
+                value: val,
+                label: translateOptionLabel(val, String(val)),
+              })) || [];
+            return (
+              <SelectField
+                {...commonProps}
+                value={isSelectOptionValue(fieldValue) ? fieldValue : undefined}
+                onChange={(val) => handleFieldChange(fieldName, val)}
+                options={selectOptions}
+              />
+            );
+          }
 
         case 'checkbox':
-          return <CheckboxField {...commonProps} />;
+          return (
+            <CheckboxField
+              {...commonProps}
+              value={typeof fieldValue === 'boolean' ? fieldValue : false}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+            />
+          );
 
         case 'json':
-          return <JsonField {...commonProps} />;
+          return (
+            <JsonField
+              {...commonProps}
+              value={fieldValue}
+              onChange={(val) => handleFieldChange(fieldName, val as FormValue | undefined)}
+            />
+          );
 
         case 'key-value-pairs':
-          return <KeyValuePairsField {...commonProps} />;
+          return (
+            <KeyValuePairsField
+              {...commonProps}
+              value={isFormValues(fieldValue) ? Object.fromEntries(
+                Object.entries(fieldValue).filter(([, val]) => typeof val === 'string')
+              ) as Record<string, string> : undefined}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+            />
+          );
 
         case 'tags':
-          return <TagsField {...commonProps} />;
+          return (
+            <TagsField
+              {...commonProps}
+              value={isStringArray(fieldValue) ? fieldValue : []}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+            />
+          );
 
         case 'number':
           return (
             <NumberField
               {...commonProps}
+              value={typeof fieldValue === 'number' ? fieldValue : undefined}
+              onChange={(val) => handleFieldChange(fieldName, val)}
               min={fieldSchema.minimum}
               max={fieldSchema.maximum}
             />
@@ -138,36 +185,62 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
           return (
             <SelectField
               {...commonProps}
-              options={fieldSchema.enum.map((val: any) => ({
+              value={isSelectOptionValue(fieldValue) ? fieldValue : undefined}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+              options={fieldSchema.enum.map((val) => ({
                 value: val,
                 label: translateOptionLabel(val, String(val)),
               }))}
             />
           );
         }
-        return <TextField {...commonProps} />;
+        return (
+          <TextField
+            {...commonProps}
+            value={typeof fieldValue === 'string' ? fieldValue : ''}
+            onChange={(val) => handleFieldChange(fieldName, val)}
+          />
+        );
 
       case 'number':
       case 'integer':
         return (
           <NumberField
             {...commonProps}
+            value={typeof fieldValue === 'number' ? fieldValue : undefined}
+            onChange={(val) => handleFieldChange(fieldName, val)}
             min={fieldSchema.minimum}
             max={fieldSchema.maximum}
           />
         );
 
       case 'boolean':
-        return <CheckboxField {...commonProps} />;
+        return (
+          <CheckboxField
+            {...commonProps}
+            value={typeof fieldValue === 'boolean' ? fieldValue : false}
+            onChange={(val) => handleFieldChange(fieldName, val)}
+          />
+        );
 
       case 'object':
         // Check if it's a Dict[str, str] (additionalProperties with string type)
         if (fieldSchema.additionalProperties?.type === 'string') {
-          return <KeyValuePairsField {...commonProps} />;
+          return (
+            <KeyValuePairsField
+              {...commonProps}
+              value={isFormValues(fieldValue) ? Object.fromEntries(
+                Object.entries(fieldValue).filter(([, val]) => typeof val === 'string')
+              ) as Record<string, string> : undefined}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+            />
+          );
         }
         return (
           <ObjectField
             {...commonProps}
+            value={isFormValues(fieldValue) ? fieldValue : {}}
+            onChange={(val) => handleFieldChange(fieldName, val)}
             properties={fieldSchema.properties || {}}
           />
         );
@@ -175,12 +248,30 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
       case 'array':
         // Check if it's a simple string array (tags)
         if (fieldSchema.items?.type === 'string') {
-          return <TagsField {...commonProps} />;
+          return (
+            <TagsField
+              {...commonProps}
+              value={isStringArray(fieldValue) ? fieldValue : []}
+              onChange={(val) => handleFieldChange(fieldName, val)}
+            />
+          );
         }
-        return <JsonField {...commonProps} />;
+        return (
+          <JsonField
+            {...commonProps}
+            value={fieldValue}
+            onChange={(val) => handleFieldChange(fieldName, val as FormValue | undefined)}
+          />
+        );
 
       default:
-        return <TextField {...commonProps} />;
+        return (
+          <TextField
+            {...commonProps}
+            value={typeof fieldValue === 'string' ? fieldValue : ''}
+            onChange={(val) => handleFieldChange(fieldName, val)}
+          />
+        );
     }
   };
 

@@ -9,7 +9,7 @@
  * Collection detail delegates to CollectionPanel.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
@@ -48,21 +48,11 @@ export function CollectionsModule() {
   const { data: referencesData, isLoading } = useReferences()
   const references = referencesData?.references ?? []
 
-  // Selection state — initialized from URL
-  const [selection, setSelection] = useState<CollectionsSelection>(() =>
-    selectionFromPath(location.pathname)
-  )
   const [initialTab, setInitialTab] = useState<string | undefined>()
-
-  // Sync selection when URL changes externally (e.g. browser back/forward)
-  useEffect(() => {
-    const newSelection = selectionFromPath(location.pathname)
-    setSelection(newSelection)
-  }, [location.pathname])
+  const selection = useMemo(() => selectionFromPath(location.pathname), [location.pathname])
 
   // Update URL when selection changes
   const handleSelect = (newSelection: CollectionsSelection, tab?: string) => {
-    setSelection(newSelection)
     setInitialTab(tab)
     if (newSelection.type === 'overview') {
       navigate('/groups')

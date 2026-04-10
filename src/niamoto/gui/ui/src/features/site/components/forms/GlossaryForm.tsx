@@ -7,7 +7,8 @@
  * - Supports externalizing terms to a JSON file for large glossaries
  */
 
-import { useCallback, useMemo, useEffect, useState } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,9 +20,11 @@ import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
+  type DataContentResponse,
   useDataContent,
   useUpdateDataContent,
 } from '@/shared/hooks/useSiteConfig'
+import { siteConfigQueryKeys } from '@/shared/hooks/site-config/queryKeys'
 
 // Types for glossary.html context
 interface TermItem {
@@ -63,6 +66,7 @@ export function GlossaryForm({
   pageName,
 }: GlossaryFormProps) {
   const { t } = useTranslation('site')
+  const queryClient = useQueryClient()
 
   // Check if using external file for terms
   const isExternalMode = !!context.terms_source
@@ -72,17 +76,13 @@ export function GlossaryForm({
   const { data: externalData } = useDataContent(externalFilePath)
   const updateDataMutation = useUpdateDataContent()
 
-  // Local state for terms (either from inline or external)
-  const [localTerms, setLocalTerms] = useState<TermItem[]>(context.terms || [])
-
-  // Sync local terms with external data when it changes
-  useEffect(() => {
-    if (isExternalMode && externalData?.data) {
-      setLocalTerms(externalData.data as TermItem[])
-    } else if (!isExternalMode) {
-      setLocalTerms(context.terms || [])
-    }
-  }, [isExternalMode, externalData?.data, context.terms])
+  const terms = useMemo(
+    () =>
+      isExternalMode
+        ? ((externalData?.data as TermItem[] | undefined) ?? [])
+        : (context.terms ?? []),
+    [context.terms, externalData?.data, isExternalMode]
+  )
 
   const updateField = useCallback(
     <K extends keyof GlossaryPageContext>(field: K, value: GlossaryPageContext[K]) => {
@@ -94,30 +94,40 @@ export function GlossaryForm({
   // Handle terms change (for both inline and external modes)
   const handleTermsChange = useCallback(
     async (terms: TermItem[]) => {
-      setLocalTerms(terms)
-
       if (isExternalMode && externalFilePath) {
-        // Save to external file
-        await updateDataMutation.mutateAsync({
-          path: externalFilePath,
+        const queryKey = siteConfigQueryKeys.dataContent(externalFilePath)
+        const previousData = queryClient.getQueryData<DataContentResponse>(queryKey)
+
+        queryClient.setQueryData<DataContentResponse>(queryKey, {
           data: terms,
+          path: externalFilePath,
+          count: terms.length,
         })
+
+        try {
+          await updateDataMutation.mutateAsync({
+            path: externalFilePath,
+            data: terms,
+          })
+        } catch (error) {
+          queryClient.setQueryData(queryKey, previousData)
+          throw error
+        }
       } else {
-        // Save inline
         updateField('terms', terms)
       }
     },
-    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+    [externalFilePath, isExternalMode, queryClient, updateDataMutation, updateField]
   )
 
   // Extract unique categories from existing terms
   const existingCategories = useMemo(() => {
     const categories = new Set<string>()
-    localTerms.forEach((term) => {
+    terms.forEach((term) => {
       if (term.category) categories.add(term.category)
     })
     return Array.from(categories)
-  }, [localTerms])
+  }, [terms])
 
   // Combine suggested and existing categories
   const allCategories = useMemo(() => {
@@ -200,11 +210,11 @@ export function GlossaryForm({
           onDataSourceChange={(source) => updateField('terms_source', source)}
           inlineData={context.terms || []}
           onInlineDataChange={(data) => updateField('terms', data)}
-          description={t('forms.glossary.termsDefined', { count: localTerms.length })}
+          description={t('forms.glossary.termsDefined', { count: terms.length })}
         />
 
         <RepeatableField<TermItem>
-          items={localTerms}
+          items={terms}
           onChange={handleTermsChange}
           createItem={() => ({
             term: '',

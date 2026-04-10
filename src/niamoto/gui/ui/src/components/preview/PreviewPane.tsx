@@ -6,9 +6,9 @@
  * et force un re-mount de l'iframe pour que Plotly se recalcule.
  */
 
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import type { PreviewDescriptor } from '@/lib/preview/types'
-import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
+import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
 
@@ -43,23 +43,19 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
     return () => observer.disconnect()
   }, [])
 
-  const fullDescriptor = useMemo(
-    () => ({ ...descriptor, mode: 'full' as const }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    descriptorDeps(descriptor),
-  )
+  const fullDescriptor = { ...descriptor, mode: 'full' as const }
 
   const { html, loading, error } = usePreviewFrame(fullDescriptor, true)
 
   // Nettoyage Plotly au démontage
   useEffect(() => {
+    const iframe = iframeRef.current
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      if (iframeRef.current) {
-        iframeRef.current.srcdoc = ''
+      if (iframe) {
+        iframe.srcdoc = ''
       }
     }
-  }, [])
+  }, [html, resizeKey])
 
   return (
     <div ref={containerRef} className={className}>

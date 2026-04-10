@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MarkdownEditor } from './MarkdownEditor'
 import { useUpdateFileContent } from '@/shared/hooks/useSiteConfig'
-import { useLanguages } from '@/shared/contexts/LanguageContext'
+import { useLanguages } from '@/shared/contexts/useLanguages'
 
 interface LanguageFileState {
   content: string

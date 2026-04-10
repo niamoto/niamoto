@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { FileCode2, History, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -56,19 +56,22 @@ function ConfigTab({ configName }: { configName: ConfigType }) {
   const [backups, setBackups] = useState<BackupInfo[]>([])
   const [loadingBackups, setLoadingBackups] = useState(false)
 
-  useEffect(() => {
-    if (showBackupDialog) {
-      setLoadingBackups(true)
-      listBackups().then((data) => {
-        setBackups(data.backups || [])
-        setLoadingBackups(false)
-      })
+  const handleBackupDialogChange = useCallback(async (open: boolean) => {
+    setShowBackupDialog(open)
+    if (!open) return
+
+    setLoadingBackups(true)
+    try {
+      const data = await listBackups()
+      setBackups(data.backups || [])
+    } finally {
+      setLoadingBackups(false)
     }
-  }, [showBackupDialog, listBackups])
+  }, [listBackups])
 
   const handleSave = async (yamlContent: string) => {
     try {
-      const content = yaml.load(yamlContent) as Record<string, any>
+      const content = yaml.load(yamlContent) as Record<string, unknown>
       const result = await updateConfig({ content, backup: true })
       toast.success('Configuration saved', {
         description: result.backup_path
@@ -130,7 +133,7 @@ function ConfigTab({ configName }: { configName: ConfigType }) {
             backed up.
           </p>
         </div>
-        <Dialog open={showBackupDialog} onOpenChange={setShowBackupDialog}>
+        <Dialog open={showBackupDialog} onOpenChange={handleBackupDialogChange}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
               <History className="h-4 w-4 mr-2" />

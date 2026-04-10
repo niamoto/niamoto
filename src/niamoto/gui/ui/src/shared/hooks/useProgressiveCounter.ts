@@ -15,6 +15,7 @@ export function useProgressiveCounter(
   const [value, setValue] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const [hasAnimated, setHasAnimated] = useState(false)
+  const animationRunning = isAnimating || (!hasAnimated && startOnMount)
 
   const start = () => {
     setValue(0)
@@ -25,7 +26,7 @@ export function useProgressiveCounter(
   useEffect(() => {
     // Only animate once if startOnMount is true
     if (hasAnimated) return
-    if (!startOnMount && !isAnimating) return
+    if (!animationRunning) return
 
     const startTime = Date.now()
     let animationId: number
@@ -49,7 +50,6 @@ export function useProgressiveCounter(
       }
     }
 
-    setIsAnimating(true)
     animationId = requestAnimationFrame(step)
 
     return () => {
@@ -57,7 +57,7 @@ export function useProgressiveCounter(
         cancelAnimationFrame(animationId)
       }
     }
-  }, [target, duration, startOnMount, hasAnimated])
+  }, [animationRunning, duration, hasAnimated, target])
 
-  return { value, isAnimating, start }
+  return { value, isAnimating: animationRunning, start }
 }

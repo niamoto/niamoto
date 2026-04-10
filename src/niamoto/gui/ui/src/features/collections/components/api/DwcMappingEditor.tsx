@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -223,14 +223,22 @@ export function DwcMappingEditor({
   value = {},
   onChange,
 }: DwcMappingEditorProps) {
+  return (
+    <DwcMappingEditorForm
+      key={JSON.stringify(value)}
+      value={value}
+      onChange={onChange}
+    />
+  )
+}
+
+function DwcMappingEditorForm({
+  value = {},
+  onChange,
+}: DwcMappingEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setRows(parseRows(value))
-    setError(null)
-  }, [value])
 
   const generatorOptions = useMemo(() => {
     const extraGenerators = rows

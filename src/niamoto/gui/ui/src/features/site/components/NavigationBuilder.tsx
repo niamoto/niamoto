@@ -82,7 +82,7 @@ import type {
   GroupInfo,
   TemplateInfo,
 } from '@/shared/hooks/useSiteConfig'
-import { useLanguages } from '@/shared/contexts/LanguageContext'
+import { useLanguages } from '@/shared/contexts/useLanguages'
 
 // =============================================================================
 // Template Configuration (shared with TemplateList)
@@ -655,26 +655,30 @@ export function NavigationBuilder({
       })),
   ]
 
-  // Generate stable IDs for sortable items
-  // We maintain a stable array of IDs that grows with the items array
-  // IDs are only added, never removed (until component unmounts)
-  const idCounterRef = useRef(0)
-  const stableIdsRef = useRef<string[]>([])
+  // Generate stable IDs for sortable items without mutating refs during render.
+  const [itemIdsState, setItemIdsState] = useState<string[]>(() =>
+    items.map((_, index) => `nav-${index + 1}`)
+  )
+  const idCounterRef = useRef(itemIdsState.length)
 
-  // Ensure we have enough stable IDs for all items
-  const itemIds = useMemo(() => {
-    // Grow the ID array if needed (when items are added)
-    while (stableIdsRef.current.length < items.length) {
-      idCounterRef.current += 1
-      stableIdsRef.current.push(`nav-${idCounterRef.current}`)
-    }
-    // Return IDs for current items (slice to match current length)
-    return stableIdsRef.current.slice(0, items.length)
-  }, [items.length])
+  const itemIds =
+    itemIdsState.length >= items.length
+      ? itemIdsState.slice(0, items.length)
+      : [
+          ...itemIdsState,
+          ...Array.from({ length: items.length - itemIdsState.length }, (_, offset) =>
+            `nav-external-${itemIdsState.length + offset + 1}`
+          ),
+        ]
 
   // Get stable ID for an item by index
   const getId = (index: number): string => {
-    return itemIds[index]
+    return itemIds[index] ?? `nav-fallback-${index}`
+  }
+
+  const nextItemId = (): string => {
+    idCounterRef.current += 1
+    return `nav-${idCounterRef.current}`
   }
 
   const sensors = useSensors(
@@ -694,13 +698,14 @@ export function NavigationBuilder({
       if (oldIndex !== -1 && newIndex !== -1) {
         // Reorder both items and their IDs to maintain stability
         const newItems = arrayMove(items, oldIndex, newIndex)
-        stableIdsRef.current = arrayMove(stableIdsRef.current, oldIndex, newIndex)
+        setItemIdsState(arrayMove(itemIds, oldIndex, newIndex))
         onChange(newItems)
       }
     }
   }
 
   const handleAdd = () => {
+    setItemIdsState([...itemIds, nextItemId()])
     onChange([...items, { text: '', url: '' }])
   }
 
@@ -712,7 +717,7 @@ export function NavigationBuilder({
 
   const handleRemove = (index: number) => {
     // Remove both the item and its ID to maintain synchronization
-    stableIdsRef.current = stableIdsRef.current.filter((_, i) => i !== index)
+    setItemIdsState(itemIds.filter((_, i) => i !== index))
     onChange(items.filter((_, i) => i !== index))
   }
 

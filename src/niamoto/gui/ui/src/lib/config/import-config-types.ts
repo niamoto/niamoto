@@ -68,7 +68,7 @@ export interface FieldMapping {
 export interface FileAnalysis {
   columns: string[]
   rowCount?: number
-  sampleData?: Record<string, any>[]
+  sampleData?: Record<string, unknown>[]
   detectedTypes?: Record<string, string>
   hasGeometry?: boolean
   geometryType?: string
@@ -90,7 +90,7 @@ export interface MultiFeatureSource {
 export interface ExtractionConfig {
   method?: string
   fields?: string[]
-  transform?: Record<string, any>
+  transform?: Record<string, unknown>
 }
 
 /**
@@ -112,7 +112,7 @@ export interface ConnectorConfig {
 
   // For type: api
   url?: string
-  params?: Record<string, any>
+  params?: Record<string, unknown>
 }
 
 /**
@@ -146,7 +146,7 @@ export interface EnrichmentConfig {
   label?: string
   plugin: string
   enabled: boolean
-  config: Record<string, any>
+  config: Record<string, unknown>
 }
 
 /**

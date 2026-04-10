@@ -7,7 +7,8 @@
  * - Supports externalizing resources to a JSON file for large lists
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,15 +22,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { RepeatableField } from './RepeatableField'
-import { renderLucideIcon } from './LucideIconPicker'
+import { renderLucideIcon } from './lucideIconRegistry'
 import { FilePickerField } from './FilePickerField'
 import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
+  type DataContentResponse,
   useDataContent,
   useUpdateDataContent,
 } from '@/shared/hooks/useSiteConfig'
+import { siteConfigQueryKeys } from '@/shared/hooks/site-config/queryKeys'
 
 // Types for resources.html context
 interface ResourceItem {
@@ -73,6 +76,7 @@ export function ResourcesForm({
   pageName,
 }: ResourcesFormProps) {
   const { t } = useTranslation('site')
+  const queryClient = useQueryClient()
 
   // Check if using external file for resources
   const isExternalMode = !!context.resources_source
@@ -82,19 +86,9 @@ export function ResourcesForm({
   const { data: externalData } = useDataContent(externalFilePath)
   const updateDataMutation = useUpdateDataContent()
 
-  // Local state for resources (either from inline or external)
-  const [localResources, setLocalResources] = useState<ResourceItem[]>(
-    context.resources || []
-  )
-
-  // Sync local resources with external data when it changes
-  useEffect(() => {
-    if (isExternalMode && externalData?.data) {
-      setLocalResources(externalData.data as ResourceItem[])
-    } else if (!isExternalMode) {
-      setLocalResources(context.resources || [])
-    }
-  }, [isExternalMode, externalData?.data, context.resources])
+  const resources = isExternalMode
+    ? ((externalData?.data as ResourceItem[] | undefined) ?? [])
+    : (context.resources || [])
 
   const updateField = useCallback(
     <K extends keyof ResourcesPageContext>(field: K, value: ResourcesPageContext[K]) => {
@@ -106,20 +100,30 @@ export function ResourcesForm({
   // Handle resources change (for both inline and external modes)
   const handleResourcesChange = useCallback(
     async (resources: ResourceItem[]) => {
-      setLocalResources(resources)
-
       if (isExternalMode && externalFilePath) {
-        // Save to external file
-        await updateDataMutation.mutateAsync({
-          path: externalFilePath,
+        const queryKey = siteConfigQueryKeys.dataContent(externalFilePath)
+        const previousData = queryClient.getQueryData<DataContentResponse>(queryKey)
+
+        queryClient.setQueryData<DataContentResponse>(queryKey, {
           data: resources,
+          path: externalFilePath,
+          count: resources.length,
         })
+
+        try {
+          await updateDataMutation.mutateAsync({
+            path: externalFilePath,
+            data: resources,
+          })
+        } catch (error) {
+          queryClient.setQueryData(queryKey, previousData)
+          throw error
+        }
       } else {
-        // Save inline
         updateField('resources', resources)
       }
     },
-    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+    [externalFilePath, isExternalMode, queryClient, updateDataMutation, updateField]
   )
 
   return (
@@ -169,11 +173,11 @@ export function ResourcesForm({
           onDataSourceChange={(source) => updateField('resources_source', source)}
           inlineData={context.resources || []}
           onInlineDataChange={(data) => updateField('resources', data)}
-          description={t('forms.resources.resourceCount', { count: localResources.length })}
+          description={t('forms.resources.resourceCount', { count: resources.length })}
         />
 
         <RepeatableField<ResourceItem>
-          items={localResources}
+          items={resources}
           onChange={handleResourcesChange}
           createItem={() => ({
             title: '',

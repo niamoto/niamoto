@@ -19,7 +19,7 @@ export interface ExportsListResponse {
 export interface ExportFileContent {
   path: string
   content: string
-  parsed?: any
+  parsed?: unknown
   size: number
   error?: string
 }

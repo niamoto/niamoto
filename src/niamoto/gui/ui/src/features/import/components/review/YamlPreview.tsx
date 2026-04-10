@@ -28,7 +28,7 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
   }
 
   // Generate YAML
-  const yamlConfig: any = {
+  const yamlConfig: Record<string, unknown> = {
     version: '1.0',
     entities: {
       datasets: result.entities.datasets || {},

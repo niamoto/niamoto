@@ -1,6 +1,4 @@
 import {
-  createContext,
-  useContext,
   useState,
   useCallback,
   useEffect,
@@ -18,28 +16,9 @@ import {
   type BugReportDraft,
 } from '../lib/bug-report-bridge'
 import { FeedbackError, type FeedbackType, type FeedbackContext } from '../types'
+import { FeedbackContext, type FeedbackState } from './feedbackContext'
 
 const COOLDOWN_SECONDS = 30
-
-interface FeedbackState {
-  isOpen: boolean
-  type: FeedbackType
-  isSending: boolean
-  cooldownRemaining: number
-  screenshot: Blob | null
-  screenshotError: boolean
-  isPreparingScreenshot: boolean
-  contextData: FeedbackContext | null
-  draftTitle: string
-  draftDescription: string
-  openWithType: (type?: FeedbackType) => Promise<void>
-  close: () => void
-  setType: (type: FeedbackType) => void
-  captureScreenshot: () => Promise<void>
-  send: (title: string, description: string, includeScreenshot: boolean) => Promise<void>
-}
-
-const FeedbackContext = createContext<FeedbackState | null>(null)
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation('feedback')
@@ -199,12 +178,4 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       {children}
     </FeedbackContext.Provider>
   )
-}
-
-export function useFeedback(): FeedbackState {
-  const context = useContext(FeedbackContext)
-  if (!context) {
-    throw new Error('useFeedback must be used within a FeedbackProvider')
-  }
-  return context
 }

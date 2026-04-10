@@ -33,27 +33,30 @@ export function TransformParamsEditor({
 
   // Initialize params with defaults when transform changes
   useEffect(() => {
+    const nextParams: Record<string, unknown> = {}
     if (currentSchema) {
-      const newParams: Record<string, unknown> = {}
       for (const [key, def] of Object.entries(currentSchema)) {
         if (def.default !== undefined) {
-          newParams[key] = value?.[key] ?? def.default
+          nextParams[key] = value?.[key] ?? def.default
         } else if (value?.[key] !== undefined) {
-          newParams[key] = value[key]
+          nextParams[key] = value[key]
         }
       }
-      setLocalParams(newParams)
-    } else {
-      setLocalParams({})
     }
-  }, [selectedTransform, currentSchema])
+
+    const timeoutId = window.setTimeout(() => {
+      setLocalParams(nextParams)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [currentSchema, value])
 
   // Sync local params to parent
   useEffect(() => {
     const hasValues = Object.keys(localParams).length > 0 &&
                       Object.values(localParams).some(v => v !== undefined && v !== '')
     onChange(hasValues ? localParams : undefined)
-  }, [localParams])
+  }, [localParams, onChange])
 
   const updateParam = useCallback((key: string, val: unknown) => {
     setLocalParams(prev => ({

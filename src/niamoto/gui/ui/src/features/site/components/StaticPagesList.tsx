@@ -43,10 +43,10 @@ function getPageIcon(name: string) {
   const normalizedName = name.toLowerCase()
   for (const [key, Icon] of Object.entries(PAGE_ICONS)) {
     if (normalizedName.includes(key)) {
-      return Icon
+      return <Icon className="h-5 w-5 text-primary" />
     }
   }
-  return FileText
+  return <FileText className="h-5 w-5 text-primary" />
 }
 
 function PageCard({
@@ -58,14 +58,13 @@ function PageCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const Icon = getPageIcon(page.name)
   const hasContent = page.context?.content_markdown || page.context?.content_source
 
   return (
     <div className="group flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50">
       {/* Icon */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-        <Icon className="h-5 w-5 text-primary" />
+        {getPageIcon(page.name)}
       </div>
 
       {/* Content */}

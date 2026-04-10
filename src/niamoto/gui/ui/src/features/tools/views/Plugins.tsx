@@ -26,7 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { usePlugins } from '@/features/tools/hooks/usePlugins'
+import { usePlugins, type Plugin } from '@/features/tools/hooks/usePlugins'
 import { PluginDetailView } from '@/components/plugins/PluginDetailView'
 
 export function Plugins() {
@@ -34,7 +34,7 @@ export function Plugins() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
-  const [selectedPlugin, setSelectedPlugin] = useState<any>(null)
+  const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
 
   // Fetch plugins from API
   const { plugins: apiPlugins, loading, error } = usePlugins()

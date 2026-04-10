@@ -4,6 +4,8 @@
 
 import { apiClient } from '@/shared/lib/api/client'
 
+type SmartConfiguredEntity = Record<string, unknown>
+
 export interface FileInfo {
   name: string
   path: string
@@ -153,8 +155,8 @@ export interface AuxiliarySource {
 export interface AutoConfigureResponse {
   success: boolean
   entities: {
-    datasets: Record<string, any>
-    references: Record<string, any>
+    datasets: Record<string, SmartConfiguredEntity>
+    references: Record<string, SmartConfiguredEntity>
     metadata?: {
       layers?: Array<{
         name: string
@@ -290,12 +292,12 @@ export function subscribeToAutoConfigureJobEvents(
  */
 export async function createEntitiesBulk(entities: {
   entities: {
-    datasets?: Record<string, any>
-    references?: Record<string, any>
-    metadata?: Record<string, any>
+    datasets?: Record<string, SmartConfiguredEntity>
+    references?: Record<string, SmartConfiguredEntity>
+    metadata?: Record<string, unknown>
   }
   auxiliary_sources?: AuxiliarySource[]
-}): Promise<any> {
-  const response = await apiClient.post('/smart/management/entities/bulk', entities)
+}): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>('/smart/management/entities/bulk', entities)
   return response.data
 }

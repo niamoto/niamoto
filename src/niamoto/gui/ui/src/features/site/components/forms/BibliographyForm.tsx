@@ -7,7 +7,8 @@
  * - Supports externalizing references to a JSON file for large lists
  */
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,11 +28,13 @@ import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
+  type DataContentResponse,
   useDataContent,
   useUpdateDataContent,
   useImportBibtex,
   exportBibtex,
 } from '@/shared/hooks/useSiteConfig'
+import { siteConfigQueryKeys } from '@/shared/hooks/site-config/queryKeys'
 
 // Types for bibliography.html context
 interface ReferenceItem {
@@ -77,6 +80,7 @@ export function BibliographyForm({
   pageName,
 }: BibliographyFormProps) {
   const { t } = useTranslation('site')
+  const queryClient = useQueryClient()
 
   // Check if using external file for references
   const isExternalMode = !!context.references_source
@@ -90,19 +94,13 @@ export function BibliographyForm({
   // File input ref for BibTeX import
   const bibtexInputRef = useRef<HTMLInputElement>(null)
 
-  // Local state for references (either from inline or external)
-  const [localReferences, setLocalReferences] = useState<ReferenceItem[]>(
-    context.references || []
+  const references = useMemo(
+    () =>
+      isExternalMode
+        ? ((externalData?.data as ReferenceItem[] | undefined) ?? [])
+        : (context.references ?? []),
+    [context.references, externalData?.data, isExternalMode]
   )
-
-  // Sync local references with external data when it changes
-  useEffect(() => {
-    if (isExternalMode && externalData?.data) {
-      setLocalReferences(externalData.data as ReferenceItem[])
-    } else if (!isExternalMode) {
-      setLocalReferences(context.references || [])
-    }
-  }, [isExternalMode, externalData?.data, context.references])
 
   const updateField = useCallback(
     <K extends keyof BibliographyPageContext>(field: K, value: BibliographyPageContext[K]) => {
@@ -114,20 +112,30 @@ export function BibliographyForm({
   // Handle references change (for both inline and external modes)
   const handleReferencesChange = useCallback(
     async (references: ReferenceItem[]) => {
-      setLocalReferences(references)
-
       if (isExternalMode && externalFilePath) {
-        // Save to external file
-        await updateDataMutation.mutateAsync({
-          path: externalFilePath,
+        const queryKey = siteConfigQueryKeys.dataContent(externalFilePath)
+        const previousData = queryClient.getQueryData<DataContentResponse>(queryKey)
+
+        queryClient.setQueryData<DataContentResponse>(queryKey, {
           data: references,
+          path: externalFilePath,
+          count: references.length,
         })
+
+        try {
+          await updateDataMutation.mutateAsync({
+            path: externalFilePath,
+            data: references,
+          })
+        } catch (error) {
+          queryClient.setQueryData(queryKey, previousData)
+          throw error
+        }
       } else {
-        // Save inline
         updateField('references', references)
       }
     },
-    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+    [externalFilePath, isExternalMode, queryClient, updateDataMutation, updateField]
   )
 
   // Handle BibTeX import
@@ -141,7 +149,7 @@ export function BibliographyForm({
 
         if (result.success && result.data.length > 0) {
           // Merge with existing references
-          const newReferences = [...localReferences, ...(result.data as ReferenceItem[])]
+          const newReferences = [...references, ...(result.data as ReferenceItem[])]
           await handleReferencesChange(newReferences)
 
           toast.success(t('forms.common.importBibtexSuccess'), {
@@ -167,7 +175,7 @@ export function BibliographyForm({
       // Reset input
       event.target.value = ''
     },
-    [importBibtexMutation, localReferences, handleReferencesChange, t]
+    [handleReferencesChange, importBibtexMutation, references, t]
   )
 
   return (
@@ -217,7 +225,7 @@ export function BibliographyForm({
           onDataSourceChange={(source) => updateField('references_source', source)}
           inlineData={context.references || []}
           onInlineDataChange={(data) => updateField('references', data)}
-          description={t('forms.bibliography.referenceCount', { count: localReferences.length })}
+          description={t('forms.bibliography.referenceCount', { count: references.length })}
         />
 
         {/* BibTeX Import / Export */}
@@ -243,7 +251,7 @@ export function BibliographyForm({
             size="sm"
             onClick={async () => {
               try {
-                await exportBibtex(localReferences as unknown as Record<string, unknown>[])
+                await exportBibtex(references as unknown as Record<string, unknown>[])
                 toast.success(t('forms.common.exportBibtexSuccess'))
               } catch (error) {
                 toast.error(t('forms.common.exportBibtexError'), {
@@ -251,18 +259,18 @@ export function BibliographyForm({
                 })
               }
             }}
-            disabled={localReferences.length === 0}
+            disabled={references.length === 0}
           >
             <FileDown className="h-4 w-4 mr-2" />
             {t('forms.common.exportBibtex')}
           </Button>
           <span className="text-xs text-muted-foreground">
-            {t('forms.bibliography.referenceCount', { count: localReferences.length })}
+            {t('forms.bibliography.referenceCount', { count: references.length })}
           </span>
         </div>
 
         <RepeatableField<ReferenceItem>
-          items={localReferences}
+          items={references}
           onChange={handleReferencesChange}
           createItem={() => ({
             authors: '',
