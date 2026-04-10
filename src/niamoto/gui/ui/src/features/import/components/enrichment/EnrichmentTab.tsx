@@ -321,7 +321,10 @@ const isStructuredSourceSummary = (data: Record<string, any> | undefined): boole
         'match' in data ||
         'taxonomy' in data ||
         'occurrence_summary' in data ||
+        'observation_summary' in data ||
         'media_summary' in data ||
+        'taxon' in data ||
+        'places' in data ||
         'nomenclature' in data ||
         'vernaculars' in data ||
         'references' in data ||
@@ -771,6 +774,191 @@ const renderTropicosStructuredSummary = (
   )
 }
 
+const renderInaturalistStructuredSummary = (
+  data: Record<string, any>,
+  t: (key: string, options?: Record<string, any>) => string
+) => {
+  const match = data.match ?? {}
+  const taxon = data.taxon ?? {}
+  const observationSummary = data.observation_summary ?? {}
+  const mediaSummary = data.media_summary ?? {}
+  const places = data.places ?? {}
+  const links = data.links ?? {}
+  const blockStatus = data.block_status ?? {}
+  const blockErrors = data.block_errors ?? {}
+  const noMatch = blockStatus.match === 'no_match' || !match.taxon_id
+
+  return (
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
+      <div className="rounded-lg border border-border/70 bg-background p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">Match</div>
+          {renderStatusPill(blockStatus.match)}
+        </div>
+        {noMatch ? (
+          <div className="text-sm text-muted-foreground">
+            {t('dashboard.enrichment.structured.noMatch', {
+              defaultValue: "iNaturalist n’a pas retourné de match exploitable pour ce test.",
+            })}
+          </div>
+        ) : (
+          renderSummaryRows([
+            ['taxon_id', match.taxon_id],
+            ['scientific_name', match.scientific_name],
+            ['preferred_common_name', match.preferred_common_name],
+            ['rank', match.rank],
+            ['iconic_taxon_name', match.iconic_taxon_name],
+            ['matched_name', match.matched_name],
+          ])
+        )}
+      </div>
+
+      {!noMatch ? (
+        <>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Taxon</div>
+              {renderStatusPill(blockStatus.taxon)}
+            </div>
+            {blockErrors.taxon ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.taxon)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['preferred_common_name', taxon.preferred_common_name],
+                  ['observations_count', taxon.observations_count],
+                  ['conservation_status', taxon.conservation_status],
+                  ['iconic_taxon_name', taxon.iconic_taxon_name],
+                  ['wikipedia_url', taxon.wikipedia_url],
+                ])}
+                {taxon.default_photo ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Default photo</div>
+                    <div className="rounded-md border p-3">
+                      <div className="mb-2">
+                        {renderValue(taxon.default_photo.medium_url || taxon.default_photo.square_url)}
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {taxon.default_photo.attribution ? <div>{taxon.default_photo.attribution}</div> : null}
+                        {taxon.default_photo.license_code ? <div>{taxon.default_photo.license_code}</div> : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Observations</div>
+              {renderStatusPill(blockStatus.observation_summary)}
+            </div>
+            {blockErrors.observation_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.observation_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([
+                  ['observations_count', observationSummary.observations_count],
+                  ['research_grade_count', observationSummary.research_grade_count],
+                  ['casual_count', observationSummary.casual_count],
+                  ['needs_id_count', observationSummary.needs_id_count],
+                ])}
+                {Array.isArray(observationSummary.recent_observations) && observationSummary.recent_observations.length > 0 ? (
+                  <div className="space-y-2">
+                    {observationSummary.recent_observations.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.observation_id || index}`} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">
+                          Observation {String(item.observation_id || index + 1)}
+                        </div>
+                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          {item.observed_on ? <div>{item.observed_on}</div> : null}
+                          {item.quality_grade ? <div>{item.quality_grade}</div> : null}
+                          {item.place_guess ? <div>{item.place_guess}</div> : null}
+                          {item.observation_url ? <div className="break-words">{renderValue(item.observation_url)}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : blockStatus.observation_summary === 'disabled' ? (
+                  <div className="text-sm text-muted-foreground">Observation summary disabled.</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Media</div>
+              {renderStatusPill(blockStatus.media_summary)}
+            </div>
+            {blockErrors.media_summary ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['media_count', mediaSummary.media_count]])}
+                {Array.isArray(mediaSummary.sample) && mediaSummary.sample.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {mediaSummary.sample.map((item: Record<string, any>, index: number) => (
+                      <div key={`${item.medium_url || item.square_url || index}`} className="rounded-md border p-3">
+                        <div className="mb-2">
+                          {renderValue(item.medium_url || item.square_url)}
+                        </div>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {item.attribution ? <div>{item.attribution}</div> : null}
+                          {item.license_code ? <div>{item.license_code}</div> : null}
+                          {item.observation_url ? <div className="break-words">{renderValue(item.observation_url)}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : blockStatus.media_summary === 'disabled' ? (
+                  <div className="text-sm text-muted-foreground">Media summary disabled.</div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Aucun média résumé.</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold">Places</div>
+              {renderStatusPill(blockStatus.places)}
+            </div>
+            {blockErrors.places ? (
+              <div className="text-sm text-muted-foreground">{String(blockErrors.places)}</div>
+            ) : (
+              <div className="space-y-3">
+                {renderSummaryRows([['places_count', places.places_count]])}
+                {Array.isArray(places.top_places) && places.top_places.length > 0 ? (
+                  <div className="space-y-2">
+                    {places.top_places.map((item: Record<string, any>) => (
+                      <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span>{String(item.name)}</span>
+                        <Badge variant="outline">{String(item.count)}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : blockStatus.places === 'disabled' ? (
+                  <div className="text-sm text-muted-foreground">Places summary disabled.</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {Object.keys(links).length > 0 ? (
+            <div className="rounded-lg border border-border/70 bg-background p-3">
+              <div className="mb-3 text-sm font-semibold">Links</div>
+              {renderSummaryRows(Object.entries(links))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 const renderBhlStructuredSummary = (
   data: Record<string, any>,
   t: (key: string, options?: Record<string, any>) => string
@@ -1164,6 +1352,15 @@ const renderStructuredSummary = (
     'page_links' in data
   ) {
     return renderBhlStructuredSummary(data, t)
+  }
+
+  if (
+    data?.provenance?.profile === 'inaturalist_rich' ||
+    'taxon' in data ||
+    'observation_summary' in data ||
+    'places' in data
+  ) {
+    return renderInaturalistStructuredSummary(data, t)
   }
 
   if (

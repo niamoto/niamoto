@@ -27,10 +27,12 @@ export interface ReferenceEnrichmentConfig {
     include_taxonomy?: boolean
     include_occurrences?: boolean
     include_media?: boolean
+    include_places?: boolean
     include_references?: boolean
     include_vernaculars?: boolean
     include_distributions?: boolean
     media_limit?: number
+    observation_limit?: number
     reference_limit?: number
     include_publication_details?: boolean
     include_page_preview?: boolean
@@ -66,6 +68,7 @@ const GBIF_RICH_MATCH_URL = 'https://api.gbif.org/v2/species/match'
 const TROPICOS_RICH_SEARCH_URL = 'https://services.tropicos.org/Name/Search'
 const COL_DEFAULT_DATASET_KEY = 314774
 const BHL_API_ENDPOINT = 'https://www.biodiversitylibrary.org/api3'
+const INAT_TAXA_ENDPOINT = 'https://api.inaturalist.org/v1/taxa'
 
 export function buildColSearchUrl(datasetKey: number): string {
   return `https://api.checklistbank.org/dataset/${datasetKey}/nameusage/search`
@@ -100,6 +103,19 @@ function isLegacyTropicosEnrichment(enrichment: ReferenceEnrichmentConfig | unde
 
   const label = (enrichment.label || enrichment.id || '').toLowerCase()
   return label === 'tropicos'
+}
+
+function isLegacyInaturalistEnrichment(enrichment: ReferenceEnrichmentConfig | undefined): boolean {
+  if (!enrichment) return false
+  if (enrichment.config?.profile) return false
+
+  const apiUrl = (enrichment.config?.api_url || '').toLowerCase()
+  if (apiUrl.includes('api.inaturalist.org') && apiUrl.includes('/v1/taxa')) {
+    return true
+  }
+
+  const label = (enrichment.label || enrichment.id || '').toLowerCase()
+  return label === 'inaturalist'
 }
 
 export function slugifyEnrichmentSourceId(value: string, fallback: string): string {
@@ -138,7 +154,11 @@ export function enrichmentToApiConfig(
 ): ApiConfig {
   const legacyGbif = isLegacyGbifEnrichment(enrichment)
   const legacyTropicos = isLegacyTropicosEnrichment(enrichment)
+  const legacyInaturalist = isLegacyInaturalistEnrichment(enrichment)
   const queryParams = enrichment?.config?.query_params
+  const legacyInaturalistParams = Object.fromEntries(
+    Object.entries(queryParams ?? {}).filter(([key]) => !['q', 'taxon_id', 'per_page'].includes(key))
+  )
 
   return {
     enabled: enrichment?.enabled ?? false,
@@ -149,6 +169,8 @@ export function enrichmentToApiConfig(
       ? GBIF_RICH_MATCH_URL
       : legacyTropicos
         ? TROPICOS_RICH_SEARCH_URL
+        : legacyInaturalist
+          ? INAT_TAXA_ENDPOINT
         : enrichment?.config?.profile === 'col_rich'
           ? (enrichment?.config?.api_url ?? buildColSearchUrl(enrichment?.config?.dataset_key ?? COL_DEFAULT_DATASET_KEY))
         : enrichment?.config?.profile === 'bhl_references'
@@ -173,6 +195,11 @@ export function enrichmentToApiConfig(
             format: String((queryParams ?? {}).format ?? 'json'),
             type: String((queryParams ?? {}).type ?? 'exact'),
           }
+        : legacyInaturalist
+          ? {
+              ...legacyInaturalistParams,
+              is_active: String(legacyInaturalistParams.is_active ?? 'true'),
+            }
         : enrichment?.config?.profile === 'bhl_references'
           ? {
               ...(queryParams ?? {}),
@@ -185,6 +212,8 @@ export function enrichmentToApiConfig(
       ? 'scientificName'
       : legacyTropicos
         ? 'name'
+        : legacyInaturalist
+          ? 'q'
         : enrichment?.config?.profile === 'col_rich'
           ? 'q'
         : enrichment?.config?.profile === 'bhl_references'
@@ -192,7 +221,8 @@ export function enrichmentToApiConfig(
         : (enrichment?.config?.query_param_name ?? 'q'),
     profile: enrichment?.config?.profile
       ?? (legacyGbif ? 'gbif_rich' : undefined)
-      ?? (legacyTropicos ? 'tropicos_rich' : undefined),
+      ?? (legacyTropicos ? 'tropicos_rich' : undefined)
+      ?? (legacyInaturalist ? 'inaturalist_rich' : undefined),
     use_name_verifier: enrichment?.config?.use_name_verifier ?? false,
     name_verifier_preferred_sources: enrichment?.config?.name_verifier_preferred_sources ?? [],
     name_verifier_threshold: enrichment?.config?.name_verifier_threshold,
@@ -201,10 +231,12 @@ export function enrichmentToApiConfig(
     include_taxonomy: enrichment?.config?.include_taxonomy ?? true,
     include_occurrences: enrichment?.config?.include_occurrences ?? true,
     include_media: enrichment?.config?.include_media ?? true,
+    include_places: enrichment?.config?.include_places ?? true,
     include_references: enrichment?.config?.include_references ?? true,
     include_vernaculars: enrichment?.config?.include_vernaculars ?? true,
     include_distributions: enrichment?.config?.include_distributions ?? true,
     media_limit: enrichment?.config?.media_limit ?? 3,
+    observation_limit: enrichment?.config?.observation_limit ?? 5,
     reference_limit: enrichment?.config?.reference_limit ?? 5,
     include_publication_details: enrichment?.config?.include_publication_details ?? true,
     include_page_preview: enrichment?.config?.include_page_preview ?? true,
@@ -212,7 +244,7 @@ export function enrichmentToApiConfig(
     page_limit: enrichment?.config?.page_limit ?? 5,
     rate_limit: enrichment?.config?.rate_limit ?? 2,
     cache_results: enrichment?.config?.cache_results ?? true,
-    response_mapping: legacyGbif || legacyTropicos ? {} : enrichment?.config?.response_mapping,
+    response_mapping: legacyGbif || legacyTropicos || legacyInaturalist ? {} : enrichment?.config?.response_mapping,
     chained_endpoints: enrichment?.config?.chained_endpoints,
   }
 }
@@ -225,7 +257,9 @@ export function normalizeEnrichmentSources(
   const seenIds = new Set<string>()
 
   return rawSources.map((enrichment, index) => {
-    const label = inferSourceLabel(enrichment, index)
+    const label = isLegacyInaturalistEnrichment(enrichment) && !enrichment.label
+      ? 'iNaturalist'
+      : inferSourceLabel(enrichment, index)
     const baseId = enrichment.id || slugifyEnrichmentSourceId(label, `source-${index + 1}`)
     let sourceId = baseId
     let suffix = 2
@@ -271,10 +305,12 @@ export function apiConfigToEnrichment(
       include_taxonomy: apiConfig.include_taxonomy,
       include_occurrences: apiConfig.include_occurrences,
       include_media: apiConfig.include_media,
+      include_places: apiConfig.include_places,
       include_references: apiConfig.include_references,
       include_vernaculars: apiConfig.include_vernaculars,
       include_distributions: apiConfig.include_distributions,
       media_limit: apiConfig.media_limit,
+      observation_limit: apiConfig.observation_limit,
       reference_limit: apiConfig.reference_limit,
       include_publication_details: apiConfig.include_publication_details,
       include_page_preview: apiConfig.include_page_preview,
@@ -313,10 +349,12 @@ export function createDefaultEnrichmentSource(
       include_taxonomy: true,
       include_occurrences: true,
       include_media: true,
+      include_places: true,
       include_references: true,
       include_vernaculars: true,
       include_distributions: true,
       media_limit: 3,
+      observation_limit: 5,
       reference_limit: 5,
       include_publication_details: true,
       include_page_preview: true,
