@@ -953,7 +953,7 @@ export function EnrichmentTab({
           {/* Column 1: Source sidebar */}
           <ResizablePanel id="enrichment-sources" defaultSize="18%" minSize="14%" maxSize="25%">
             <ScrollArea className="h-full">
-              <div className="p-3">
+              <div className="p-3" role="region" aria-label="Liste des sources">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-medium">
@@ -1035,7 +1035,7 @@ export function EnrichmentTab({
           {/* Column 2: Config */}
           <ResizablePanel id="enrichment-config" defaultSize="45%" minSize="30%">
             <ScrollArea className="h-full">
-              <div className="space-y-4 p-4">
+              <div className="space-y-4 p-4" role="region" aria-label="Configuration">
                 {activeSource ? (
                   <>
                     <Card className="border-border/70">
@@ -1291,7 +1291,7 @@ export function EnrichmentTab({
           {/* Column 3: Test & Results (always visible) */}
           <ResizablePanel id="enrichment-results" defaultSize="37%" minSize="22%">
             <ScrollArea className="h-full">
-              <div className="space-y-4 p-4">
+              <div className="space-y-4 p-4" role="region" aria-label="Résultats">
                 {activeSource ? (
                   <>
                     <Card className="border-border/70">
