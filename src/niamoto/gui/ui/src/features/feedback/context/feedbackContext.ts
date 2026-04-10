@@ -1,6 +1,9 @@
 import { createContext } from 'react'
 
-import type { FeedbackContext, FeedbackType } from '../types'
+import type {
+  FeedbackContext as FeedbackContextData,
+  FeedbackType,
+} from '../types'
 
 export interface FeedbackState {
   isOpen: boolean
@@ -10,7 +13,7 @@ export interface FeedbackState {
   screenshot: Blob | null
   screenshotError: boolean
   isPreparingScreenshot: boolean
-  contextData: FeedbackContext | null
+  contextData: FeedbackContextData | null
   draftTitle: string
   draftDescription: string
   openWithType: (type?: FeedbackType) => Promise<void>

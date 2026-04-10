@@ -77,6 +77,10 @@ function detectLinkType(url: string): LinkType {
   return 'website'
 }
 
+function getLinkIcon(type?: string) {
+  return LINK_TYPES.find((linkType) => linkType.value === type)?.icon ?? Globe
+}
+
 interface SortableLinkItemProps {
   id: string
   link: ExternalLink

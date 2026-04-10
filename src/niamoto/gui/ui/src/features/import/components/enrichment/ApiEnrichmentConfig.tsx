@@ -29,6 +29,8 @@ import axios from 'axios'
 import { cn } from '@/lib/utils'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
+  buildColSearchUrl,
+  COL_DEFAULT_DATASET_KEY,
   getPresetsByCategory,
   PRESET_APIS_ALL,
   type ApiCategory,

@@ -15,7 +15,11 @@ import {
   subscribeToBugReportRequests,
   type BugReportDraft,
 } from '../lib/bug-report-bridge'
-import { FeedbackError, type FeedbackType, type FeedbackContext } from '../types'
+import {
+  FeedbackError,
+  type FeedbackType,
+  type FeedbackContext as FeedbackContextData,
+} from '../types'
 import { FeedbackContext, type FeedbackState } from './feedbackContext'
 
 const COOLDOWN_SECONDS = 30
@@ -27,7 +31,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [isSending, setIsSending] = useState(false)
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null)
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
-  const [contextData, setContextData] = useState<FeedbackContext | null>(null)
+  const [contextData, setContextData] = useState<FeedbackContextData | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
 
