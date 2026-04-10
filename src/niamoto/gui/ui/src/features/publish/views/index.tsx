@@ -57,7 +57,7 @@ import {
   useTemplatePreview,
 } from '@/shared/hooks/useSiteConfig'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
-import { executeExportAndWait } from '@/lib/api/export'
+import { executeExportAndWait } from '@/features/publish/api/export'
 import { apiClient } from '@/shared/lib/api/client'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import PublishDeployContent, {

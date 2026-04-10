@@ -24,6 +24,7 @@ Useful commands:
 
 ```bash
 pnpm build
+pnpm build:stats
 pnpm test
 pnpm lint
 pnpm preview
@@ -61,6 +62,41 @@ Current feature folders:
 - [src/features/publish](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/publish)
 - [src/features/tools](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/tools)
 - [src/features/welcome](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/welcome)
+
+## Architecture guardrails
+
+The frontend is still finishing a migration away from the legacy root folders. Treat these rules as current source of truth:
+
+- New product code belongs in `src/features/<domain>`
+- Put only genuinely cross-feature code in `src/shared`
+- `src/hooks` is a transitional compatibility layer; do not add new hooks there
+- `src/lib/api` is a transitional compatibility layer; new feature APIs belong in `src/features/<domain>/api`
+- `src/components` is still partly legacy; new domain components should live inside their feature first
+- Import route modules by leaf path, not by feature barrel, to preserve lazy chunk boundaries
+- Put React Query keys next to the feature or shared API they belong to
+- Heavy editors and other large third-party modules should stay behind lazy boundaries
+
+Current transition examples:
+
+- import data hooks now live under [src/features/import/hooks](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/hooks)
+- publish export API now lives under [src/features/publish/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/publish/api)
+- root modules under [src/hooks](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/hooks) and [src/lib/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/api) remain as compatibility façades during the migration
+
+ESLint now enforces part of these rules directly:
+
+- feature barrels such as `@/features/import` are disallowed
+- import feature code must use feature-local import hooks
+- publish feature code must use the feature-local export API
+
+## Bundle measurement
+
+Use the bundle stats command after changes that affect routing, editors, or other large dependencies:
+
+```bash
+pnpm build:stats
+```
+
+This runs a production build and prints the heaviest JavaScript and CSS assets from `dist/assets`. It is the lightweight bundle check to use before and after larger UI refactors.
 
 ## Important flows
 
@@ -120,9 +156,10 @@ Keep it in sync with the actual UI structure if shadcn tooling is still used.
 
 - New product workflows should go into `src/features/<domain>`
 - Put only truly shared code in `src/shared`
-- Avoid adding new feature logic to root `src/hooks` unless it is genuinely cross-feature
-- Avoid adding new feature API clients to root `src/lib/api` unless they are genuinely shared
+- Avoid adding new feature logic to root `src/hooks`
+- Avoid adding new feature API clients to root `src/lib/api`
 - `src/components` is still partly transitional; prefer feature-local components for new work
+- Avoid feature barrel imports on lazy route boundaries
 
 ## Notes for maintainers
 

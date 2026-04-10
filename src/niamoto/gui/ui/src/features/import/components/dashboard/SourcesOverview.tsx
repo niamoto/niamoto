@@ -20,9 +20,9 @@ import { EnrichmentWorkspaceSheet } from './EnrichmentWorkspaceSheet'
 import { MetricCard } from './MetricCard'
 import { SourceRow } from './SourceRow'
 import type { EditingState } from './dashboardConfigEditorTypes'
-import { useDatasets, type DatasetInfo } from '@/hooks/useDatasets'
-import { useImportSummaryDetailed } from '@/hooks/useImportSummaryDetailed'
-import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
+import { useDatasets, type DatasetInfo } from '@/features/import/hooks/useDatasets'
+import { useImportSummaryDetailed } from '@/features/import/hooks/useImportSummaryDetailed'
+import { useReferences, type ReferenceInfo } from '@/features/import/hooks/useReferences'
 import { apiClient } from '@/shared/lib/api/client'
 import type {
   DatasetConfig,
