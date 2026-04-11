@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.0] - 2026-04-11
+
+### Features
+
+- Add multi-source enrichment workflow
+- Redesign enrichment workspace
+- Expand enrichment provider integrations
+- Add Catalogue of Life rich enrichment
+- Add shared name verifier for rich enrichers
+- Add BHL references enrichment
+- Add iNaturalist rich enrichment
+- Add spatial enrichment v1
+- Add logos for BHL and spatial providers
+- Restore collection selector in CollectionPanel toolbar
+- Replace collection select with custom dropdown
+- Improve collections computation feedback
+
+### Performance
+
+- Lazy load collection previews
+
+### Bug Fixes
+
+- Resolve TypeScript errors across forms and views
+- Ensure site configs include a home page
+- Auto fit map previews to data
+- Stabilize Tauri dev startup
+- Reduce redundant frontend polling
+- Harden widget previews and config inference
+- Harden Tauri desktop runtime
+- Resolve frontend context split regressions
+- Harden desktop update and packaging flows
+- Improve Windows desktop compatibility
+- Disable Windows sidecar console for desktop builds
+- Limit entity list to 15 items with max-height cap
+- Polish enrichment workspace and preview
+
+### Refactoring
+
+- Reorganize sidebar navigation and header
+- Stabilize frontend lint architecture
+- Enforce frontend architecture boundaries
+- Split site config hooks
+- Lazy load Monaco editors
+- Standardize frontend data queries
+- Consolidate frontend theme state
+- Consolidate enrichment configuration workflow
+- Add ARIA region labels to enrichment panel columns
+- Replace enrichment config tabs with accordion sections
+- Replace enrichment 2-col grid with 3-col ResizablePanelGroup
+- Extract enrichment render helpers to separate file
+- Extract useEnrichmentState hook from EnrichmentTab
+
+### Documentation
+
+- Add enrichment tab UX consolidation design
+- Add spatial enrichment v1 design
+- Add iNaturalist rich enrichment design
+- Add BHL references enrichment design
+- Add GN verifier shared design
+- Add Catalogue of Life rich enrichment design
+- Add demo video production plan
+- Add GN-assisted TAXREF rich design
+- Add Tropicos rich enrichment design
+- Add GBIF rich enrichment implementation plan
+- Add GBIF rich enrichment design
+
+### Other
+
+- Fix desktop project reload fixture
+- Compact enrichment workspace layout
+- Update lockfiles for 0.13.2
+
 ## [v0.13.2] - 2026-04-09
 
 ### Bug Fixes
