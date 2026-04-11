@@ -14,6 +14,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
+import { usePreviewVisibility } from '@/components/preview/usePreviewVisibility'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
@@ -244,13 +245,14 @@ function injectMiniatureOverrides(html: string): string {
 function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; plugin: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+  const shouldLoad = usePreviewVisibility(containerRef)
 
   const fullDescriptor = useMemo(
     () => ({ ...descriptor, mode: 'full' as const }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     descriptorDeps(descriptor),
   )
-  const { html, loading } = usePreviewFrame(fullDescriptor, true)
+  const { html, loading } = usePreviewFrame(fullDescriptor, shouldLoad)
 
   const dims = SCALED_DIMS[plugin] ?? { w: 800, h: 400 }
 
@@ -268,8 +270,16 @@ function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; 
   const scaledHeight = dims.h * scale
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden" style={{ height: scaledHeight }}>
-      {loading && (
+    <div
+      ref={containerRef}
+      className="w-full overflow-hidden"
+      style={{
+        height: scaledHeight || dims.h,
+        contentVisibility: 'auto',
+        containIntrinsicSize: `${dims.w}px ${dims.h}px`,
+      }}
+    >
+      {(!shouldLoad || loading) && (
         <div className="flex h-full items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>

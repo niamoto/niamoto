@@ -10,35 +10,13 @@ import type { PreviewDescriptor } from '@/lib/preview/types'
 import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
+import { usePreviewVisibility } from './usePreviewVisibility'
 
 interface PreviewTileProps {
   descriptor: PreviewDescriptor
   width?: number
   height?: number
   className?: string
-}
-
-function useIntersectionObserver(
-  ref: React.RefObject<HTMLElement | null>,
-  options?: IntersectionObserverInit,
-): boolean {
-  const [visible, setVisible] = useState(false)
-  const rootMargin = options?.rootMargin ?? '120px'
-  const threshold = options?.threshold
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      { rootMargin, threshold },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [ref, rootMargin, threshold])
-
-  return visible
 }
 
 export function PreviewTile({
@@ -49,7 +27,7 @@ export function PreviewTile({
 }: PreviewTileProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const visible = useIntersectionObserver(containerRef)
+  const visible = usePreviewVisibility(containerRef, { rootMargin: '120px' })
 
   // Stabiliser le descriptor pour éviter les re-renders
   const thumbDescriptor = { ...descriptor, mode: 'thumbnail' as const }

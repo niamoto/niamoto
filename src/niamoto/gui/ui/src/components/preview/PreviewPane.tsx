@@ -11,6 +11,7 @@ import type { PreviewDescriptor } from '@/lib/preview/types'
 import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
+import { usePreviewVisibility } from './usePreviewVisibility'
 
 interface PreviewPaneProps {
   descriptor: PreviewDescriptor
@@ -22,6 +23,7 @@ interface PreviewPaneProps {
 export function PreviewPane({ descriptor, className, transformHtml }: PreviewPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const shouldLoad = usePreviewVisibility(containerRef)
 
   // Compteur incrémenté à chaque changement de largeur du conteneur
   // pour forcer un re-mount de l'iframe (Plotly re-render à la bonne taille).
@@ -45,7 +47,7 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
 
   const fullDescriptor = { ...descriptor, mode: 'full' as const }
 
-  const { html, loading, error } = usePreviewFrame(fullDescriptor, true)
+  const { html, loading, error } = usePreviewFrame(fullDescriptor, shouldLoad)
 
   // Nettoyage Plotly au démontage
   useEffect(() => {
@@ -58,8 +60,15 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
   }, [html, resizeKey])
 
   return (
-    <div ref={containerRef} className={className}>
-      {loading && <PreviewSkeleton descriptor={fullDescriptor} />}
+    <div
+      ref={containerRef}
+      className={className}
+      style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: '320px 240px',
+      }}
+    >
+      {(!shouldLoad || loading) && <PreviewSkeleton descriptor={fullDescriptor} />}
       {error && !loading && <PreviewError message={error} />}
       {html && !loading && (
         <iframe
