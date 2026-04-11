@@ -381,7 +381,10 @@ async def get_pipeline_status(http_request: Request):
         if (
             running
             and running.get("type") == "transform"
-            and running.get("group_by") == group_name
+            and (
+                running.get("group_by") == group_name
+                or group_name in (running.get("group_bys") or [])
+            )
         ):
             group_items.append(
                 EntityStatus(
@@ -540,6 +543,7 @@ async def get_pipeline_status(http_request: Request):
             "id": running.get("id"),
             "type": running.get("type"),
             "group_by": running.get("group_by"),
+            "group_bys": running.get("group_bys"),
             "progress": running.get("progress", 0),
             "message": running.get("message", ""),
             "started_at": running.get("started_at"),

@@ -1898,12 +1898,20 @@ document.addEventListener('DOMContentLoaded', function() {{
     # ------------------------------------------------------------------
 
     def _open_db(self) -> Database | None:
-        """Return the shared DB instance (read-only, lazy)."""
+        """Return the shared DB instance for preview queries.
+
+        The preview engine lives in the same FastAPI process as long-running
+        transform/import jobs. Keeping a persistent DuckDB connection in
+        read-only mode causes configuration conflicts as soon as a writable
+        job connection is opened against the same file. For the in-process GUI
+        backend we therefore keep the shared preview connection in the default
+        writable-compatible mode, even though previews only perform reads.
+        """
         if self._db is not None:
             return self._db
         if not os.path.exists(self._db_path):
             return None
-        self._db = Database(self._db_path, read_only=True)
+        self._db = Database(self._db_path)
         return self._db
 
 

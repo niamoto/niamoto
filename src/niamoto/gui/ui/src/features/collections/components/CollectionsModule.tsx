@@ -170,5 +170,9 @@ export function CollectionsModule() {
   // Render
   // ---------------------------------------------------------------------------
 
-  return <div className="h-full overflow-hidden">{renderContent()}</div>
+  return (
+    <div className={selection.type === 'overview' ? 'h-full overflow-y-auto' : 'h-full overflow-hidden'}>
+      {renderContent()}
+    </div>
+  )
 }

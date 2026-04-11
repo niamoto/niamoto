@@ -35,7 +35,12 @@ class JobFileStore:
 
     # --- Cycle de vie ---
 
-    def create_job(self, job_type: str, group_by: str | None = None) -> dict:
+    def create_job(
+        self,
+        job_type: str,
+        group_by: str | None = None,
+        group_bys: list[str] | None = None,
+    ) -> dict:
         """Crée un job. Échoue si un job non-terminal est déjà actif."""
         with self._lock:
             existing = self._read_active()
@@ -50,6 +55,7 @@ class JobFileStore:
                 "id": str(uuid4()),
                 "type": job_type,
                 "group_by": group_by,
+                "group_bys": group_bys,
                 "status": "running",
                 "progress": 0,
                 "message": "",

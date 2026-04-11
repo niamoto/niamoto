@@ -38,6 +38,7 @@ export interface RunningJob {
   id: string
   type: string
   group_by: string | null
+  group_bys?: string[] | null
   progress: number
   message: string
   started_at: string
@@ -65,7 +66,7 @@ export function usePipelineStatus(enabled = true) {
       return response.data
     },
     enabled: enabled && hasProjectInfo,
-    refetchInterval: 30_000, // Poll every 30s
+    refetchInterval: (query) => (query.state.data?.running_job ? 1_000 : 30_000),
     staleTime: 10_000,       // Consider fresh for 10s
     refetchOnMount: 'always',
     retry: 1,

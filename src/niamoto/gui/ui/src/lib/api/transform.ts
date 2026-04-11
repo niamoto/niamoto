@@ -4,6 +4,7 @@ export interface TransformRequest {
   config_path?: string
   transformations?: string[]
   group_by?: string
+  group_bys?: string[]
 }
 
 export interface TransformResponse {
