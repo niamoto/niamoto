@@ -4,8 +4,8 @@ import { getActiveTransformJob, type TransformStatus } from '@/lib/api/transform
 import { getActiveExportJob, type ExportStatus } from '@/lib/api/export'
 import { apiClient } from '@/shared/lib/api/client'
 
-const ACTIVE_POLL_INTERVAL = 1_000  // 1s quand un job est traqué
-const DISCOVERY_POLL_INTERVAL = 5_000 // 5s en mode découverte
+const ACTIVE_POLL_INTERVAL = 1_000 // 1s quand un job est traqué
+const DISCOVERY_POLL_INTERVAL = 30_000 // 30s en mode découverte
 
 /** Statuts terminaux pour les différents systèmes de jobs */
 const TERMINAL_STATUSES = new Set([
@@ -16,7 +16,7 @@ const TERMINAL_STATUSES = new Set([
  * Hook de polling global pour détecter et suivre les jobs du pipeline.
  *
  * Deux modes :
- * - Découverte (5s) : interroge transform/active, export/active, imports/jobs
+ * - Découverte (30s) : interroge transform/active, export/active, imports/jobs
  *   pour détecter des jobs en cours non encore traqués
  * - Actif (1s) : suit la progression des jobs traqués et détecte les transitions
  *   vers des statuts terminaux — démarré uniquement quand des jobs sont traqués
@@ -40,7 +40,6 @@ export function useJobPolling() {
         discoverTransformJob(),
         discoverExportJob(),
         discoverImportJobs(),
-        pollTrackedEnrichmentJobs(),
       ])
     } finally {
       discoveryGuard.current = false
@@ -54,15 +53,22 @@ export function useJobPolling() {
     const { trackedJobs } = store.getState()
     if (trackedJobs.length === 0) return
 
+    const regularJobs = trackedJobs.filter((job) => job.jobType !== 'enrichment')
+    const hasEnrichmentJobs = trackedJobs.length !== regularJobs.length
+
     activeGuard.current = true
     try {
-      await Promise.allSettled(trackedJobs.map(pollSingleJob))
+      const tasks: Array<Promise<void>> = regularJobs.map(pollSingleJob)
+      if (hasEnrichmentJobs) {
+        tasks.push(pollTrackedEnrichmentJobs())
+      }
+      await Promise.allSettled(tasks)
     } finally {
       activeGuard.current = false
     }
   }, [store])
 
-  // Timer de découverte (5s) — toujours actif
+  // Timer de découverte (30s) — toujours actif
   useEffect(() => {
     discoverJobs()
     discoveryTimerRef.current = setInterval(discoverJobs, DISCOVERY_POLL_INTERVAL)
@@ -193,7 +199,9 @@ async function pollTrackedEnrichmentJobs() {
 // --- Polling d'un job traqué individuel ---
 
 async function pollSingleJob(tracked: TrackedJob) {
-  if (tracked.jobType === 'enrichment') return // Géré par pollTrackedEnrichmentJobs
+  if (tracked.jobType === 'enrichment') {
+    return
+  }
 
   try {
     if (tracked.jobType === 'transform') {

@@ -33,6 +33,47 @@ interface EntityListResponse {
   }>;
 }
 
+const entityListCache = new Map<string, EntityListResponse>();
+const entityListRequests = new Map<string, Promise<EntityListResponse>>();
+
+async function loadEntityList(): Promise<EntityListResponse> {
+  const cacheKey = 'all';
+  const cached = entityListCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const inflight = entityListRequests.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    const response = await fetch(`/api/entities/available`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch entities: ${response.statusText}`);
+    }
+
+    const data: EntityListResponse = await response.json();
+    entityListCache.set(cacheKey, data);
+    return data;
+  })().finally(() => {
+    entityListRequests.delete(cacheKey);
+  });
+
+  entityListRequests.set(cacheKey, request);
+  return request;
+}
+
+async function loadEntityOptions(kind?: 'dataset' | 'reference'): Promise<string[]> {
+  const data = await loadEntityList();
+  return kind === 'dataset'
+    ? data.datasets
+    : kind === 'reference'
+      ? data.references
+      : [...data.datasets, ...data.references];
+}
+
 const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   name,
   label,
@@ -60,46 +101,35 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   const resolvedEntities = mergeOptionValue(entities, value);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchEntities = async () => {
       try {
         setLoading(true);
         setLoadError(null);
 
-        // Build URL with optional kind filter
-        const url = kind
-          ? `/api/entities/available?kind=${kind}`
-          : `/api/entities/available`;
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch entities: ${response.statusText}`);
+        const entityList = await loadEntityOptions(kind);
+        if (!cancelled) {
+          setEntities(entityList);
         }
-
-        const data: EntityListResponse = await response.json();
-
-        // Determine which list to use based on filter
-        let entityList: string[] = [];
-        if (kind === 'dataset') {
-          entityList = data.datasets;
-        } else if (kind === 'reference') {
-          entityList = data.references;
-        } else {
-          // No filter - combine all entities
-          entityList = [...data.datasets, ...data.references];
-        }
-
-        setEntities(entityList);
       } catch (err) {
         console.error('Error fetching entities:', err);
-        setLoadError(err instanceof Error ? err.message : 'Failed to load entities');
-        setEntities([]);
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load entities');
+          setEntities([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchEntities();
+    void fetchEntities();
+
+    return () => {
+      cancelled = true;
+    };
   }, [kind]);
 
   return (
