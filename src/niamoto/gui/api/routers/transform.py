@@ -33,6 +33,7 @@ class TransformRequest(BaseModel):
     group_by: Optional[str] = (
         None  # Filter by aggregation group (taxons, plots, shapes)
     )
+    group_bys: Optional[List[str]] = None  # Explicit list of groups to run
 
 
 class TransformResponse(BaseModel):
@@ -102,6 +103,7 @@ async def execute_transform_background(
     config_path: str,
     transformations: Optional[List[str]] = None,
     group_by: Optional[str] = None,
+    group_bys: Optional[List[str]] = None,
 ):
     """Execute transformations in the background."""
 
@@ -131,11 +133,16 @@ async def execute_transform_background(
         # Prepare configuration for the transformer service
         prepared_config: List[Dict[str, Any]] = []
 
+        requested_groups = set(group_bys or ([] if group_by is None else [group_by]))
+
         def normalize_group(group: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             if not isinstance(group, dict):
                 return None
 
             group_copy = copy.deepcopy(group)
+            group_name = group_copy.get("group_by")
+            if requested_groups and group_name not in requested_groups:
+                return None
             widgets = group_copy.get("widgets_data", {}) or {}
 
             if not isinstance(widgets, dict):
@@ -335,7 +342,11 @@ async def execute_transform(
         )
 
     try:
-        job = job_store.create_job("transform", group_by=request.group_by)
+        job = job_store.create_job(
+            "transform",
+            group_by=request.group_by,
+            group_bys=request.group_bys,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -347,6 +358,7 @@ async def execute_transform(
         request.config_path,
         request.transformations,
         request.group_by,
+        request.group_bys,
     )
 
     return TransformResponse(

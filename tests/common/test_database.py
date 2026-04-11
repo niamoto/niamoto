@@ -201,6 +201,29 @@ def test_duckdb_read_only_mode(tmp_path) -> None:
     db_readonly.engine.dispose()
 
 
+def test_duckdb_read_only_request_falls_back_after_writable_open(tmp_path) -> None:
+    """Read-only requests should downgrade once the process has opened a writer."""
+
+    db_path = tmp_path / "mixed-mode.duckdb"
+
+    db_write = Database(str(db_path), optimize=False)
+    db_write.execute_sql("CREATE TABLE test_table (id INTEGER)")
+
+    db_read_request = Database(str(db_path), read_only=True, optimize=False)
+
+    assert db_write.read_only is False
+    assert db_read_request.requested_read_only is True
+    assert db_read_request.read_only is False
+
+    rows = db_read_request.execute_sql(
+        "SELECT COUNT(*) FROM test_table", fetch_all=True
+    )
+    assert rows[0][0] == 0
+
+    db_read_request.engine.dispose()
+    db_write.engine.dispose()
+
+
 def test_connection_reuse_reuses_same_connection(duckdb_database: Any) -> None:
     """Shared connection mode should reuse one checked-out connection per thread."""
 

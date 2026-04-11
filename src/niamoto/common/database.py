@@ -5,9 +5,11 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 
+from collections import defaultdict
 from contextlib import contextmanager
 from threading import local
-from typing import TypeVar, Any, Iterator, Optional, List, Dict, Set
+from threading import Lock
+from typing import TypeVar, Any, Iterator, Optional, List, Dict, Set, ClassVar
 import warnings
 import time
 from sqlalchemy import create_engine, event, exc, text, inspect
@@ -51,6 +53,11 @@ class Database:
     to interact with it.
     """
 
+    _duckdb_mode_counts: ClassVar[Dict[str, Dict[bool, int]]] = defaultdict(
+        lambda: {True: 0, False: 0}
+    )
+    _duckdb_mode_lock: ClassVar[Lock] = Lock()
+
     @error_handler(log=True, raise_error=True)
     def __init__(
         self,
@@ -73,6 +80,7 @@ class Database:
         try:
             self.db_path = db_path
             self.active_transaction = False
+            self.requested_read_only = read_only
             self.read_only = read_only
 
             if engine is not None:
@@ -94,15 +102,27 @@ class Database:
                     # For DuckDB, use connect_args to set access_mode
                     # Always use NullPool for DuckDB to avoid lock issues
                     self.connection_string = f"duckdb:///{db_path}"
+                    effective_read_only = self._resolve_duckdb_read_only_mode(
+                        db_path, read_only
+                    )
+                    self.read_only = effective_read_only
                     engine_kwargs: Dict[str, Any] = {
                         "echo": False,
                         "poolclass": NullPool,
                     }
-                    if read_only:
+                    if effective_read_only:
                         # Pass access_mode as connect_args for DuckDB
                         engine_kwargs["connect_args"] = {"read_only": True}
                         logger.info(f"Opening DuckDB in read-only mode: {db_path}")
+                    elif read_only:
+                        logger.info(
+                            "Downgrading DuckDB read-only request to writable mode "
+                            "for process-local consistency: %s",
+                            db_path,
+                        )
                     self.engine = create_engine(self.connection_string, **engine_kwargs)
+                    self._register_duckdb_mode(db_path, self.read_only)
+                    self._wrap_engine_dispose(db_path, self.read_only)
 
                     # Register event listener to load spatial extension on every connection
                     # This is necessary because NullPool creates new connections each time
@@ -125,7 +145,7 @@ class Database:
             if optimize and self.is_sqlite:
                 self._apply_sqlite_optimizations()
                 self._create_missing_indexes()
-            if optimize and self.is_duckdb and not read_only:
+            if optimize and self.is_duckdb and not self.read_only:
                 self._initialize_duckdb()
 
         except exc.SQLAlchemyError as e:
@@ -153,6 +173,59 @@ class Database:
                 message="Failed to initialize database connection",
                 details={"path": db_path, "error": str(e)},
             )
+
+    @classmethod
+    def _resolve_duckdb_read_only_mode(cls, db_path: str, requested: bool) -> bool:
+        """Keep DuckDB connection mode consistent within the current process.
+
+        DuckDB rejects opening the same database file with a different configuration
+        than already-open connections in the same process. The GUI mixes long-lived
+        writable job connections with short-lived read-only inspection routes. Once
+        a writable connection has been opened for a database file in this process,
+        later read-only requests must fall back to writable mode to avoid runtime
+        connection errors.
+        """
+
+        normalized = str(db_path)
+        with cls._duckdb_mode_lock:
+            active_modes = cls._duckdb_mode_counts[normalized]
+            if requested and active_modes[False] > 0:
+                return False
+        return requested
+
+    @classmethod
+    def _register_duckdb_mode(cls, db_path: str, read_only: bool) -> None:
+        normalized = str(db_path)
+        with cls._duckdb_mode_lock:
+            cls._duckdb_mode_counts[normalized][read_only] += 1
+
+    @classmethod
+    def _release_duckdb_mode(cls, db_path: str, read_only: bool) -> None:
+        normalized = str(db_path)
+        with cls._duckdb_mode_lock:
+            active_modes = cls._duckdb_mode_counts.get(normalized)
+            if not active_modes:
+                return
+            active_modes[read_only] = max(0, active_modes[read_only] - 1)
+            if active_modes[True] == 0 and active_modes[False] == 0:
+                cls._duckdb_mode_counts.pop(normalized, None)
+
+    def _wrap_engine_dispose(self, db_path: str, read_only: bool) -> None:
+        """Release process-local DuckDB mode bookkeeping when the engine is disposed."""
+
+        original_dispose = self.engine.dispose
+        released = False
+
+        def tracked_dispose(*args, **kwargs):
+            nonlocal released
+            try:
+                return original_dispose(*args, **kwargs)
+            finally:
+                if not released:
+                    self._release_duckdb_mode(db_path, read_only)
+                    released = True
+
+        self.engine.dispose = tracked_dispose
 
     def enable_connection_reuse(self) -> None:
         """Enable per-thread connection reuse for hot read/write loops."""
