@@ -15,13 +15,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
 import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
@@ -40,16 +33,12 @@ import { getActiveExportJob } from '@/lib/api/export'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
-  references: ReferenceInfo[]
   initialTab?: string
-  onSelectCollection: (name: string, tab?: string) => void
 }
 
 export function CollectionPanel({
   reference,
-  references,
   initialTab,
-  onSelectCollection,
 }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
@@ -226,21 +215,10 @@ export function CollectionPanel({
       {/* Compact toolbar: tabs + actions in one row */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
-          <Select
-            value={reference.name}
-            onValueChange={(value) => onSelectCollection(value, activeTab)}
-          >
-            <SelectTrigger className="h-7 w-[180px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {references.map((item) => (
-                <SelectItem key={item.name} value={item.name}>
-                  {item.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Collection name */}
+          <span className="text-sm font-medium truncate max-w-[180px]" title={reference.name}>
+            {reference.name}
+          </span>
 
           {/* Tabs */}
           <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">

@@ -14,7 +14,12 @@ import {
 import { cn } from '@/lib/utils';
 import { useProjectCreationStore } from '@/stores/projectCreationStore';
 
-export function ProjectSwitcher() {
+interface ProjectSwitcherProps {
+  compact?: boolean;
+  className?: string;
+}
+
+export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherProps = {}) {
   const { t } = useTranslation();
   const {
     currentProject,
@@ -70,27 +75,48 @@ export function ProjectSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            'w-[200px] justify-between',
-            error && 'border-red-500'
-          )}
-          disabled={switching}
-        >
-          <div className="flex items-center gap-2 overflow-hidden">
-            <FolderOpen className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-sm">
-              {switching
-                ? t('project.switching', 'Switching...')
-                : getProjectName(currentProject)}
-            </span>
-          </div>
-          <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
-        </Button>
+        {compact ? (
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn(
+              'h-9 w-9 mx-auto',
+              error && 'border-red-500',
+              className
+            )}
+            disabled={switching}
+            title={getProjectName(currentProject)}
+          >
+            <FolderOpen className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            className={cn(
+              'w-full justify-between',
+              error && 'border-red-500',
+              className
+            )}
+            disabled={switching}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <FolderOpen className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate text-sm">
+                {switching
+                  ? t('project.switching', 'Switching...')
+                  : getProjectName(currentProject)}
+              </span>
+            </div>
+            <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-[280px]">
+      <DropdownMenuContent
+        align={compact ? 'start' : 'start'}
+        side={compact ? 'right' : 'bottom'}
+        className="w-[280px]"
+      >
         <DropdownMenuLabel>
           {t('project.recent_projects', 'Recent Projects')}
         </DropdownMenuLabel>
