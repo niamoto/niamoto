@@ -1,10 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { Command, Search, HelpCircle, Menu, WifiOff } from 'lucide-react'
+import { Command, Search, HelpCircle, Menu, WifiOff, PanelLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
-import { ProjectSwitcher } from '@/components/common'
-import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import {
@@ -24,8 +22,7 @@ interface TopBarProps {
 
 export function TopBar({ className }: TopBarProps) {
   const { t } = useTranslation()
-  const { setCommandPaletteOpen, sidebarMode, setSidebarMode } = useNavigationStore()
-  const { features } = useRuntimeMode()
+  const { setCommandPaletteOpen, sidebarMode, setSidebarMode, toggleSidebar } = useNavigationStore()
   const { isOffline } = useNetworkStatus()
   const { isMac, isDesktop } = usePlatform()
 
@@ -39,8 +36,8 @@ export function TopBar({ className }: TopBarProps) {
     >
       {/* Left section */}
       <div className="flex items-center gap-2">
-        {/* Mobile menu button */}
-        {sidebarMode === 'hidden' && (
+        {/* Mobile menu button (when sidebar is hidden via responsive) */}
+        {sidebarMode === 'hidden' ? (
           <Button
             variant="ghost"
             size="icon"
@@ -49,13 +46,16 @@ export function TopBar({ className }: TopBarProps) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-        )}
-
-        {/* Project switcher (desktop mode only) */}
-        {features.project_switching && (
-          <div className="no-drag hidden md:block">
-            <ProjectSwitcher />
-          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="no-drag -ml-3.5 hidden md:inline-flex text-foreground/75 hover:bg-transparent hover:text-foreground/75 focus-visible:bg-transparent focus-visible:text-foreground/75 active:bg-transparent active:text-foreground/75"
+            title={t('sidebar.toggle', 'Toggle sidebar')}
+          >
+            <PanelLeft className="h-5 w-5" />
+          </Button>
         )}
 
         {/* Mobile search button */}

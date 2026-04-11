@@ -6,7 +6,6 @@ import {
   Command,
   MessageSquarePlus,
   Loader2,
-  PanelLeft,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
@@ -14,6 +13,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
+import { ProjectSwitcher } from '@/components/common'
+import { useReferences } from '@/hooks/useReferences'
+import niamotoLogo from '@/assets/niamoto_logo.png'
 
 interface NavigationSidebarProps {
   className?: string
@@ -26,13 +28,20 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const {
     sidebarMode,
     setCommandPaletteOpen,
-    toggleSidebar,
   } = useNavigationStore()
   const { isMac } = usePlatform()
-  const { isDesktop } = useRuntimeMode()
+  const { isDesktop, features } = useRuntimeMode()
   const feedback = useFeedback()
   const browserOnline = useBrowserOnline()
   const feedbackDisabled = !browserOnline || feedback.cooldownRemaining > 0 || feedback.isPreparingScreenshot
+
+  const collectionsRouteActive =
+    location.pathname === '/groups' || location.pathname.startsWith('/groups/')
+  const { data: referencesData } = useReferences()
+  const references = referencesData?.references ?? []
+  const activeCollectionName = collectionsRouteActive
+    ? decodeURIComponent(location.pathname.replace(/^\/groups\/?/, '').split('/')[0] ?? '')
+    : ''
 
   if (sidebarMode === 'hidden') {
     return null
@@ -50,60 +59,108 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
       <div
         className={cn(
           'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
-          isCompact ? (isMac && isDesktop ? 'w-32' : 'w-16') : 'w-52',
+          isCompact ? (isMac && isDesktop ? 'w-20' : 'w-16') : 'w-52',
           className
         )}
       >
-      {/* Header */}
+      {/* Header — on macOS the space is reserved for window traffic lights.
+          On other platforms, shows the Niamoto brand. */}
       {showHeader && (
         <div
           data-tauri-drag-region={isMac && isDesktop ? true : undefined}
           className={cn(
-            'relative border-b',
-            isMac && isDesktop ? 'h-14' : 'h-12',
-            isMac && isDesktop && 'pl-18'
+            'flex h-14 shrink-0 items-center border-b',
+            isCompact ? 'justify-center px-0' : 'gap-2 px-4'
           )}
         >
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            className={cn(
-              'no-drag absolute top-1/2 hidden -translate-y-1/2 text-foreground/75 md:inline-flex hover:bg-transparent hover:text-foreground/75 focus-visible:bg-transparent focus-visible:text-foreground/75 active:bg-transparent active:text-foreground/75',
-              isMac && isDesktop ? 'right-1' : 'right-2'
-            )}
-            title={t('sidebar.toggle', 'Toggle sidebar')}
-          >
-            <PanelLeft className="h-5 w-5" />
-          </Button>
+          {!(isMac && isDesktop) && (
+            <>
+              <img
+                src={niamotoLogo}
+                alt="Niamoto"
+                className="h-7 w-7 shrink-0 object-contain"
+              />
+              {!isCompact && (
+                <span className="text-base font-semibold tracking-tight text-foreground">
+                  Niamoto
+                </span>
+              )}
+            </>
+          )}
         </div>
       )}
 
       <div className="flex flex-1 flex-col">
+        {/* Workspace: project switcher */}
+        {features.project_switching && (
+          <div
+            className={cn(
+              'border-b px-3 py-3',
+              isCompact && 'flex justify-center px-2'
+            )}
+          >
+            <ProjectSwitcher compact={isCompact} />
+          </div>
+        )}
+
         {/* Navigation — Flat rail */}
         <nav className="flex-1 py-4 px-2 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.matchPrefix)
+            const showCollectionsChildren =
+              item.id === 'groups' && collectionsRouteActive && !isCompact && references.length > 0
 
             return (
-              <NavLink
-                key={item.id}
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 rounded-theme-md px-3 py-2.5 text-sm font-medium transition-theme-fast',
-                  'hover:bg-accent hover:text-accent-foreground',
-                  active && 'bg-accent text-accent-foreground',
-                  !active && 'text-muted-foreground',
-                  isCompact && 'justify-center px-0'
+              <div key={item.id}>
+                <NavLink
+                  to={item.path}
+                  className={cn(
+                    'flex items-center gap-3 rounded-theme-md px-3 py-2.5 text-sm font-medium transition-theme-fast',
+                    'hover:bg-accent hover:text-accent-foreground',
+                    active && 'bg-accent text-accent-foreground',
+                    !active && 'text-muted-foreground',
+                    isCompact && 'justify-center px-0'
+                  )}
+                  title={isCompact ? t(item.labelKey, item.fallbackLabel) : undefined}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {!isCompact && (
+                    <span>{t(item.labelKey, item.fallbackLabel)}</span>
+                  )}
+                </NavLink>
+
+                {showCollectionsChildren && (
+                  <ul className="mt-1 ml-4 border-l border-border/60 pl-2 space-y-0.5">
+                    {references.map((ref) => {
+                      const isCurrent = ref.name === activeCollectionName
+                      return (
+                        <li key={ref.name}>
+                          <NavLink
+                            to={`/groups/${encodeURIComponent(ref.name)}`}
+                            className={cn(
+                              'flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-xs transition-theme-fast',
+                              'hover:bg-accent hover:text-accent-foreground',
+                              isCurrent
+                                ? 'bg-accent text-accent-foreground font-medium'
+                                : 'text-muted-foreground'
+                            )}
+                            title={ref.name}
+                          >
+                            <span
+                              className={cn(
+                                'h-1.5 w-1.5 rounded-full shrink-0',
+                                isCurrent ? 'bg-primary' : 'bg-muted-foreground/40'
+                              )}
+                            />
+                            <span className="truncate">{ref.name}</span>
+                          </NavLink>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 )}
-                title={isCompact ? t(item.labelKey, item.fallbackLabel) : undefined}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                {!isCompact && (
-                  <span>{t(item.labelKey, item.fallbackLabel)}</span>
-                )}
-              </NavLink>
+              </div>
             )
           })}
         </nav>

@@ -138,11 +138,7 @@ export function CollectionsModule() {
       return (
         <CollectionPanel
           reference={reference}
-          references={references}
           initialTab={initialTab}
-          onSelectCollection={(name, tab) =>
-            handleSelect({ type: 'collection', name }, tab)
-          }
         />
       )
     }
