@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.1] - 2026-04-11
+
+### Bug Fixes
+
+- Force bash shell for Tauri build on Windows (restores Windows desktop binaries)
+
 ## [v0.14.0] - 2026-04-11
 
 ### Features
