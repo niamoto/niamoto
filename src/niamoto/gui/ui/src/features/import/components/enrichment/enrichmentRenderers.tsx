@@ -11,7 +11,11 @@ import { useTranslation } from 'react-i18next'
 import { ExternalLink, ImageIcon, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-type SourceSummary = Record<string, unknown>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SourceSummary = Record<string, any>
+
+const asSummary = (value: unknown): SourceSummary =>
+  typeof value === 'object' && value !== null ? (value as SourceSummary) : {}
 
 const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
   const { t } = useTranslation(['sources'])
@@ -223,13 +227,13 @@ const renderOpenMeteoStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const location = data.location ?? {}
-  const elevation = data.elevation ?? {}
-  const geometrySummary = data.geometry_summary ?? {}
-  const elevationSummary = data.elevation_summary ?? {}
-  const sampling = data.sampling ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const location = asSummary(data.location)
+  const elevation = asSummary(data.elevation)
+  const geometrySummary = asSummary(data.geometry_summary)
+  const elevationSummary = asSummary(data.elevation_summary)
+  const sampling = asSummary(data.sampling)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
@@ -318,12 +322,12 @@ const renderOpenMeteoStructuredSummary = (
         </div>
       ) : null}
 
-      {Object.keys(data.provenance ?? {}).length > 0 ? (
+      {Object.keys(asSummary(data.provenance)).length > 0 ? (
         <div className="rounded-lg border border-border/70 bg-background p-3">
           <div className="mb-3 text-sm font-semibold">
             {t('dashboard.enrichment.structured.provenance', { defaultValue: 'Provenance' })}
           </div>
-          {renderSummaryRows(Object.entries(data.provenance ?? {}))}
+          {renderSummaryRows(Object.entries(asSummary(data.provenance)))}
         </div>
       ) : null}
     </div>
@@ -334,14 +338,14 @@ const renderGeoNamesStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const location = data.location ?? {}
-  const admin = data.admin ?? {}
-  const nearbyPlace = data.nearby_place ?? {}
-  const geometrySummary = data.geometry_summary ?? {}
-  const adminSummary = data.admin_summary ?? {}
-  const sampling = data.sampling ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const location = asSummary(data.location)
+  const admin = asSummary(data.admin)
+  const nearbyPlace = asSummary(data.nearby_place)
+  const geometrySummary = asSummary(data.geometry_summary)
+  const adminSummary = asSummary(data.admin_summary)
+  const sampling = asSummary(data.sampling)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
@@ -463,7 +467,7 @@ const renderGeoNamesStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Nearby places</div>
                     <div className="space-y-2">
-                      {adminSummary.nearest_places.map((item) => (
+                      {adminSummary.nearest_places.map((item: SourceSummary) => (
                         <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                           <span className="truncate">{String(item.name)}</span>
                           {item.distance_km ? <Badge variant="outline">{String(item.distance_km)} km</Badge> : null}
@@ -489,12 +493,12 @@ const renderGeoNamesStructuredSummary = (
         </div>
       ) : null}
 
-      {Object.keys(data.provenance ?? {}).length > 0 ? (
+      {Object.keys(asSummary(data.provenance)).length > 0 ? (
         <div className="rounded-lg border border-border/70 bg-background p-3">
           <div className="mb-3 text-sm font-semibold">
             {t('dashboard.enrichment.structured.provenance', { defaultValue: 'Provenance' })}
           </div>
-          {renderSummaryRows(Object.entries(data.provenance ?? {}))}
+          {renderSummaryRows(Object.entries(asSummary(data.provenance)))}
         </div>
       ) : null}
     </div>
@@ -505,14 +509,14 @@ const renderGbifStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const nameResolution = data.name_resolution ?? {}
-  const match = data.match ?? {}
-  const taxonomy = data.taxonomy ?? {}
-  const occurrenceSummary = data.occurrence_summary ?? {}
-  const mediaSummary = data.media_summary ?? {}
-  const links = data.links ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const nameResolution = asSummary(data.name_resolution)
+  const match = asSummary(data.match)
+  const taxonomy = asSummary(data.taxonomy)
+  const occurrenceSummary = asSummary(data.occurrence_summary)
+  const mediaSummary = asSummary(data.media_summary)
+  const links = asSummary(data.links)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
   const noMatch = blockStatus.match === 'no_match' || !match.usage_key
 
   return (
@@ -644,7 +648,7 @@ const renderGbifStructuredSummary = (
                   })}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {mediaSummary.items.map((item, index: number) => (
+                  {mediaSummary.items.map((item: SourceSummary, index: number) => (
                     <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
                       <div className="mb-2">{renderValue(item.thumbnail_url || item.identifier || item.source_url)}</div>
                       <div className="space-y-1 text-xs text-muted-foreground">
@@ -680,16 +684,16 @@ const renderTropicosStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const nameResolution = data.name_resolution ?? {}
-  const match = data.match ?? {}
-  const nomenclature = data.nomenclature ?? {}
-  const taxonomy = data.taxonomy ?? {}
-  const references = data.references ?? {}
-  const distributionSummary = data.distribution_summary ?? {}
-  const mediaSummary = data.media_summary ?? {}
-  const links = data.links ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const nameResolution = asSummary(data.name_resolution)
+  const match = asSummary(data.match)
+  const nomenclature = asSummary(data.nomenclature)
+  const taxonomy = asSummary(data.taxonomy)
+  const references = asSummary(data.references)
+  const distributionSummary = asSummary(data.distribution_summary)
+  const mediaSummary = asSummary(data.media_summary)
+  const links = asSummary(data.links)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
   const noMatch = blockStatus.match === 'no_match' || !match.name_id
 
   return (
@@ -787,7 +791,7 @@ const renderTropicosStructuredSummary = (
                 {renderSummaryRows([['references_count', references.references_count]])}
                 {Array.isArray(references.items) && references.items.length > 0 ? (
                   <div className="space-y-2">
-                    {references.items.map((item, index: number) => (
+                    {references.items.map((item: SourceSummary, index: number) => (
                       <div key={`${item.title || item.full_citation || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.title || item.full_citation || 'Reference'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -848,7 +852,7 @@ const renderTropicosStructuredSummary = (
               <div className="space-y-3">
                 {renderSummaryRows([['media_count', mediaSummary.media_count]])}
                 <div className="grid gap-3 md:grid-cols-2">
-                  {mediaSummary.items.map((item, index: number) => (
+                  {mediaSummary.items.map((item: SourceSummary, index: number) => (
                     <div key={`${item.identifier || item.source_url || index}`} className="rounded-md border p-3">
                       <div className="mb-2">{renderValue(item.thumbnail_url || item.source_url || item.identifier)}</div>
                       <div className="space-y-1 text-xs text-muted-foreground">
@@ -881,14 +885,14 @@ const renderInaturalistStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const match = data.match ?? {}
-  const taxon = data.taxon ?? {}
-  const observationSummary = data.observation_summary ?? {}
-  const mediaSummary = data.media_summary ?? {}
-  const places = data.places ?? {}
-  const links = data.links ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const match = asSummary(data.match)
+  const taxon = asSummary(data.taxon)
+  const observationSummary = asSummary(data.observation_summary)
+  const mediaSummary = asSummary(data.media_summary)
+  const places = asSummary(data.places)
+  const links = asSummary(data.links)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
   const noMatch = blockStatus.match === 'no_match' || !match.taxon_id
 
   return (
@@ -969,7 +973,7 @@ const renderInaturalistStructuredSummary = (
                 ])}
                 {Array.isArray(observationSummary.recent_observations) && observationSummary.recent_observations.length > 0 ? (
                   <div className="space-y-2">
-                    {observationSummary.recent_observations.map((item, index: number) => (
+                    {observationSummary.recent_observations.map((item: SourceSummary, index: number) => (
                       <div key={`${item.observation_id || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">
                           Observation {String(item.observation_id || index + 1)}
@@ -1002,7 +1006,7 @@ const renderInaturalistStructuredSummary = (
                 {renderSummaryRows([['media_count', mediaSummary.media_count]])}
                 {Array.isArray(mediaSummary.sample) && mediaSummary.sample.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2">
-                    {mediaSummary.sample.map((item, index: number) => (
+                    {mediaSummary.sample.map((item: SourceSummary, index: number) => (
                       <div key={`${item.medium_url || item.square_url || index}`} className="rounded-md border p-3">
                         <div className="mb-2">
                           {renderValue(item.medium_url || item.square_url)}
@@ -1036,7 +1040,7 @@ const renderInaturalistStructuredSummary = (
                 {renderSummaryRows([['places_count', places.places_count]])}
                 {Array.isArray(places.top_places) && places.top_places.length > 0 ? (
                   <div className="space-y-2">
-                    {places.top_places.map((item) => (
+                    {places.top_places.map((item: SourceSummary) => (
                       <div key={String(item.name)} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                         <span>{String(item.name)}</span>
                         <Badge variant="outline">{String(item.count)}</Badge>
@@ -1066,15 +1070,15 @@ const renderBhlStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const match = data.match ?? {}
-  const titleSummary = data.title_summary ?? {}
-  const publications = data.publications ?? {}
-  const nameMentions = data.name_mentions ?? {}
-  const pageLinks = data.page_links ?? {}
-  const referencesCount = data.references_count ?? {}
-  const links = data.links ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const match = asSummary(data.match)
+  const titleSummary = asSummary(data.title_summary)
+  const publications = asSummary(data.publications)
+  const nameMentions = asSummary(data.name_mentions)
+  const pageLinks = asSummary(data.page_links)
+  const referencesCount = asSummary(data.references_count)
+  const links = asSummary(data.links)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
   const noMatch =
     blockStatus.match === 'no_match' ||
     (!match.name_confirmed && !referencesCount.titles && !referencesCount.pages)
@@ -1123,7 +1127,7 @@ const renderBhlStructuredSummary = (
                   <div className="text-sm text-muted-foreground">{String(blockErrors.publications)}</div>
                 ) : Array.isArray(publications.sample) && publications.sample.length > 0 ? (
                   <div className="space-y-2">
-                    {publications.sample.map((item, index: number) => (
+                    {publications.sample.map((item: SourceSummary, index: number) => (
                       <div key={`${item.title_id || item.title_url || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.short_title || item.full_title || 'Title'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1152,7 +1156,7 @@ const renderBhlStructuredSummary = (
                 {renderSummaryRows([['mentions_count', nameMentions.mentions_count]])}
                 {Array.isArray(nameMentions.sample) && nameMentions.sample.length > 0 ? (
                   <div className="space-y-2">
-                    {nameMentions.sample.map((item, index: number) => (
+                    {nameMentions.sample.map((item: SourceSummary, index: number) => (
                       <div key={`${item.name_confirmed || item.name_found || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.name_confirmed || item.name_found || 'Mention'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1179,7 +1183,7 @@ const renderBhlStructuredSummary = (
                 {renderSummaryRows([['pages', referencesCount.pages]])}
                 {Array.isArray(pageLinks.sample) && pageLinks.sample.length > 0 ? (
                   <div className="grid gap-3 md:grid-cols-2">
-                    {pageLinks.sample.map((item, index: number) => (
+                    {pageLinks.sample.map((item: SourceSummary, index: number) => (
                       <div key={`${item.page_id || item.page_url || index}`} className="rounded-md border p-3">
                         <div className="mb-2">{renderValue(item.thumbnail_url || item.page_url || item.page_id)}</div>
                         <div className="space-y-1 text-xs text-muted-foreground">
@@ -1213,16 +1217,16 @@ const renderColStructuredSummary = (
   data: SourceSummary,
   t: (key: string, options?: Record<string, unknown>) => string
 ) => {
-  const nameResolution = data.name_resolution ?? {}
-  const match = data.match ?? {}
-  const taxonomy = data.taxonomy ?? {}
-  const nomenclature = data.nomenclature ?? {}
-  const vernaculars = data.vernaculars ?? {}
-  const distributionSummary = data.distribution_summary ?? {}
-  const references = data.references ?? {}
-  const links = data.links ?? {}
-  const blockStatus = data.block_status ?? {}
-  const blockErrors = data.block_errors ?? {}
+  const nameResolution = asSummary(data.name_resolution)
+  const match = asSummary(data.match)
+  const taxonomy = asSummary(data.taxonomy)
+  const nomenclature = asSummary(data.nomenclature)
+  const vernaculars = asSummary(data.vernaculars)
+  const distributionSummary = asSummary(data.distribution_summary)
+  const references = asSummary(data.references)
+  const links = asSummary(data.links)
+  const blockStatus = asSummary(data.block_status)
+  const blockErrors = asSummary(data.block_errors)
   const noMatch = blockStatus.match === 'no_match' || !match.taxon_id
 
   return (
@@ -1276,7 +1280,7 @@ const renderColStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Classification</div>
                     <div className="flex flex-wrap gap-2">
-                      {taxonomy.classification.map((item, index: number) => {
+                      {taxonomy.classification.map((item: SourceSummary, index: number) => {
                         const label = [item.rank, item.name].filter(Boolean).join(': ')
                         return (
                           <Badge key={`${item.rank || 'rank'}-${item.name || index}`} variant="outline">
@@ -1333,7 +1337,7 @@ const renderColStructuredSummary = (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">Sample</div>
                     <div className="flex flex-wrap gap-2">
-                      {vernaculars.sample.map((item, index: number) => {
+                      {vernaculars.sample.map((item: SourceSummary, index: number) => {
                         const label = [item.name, item.language ? `(${item.language})` : '']
                           .filter(Boolean)
                           .join(' ')
@@ -1417,7 +1421,7 @@ const renderColStructuredSummary = (
                 {renderSummaryRows([['references_count', references.references_count]])}
                 {Array.isArray(references.items) && references.items.length > 0 ? (
                   <div className="space-y-2">
-                    {references.items.map((item, index: number) => (
+                    {references.items.map((item: SourceSummary, index: number) => (
                       <div key={`${item.id || item.citation || index}`} className="rounded-md border p-3">
                         <div className="text-sm font-medium">{item.title || item.citation || 'Reference'}</div>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">

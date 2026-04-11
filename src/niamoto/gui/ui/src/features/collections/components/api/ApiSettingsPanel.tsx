@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, RotateCcw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { JsonSchemaForm } from '@/components/forms'
+import type { FormValues } from '@/components/forms/formSchemaTypes'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -176,7 +177,7 @@ function ApiTargetSettingsCardForm({
           key={`settings-${target.name}-${resetCounter}`}
           pluginId="json_api_exporter"
           showTitle={false}
-          initialValues={localSettings.params}
+          initialValues={localSettings.params as FormValues}
           onChange={(params) =>
             setLocalSettings((current) =>
               current ? { ...current, params } : current

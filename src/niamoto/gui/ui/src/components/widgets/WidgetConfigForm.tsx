@@ -23,6 +23,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import JsonSchemaForm from '@/components/forms/JsonSchemaForm'
+import type { FormValues } from '@/components/forms/formSchemaTypes'
 import type { ConfiguredWidget } from './useWidgetConfig'
 
 interface WidgetConfigFormProps {
@@ -199,7 +200,7 @@ export function WidgetConfigForm({
                 hiddenFields={['title', 'description']}
                 showTitle={false}
                 className="border-0 shadow-none p-0"
-                initialValues={widgetParams}
+                initialValues={widgetParams as FormValues}
               />
             </AccordionContent>
           </AccordionItem>
@@ -228,7 +229,7 @@ export function WidgetConfigForm({
                   availableFields={availableFields}
                   showTitle={false}
                   className="border-0 shadow-none p-0"
-                  initialValues={transformerParams}
+                  initialValues={transformerParams as FormValues}
                 />
               </AccordionContent>
             </AccordionItem>

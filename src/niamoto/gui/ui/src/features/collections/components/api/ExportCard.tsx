@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner'
 
 import { JsonSchemaForm } from '@/components/forms'
+import type { FormValues } from '@/components/forms/formSchemaTypes'
 import JsonField from '@/components/forms/fields/JsonField'
 import {
   Accordion,
@@ -292,7 +293,7 @@ function ExportCardForm({
                 </p>
                 <ApiFieldMappingsEditor
                   value={localConfig.index?.fields ?? []}
-                  suggestions={suggestionsQuery.data?.display_fields ?? []}
+                  suggestions={suggestions?.display_fields ?? []}
                   onChange={(fields) =>
                     updateLocalConfig((current) => ({
                       ...current,
@@ -422,7 +423,7 @@ function ExportCardForm({
                     groupBy={groupBy}
                     showTitle={false}
                     hiddenFields={isDwcTransformer ? ['mapping'] : []}
-                    initialValues={localConfig.transformer_params ?? {}}
+                    initialValues={(localConfig.transformer_params ?? {}) as FormValues}
                     availableFields={availableFields}
                     onChange={(transformerParams) =>
                       updateLocalConfig((current) => ({

@@ -274,9 +274,9 @@ export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProp
         {links.length > 0 && (
           <div className="mt-4 rounded-lg border bg-muted/30 p-3">
             <p className="mb-2 text-xs font-medium text-muted-foreground">Apercu</p>
-            <div className="flex flex-wrap gap-3">
-              {links.map((link, index) => {
-                const Icon = getLinkIcon(link.type)
+              <div className="flex flex-wrap gap-3">
+                {links.map((link, index) => {
+                const Icon = getLinkIcon(link.type ?? undefined)
                 return (
                   <a
                     key={index}

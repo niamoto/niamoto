@@ -89,7 +89,9 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
       description: uiHelp || fieldSchema.description,
       placeholder: uiPlaceholder,
       disabled,
-      required: fieldSchema.required || false
+      required: Array.isArray(fieldSchema.required)
+        ? fieldSchema.required.length > 0
+        : Boolean(fieldSchema.required)
     };
 
     // First check ui:widget hint

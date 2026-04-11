@@ -18,6 +18,33 @@ interface ImportConfigNode {
   [key: string]: ImportConfigValue | undefined
 }
 
+function toImportConfigValue(value: unknown): ImportConfigValue {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => toImportConfigValue(item))
+  }
+
+  if (typeof value === 'object') {
+    const node: ImportConfigNode = {}
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      if (nestedValue !== undefined) {
+        node[key] = toImportConfigValue(nestedValue)
+      }
+    })
+    return node
+  }
+
+  return String(value)
+}
+
 interface RootImportConfig extends ImportConfigNode {
   version: string
   entities: {
@@ -114,7 +141,7 @@ function buildEntityConfig(entity: EntityConfig): ImportConfigNode {
     config.enrichment = {
       plugin: entity.enrichmentConfig.plugin,
       enabled: true,
-      config: entity.enrichmentConfig.config
+      config: toImportConfigValue(entity.enrichmentConfig.config)
     }
   }
 
@@ -146,7 +173,7 @@ function buildConnectorConfig(connector: ConnectorConfig): ImportConfigNode {
         config.source = connector.source
       }
       if (connector.extraction) {
-        config.extraction = connector.extraction
+        config.extraction = toImportConfigValue(connector.extraction)
       }
       break
 
@@ -165,13 +192,13 @@ function buildConnectorConfig(connector: ConnectorConfig): ImportConfigNode {
         config.url = connector.url
       }
       if (connector.params) {
-        config.params = connector.params
+        config.params = toImportConfigValue(connector.params)
       }
       break
 
     case 'plugin':
       if (connector.params) {
-        config.options = connector.params
+        config.options = toImportConfigValue(connector.params)
       }
       break
   }

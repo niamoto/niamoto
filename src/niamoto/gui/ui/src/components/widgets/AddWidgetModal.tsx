@@ -6,7 +6,7 @@
  * - Combined: Semantic groups + manual field selection
  * - Custom: 4-step wizard with YAML preview
  */
-import { useState, useCallback, useMemo, useEffect, memo, startTransition, useDeferredValue } from 'react'
+import { useState, useCallback, useMemo, useEffect, useReducer, memo, startTransition, useDeferredValue } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -486,9 +486,7 @@ export function AddWidgetModal({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
-  const [quickEditFields, setQuickEditFields] = useState<QuickEditField[]>([])
-  const [loadingSchema, setLoadingSchema] = useState(false)
-  const [loadingSchemaPluginId, setLoadingSchemaPluginId] = useState<string | null>(null)
+  const [, refreshPluginSchemaCache] = useReducer((count: number) => count + 1, 0)
 
   // Combined tab state
   const [selectedFields, setSelectedFields] = useState<string[]>([])
@@ -568,9 +566,6 @@ export function AddWidgetModal({
     setExpandedGroups(new Set())
     setCategoryFilter(null)
     setSourceFilter(null)
-    setQuickEditFields([])
-    setLoadingSchema(false)
-    setLoadingSchemaPluginId(null)
     setInitialRecipe(undefined)
     setSelectedFields([])
     setSelectedCombinedKey(null)
@@ -592,12 +587,15 @@ export function AddWidgetModal({
   const deferredFocusedSuggestion = useDeferredValue(focusedSuggestion)
   const previewSuggestionId = deferredFocusedSuggestion || null
   const previewSuggestion = visibleSuggestions.find((s) => s.template_id === previewSuggestionId)
+  const previewQuickEditFields = useMemo(() => {
+    if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
+      return []
+    }
+    return pluginSchemaCache[previewSuggestion.plugin] || []
+  }, [previewSuggestion, selectedSuggestionIds])
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
     if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
-      setQuickEditFields([])
-      setLoadingSchema(false)
-      setLoadingSchemaPluginId(null)
       return
     }
 
@@ -605,18 +603,11 @@ export function AddWidgetModal({
 
     // Check cache first
     if (pluginId in pluginSchemaCache) {
-      setQuickEditFields(pluginSchemaCache[pluginId] || [])
-      setLoadingSchema(false)
-      setLoadingSchemaPluginId(null)
       return
     }
 
     const controller = new AbortController()
     let cancelled = false
-
-    setQuickEditFields([])
-    setLoadingSchema(true)
-    setLoadingSchemaPluginId(pluginId)
 
     fetch(`/api/plugins/${pluginId}/schema`, { signal: controller.signal })
       .then((res) => res.json())
@@ -625,25 +616,17 @@ export function AddWidgetModal({
         if (data.has_params && data.schema) {
           const fields = extractQuickEditFields(data.schema)
           pluginSchemaCache[pluginId] = fields
-          setQuickEditFields(fields)
         } else {
           pluginSchemaCache[pluginId] = []
-          setQuickEditFields([])
         }
+        refreshPluginSchemaCache()
       })
       .catch((error: unknown) => {
         if (cancelled || (error instanceof DOMException && error.name === 'AbortError')) {
           return
         }
         pluginSchemaCache[pluginId] = []
-        setQuickEditFields([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setLoadingSchema(false)
-        setLoadingSchemaPluginId((currentPluginId) =>
-          currentPluginId === pluginId ? null : currentPluginId,
-        )
+        refreshPluginSchemaCache()
       })
 
     return () => {
@@ -924,9 +907,9 @@ export function AddWidgetModal({
 
   const isBusy = generating || saving
   const showSchemaLoader =
-    loadingSchema &&
     !!previewSuggestion &&
-    loadingSchemaPluginId === previewSuggestion.plugin
+    !(previewSuggestion.plugin in pluginSchemaCache) &&
+    selectedSuggestionIds.has(previewSuggestion.template_id)
 
   return (
     <Dialog
@@ -1359,7 +1342,7 @@ export function AddWidgetModal({
                               </div>
 
                               {/* Dynamic fields from plugin schema */}
-                              {quickEditFields.map((field) => (
+                              {previewQuickEditFields.map((field) => (
                                 <div key={field.name}>
                                   <label className="text-xs text-muted-foreground flex items-center gap-1">
                                     {field.title}
@@ -1461,7 +1444,7 @@ export function AddWidgetModal({
                               ))}
 
                               {/* Message when no quick edit fields */}
-                              {!showSchemaLoader && quickEditFields.length === 0 && (
+                              {!showSchemaLoader && previewQuickEditFields.length === 0 && (
                                 <p className="text-xs text-muted-foreground/70 italic">
                                   {t('modal.advancedEditHint')}
                                 </p>

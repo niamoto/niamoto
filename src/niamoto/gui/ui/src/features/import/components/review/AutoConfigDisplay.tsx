@@ -183,7 +183,7 @@ export function AutoConfigDisplay({
       datasets: {
         ...result.entities.datasets,
         [name]: updated,
-      },
+      } as AutoConfigureResponse['entities']['datasets'],
     })
     closeEditor()
   }
@@ -197,7 +197,7 @@ export function AutoConfigDisplay({
       references: {
         ...result.entities.references,
         [name]: updated,
-      },
+      } as AutoConfigureResponse['entities']['references'],
     })
     closeEditor()
   }
@@ -435,14 +435,14 @@ export function AutoConfigDisplay({
       id: `dataset:${name}`,
       type: 'dataset' as const,
       name,
-      config: config as DatasetConfig,
+      config: config as unknown as DatasetConfig,
       summary: decisionSummaries[name],
     })),
     ...Object.entries(result.entities.references || {}).map(([name, config]) => ({
       id: `reference:${name}`,
       type: 'reference' as const,
       name,
-      config: config as ReferenceConfig,
+      config: config as unknown as ReferenceConfig,
       summary: decisionSummaries[name],
     })),
     ...auxiliarySources.map((source) => ({

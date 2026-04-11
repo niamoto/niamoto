@@ -25,6 +25,17 @@ import {
 import { toast } from 'sonner'
 import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function asDisplayText(value: unknown): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  return String(value)
+}
+
 export function DataExplorer() {
   const { t } = useTranslation(['tools', 'common'])
   const navigate = useNavigate()
@@ -163,6 +174,14 @@ export function DataExplorer() {
       setEnrichmentLoading(false)
     }
   }
+
+  const enrichmentImages = Array.isArray(enrichmentData?.api_enrichment.images)
+    ? enrichmentData.api_enrichment.images
+    : []
+  const enrichmentImageSrc =
+    asOptionalString(enrichmentData?.api_enrichment.image_big_thumb) ??
+    asOptionalString(enrichmentData?.api_enrichment.image_small_thumb)
+  const enrichmentImageAuthor = asOptionalString(enrichmentData?.api_enrichment.image_auteur)
 
   return (
     <div className="h-full overflow-auto">
@@ -357,8 +376,8 @@ export function DataExplorer() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleEnrichmentPreview(row['full_name'])}
-                                    disabled={!row['full_name']}
+                                    onClick={() => handleEnrichmentPreview(asDisplayText(row['full_name']))}
+                                    disabled={!asOptionalString(row['full_name'])}
                                     className="h-8 px-2"
                                   >
                                     <Sparkles className="h-4 w-4" />
@@ -669,14 +688,14 @@ export function DataExplorer() {
               </Card>
 
               {/* Images */}
-              {enrichmentData.api_enrichment.images && Array.isArray(enrichmentData.api_enrichment.images) && enrichmentData.api_enrichment.images.length > 0 && (
+              {enrichmentImages.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Images</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {enrichmentData.api_enrichment.images.slice(0, 6).map((img: EnrichmentPreviewImage, idx: number) => (
+                      {enrichmentImages.slice(0, 6).map((img: EnrichmentPreviewImage, idx: number) => (
                         <div key={idx} className="space-y-2">
                           <img
                             src={img.big_thumb || img.small_thumb}
@@ -694,7 +713,7 @@ export function DataExplorer() {
               )}
 
               {/* Single image fields */}
-              {(enrichmentData.api_enrichment.image_big_thumb || enrichmentData.api_enrichment.image_small_thumb) && (
+              {enrichmentImageSrc && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Image</CardTitle>
@@ -702,12 +721,12 @@ export function DataExplorer() {
                   <CardContent>
                     <div className="space-y-2">
                       <img
-                        src={enrichmentData.api_enrichment.image_big_thumb || enrichmentData.api_enrichment.image_small_thumb}
+                        src={enrichmentImageSrc}
                         alt="Taxon"
                         className="w-full max-w-md h-64 object-cover rounded-lg border"
                       />
-                      {enrichmentData.api_enrichment.image_auteur && (
-                        <p className="text-sm text-muted-foreground">© {enrichmentData.api_enrichment.image_auteur}</p>
+                      {enrichmentImageAuthor && (
+                        <p className="text-sm text-muted-foreground">© {enrichmentImageAuthor}</p>
                       )}
                     </div>
                   </CardContent>

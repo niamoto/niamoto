@@ -30,8 +30,6 @@ import {
   type EditorInstance,
   type SuggestionItem,
 } from 'novel'
-import type { EditorEvents } from '@tiptap/core'
-import type { PlaceholderOptions } from '@tiptap/extension-placeholder'
 import ImageResize from 'tiptap-extension-resize-image'
 import {
   CheckSquare,
@@ -69,7 +67,6 @@ type SuggestionItemKey =
   | 'code'
 type SuggestionCommand = NonNullable<SuggestionItem['command']>
 type SuggestionCommandProps = Parameters<SuggestionCommand>[0]
-type PlaceholderContext = Parameters<Exclude<PlaceholderOptions['placeholder'], string>>[0]
 type SuggestionMenuItem = Omit<SuggestionItem, 'command'> & { key: SuggestionItemKey }
 
 // Extract all images from a line (handles multiple images on same line)
@@ -791,7 +788,7 @@ export function MarkdownEditor({
         nested: true,
       }),
       Placeholder.configure({
-        placeholder: ({ node }: PlaceholderContext) => {
+        placeholder: ({ node }: { node: { type: { name: string }; attrs: { level?: number } } }) => {
           if (node.type.name === 'heading') {
             return t('markdownEditor.placeholder.heading', { level: node.attrs.level })
           }
@@ -923,7 +920,7 @@ export function MarkdownEditor({
               // The extension's dispatchNodeView() uses view.dispatch(tr.setNodeMarkup(...))
               // which sets transaction.docChanged = true
               if (!readOnly) {
-                editor.on('transaction', ({ transaction }: EditorEvents['transaction']) => {
+                editor.on('transaction', ({ transaction }: { transaction: { docChanged: boolean } }) => {
                   if (!transaction.docChanged) return
                   const markdown = serializeToMarkdown(editor)
                   onChangeRef.current?.(markdown)

@@ -363,7 +363,11 @@ export default function PublishOverview() {
 
         Object.entries(exports).forEach(([name, exportData]: [string, Record<string, unknown>]) => {
           if (exportData && exportData.data) {
-            const filesGenerated = exportData.data.files_generated || 0
+            const exportMetrics =
+              typeof exportData.data === 'object' && exportData.data !== null
+                ? (exportData.data as { files_generated?: number })
+                : {}
+            const filesGenerated = exportMetrics.files_generated || 0
             if (filesGenerated > 0) {
               targets.push({ name, files: filesGenerated })
               totalFiles += filesGenerated
