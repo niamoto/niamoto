@@ -262,6 +262,21 @@ class InteractiveMapWidget(WidgetPlugin):
         deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
         return deps
 
+    def _should_auto_fit_viewport(self, params: InteractiveMapParams) -> bool:
+        """Return whether the initial viewport should fit the available data.
+
+        Auto-fit is enabled explicitly via ``auto_zoom=True`` or implicitly when
+        the user did not configure any viewport controls. This keeps existing
+        manual zoom/center behaviour intact while making default map previews
+        adapt to the real data extent.
+        """
+        if params.auto_zoom:
+            return True
+
+        fields_set = getattr(params, "model_fields_set", set())
+        viewport_fields = {"zoom", "center_lat", "center_lon"}
+        return not any(field in fields_set for field in viewport_fields)
+
     def _get_map_style(self, style: str) -> str:
         """Convert custom style names to Plotly-compatible styles.
 
@@ -1238,11 +1253,19 @@ class InteractiveMapWidget(WidgetPlugin):
             and df_plot is not None
             and not df_plot.empty
         ):
-            center_lat = df_plot[latitude_field].mean()
-            center_lon = df_plot[longitude_field].mean()
+            center_lat = (
+                params.center_lat
+                if params.center_lat is not None
+                else df_plot[latitude_field].mean()
+            )
+            center_lon = (
+                params.center_lon
+                if params.center_lon is not None
+                else df_plot[longitude_field].mean()
+            )
 
-            # Calculate optimal zoom if auto_zoom is enabled
-            if params.auto_zoom:
+            # Calculate optimal zoom when auto-fit is enabled or no explicit viewport is set
+            if self._should_auto_fit_viewport(params):
                 min_lat = df_plot[latitude_field].min()
                 max_lat = df_plot[latitude_field].max()
                 min_lon = df_plot[longitude_field].min()
@@ -1346,8 +1369,8 @@ class InteractiveMapWidget(WidgetPlugin):
                             geojson_plot_data["bbox"][1] + geojson_plot_data["bbox"][3]
                         ) / 2
 
-                        # Calculate optimal zoom if auto_zoom is enabled
-                        if params.auto_zoom:
+                        # Calculate optimal zoom when auto-fit is enabled or no explicit viewport is set
+                        if self._should_auto_fit_viewport(params):
                             bbox = geojson_plot_data["bbox"]
                             zoom_level = self._calculate_zoom_from_bounds(
                                 bbox[1], bbox[3], bbox[0], bbox[2]
