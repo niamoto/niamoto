@@ -361,6 +361,10 @@ class TestReloadProjectFromDesktopConfig:
         desktop_config_dir.mkdir()
         project_dir = tmp_path / "niamoto-project"
         (project_dir / "db").mkdir(parents=True)
+        (project_dir / "config").mkdir(parents=True)
+        (project_dir / "config" / "config.yml").write_text(
+            yaml.dump({"database": {"path": "db/niamoto.duckdb"}})
+        )
         (desktop_config_dir / "desktop-config.json").write_text(
             json.dumps({"current_project": str(project_dir)})
         )
