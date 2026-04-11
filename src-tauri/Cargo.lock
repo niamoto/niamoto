@@ -83,6 +83,7 @@ dependencies = [
  "dirs 5.0.1",
  "libc",
  "log",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",

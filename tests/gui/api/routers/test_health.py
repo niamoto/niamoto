@@ -19,6 +19,30 @@ def create_test_client() -> TestClient:
     return TestClient(app)
 
 
+class TestHealthCheckEndpoint:
+    """Test `/api/health` desktop startup probe behavior."""
+
+    def test_returns_probe_token_only_when_requested(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        client = create_test_client()
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "ok",
+            "message": "Niamoto API is running",
+        }
+        assert health.DESKTOP_TOKEN_HEADER not in response.headers
+
+        probe_response = client.get(
+            "/api/health", headers={health.DESKTOP_PROBE_HEADER: "1"}
+        )
+        assert probe_response.status_code == 200
+        assert probe_response.headers[health.DESKTOP_TOKEN_HEADER] == "desktop-secret"
+
+
 class TestReloadProjectEndpoint:
     """Test `/api/health/reload-project` contract."""
 
@@ -100,39 +124,38 @@ def test_debug_test_500_endpoint_returns_intentional_server_error():
         "detail": "Intentional test 500 for bug report CTA validation."
     }
 
-    def test_invalid_project_state_clears_job_store(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
-        client = create_test_client()
-        reset_calls = []
 
-        monkeypatch.setattr(
-            health,
-            "reload_project_from_desktop_config",
-            lambda: DesktopProjectReloadResult(
-                state="invalid-project",
-                project_path=None,
-                message="The selected desktop project is no longer available.",
-            ),
-        )
-        monkeypatch.setattr(
-            health,
-            "resolve_job_store",
-            lambda app: pytest.fail("resolve_job_store should not be called"),
-        )
-        monkeypatch.setattr(
-            health, "reset_preview_engine", lambda: reset_calls.append(True)
-        )
+def test_invalid_project_state_clears_job_store(monkeypatch: pytest.MonkeyPatch):
+    client = create_test_client()
+    reset_calls = []
 
-        response = client.post("/api/health/reload-project")
+    monkeypatch.setattr(
+        health,
+        "reload_project_from_desktop_config",
+        lambda: DesktopProjectReloadResult(
+            state="invalid-project",
+            project_path=None,
+            message="The selected desktop project is no longer available.",
+        ),
+    )
+    monkeypatch.setattr(
+        health,
+        "resolve_job_store",
+        lambda app: pytest.fail("resolve_job_store should not be called"),
+    )
+    monkeypatch.setattr(
+        health, "reset_preview_engine", lambda: reset_calls.append(True)
+    )
 
-        assert response.status_code == 200
-        assert response.json() == {
-            "success": False,
-            "state": "invalid-project",
-            "project": None,
-            "message": "The selected desktop project is no longer available.",
-        }
-        assert client.app.state.job_store is None
-        assert client.app.state.job_store_work_dir is None
-        assert reset_calls == [True]
+    response = client.post("/api/health/reload-project")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": False,
+        "state": "invalid-project",
+        "project": None,
+        "message": "The selected desktop project is no longer available.",
+    }
+    assert client.app.state.job_store is None
+    assert client.app.state.job_store_work_dir is None
+    assert reset_calls == [True]

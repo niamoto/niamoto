@@ -21,7 +21,18 @@ STARTED_VITE=0
 VITE_PID=""
 RESET_USER_CONFIG=0
 INSTANCE_ARG=""
-DESKTOP_CONFIG_PATH="$HOME/.niamoto/desktop-config.json"
+
+case "$(uname -s)" in
+    Darwin)
+        DESKTOP_CONFIG_PATH="$HOME/Library/Application Support/com.niamoto.desktop/desktop-config.json"
+        ;;
+    Linux)
+        DESKTOP_CONFIG_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/com.niamoto.desktop/desktop-config.json"
+        ;;
+    *)
+        DESKTOP_CONFIG_PATH="$HOME/.niamoto/desktop-config.json"
+        ;;
+esac
 
 # Colors
 GREEN='\033[0;32m'
@@ -37,7 +48,7 @@ print_usage() {
     echo "Usage: $0 [--reset-user-config] [instance_path]"
     echo ""
     echo "Options:"
-    echo "  --reset-user-config  Remove ~/.niamoto/desktop-config.json before launch"
+    echo "  --reset-user-config  Remove the native desktop config file before launch"
     echo "                       to simulate a fresh desktop install."
     echo "  -h, --help           Show this help message"
 }

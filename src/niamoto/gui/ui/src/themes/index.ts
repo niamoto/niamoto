@@ -1,3 +1,5 @@
+import { isDesktopTauri } from '@/shared/desktop/tauri'
+
 /**
  * Niamoto Theme System
  *
@@ -215,10 +217,10 @@ function loadLocalFonts(): void {
 
 /**
  * Detect if running in Tauri desktop mode.
- * Checks for the __TAURI__ global or the NIAMOTO_RUNTIME_MODE cookie/flag.
+ * Checks for the official Tauri runtime bridge.
  */
 function isDesktopMode(): boolean {
-  return '__TAURI__' in window || '__TAURI_INTERNALS__' in window
+  return isDesktopTauri()
 }
 
 export function loadThemeFonts(theme: Theme): void {

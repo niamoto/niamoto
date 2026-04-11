@@ -12,6 +12,7 @@ import {
   clearManualProjectOpenTarget,
   getManualProjectOpenTarget,
 } from '@/shared/desktop/projectLaunchIntent'
+import { isDesktopTauri } from '@/shared/desktop/tauri'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
@@ -82,7 +83,7 @@ const PageFallback = () => (
 )
 
 // Check if running in Tauri
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+const isTauri = isDesktopTauri()
 
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()

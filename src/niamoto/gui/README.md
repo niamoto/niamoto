@@ -194,3 +194,5 @@ exports/
 
 - `NIAMOTO_HOME`: path to the active instance
 - `VITE_API_BASE_URL`: override frontend API base URL when needed
+- `NIAMOTO_DESKTOP_CONFIG`: override the desktop config path used by the Tauri shell and FastAPI sidecar
+- `NIAMOTO_DESKTOP_LOG_DIR`: override the native desktop startup log directory

@@ -1,4 +1,5 @@
-use std::fs::{create_dir_all, OpenOptions};
+use rand::RngCore;
+use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
@@ -6,7 +7,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{Manager, State};
+use tauri::{Manager, State, Url};
 
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
@@ -15,11 +16,14 @@ mod commands;
 mod config;
 
 use commands::ConfigState;
+use config::{AppConfig, DESKTOP_CONFIG_ENV, DESKTOP_LOG_DIR_ENV};
 
 const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
 const SERVER_POLL_INTERVAL_MS: u64 = 500;
 const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
+const DESKTOP_PROBE_HEADER: &str = "x-niamoto-desktop-probe";
+const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -54,6 +58,10 @@ fn sidecar_target_triple() -> &'static str {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
         "x86_64-pc-windows-msvc"
+    }
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    {
+        "aarch64-pc-windows-msvc"
     }
 }
 
@@ -103,10 +111,20 @@ fn resolve_sidecar_path(
 }
 
 fn startup_log_dir() -> PathBuf {
-    let base_dir = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
-    let log_dir = base_dir.join(".niamoto").join("logs");
-    let _ = create_dir_all(&log_dir);
-    log_dir
+    AppConfig::desktop_log_dir()
+}
+
+fn initialize_desktop_environment() {
+    if std::env::var_os(DESKTOP_CONFIG_ENV).is_none() {
+        if let Ok(config_path) = AppConfig::config_path() {
+            std::env::set_var(DESKTOP_CONFIG_ENV, &config_path);
+        }
+    }
+
+    if std::env::var_os(DESKTOP_LOG_DIR_ENV).is_none() {
+        let log_dir = AppConfig::desktop_log_dir();
+        std::env::set_var(DESKTOP_LOG_DIR_ENV, &log_dir);
+    }
 }
 
 fn new_startup_session() -> String {
@@ -182,10 +200,43 @@ fn desktop_api_port() -> u16 {
     }
 }
 
+fn generate_startup_token() -> String {
+    let mut bytes = [0_u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn health_probe_is_authenticated(
+    status: reqwest::StatusCode,
+    returned_token: Option<&str>,
+    expected_token: &str,
+) -> bool {
+    status.is_success() && returned_token == Some(expected_token)
+}
+
 /// Check if the FastAPI server is responding on the given port
-fn is_server_ready(port: u16) -> bool {
-    match reqwest::blocking::get(format!("http://127.0.0.1:{}/api/health", port)) {
-        Ok(response) => response.status().is_success(),
+fn is_server_ready(port: u16, expected_token: &str) -> bool {
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(750))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return false,
+    };
+
+    match client
+        .get(format!("http://127.0.0.1:{port}/api/health"))
+        .header(DESKTOP_PROBE_HEADER, "1")
+        .send()
+    {
+        Ok(response) => {
+            let status = response.status();
+            let returned_token = response
+                .headers()
+                .get(DESKTOP_TOKEN_HEADER)
+                .and_then(|value| value.to_str().ok());
+            health_probe_is_authenticated(status, returned_token, expected_token)
+        }
         Err(_) => false,
     }
 }
@@ -217,6 +268,7 @@ fn launch_fastapi_server(
     _app_handle: &tauri::AppHandle,
     port: u16,
     niamoto_home: Option<&str>,
+    desktop_auth_token: &str,
     startup_session: &str,
     startup_log_path: &Path,
 ) -> Result<Child, Box<dyn std::error::Error>> {
@@ -242,8 +294,12 @@ fn launch_fastapi_server(
 
     // Set NIAMOTO_RUNTIME_MODE to indicate we're in desktop mode
     command.env("NIAMOTO_RUNTIME_MODE", "desktop");
+    command.env("NIAMOTO_DESKTOP_AUTH_TOKEN", desktop_auth_token);
     command.env("NIAMOTO_STARTUP_SESSION", startup_session);
     command.env("NIAMOTO_STARTUP_LOG", startup_log_path);
+    if niamoto_home.is_none() {
+        command.env("NIAMOTO_LOGS", startup_log_dir());
+    }
     command.env("PYTHONUNBUFFERED", "1");
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -297,91 +353,184 @@ fn launch_fastapi_server(
 /// Icon PNG encoded as base64 (src-tauri/icons/128x128.png)
 const ICON_BASE64: &str = include_str!("../icons/icon_base64.txt");
 
+fn escape_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+fn encode_data_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'~' => encoded.push(byte as char),
+            _ => encoded.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    encoded
+}
+
+fn navigate_inline_html(window: &tauri::WebviewWindow, html: &str) {
+    let data_url = format!(
+        "data:text/html;charset=utf-8,{}",
+        encode_data_url_component(html)
+    );
+    if let Ok(url) = Url::parse(&data_url) {
+        let _ = window.navigate(url);
+    }
+}
+
 /// Show a loading screen with status message
 fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
-    let js = format!(
-        r#"
-        document.body.style.cssText = 'margin:0;padding:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#18181b;user-select:none;';
-        document.body.setAttribute('data-tauri-drag-region', '');
-        document.body.innerHTML = '<div data-tauri-drag-region style="text-align:center;padding:40px;pointer-events:none;">'
-            + '<img src="data:image/png;base64,{icon}" style="width:128px;height:128px;margin:0 auto 32px;display:block;border-radius:16px;" />'
-            + '<div style="border:2px solid rgba(0,0,0,0.06);border-radius:50%;border-top:2px solid #a1a1aa;width:24px;height:24px;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>'
-            + '<p style="font-size:13px;margin:0;color:#a1a1aa;">{msg}</p>'
-            + '</div>';
-        if (!document.getElementById('_spin')) {{
-            var s = document.createElement('style');
-            s.id = '_spin';
-            s.textContent = '@keyframes spin {{ 0% {{ transform:rotate(0deg) }} 100% {{ transform:rotate(360deg) }} }}';
-            document.head.appendChild(s);
-        }}
-        "#,
+    let html = format!(
+        r#"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Niamoto</title>
+    <style>
+      :root {{
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }}
+      * {{
+        box-sizing: border-box;
+      }}
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #ffffff;
+        color: #18181b;
+        user-select: none;
+      }}
+      .shell {{
+        text-align: center;
+        padding: 40px;
+      }}
+      .logo {{
+        width: 128px;
+        height: 128px;
+        display: block;
+        margin: 0 auto 32px;
+        border-radius: 16px;
+      }}
+      .spinner {{
+        width: 24px;
+        height: 24px;
+        margin: 0 auto 16px;
+        border-radius: 999px;
+        border: 2px solid rgba(0, 0, 0, 0.08);
+        border-top-color: #71717a;
+        animation: spin 0.8s linear infinite;
+      }}
+      p {{
+        margin: 0;
+        font-size: 13px;
+        color: #71717a;
+      }}
+      @keyframes spin {{
+        from {{ transform: rotate(0deg); }}
+        to {{ transform: rotate(360deg); }}
+      }}
+    </style>
+  </head>
+  <body data-tauri-drag-region>
+    <main class="shell" data-tauri-drag-region>
+      <img class="logo" alt="" src="data:image/png;base64,{icon}" />
+      <div class="spinner" aria-hidden="true"></div>
+      <p>{message}</p>
+    </main>
+  </body>
+</html>"#,
         icon = ICON_BASE64.trim(),
-        msg = message,
+        message = escape_html(message),
     );
 
-    let _ = window.eval(&js);
+    navigate_inline_html(window, &html);
 }
 
 /// Show an error screen
 fn show_error_screen(window: &tauri::WebviewWindow, error: &str) {
     let html = format!(
-        r#"
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                font-family: system-ui, -apple-system, sans-serif;
-                background: #1a1a1a;
-                color: white;
-                -webkit-app-region: drag;
-                user-select: none;
-                cursor: move;
-            }}
-            .container {{
-                text-align: center;
-                padding: 40px;
-                max-width: 600px;
-            }}
-            .error-icon {{
-                font-size: 72px;
-                margin-bottom: 20px;
-            }}
-            h1 {{
-                font-size: 28px;
-                margin-bottom: 15px;
-                color: #ff6b6b;
-            }}
-            p {{
-                font-size: 16px;
-                line-height: 1.6;
-                opacity: 0.9;
-                background: rgba(255, 255, 255, 0.1);
-                padding: 20px;
-                border-radius: 8px;
-                font-family: monospace;
-            }}
-        </style>
-        <div class="container">
-            <div class="error-icon">⚠️</div>
-            <h1>Failed to Start Server</h1>
-            <p>{}</p>
-        </div>
-        "#,
-        error.replace("<", "&lt;").replace(">", "&gt;")
+        r#"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Niamoto</title>
+    <style>
+      :root {{
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }}
+      * {{
+        box-sizing: border-box;
+      }}
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        background: #18181b;
+        color: #fafafa;
+        user-select: none;
+      }}
+      .shell {{
+        max-width: 720px;
+        text-align: center;
+      }}
+      .icon {{
+        font-size: 72px;
+        margin-bottom: 20px;
+      }}
+      h1 {{
+        margin: 0 0 15px;
+        font-size: 28px;
+        color: #f87171;
+      }}
+      p {{
+        margin: 0;
+        padding: 20px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.92);
+        font: 16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        text-align: left;
+      }}
+    </style>
+  </head>
+  <body data-tauri-drag-region>
+    <main class="shell" data-tauri-drag-region>
+      <div class="icon" aria-hidden="true">⚠️</div>
+      <h1>Failed to Start Server</h1>
+      <p>{message}</p>
+    </main>
+  </body>
+</html>"#,
+        message = escape_html(error),
     );
 
-    let _ = window.eval(&format!(
-        "document.body.innerHTML = `{}`",
-        html.replace("`", "\\`")
-    ));
+    navigate_inline_html(window, &html);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    initialize_desktop_environment();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -435,6 +584,11 @@ pub fn run() {
             // so the Tauri event loop can render the window
             show_loading_status(&window, "Starting server...");
 
+            #[cfg(debug_assertions)]
+            if desktop_hot_reload_enabled() {
+                window.open_devtools();
+            }
+
             // Gather config before spawning the background thread
             let config_state: State<ConfigState> = app.state();
             let niamoto_home = {
@@ -454,12 +608,19 @@ pub fn run() {
 
             let hot_reload_enabled = desktop_hot_reload_enabled();
             let port = desktop_api_port();
+            let desktop_auth_token = generate_startup_token();
             println!("Selected port: {}", port);
             write_startup_log(
                 &startup_log_path,
                 &startup_session,
                 "rust",
                 &format!("selected port {port}"),
+            );
+            write_startup_log(
+                &startup_log_path,
+                &startup_session,
+                "rust",
+                "generated desktop startup probe token",
             );
             if hot_reload_enabled {
                 println!("Desktop hot reload mode enabled via Vite dev server");
@@ -475,6 +636,7 @@ pub fn run() {
             let window_clone = window.clone();
             let startup_log_path_for_thread = startup_log_path.clone();
             let startup_session_for_thread = startup_session.clone();
+            let desktop_auth_token_for_thread = desktop_auth_token.clone();
 
             // Spawn sidecar startup in a background thread so the loading screen renders
             thread::spawn(move || {
@@ -503,6 +665,7 @@ pub fn run() {
                         &app_handle,
                         current_port,
                         niamoto_home.as_deref(),
+                        &desktop_auth_token_for_thread,
                         &startup_session_for_thread,
                         &startup_log_path_for_thread,
                     ) {
@@ -548,7 +711,7 @@ pub fn run() {
                     let mut exited_early = None;
 
                     while attempts < max_attempts {
-                        if is_server_ready(current_port) {
+                        if is_server_ready(current_port, &desktop_auth_token_for_thread) {
                             let server_state = app_handle.state::<ServerState>();
                             *server_state.process.lock().unwrap() = server_process.take();
                             break;
@@ -592,7 +755,7 @@ pub fn run() {
                         }
                     }
 
-                    if is_server_ready(current_port) {
+                    if is_server_ready(current_port, &desktop_auth_token_for_thread) {
                         write_startup_log(
                             &startup_log_path_for_thread,
                             &startup_session_for_thread,
@@ -687,7 +850,7 @@ pub fn run() {
 
                 if hot_reload_enabled {
                     println!("Reloading Tauri dev window to restore Vite HMR");
-                    let _ = window_clone.eval("window.location.reload()");
+                    let _ = window_clone.reload();
                     write_startup_log(
                         &startup_log_path_for_thread,
                         &startup_session_for_thread,
@@ -698,7 +861,9 @@ pub fn run() {
                     // Navigate to the server URL
                     let url = format!("http://127.0.0.1:{}", ready_port);
                     println!("Loading URL: {}", url);
-                    let _ = window_clone.eval(&format!("window.location.replace('{}')", url));
+                    if let Ok(parsed_url) = Url::parse(&url) {
+                        let _ = window_clone.navigate(parsed_url);
+                    }
                     write_startup_log(
                         &startup_log_path_for_thread,
                         &startup_session_for_thread,
@@ -753,4 +918,40 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{generate_startup_token, health_probe_is_authenticated};
+
+    #[test]
+    fn generate_startup_token_returns_64_hex_chars() {
+        let token = generate_startup_token();
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|ch| ch.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn health_probe_requires_matching_token() {
+        assert!(health_probe_is_authenticated(
+            reqwest::StatusCode::OK,
+            Some("secret"),
+            "secret"
+        ));
+        assert!(!health_probe_is_authenticated(
+            reqwest::StatusCode::OK,
+            Some("wrong"),
+            "secret"
+        ));
+        assert!(!health_probe_is_authenticated(
+            reqwest::StatusCode::OK,
+            None,
+            "secret"
+        ));
+        assert!(!health_probe_is_authenticated(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            Some("secret"),
+            "secret"
+        ));
+    }
 }

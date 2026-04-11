@@ -4,7 +4,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{State, Url};
+
+const WINDOWS_RESERVED_PROJECT_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+    "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
 
 /// Shared state for the app configuration
 pub struct ConfigState {
@@ -78,6 +83,46 @@ exports:
     }
 
     Ok(())
+}
+
+fn validate_project_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Project name cannot be empty".to_string());
+    }
+
+    if trimmed != name {
+        return Err("Project name cannot start or end with whitespace".to_string());
+    }
+
+    if trimmed == "." || trimmed == ".." {
+        return Err("Project name is invalid".to_string());
+    }
+
+    if trimmed.ends_with('.') || trimmed.ends_with(' ') {
+        return Err("Project name cannot end with a dot or space".to_string());
+    }
+
+    if trimmed.chars().any(|ch| {
+        ch.is_control() || matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
+    }) {
+        return Err(
+            "Project name contains unsupported characters (< > : \" / \\ | ? *)".to_string(),
+        );
+    }
+
+    let windows_stem = trimmed
+        .split('.')
+        .next()
+        .unwrap_or(trimmed)
+        .to_ascii_uppercase();
+    if WINDOWS_RESERVED_PROJECT_NAMES.contains(&windows_stem.as_str()) {
+        return Err(format!(
+            "Project name '{trimmed}' is reserved on Windows and cannot be used"
+        ));
+    }
+
+    Ok(trimmed.to_string())
 }
 
 /// Get the current project path
@@ -204,8 +249,9 @@ pub fn create_project(
     location: String,
     state: State<ConfigState>,
 ) -> Result<String, String> {
+    let validated_name = validate_project_name(&name)?;
     let location_path = PathBuf::from(&location);
-    let project_path = location_path.join(&name);
+    let project_path = location_path.join(&validated_name);
 
     // Validate the target doesn't already exist
     if project_path.exists() {
@@ -223,7 +269,7 @@ pub fn create_project(
         ));
     }
 
-    create_project_scaffold(&project_path, &name)?;
+    create_project_scaffold(&project_path, &validated_name)?;
 
     // Set as current project
     let path_str = project_path.to_string_lossy().to_string();
@@ -256,31 +302,46 @@ pub async fn browse_folder(app: tauri::AppHandle) -> Result<Option<String>, Stri
     }
 }
 
-#[tauri::command]
-pub fn open_external_url(url: String) -> Result<(), String> {
+fn validate_external_url(url: &str) -> Result<Url, String> {
     let trimmed_url = url.trim();
     if trimmed_url.is_empty() {
         return Err("URL cannot be empty".to_string());
     }
 
+    let parsed =
+        Url::parse(trimmed_url).map_err(|err| format!("Invalid external URL: {err}"))?;
+
+    match parsed.scheme() {
+        "https" | "http" | "mailto" => Ok(parsed),
+        scheme => Err(format!(
+            "Unsupported URL scheme: {scheme}. Only http, https, and mailto are allowed."
+        )),
+    }
+}
+
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    let validated_url = validate_external_url(&url)?;
+    let url_str = validated_url.as_str();
+
     #[cfg(target_os = "macos")]
     let mut command = {
         let mut command = Command::new("open");
-        command.arg(trimmed_url);
+        command.arg(url_str);
         command
     };
 
     #[cfg(target_os = "windows")]
     let mut command = {
         let mut command = Command::new("rundll32");
-        command.args(["url.dll,FileProtocolHandler", trimmed_url]);
+        command.args(["url.dll,FileProtocolHandler", url_str]);
         command
     };
 
     #[cfg(all(unix, not(target_os = "macos")))]
     let mut command = {
         let mut command = Command::new("xdg-open");
-        command.arg(trimmed_url);
+        command.arg(url_str);
         command
     };
 
@@ -292,7 +353,7 @@ pub fn open_external_url(url: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::create_project_scaffold;
+    use super::{create_project_scaffold, validate_external_url, validate_project_name};
     use std::path::PathBuf;
 
     fn unique_temp_project_path(name: &str) -> PathBuf {
@@ -338,5 +399,64 @@ mod tests {
         assert!(config_content.contains("api: exports/api"));
 
         std::fs::remove_dir_all(&project_path).unwrap();
+    }
+
+    #[test]
+    fn validate_external_url_accepts_supported_schemes() {
+        for url in [
+            "https://niamoto.io/docs",
+            "http://127.0.0.1:8080/preview",
+            "mailto:support@niamoto.io",
+        ] {
+            assert!(validate_external_url(url).is_ok(), "expected {url} to be allowed");
+        }
+    }
+
+    #[test]
+    fn validate_external_url_rejects_unsupported_schemes() {
+        for url in [
+            "",
+            "javascript:alert(1)",
+            "data:text/html,<script>alert(1)</script>",
+            "file:///tmp/secret.txt",
+            "ftp://example.com/archive.zip",
+        ] {
+            assert!(
+                validate_external_url(url).is_err(),
+                "expected {url} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_project_name_accepts_cross_platform_names() {
+        for name in ["niamoto-demo", "Project 2026", "subset.v2", "Forêt"] {
+            assert!(
+                validate_project_name(name).is_ok(),
+                "expected {name} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_project_name_rejects_windows_and_path_edge_cases() {
+        for name in [
+            "",
+            "   ",
+            ".",
+            "..",
+            "bad/name",
+            "bad\\name",
+            "bad:name",
+            "CON",
+            "nul.txt",
+            "project.",
+            "project ",
+        ] {
+            assert!(
+                validate_project_name(name).is_err(),
+                "expected {name} to be rejected"
+            );
+        }
     }
 }
