@@ -32,6 +32,56 @@ interface TransformSourcesResponse {
   sources: TransformSourceInfo[];
 }
 
+const transformSourceCache = new Map<string, TransformSourcesResponse>();
+const transformSourceRequests = new Map<string, Promise<TransformSourcesResponse>>();
+
+async function loadTransformSources(groupBy?: string): Promise<TransformSourcesResponse> {
+  if (!groupBy) {
+    return { sources: [] };
+  }
+
+  const cacheKey = groupBy;
+  const cached = transformSourceCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const inflight = transformSourceRequests.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    const response = await fetch(`/api/recipes/sources/${groupBy}`, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sources: ${response.statusText}`);
+    }
+
+    const data: TransformSourcesResponse = await response.json();
+    transformSourceCache.set(cacheKey, data);
+    return data;
+  })().finally(() => {
+    transformSourceRequests.delete(cacheKey);
+  });
+
+  transformSourceRequests.set(cacheKey, request);
+  return request;
+}
+
+async function loadTransformSourceOptions(
+  groupBy?: string,
+  kind?: 'dataset' | 'reference',
+): Promise<string[]> {
+  const data = await loadTransformSources(groupBy);
+  return data.sources
+    .filter((source) => !kind || source.type === kind)
+    .map((source) => source.name)
+    .filter((sourceName) => sourceName && sourceName.trim() !== '');
+}
+
 const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
   name,
   label,
@@ -54,43 +104,43 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
   const resolvedSources = mergeOptionValue(sources, value);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchSources = async () => {
       try {
         setLoading(true);
         setLoadError(null);
 
-        // Build URL with optional group_by filter
-        const url = groupBy
-          ? `/api/recipes/sources/${groupBy}`
-          : null;
-
-        if (!url) {
-          setSources([]);
+        if (!groupBy) {
+          if (!cancelled) {
+            setSources([]);
+            setLoading(false);
+          }
           return;
         }
 
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch sources: ${response.statusText}`);
+        const sourceNames = await loadTransformSourceOptions(groupBy, kind);
+        if (!cancelled) {
+          setSources(sourceNames);
         }
-
-        const data: TransformSourcesResponse = await response.json();
-        const sourceNames = data.sources
-          .filter((source) => !kind || source.type === kind)
-          .map((source) => source.name)
-          .filter((sourceName) => sourceName && sourceName.trim() !== '');
-        setSources(sourceNames);
       } catch (err) {
         console.error('Error fetching transform sources:', err);
-        setLoadError(err instanceof Error ? err.message : 'Failed to load sources');
-        setSources([]);
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load sources');
+          setSources([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchSources();
+    void fetchSources();
+
+    return () => {
+      cancelled = true;
+    };
   }, [groupBy, kind]);
 
   return (
