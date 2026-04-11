@@ -8,13 +8,21 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import type { ReferenceInfo } from '@/hooks/useReferences'
+import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
 import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
 import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
@@ -41,6 +49,9 @@ export function CollectionPanel({
   initialTab,
 }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
+  const navigate = useNavigate()
+  const { data: referencesData } = useReferences()
+  const references = referencesData?.references ?? []
   const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
 
@@ -215,10 +226,22 @@ export function CollectionPanel({
       {/* Compact toolbar: tabs + actions in one row */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
-          {/* Collection name */}
-          <span className="text-sm font-medium truncate max-w-[180px]" title={reference.name}>
-            {reference.name}
-          </span>
+          {/* Collection selector */}
+          <Select
+            value={reference.name}
+            onValueChange={(value) => navigate(`/groups/${encodeURIComponent(value)}`)}
+          >
+            <SelectTrigger className="h-7 w-[180px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {references.map((item) => (
+                <SelectItem key={item.name} value={item.name}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Tabs */}
           <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">
