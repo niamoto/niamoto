@@ -83,6 +83,7 @@ jobs:
           VITE_FEEDBACK_API_KEY: ${{ secrets.VITE_FEEDBACK_API_KEY }}
           FEEDBACK_WORKER_URL: ${{ secrets.FEEDBACK_WORKER_URL }}
           FEEDBACK_API_KEY: ${{ secrets.FEEDBACK_API_KEY }}
+        shell: bash
         run: |
           cd src/niamoto/gui/ui
           export VITE_FEEDBACK_WORKER_URL="${VITE_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL:-}}"
