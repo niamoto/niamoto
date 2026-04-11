@@ -1,6 +1,4 @@
 // src/components/forms/widgets/SelectField.tsx
-
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';

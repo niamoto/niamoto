@@ -136,6 +136,10 @@ function toStringRecord(value: FormValue | undefined): Record<string, string> | 
   return Object.fromEntries(entries);
 }
 
+function normalizeSchemaType(type: FieldSchema['type']): string | undefined {
+  return Array.isArray(type) ? type[0] : type;
+}
+
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   pluginId,
   pluginType: _pluginType, // unused but kept for interface compatibility
@@ -544,7 +548,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
                 units?: string | null;
                 format?: 'range' | 'number' | 'text' | null;
               }> : []}
-              onChange={(value) => handleFieldChange(fieldName, value)}
+              onChange={(value) => handleFieldChange(fieldName, value as unknown as FormValue)}
               groupBy={groupBy}
               minItems={resolvedFieldSchema.minItems}
               maxItems={resolvedFieldSchema.maxItems}
@@ -553,7 +557,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
         case 'array':
           {
-            const itemWidget = resolvedFieldSchema.json_schema_extra?.['ui:item-widget'];
+            const itemWidget = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:item-widget');
 
             // Determine the item type based on the items schema
             let itemType = itemWidget || 'text';
@@ -567,10 +571,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
                 if (resolved) {
                   resolvedItemSchema = resolved;
                 }
-              } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
+              } else if (normalizeSchemaType(resolvedFieldSchema.items.type) === 'object' || resolvedFieldSchema.items.properties) {
                 itemType = 'object';
-              } else if (resolvedFieldSchema.items.type) {
-                itemType = resolvedFieldSchema.items.type;
+              } else if (normalizeSchemaType(resolvedFieldSchema.items.type)) {
+                itemType = normalizeSchemaType(resolvedFieldSchema.items.type) ?? 'text';
               }
             }
 
@@ -601,7 +605,7 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
                   key={fieldName}
                   {...commonProps}
                   value={isFormValues(fieldValue) ? fieldValue : undefined}
-                  onChange={(value) => handleFieldChange(fieldName, value)}
+                  onChange={(value) => handleFieldChange(fieldName, value as unknown as FormValue)}
                   selectedTransform={typeof formData.transform === 'string' ? formData.transform : undefined}
                   transformSchemas={transformSchemas}
                 />
@@ -681,7 +685,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         case 'file-select':
         case 'file-picker':
           {
-            const fileAccept = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:accept') || 'all';
+            const fileAccept =
+              getUiSchemaValue<'raster' | 'vector' | 'csv' | 'all'>(resolvedFieldSchema, 'ui:accept') || 'all';
             const fileBasePath = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:basePath') || 'imports/';
             return (
               <FilePickerField
@@ -697,7 +702,8 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
         case 'layer-select':
           {
-            const layerAccept = getUiSchemaValue<string>(resolvedFieldSchema, 'ui:accept') || 'all';
+            const layerAccept =
+              getUiSchemaValue<'raster' | 'vector' | 'all'>(resolvedFieldSchema, 'ui:accept') || 'all';
             return (
               <LayerSelectField
                 key={fieldName}
@@ -794,10 +800,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               if (resolved) {
                 resolvedItemSchema = resolved;
               }
-            } else if (resolvedFieldSchema.items.type === 'object' || resolvedFieldSchema.items.properties) {
+            } else if (normalizeSchemaType(resolvedFieldSchema.items.type) === 'object' || resolvedFieldSchema.items.properties) {
               itemType = 'object';
-            } else if (resolvedFieldSchema.items.type) {
-              itemType = resolvedFieldSchema.items.type;
+            } else if (normalizeSchemaType(resolvedFieldSchema.items.type)) {
+              itemType = normalizeSchemaType(resolvedFieldSchema.items.type) ?? 'text';
             }
           }
 
@@ -889,17 +895,17 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           // Check if params has allOf with $ref
           if (paramsField.allOf && paramsField.allOf[0].$ref) {
             const refName = paramsField.allOf[0].$ref.split('/').pop();
-            if (originalSchema.$defs[refName]) {
+            if (refName && originalSchema.$defs[refName]) {
               // Use the referenced schema
-              properties = originalSchema.$defs[refName].properties;
+              properties = originalSchema.$defs[refName].properties || {};
               required = originalSchema.$defs[refName].required || [];
             }
           }
           // Check if params has direct $ref
           else if (paramsField.$ref) {
             const refName = paramsField.$ref.split('/').pop();
-            if (originalSchema.$defs[refName]) {
-              properties = originalSchema.$defs[refName].properties;
+            if (refName && originalSchema.$defs[refName]) {
+              properties = originalSchema.$defs[refName].properties || {};
               required = originalSchema.$defs[refName].required || [];
             }
           }

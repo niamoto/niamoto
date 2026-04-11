@@ -558,7 +558,10 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                           <TableBody>
                             {col.outliers.slice(0, 5).map((outlier, idx) => {
                               const value = outlier[col.column]
-                              const isHigh = col.upper_bound !== null && value > col.upper_bound
+                              const isHigh =
+                                col.upper_bound !== null &&
+                                typeof value === 'number' &&
+                                value > col.upper_bound
                               return (
                                 <TableRow key={idx}>
                                   {Object.entries(outlier).slice(0, 6).map(([key, val], colIdx) => (

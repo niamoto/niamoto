@@ -106,7 +106,7 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
 
   const handleItemChange = (index: number, itemValue: FormValue | undefined) => {
     const newValue = [...value];
-    newValue[index] = itemValue;
+    newValue[index] = itemValue ?? null;
     onChange?.(newValue);
   };
 
