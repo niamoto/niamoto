@@ -498,7 +498,13 @@ def _generate_export_config(
                     {"text": "Accueil", "url": "/index.html"},
                 ],
             },
-            "static_pages": [],
+            "static_pages": [
+                {
+                    "name": "home",
+                    "template": "index.html",
+                    "output_file": "index.html",
+                }
+            ],
             "groups": [],
         }
         export_config["exports"].append(html_exporter)

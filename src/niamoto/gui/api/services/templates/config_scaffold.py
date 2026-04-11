@@ -283,6 +283,13 @@ def _add_export_group(export_config: Dict[str, Any], ref_name: str) -> None:
             "name": "web_pages",
             "enabled": True,
             "exporter": "html_page_exporter",
+            "static_pages": [
+                {
+                    "name": "home",
+                    "template": "index.html",
+                    "output_file": "index.html",
+                }
+            ],
             "groups": [],
         }
         exports.append(web_export)
