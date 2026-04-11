@@ -434,6 +434,33 @@ def _get_reference_source(db: Database, group_by: str) -> Optional[SourceInfo]:
         return None
 
 
+def _get_registry_source(db: Database, source_name: str) -> Optional[SourceInfo]:
+    """Resolve a source directly from EntityRegistry, outside the current group."""
+    try:
+        if not db.has_table(EntityRegistry.ENTITIES_TABLE):
+            return None
+
+        registry = EntityRegistry(db)
+        metadata = registry.get(source_name)
+        columns = _get_table_columns(db, metadata.table_name)
+        transformers = (
+            _get_occurrence_transformers()
+            if metadata.kind in {EntityKind.DATASET, EntityKind.REFERENCE}
+            else []
+        )
+        source_type = "dataset" if metadata.kind == EntityKind.DATASET else "reference"
+        return SourceInfo(
+            type=source_type,
+            name=source_name,
+            table_name=metadata.table_name,
+            columns=columns,
+            transformers=transformers,
+        )
+    except Exception as e:
+        logger.debug("Could not resolve registry source %s: %s", source_name, e)
+        return None
+
+
 def _get_occurrence_transformers() -> list[str]:
     """Get transformers applicable to occurrence data."""
     return [
@@ -841,6 +868,9 @@ async def get_source_columns(group_by: str, source_name: str):
             # First, find the source in the available sources
             sources = _get_all_sources(work_dir, group_by, db)
             source_info = next((s for s in sources if s.name == source_name), None)
+
+            if not source_info:
+                source_info = _get_registry_source(db, source_name)
 
             if not source_info:
                 raise HTTPException(

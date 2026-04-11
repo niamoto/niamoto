@@ -214,8 +214,8 @@ async def get_available_references():
         ) -> RelationConfig:
             """Build default relation config based on reference kind and config."""
             # Determine key field from config if available
-            key_field = f"{ref_name}_id"  # Default pattern
-            ref_field = "id"  # Default ref_key
+            key_field: Optional[str] = None
+            ref_field = f"{ref_name}_id" if kind == "hierarchical" else "id"
 
             if config and isinstance(config, dict):
                 # First check for explicit relation block in import.yml
@@ -231,23 +231,26 @@ async def get_available_references():
 
                 # Check extraction.id_column for derived references (taxons)
                 connector = config.get("connector", {})
-                if connector.get("type") == "derived":
+                if connector.get("type") == "derived" and not key_field:
                     extraction = connector.get("extraction", {})
                     if extraction.get("id_column"):
                         key_field = extraction["id_column"]
 
                 # Check schema.id_field for regular references (plots) - only as fallback
-                if not relation_config:
+                if not key_field and not relation_config:
                     schema = config.get("schema", {})
                     if schema.get("id_field"):
                         key_field = schema["id_field"]
+
+            if not key_field:
+                key_field = f"{ref_name}_id"
 
             # Determine plugin based on kind
             if kind == "hierarchical":
                 return RelationConfig(
                     plugin="nested_set",
                     key=key_field,
-                    ref_key=f"{ref_name}_id",
+                    ref_key=ref_field,
                     fields=NestedSetFields(),  # Default nested set fields
                 )
             else:  # generic/default

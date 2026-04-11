@@ -268,6 +268,135 @@ def _query_generic_representatives(
     return pd.read_sql(fallback_query, db.engine, params={"limit": safe_limit})
 
 
+def _load_reference_config(work_dir: Path, group_by: str) -> Dict[str, Any]:
+    """Load a single reference configuration from import.yml."""
+    import_path = work_dir / "config" / "import.yml"
+    if not import_path.exists():
+        return {}
+
+    try:
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+    except Exception:
+        return {}
+
+    references = import_config.get("entities", {}).get("references", {}) or {}
+    ref_config = references.get(group_by, {})
+    return ref_config if isinstance(ref_config, dict) else {}
+
+
+def _query_hierarchical_representatives(
+    *,
+    db: Any,
+    entity_table: str,
+    ref_config: Dict[str, Any],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Load representatives for a hierarchical reference using configured levels.
+
+    This path is generic: it uses the hierarchy extraction metadata from import.yml
+    instead of hardcoding taxon-specific columns.
+    """
+    import pandas as pd
+    from niamoto.common.table_resolver import quote_identifier, resolve_dataset_table
+    from sqlalchemy import text
+
+    connector = ref_config.get("connector", {}) or {}
+    extraction = connector.get("extraction", {}) or {}
+    raw_levels = extraction.get("levels", []) or []
+    source_dataset = connector.get("source")
+    if not source_dataset or not raw_levels:
+        return []
+
+    source_table = resolve_dataset_table(db, source_dataset)
+    if not source_table:
+        return []
+
+    levels = [
+        {
+            "name": str(level.get("name")),
+            "column": str(level.get("column") or level.get("name")),
+        }
+        for level in raw_levels
+        if isinstance(level, dict) and level.get("name")
+    ]
+    if not levels:
+        return []
+
+    quoted_entity_table = quote_identifier(db, entity_table)
+    quoted_source_table = quote_identifier(db, source_table)
+    safe_limit = max(1, int(limit))
+    per_level_limit = max(1, safe_limit // max(len(levels), 1))
+    entity_columns = pd.read_sql(
+        text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+    ).columns.tolist()
+
+    if "rank_name" not in entity_columns or "full_path" not in entity_columns:
+        return []
+
+    display_expr = "CAST(e.id AS VARCHAR)"
+    if "full_name" in entity_columns:
+        display_expr = "COALESCE(e.full_name, CAST(e.id AS VARCHAR))"
+    elif "rank_value" in entity_columns:
+        display_expr = "COALESCE(e.rank_value, CAST(e.id AS VARCHAR))"
+
+    entities: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for idx, level in enumerate(levels):
+        prefix_columns = levels[: idx + 1]
+        path_expr = " || '|' || ".join(
+            quote_identifier(db, item["column"]) for item in prefix_columns
+        )
+        null_checks = " AND ".join(
+            f"{quote_identifier(db, item['column'])} IS NOT NULL "
+            f"AND TRIM(CAST({quote_identifier(db, item['column'])} AS VARCHAR)) != ''"
+            for item in prefix_columns
+        )
+
+        query = text(f"""
+            WITH ranked_values AS (
+                SELECT
+                    {path_expr} AS full_path,
+                    COUNT(*) AS count
+                FROM {quoted_source_table}
+                WHERE {null_checks}
+                GROUP BY full_path
+                ORDER BY count DESC, full_path
+                LIMIT :limit
+            )
+            SELECT
+                e.id AS id,
+                {display_expr} AS name,
+                rv.count AS count
+            FROM ranked_values rv
+            JOIN {quoted_entity_table} e
+              ON e.rank_name = :rank_name
+             AND e.full_path = rv.full_path
+            ORDER BY rv.count DESC, name
+        """)
+        result = pd.read_sql(
+            query,
+            db.engine,
+            params={"limit": per_level_limit, "rank_name": level["name"]},
+        )
+
+        for _, row in result.iterrows():
+            entity_id = str(row["id"])
+            if entity_id in seen_ids:
+                continue
+            seen_ids.add(entity_id)
+            entities.append(
+                {
+                    "id": entity_id,
+                    "name": f"[{level['name'].capitalize()}] {row['name']}",
+                    "count": int(row["count"]),
+                }
+            )
+
+    return entities[:safe_limit]
+
+
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
@@ -583,11 +712,9 @@ async def get_representatives(
     from niamoto.common.database import Database
     from niamoto.common.table_resolver import (
         quote_identifier,
-        resolve_dataset_table,
         resolve_reference_table,
     )
     from niamoto.gui.api.context import get_database_path
-    from sqlalchemy import text
 
     work_dir = get_working_directory()
     if not work_dir:
@@ -610,142 +737,27 @@ async def get_representatives(
                 total=0,
             )
         quoted_entity_table = quote_identifier(db, entity_table)
-
-        # Check if we have occurrences to count
-        occurrences_table = resolve_dataset_table(db, "occurrences")
-        has_occurrences = occurrences_table is not None
-
+        ref_config = _load_reference_config(work_dir, group_by)
         entities = []
 
-        # TODO: GENERICITY — cette branche hardcode les colonnes taxon
-        # (rank_name, rank_value, full_name, id_taxonref, taxons_id) et les
-        # valeurs de rang ("family", "genus"). A généraliser via EntityRegistry
-        # et la configuration d'import pour supporter n'importe quelle
-        # hiérarchie taxonomique ou référentiel hiérarchique.
-
-        # Colonnes spécifiques au référentiel taxon (à terme, lire depuis
-        # le schéma d'import ou EntityRegistry)
-        _TAXON_RANK_COL = "rank_name"
-        _TAXON_RANK_VALUE_COL = "rank_value"
-        _TAXON_NAME_COL = "full_name"
-        _TAXON_LEVEL_COL = "level"
-        _TAXON_FK_COL = "taxons_id"
-        _TAXON_OCC_FK_COL = "id_taxonref"
-        # Rangs joignables par colonne homonyme dans les occurrences
-        _TAXON_COLUMN_JOIN_RANKS = ("family", "genus")
-
-        # Détection de la présence de colonnes hiérarchiques pour décider
-        # de la stratégie de requête (au lieu de tester group_by == "taxons")
-        has_hierarchy = False
-        if has_occurrences:
-            try:
-                check_cols = pd.read_sql(
-                    text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+        if ref_config.get("kind") == "hierarchical":
+            hierarchical_entities = _query_hierarchical_representatives(
+                db=db,
+                entity_table=entity_table,
+                ref_config=ref_config,
+                limit=limit,
+            )
+            entities.extend(
+                RepresentativeEntity(
+                    id=item["id"],
+                    name=item["name"],
+                    count=item["count"],
                 )
-                entity_columns = check_cols.columns.tolist()
-                has_hierarchy = (
-                    _TAXON_RANK_COL in entity_columns
-                    and _TAXON_LEVEL_COL in entity_columns
-                    and _TAXON_NAME_COL in entity_columns
-                )
-            except Exception:
-                pass
+                for item in hierarchical_entities
+            )
 
-        # Build query based on group_by type
-        if has_hierarchy and has_occurrences:
-            # Référentiel hiérarchique avec rangs (ex : taxons)
-            # Récupère les entités les plus représentées par niveau de rang
-
-            # Récupérer les rangs distincts
-            ranks_query = text(f"""
-                SELECT DISTINCT {quote_identifier(db, _TAXON_RANK_COL)},
-                       {quote_identifier(db, _TAXON_LEVEL_COL)}
-                FROM {quoted_entity_table}
-                WHERE {quote_identifier(db, _TAXON_RANK_COL)} IS NOT NULL
-                ORDER BY {quote_identifier(db, _TAXON_LEVEL_COL)}
-            """)
-            ranks_result = pd.read_sql(ranks_query, db.engine)
-            ranks = ranks_result[_TAXON_RANK_COL].tolist()
-
-            # Distribuer la limite entre les rangs
-            per_rank_limit = max(2, limit // max(len(ranks), 1))
-
-            quoted_name_col = quote_identifier(db, _TAXON_NAME_COL)
-            quoted_rank_col = quote_identifier(db, _TAXON_RANK_COL)
-
-            for rank in ranks:
-                # Pour les rangs qui ont une colonne homonyme dans les
-                # occurrences (family, genus), joindre via rank_value
-                if rank in _TAXON_COLUMN_JOIN_RANKS:
-                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
-                    quoted_rank = quote_identifier(db, rank)
-                    quoted_rank_value = quote_identifier(db, _TAXON_RANK_VALUE_COL)
-                    query = f"""
-                        SELECT
-                            e.id as id,
-                            e.{quoted_name_col} as name,
-                            e.{quoted_rank_col} as rank,
-                            COUNT(o.id) as count
-                        FROM {quoted_entity_table} e
-                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_rank} = e.{quoted_rank_value}
-                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
-                          AND e.{quoted_rank_col} = '{rank}'
-                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
-                        HAVING count > 0
-                        ORDER BY count DESC
-                        LIMIT {per_rank_limit}
-                    """
-                else:
-                    # Pour les rangs terminaux (espèce, sous-espèce),
-                    # joindre via la clé étrangère taxons_id -> id_taxonref
-                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
-                    quoted_fk = quote_identifier(db, _TAXON_FK_COL)
-                    quoted_occ_fk = quote_identifier(db, _TAXON_OCC_FK_COL)
-                    query = f"""
-                        SELECT
-                            e.id as id,
-                            e.{quoted_name_col} as name,
-                            e.{quoted_rank_col} as rank,
-                            COUNT(o.id) as count
-                        FROM {quoted_entity_table} e
-                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_occ_fk} = e.{quoted_fk}
-                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
-                          AND e.{quoted_rank_col} = '{rank}'
-                          AND e.{quoted_fk} IS NOT NULL
-                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
-                        HAVING count > 0
-                        ORDER BY count DESC
-                        LIMIT {per_rank_limit}
-                    """
-
-                result = pd.read_sql(query, db.engine)
-
-                for _, row in result.iterrows():
-                    # Inclure le rang dans le nom affiché pour plus de clarté
-                    display_name = f"[{row['rank'].capitalize()}] {row['name']}"
-                    entities.append(
-                        RepresentativeEntity(
-                            id=str(row["id"]),
-                            name=display_name,
-                            count=int(row["count"]),
-                        )
-                    )
-
-        else:
-            # Generic approach for non-hierarchical references (plots, shapes, etc.)
-            # Read import.yml to get schema info
-            import_path = work_dir / "config" / "import.yml"
-            ref_config = {}
-            if import_path.exists():
-                try:
-                    with open(import_path, "r", encoding="utf-8") as f:
-                        import_config = yaml.safe_load(f) or {}
-                    references = (
-                        import_config.get("entities", {}).get("references", {}) or {}
-                    )
-                    ref_config = references.get(group_by, {})
-                except Exception:
-                    pass
+        if not entities:
+            # Generic approach for flat or fallback references.
 
             # Get schema info
             schema = ref_config.get("schema", {})
@@ -753,7 +765,8 @@ async def get_representatives(
 
             # Get entity columns to detect name field
             columns_df = pd.read_sql(
-                text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+                f"SELECT * FROM {quoted_entity_table} LIMIT 0",
+                db.engine,
             )
             columns = columns_df.columns.tolist()
 

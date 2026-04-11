@@ -182,6 +182,32 @@ def test_resolve_preview_group_context_caches_group_ids():
     svc._get_group_ids.assert_called_once()  # Only one DB query
 
 
+def test_resolve_preview_group_context_prefers_entity_with_field_data():
+    engine = _make_engine()
+    db = MagicMock()
+    svc = MagicMock()
+    svc._get_group_ids.return_value = [1, 2, 3]
+
+    with (
+        patch.object(engine, "_get_transformer_service", return_value=svc),
+        patch.object(engine, "_load_group_config", return_value={"group_by": "shapes"}),
+        patch.object(engine, "_find_entity_id_with_field_data", return_value=2),
+        patch.object(engine, "_find_rich_entity_id", return_value=1) as rich_picker,
+    ):
+        preview_group = engine._resolve_preview_group_context(
+            "shapes",
+            None,
+            db,
+            preferred_source="shapes",
+            preferred_field="location",
+        )
+
+    assert preview_group is not None
+    _, _, gid = preview_group
+    assert gid == 2
+    rich_picker.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # _open_db reuse
 # ---------------------------------------------------------------------------

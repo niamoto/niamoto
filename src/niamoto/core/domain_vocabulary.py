@@ -174,7 +174,7 @@ def infer_taxonomy_reference_name(dataset_name: str, levels: Sequence[str]) -> s
         return "taxonomy"
     if matches_entity_name(dataset_name, "observation"):
         return "taxa"
-    return f"{dataset_name}_taxonomy"
+    return f"{dataset_name}_hierarchy"
 
 
 def find_taxon_identifier_column(columns: Sequence[str]) -> Optional[str]:

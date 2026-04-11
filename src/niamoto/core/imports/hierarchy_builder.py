@@ -411,12 +411,27 @@ class HierarchyBuilder:
             ValueError: If external strategy is used without external ID column
         """
 
-        def _to_nullable_int_series(values):
+        def _to_nullable_int_series(values, *, column_name: str) -> pd.Series:
             """Cast a sequence of potentially missing values to pandas nullable Int64."""
-            return pd.Series(
-                [pd.NA if pd.isna(value) else int(value) for value in values],
-                dtype="Int64",
-            )
+            series = pd.Series(values)
+            numeric_values = pd.to_numeric(series, errors="coerce")
+            invalid_mask = series.notna() & numeric_values.isna()
+            if invalid_mask.any():
+                invalid_samples = series[invalid_mask].astype(str).unique().tolist()[:5]
+                raise DataValidationError(
+                    message=(
+                        f'Hierarchy relation column "{column_name}" must contain '
+                        "integer-compatible values."
+                    ),
+                    validation_errors=[
+                        {
+                            "column": column_name,
+                            "invalid_values": invalid_samples,
+                            "reason": "non_integer_external_identifier",
+                        }
+                    ],
+                )
+            return numeric_values.astype("Int64")
 
         if strategy == "hash":
             # MD5 hash of full_path (deterministic across runs)
@@ -472,14 +487,16 @@ class HierarchyBuilder:
         ]
 
         df = df.assign(
-            id=_to_nullable_int_series(new_ids),
-            parent_id=_to_nullable_int_series(parent_ids),
+            id=_to_nullable_int_series(new_ids, column_name="id"),
+            parent_id=_to_nullable_int_series(parent_ids, column_name="parent_id"),
         )
 
         # Normalise other *_id columns to avoid float coercion (e.g. taxons_id)
         for col in df.columns:
             if col.endswith("_id") and col not in {"id", "parent_id"}:
-                df = df.assign(**{col: _to_nullable_int_series(df[col])})
+                df = df.assign(
+                    **{col: _to_nullable_int_series(df[col], column_name=col)}
+                )
 
         # Select final columns
         base_cols = ["id", "parent_id", "level", "rank_name", "rank_value", "full_path"]

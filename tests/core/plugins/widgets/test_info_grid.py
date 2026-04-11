@@ -270,6 +270,21 @@ class TestInfoGridWidget(NiamotoTestCase):
         result = self.widget.render(None, params)
         # Should use default responsive grid
         self.assertIn("lg:grid-cols-3", result)
+        self.assertIn("repeat(auto-fit, minmax(140px, 1fr))", result)
+
+    def test_render_wraps_long_values_and_labels(self):
+        """Long content should wrap instead of overflowing narrow cards."""
+        items = [
+            InfoItem(label="Very Long Label Name", value="FabaceaeFabaceaeFabaceae"),
+        ]
+
+        params = InfoGridParams(items=items)
+
+        result = self.widget.render(None, params)
+
+        self.assertIn("overflow-wrap: anywhere", result)
+        self.assertIn("word-break: break-word", result)
+        self.assertIn("min-width: 0", result)
 
     def test_render_no_items(self):
         """Test rendering with no items."""

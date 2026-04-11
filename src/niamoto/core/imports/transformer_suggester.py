@@ -9,7 +9,11 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from niamoto.core.imports.data_analyzer import DataCategory, EnrichedColumnProfile
+from niamoto.core.imports.data_analyzer import (
+    DataCategory,
+    EnrichedColumnProfile,
+    FieldPurpose,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +138,14 @@ class TransformerSuggester:
 
         # Generate suggestion for each applicable transformer
         for transformer_name in transformer_names:
+            if self._should_skip_measurement_transformer(transformer_name, profile):
+                logger.debug(
+                    "Skipping %s for identifier-like column %s",
+                    transformer_name,
+                    profile.name,
+                )
+                continue
+
             config = self._generate_config(transformer_name, profile, source_entity)
 
             if config is None:
@@ -159,6 +171,36 @@ class TransformerSuggester:
         suggestions.sort(key=lambda x: -x.confidence)
 
         return suggestions
+
+    def _should_skip_measurement_transformer(
+        self, transformer_name: str, profile: EnrichedColumnProfile
+    ) -> bool:
+        """Block measurement widgets on identifier-like columns."""
+        if transformer_name not in {"binned_distribution", "statistical_summary"}:
+            return False
+
+        semantic = (profile.semantic_type or "").lower()
+        name = profile.name.lower()
+        is_identifier_name = (
+            name == "id"
+            or name.endswith("_id")
+            or name.startswith("id_")
+            or (name.startswith("id") and any(ch in name[2:] for ch in "_0123456789"))
+            or "uuid" in name
+            or "identifier" in name
+            or name in {"pk", "oid", "rowid", "index"}
+        )
+
+        return (
+            profile.data_category == DataCategory.IDENTIFIER
+            or profile.field_purpose
+            in {  # Defensive against stale semantic profiles in metadata
+                FieldPurpose.PRIMARY_KEY,
+                FieldPurpose.FOREIGN_KEY,
+            }
+            or semantic.startswith("identifier")
+            or is_identifier_name
+        )
 
     def _generate_config(
         self,

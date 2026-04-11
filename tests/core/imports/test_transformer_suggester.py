@@ -111,6 +111,31 @@ class TestCategoryMapping:
         assert len(suggestions) == 1
         assert suggestions[0].transformer_name == "top_ranking"
 
+    def test_identifier_like_numeric_profile_skips_measurement_widgets(self, suggester):
+        """Legacy identifier names should not get measurement-oriented transformers."""
+        profile = EnrichedColumnProfile(
+            name="idrb_n",
+            dtype="float64",
+            semantic_type="identifier.record",
+            unique_ratio=0.35,
+            null_ratio=0.1,
+            sample_values=["ngoila003", "ngoila004"],
+            confidence=0.85,
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.FOREIGN_KEY,
+            suggested_bins=[0, 10, 20],
+            cardinality=120,
+            value_range=(0.0, 20.0),
+        )
+
+        suggestions = suggester.suggest_transformers(profile, "occurrences")
+
+        assert all(
+            suggestion.transformer_name
+            not in {"binned_distribution", "statistical_summary"}
+            for suggestion in suggestions
+        )
+
     def test_boolean_mapping(self, suggester):
         """Test mapping for boolean data."""
         profile = EnrichedColumnProfile(

@@ -1,3 +1,4 @@
+import copy
 import html as html_module
 import json
 import logging
@@ -371,6 +372,105 @@ class InteractiveMapWidget(WidgetPlugin):
             return pd.DataFrame()
 
         return pd.DataFrame(records)
+
+    def _feature_collection_geometry_types(self, geojson_data: dict) -> Set[str]:
+        """Return geometry types present in a GeoJSON FeatureCollection."""
+        if (
+            not isinstance(geojson_data, dict)
+            or geojson_data.get("type") != "FeatureCollection"
+        ):
+            return set()
+
+        geometry_types: Set[str] = set()
+        for feature in geojson_data.get("features", []):
+            geometry = feature.get("geometry", {}) if isinstance(feature, dict) else {}
+            geometry_type = geometry.get("type")
+            if geometry_type:
+                geometry_types.add(str(geometry_type))
+        return geometry_types
+
+    def _extract_coordinate_pairs(self, coordinates: Any) -> List[tuple[float, float]]:
+        """Extract all lon/lat pairs from nested GeoJSON coordinate arrays."""
+        if not isinstance(coordinates, list) or not coordinates:
+            return []
+
+        first = coordinates[0]
+        if (
+            isinstance(first, (list, tuple))
+            and len(first) >= 2
+            and isinstance(first[0], (int, float))
+            and isinstance(first[1], (int, float))
+        ):
+            return [(float(pair[0]), float(pair[1])) for pair in coordinates]
+
+        pairs: List[tuple[float, float]] = []
+        for child in coordinates:
+            pairs.extend(self._extract_coordinate_pairs(child))
+        return pairs
+
+    def _calculate_geojson_bbox(self, geojson_data: dict) -> Optional[List[float]]:
+        """Compute a bbox for a GeoJSON FeatureCollection when missing."""
+        if (
+            not isinstance(geojson_data, dict)
+            or geojson_data.get("type") != "FeatureCollection"
+        ):
+            return None
+
+        lon_values: List[float] = []
+        lat_values: List[float] = []
+        for feature in geojson_data.get("features", []):
+            geometry = feature.get("geometry", {}) if isinstance(feature, dict) else {}
+            coordinates = geometry.get("coordinates")
+            for lon, lat in self._extract_coordinate_pairs(coordinates):
+                lon_values.append(lon)
+                lat_values.append(lat)
+
+        if not lon_values or not lat_values:
+            return None
+
+        return [
+            min(lon_values),
+            min(lat_values),
+            max(lon_values),
+            max(lat_values),
+        ]
+
+    def _prepare_polygon_feature_collection(
+        self, geojson_data: dict
+    ) -> tuple[Optional[pd.DataFrame], Optional[dict]]:
+        """Prepare polygon GeoJSON for choropleth outline rendering."""
+        if (
+            not isinstance(geojson_data, dict)
+            or geojson_data.get("type") != "FeatureCollection"
+        ):
+            return None, None
+
+        prepared_features = []
+        rows = []
+        for index, feature in enumerate(geojson_data.get("features", [])):
+            if not isinstance(feature, dict):
+                continue
+            geometry = feature.get("geometry", {})
+            if geometry.get("type") not in {"Polygon", "MultiPolygon"}:
+                continue
+            prepared_feature = copy.deepcopy(feature)
+            feature_id = prepared_feature.get("id", index)
+            prepared_feature["id"] = feature_id
+            prepared_features.append(prepared_feature)
+            rows.append({"shape_id": feature_id, "value": index + 1})
+
+        if not prepared_features:
+            return None, None
+
+        prepared_geojson = {
+            "type": "FeatureCollection",
+            "features": prepared_features,
+        }
+        bbox = self._calculate_geojson_bbox(prepared_geojson)
+        if bbox:
+            prepared_geojson["bbox"] = bbox
+
+        return pd.DataFrame(rows), prepared_geojson
 
     def _prepare_geojson(
         self, data_frame: pd.DataFrame, params: InteractiveMapParams
@@ -930,6 +1030,8 @@ class InteractiveMapWidget(WidgetPlugin):
         df_plot = None
         geojson_plot_data = None  # Store GeoJSON for choropleth
         map_mode = "scatter"  # Default to scatter
+        center_lat = params.center_lat if params.center_lat is not None else 0
+        center_lon = params.center_lon if params.center_lon is not None else 0
 
         if isinstance(data, pd.DataFrame):
             if not data.empty:
@@ -1009,7 +1111,22 @@ class InteractiveMapWidget(WidgetPlugin):
                     )
                     geojson_plot_data = None
                     map_mode = "scatter"
-            # If not TopoJSON, attempt to parse as GeoJSON Point FeatureCollection
+            elif data.get("type") == "FeatureCollection":
+                geometry_types = self._feature_collection_geometry_types(data)
+                if geometry_types.intersection({"Polygon", "MultiPolygon"}):
+                    df_plot, geojson_plot_data = (
+                        self._prepare_polygon_feature_collection(data)
+                    )
+                    if geojson_plot_data:
+                        map_mode = "choropleth_outline"
+                    else:
+                        logger.warning(
+                            "Failed to prepare polygon FeatureCollection for map rendering."
+                        )
+                if map_mode == "scatter":
+                    df_plot = self._parse_geojson_points(data)
+                    if df_plot is None:
+                        logger.warning("Failed to parse dict data as GeoJSON points.")
             elif map_mode == "scatter":  # Only try if not already handled as TopoJSON
                 df_plot = self._parse_geojson_points(data)
                 if df_plot is None:  # Parsing failed
@@ -1035,6 +1152,9 @@ class InteractiveMapWidget(WidgetPlugin):
         if effective_map_type == "scatter_mapbox":
             effective_map_type = "scatter_map"
         elif effective_map_type == "choropleth_mapbox":
+            effective_map_type = "choropleth_map"
+
+        if map_mode == "choropleth_outline":
             effective_map_type = "choropleth_map"
 
         if not effective_map_type:  # If not specified in params, infer from data

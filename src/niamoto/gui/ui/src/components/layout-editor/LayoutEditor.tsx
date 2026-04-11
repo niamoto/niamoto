@@ -109,7 +109,11 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
   })
 
   // Fetch representative entities for preview selector
-  const { data: representatives } = useQuery({
+  const {
+    data: representatives,
+    error: representativesError,
+    refetch: refetchRepresentatives,
+  } = useQuery({
     queryKey: ['representatives', groupBy],
     queryFn: () => fetchRepresentatives(groupBy),
   })
@@ -346,7 +350,10 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={() => {
+              refetch()
+              void refetchRepresentatives()
+            }}
             disabled={saveMutation.isPending}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -383,6 +390,11 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
           {saveMutation.error instanceof Error
             ? saveMutation.error.message
             : t('layout.saveError')}
+        </div>
+      )}
+      {showPreviews && representativesError && (
+        <div className="mb-4 bg-warning/10 text-warning border border-warning/30 px-4 py-2 rounded-lg text-sm">
+          {t('layout.previewEntitiesUnavailable')}
         </div>
       )}
 

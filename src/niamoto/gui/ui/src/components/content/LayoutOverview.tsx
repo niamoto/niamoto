@@ -466,7 +466,11 @@ export function LayoutOverview({
   })
 
   // Fetch representative entities
-  const { data: representatives } = useQuery({
+  const {
+    data: representatives,
+    error: representativesError,
+    refetch: refetchRepresentatives,
+  } = useQuery({
     queryKey: ['representatives', groupBy],
     queryFn: () => fetchRepresentatives(groupBy),
   })
@@ -753,6 +757,7 @@ export function LayoutOverview({
           className="h-8 w-8"
           onClick={() => {
             refetch()
+            void refetchRepresentatives()
             invalidateAllPreviews(queryClient)
           }}
           disabled={saveMutation.isPending}
@@ -786,6 +791,11 @@ export function LayoutOverview({
           {saveMutation.error instanceof Error
             ? saveMutation.error.message
             : t('layout.saveError')}
+        </div>
+      )}
+      {showPreviews && representativesError && (
+        <div className="mx-4 mt-2 bg-warning/10 text-warning border border-warning/30 px-3 py-2 rounded-lg text-sm">
+          {t('layout.previewEntitiesUnavailable')}
         </div>
       )}
 

@@ -17,6 +17,7 @@ from niamoto.core.imports.auto_config_decision import (
     build_semantic_evidence,
 )
 from niamoto.core.domain_vocabulary import (
+    TAXONOMIC_LEVELS,
     find_taxon_identifier_column,
     find_taxon_name_column,
     infer_taxonomy_reference_name,
@@ -353,6 +354,7 @@ class AutoConfigService:
 
         references: Dict[str, Any] = {}
         datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+        derived_hierarchy_warnings: List[str] = []
 
         self._emit_event("stage", "Building import configuration")
 
@@ -381,9 +383,18 @@ class AutoConfigService:
                     and analysis["hierarchy"]["detected"]
                 ):
                     ref_name = self._infer_reference_name(entity_name, analysis)
-                    references[ref_name] = self._build_derived_hierarchy_reference(
-                        entity_name, analysis
+                    (
+                        references[ref_name],
+                        hierarchy_warning,
+                    ) = self._build_derived_hierarchy_reference(
+                        entity_name,
+                        analysis,
+                        relation_info=referenced_by.get(entity_name),
+                        decision_summary=decision_summary,
+                        reference_name=ref_name,
                     )
+                    if hierarchy_warning:
+                        derived_hierarchy_warnings.append(hierarchy_warning)
 
         if shapes_sources:
             references["shapes"] = self._build_shapes_reference(shapes_sources)
@@ -414,6 +425,8 @@ class AutoConfigService:
             overall_confidence=overall_confidence,
             has_references=bool(references),
         )
+        warnings.extend(derived_hierarchy_warnings)
+        warnings = list(dict.fromkeys(warnings))
         detected_columns = {
             Path(filepath).stem: analysis.get("columns", [])
             for filepath, analysis in csv_analyses.items()
@@ -784,6 +797,124 @@ class AutoConfigService:
 
         return name_columns[0] if name_columns else None
 
+    def _get_semantic_predictions_by_column(
+        self, analysis: Dict[str, Any]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Index semantic predictions by column, keeping the best score."""
+        predictions_by_column: Dict[str, Dict[str, Any]] = {}
+        for prediction in analysis.get("ml_predictions", []):
+            column = prediction.get("column")
+            if not column:
+                continue
+            current = predictions_by_column.get(column)
+            if current is None or float(prediction.get("confidence", 0.0)) > float(
+                current.get("confidence", 0.0)
+            ):
+                predictions_by_column[column] = prediction
+        return predictions_by_column
+
+    def _is_taxonomic_hierarchy(self, analysis: Dict[str, Any]) -> bool:
+        """Return True when the detected hierarchy is taxonomic."""
+        hierarchy = analysis.get("hierarchy", {})
+        hierarchy_type = hierarchy.get("hierarchy_type")
+        if hierarchy_type == "taxonomic":
+            return True
+
+        taxonomic_levels = {level.lower() for level in TAXONOMIC_LEVELS}
+        detected_levels = {
+            str(level).lower() for level in hierarchy.get("levels", []) if level
+        }
+        if detected_levels.intersection(taxonomic_levels):
+            return True
+
+        return any(
+            str(prediction.get("concept", "")).startswith("taxonomy.")
+            for prediction in analysis.get("ml_predictions", [])
+        )
+
+    def _select_taxonomic_identifier_column(
+        self, analysis: Dict[str, Any]
+    ) -> Optional[str]:
+        """Pick the safest external identifier for a taxonomic hierarchy."""
+        predictions = self._get_semantic_predictions_by_column(analysis)
+        semantic_candidates = [
+            (
+                float(prediction.get("confidence", 0.0) or 0.0),
+                column,
+            )
+            for column, prediction in predictions.items()
+            if prediction.get("concept") == "identifier.taxon"
+        ]
+        if semantic_candidates:
+            semantic_candidates.sort(reverse=True)
+            return semantic_candidates[0][1]
+
+        heuristic_candidate = find_taxon_identifier_column(analysis.get("columns", []))
+        if not heuristic_candidate:
+            return None
+
+        heuristic_concept = str(
+            predictions.get(heuristic_candidate, {}).get("concept", "")
+        )
+        if heuristic_concept.startswith("location.") or heuristic_concept in {
+            "identifier.plot",
+            "identifier.record",
+        }:
+            return None
+        return heuristic_candidate
+
+    def _select_taxonomic_name_column(
+        self, analysis: Dict[str, Any], *, id_field: Optional[str]
+    ) -> Optional[str]:
+        """Pick the display label for a taxonomic hierarchy."""
+        predictions = self._get_semantic_predictions_by_column(analysis)
+
+        heuristic_name = find_taxon_name_column(analysis.get("columns", []))
+        if heuristic_name:
+            heuristic_concept = str(
+                predictions.get(heuristic_name, {}).get("concept", "")
+            )
+            if not heuristic_concept.startswith("location."):
+                return heuristic_name
+
+        level_order = {
+            level_name: index for index, level_name in enumerate(TAXONOMIC_LEVELS)
+        }
+        hierarchy = analysis.get("hierarchy", {})
+        hierarchy_columns = hierarchy.get("column_mapping", {})
+
+        ranked_taxonomy_columns = []
+        for column, prediction in predictions.items():
+            concept = str(prediction.get("concept", ""))
+            if not concept.startswith("taxonomy."):
+                continue
+            if id_field and column == id_field:
+                continue
+            _, _, level_name = concept.partition(".")
+            ranked_taxonomy_columns.append(
+                (
+                    level_order.get(level_name, -1),
+                    float(prediction.get("confidence", 0.0) or 0.0),
+                    column,
+                )
+            )
+
+        if ranked_taxonomy_columns:
+            ranked_taxonomy_columns.sort(reverse=True)
+            return ranked_taxonomy_columns[0][2]
+
+        if hierarchy.get("levels"):
+            deepest_level = hierarchy["levels"][-1]
+            deepest_column = hierarchy_columns.get(deepest_level)
+            if deepest_column and deepest_column != id_field:
+                return deepest_column
+
+        return self._pick_display_name_column(
+            analysis,
+            id_field=id_field or "id",
+            entity_name=None,
+        )
+
     def _build_hierarchy_reference_config(
         self,
         filepath: str,
@@ -949,7 +1080,11 @@ class AutoConfigService:
         self,
         source_dataset: str,
         analysis: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        *,
+        relation_info: Optional[List[Dict[str, Any]]] = None,
+        decision_summary: Optional[Dict[str, Dict[str, Any]]] = None,
+        reference_name: Optional[str] = None,
+    ) -> tuple[Dict[str, Any], Optional[str]]:
         hierarchy = analysis["hierarchy"]
         levels_config = [
             {"name": level, "column": hierarchy["column_mapping"][level]}
@@ -957,19 +1092,65 @@ class AutoConfigService:
             if level in hierarchy["column_mapping"]
         ]
 
-        id_col = find_taxon_identifier_column(analysis["columns"])
-        name_col = find_taxon_name_column(analysis["columns"])
+        reference_name = reference_name or self._infer_reference_name(
+            source_dataset, analysis
+        )
+        is_taxonomic_hierarchy = self._is_taxonomic_hierarchy(analysis)
+        if is_taxonomic_hierarchy:
+            id_col = self._select_taxonomic_identifier_column(analysis)
+            name_col = self._select_taxonomic_name_column(analysis, id_field=id_col)
+        else:
+            id_col = find_taxon_identifier_column(analysis["columns"])
+            name_col = find_taxon_name_column(analysis["columns"])
 
-        if not name_col:
-            name_col = self._pick_display_name_column(
-                analysis,
-                id_field=id_col,
-                entity_name=source_dataset,
+        relation_config: Optional[Dict[str, Any]] = None
+        warning: Optional[str] = None
+
+        if is_taxonomic_hierarchy:
+            if id_col:
+                relation_config = {
+                    "dataset": source_dataset,
+                    "foreign_key": id_col,
+                    "reference_key": f"{reference_name}_id",
+                }
+            else:
+                warning = (
+                    f'Derived hierarchy "{reference_name}" has no taxon identifier compatible '
+                    "with the detected taxonomy columns. Preview and transform links "
+                    "will require manual configuration."
+                )
+        elif relation_info:
+            best_relation = self._select_reference_relation(
+                relation_info,
+                decision_summary or {},
+            )
+            relation_target_field = best_relation.get("target_field")
+            if relation_target_field:
+                id_col = relation_target_field
+                relation_config = {
+                    "dataset": best_relation["from"],
+                    "foreign_key": best_relation["field"],
+                    "reference_key": f"{reference_name}_id",
+                }
+        elif not id_col:
+            warning = (
+                f'Derived hierarchy "{reference_name}" has no inferred dataset relation. '
+                "Preview and transform links will require manual configuration."
             )
 
-        return {
+        if not name_col:
+            if is_taxonomic_hierarchy:
+                name_col = self._select_taxonomic_name_column(analysis, id_field=id_col)
+            else:
+                name_col = self._pick_display_name_column(
+                    analysis,
+                    id_field=id_col,
+                    entity_name=source_dataset,
+                )
+
+        config = {
             "kind": "hierarchical",
-            "description": f"Taxonomic hierarchy extracted from {source_dataset}",
+            "description": f"Hierarchical reference extracted from {source_dataset}",
             "connector": {
                 "type": "derived",
                 "source": source_dataset,
@@ -991,3 +1172,6 @@ class AutoConfigService:
                 "fields": [],
             },
         }
+        if relation_config:
+            config["relation"] = relation_config
+        return config, warning

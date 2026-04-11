@@ -102,6 +102,23 @@ class TestDataCategory:
         # id_occurrence with unique_ratio=1.0 should be detected as IDENTIFIER
         assert enriched.data_category == DataCategory.IDENTIFIER
 
+    def test_identifier_semantic_detection_for_legacy_id_columns(self, analyzer):
+        """Legacy identifier columns should stay identifiers even without id_ prefix."""
+        profile = ColumnProfile(
+            name="idrb_n",
+            dtype="object",
+            semantic_type="identifier.record",
+            unique_ratio=0.25,
+            null_ratio=0.0,
+            sample_values=["ngoila003", "ngoila004", "ngoila005"],
+            confidence=0.9,
+        )
+        series = pd.Series(["ngoila003", "ngoila003", "ngoila004", "ngoila005"])
+
+        enriched = analyzer.enrich_profile(profile, series)
+
+        assert enriched.data_category == DataCategory.IDENTIFIER
+
     def test_boolean_detection(self, analyzer):
         """Test detection of boolean data disguised as 0/1."""
         profile = ColumnProfile(
@@ -225,6 +242,23 @@ class TestFieldPurpose:
         series = pd.Series([12345, 12346, 12347] * 20)
 
         enriched = analyzer.enrich_profile(profile, series)
+        assert enriched.field_purpose == FieldPurpose.FOREIGN_KEY
+
+    def test_identifier_semantic_sets_foreign_key_purpose(self, analyzer):
+        """Identifier semantics should mark repeated legacy IDs as foreign keys."""
+        profile = ColumnProfile(
+            name="idrb_n",
+            dtype="object",
+            semantic_type="identifier.record",
+            unique_ratio=0.25,
+            null_ratio=0.0,
+            sample_values=["ngoila003", "ngoila004"],
+            confidence=0.9,
+        )
+        series = pd.Series(["ngoila003", "ngoila003", "ngoila004", "ngoila005"])
+
+        enriched = analyzer.enrich_profile(profile, series)
+
         assert enriched.field_purpose == FieldPurpose.FOREIGN_KEY
 
     def test_location_purpose(self, analyzer):

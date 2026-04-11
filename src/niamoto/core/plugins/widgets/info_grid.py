@@ -182,6 +182,7 @@ class InfoGridWidget(WidgetPlugin):
 
         # Determine grid columns for Tailwind
         grid_cols_class = "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+        grid_template_columns = "repeat(auto-fit, minmax(140px, 1fr))"
         if params.grid_columns:
             if 1 <= params.grid_columns <= 6:
                 # Map number of columns to Tailwind grid classes
@@ -196,6 +197,7 @@ class InfoGridWidget(WidgetPlugin):
                 grid_cols_class = grid_cols_mapping.get(
                     params.grid_columns, grid_cols_class
                 )
+                grid_template_columns = f"repeat({params.grid_columns}, minmax(0, 1fr))"
             else:
                 logger.warning(
                     f"Invalid grid_columns value: {params.grid_columns}. Using default responsive grid."
@@ -313,9 +315,19 @@ class InfoGridWidget(WidgetPlugin):
             )
 
             # Generate HTML for each item with Tailwind + inline styles as fallback
-            card_style = "padding: 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
-            label_style = "font-size: 0.875rem; font-weight: 500; color: #6b7280; margin-bottom: 0.25rem;"
-            value_style = "font-size: 1.5rem; font-weight: 600; color: #111827;"
+            card_style = (
+                "padding: 1rem; background: white; border: 1px solid #e5e7eb; "
+                "border-radius: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); "
+                "min-width: 0; overflow: hidden;"
+            )
+            label_style = (
+                "font-size: 0.875rem; font-weight: 500; color: #6b7280; "
+                "margin-bottom: 0.25rem; overflow-wrap: anywhere; word-break: break-word;"
+            )
+            value_style = (
+                "font-size: 1.5rem; font-weight: 600; color: #111827; "
+                "line-height: 1.2; overflow-wrap: anywhere; word-break: break-word;"
+            )
 
             safe_label = html.escape(str(item.label))
 
@@ -358,12 +370,11 @@ class InfoGridWidget(WidgetPlugin):
         items_html = "\n".join(item_html_parts)
 
         # Calculate grid template based on columns
-        grid_cols = params.grid_columns or 3
         output_html = f"""
         <div class="info-grid-widget" style="padding: 1rem;">
             {title_html}
             {description_html}
-            <div class="grid {grid_cols_class} gap-4" style="display: grid; grid-template-columns: repeat({grid_cols}, minmax(0, 1fr)); gap: 1rem;">
+            <div class="grid {grid_cols_class} gap-4" style="display: grid; grid-template-columns: {grid_template_columns}; gap: 1rem;">
                 {items_html}
             </div>
         </div>

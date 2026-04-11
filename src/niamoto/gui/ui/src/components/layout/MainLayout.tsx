@@ -8,10 +8,7 @@ import { CommandPalette } from './CommandPalette'
 import { FeedbackProvider, FeedbackModal } from '@/features/feedback'
 import { FeedbackErrorBoundary } from '@/features/feedback/components/FeedbackErrorBoundary'
 import { recordNavigation } from '@/features/feedback/lib/navigation-tracker'
-import { DesktopTitlebar } from './DesktopTitlebar'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
-import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
-import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useJobPolling } from '@/hooks/useJobPolling'
 import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
 import { cn } from '@/lib/utils'
@@ -19,8 +16,6 @@ import { cn } from '@/lib/utils'
 export function MainLayout() {
   const location = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
-  const { isDesktop } = useRuntimeMode()
-  const { isMac } = usePlatform()
 
   useJobPolling()
   useAppUpdater()
@@ -75,7 +70,6 @@ export function MainLayout() {
         <NavigationSidebar />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          {isDesktop && isMac && <DesktopTitlebar />}
           <TopBar />
           <BreadcrumbNav />
 

@@ -419,6 +419,57 @@ class PreviewEngine:
         self._rich_entity_cache[group_by] = gid
         return gid
 
+    def _find_entity_id_with_field_data(
+        self,
+        db: Database,
+        group_by: str,
+        group_ids: list[Any],
+        field_name: str,
+    ) -> Any | None:
+        """Pick the first entity whose requested field contains usable data."""
+        try:
+            ref_table = resolve_reference_table(db, group_by)
+            if not ref_table or not db.has_table(ref_table):
+                return None
+
+            columns = set(db.get_table_columns(ref_table))
+            if field_name not in columns:
+                return None
+
+            id_col = _pick_identifier_column(list(columns))
+            q_table = quote_identifier(db, ref_table)
+            q_id = quote_identifier(db, id_col)
+            q_field = quote_identifier(db, field_name)
+            group_ids_set = set(group_ids)
+
+            query = text(f"""
+                SELECT {q_id}
+                FROM {q_table}
+                WHERE {q_field} IS NOT NULL
+                  AND CAST({q_field} AS VARCHAR) <> ''
+                ORDER BY {q_id}
+                LIMIT 50
+            """)
+            with db.engine.connect() as conn:
+                for row in conn.execute(query):
+                    eid = row[0]
+                    if eid in group_ids_set:
+                        return eid
+                    try:
+                        numeric = int(eid)
+                        if numeric in group_ids_set:
+                            return numeric
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            logger.debug(
+                "Could not find preview entity with field data for %s.%s",
+                group_by,
+                field_name,
+                exc_info=True,
+            )
+        return None
+
     def _query_rich_entity(
         self, db: Database, group_by: str, group_ids: list[Any]
     ) -> Any:
@@ -530,6 +581,9 @@ class PreviewEngine:
         group_by: str | None,
         entity_id: str | None,
         db: Database,
+        *,
+        preferred_source: str | None = None,
+        preferred_field: str | None = None,
     ) -> tuple["TransformerService", dict[str, Any], Any] | None:
         """Resolve the real transform group and target entity for preview."""
         if not group_by:
@@ -553,6 +607,12 @@ class PreviewEngine:
             if gid is None:
                 raise DataLoadError(f"Entity '{entity_id}' not found in {group_by}")
         else:
+            if preferred_source and preferred_field and preferred_source == group_by:
+                gid = self._find_entity_id_with_field_data(
+                    db, group_by, group_ids, preferred_field
+                )
+                if gid is not None:
+                    return svc, group_config, gid
             # Pick a data-rich entity (family level for hierarchical refs)
             gid = self._find_rich_entity_id(db, group_by, group_ids)
 
@@ -685,7 +745,11 @@ class PreviewEngine:
             else:
                 # Use TransformerService for real pipeline when possible
                 preview_group = self._resolve_preview_group_context(
-                    group_by, request.entity_id, db
+                    group_by,
+                    request.entity_id,
+                    db,
+                    preferred_source=transformer_params.get("source"),
+                    preferred_field=transformer_params.get("field"),
                 )
                 if preview_group:
                     svc, group_config, gid = preview_group
@@ -1733,7 +1797,13 @@ document.addEventListener('DOMContentLoaded', function() {{
             )
 
             # --- Primary path: use TransformerService (same as configured) ---
-            preview_group = self._resolve_preview_group_context(group_by, entity_id, db)
+            preview_group = self._resolve_preview_group_context(
+                group_by,
+                entity_id,
+                db,
+                preferred_source=transformer_config.get("source"),
+                preferred_field=transformer_config.get("field"),
+            )
             if preview_group:
                 svc, group_config, gid = preview_group
                 temp_group_config = self._build_preview_group_config(
