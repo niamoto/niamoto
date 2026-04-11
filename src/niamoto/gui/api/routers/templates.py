@@ -390,13 +390,14 @@ async def generate_transform_config(request: GenerateConfigRequest):
         # Hierarchical references use nested_set for tree aggregation
         extraction = connector_config.get("extraction", {}) if connector_config else {}
         hierarchy_key = (
-            extraction.get("id_column")
+            relation_config.get("foreign_key")
             or (relation_from_import.get("key") if relation_from_import else None)
+            or extraction.get("id_column")
             or f"id_{request.group_by}ref"
         )
         hierarchy_ref_key = (
-            extraction.get("reference_key")
-            or relation_config.get("reference_key")
+            relation_config.get("reference_key")
+            or (relation_from_import.get("ref_key") if relation_from_import else None)
             or f"{request.group_by}_id"
         )
         sources = [

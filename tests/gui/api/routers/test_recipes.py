@@ -62,3 +62,38 @@ def test_recipes_source_columns_use_read_only_duckdb_connections(
     assert payload["table_name"] == "dataset_occurrences"
     assert open_database_mock.call_args is not None
     assert open_database_mock.call_args.kwargs.get("read_only") is True
+
+
+def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
+    gui_duckdb_client: TestClient,
+):
+    """Column lookup should still work for valid registry sources outside transform.yml."""
+
+    with (
+        patch(
+            "niamoto.gui.api.routers.recipes._get_all_sources",
+            return_value=[],
+        ),
+        patch(
+            "niamoto.gui.api.routers.recipes._get_registry_source",
+            return_value=SourceInfo(
+                type="dataset",
+                name="occurrences",
+                table_name="dataset_occurrences",
+                columns=["id", "count", "locality"],
+                transformers=[],
+            ),
+        ),
+        patch(
+            "niamoto.gui.api.routers.recipes._build_column_tree",
+            return_value=[],
+        ),
+    ):
+        response = gui_duckdb_client.get(
+            "/api/recipes/sources/shapes/occurrences/columns"
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["source_name"] == "occurrences"
+    assert payload["table_name"] == "dataset_occurrences"

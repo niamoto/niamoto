@@ -418,7 +418,8 @@
     "reference": "Référence",
     "seeDetails": "Voir les détails",
     "moving": "Déplacement...",
-    "previewDisabled": "Preview désactivée"
+    "previewDisabled": "Preview désactivée",
+    "previewEntitiesUnavailable": "Impossible de charger les entités de preview. Les aperçus restent disponibles sans sélection ciblée."
   },
   "listPanel": {
     "loading": "Chargement...",

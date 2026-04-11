@@ -91,7 +91,7 @@ async def get_available_entities(
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
 
-        with open_database(config.database_path) as db:
+        with open_database(config.database_path, read_only=True) as db:
             registry = EntityRegistry(db)
             all_entities = registry.list_entities()
 

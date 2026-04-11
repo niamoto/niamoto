@@ -7,8 +7,11 @@ de preview unifié (PreviewEngine).
 
 import inspect
 from pathlib import Path
+from unittest.mock import patch
 
+import duckdb
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api import context
@@ -82,3 +85,144 @@ def test_plots_representatives_falls_back_when_label_column_is_invalid():
     assert payload["total"] > 0
     assert payload["entities"][0]["id"]
     assert payload["entities"][0]["name"]
+
+
+def test_hierarchical_representatives_uses_configured_source_levels(tmp_path: Path):
+    work_dir = tmp_path / "plots-hierarchy-project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/occurrences.csv",
+                            }
+                        },
+                        "plots": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/plots.csv",
+                            }
+                        },
+                    },
+                    "references": {
+                        "plots_hierarchy": {
+                            "kind": "hierarchical",
+                            "connector": {
+                                "type": "derived",
+                                "source": "plots",
+                                "extraction": {
+                                    "levels": [
+                                        {"name": "country", "column": "country"},
+                                        {"name": "locality", "column": "locality"},
+                                        {"name": "plot", "column": "plot_name"},
+                                    ],
+                                    "id_column": "id_liste_plots",
+                                    "name_column": "plot_name",
+                                },
+                            },
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "id_table_liste_plots_n",
+                                "reference_key": "plots_hierarchy_id",
+                            },
+                            "hierarchy": {
+                                "levels": ["country", "locality", "plot"],
+                            },
+                        }
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE dataset_occurrences (
+                id INTEGER,
+                id_table_liste_plots_n INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO dataset_occurrences VALUES
+                (1, 10),
+                (2, 10),
+                (3, 20)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE dataset_plots (
+                id_liste_plots INTEGER,
+                country VARCHAR,
+                locality VARCHAR,
+                plot_name VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO dataset_plots VALUES
+                (10, 'NC', 'Aoupinié', 'Plot A'),
+                (20, 'NC', 'Tiwaka', 'Plot B'),
+                (30, 'AU', 'Sydney', 'Plot C')
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_plots_hierarchy (
+                id VARCHAR,
+                rank_name VARCHAR,
+                rank_value VARCHAR,
+                full_name VARCHAR,
+                full_path VARCHAR,
+                parent_id VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_plots_hierarchy VALUES
+                ('country-nc', 'country', 'NC', 'NC', 'NC', NULL),
+                ('country-au', 'country', 'AU', 'AU', 'AU', NULL),
+                ('locality-aoupinie', 'locality', 'Aoupinié', 'Aoupinié', 'NC|Aoupinié', 'country-nc'),
+                ('locality-tiwaka', 'locality', 'Tiwaka', 'Tiwaka', 'NC|Tiwaka', 'country-nc'),
+                ('plot-a', 'plot', 'Plot A', 'Plot A', 'NC|Aoupinié|Plot A', 'locality-aoupinie'),
+                ('plot-b', 'plot', 'Plot B', 'Plot B', 'NC|Tiwaka|Plot B', 'locality-tiwaka'),
+                ('plot-c', 'plot', 'Plot C', 'Plot C', 'AU|Sydney|Plot C', NULL)
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch.object(context, "_working_directory", work_dir):
+        client = TestClient(create_app())
+        response = client.get("/api/layout/plots_hierarchy/representatives")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["group_by"] == "plots_hierarchy"
+    assert payload["total"] > 0
+    assert payload["entities"][0]["name"].startswith("[")
+    assert any(entity["name"].startswith("[Country]") for entity in payload["entities"])
+    assert any(entity["name"].startswith("[Plot]") for entity in payload["entities"])

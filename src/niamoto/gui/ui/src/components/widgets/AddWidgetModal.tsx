@@ -488,6 +488,7 @@ export function AddWidgetModal({
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [quickEditFields, setQuickEditFields] = useState<QuickEditField[]>([])
   const [loadingSchema, setLoadingSchema] = useState(false)
+  const [loadingSchemaPluginId, setLoadingSchemaPluginId] = useState<string | null>(null)
 
   // Combined tab state
   const [selectedFields, setSelectedFields] = useState<string[]>([])
@@ -568,6 +569,8 @@ export function AddWidgetModal({
     setCategoryFilter(null)
     setSourceFilter(null)
     setQuickEditFields([])
+    setLoadingSchema(false)
+    setLoadingSchemaPluginId(null)
     setInitialRecipe(undefined)
     setSelectedFields([])
     setSelectedCombinedKey(null)
@@ -592,31 +595,33 @@ export function AddWidgetModal({
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
     if (!previewSuggestion || !selectedSuggestionIds.has(previewSuggestion.template_id)) {
-      const timeoutId = window.setTimeout(() => {
-        setQuickEditFields([])
-        setLoadingSchema(false)
-      }, 0)
-      return () => window.clearTimeout(timeoutId)
+      setQuickEditFields([])
+      setLoadingSchema(false)
+      setLoadingSchemaPluginId(null)
+      return
     }
 
     const pluginId = previewSuggestion.plugin
 
     // Check cache first
     if (pluginId in pluginSchemaCache) {
-      const timeoutId = window.setTimeout(() => {
-        setQuickEditFields(pluginSchemaCache[pluginId] || [])
-        setLoadingSchema(false)
-      }, 0)
-      return () => window.clearTimeout(timeoutId)
+      setQuickEditFields(pluginSchemaCache[pluginId] || [])
+      setLoadingSchema(false)
+      setLoadingSchemaPluginId(null)
+      return
     }
 
-    // Fetch schema
-    const loadingTimeoutId = window.setTimeout(() => {
-      setLoadingSchema(true)
-    }, 0)
-    fetch(`/api/plugins/${pluginId}/schema`)
+    const controller = new AbortController()
+    let cancelled = false
+
+    setQuickEditFields([])
+    setLoadingSchema(true)
+    setLoadingSchemaPluginId(pluginId)
+
+    fetch(`/api/plugins/${pluginId}/schema`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return
         if (data.has_params && data.schema) {
           const fields = extractQuickEditFields(data.schema)
           pluginSchemaCache[pluginId] = fields
@@ -626,12 +631,25 @@ export function AddWidgetModal({
           setQuickEditFields([])
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (cancelled || (error instanceof DOMException && error.name === 'AbortError')) {
+          return
+        }
         pluginSchemaCache[pluginId] = []
         setQuickEditFields([])
       })
-      .finally(() => setLoadingSchema(false))
-    return () => window.clearTimeout(loadingTimeoutId)
+      .finally(() => {
+        if (cancelled) return
+        setLoadingSchema(false)
+        setLoadingSchemaPluginId((currentPluginId) =>
+          currentPluginId === pluginId ? null : currentPluginId,
+        )
+      })
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
   }, [previewSuggestion, selectedSuggestionIds])
 
   // Group suggestions with smart ordering:
@@ -905,6 +923,10 @@ export function AddWidgetModal({
   }, [onWidgetAdded])
 
   const isBusy = generating || saving
+  const showSchemaLoader =
+    loadingSchema &&
+    !!previewSuggestion &&
+    loadingSchemaPluginId === previewSuggestion.plugin
 
   return (
     <Dialog
@@ -1316,7 +1338,7 @@ export function AddWidgetModal({
                             <div className="flex items-center gap-2 mb-3">
                               <Settings2 className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium text-sm">{t('modal.quickCustomization')}</span>
-                              {loadingSchema && (
+                              {showSchemaLoader && (
                                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                               )}
                             </div>
@@ -1439,7 +1461,7 @@ export function AddWidgetModal({
                               ))}
 
                               {/* Message when no quick edit fields */}
-                              {!loadingSchema && quickEditFields.length === 0 && (
+                              {!showSchemaLoader && quickEditFields.length === 0 && (
                                 <p className="text-xs text-muted-foreground/70 italic">
                                   {t('modal.advancedEditHint')}
                                 </p>

@@ -275,6 +275,80 @@ class TestTemplatesEndpoints:
         assert source["relation"]["key"] == "taxon_ref_custom"
         assert source["relation"]["ref_key"] == "taxons_id"
 
+    def test_generate_config_hierarchical_prefers_explicit_relation(
+        self, client, test_work_dir
+    ):
+        """Les hiérarchies dérivées doivent joindre le dataset via relation.foreign_key."""
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["references"]["taxons"]["relation"] = {
+            "dataset": "occurrences",
+            "foreign_key": "taxon_fk",
+            "reference_key": "taxons_id",
+        }
+        import_config["entities"]["references"]["taxons"]["connector"]["extraction"][
+            "id_column"
+        ] = "taxon_ref_custom"
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "taxons_test",
+                        "plugin": "binned_distribution",
+                        "config": {"field": "elevation"},
+                    }
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        source = response.json()["sources"][0]
+        assert source["relation"]["key"] == "taxon_fk"
+        assert source["relation"]["ref_key"] == "taxons_id"
+
+    def test_transformer_references_hierarchical_prefers_explicit_relation(
+        self, test_work_dir
+    ):
+        """Le catalogue de références doit exposer la même relation explicite."""
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["references"]["taxons"]["relation"] = {
+            "dataset": "occurrences",
+            "foreign_key": "taxon_fk",
+            "reference_key": "taxons_id",
+        }
+        import_config["entities"]["references"]["taxons"]["connector"]["extraction"][
+            "id_column"
+        ] = "taxon_ref_custom"
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        with patch(
+            "niamoto.gui.api.routers.transformer_suggestions.get_working_directory"
+        ) as mock_work_dir:
+            mock_work_dir.return_value = Path(test_work_dir)
+            client = TestClient(create_app())
+            response = client.get("/api/transformer-suggestions/references")
+
+        assert response.status_code == 200, response.text
+        taxons = next(
+            ref for ref in response.json()["references"] if ref["name"] == "taxons"
+        )
+        assert taxons["relation"]["key"] == "taxon_fk"
+        assert taxons["relation"]["ref_key"] == "taxons_id"
+
     def test_generate_config_spatial_does_not_invent_dataset_relation(
         self, client, test_work_dir
     ):
@@ -590,6 +664,77 @@ class TestPreviewEndpoint:
 
 
 class TestConfigScaffoldSpatialReferences:
+    def test_scaffold_uses_explicit_relation_for_hierarchical_reference(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+        import_path = config_dir / "import.yml"
+
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["references"]["taxons"]["relation"] = {
+            "dataset": "occurrences",
+            "foreign_key": "taxon_fk",
+            "reference_key": "taxons_id",
+        }
+        import_config["entities"]["references"]["taxons"]["connector"]["extraction"][
+            "id_column"
+        ] = "taxon_ref_custom"
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        transform_path = config_dir / "transform.yml"
+        transform_path.unlink()
+
+        changed, _ = scaffold_configs(Path(test_work_dir))
+
+        assert changed is True
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        taxons_group = next(
+            group for group in transform_config if group.get("group_by") == "taxons"
+        )
+        assert taxons_group["sources"][0]["data"] == "occurrences"
+        assert taxons_group["sources"][0]["relation"]["key"] == "taxon_fk"
+        assert taxons_group["sources"][0]["relation"]["ref_key"] == "taxons_id"
+
+    def test_scaffold_skips_hierarchical_source_without_safe_relation(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+        config_dir = Path(test_work_dir) / "config"
+        import_path = config_dir / "import.yml"
+
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        taxons_config = import_config["entities"]["references"]["taxons"]
+        taxons_config.pop("relation", None)
+        taxons_config["connector"]["extraction"]["id_column"] = None
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        transform_path = config_dir / "transform.yml"
+        transform_path.unlink()
+
+        changed, _ = scaffold_configs(Path(test_work_dir))
+
+        assert changed is True
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        taxons_group = next(
+            group for group in transform_config if group.get("group_by") == "taxons"
+        )
+        assert taxons_group["sources"] == []
+
     def test_scaffold_uses_shape_stats_for_spatial_reference(self, test_work_dir):
         from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
 

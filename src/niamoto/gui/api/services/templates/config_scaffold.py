@@ -32,7 +32,7 @@ def build_relation_config(
     ref_name: str,
     kind: str,
     config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
     """Construit la config de relation pour un source transform.yml.
 
     Déduit le plugin (nested_set vs direct_reference) et les clés
@@ -40,7 +40,7 @@ def build_relation_config(
 
     Logique extraite de transformer_suggestions.py:build_relation_config.
     """
-    key_field = f"{ref_name}_id"
+    key_field: Optional[str] = None
     ref_field = "id"
 
     if config and isinstance(config, dict):
@@ -55,22 +55,24 @@ def build_relation_config(
         # Références dérivées (ex: taxons extraits des occurrences)
         connector = config.get("connector", {})
         is_derived = connector.get("type") == "derived"
-        if is_derived:
+        if is_derived and not key_field:
             extraction = connector.get("extraction", {})
             if extraction.get("id_column"):
                 key_field = extraction["id_column"]
 
         # schema.id_field en fallback si pas de relation explicite ni de dérivation
-        if not relation_config and not is_derived:
+        if not key_field and not relation_config and not is_derived:
             schema = config.get("schema", {})
             if schema.get("id_field"):
                 key_field = schema["id_field"]
 
     if kind == "hierarchical":
+        if not key_field:
+            return None
         return {
             "plugin": "nested_set",
             "key": key_field,
-            "ref_key": f"{ref_name}_id",
+            "ref_key": ref_field,
             "fields": {
                 "parent": "parent_id",
                 "left": "lft",
@@ -78,6 +80,8 @@ def build_relation_config(
             },
         }
     else:
+        if not key_field:
+            return None
         return {
             "plugin": "direct_reference",
             "key": key_field,
@@ -207,21 +211,39 @@ def _build_transform_group(
             "widgets_data": {},
         }
 
-    source_name = "occurrences"
-    data_name = first_dataset or "occurrences"
+    connector = ref_config.get("connector", {}) if isinstance(ref_config, dict) else {}
+    relation_config = (
+        ref_config.get("relation", {}) if isinstance(ref_config, dict) else {}
+    )
+    data_name = (
+        relation_config.get("dataset")
+        or connector.get("source")
+        or first_dataset
+        or "occurrences"
+    )
+    source_name = data_name
     relation = build_relation_config(ref_name, kind, ref_config)
 
-    return {
-        "group_by": ref_name,
-        "sources": [
+    sources: List[Dict[str, Any]] = []
+    if relation:
+        sources.append(
             {
                 "name": source_name,
                 "data": data_name,
                 "grouping": ref_name,
                 "relation": relation,
-            },
-            *[_build_stats_source_config(source) for source in stats_sources],
-        ],
+            }
+        )
+    elif kind != "spatial":
+        logger.warning(
+            "Skipping default transform relation for reference '%s' because no safe key could be inferred",
+            ref_name,
+        )
+
+    return {
+        "group_by": ref_name,
+        "sources": sources
+        + [_build_stats_source_config(source) for source in stats_sources],
         "widgets_data": {},
     }
 

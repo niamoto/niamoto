@@ -36,7 +36,8 @@ def test_infer_taxonomy_reference_name_uses_shared_vocabulary():
     )
     assert infer_taxonomy_reference_name("forest_observations", ["locality"]) == "taxa"
     assert (
-        infer_taxonomy_reference_name("inventory", ["locality"]) == "inventory_taxonomy"
+        infer_taxonomy_reference_name("inventory", ["locality"])
+        == "inventory_hierarchy"
     )
 
 

@@ -390,6 +390,46 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
 
             self.assertIn("plotly-graph-div", result)
 
+    @patch("plotly.express.choropleth_map")
+    def test_render_geojson_polygons_auto_switches_to_choropleth(
+        self, mock_choropleth_map
+    ):
+        """Un GeoJSON polygonal doit être rendu même avec les paramètres par défaut."""
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [165.0, -21.0],
+                                [166.0, -21.0],
+                                [166.0, -22.0],
+                                [165.0, -22.0],
+                                [165.0, -21.0],
+                            ]
+                        ],
+                    },
+                    "properties": {"name": "Test Polygon"},
+                }
+            ],
+        }
+
+        mock_fig = Mock()
+        mock_fig.data = []
+        mock_fig.layout = {}
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
+        mock_choropleth_map.return_value = mock_fig
+
+        params = InteractiveMapParams()
+
+        result = self.widget.render(geojson_data, params)
+
+        self.assertIn("plotly-graph-div", result)
+        mock_choropleth_map.assert_called_once()
+
     @patch("topojson.Topology")
     def test_render_topojson_parsing(self, mock_topology_class):
         """Test parsing TopoJSON data structure."""

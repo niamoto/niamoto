@@ -215,9 +215,14 @@ class DataAnalyzer:
         Returns:
             DataCategory enum value
         """
+        semantic = (col_profile.semantic_type or "").lower()
+
         # Identifier detection (highest priority - skip useless fields)
         # Hybrid approach: name patterns + statistics + sequential detection
         if self._is_likely_identifier(col_profile, series):
+            return DataCategory.IDENTIFIER
+
+        if semantic.startswith("identifier"):
             return DataCategory.IDENTIFIER
 
         # Geographic (high priority due to special handling)
@@ -257,7 +262,6 @@ class DataAnalyzer:
 
                 # Check if column name or semantic type suggests a count/measurement
                 name_lower = col_profile.name.lower()
-                semantic = (col_profile.semantic_type or "").lower()
                 is_count_like = (
                     any(
                         term in name_lower
@@ -310,6 +314,7 @@ class DataAnalyzer:
         """
         name_lower = col_profile.name.lower()
         semantic = col_profile.semantic_type or ""
+        semantic_lower = semantic.lower()
 
         # Location (check semantic type first to avoid confusion with _id suffix)
         if "location" in semantic or any(
@@ -317,6 +322,11 @@ class DataAnalyzer:
             for pattern in ["lat", "lon", "coord", "geo", "location", "plot"]
         ):
             return FieldPurpose.LOCATION
+
+        if semantic_lower.startswith("identifier"):
+            if col_profile.unique_ratio > 0.95:
+                return FieldPurpose.PRIMARY_KEY
+            return FieldPurpose.FOREIGN_KEY
 
         # Primary/Foreign keys (based on name patterns)
         if any(pattern in name_lower for pattern in ["_id", "id_", "identifier"]):
@@ -397,12 +407,20 @@ class DataAnalyzer:
         """
         name_lower = col_profile.name.lower()
         unique_ratio = col_profile.unique_ratio
+        semantic = (col_profile.semantic_type or "").lower()
+
+        if semantic.startswith("identifier"):
+            return True
 
         # 1. Column name patterns suggesting identifier
         is_identifier_name = (
             name_lower == "id"
             or name_lower.endswith("_id")
             or name_lower.startswith("id_")
+            or (
+                name_lower.startswith("id")
+                and any(ch in name_lower[2:] for ch in "_0123456789")
+            )
             or "uuid" in name_lower
             or "identifier" in name_lower
             or name_lower in ("pk", "oid", "rowid", "index")

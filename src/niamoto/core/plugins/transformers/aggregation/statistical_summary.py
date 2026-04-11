@@ -163,7 +163,17 @@ class StatisticalSummary(TransformerPlugin):
 
             # Service has already loaded the correct source - just use the data
             # Get field data
-            field_data = data[params.field]
+            raw_field_data = data[params.field]
+            field_data = pd.to_numeric(raw_field_data, errors="coerce")
+            invalid_mask = raw_field_data.notna() & field_data.isna()
+            if invalid_mask.any():
+                invalid_samples = (
+                    raw_field_data[invalid_mask].astype(str).unique().tolist()[:5]
+                )
+                raise ValueError(
+                    f"Field '{params.field}' must be numeric for statistical_summary. "
+                    f"Invalid values: {invalid_samples}"
+                )
 
             if field_data.empty:
                 # Return None values for all requested stats

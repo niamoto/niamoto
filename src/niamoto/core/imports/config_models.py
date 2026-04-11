@@ -189,6 +189,14 @@ class EnrichmentConfig(BaseModel):
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ReferenceRelationConfig(BaseModel):
+    """Explicit relation from a dataset to a reference entity."""
+
+    dataset: str
+    foreign_key: str
+    reference_key: str
+
+
 class EntitySchema(BaseModel):
     """Schema definition shared by references and datasets."""
 
@@ -265,6 +273,7 @@ class ReferenceEntityConfig(BaseEntityConfig):
 
     kind: Optional[ReferenceKind] = None
     hierarchy: Optional[HierarchyConfig] = None
+    relation: Optional[ReferenceRelationConfig] = None
     enrichment: List[EnrichmentConfig] = Field(default_factory=list)
 
 

@@ -418,7 +418,8 @@
     "reference": "Reference",
     "seeDetails": "See details",
     "moving": "Moving...",
-    "previewDisabled": "Preview disabled"
+    "previewDisabled": "Preview disabled",
+    "previewEntitiesUnavailable": "Unable to load preview entities. Previews remain available without a targeted selection."
   },
   "listPanel": {
     "loading": "Loading...",

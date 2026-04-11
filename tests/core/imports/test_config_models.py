@@ -313,3 +313,56 @@ def test_generic_import_config_keeps_inaturalist_rich_fields():
     assert enrichment.config["include_occurrences"] is True
     assert enrichment.config["include_places"] is True
     assert enrichment.config["observation_limit"] == 5
+
+
+def test_generic_import_config_parses_reference_relation():
+    config = GenericImportConfig.from_dict(
+        {
+            "version": "1.0",
+            "entities": {
+                "references": {
+                    "plots_hierarchy": {
+                        "kind": "hierarchical",
+                        "connector": {
+                            "type": "derived",
+                            "source": "plots",
+                            "extraction": {
+                                "levels": [
+                                    {"name": "country", "column": "country"},
+                                    {"name": "plot_name", "column": "plot_name"},
+                                ],
+                                "id_column": "id_liste_plots",
+                            },
+                        },
+                        "relation": {
+                            "dataset": "occurrences",
+                            "foreign_key": "id_table_liste_plots_n",
+                            "reference_key": "plots_hierarchy_id",
+                        },
+                    }
+                },
+                "datasets": {
+                    "occurrences": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/occurrences.csv",
+                        },
+                        "schema": {"id_field": "id_occ"},
+                    },
+                    "plots": {
+                        "connector": {
+                            "type": "duckdb_csv",
+                            "path": "data/plots.csv",
+                        },
+                        "schema": {"id_field": "id_liste_plots"},
+                    },
+                },
+            },
+        }
+    )
+
+    relation = config.entities.references["plots_hierarchy"].relation
+    assert relation is not None
+    assert relation.dataset == "occurrences"
+    assert relation.foreign_key == "id_table_liste_plots_n"
+    assert relation.reference_key == "plots_hierarchy_id"

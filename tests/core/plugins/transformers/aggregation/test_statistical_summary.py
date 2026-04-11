@@ -146,8 +146,29 @@ class TestStatisticalSummary(unittest.TestCase):
         # The plugin's try-except block should catch the underlying TypeError
         # and re-raise it as a ValueError.
         with self.assertRaisesRegex(
-            ValueError, "Invalid configuration:"
+            ValueError,
+            "Field 'category_col' must be numeric for statistical_summary",
         ):  # Match the error message format
             self.plugin.transform(SAMPLE_DATA.copy(), config)
+
+    def test_transform_numeric_strings_are_supported(self):
+        """Stringified numeric values should be coerced before computing stats."""
+        data = pd.DataFrame({"dbh": ["10", "20", "30", None]})
+        config = {
+            "plugin": "statistical_summary",
+            "params": {
+                "source": "occurrences",
+                "field": "dbh",
+                "stats": ["min", "mean", "max"],
+                "max_value": 25,
+            },
+        }
+
+        result = self.plugin.transform(data, config)
+
+        assert result["min"] == 10.0
+        assert result["mean"] == 20.0
+        assert result["max"] == 30.0
+        assert result["max_value"] == 30.0
 
     # --- Add more test cases below ---

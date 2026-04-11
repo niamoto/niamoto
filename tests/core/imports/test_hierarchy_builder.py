@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 
 from niamoto.common.database import Database
+from niamoto.common.exceptions import DataValidationError
 from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
 from niamoto.core.imports.config_models import HierarchyLevel, ExtractionConfig
 
@@ -270,3 +271,40 @@ def test_hierarchy_with_additional_columns(duckdb_database):
     # Note: id_column, name_column, and additional_columns are intentionally
     # excluded from the hierarchy table to prevent row duplication. These should
     # be joined from the source table when needed for display or enrichment.
+
+
+def test_non_numeric_external_ids_raise_clear_validation_error(duckdb_database):
+    """String external ids should fail with a domain-specific validation error."""
+    pd.DataFrame(
+        {
+            "plot_name": ["ngoila003", "ngoila004"],
+            "family": ["Arecaceae", "Arecaceae"],
+            "genus": ["Burretiokentia", "Burretiokentia"],
+            "species": ["vieillardii", "koghiensis"],
+        }
+    ).to_sql(
+        "dataset_bad_occurrences",
+        duckdb_database.engine,
+        if_exists="replace",
+        index=False,
+    )
+
+    builder = HierarchyBuilder(duckdb_database)
+    config = ExtractionConfig(
+        levels=[
+            HierarchyLevel(name="family", column="family"),
+            HierarchyLevel(name="genus", column="genus"),
+            HierarchyLevel(name="species", column="species"),
+        ],
+        id_column="plot_name",
+        id_strategy="hash",
+    )
+
+    with pytest.raises(DataValidationError) as exc_info:
+        builder.build_from_dataset("dataset_bad_occurrences", config, "taxons")
+
+    assert 'Hierarchy relation column "taxons_id"' in str(exc_info.value)
+    assert set(exc_info.value.validation_errors[0]["invalid_values"]) == {
+        "ngoila003",
+        "ngoila004",
+    }

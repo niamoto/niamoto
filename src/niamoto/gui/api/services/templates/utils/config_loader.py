@@ -76,12 +76,12 @@ def build_reference_info(
 
     relation = {}
     if kind == "hierarchical":
-        # Derived hierarchical references usually expose an external identifier
-        # named "<reference>_id" during import (see hierarchy builder).
+        # Derived hierarchies can expose an explicit dataset->reference relation.
+        # When present, prefer that contract. Otherwise fall back to extraction.id_column.
         extraction = connector.get("extraction", {})
-        key = extraction.get("id_column")
+        external_id_field = relation_config.get("reference_key") or f"{ref_name}_id"
+        key = relation_config.get("foreign_key") or extraction.get("id_column")
         if key:
-            external_id_field = f"{ref_name}_id"
             relation = {
                 "plugin": "nested_set",
                 "key": key,
