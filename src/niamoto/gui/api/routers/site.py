@@ -19,6 +19,14 @@ _ROOT_INDEX_TEMPLATE = "index.html"
 _ROOT_INDEX_OUTPUT = "index.html"
 
 
+def _default_root_index_page() -> dict[str, Any]:
+    return {
+        "name": "home",
+        "template": _ROOT_INDEX_TEMPLATE,
+        "output_file": _ROOT_INDEX_OUTPUT,
+    }
+
+
 def _normalize_output_alias(output_file: str | None) -> str | None:
     if not output_file:
         return None
@@ -32,6 +40,15 @@ def _is_root_index_page(page: dict[str, Any]) -> bool:
 def _normalize_static_pages(
     static_pages: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    has_root_index = any(
+        _is_root_index_page(page)
+        or _normalize_output_alias(str(page.get("output_file", "")))
+        == _ROOT_INDEX_OUTPUT
+        for page in static_pages
+    )
+    if not has_root_index:
+        static_pages = [_default_root_index_page(), *static_pages]
+
     normalized_pages: list[dict[str, Any]] = []
     output_aliases: dict[str, str] = {}
 
@@ -632,7 +649,7 @@ async def update_site_config(update: SiteConfigUpdate):
             "enabled": True,
             "exporter": "html_page_exporter",
             "params": {},
-            "static_pages": [],
+            "static_pages": [_default_root_index_page()],
             "groups": [],
         }
         exports.append(web_pages)

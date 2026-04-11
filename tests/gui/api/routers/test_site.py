@@ -180,6 +180,46 @@ class TestSiteGroups:
             assert data["navigation"][0]["url"] == "/index.html"
             assert data["footer_navigation"][0]["links"][0]["url"] == "/index.html"
 
+    def test_get_site_config_injects_default_home_page_when_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {"navigation": []},
+                            "static_pages": [],
+                            "groups": [],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.get("/api/site/config")
+                assert response.status_code == 200, response.text
+
+            data = response.json()
+            assert data["static_pages"] == [
+                {
+                    "name": "home",
+                    "template": "index.html",
+                    "output_file": "index.html",
+                    "context": None,
+                }
+            ]
+
     def test_update_site_config_normalizes_home_output_and_links(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
@@ -222,6 +262,39 @@ class TestSiteGroups:
                 web_pages["params"]["footer_navigation"][0]["links"][0]["url"]
                 == "/index.html"
             )
+
+    def test_update_site_config_adds_default_home_page_when_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(config_dir / "export.yml", {"exports": []})
+
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [],
+                "footer_navigation": [],
+                "static_pages": [],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.put("/api/site/config", json=payload)
+                assert response.status_code == 200, response.text
+
+            saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
+            web_pages = saved_config["exports"][0]
+            assert web_pages["static_pages"] == [
+                {
+                    "name": "home",
+                    "template": "index.html",
+                    "output_file": "index.html",
+                }
+            ]
 
     def test_update_site_config_rejects_multiple_home_templates(self):
         with tempfile.TemporaryDirectory() as temp_dir:
