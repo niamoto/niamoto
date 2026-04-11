@@ -3,6 +3,7 @@
 import os
 import time
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from niamoto.gui.api.context import (
     reload_project_from_desktop_config,
@@ -15,10 +16,12 @@ from niamoto.gui.startup_logging import log_desktop_startup
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 _first_health_logged = False
+DESKTOP_PROBE_HEADER = "x-niamoto-desktop-probe"
+DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 
 
 @router.get("")
-async def health_check():
+async def health_check(request: Request):
     """
     Simple health check endpoint.
 
@@ -29,7 +32,16 @@ async def health_check():
         log_desktop_startup("health endpoint returned first successful response")
         _first_health_logged = True
 
-    return {"status": "ok", "message": "Niamoto API is running"}
+    response = JSONResponse({"status": "ok", "message": "Niamoto API is running"})
+
+    desktop_probe_requested = (
+        request.headers.get(DESKTOP_PROBE_HEADER, "").strip() == "1"
+    )
+    desktop_auth_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
+    if desktop_probe_requested and desktop_auth_token:
+        response.headers[DESKTOP_TOKEN_HEADER] = desktop_auth_token
+
+    return response
 
 
 @router.get("/runtime-mode")
@@ -61,7 +73,7 @@ async def reload_project(request: Request):
     Reload the current project from Tauri desktop config.
 
     This endpoint is called after switching projects in the Tauri app.
-    It reads ~/.niamoto/desktop-config.json and updates the FastAPI server's
+    It reads the native desktop config file written by the Tauri shell and updates the FastAPI server's
     working directory without restarting the entire application.
 
     Returns:

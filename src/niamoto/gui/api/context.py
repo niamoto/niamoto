@@ -158,13 +158,29 @@ def get_config_path(config_file: str) -> Path:
 
 def _is_valid_desktop_project_path(path: Path) -> bool:
     """Return whether a desktop project path matches the minimal project shape."""
-    return path.exists() and path.is_dir() and path.joinpath("db").exists()
+    return (
+        path.exists()
+        and path.is_dir()
+        and path.joinpath("db").is_dir()
+        and path.joinpath("config").is_dir()
+        and path.joinpath("config", "config.yml").is_file()
+    )
+
+
+def _resolve_desktop_config_path() -> Path:
+    """Return the desktop config path, preferring the native platform location."""
+    configured_path = os.environ.get("NIAMOTO_DESKTOP_CONFIG")
+    if configured_path:
+        return Path(configured_path).expanduser()
+
+    legacy_home = Path.home() / ".niamoto" / "desktop-config.json"
+    return legacy_home
 
 
 def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
     """Reload the current project from Tauri desktop config.
 
-    This reads ~/.niamoto/desktop-config.json to get the current project
+    This reads the desktop config file written by the Tauri shell to get the current project
     and updates the global working directory.
 
     Returns:
@@ -172,9 +188,7 @@ def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
     """
     global _working_directory
 
-    # Get path to desktop config
-    home = Path.home()
-    desktop_config_path = home / ".niamoto" / "desktop-config.json"
+    desktop_config_path = _resolve_desktop_config_path()
     _working_directory = None
 
     if not desktop_config_path.exists():

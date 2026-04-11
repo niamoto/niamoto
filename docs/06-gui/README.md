@@ -25,6 +25,7 @@ For code-level structure, see:
 - [operations/import.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/import.md)
 - [operations/transform.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/transform.md)
 - [operations/export.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/export.md)
+- [operations/desktop-smoke-tests.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/desktop-smoke-tests.md)
 
 ### Reference
 

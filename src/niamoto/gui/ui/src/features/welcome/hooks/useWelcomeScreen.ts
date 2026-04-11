@@ -10,18 +10,8 @@ import {
   setAppSettings as persistAppSettings,
   type AppSettings,
 } from '@/shared/desktop/appSettings';
+import { invokeDesktop } from '@/shared/desktop/tauri';
 import { useProjectSwitcher } from '@/shared/hooks/useProjectSwitcher';
-
-// Tauri types
-declare global {
-  interface Window {
-    __TAURI__?: {
-      core: {
-        invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
-      };
-    };
-  }
-}
 
 interface WelcomeScreenState {
   showWelcome: boolean;
@@ -61,7 +51,7 @@ export function useWelcomeScreen() {
       if (!isTauri) {
         throw new Error('Tauri commands only available in desktop mode');
       }
-      return window.__TAURI__!.core.invoke<T>(cmd, args);
+      return invokeDesktop<T>(cmd, args);
     },
     [isTauri]
   );

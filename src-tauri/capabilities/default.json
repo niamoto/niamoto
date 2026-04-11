@@ -1,23 +1,67 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:default",
-    "core:window:allow-start-dragging",
-    "core:window:allow-minimize",
-    "core:window:allow-maximize",
-    "core:window:allow-unmaximize",
-    "core:window:allow-toggle-maximize",
-    "core:window:allow-close",
-    "core:window:allow-is-maximized",
-    "updater:default",
-    "process:default"
-  ],
-  "remote": {
-    "urls": ["http://localhost:*", "http://127.0.0.1:*"]
-  }
+  "capabilities": [
+    {
+      "identifier": "main-local",
+      "description": "Permet à la fenêtre principale locale d'utiliser les commandes desktop nécessaires.",
+      "windows": ["main"],
+      "permissions": [
+        "core:default",
+        "core:window:allow-start-dragging",
+        "core:window:allow-minimize",
+        "core:window:allow-maximize",
+        "core:window:allow-unmaximize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-is-maximized",
+        "updater:allow-check",
+        "updater:allow-download-and-install",
+        "process:allow-restart"
+      ]
+    },
+    {
+      "identifier": "main-backend-loopback",
+      "description": "Autorise uniquement l'interface servie par le backend desktop local sur 127.0.0.1.",
+      "local": false,
+      "windows": ["main"],
+      "permissions": [
+        "core:default",
+        "core:window:allow-start-dragging",
+        "core:window:allow-minimize",
+        "core:window:allow-maximize",
+        "core:window:allow-unmaximize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-is-maximized",
+        "updater:allow-check",
+        "updater:allow-download-and-install",
+        "process:allow-restart"
+      ],
+      "remote": {
+        "urls": ["http://127.0.0.1:*"]
+      }
+    },
+    {
+      "identifier": "main-dev-vite",
+      "description": "Autorise uniquement le serveur Vite de développement desktop.",
+      "local": false,
+      "windows": ["main"],
+      "permissions": [
+        "core:default",
+        "core:window:allow-start-dragging",
+        "core:window:allow-minimize",
+        "core:window:allow-maximize",
+        "core:window:allow-unmaximize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-is-maximized",
+        "updater:allow-check",
+        "updater:allow-download-and-install",
+        "process:allow-restart"
+      ],
+      "remote": {
+        "urls": ["http://localhost:5173", "http://127.0.0.1:5173"]
+      }
+    }
+  ]
 }

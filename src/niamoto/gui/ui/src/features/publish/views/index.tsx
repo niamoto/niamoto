@@ -67,6 +67,7 @@ import {
   PLATFORMS,
 } from '@/features/publish/views/deployPlatformConfig'
 import PublishHistoryContent from '@/features/publish/views/history'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import { cn } from '@/lib/utils'
 
 function getExportedSitePreviewUrl(path: string) {
@@ -152,14 +153,7 @@ function StaticSitePreview({
   )
 
   const handleOpenPreview = async () => {
-    if (isDesktop && window.__TAURI__?.core) {
-      await window.__TAURI__.core.invoke('open_external_url', {
-        url: externalPreviewUrl,
-      })
-      return
-    }
-
-    window.open(externalPreviewUrl, '_blank', 'noopener,noreferrer')
+    await openExternalUrl(externalPreviewUrl)
   }
 
   useEffect(() => {

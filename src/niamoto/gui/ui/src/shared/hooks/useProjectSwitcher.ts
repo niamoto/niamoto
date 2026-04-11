@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { reloadDesktopProject } from '@/shared/desktop/projectReload';
 import { markManualProjectOpen } from '@/shared/desktop/projectLaunchIntent';
-
-// Tauri types (will be available when running in Tauri)
-declare global {
-  interface Window {
-    __TAURI__?: {
-      core: {
-        invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
-      };
-    };
-  }
-}
+import { invokeDesktop, isDesktopTauri } from '@/shared/desktop/tauri';
 
 export interface ProjectEntry {
   path: string;
@@ -38,7 +28,7 @@ export function useProjectSwitcher() {
   const [error, setError] = useState<string | null>(null);
 
   // Check if we're in Tauri environment
-  const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+  const isTauri = isDesktopTauri();
 
   // Invoke Tauri command
   const invoke = useCallback(
@@ -46,7 +36,7 @@ export function useProjectSwitcher() {
       if (!isTauri) {
         throw new Error('Tauri commands only available in desktop mode');
       }
-      return window.__TAURI__!.core.invoke<T>(cmd, args);
+      return invokeDesktop<T>(cmd, args);
     },
     [isTauri]
   );

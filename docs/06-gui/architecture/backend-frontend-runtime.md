@@ -46,6 +46,8 @@ The build output used for this mode is:
 When running through Tauri:
 
 - the same frontend is embedded inside the desktop application
+- packaged desktop mode loads the UI from the loopback FastAPI server on `127.0.0.1`
+- Tauri waits for an authenticated `/api/health` probe before navigating to that loopback origin
 - some behavior changes based on runtime detection
 - local fonts are loaded from `public/fonts` instead of Google Fonts
 - the welcome screen and project selection flow are especially relevant

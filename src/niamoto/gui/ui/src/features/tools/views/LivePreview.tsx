@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, ExternalLink, RefreshCw, Smartphone, Tablet, Monitor, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 
 type ViewportSize = 'mobile' | 'tablet' | 'desktop'
@@ -33,15 +34,7 @@ export function LivePreview() {
 
   const handleOpenPreview = async () => {
     const previewUrl = getAbsolutePreviewUrl('index.html')
-
-    if (isDesktop && window.__TAURI__?.core) {
-      await window.__TAURI__.core.invoke('open_external_url', {
-        url: previewUrl,
-      })
-      return
-    }
-
-    window.open(previewUrl, '_blank', 'noopener,noreferrer')
+    await openExternalUrl(previewUrl)
   }
 
   const getIframeWidth = () => {

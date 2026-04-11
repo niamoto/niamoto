@@ -3,16 +3,7 @@ import i18n, {
   type UiLanguage,
   type UiLanguagePreference,
 } from '@/i18n'
-
-declare global {
-  interface Window {
-    __TAURI__?: {
-      core: {
-        invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
-      }
-    }
-  }
-}
+import { invokeDesktop, isDesktopTauri } from '@/shared/desktop/tauri'
 
 export interface AppSettings {
   auto_load_last_project: boolean
@@ -27,7 +18,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 const UI_LANGUAGE_PREFERENCE_STORAGE_KEY = 'niamoto.uiLanguagePreference'
 
 export function isTauriApp() {
-  return typeof window !== 'undefined' && window.__TAURI__ !== undefined
+  return isDesktopTauri()
 }
 
 export function normalizeUiLanguagePreference(
@@ -73,9 +64,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     }
   }
 
-  const settings = await window.__TAURI__!.core.invoke<Partial<AppSettings>>(
-    'get_app_settings'
-  )
+  const settings = await invokeDesktop<Partial<AppSettings>>('get_app_settings')
 
   return {
     ...DEFAULT_APP_SETTINGS,
@@ -92,7 +81,7 @@ export async function setAppSettings(settings: AppSettings): Promise<void> {
   }
 
   if (isTauriApp()) {
-    await window.__TAURI__!.core.invoke('set_app_settings', {
+    await invokeDesktop('set_app_settings', {
       settings: nextSettings,
     })
   }

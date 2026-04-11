@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub const DESKTOP_CONFIG_ENV: &str = "NIAMOTO_DESKTOP_CONFIG";
+pub const DESKTOP_LOG_DIR_ENV: &str = "NIAMOTO_DESKTOP_LOG_DIR";
+const APP_IDENTIFIER: &str = "com.niamoto.desktop";
 
 /// Desktop application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,20 +67,65 @@ pub struct ProjectEntry {
 }
 
 impl AppConfig {
-    /// Get the path to the desktop config file (~/.niamoto/desktop-config.json)
-    fn config_path() -> Result<PathBuf, String> {
-        let home =
-            dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
+    fn legacy_config_path() -> Option<PathBuf> {
+        dirs::home_dir().map(|home| home.join(".niamoto").join("desktop-config.json"))
+    }
 
-        let niamoto_dir = home.join(".niamoto");
+    fn ensure_parent_dir(path: &Path) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create desktop config directory: {}", e))?;
+        }
+        Ok(())
+    }
 
-        // Create the directory if it doesn't exist
-        if !niamoto_dir.exists() {
-            fs::create_dir_all(&niamoto_dir)
-                .map_err(|e| format!("Failed to create ~/.niamoto directory: {}", e))?;
+    /// Get the path to the desktop config file using the native platform config directory.
+    pub(crate) fn config_path() -> Result<PathBuf, String> {
+        if let Some(config_path) = env::var_os(DESKTOP_CONFIG_ENV).map(PathBuf::from) {
+            Self::ensure_parent_dir(&config_path)?;
+            return Ok(config_path);
         }
 
-        Ok(niamoto_dir.join("desktop-config.json"))
+        let config_path = dirs::config_dir()
+            .ok_or_else(|| "Could not determine native config directory".to_string())?
+            .join(APP_IDENTIFIER)
+            .join("desktop-config.json");
+
+        if config_path.exists() {
+            return Ok(config_path);
+        }
+
+        if let Some(legacy_path) = Self::legacy_config_path() {
+            if legacy_path.exists() {
+                Self::ensure_parent_dir(&config_path)?;
+                fs::copy(&legacy_path, &config_path).map_err(|e| {
+                    format!(
+                        "Failed to migrate desktop config from {}: {}",
+                        legacy_path.display(),
+                        e
+                    )
+                })?;
+                return Ok(config_path);
+            }
+        }
+
+        Self::ensure_parent_dir(&config_path)?;
+        Ok(config_path)
+    }
+
+    pub fn desktop_log_dir() -> PathBuf {
+        if let Some(log_dir) = env::var_os(DESKTOP_LOG_DIR_ENV).map(PathBuf::from) {
+            let _ = fs::create_dir_all(&log_dir);
+            return log_dir;
+        }
+
+        let log_dir = dirs::data_local_dir()
+            .or_else(dirs::data_dir)
+            .unwrap_or_else(std::env::temp_dir)
+            .join(APP_IDENTIFIER)
+            .join("logs");
+        let _ = fs::create_dir_all(&log_dir);
+        log_dir
     }
 
     /// Load the configuration from disk, creating default if not exists
@@ -184,9 +234,25 @@ impl AppConfig {
 
         // Check for db directory (main indicator of a Niamoto project)
         let db_dir = path.join("db");
-        if !db_dir.exists() {
+        if !db_dir.is_dir() {
             return Err(format!(
                 "Not a valid Niamoto project: missing 'db' directory in {:?}",
+                path
+            ));
+        }
+
+        let config_dir = path.join("config");
+        if !config_dir.is_dir() {
+            return Err(format!(
+                "Not a valid Niamoto project: missing 'config' directory in {:?}",
+                path
+            ));
+        }
+
+        let config_file = config_dir.join("config.yml");
+        if !config_file.is_file() {
+            return Err(format!(
+                "Not a valid Niamoto project: missing 'config/config.yml' in {:?}",
                 path
             ));
         }
@@ -236,6 +302,9 @@ impl AppConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static TEST_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_default_config() {
@@ -250,5 +319,42 @@ mod tests {
         // Should fail for non-existent path
         let result = AppConfig::validate_project_path(Path::new("/non/existent/path"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_project_path_requires_config_structure() {
+        let project_path = std::env::temp_dir().join(format!(
+            "niamoto-config-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&project_path);
+        fs::create_dir_all(project_path.join("db")).unwrap();
+
+        let missing_config = AppConfig::validate_project_path(&project_path);
+        assert!(missing_config.is_err());
+
+        fs::create_dir_all(project_path.join("config")).unwrap();
+        let missing_config_file = AppConfig::validate_project_path(&project_path);
+        assert!(missing_config_file.is_err());
+
+        fs::write(project_path.join("config").join("config.yml"), "project: {}\n").unwrap();
+        let valid = AppConfig::validate_project_path(&project_path);
+        assert!(valid.is_ok());
+
+        let _ = fs::remove_dir_all(&project_path);
+    }
+
+    #[test]
+    fn test_config_path_prefers_env_override() {
+        let _guard = TEST_ENV_LOCK.lock().unwrap();
+        let config_path = std::env::temp_dir()
+            .join(format!("niamoto-desktop-config-{}.json", std::process::id()));
+        let _ = fs::remove_file(&config_path);
+
+        env::set_var(DESKTOP_CONFIG_ENV, &config_path);
+        let resolved = AppConfig::config_path().unwrap();
+        env::remove_var(DESKTOP_CONFIG_ENV);
+
+        assert_eq!(resolved, config_path);
     }
 }
