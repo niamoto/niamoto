@@ -11,18 +11,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
-import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database } from 'lucide-react'
+import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
 import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
@@ -70,6 +70,8 @@ export function CollectionPanel({
   const [exportRunning, setExportRunning] = useState(false)
   const cancelledRef = useRef(false)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const polledJobIdRef = useRef<string | null>(null)
+  const notifiedTerminalJobsRef = useRef<Set<string>>(new Set())
   // Track whether runTransform owns the current job (to avoid double toast)
   const ownedByRunTransformRef = useRef(false)
 
@@ -86,13 +88,40 @@ export function CollectionPanel({
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
+    polledJobIdRef.current = null
   }, [])
+
+  const notifyTransformTerminal = useCallback((
+    jobId: string,
+    status: 'completed' | 'failed',
+    errorMessage?: string | null
+  ) => {
+    const notificationKey = `${jobId}:${status}`
+    if (notifiedTerminalJobsRef.current.has(notificationKey)) {
+      return
+    }
+    notifiedTerminalJobsRef.current.add(notificationKey)
+
+    if (status === 'completed') {
+      toast.success(t('collectionPanel.transform.successToast', { name: reference.name }), {
+        id: `collection-transform-${jobId}`,
+      })
+    } else {
+      toast.error(errorMessage || t('collectionPanel.transform.failedToast'), {
+        id: `collection-transform-${jobId}`,
+      })
+    }
+  }, [reference.name, t])
 
   // Poll an already-running job until it completes (guarded by cancelledRef).
   // Only used for jobs discovered on mount (not launched by runTransform).
   const pollRunningJob = useCallback((jobId: string) => {
     // If runTransform owns this job, don't double-poll
     if (ownedByRunTransformRef.current) return
+    if (polledJobIdRef.current === jobId && pollIntervalRef.current) return
+
+    stopPolling()
+    polledJobIdRef.current = jobId
 
     setIsTransforming(true)
     let polling = false // guard against async overlap
@@ -111,9 +140,9 @@ export function CollectionPanel({
           setTransformMessage('')
           if (status.status === 'completed') {
             setLastRun(status)
-            toast.success(t('collectionPanel.transform.successToast', { name: reference.name }))
+            notifyTransformTerminal(jobId, 'completed')
           } else {
-            toast.error(status.error || t('collectionPanel.transform.failedToast'))
+            notifyTransformTerminal(jobId, 'failed', status.error)
           }
         }
       } catch {
@@ -126,7 +155,7 @@ export function CollectionPanel({
       }
     }, 1000)
     pollIntervalRef.current = interval
-  }, [reference.name, t, stopPolling])
+  }, [notifyTransformTerminal, stopPolling])
 
   // Load last run info on mount + resume polling if job is running
   useEffect(() => {
@@ -194,16 +223,18 @@ export function CollectionPanel({
         }
       )
       setLastRun(result)
-      toast.success(t('collectionPanel.transform.successToast', { name: reference.name }))
+      notifyTransformTerminal(result.job_id, 'completed')
     } catch (error) {
-      toast.error(t('collectionPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }))
+      toast.error(t('collectionPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }), {
+        id: `collection-transform-${reference.name}-error`,
+      })
     } finally {
       ownedByRunTransformRef.current = false
       setIsTransforming(false)
       setTransformProgress(0)
       setTransformMessage('')
     }
-  }, [configuredIds.length, reference.name, t])
+  }, [configuredIds.length, notifyTransformTerminal, reference.name, t])
 
   // Format relative time for last run
   const lastRunLabel = lastRun?.completed_at
@@ -227,21 +258,40 @@ export function CollectionPanel({
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
           {/* Collection selector */}
-          <Select
-            value={reference.name}
-            onValueChange={(value) => navigate(`/groups/${encodeURIComponent(value)}`)}
-          >
-            <SelectTrigger className="h-7 w-[180px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {references.map((item) => (
-                <SelectItem key={item.name} value={item.name}>
-                  {item.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="group flex items-center gap-1.5 -ml-1 rounded-theme-sm px-2 py-1 text-base font-semibold tracking-tight text-foreground transition-theme-fast hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title={reference.name}
+              >
+                <span className="max-w-[240px] truncate">{reference.name}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[220px]">
+              {references.map((item) => {
+                const isCurrent = item.name === reference.name
+                return (
+                  <DropdownMenuItem
+                    key={item.name}
+                    onClick={() => {
+                      if (!isCurrent) {
+                        navigate(`/groups/${encodeURIComponent(item.name)}`)
+                      }
+                    }}
+                    className={cn(
+                      'flex items-center justify-between gap-2 cursor-pointer',
+                      isCurrent && 'bg-accent/60'
+                    )}
+                  >
+                    <span className="truncate text-sm">{item.name}</span>
+                    {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Tabs */}
           <TabsList className="h-8 w-fit gap-0.5 bg-muted/50 p-0.5 rounded-md">
