@@ -482,6 +482,62 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
         call_args = mock_scatter_map.call_args
         self.assertIsNotNone(call_args[1].get("zoom"))
 
+    @patch("plotly.express.scatter_map")
+    def test_render_auto_fits_when_viewport_is_not_explicitly_configured(
+        self, mock_scatter_map
+    ):
+        """Default scatter maps should fit their data extent."""
+        df = pd.DataFrame(
+            {
+                "latitude": [2.08, 12.4, -1.5],
+                "longitude": [11.5, 15.2, 8.1],
+                "count": [5, 3, 7],
+            }
+        )
+
+        mock_fig = Mock()
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
+        mock_scatter_map.return_value = mock_fig
+
+        params = InteractiveMapParams(map_type="scatter_map")
+
+        result = self.widget.render(df, params)
+
+        self.assertIn("plotly-graph-div", result)
+        call_args = mock_scatter_map.call_args
+        self.assertNotEqual(call_args[1].get("zoom"), 9.0)
+
+    @patch("plotly.express.scatter_map")
+    def test_render_preserves_explicit_zoom_when_auto_zoom_is_disabled(
+        self, mock_scatter_map
+    ):
+        """Explicit viewport settings must win over implicit auto-fit."""
+        df = pd.DataFrame(
+            {
+                "latitude": [2.08, 12.4, -1.5],
+                "longitude": [11.5, 15.2, 8.1],
+                "count": [5, 3, 7],
+            }
+        )
+
+        mock_fig = Mock()
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
+        mock_scatter_map.return_value = mock_fig
+
+        params = InteractiveMapParams(
+            map_type="scatter_map",
+            zoom=9.0,
+            center_lat=4.5,
+            center_lon=10.0,
+        )
+
+        result = self.widget.render(df, params)
+
+        self.assertIn("plotly-graph-div", result)
+        call_args = mock_scatter_map.call_args
+        self.assertEqual(call_args[1].get("zoom"), 9.0)
+        self.assertEqual(call_args[1].get("center"), {"lat": 4.5, "lon": 10.0})
+
     def test_render_with_error_handling(self):
         """Test render method with various error conditions."""
         df = pd.DataFrame({"latitude": [-21.0], "longitude": [165.0]})
