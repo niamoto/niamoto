@@ -189,6 +189,18 @@ fn desktop_hot_reload_enabled() -> bool {
             .unwrap_or(false)
 }
 
+fn desktop_devtools_auto_open_enabled() -> bool {
+    cfg!(debug_assertions)
+        && std::env::var("NIAMOTO_OPEN_DEVTOOLS")
+            .map(|value| {
+                matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(false)
+}
+
 fn desktop_api_port() -> u16 {
     if desktop_hot_reload_enabled() {
         std::env::var("NIAMOTO_DESKTOP_API_PORT")
@@ -389,6 +401,21 @@ fn navigate_inline_html(window: &tauri::WebviewWindow, html: &str) {
     }
 }
 
+fn startup_ready_url(
+    hot_reload_enabled: bool,
+    dev_url: Option<&Url>,
+    ready_port: u16,
+) -> Result<Url, String> {
+    if hot_reload_enabled {
+        return dev_url
+            .cloned()
+            .ok_or_else(|| "Missing devUrl for desktop hot reload mode".to_string());
+    }
+
+    Url::parse(&format!("http://127.0.0.1:{ready_port}"))
+        .map_err(|err| format!("Invalid backend startup URL: {err}"))
+}
+
 /// Show a loading screen with status message
 fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
     let html = format!(
@@ -585,7 +612,7 @@ pub fn run() {
             show_loading_status(&window, "Starting server...");
 
             #[cfg(debug_assertions)]
-            if desktop_hot_reload_enabled() {
+            if desktop_devtools_auto_open_enabled() {
                 window.open_devtools();
             }
 
@@ -848,28 +875,36 @@ pub fn run() {
                     &format!("server ready on http://127.0.0.1:{ready_port}"),
                 );
 
-                if hot_reload_enabled {
-                    println!("Reloading Tauri dev window to restore Vite HMR");
-                    let _ = window_clone.reload();
-                    write_startup_log(
-                        &startup_log_path_for_thread,
-                        &startup_session_for_thread,
-                        "rust",
-                        "reloaded Tauri dev window to restore Vite HMR",
-                    );
-                } else {
-                    // Navigate to the server URL
-                    let url = format!("http://127.0.0.1:{}", ready_port);
-                    println!("Loading URL: {}", url);
-                    if let Ok(parsed_url) = Url::parse(&url) {
-                        let _ = window_clone.navigate(parsed_url);
+                let startup_url = startup_ready_url(
+                    hot_reload_enabled,
+                    app_handle.config().build.dev_url.as_ref(),
+                    ready_port,
+                );
+                match startup_url {
+                    Ok(url) => {
+                        println!("Loading URL: {}", url);
+                        let _ = window_clone.navigate(url);
+                        write_startup_log(
+                            &startup_log_path_for_thread,
+                            &startup_session_for_thread,
+                            "rust",
+                            if hot_reload_enabled {
+                                "navigated back to Vite dev server after backend readiness"
+                            } else {
+                                "window navigated to backend after startup"
+                            },
+                        );
                     }
-                    write_startup_log(
-                        &startup_log_path_for_thread,
-                        &startup_session_for_thread,
-                        "rust",
-                        &format!("window navigated to backend after {:.3}s", startup_started.elapsed().as_secs_f64()),
-                    );
+                    Err(error_msg) => {
+                        show_error_screen(&window_clone, &error_msg);
+                        write_startup_log(
+                            &startup_log_path_for_thread,
+                            &startup_session_for_thread,
+                            "rust",
+                            &format!("failed to resolve startup URL: {error_msg}"),
+                        );
+                        return;
+                    }
                 }
 
                 println!("✓ Niamoto Desktop ready!");
@@ -923,6 +958,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{generate_startup_token, health_probe_is_authenticated};
+    use super::startup_ready_url;
+    use tauri::Url;
 
     #[test]
     fn generate_startup_token_returns_64_hex_chars() {
@@ -953,5 +990,24 @@ mod tests {
             Some("secret"),
             "secret"
         ));
+    }
+
+    #[test]
+    fn startup_ready_url_uses_dev_url_in_hot_reload_mode() {
+        let dev_url = Url::parse("http://127.0.0.1:5173").unwrap();
+        let resolved = startup_ready_url(true, Some(&dev_url), 8080).unwrap();
+        assert_eq!(resolved, dev_url);
+    }
+
+    #[test]
+    fn startup_ready_url_uses_backend_url_in_release_mode() {
+        let resolved = startup_ready_url(false, None, 8080).unwrap();
+        assert_eq!(resolved.as_str(), "http://127.0.0.1:8080/");
+    }
+
+    #[test]
+    fn startup_ready_url_requires_dev_url_in_hot_reload_mode() {
+        let error = startup_ready_url(true, None, 8080).unwrap_err();
+        assert!(error.contains("Missing devUrl"));
     }
 }

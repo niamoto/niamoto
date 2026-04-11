@@ -18,7 +18,7 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "devtools": false,
+        "devtools": true,
         "decorations": true,
         "titleBarStyle": "Overlay",
         "trafficLightPosition": {
@@ -44,7 +44,7 @@
         "script-src": "'self' 'unsafe-inline'",
         "worker-src": "'self' blob:"
       },
-      "freezePrototype": true
+      "freezePrototype": false
     }
   },
   "bundle": {
