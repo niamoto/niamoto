@@ -382,12 +382,11 @@ a,
   --titlebar-height: 32px;
 }
 
-/* Focus outline for keyboard navigation (native feel) */
+/* Focus outline — suppressed for desktop (native controls handle focus) */
 [data-platform="macos"] :focus-visible,
 [data-platform="windows"] :focus-visible,
 [data-platform="linux"] :focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* Remove focus outline from contenteditable/editor areas, command palette input,

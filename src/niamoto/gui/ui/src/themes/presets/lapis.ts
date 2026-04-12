@@ -5,8 +5,8 @@
  * Opaque surfaces, no blur — shadows define edges instead of borders.
  * Inspired by the Stripe design language: slate-blue palette, clean geometry.
  *
- * Accent: slate-blue (#32325d primary, #525f7f secondary, #8898aa muted)
- * Typography: Inter (clean, neutral)
+ * Accent: warm amber on slate-blue (#32325d primary, #525f7f secondary)
+ * Typography: Instrument Sans (precise, UI-focused)
  * Shapes: Tight radius (5px), precise corners
  * Shadows: Blue-slate tinted, multi-layered for micro-gradient feel
  * Dark mode: Deep navy #0a2540, NOT generic dark gray
@@ -28,9 +28,9 @@ export const lapisTheme: Theme = {
   preview: {
     primary: '#32325d',
     secondary: '#525f7f',
-    accent: '#3ecf8e',
+    accent: '#c4953f',
     background: '#f6f9fc',
-    fontDisplay: 'Inter',
+    fontDisplay: 'Instrument Sans',
     borderRadius: '5px',
   },
 
@@ -52,14 +52,14 @@ export const lapisTheme: Theme = {
     // Neutral — Blue-tinted muted tones (#8898aa range)
     muted: 'oklch(0.94 0.006 250)',
     mutedForeground: 'oklch(0.60 0.02 250)',
-    accent: 'oklch(0.72 0.16 160)',  // Vivid green #3ecf8e
-    accentForeground: 'oklch(0.15 0.03 270)',
+    accent: 'oklch(0.73 0.13 70)',  // Warm amber
+    accentForeground: 'oklch(0.18 0.03 70)',
 
     // Semantic
-    destructive: 'oklch(0.55 0.22 25)',
+    destructive: 'oklch(0.55 0.16 25)',
     destructiveForeground: 'oklch(0.98 0 0)',
-    success: 'oklch(0.72 0.16 160)',
-    successForeground: 'oklch(0.15 0.03 160)',
+    success: 'oklch(0.65 0.12 180)',  // Muted teal
+    successForeground: 'oklch(0.98 0 0)',
     warning: 'oklch(0.78 0.14 80)',
     warningForeground: 'oklch(0.20 0.06 80)',
     info: 'oklch(0.55 0.12 250)',
@@ -70,12 +70,12 @@ export const lapisTheme: Theme = {
     input: 'oklch(0.93 0.006 250)',
     ring: 'oklch(0.32 0.06 275)',
 
-    // Charts — Slate-blue palette with green accent
+    // Charts — Slate-blue palette with warm accents
     chart1: 'oklch(0.32 0.06 275)',   // Primary slate-blue
-    chart2: 'oklch(0.72 0.16 160)',   // Green accent
+    chart2: 'oklch(0.65 0.12 180)',   // Teal
     chart3: 'oklch(0.55 0.12 250)',   // Info blue
     chart4: 'oklch(0.78 0.14 80)',    // Warm amber
-    chart5: 'oklch(0.50 0.10 320)',   // Purple complement
+    chart5: 'oklch(0.58 0.09 350)',   // Soft rose
 
     // Data sources
     dataSourcePrimary: 'oklch(0.55 0.12 250)',
@@ -94,8 +94,8 @@ export const lapisTheme: Theme = {
     sidebarRing: 'oklch(0.32 0.06 275)',
 
     // Typography — Inter everywhere
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: '"Instrument Sans", system-ui, sans-serif',
+    fontBody: '"Instrument Sans", system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes — Tight, precise
@@ -143,14 +143,14 @@ export const lapisTheme: Theme = {
     // Neutral
     muted: 'oklch(0.25 0.03 250)',
     mutedForeground: 'oklch(0.62 0.02 250)',
-    accent: 'oklch(0.75 0.16 160)',  // Vivid green, brighter for dark
-    accentForeground: 'oklch(0.15 0.03 270)',
+    accent: 'oklch(0.78 0.13 70)',  // Warm amber, brighter for dark
+    accentForeground: 'oklch(0.18 0.03 70)',
 
     // Semantic
-    destructive: 'oklch(0.62 0.22 25)',
+    destructive: 'oklch(0.62 0.16 25)',
     destructiveForeground: 'oklch(0.15 0 0)',
-    success: 'oklch(0.75 0.16 160)',
-    successForeground: 'oklch(0.15 0.03 160)',
+    success: 'oklch(0.72 0.12 180)',  // Muted teal
+    successForeground: 'oklch(0.15 0.03 180)',
     warning: 'oklch(0.82 0.14 80)',
     warningForeground: 'oklch(0.18 0.06 80)',
     info: 'oklch(0.65 0.12 250)',
@@ -163,10 +163,10 @@ export const lapisTheme: Theme = {
 
     // Charts
     chart1: 'oklch(0.60 0.10 270)',   // Lighter slate-blue
-    chart2: 'oklch(0.75 0.16 160)',   // Green accent
+    chart2: 'oklch(0.72 0.12 180)',   // Teal
     chart3: 'oklch(0.65 0.12 250)',   // Info blue
     chart4: 'oklch(0.82 0.14 80)',    // Warm amber
-    chart5: 'oklch(0.58 0.10 320)',   // Purple complement
+    chart5: 'oklch(0.64 0.09 350)',   // Soft rose
 
     // Data sources
     dataSourcePrimary: 'oklch(0.65 0.12 250)',
@@ -185,8 +185,8 @@ export const lapisTheme: Theme = {
     sidebarRing: 'oklch(0.60 0.10 270)',
 
     // Typography
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: '"Instrument Sans", system-ui, sans-serif',
+    fontBody: '"Instrument Sans", system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes

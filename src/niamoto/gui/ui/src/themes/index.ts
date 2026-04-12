@@ -1,4 +1,3 @@
-import { isDesktopTauri } from '@/shared/desktop/tauri'
 
 /**
  * Niamoto Theme System
@@ -191,13 +190,13 @@ function tokenToCssVar(key: string): string {
 }
 
 // Track loaded font URLs to avoid duplicates
-const loadedFonts = new Set<string>()
 let localFontsLoaded = false
 
 /**
- * Load local fonts CSS for desktop mode (offline-ready).
+ * Load local fonts CSS (offline-ready, all modes).
  * The fonts.css file in /fonts/ contains @font-face rules pointing to
  * locally bundled WOFF2 files for all theme fonts.
+ * No external requests — works fully offline.
  */
 function loadLocalFonts(): void {
   if (localFontsLoaded) return
@@ -215,37 +214,9 @@ function loadLocalFonts(): void {
   localFontsLoaded = true
 }
 
-/**
- * Detect if running in Tauri desktop mode.
- * Checks for the official Tauri runtime bridge.
- */
-function isDesktopMode(): boolean {
-  return isDesktopTauri()
-}
-
-export function loadThemeFonts(theme: Theme): void {
-  if (!theme.fontsUrl) return
-
-  // In desktop mode: use local fonts (offline-ready)
-  if (isDesktopMode()) {
-    loadLocalFonts()
-    return
-  }
-
-  // In web mode: use Google Fonts CDN
-  if (loadedFonts.has(theme.fontsUrl)) return
-
-  const existingLink = document.querySelector(`link[href="${theme.fontsUrl}"]`)
-  if (existingLink) {
-    loadedFonts.add(theme.fontsUrl)
-    return
-  }
-
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = theme.fontsUrl
-  document.head.appendChild(link)
-  loadedFonts.add(theme.fontsUrl)
+export function loadThemeFonts(_theme: Theme): void {
+  // Always use local fonts — no external requests, works offline
+  loadLocalFonts()
 }
 
 export function applyTheme(theme: Theme, mode: 'light' | 'dark'): void {
@@ -277,13 +248,9 @@ export function getSystemMode(): 'light' | 'dark' {
 // RE-EXPORTS
 // ============================================================================
 
-export { laboratoryTheme } from './presets/laboratory'
 export { forestTheme } from './presets/forest'
 export { frondTheme } from './presets/frond'
-export { slateTheme } from './presets/slate'
-export { frostTheme } from './presets/frost'
-export { mistTheme } from './presets/mist'
 export { lapisTheme } from './presets/lapis'
 export { tidalTheme } from './presets/tidal'
-export { basaltTheme } from './presets/basalt'
 export { inkTheme } from './presets/ink'
+export { herbierTheme } from './presets/herbier'
