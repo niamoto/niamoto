@@ -29,6 +29,14 @@ CONSOLE_ENABLED = os.environ.get('NIAMOTO_PYINSTALLER_CONSOLE', 'true').strip().
 
 # Collect all Niamoto data files (YAML, templates, static files)
 datas = []
+seen_data_entries = set()
+
+
+def add_data_file(file_path: Path, relative_path: Path) -> None:
+    entry = (str(file_path), str(relative_path))
+    if entry not in seen_data_entries:
+        datas.append(entry)
+        seen_data_entries.add(entry)
 
 # Patterns to include (exclude node_modules, build artifacts)
 patterns = [
@@ -47,7 +55,18 @@ for pattern in patterns:
         if any(excluded in file.parts for excluded in exclude_dirs):
             continue
         relative_path = file.parent.relative_to(SRC_DIR)
-        datas.append((str(file), str(relative_path)))
+        add_data_file(file, relative_path)
+
+# Desktop packaged builds must ship the full publish/assets tree.
+# The generic extension-based glob above misses vendor JS, fonts, and images,
+# which breaks widget previews outside dev_desktop.
+publish_assets_dir = NIAMOTO_SRC / 'publish' / 'assets'
+if publish_assets_dir.exists():
+    print(f"[OK] Including publish assets from {publish_assets_dir}")
+    for file in publish_assets_dir.rglob('*'):
+        if file.is_file():
+            relative_path = file.parent.relative_to(SRC_DIR)
+            add_data_file(file, relative_path)
 
 # CRITICAL: Also include models directory if it exists
 models_dir = ROOT_DIR / 'models'
