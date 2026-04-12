@@ -228,10 +228,10 @@ export function SourcesOverview({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             {t('dashboard.readiness.title', 'Imported data')}
           </h1>
         </div>

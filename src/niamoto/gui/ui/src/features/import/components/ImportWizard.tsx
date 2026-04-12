@@ -456,11 +456,11 @@ export function ImportWizard() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-auto p-6">
-      <div className="space-y-6">
+    <div className="flex h-full flex-col overflow-auto p-4">
+      <div className="space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">{t('wizard.importData')}</h1>
+        <h1 className="text-xl font-semibold">{t('wizard.importData')}</h1>
         <p className="text-muted-foreground">
           {t('wizard.importDescription')}
         </p>
@@ -602,7 +602,7 @@ export function ImportWizard() {
 
           {/* Configuring Phase */}
           {phase === 'configuring' && (
-            <div className={`space-y-6 ${phaseTransitionClassName}`}>
+            <div className={`space-y-4 ${phaseTransitionClassName}`}>
               <div className="text-center">
                 <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
                   <Sparkles className="h-6 w-6 animate-pulse text-primary" />
@@ -699,7 +699,7 @@ export function ImportWizard() {
 
           {/* Idle Phase */}
           {phase === 'idle' && (
-            <div className={`space-y-6 ${phaseTransitionClassName}`}>
+            <div className={`space-y-4 ${phaseTransitionClassName}`}>
               <ExistingFilesSection
                 onFilesSelected={handleExistingFilesSelected}
                 disabled={isProcessing}

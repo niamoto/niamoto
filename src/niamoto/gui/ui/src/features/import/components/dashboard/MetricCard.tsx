@@ -55,12 +55,12 @@ export function MetricCard({
           onClick={onClick}
           disabled={!isInteractive}
         >
-          <div className="text-3xl font-bold leading-none tracking-tight">{value}</div>
+          <div className="text-2xl font-semibold leading-none tracking-tight">{value}</div>
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {label}
           </div>
           {sublabel ? (
-            <div className="text-sm text-muted-foreground">{sublabel}</div>
+            <div className="text-[13px] text-muted-foreground">{sublabel}</div>
           ) : null}
           {isInteractive && actionLabel ? (
             <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary">

@@ -79,7 +79,7 @@ export function PagesOverview({
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

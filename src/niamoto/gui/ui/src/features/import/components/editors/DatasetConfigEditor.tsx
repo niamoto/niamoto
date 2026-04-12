@@ -181,7 +181,7 @@ function DatasetConfigEditorForm({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Save status */}
       {mutation.isSuccess && (
         <Alert className="bg-success/10 border-success/30">

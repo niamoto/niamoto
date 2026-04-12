@@ -226,23 +226,23 @@ export function ApiSettingsPanel() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-dashed p-6 text-sm text-destructive">
+      <div className="rounded-lg border border-dashed p-4 text-sm text-destructive">
         {error instanceof Error ? error.message : t('collectionPanel.api.loadFailed')}
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 p-4">
       <div>
-        <h1 className="text-2xl font-bold">{t('collectionPanel.api.globalSettings')}</h1>
+        <h1 className="text-xl font-semibold">{t('collectionPanel.api.globalSettings')}</h1>
         <p className="mt-1 text-muted-foreground">
           {t('collectionPanel.api.globalSettingsDescription')}
         </p>
       </div>
 
       {!targets || targets.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
           {t('collectionPanel.api.empty')}
         </div>
       ) : (

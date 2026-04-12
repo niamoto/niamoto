@@ -130,12 +130,12 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
   }
 
   return (
-    <div className={embedded ? 'space-y-6 p-1' : 'h-full overflow-auto'}>
-      <div className={embedded ? 'space-y-6' : 'container mx-auto space-y-6 py-6'}>
+    <div className={embedded ? 'space-y-4 p-1' : 'h-full overflow-auto'}>
+      <div className={embedded ? 'space-y-4' : 'space-y-4 p-4'}>
       {!embedded && (
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">{t('history.title', 'History')}</h1>
+            <h1 className="text-xl font-semibold">{t('history.title', 'History')}</h1>
             <p className="text-muted-foreground">{t('history.description', 'View build and deployment history')}</p>
           </div>
         </div>
@@ -145,13 +145,13 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{buildHistory.length}</div>
+            <div className="text-xl font-semibold">{buildHistory.length}</div>
             <p className="text-xs text-muted-foreground">{t('history.totalBuilds', 'Builds')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-green-500">
+            <div className="text-xl font-semibold text-green-500">
               {buildHistory.filter(b => b.status === 'completed').length}
             </div>
             <p className="text-xs text-muted-foreground">{t('history.successfulBuilds', 'Successful Builds')}</p>
@@ -159,13 +159,13 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{deployHistory.length}</div>
+            <div className="text-xl font-semibold">{deployHistory.length}</div>
             <p className="text-xs text-muted-foreground">{t('history.totalDeploys', 'Deployments')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-green-500">
+            <div className="text-xl font-semibold text-green-500">
               {deployHistory.filter(d => d.status === 'completed').length}
             </div>
             <p className="text-xs text-muted-foreground">{t('history.successfulDeploys', 'Successful Deployments')}</p>

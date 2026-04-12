@@ -71,7 +71,7 @@ export function VerificationView({
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>{t('dashboard.errors.loadTitle')}</AlertTitle>
@@ -84,10 +84,10 @@ export function VerificationView({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-auto p-6">
+    <div className="flex h-full flex-col overflow-auto p-4">
       <div className="space-y-4">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             {t('dashboard.verification.title', 'Verification tools')}
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">

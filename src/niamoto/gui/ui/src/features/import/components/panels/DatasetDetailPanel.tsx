@@ -90,7 +90,7 @@ export function DatasetDetailPanel({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 pb-4 border-b">
+      <div className="flex items-center justify-between border-b p-4 pb-3">
         <div className="flex items-center gap-4">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack}>
@@ -98,8 +98,8 @@ export function DatasetDetailPanel({
             </Button>
           )}
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Table2 className="h-6 w-6 text-primary" />
+            <h1 className="flex items-center gap-2 text-xl font-semibold">
+              <Table2 className="h-5 w-5 text-primary" />
               {datasetName}
             </h1>
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -174,7 +174,7 @@ export function DatasetDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview" className="gap-1">
@@ -189,7 +189,7 @@ export function DatasetDetailPanel({
 
           <PanelTransition transitionKey={activeTab} className="min-h-0">
             {activeTab === 'overview' ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -221,7 +221,7 @@ export function DatasetDetailPanel({
                 </Card>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <DatasetConfigEditor datasetName={datasetName} />
               </div>
             )}

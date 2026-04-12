@@ -644,7 +644,7 @@ export default function PublishOverview() {
   )
 
   const actionsContent = (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-4 p-4">
       <Card>
         <CardHeader>
           <CardTitle>{t('build.configuration', 'Generation settings')}</CardTitle>
@@ -933,7 +933,7 @@ export default function PublishOverview() {
         </div>
       </div>
 
-      <div className="hidden min-h-0 flex-1 xl:grid xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:gap-6 xl:px-6 xl:py-6">
+      <div className="hidden min-h-0 flex-1 xl:grid xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:gap-4 xl:px-4 xl:py-4">
         <Card className="flex min-h-0 flex-col overflow-hidden">
           <ScrollArea className="h-full">
             {actionsContent}

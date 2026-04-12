@@ -58,7 +58,7 @@ function StepPresetSelector({
   return (
     <div className="flex flex-col items-center justify-center min-h-[350px]">
       <h2 className="text-xl font-semibold mb-2">{t('presets.title')}</h2>
-      <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
+      <p className="mb-4 max-w-md text-center text-sm text-muted-foreground">
         {t('presets.description')}
       </p>
       <div className="grid gap-4 sm:grid-cols-3 w-full max-w-2xl">
@@ -184,24 +184,24 @@ function StepPreview({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[300px]">
-      <div className="text-center mb-6">
+      <div className="mb-4 text-center">
         <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
           <Check className="h-8 w-8 text-green-600" />
         </div>
         <h3 className="font-medium text-lg">{t('wizard.step4')}</h3>
         <p className="text-sm text-muted-foreground mt-1">{t('wizard.step4Desc')}</p>
       </div>
-      <div className="grid grid-cols-3 gap-6 text-center">
+      <div className="grid grid-cols-3 gap-4 text-center">
         <div>
-          <p className="text-2xl font-semibold">{pages.length}</p>
+          <p className="text-xl font-semibold">{pages.length}</p>
           <p className="text-xs text-muted-foreground">pages</p>
         </div>
         <div>
-          <p className="text-2xl font-semibold">{menuCount}</p>
+          <p className="text-xl font-semibold">{menuCount}</p>
           <p className="text-xs text-muted-foreground">menu items</p>
         </div>
         <div>
-          <p className="text-2xl font-semibold">{tree.filter(i => i.type === 'collection').length}</p>
+          <p className="text-xl font-semibold">{tree.filter(i => i.type === 'collection').length}</p>
           <p className="text-xs text-muted-foreground">collections</p>
         </div>
       </div>
@@ -280,9 +280,9 @@ export function SiteSetupWizard({
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6">
+      <div className="p-4">
         {/* Header with progress */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">{t('wizard.title')}</h1>
             <p className="text-xs text-muted-foreground">
@@ -296,7 +296,7 @@ export function SiteSetupWizard({
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="mb-6 flex items-center gap-2">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center gap-2 flex-1">
               <div className={cn(

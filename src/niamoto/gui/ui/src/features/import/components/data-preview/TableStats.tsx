@@ -43,7 +43,7 @@ export function TableStats({ tableName, kind, hierarchyLevels }: TableStatsProps
         <CardContent className="flex items-center gap-3 p-4">
           <Database className="h-8 w-8 text-blue-500" />
           <div>
-            <div className="text-2xl font-bold">{tableInfo.count.toLocaleString()}</div>
+            <div className="text-xl font-semibold">{tableInfo.count.toLocaleString()}</div>
             <div className="text-xs text-muted-foreground">Lignes</div>
           </div>
         </CardContent>
@@ -53,7 +53,7 @@ export function TableStats({ tableName, kind, hierarchyLevels }: TableStatsProps
         <CardContent className="flex items-center gap-3 p-4">
           <Columns className="h-8 w-8 text-green-500" />
           <div>
-            <div className="text-2xl font-bold">{tableInfo.columns.length}</div>
+            <div className="text-xl font-semibold">{tableInfo.columns.length}</div>
             <div className="text-xs text-muted-foreground">Colonnes</div>
           </div>
         </CardContent>

@@ -223,7 +223,7 @@ export function TemplateList({ templates, onSelect, onBack }: TemplateListProps)
 
       {/* Template list */}
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
+        <div className="space-y-4 p-4">
           {Array.from(groupedTemplates.entries()).map(([category, items]) => (
             <div key={category}>
               {/* Category header */}

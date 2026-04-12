@@ -169,14 +169,14 @@ export function ApiDocs() {
 
   return (
     <div className="h-full w-full flex flex-col overflow-auto">
-      <div className="p-6 border-b">
-        <h1 className="text-2xl font-bold">API Documentation</h1>
+      <div className="border-b p-4">
+        <h1 className="text-xl font-semibold">API Documentation</h1>
         <p className="text-sm text-muted-foreground mt-1">
           API REST complète pour automatisation et intégration externe
         </p>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-4">
         {/* Vue d'ensemble */}
         <Card>
           <CardHeader className="cursor-pointer" onClick={() => setShowOverview(!showOverview)}>

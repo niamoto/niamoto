@@ -166,9 +166,9 @@ export function Settings() {
   }
 
   return (
-    <div className="container mx-auto h-full space-y-6 overflow-auto p-6">
+    <div className="container mx-auto h-full space-y-4 overflow-auto p-4">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-xl font-semibold tracking-tight">
           {t('settings.title', 'Settings')}
         </h1>
         <p className="text-muted-foreground">

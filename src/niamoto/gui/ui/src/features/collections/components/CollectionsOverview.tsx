@@ -350,10 +350,10 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
   }
 
   return (
-    <div className="min-w-0 space-y-6 p-6">
+    <div className="min-w-0 space-y-4 p-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('collections.title', 'Collections')}</h1>
+          <h1 className="text-xl font-semibold">{t('collections.title', 'Collections')}</h1>
           {hasTrackedTransformJob ? (
             <p className="mt-1 flex items-center gap-2 text-muted-foreground">
               <SquareCascadeLoader className="h-[16px] w-[16px] gap-[2px]" squareClassName="h-[7px] w-[7px]" />
