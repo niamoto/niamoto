@@ -813,6 +813,7 @@
       "errorToast": "Erreur : {{message}}",
       "failedToast": "Le calcul a échoué",
       "exportRunning": "Un export est en cours, veuillez patienter",
+      "pipelineRunning": "Un calcul ou un export est en cours, veuillez patienter",
       "noWidgetsTooltip": "Configurez au moins un widget avant de lancer le calcul",
       "noWidgetsConfigured": "Configurez au moins un widget avant de lancer le calcul"
     },

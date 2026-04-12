@@ -227,6 +227,15 @@ class TestGetLastRun:
         store.complete_job(job["id"])
         assert store.get_last_run("transform", group_by="plots") is None
 
+    def test_matches_group_inside_group_bys(self, store: JobFileStore):
+        job = store.create_job("transform", group_bys=["plots", "taxons"])
+        store.complete_job(job["id"])
+
+        last = store.get_last_run("transform", group_by="plots")
+
+        assert last is not None
+        assert last["id"] == job["id"]
+
 
 class TestClearHistory:
     def test_clears_only_requested_job_type(self, store: JobFileStore):

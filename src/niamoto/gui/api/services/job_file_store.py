@@ -185,7 +185,12 @@ class JobFileStore:
             active = self._read_active()
             if active and active["status"] in TERMINAL_STATUSES:
                 if active["type"] == job_type:
-                    if group_by is None or active.get("group_by") == group_by:
+                    active_groups = active.get("group_bys") or []
+                    if (
+                        group_by is None
+                        or active.get("group_by") == group_by
+                        or group_by in active_groups
+                    ):
                         if status is None or active["status"] == status:
                             return active
 
@@ -199,7 +204,12 @@ class JobFileStore:
                 except json.JSONDecodeError:
                     continue
                 if entry["type"] == job_type:
-                    if group_by is None or entry.get("group_by") == group_by:
+                    entry_groups = entry.get("group_bys") or []
+                    if (
+                        group_by is None
+                        or entry.get("group_by") == group_by
+                        or group_by in entry_groups
+                    ):
                         if status is None or entry.get("status") == status:
                             return entry
             return None

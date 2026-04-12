@@ -7,11 +7,11 @@
  * - Export: API export configuration
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
-import { Loader2, ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check } from 'lucide-react'
+import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,14 +30,12 @@ import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
 import { PanelTransition } from '@/components/motion/PanelTransition'
 import { useConfiguredWidgets } from '@/components/widgets'
+import { SquareCascadeLoader } from '@/components/ui/square-cascade-loader'
 import {
-  executeTransformAndWait,
-  getActiveTransformJob,
-  getLastTransformRun,
-  getTransformStatus,
-  type TransformStatus,
-} from '@/lib/api/transform'
-import { getActiveExportJob } from '@/lib/api/export'
+  useCollectionTransformState,
+  useStartTransformJob,
+} from '@/features/collections/hooks/useCollectionTransforms'
+import { useNotificationStore } from '@/stores/notificationStore'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
@@ -53,7 +51,18 @@ export function CollectionPanel({
   const { data: referencesData } = useReferences()
   const references = referencesData?.references ?? []
   const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
+  const [isStartingTransform, setIsStartingTransform] = useState(false)
+  const [ownedTransformJobId, setOwnedTransformJobId] = useState<string | null>(null)
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
+  const notifications = useNotificationStore((state) => state.notifications)
+  const startTransformJob = useStartTransformJob()
+  const {
+    groupStatus,
+    isTransforming,
+    transformProgress,
+    transformMessage,
+    isBlockedByOtherPipelineJob,
+  } = useCollectionTransformState(reference.name)
 
   // Sync active tab when initialTab changes (e.g. from overview shortcuts)
   useEffect(() => {
@@ -62,19 +71,6 @@ export function CollectionPanel({
     }
   }, [initialTab])
 
-  // Transform job state
-  const [isTransforming, setIsTransforming] = useState(false)
-  const [transformProgress, setTransformProgress] = useState(0)
-  const [transformMessage, setTransformMessage] = useState('')
-  const [lastRun, setLastRun] = useState<TransformStatus | null>(null)
-  const [exportRunning, setExportRunning] = useState(false)
-  const cancelledRef = useRef(false)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const polledJobIdRef = useRef<string | null>(null)
-  const notifiedTerminalJobsRef = useRef<Set<string>>(new Set())
-  // Track whether runTransform owns the current job (to avoid double toast)
-  const ownedByRunTransformRef = useRef(false)
-
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
     hierarchical: t('collectionPanel.kinds.hierarchical'),
@@ -82,168 +78,61 @@ export function CollectionPanel({
     spatial: t('collectionPanel.kinds.spatial'),
   }
 
-  // Stop any active polling
-  const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-    polledJobIdRef.current = null
-  }, [])
-
-  const notifyTransformTerminal = useCallback((
-    jobId: string,
-    status: 'completed' | 'failed',
-    errorMessage?: string | null
-  ) => {
-    const notificationKey = `${jobId}:${status}`
-    if (notifiedTerminalJobsRef.current.has(notificationKey)) {
+  useEffect(() => {
+    if (!ownedTransformJobId) {
       return
     }
-    notifiedTerminalJobsRef.current.add(notificationKey)
-
-    if (status === 'completed') {
+    const terminalNotification = notifications.find(
+      (notification) =>
+        notification.jobId === ownedTransformJobId
+        && notification.jobType === 'transform'
+    )
+    if (!terminalNotification) {
+      return
+    }
+    if (terminalNotification.status === 'completed') {
       toast.success(t('collectionPanel.transform.successToast', { name: reference.name }), {
-        id: `collection-transform-${jobId}`,
+        id: `collection-transform-${ownedTransformJobId}`,
       })
     } else {
-      toast.error(errorMessage || t('collectionPanel.transform.failedToast'), {
-        id: `collection-transform-${jobId}`,
+      toast.error(terminalNotification.message || t('collectionPanel.transform.failedToast'), {
+        id: `collection-transform-${ownedTransformJobId}`,
       })
     }
-  }, [reference.name, t])
+    setOwnedTransformJobId(null)
+  }, [notifications, ownedTransformJobId, reference.name, t])
 
-  // Poll an already-running job until it completes (guarded by cancelledRef).
-  // Only used for jobs discovered on mount (not launched by runTransform).
-  const pollRunningJob = useCallback((jobId: string) => {
-    // If runTransform owns this job, don't double-poll
-    if (ownedByRunTransformRef.current) return
-    if (polledJobIdRef.current === jobId && pollIntervalRef.current) return
-
-    stopPolling()
-    polledJobIdRef.current = jobId
-
-    setIsTransforming(true)
-    let polling = false // guard against async overlap
-    const interval = setInterval(async () => {
-      if (cancelledRef.current || polling) return
-      polling = true
-      try {
-        const status = await getTransformStatus(jobId)
-        if (cancelledRef.current) return
-        setTransformProgress(status.progress)
-        setTransformMessage(status.message)
-        if (status.status === 'completed' || status.status === 'failed') {
-          stopPolling()
-          setIsTransforming(false)
-          setTransformProgress(0)
-          setTransformMessage('')
-          if (status.status === 'completed') {
-            setLastRun(status)
-            notifyTransformTerminal(jobId, 'completed')
-          } else {
-            notifyTransformTerminal(jobId, 'failed', status.error)
-          }
-        }
-      } catch {
-        if (!cancelledRef.current) {
-          stopPolling()
-          setIsTransforming(false)
-        }
-      } finally {
-        polling = false
-      }
-    }, 1000)
-    pollIntervalRef.current = interval
-  }, [notifyTransformTerminal, stopPolling])
-
-  // Load last run info on mount + resume polling if job is running
-  useEffect(() => {
-    cancelledRef.current = false
-
-    getLastTransformRun(reference.name)
-      .then((run) => {
-        if (!cancelledRef.current) setLastRun(run)
-      })
-      .catch(() => {})
-
-    // Check if a transform is already running for THIS collection
-    getActiveTransformJob()
-      .then((job) => {
-        if (cancelledRef.current) return
-        if (job && job.status === 'running' && job.group_by === reference.name) {
-          setTransformProgress(job.progress)
-          setTransformMessage(job.message)
-          pollRunningJob(job.job_id)
-        }
-      })
-      .catch(() => {})
-
-    // Check if an export or transform on another collection is running (disable button)
-    getActiveExportJob()
-      .then((job) => {
-        if (cancelledRef.current) return
-        setExportRunning(job != null && job.status === 'running')
-      })
-      .catch(() => {})
-
-    // Also disable if a transform is running on a different collection
-    getActiveTransformJob()
-      .then((job) => {
-        if (cancelledRef.current) return
-        if (job && job.status === 'running' && job.group_by !== reference.name) {
-          setExportRunning(true) // reuse flag to disable the button
-        }
-      })
-      .catch(() => {})
-
-    return () => {
-      cancelledRef.current = true
-      stopPolling()
-    }
-  }, [reference.name, pollRunningJob, stopPolling])
-
-  const runTransform = useCallback(async () => {
+  const runTransform = async () => {
     if (configuredIds.length === 0) {
       toast.error(t('collectionPanel.transform.noWidgetsConfigured'))
       return
     }
 
-    ownedByRunTransformRef.current = true
-    setIsTransforming(true)
-    setTransformProgress(0)
-    setTransformMessage(t('collectionPanel.transform.starting'))
-
+    setIsStartingTransform(true)
     try {
-      const result = await executeTransformAndWait(
-        { group_by: reference.name },
-        (progress, message) => {
-          setTransformProgress(progress)
-          setTransformMessage(message)
-        }
-      )
-      setLastRun(result)
-      notifyTransformTerminal(result.job_id, 'completed')
+      const response = await startTransformJob({
+        groups: [reference.name],
+        trackingMessage: t('collectionPanel.transform.starting'),
+      })
+      setOwnedTransformJobId(response.job_id)
     } catch (error) {
       toast.error(t('collectionPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }), {
         id: `collection-transform-${reference.name}-error`,
       })
     } finally {
-      ownedByRunTransformRef.current = false
-      setIsTransforming(false)
-      setTransformProgress(0)
-      setTransformMessage('')
+      setIsStartingTransform(false)
     }
-  }, [configuredIds.length, notifyTransformTerminal, reference.name, t])
+  }
 
   // Format relative time for last run
-  const lastRunLabel = lastRun?.completed_at
-    ? formatRelativeTime(lastRun.completed_at, t)
+  const lastRunLabel = groupStatus?.last_run_at
+    ? formatRelativeTime(groupStatus.last_run_at, t)
     : null
   const cannotRunWithoutWidgets = !widgetsLoading && configuredIds.length === 0
-  const runButtonDisabled = isTransforming || exportRunning || widgetsLoading || cannotRunWithoutWidgets
-  const runButtonTitle = exportRunning
-    ? t('collectionPanel.transform.exportRunning')
+  const isBusy = isStartingTransform || isTransforming
+  const runButtonDisabled = isBusy || isBlockedByOtherPipelineJob || widgetsLoading || cannotRunWithoutWidgets
+  const runButtonTitle = isBlockedByOtherPipelineJob
+    ? t('collectionPanel.transform.pipelineRunning')
     : cannotRunWithoutWidgets
       ? t('collectionPanel.transform.noWidgetsTooltip')
       : undefined
@@ -338,11 +227,13 @@ export function CollectionPanel({
           </span>
 
           {/* Last run status */}
-          {lastRunLabel && !isTransforming && (
+          {lastRunLabel && !isBusy && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
-              {lastRun?.status === 'completed' ? (
+              {groupStatus?.status === 'fresh' ? (
                 <CheckCircle className="h-3 w-3 text-green-500" />
-              ) : lastRun?.status === 'failed' ? (
+              ) : groupStatus?.status === 'stale' ? (
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+              ) : groupStatus?.status === 'error' ? (
                 <XCircle className="h-3 w-3 text-destructive" />
               ) : null}
               {lastRunLabel}
@@ -357,10 +248,10 @@ export function CollectionPanel({
             disabled={runButtonDisabled}
             title={runButtonTitle}
           >
-            {isTransforming ? (
+            {isBusy ? (
               <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                {transformProgress}%
+                <SquareCascadeLoader className="mr-1.5 h-[14px] w-[14px] gap-[2px]" squareClassName="h-[6px] w-[6px]" />
+                {typeof transformProgress === 'number' && transformProgress > 0 ? `${transformProgress}%` : t('collectionPanel.transform.starting')}
               </>
             ) : (
               <>
@@ -372,10 +263,12 @@ export function CollectionPanel({
         </div>
 
         {/* Progress bar during transform */}
-        {isTransforming && (
+        {isBusy && (
           <div className="px-4 py-1 border-b">
-            <Progress value={transformProgress} className="h-1.5" />
-            <p className="text-[10px] text-muted-foreground mt-0.5">{transformMessage}</p>
+            <Progress value={transformProgress > 0 ? transformProgress : 5} className="h-1.5" />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {transformMessage || t('collectionPanel.transform.starting')}
+            </p>
           </div>
         )}
 

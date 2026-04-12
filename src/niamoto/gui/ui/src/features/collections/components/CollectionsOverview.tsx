@@ -6,18 +6,20 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   usePipelineStatus,
   type EntityStatus,
 } from '@/hooks/usePipelineStatus'
-import { useQueryClient } from '@tanstack/react-query'
 import { useConfiguredWidgets } from '@/components/widgets'
 import { useApiExportTargets } from '@/features/collections/hooks/useApiExportConfigs'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import type { CollectionsSelection } from './CollectionsTree'
-import { executeTransform } from '@/lib/api/transform'
 import { useNotificationStore } from '@/stores/notificationStore'
+import {
+  getTransformJobGroups,
+  useStartTransformJob,
+} from '@/features/collections/hooks/useCollectionTransforms'
 import {
   Card,
   CardContent,
@@ -249,12 +251,11 @@ interface CollectionsOverviewProps {
 
 export function CollectionsOverview({ references, onSelect }: CollectionsOverviewProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const queryClient = useQueryClient()
   const { data: pipelineStatus } = usePipelineStatus()
   const trackedJobs = useNotificationStore((state) => state.trackedJobs)
-  const trackJob = useNotificationStore((state) => state.trackJob)
+  const startTransformJob = useStartTransformJob()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submittingGroupName, setSubmittingGroupName] = useState<string | null>(null)
+  const [pendingGroups, setPendingGroups] = useState<string[]>([])
   const fallbackStatus = pipelineStatus?.groups?.status === 'unconfigured' ? 'unconfigured' : undefined
 
   // Build a map of entity statuses by name
@@ -279,52 +280,36 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
 
   const runningJob = pipelineStatus?.running_job
   const isTransformRunning = runningJob?.type === 'transform'
+  const trackedTransformJob = trackedJobs.find((job) => job.jobType === 'transform')
+  const hasTrackedTransformJob = isTransformRunning || Boolean(trackedTransformJob)
   const hasActivePipelineJob =
     trackedJobs.some((job) => job.jobType === 'transform' || job.jobType === 'export')
     || runningJob?.type === 'transform'
     || runningJob?.type === 'export'
-  const runningGroups = new Set(
-    isTransformRunning
-      ? runningJob.group_bys?.length
-        ? runningJob.group_bys
-        : runningJob.group_by
-          ? [runningJob.group_by]
-          : []
-      : []
-  )
-  if (submittingGroupName && !runningGroups.has(submittingGroupName) && !isSubmitting) {
-    runningGroups.add(submittingGroupName)
-  }
-
-  useEffect(() => {
-    if (submittingGroupName && isTransformRunning) {
-      setSubmittingGroupName(null)
-    }
-  }, [isTransformRunning, submittingGroupName])
-
-  const startTransform = async (groups: string[], successCount: number, singleGroupName?: string) => {
+  const trackedTransformGroups = trackedJobs
+    .filter((job) => job.jobType === 'transform')
+    .flatMap((job) => getTransformJobGroups(job))
+  const runningGroups = new Set([
+    ...getTransformJobGroups(isTransformRunning ? runningJob : null),
+    ...trackedTransformGroups,
+    ...pendingGroups,
+  ])
+  const startTransform = async (groups: string[], successCount: number) => {
     if (groups.length === 0) {
       toast.error(t('collections.overviewRunVisibleEmpty'))
       return
     }
 
     setIsSubmitting(true)
-    setSubmittingGroupName(singleGroupName ?? null)
+    setPendingGroups(groups)
     try {
-      const response = await executeTransform({
-        group_bys: groups,
-      })
-      trackJob({
-        jobId: response.job_id,
-        jobType: 'transform',
-        status: 'running',
-        progress: 0,
-        message: t('collections.overviewRunVisibleTrackingMessage', {
+      const response = await startTransformJob({
+        groups,
+        trackingMessage: t('collections.overviewRunVisibleTrackingMessage', {
           count: successCount,
         }),
-        startedAt: response.started_at,
       })
-      void queryClient.invalidateQueries({ queryKey: ['pipeline-status'] })
+      setPendingGroups([])
       toast.success(
         t('collections.overviewRunVisibleStarted', {
           count: successCount,
@@ -332,7 +317,7 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
         { id: `collections-overview-${response.job_id}` }
       )
     } catch (error) {
-      setSubmittingGroupName(null)
+      setPendingGroups([])
       toast.error(
         error instanceof Error
           ? error.message
@@ -351,7 +336,7 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
   }
 
   const handleRunSingleCollection = async (reference: ReferenceInfo) => {
-    await startTransform([reference.name], 1, reference.name)
+    await startTransform([reference.name], 1)
   }
 
   return (
@@ -359,12 +344,14 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('collections.title', 'Collections')}</h1>
-          {isTransformRunning ? (
+          {hasTrackedTransformJob ? (
             <p className="mt-1 flex items-center gap-2 text-muted-foreground">
               <SquareCascadeLoader className="h-[16px] w-[16px] gap-[2px]" squareClassName="h-[7px] w-[7px]" />
               <span>
-                {runningJob.message || t('collections.overviewRunVisibleSubmitting')}
-                {typeof runningJob.progress === 'number' ? ` (${runningJob.progress}%)` : ''}
+                {(runningJob?.message || trackedTransformJob?.message || t('collections.overviewRunVisibleSubmitting'))}
+                {typeof (runningJob?.progress ?? trackedTransformJob?.progress) === 'number'
+                  ? ` (${runningJob?.progress ?? trackedTransformJob?.progress}%)`
+                  : ''}
               </span>
             </p>
           ) : (
@@ -378,12 +365,12 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
           disabled={isSubmitting || hasActivePipelineJob || targetReferences.length === 0}
           className="shrink-0"
         >
-          {isSubmitting || isTransformRunning ? (
+          {isSubmitting || hasTrackedTransformJob ? (
             <SquareCascadeLoader className="mr-2 h-[16px] w-[16px] gap-[2px]" squareClassName="h-[7px] w-[7px]" />
           ) : (
             <Play className="mr-2 h-4 w-4" />
           )}
-          {isSubmitting || isTransformRunning
+          {isSubmitting || hasTrackedTransformJob
             ? t('collections.overviewRunVisibleSubmitting')
             : eligibleReferences.length > 0
               ? t('collections.overviewRunVisible', { count: eligibleReferences.length })
@@ -396,8 +383,8 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
             key={ref.name}
             reference={ref}
             isRunning={runningGroups.has(ref.name)}
-            isSubmitting={submittingGroupName === ref.name}
-            isDisabled={Boolean(hasActivePipelineJob && !runningGroups.has(ref.name) && submittingGroupName !== ref.name)}
+            isSubmitting={pendingGroups.includes(ref.name)}
+            isDisabled={Boolean(hasActivePipelineJob && !runningGroups.has(ref.name) && !pendingGroups.includes(ref.name))}
             entityStatus={
               statusByName.get(ref.name) ??
               (fallbackStatus ? ({ name: ref.name, status: fallbackStatus, last_run_at: null, reason: null } as EntityStatus) : undefined)
