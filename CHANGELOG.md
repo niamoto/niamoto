@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.2] - 2026-04-12
+
+### Features
+
+- Unify desktop and app startup loaders
+- Add desktop debug mode and feedback fallback
+
+### Bug Fixes
+
+- Clarify collection batch progress
+- Clear stale widget suggestion caches after import
+- Hide sidebar branding in desktop builds
+
+### Refactoring
+
+- Overhaul theme system — consolidate to 6 themes, unique fonts, offline fonts, font selector
+- Unify collection transform state
+
+### Other
+
+- Desaturate herbier accent color — subtler stone tone
+
 ## [v0.14.1] - 2026-04-11
 
 ### Bug Fixes
