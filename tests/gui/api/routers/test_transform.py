@@ -84,3 +84,26 @@ async def test_execute_transform_background_filters_requested_group_bys(
         "widget_a",
         "widget_c",
     }
+
+
+def test_transform_status_keeps_group_metadata() -> None:
+    status = transform_router.TransformStatus(
+        **transform_router._job_to_status(
+            {
+                "id": "job-1",
+                "status": "running",
+                "progress": 25,
+                "message": "Processing shapes",
+                "phase": None,
+                "group_by": None,
+                "group_bys": ["plots", "taxons"],
+                "started_at": "2026-04-12T09:00:00",
+                "completed_at": None,
+                "result": None,
+                "error": None,
+            }
+        )
+    )
+
+    assert status.group_by is None
+    assert status.group_bys == ["plots", "taxons"]

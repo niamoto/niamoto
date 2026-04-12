@@ -22,7 +22,7 @@ export interface TrackedJob {
   phase?: string | null
   startedAt: string
   /** Pour enrichment : le reference_name nécessaire au polling */
-  meta?: { referenceName?: string }
+  meta?: { referenceName?: string; referenceNames?: string[] }
 }
 
 export interface AppNotification {

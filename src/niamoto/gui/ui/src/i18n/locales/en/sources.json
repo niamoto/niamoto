@@ -813,6 +813,7 @@
       "errorToast": "Error: {{message}}",
       "failedToast": "Computation failed",
       "exportRunning": "An export is in progress, please wait",
+      "pipelineRunning": "A computation or export is already running, please wait",
       "noWidgetsTooltip": "Configure at least one widget before running computation",
       "noWidgetsConfigured": "Configure at least one widget before running computation"
     },

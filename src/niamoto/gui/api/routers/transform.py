@@ -53,6 +53,8 @@ class TransformStatus(BaseModel):
     progress: int  # 0-100
     message: str
     phase: Optional[str] = None
+    group_by: Optional[str] = None
+    group_bys: Optional[List[str]] = None
     started_at: datetime
     completed_at: Optional[datetime] = None
     result: Optional[Dict[str, Any]] = None
@@ -312,6 +314,7 @@ def _job_to_status(job: dict) -> dict:
         "message": job.get("message", ""),
         "phase": job.get("phase"),
         "group_by": job.get("group_by"),
+        "group_bys": job.get("group_bys"),
         "started_at": job["started_at"],
         "completed_at": job.get("completed_at"),
         "result": job.get("result"),
