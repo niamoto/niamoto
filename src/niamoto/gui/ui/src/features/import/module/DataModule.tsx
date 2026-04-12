@@ -131,7 +131,7 @@ export function DataModule() {
         const dataset = datasets.find((d) => d.name === selection.name)
         if (!dataset) {
           return (
-            <div className="flex items-center justify-center h-full p-6">
+            <div className="flex h-full items-center justify-center p-4">
               <p className="text-muted-foreground">
                 {t('detail.datasetNotFound', 'Dataset not found')}
               </p>
@@ -152,7 +152,7 @@ export function DataModule() {
         const reference = references.find((r) => r.name === selection.name)
         if (!reference) {
           return (
-            <div className="flex items-center justify-center h-full p-6">
+            <div className="flex h-full items-center justify-center p-4">
               <p className="text-muted-foreground">
                 {t('detail.referenceNotFound', 'Reference not found')}
               </p>
@@ -203,7 +203,7 @@ export function DataModule() {
         }
 
         return (
-          <div className="h-full overflow-auto p-6">
+          <div className="h-full overflow-auto p-4">
             <SourcesOverview
               onExploreDataset={(name) => handleSelect({ type: 'dataset', name })}
               onExploreReference={(name) => handleSelect({ type: 'reference', name })}

@@ -59,10 +59,10 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
 
   return (
       <div
-        className={cn(
-          'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
-          isCompact ? (isMac && isDesktop ? 'w-20' : 'w-16') : 'w-52',
-          className
+          className={cn(
+            'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
+            isCompact ? (isMac && isDesktop ? 'w-20' : 'w-16') : 'w-52',
+            className
         )}
       >
       {/* Header behavior:
@@ -73,7 +73,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         <div
           data-tauri-drag-region={showDesktopTrafficLightStrip ? true : undefined}
           className={cn(
-            'flex h-14 shrink-0 items-center border-b',
+            'flex h-12 shrink-0 items-center border-b',
             isCompact ? 'justify-center px-0' : 'gap-2 px-4'
           )}
         >
@@ -108,7 +108,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         )}
 
         {/* Navigation — Flat rail */}
-        <nav className="flex-1 py-4 px-2 space-y-1">
+        <nav className="flex-1 px-2 py-3 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.matchPrefix)
@@ -120,7 +120,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                 <NavLink
                   to={item.path}
                   className={cn(
-                    'flex items-center gap-3 rounded-theme-md px-3 py-2.5 text-sm font-medium transition-theme-fast',
+                    'flex items-center gap-2.5 rounded-theme-md px-2.5 py-2 text-sm font-medium transition-theme-fast',
                     'hover:bg-accent hover:text-accent-foreground',
                     active && 'bg-accent text-accent-foreground',
                     !active && 'text-muted-foreground',
@@ -128,7 +128,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                   )}
                   title={isCompact ? t(item.labelKey, item.fallbackLabel) : undefined}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <Icon className="h-4 w-4 shrink-0" />
                   {!isCompact && (
                     <span>{t(item.labelKey, item.fallbackLabel)}</span>
                   )}
@@ -173,7 +173,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         {!isCompact && (
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="mx-3 mb-2 flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-theme-fast"
+            className="mx-3 mb-2 flex items-center gap-2 rounded-theme-sm px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-theme-fast"
           >
             <Command className="h-3 w-3" />
             <span>K</span>
@@ -182,7 +182,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         )}
 
         {/* Footer */}
-        <div className="border-t p-3 space-y-2">
+        <div className="border-t p-2.5 space-y-2">
           {!isCompact ? (
             <>
               <div className="flex items-center gap-1">

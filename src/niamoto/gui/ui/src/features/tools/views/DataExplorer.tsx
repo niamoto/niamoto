@@ -185,11 +185,11 @@ export function DataExplorer() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto space-y-6 p-6">
+      <div className="space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             {t('dataExplorer.title')}
           </h1>
           <p className="text-muted-foreground">
@@ -218,8 +218,8 @@ export function DataExplorer() {
         </TabsList>
 
         {/* Database Tab */}
-        <TabsContent value="database" className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
+        <TabsContent value="database" className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {/* Sidebar - Table List */}
         <div className="space-y-4">
           <Card>
@@ -429,7 +429,7 @@ export function DataExplorer() {
         </TabsContent>
 
         {/* Exports Tab */}
-        <TabsContent value="exports" className="space-y-6">
+        <TabsContent value="exports" className="space-y-4">
           <div className="space-y-4">
             {exportsLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -453,7 +453,7 @@ export function DataExplorer() {
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-2xl font-bold">{exports.web.length}</p>
+                          <p className="text-xl font-semibold">{exports.web.length}</p>
                           <p className="text-xs text-muted-foreground">{t('exports.htmlPages')}</p>
                         </div>
                         <Globe className="h-8 w-8 text-purple-500" />
@@ -464,7 +464,7 @@ export function DataExplorer() {
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-2xl font-bold">{exports.api.length}</p>
+                          <p className="text-xl font-semibold">{exports.api.length}</p>
                           <p className="text-xs text-muted-foreground">{t('exports.jsonFiles')}</p>
                         </div>
                         <FileCode className="h-8 w-8 text-blue-500" />
@@ -475,7 +475,7 @@ export function DataExplorer() {
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-2xl font-bold">{exports.dwc.length}</p>
+                          <p className="text-xl font-semibold">{exports.dwc.length}</p>
                           <p className="text-xs text-muted-foreground">{t('exports.darwinCore')}</p>
                         </div>
                         <Database className="h-8 w-8 text-green-500" />

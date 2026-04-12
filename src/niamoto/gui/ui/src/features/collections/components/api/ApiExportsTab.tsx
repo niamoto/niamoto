@@ -34,7 +34,7 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-dashed p-6 text-sm text-destructive">
+      <div className="rounded-lg border border-dashed p-4 text-sm text-destructive">
         {error instanceof Error ? error.message : t('collectionPanel.api.loadFailed')}
       </div>
     )
@@ -43,7 +43,7 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header — fixed */}
-      <div className="shrink-0 flex items-center justify-between gap-4 px-6 py-3 border-b">
+      <div className="shrink-0 flex items-center justify-between gap-4 border-b px-4 py-3">
         <div>
           <h2 className="text-base font-medium">{t('collectionPanel.api.title')}</h2>
           <p className="text-xs text-muted-foreground">
@@ -61,7 +61,7 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-auto p-6 space-y-4">
+      <div className="flex-1 min-h-0 overflow-auto space-y-4 p-4">
         {/* Export cards */}
         {groupTargets.map((target) => (
           <ExportCard
@@ -73,7 +73,7 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
 
         {/* Empty state */}
         {groupTargets.length === 0 && !targets?.length && (
-          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
             {t('collectionPanel.api.empty')}
           </div>
         )}

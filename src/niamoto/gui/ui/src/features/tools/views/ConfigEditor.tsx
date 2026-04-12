@@ -205,12 +205,12 @@ export function ConfigEditor() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto space-y-6 p-6">
+      <div className="space-y-4 p-4">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <FileCode2 className="h-8 w-8" />
-              <h1 className="text-3xl font-bold tracking-tight">
+              <FileCode2 className="h-6 w-6" />
+              <h1 className="text-xl font-semibold tracking-tight">
                 Configuration Editor
               </h1>
             </div>

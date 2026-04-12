@@ -148,7 +148,7 @@ export function Plugins() {
 
   if (loading) {
     return (
-      <div className="container mx-auto flex h-full items-center justify-center p-6">
+      <div className="flex h-full items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -156,7 +156,7 @@ export function Plugins() {
 
   if (error) {
     return (
-      <div className="container mx-auto h-full overflow-auto p-6">
+      <div className="h-full overflow-auto p-4">
         <div className="text-center text-red-500">
           {t('plugins.error', 'Failed to load plugins')}: {error}
         </div>
@@ -165,11 +165,11 @@ export function Plugins() {
   }
 
   return (
-    <div className="container mx-auto h-full overflow-auto p-6 space-y-6">
+    <div className="h-full overflow-auto space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             {t('plugins.title', 'Plugins')}
           </h1>
           <p className="text-muted-foreground">
@@ -178,7 +178,7 @@ export function Plugins() {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-xl font-semibold">{stats.total}</div>
             <div className="text-xs text-muted-foreground">{t('plugins.total', 'Total plugins')}</div>
           </div>
           <div className="flex gap-2">

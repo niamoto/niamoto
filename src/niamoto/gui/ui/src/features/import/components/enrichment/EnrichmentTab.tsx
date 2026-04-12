@@ -383,7 +383,7 @@ export function EnrichmentTab({
           </div>
         ) : sources.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="flex flex-col items-start gap-3 p-6">
+            <CardContent className="flex flex-col items-start gap-3 p-4">
               <div>
                 <h3 className="font-medium">
                   {t('enrichmentTab.config.empty', {
@@ -1336,7 +1336,7 @@ export function EnrichmentTab({
         </div>
       ) : sources.length === 0 ? (
         <Card className="border-dashed">
-          <CardContent className="flex flex-col items-start gap-3 p-6">
+          <CardContent className="flex flex-col items-start gap-3 p-4">
             <div>
               <h3 className="font-medium">
                 {t('enrichmentTab.config.empty', {

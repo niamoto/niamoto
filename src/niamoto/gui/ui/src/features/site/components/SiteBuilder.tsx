@@ -322,7 +322,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       case 'general':
         return (
           <ScrollArea className="h-full">
-            <div className="p-6">
+            <div className="p-4">
               <SiteConfigForm config={state.editedSite} onChange={state.setEditedSite} />
             </div>
           </ScrollArea>
@@ -331,7 +331,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       case 'appearance':
         return (
           <ScrollArea className="h-full">
-            <div className="p-6">
+            <div className="p-4">
               <ThemeConfigForm config={state.editedSite} onChange={state.setEditedSite} />
             </div>
           </ScrollArea>
@@ -340,7 +340,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       case 'navigation':
         return (
           <ScrollArea className="h-full">
-            <div className="p-6">
+            <div className="p-4">
                 <NavigationBuilder
                   items={state.editedNavigation}
                   onChange={handleNavigationChange}
@@ -359,7 +359,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       case 'footer':
         return (
           <ScrollArea className="h-full">
-            <div className="p-6">
+            <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">{t('tree.footerMenu')}</h2>
                 <Button
@@ -423,7 +423,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         }
         return (
           <ScrollArea className="h-full">
-            <div className="p-6">
+            <div className="p-4">
               <GroupPageViewer
                 group={currentGroup}
                 onBack={() => state.setSelection(null)}
@@ -454,7 +454,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         if (!linkItem) return null
         return (
           <ScrollArea className="h-full">
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4">
               <h2 className="text-lg font-semibold">{t('navigation.editLink')}</h2>
               <div className="space-y-3">
                 <div>
@@ -491,7 +491,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   // Loading state
   if (state.isLoading) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
+      <div className="flex h-full items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">{t('messages.loadingConfig')}</p>
@@ -503,7 +503,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   // Error state
   if (state.error) {
     return (
-      <div className="p-6">
+      <div className="p-4">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>

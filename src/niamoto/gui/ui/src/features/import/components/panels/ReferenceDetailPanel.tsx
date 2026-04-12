@@ -160,7 +160,7 @@ export function ReferenceDetailPanel({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 pb-4 border-b">
+      <div className="flex items-center justify-between border-b p-4 pb-3">
         <div className="flex items-center gap-4">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack}>
@@ -168,7 +168,7 @@ export function ReferenceDetailPanel({
             </Button>
           )}
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <h1 className="flex items-center gap-2 text-xl font-semibold">
               {getKindIcon()}
               {referenceName}
             </h1>
@@ -247,8 +247,8 @@ export function ReferenceDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 overflow-auto px-6 pb-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 pt-6">
+      <div className="flex-1 overflow-auto p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview" className="gap-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -266,7 +266,7 @@ export function ReferenceDetailPanel({
 
           <PanelTransition transitionKey={activeTab} className="min-h-0">
             {activeTab === 'overview' ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {kind === 'hierarchical' && hierarchyLevels && hierarchyLevels.length > 0 && (
                   <Card>
                     <CardHeader className="pb-3">
@@ -328,7 +328,7 @@ export function ReferenceDetailPanel({
                 </Card>
               </div>
             ) : activeTab === 'enrichment' ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <EnrichmentTab
                   referenceName={referenceName}
                   hasEnrichment={hasEnrichment}
@@ -337,7 +337,7 @@ export function ReferenceDetailPanel({
                 />
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <ReferenceConfigEditor
                   referenceName={referenceName}
                   onSaved={handleConfigSaved}

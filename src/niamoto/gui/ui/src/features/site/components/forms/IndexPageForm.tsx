@@ -71,7 +71,7 @@ export function IndexPageForm({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Hero Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.indexPage.heroSection')}</h3>

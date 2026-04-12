@@ -184,7 +184,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
   const fontFamily = (config.font_family as string) || 'system'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Theme Presets */}
       <Card>
         <CardHeader>
@@ -233,7 +233,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
           </CardTitle>
           <CardDescription>{t('themeConfig.customizeColors')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {/* Primary colors row */}
           <div className="grid gap-4 md:grid-cols-2">
             <ColorPicker
@@ -380,7 +380,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
           </CardTitle>
           <CardDescription>{t('themeConfig.widgetsStyle')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {/* Widget gradient toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">

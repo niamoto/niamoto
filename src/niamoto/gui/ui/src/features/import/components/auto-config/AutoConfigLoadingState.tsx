@@ -15,12 +15,12 @@ export function AutoConfigLoadingState({
   const latestEvents = analysisEvents.slice(-8)
 
   return (
-    <div className="space-y-6 py-8">
+    <div className="space-y-4 py-6">
       <div className="flex flex-col items-center justify-center">
-        <div className="relative mb-4">
-          <Sparkles className="h-12 w-12 animate-pulse text-primary" />
+        <div className="relative mb-3">
+          <Sparkles className="h-10 w-10 animate-pulse text-primary" />
         </div>
-        <h3 className="mb-2 text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
+        <h3 className="mb-1 text-base font-semibold">{t('autoConfig.loading.title')}</h3>
         <p className="text-center text-sm text-muted-foreground">
           {analysisStage || t('autoConfig.loading.description')}
         </p>

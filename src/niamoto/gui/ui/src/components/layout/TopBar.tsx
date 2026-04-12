@@ -30,7 +30,7 @@ export function TopBar({ className }: TopBarProps) {
     <header
       data-tauri-drag-region={isDesktop && isMac ? true : undefined}
       className={cn(
-        'flex h-14 items-center justify-between border-b bg-background px-4',
+        'flex h-12 items-center justify-between border-b bg-background px-4',
         className
       )}
     >

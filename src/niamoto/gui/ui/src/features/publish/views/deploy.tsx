@@ -465,8 +465,8 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
   const canDeployPlatform = !isDeploying && !isOffline && hasSuccessfulBuild
 
   return (
-    <div className={embedded ? 'space-y-6 p-1' : 'h-full overflow-auto'}>
-      <div className={embedded ? 'space-y-6' : 'container mx-auto space-y-6 py-6'}>
+    <div className={embedded ? 'space-y-4 p-1' : 'h-full overflow-auto'}>
+      <div className={embedded ? 'space-y-4' : 'space-y-4 p-4'}>
       {embedded ? (
         <div className="flex justify-end">
           <Button onClick={openAddDialog}>
@@ -477,7 +477,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
       ) : (
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">{t('deploy.title', 'Deploy')}</h1>
+            <h1 className="text-xl font-semibold">{t('deploy.title', 'Deploy')}</h1>
             <p className="text-muted-foreground">{t('deploy.description', 'Publish your site online')}</p>
           </div>
           <Button onClick={openAddDialog}>

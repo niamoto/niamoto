@@ -84,7 +84,7 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
   return (
     <nav
       className={cn(
-        'flex h-9 items-center border-b bg-muted/40 px-4',
+        'flex h-8 items-center border-b bg-muted/40 px-4',
         className
       )}
       aria-label="Breadcrumb"

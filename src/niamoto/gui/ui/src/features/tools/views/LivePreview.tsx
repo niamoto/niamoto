@@ -54,11 +54,11 @@ export function LivePreview() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto space-y-6 p-6">
+      <div className="space-y-4 p-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-xl font-semibold tracking-tight">
               {t('livePreview.title')}
             </h1>
             <p className="text-muted-foreground">

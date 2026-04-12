@@ -144,7 +144,7 @@ export function StaticPagesList({ pages, onEdit, onAdd, onDelete }: StaticPagesL
       </CardHeader>
       <CardContent>
         {pages.length === 0 ? (
-          <div className="flex min-h-[150px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-6 text-center">
+          <div className="flex min-h-[150px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-4 text-center">
             <FileText className="mb-3 h-10 w-10 text-muted-foreground/50" />
             <h3 className="font-medium">Aucune page configuree</h3>
             <p className="mt-1 text-sm text-muted-foreground">

@@ -35,10 +35,10 @@ export function DashboardView() {
     pipeline.groups.items?.filter((item) => item.status === "never_run") ?? []
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-xl font-semibold">
             {t("pipeline.dashboard.title", "Dashboard")}
           </h1>
           {hasStale ? (
