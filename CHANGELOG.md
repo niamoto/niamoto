@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.6] - 2026-04-12
+
+### Bug Fixes
+
+- Preserve collection tab navigation
+- Tighten publish readiness flow
+- Improve UI rendering smoothness
+- Smooth import query refresh states
+
 ## [v0.14.5] - 2026-04-12
 
 ### Bug Fixes
