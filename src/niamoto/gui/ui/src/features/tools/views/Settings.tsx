@@ -46,7 +46,7 @@ export function Settings() {
   const runtimeMode = useRuntimeMode()
   const { isDesktop, mode, project } = runtimeMode
   const { platform } = usePlatform()
-  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate } =
+  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate, restartApp } =
     useAppUpdater()
   const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
   const [loading, setLoading] = useState(true)
@@ -439,13 +439,21 @@ export function Settings() {
                   <Label>{t('settings.currentVersion', 'Current version')}</Label>
                   <p className="font-mono text-sm text-muted-foreground">v{appVersion}</p>
                 </div>
-                {status === 'available' && updateVersion && (
+                {(status === 'available' || status === 'restart_required') && updateVersion && (
                   <div className="text-right">
-                    <p className="text-sm font-medium text-green-600">
-                      {t('settings.updateAvailable', 'Version {{version}} available', {
-                        version: updateVersion,
-                      })}
-                    </p>
+                    {status === 'available' ? (
+                      <p className="text-sm font-medium text-green-600">
+                        {t('settings.updateAvailable', 'Version {{version}} available', {
+                          version: updateVersion,
+                        })}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium text-amber-600">
+                        {t('settings.restartRequired', 'Restart required to use v{{version}}', {
+                          version: updateVersion,
+                        })}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -457,6 +465,11 @@ export function Settings() {
                     {t('settings.installUpdate', 'Install v{{version}}', {
                       version: updateVersion,
                     })}
+                  </Button>
+                ) : status === 'restart_required' ? (
+                  <Button onClick={restartApp} size="sm">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {t('settings.restartNow', 'Restart now')}
                   </Button>
                 ) : status === 'downloading' || status === 'installing' ? (
                   <Button disabled size="sm">

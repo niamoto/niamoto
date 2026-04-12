@@ -29,9 +29,11 @@ export function reduceDownloadProgressEvent(
       downloadedBytes: 0,
       totalBytes,
       status: 'downloading',
-      progress: totalBytes > 0 ? 0 : undefined,
+      progress: options.isLinux ? undefined : totalBytes > 0 ? 0 : undefined,
       label:
-        totalBytes > 0
+        options.isLinux
+          ? 'Préparation de la mise à jour... une authentification système peut être requise.'
+          : totalBytes > 0
           ? 'Téléchargement de la mise à jour... 0%'
           : 'Téléchargement de la mise à jour...',
     }

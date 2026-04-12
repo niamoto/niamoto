@@ -40,6 +40,18 @@ describe('downloadProgress', () => {
     expect(state.label).toContain('25%')
   })
 
+  it('avoids a misleading 0% label when linux may be waiting on system auth', () => {
+    const state = reduceDownloadProgressEvent(
+      createInitialDownloadProgressState(),
+      { event: 'Started', data: { contentLength: 400 } },
+      { isLinux: true }
+    )
+
+    expect(state.progress).toBeUndefined()
+    expect(state.label).toContain('authentification système')
+    expect(state.label).not.toContain('0%')
+  })
+
   it('switches to an installation label after download completion on linux', () => {
     let state = createInitialDownloadProgressState()
 
