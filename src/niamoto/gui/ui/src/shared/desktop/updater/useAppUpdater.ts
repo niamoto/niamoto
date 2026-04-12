@@ -19,7 +19,7 @@ import {
 } from './downloadProgress'
 
 export interface UpdateInfo {
-  status: 'idle' | 'checking' | 'available' | 'downloading' | 'installing'
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'restart_required'
   version?: string
   progress?: number
 }
@@ -33,6 +33,7 @@ interface AppUpdaterValue extends UpdateInfo {
   appVersion: string
   checkForUpdate: () => Promise<void>
   installUpdate: () => Promise<void>
+  restartApp: () => Promise<void>
 }
 
 const AppUpdaterContext = createContext<AppUpdaterValue | null>(null)
@@ -44,6 +45,22 @@ function useAppUpdaterController(): AppUpdaterValue {
   const updateRef = useRef<Awaited<ReturnType<typeof check>> | null>(null)
   const toastIdRef = useRef<string | number | undefined>(undefined)
   const isInstallingRef = useRef(false)
+
+  const restartApp = useCallback(async () => {
+    try {
+      await relaunch()
+    } catch (err) {
+      toast.error('Redémarrage impossible', {
+        id: toastIdRef.current,
+        description:
+          err instanceof Error
+            ? err.message
+            : "Fermez puis relancez l'application manuellement.",
+        duration: Infinity,
+      })
+      throw err
+    }
+  }, [])
 
   const installUpdate = useCallback(async () => {
     const update = updateRef.current
@@ -76,17 +93,7 @@ function useAppUpdaterController(): AppUpdaterValue {
       })
 
       updateRef.current = null
-      setInfo({ status: 'idle' })
-
-      if (isLinux) {
-        toast.success('Mise à jour installée', {
-          id: toastIdRef.current,
-          description:
-            "L'installation est terminée. Fermez puis relancez l'application pour utiliser la nouvelle version.",
-          duration: 10000,
-        })
-        return
-      }
+      setInfo({ status: 'installing', version: update.version })
 
       toast.success('Mise à jour installée, redémarrage...', {
         id: toastIdRef.current,
@@ -94,14 +101,20 @@ function useAppUpdaterController(): AppUpdaterValue {
       })
 
       try {
-        await relaunch()
+        await restartApp()
       } catch (err) {
-        setInfo({ status: 'idle' })
+        setInfo({ status: 'restart_required', version: update.version })
         toast('Mise à jour installée', {
           id: toastIdRef.current,
           description:
             "Le redémarrage automatique a échoué. Relancez l'application manuellement.",
-          duration: 10000,
+          duration: Infinity,
+          action: {
+            label: 'Réessayer',
+            onClick: () => {
+              void restartApp()
+            },
+          },
         })
         console.error('Update installed but relaunch failed:', err)
       }
@@ -116,7 +129,7 @@ function useAppUpdaterController(): AppUpdaterValue {
     } finally {
       isInstallingRef.current = false
     }
-  }, [isLinux])
+  }, [isLinux, restartApp])
 
   const checkForUpdate = useCallback(async () => {
     if (!isDesktop || isInstallingRef.current) return
@@ -164,6 +177,7 @@ function useAppUpdaterController(): AppUpdaterValue {
     appVersion: APP_VERSION,
     checkForUpdate,
     installUpdate,
+    restartApp,
   }
 }
 
