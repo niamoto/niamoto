@@ -9,7 +9,7 @@
  * Collection detail delegates to CollectionPanel.
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
@@ -19,21 +19,7 @@ import { CollectionPanel } from './CollectionPanel'
 import { CollectionsOverview } from './CollectionsOverview'
 import { ApiSettingsPanel } from './api/ApiSettingsPanel'
 import { Layers } from 'lucide-react'
-
-// =============================================================================
-// URL HELPERS
-// =============================================================================
-
-function selectionFromPath(pathname: string): CollectionsSelection {
-  if (pathname === '/groups/api-settings') {
-    return { type: 'api-settings' }
-  }
-  const match = pathname.match(/^\/groups\/(.+)$/)
-  if (match) {
-    return { type: 'collection', name: decodeURIComponent(match[1]) }
-  }
-  return { type: 'overview' }
-}
+import { buildCollectionsPath, normalizeCollectionTab, selectionFromPath } from '../routing'
 
 // =============================================================================
 // COMPONENT
@@ -49,19 +35,15 @@ export function CollectionsModule() {
   const references = referencesData?.references ?? []
   const isInitialLoading = isLoading && !referencesData
 
-  const [initialTab, setInitialTab] = useState<string | undefined>()
   const selection = useMemo(() => selectionFromPath(location.pathname), [location.pathname])
+  const initialTab = useMemo(
+    () => normalizeCollectionTab(new URLSearchParams(location.search).get('tab')),
+    [location.search]
+  )
 
   // Update URL when selection changes
   const handleSelect = (newSelection: CollectionsSelection, tab?: string) => {
-    setInitialTab(tab)
-    if (newSelection.type === 'overview') {
-      navigate('/groups')
-    } else if (newSelection.type === 'api-settings') {
-      navigate('/groups/api-settings')
-    } else {
-      navigate(`/groups/${encodeURIComponent(newSelection.name)}`)
-    }
+    navigate(buildCollectionsPath(newSelection, tab))
   }
 
   // Update breadcrumbs

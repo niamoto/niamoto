@@ -36,6 +36,7 @@ import {
   useStartTransformJob,
 } from '@/features/collections/hooks/useCollectionTransforms'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { buildCollectionsPath, type CollectionTab } from '@/features/collections/routing'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
@@ -166,7 +167,12 @@ export function CollectionPanel({
                     key={item.name}
                     onClick={() => {
                       if (!isCurrent) {
-                        navigate(`/groups/${encodeURIComponent(item.name)}`)
+                        navigate(
+                          buildCollectionsPath(
+                            { type: 'collection', name: item.name },
+                            activeTab as CollectionTab
+                          )
+                        )
                       }
                     }}
                     className={cn(
