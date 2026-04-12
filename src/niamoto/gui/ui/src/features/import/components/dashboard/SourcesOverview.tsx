@@ -25,6 +25,7 @@ import { useImportSummaryDetailed } from '@/features/import/hooks/useImportSumma
 import { useReferences, type ReferenceInfo } from '@/features/import/hooks/useReferences'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
+import { datasetConfigQueryOptions, prefetchImportEntityDetail } from '@/features/import/queryUtils'
 import type {
   DatasetConfig,
   ReferenceConfig,
@@ -167,13 +168,11 @@ export function SourcesOverview({
     })
 
     try {
-      const response = await apiClient.get<DatasetConfig>(
-        `/config/datasets/${encodeURIComponent(dataset.name)}/config`
-      )
+      const response = await queryClient.ensureQueryData(datasetConfigQueryOptions(dataset.name))
       setEditingState({
         entityType: 'dataset',
         name: dataset.name,
-        config: response.data,
+        config: response.config as DatasetConfig,
         detectedColumns: dataset.schema_fields?.map((field) => field.name) ?? [],
       })
     } catch (err) {
@@ -186,6 +185,7 @@ export function SourcesOverview({
     setEditorError(null)
     try {
       await apiClient.put(`/config/datasets/${encodeURIComponent(name)}/config`, config)
+      queryClient.setQueryData(importQueryKeys.config.dataset(name), { name, config })
       await refreshAll()
       setEditingState(null)
     } catch (err) {
@@ -200,6 +200,7 @@ export function SourcesOverview({
     setEditorError(null)
     try {
       await apiClient.put(`/config/references/${encodeURIComponent(name)}/config`, config)
+      queryClient.setQueryData(importQueryKeys.config.reference(name), { name, config })
       await refreshAll()
       setEditingState(null)
     } catch (err) {
@@ -400,11 +401,13 @@ export function SourcesOverview({
                   }),
                 })}
                 statusBadge={{ label: statusLabel, variant: statusVariant }}
+                onIntent={() => void prefetchImportEntityDetail(queryClient, reference)}
                 onNameClick={() => onExploreReference(reference.name)}
                 actions={[
                   {
                     label: primaryAction.label,
                     onClick: primaryAction.onClick,
+                    onIntent: () => void prefetchImportEntityDetail(queryClient, reference),
                     variant: primaryAction.variant,
                   },
                   ...secondaryActions,
@@ -441,18 +444,23 @@ export function SourcesOverview({
                     count: metrics?.column_count ?? dataset.schema_fields.length,
                   }),
                 })}
+                onIntent={() => void prefetchImportEntityDetail(queryClient, dataset)}
                 onNameClick={() => onExploreDataset(dataset.name)}
                 actions={[
                   {
                     label: '',
                     icon: Search,
                     onClick: () => onExploreDataset(dataset.name),
+                    onIntent: () => void prefetchImportEntityDetail(queryClient, dataset),
                     variant: 'ghost',
                   },
                   {
                     label: t('dashboard.actions.editConfig'),
                     icon: Pencil,
                     onClick: () => void openDatasetEditor(dataset),
+                    onIntent: () => {
+                      void queryClient.prefetchQuery(datasetConfigQueryOptions(dataset.name))
+                    },
                     variant: 'ghost',
                   },
                   {

@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
@@ -28,6 +29,7 @@ import { useImportSummary } from '@/features/import/hooks/useImportSummary'
 import { useReferences } from '@/features/import/hooks/useReferences'
 import { useNavigationStore } from '@/stores/navigationStore'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
+import { prefetchImportEntityDetail } from '@/features/import/queryUtils'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,6 +57,7 @@ export function DataModule() {
   const { t } = useTranslation(['sources', 'common'])
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const setBreadcrumbs = useNavigationStore((s) => s.setBreadcrumbs)
 
   const { data: datasetsData, isLoading: datasetsLoading } = useDatasets()
@@ -71,12 +74,18 @@ export function DataModule() {
   // Update URL when selection changes via sidebar
   const handleSelect = (sel: DataSelection) => {
     switch (sel.type) {
-      case 'dataset':
+      case 'dataset': {
+        const dataset = datasets.find((item) => item.name === sel.name)
+        if (dataset) void prefetchImportEntityDetail(queryClient, dataset)
         navigate(`/sources/dataset/${encodeURIComponent(sel.name)}`)
         break
-      case 'reference':
+      }
+      case 'reference': {
+        const reference = references.find((item) => item.name === sel.name)
+        if (reference) void prefetchImportEntityDetail(queryClient, reference)
         navigate(`/sources/reference/${encodeURIComponent(sel.name)}`)
         break
+      }
       case 'import':
         navigate('/sources/import')
         break
@@ -233,6 +242,8 @@ export function DataModule() {
           referencesLoading={referencesLoading}
           selection={selection}
           onSelect={handleSelect}
+          onDatasetIntent={(dataset) => void prefetchImportEntityDetail(queryClient, dataset)}
+          onReferenceIntent={(reference) => void prefetchImportEntityDetail(queryClient, reference)}
           hasImportedData={hasImportedData}
         />
       }

@@ -49,6 +49,8 @@ interface DataTreeProps {
   referencesLoading: boolean
   selection: DataSelection
   onSelect: (selection: DataSelection) => void
+  onDatasetIntent?: (dataset: DatasetInfo) => void
+  onReferenceIntent?: (reference: ReferenceInfo) => void
   hasImportedData: boolean
 }
 
@@ -63,6 +65,8 @@ export function DataTree({
   referencesLoading,
   selection,
   onSelect,
+  onDatasetIntent,
+  onReferenceIntent,
   hasImportedData,
 }: DataTreeProps) {
   const { t } = useTranslation(['sources', 'common'])
@@ -168,6 +172,8 @@ export function DataTree({
                           ? 'bg-primary/10 text-primary'
                           : 'hover:bg-muted/50'
                       )}
+                      onMouseEnter={() => onDatasetIntent?.(dataset)}
+                      onFocus={() => onDatasetIntent?.(dataset)}
                       onClick={() => onSelect({ type: 'dataset', name: dataset.name })}
                     >
                       <Table2 className="h-4 w-4 shrink-0" />
@@ -219,6 +225,8 @@ export function DataTree({
                           ? 'bg-primary/10 text-primary'
                           : 'hover:bg-muted/50'
                       )}
+                      onMouseEnter={() => onReferenceIntent?.(reference)}
+                      onFocus={() => onReferenceIntent?.(reference)}
                       onClick={() => onSelect({ type: 'reference', name: reference.name })}
                     >
                       <BookOpen className="h-4 w-4 shrink-0" />

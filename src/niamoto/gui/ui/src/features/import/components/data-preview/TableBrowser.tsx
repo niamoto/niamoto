@@ -9,7 +9,7 @@
 
 import { useState } from 'react'
 import { isAxiosError } from 'axios'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react'
-import { queryTable } from '@/features/import/api/data-explorer'
+import { tablePreviewQueryOptions } from '@/features/import/queryUtils'
 
 interface TableBrowserProps {
   tableName: string
@@ -38,18 +38,8 @@ export function TableBrowser({
   const [page, setPage] = useState(0)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['table-data', tableName, page, pageSize],
-    queryFn: () =>
-      queryTable({
-        table: tableName,
-        limit: pageSize,
-        offset: page * pageSize,
-      }),
-    staleTime: 30000,
-    retry: (failureCount, err) => {
-      if (isAxiosError(err) && err.response?.status === 404) return false
-      return failureCount < 2
-    },
+    ...tablePreviewQueryOptions(tableName, page, pageSize),
+    placeholderData: keepPreviousData,
   })
 
   if (isLoading) {

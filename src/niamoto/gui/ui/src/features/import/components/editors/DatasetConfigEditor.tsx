@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
+import { datasetConfigQueryOptions } from '@/features/import/queryUtils'
 
 interface DatasetConfigEditorProps {
   datasetName: string
@@ -64,11 +65,6 @@ interface DatasetConfig {
   }
 }
 
-async function fetchDatasetConfig(name: string): Promise<{ name: string; config: DatasetConfig }> {
-  const response = await apiClient.get(`/config/datasets/${name}/config`)
-  return response.data
-}
-
 async function saveDatasetConfig(name: string, config: DatasetConfig): Promise<void> {
   await apiClient.put(`/config/datasets/${name}/config`, config)
 }
@@ -76,8 +72,11 @@ async function saveDatasetConfig(name: string, config: DatasetConfig): Promise<v
 export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dataset-config', datasetName],
-    queryFn: () => fetchDatasetConfig(datasetName),
+    ...datasetConfigQueryOptions(datasetName),
+    select: (response) => ({
+      ...response,
+      config: response.config as DatasetConfig,
+    }),
   })
 
   if (isLoading) {
@@ -131,10 +130,14 @@ function DatasetConfigEditorForm({
     mutationFn: (config: DatasetConfig) => saveDatasetConfig(datasetName, config),
     onSuccess: async () => {
       setHasChanges(false)
+      queryClient.setQueryData(importQueryKeys.config.dataset(datasetName), {
+        name: datasetName,
+        config: localConfig,
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.datasets() }),
         queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
-        queryClient.invalidateQueries({ queryKey: ['dataset-config', datasetName] }),
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.config.dataset(datasetName) }),
       ])
       onSaved?.()
     },
