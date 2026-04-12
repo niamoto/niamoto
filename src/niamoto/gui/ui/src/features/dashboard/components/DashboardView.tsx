@@ -15,9 +15,20 @@ import { CardEntrance, CardEntranceItem } from "@/components/motion/CardEntrance
 export function DashboardView() {
   const { t } = useTranslation("common")
   const navigate = useNavigate()
-  const { data: pipeline } = usePipelineStatus()
+  const { data: pipeline, isLoading, isFetching } = usePipelineStatus()
 
-  if (!pipeline) return null
+  if (!pipeline) {
+    if (!isLoading) return null
+
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>{t("pipeline.dashboard.loading", "Loading dashboard status...")}</span>
+        </div>
+      </div>
+    )
+  }
 
   const hasStale =
     pipeline.data.status === "stale" ||
@@ -58,6 +69,12 @@ export function DashboardView() {
                 "pipeline.dashboard.fresh_subtitle",
                 "Everything is up to date",
               )}
+            </p>
+          )}
+          {isFetching && (
+            <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("pipeline.dashboard.refreshing", "Refreshing status...")}
             </p>
           )}
         </div>

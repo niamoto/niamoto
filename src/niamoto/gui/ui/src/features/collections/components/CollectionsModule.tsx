@@ -47,6 +47,7 @@ export function CollectionsModule() {
 
   const { data: referencesData, isLoading } = useReferences()
   const references = referencesData?.references ?? []
+  const isInitialLoading = isLoading && !referencesData
 
   const [initialTab, setInitialTab] = useState<string | undefined>()
   const selection = useMemo(() => selectionFromPath(location.pathname), [location.pathname])
@@ -85,7 +86,7 @@ export function CollectionsModule() {
 
   const renderContent = () => {
     // Loading state
-    if (isLoading) {
+    if (isInitialLoading) {
       return (
         <div className="flex h-full items-center justify-center">
           <div className="animate-pulse text-muted-foreground">

@@ -24,6 +24,7 @@ import { useDatasets, type DatasetInfo } from '@/features/import/hooks/useDatase
 import { useImportSummaryDetailed } from '@/features/import/hooks/useImportSummaryDetailed'
 import { useReferences, type ReferenceInfo } from '@/features/import/hooks/useReferences'
 import { apiClient } from '@/shared/lib/api/client'
+import { importQueryKeys } from '@/features/import/queryKeys'
 import type {
   DatasetConfig,
   ReferenceConfig,
@@ -63,9 +64,9 @@ export function SourcesOverview({
   const { t } = useTranslation('sources')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data: summary, isLoading, error } = useImportSummaryDetailed()
-  const { data: referencesData } = useReferences()
-  const { data: datasetsData } = useDatasets()
+  const { data: summary, isLoading, isFetching: summaryFetching, error } = useImportSummaryDetailed()
+  const { data: referencesData, isFetching: referencesFetching } = useReferences()
+  const { data: datasetsData, isFetching: datasetsFetching } = useDatasets()
 
   const references = referencesData?.references ?? []
   const datasets = datasetsData?.datasets ?? []
@@ -73,6 +74,7 @@ export function SourcesOverview({
   const [editingState, setEditingState] = useState<EditingState>(null)
   const [editorError, setEditorError] = useState<string | null>(null)
   const [savingConfig, setSavingConfig] = useState(false)
+  const isRefreshing = summaryFetching || referencesFetching || datasetsFetching || savingConfig
 
   const alertsByEntity = useMemo(() => {
     const grouped = new Map<string, number>()
@@ -149,9 +151,9 @@ export function SourcesOverview({
 
   const refreshAll = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['datasets'] }),
-      queryClient.invalidateQueries({ queryKey: ['references'] }),
-      queryClient.invalidateQueries({ queryKey: ['import-summary'] }),
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.datasets() }),
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.references() }),
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
     ])
   }
 
@@ -237,7 +239,7 @@ export function SourcesOverview({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => void refreshAll()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {t('dashboard.actions.refresh')}
           </Button>
           <Button variant="outline" size="sm" onClick={onReimport}>

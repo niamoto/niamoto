@@ -32,6 +32,7 @@ import {
   Link,
 } from 'lucide-react'
 import { apiClient } from '@/shared/lib/api/client'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface DatasetConfigEditorProps {
   datasetName: string
@@ -128,10 +129,13 @@ function DatasetConfigEditorForm({
 
   const mutation = useMutation({
     mutationFn: (config: DatasetConfig) => saveDatasetConfig(datasetName, config),
-    onSuccess: () => {
+    onSuccess: async () => {
       setHasChanges(false)
-      queryClient.invalidateQueries({ queryKey: ['datasets'] })
-      queryClient.invalidateQueries({ queryKey: ['dataset-config', datasetName] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.datasets() }),
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
+        queryClient.invalidateQueries({ queryKey: ['dataset-config', datasetName] }),
+      ])
       onSaved?.()
     },
   })
