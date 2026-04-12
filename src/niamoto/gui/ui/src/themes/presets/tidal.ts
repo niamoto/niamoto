@@ -5,7 +5,7 @@
  * Sharp corners evoke table cells on navigational maps; borders define
  * structure instead of shadows. Opaque surfaces, no blur.
  *
- * Typography: Inter (clean, legible at small scales)
+ * Typography: Barlow (utilitarian, semi-condensed, map-ready)
  * Shapes: All zero radius — cartographic table-cell look
  * Shadows: None — borders carry all structural weight
  * Effects: Fully opaque surfaces, no backdrop blur
@@ -29,7 +29,7 @@ export const tidalTheme: Theme = {
     secondary: '#64748b',
     accent: '#22d3ee',
     background: '#f7f9fb',
-    fontDisplay: 'Inter',
+    fontDisplay: 'Barlow',
     borderRadius: '0',
   },
 
@@ -51,13 +51,13 @@ export const tidalTheme: Theme = {
     // Neutral — Slate-tinted muted tones
     muted: 'oklch(0.93 0.008 240)',
     mutedForeground: 'oklch(0.52 0.02 240)',
-    accent: 'oklch(0.75 0.14 195)',  // Cyan highlight
+    accent: 'oklch(0.75 0.12 195)',  // Cyan highlight
     accentForeground: 'oklch(0.15 0.02 240)',
 
     // Semantic
-    destructive: 'oklch(0.55 0.20 25)',
+    destructive: 'oklch(0.55 0.16 25)',
     destructiveForeground: 'oklch(0.98 0 0)',
-    success: 'oklch(0.52 0.14 165)',
+    success: 'oklch(0.52 0.12 165)',
     successForeground: 'oklch(0.98 0 0)',
     warning: 'oklch(0.78 0.14 85)',
     warningForeground: 'oklch(0.20 0.05 85)',
@@ -72,7 +72,7 @@ export const tidalTheme: Theme = {
     // Charts — Maritime palette
     chart1: 'oklch(0.49 0.13 200)',  // Deep teal
     chart2: 'oklch(0.55 0.10 250)',  // Steel blue
-    chart3: 'oklch(0.75 0.14 195)',  // Cyan
+    chart3: 'oklch(0.75 0.12 195)',  // Cyan
     chart4: 'oklch(0.78 0.14 85)',   // Warm sand
     chart5: 'oklch(0.50 0.10 310)',  // Dusk purple
 
@@ -93,8 +93,8 @@ export const tidalTheme: Theme = {
     sidebarRing: 'oklch(0.49 0.13 200)',
 
     // Typography — Inter everywhere
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: 'Barlow, system-ui, sans-serif',
+    fontBody: 'Barlow, system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes — Sharp, cartographic
@@ -134,7 +134,7 @@ export const tidalTheme: Theme = {
     popoverForeground: 'oklch(0.90 0.01 230)',
 
     // Brand — Cyan accent for dark mode
-    primary: 'oklch(0.72 0.15 195)',
+    primary: 'oklch(0.72 0.12 195)',
     primaryForeground: 'oklch(0.16 0.03 240)',
     secondary: 'oklch(0.24 0.025 240)',
     secondaryForeground: 'oklch(0.88 0.01 230)',
@@ -142,33 +142,33 @@ export const tidalTheme: Theme = {
     // Neutral
     muted: 'oklch(0.24 0.02 240)',
     mutedForeground: 'oklch(0.60 0.015 230)',
-    accent: 'oklch(0.72 0.15 195)',  // Bright cyan
+    accent: 'oklch(0.72 0.12 195)',  // Bright cyan
     accentForeground: 'oklch(0.16 0.03 240)',
 
     // Semantic
-    destructive: 'oklch(0.62 0.20 25)',
+    destructive: 'oklch(0.62 0.16 25)',
     destructiveForeground: 'oklch(0.16 0 0)',
-    success: 'oklch(0.62 0.14 165)',
+    success: 'oklch(0.62 0.12 165)',
     successForeground: 'oklch(0.16 0 0)',
     warning: 'oklch(0.82 0.14 85)',
     warningForeground: 'oklch(0.16 0.04 85)',
-    info: 'oklch(0.72 0.15 195)',
+    info: 'oklch(0.72 0.12 195)',
     infoForeground: 'oklch(0.16 0 0)',
 
     // Boundaries — Visible on dark
     border: 'oklch(0.32 0.025 240)',
     input: 'oklch(0.28 0.03 240)',
-    ring: 'oklch(0.72 0.15 195)',
+    ring: 'oklch(0.72 0.12 195)',
 
     // Charts
-    chart1: 'oklch(0.72 0.15 195)',  // Cyan
+    chart1: 'oklch(0.72 0.12 195)',  // Cyan
     chart2: 'oklch(0.62 0.10 250)',  // Steel blue
     chart3: 'oklch(0.65 0.13 200)',  // Teal
     chart4: 'oklch(0.82 0.14 85)',   // Sand
     chart5: 'oklch(0.60 0.10 310)',  // Dusk purple
 
     // Data sources
-    dataSourcePrimary: 'oklch(0.72 0.15 195)',
+    dataSourcePrimary: 'oklch(0.72 0.12 195)',
     dataSourcePrimaryForeground: 'oklch(0.16 0 0)',
     dataSourceSecondary: 'oklch(0.62 0.10 250)',
     dataSourceSecondaryForeground: 'oklch(0.16 0 0)',
@@ -176,16 +176,16 @@ export const tidalTheme: Theme = {
     // Sidebar
     sidebar: 'oklch(0.12 0.03 240)',
     sidebarForeground: 'oklch(0.90 0.01 230)',
-    sidebarPrimary: 'oklch(0.72 0.15 195)',
+    sidebarPrimary: 'oklch(0.72 0.12 195)',
     sidebarPrimaryForeground: 'oklch(0.16 0.03 240)',
     sidebarAccent: 'oklch(0.24 0.025 240)',
     sidebarAccentForeground: 'oklch(0.88 0.01 230)',
     sidebarBorder: 'oklch(0.18 0.025 240)',
-    sidebarRing: 'oklch(0.72 0.15 195)',
+    sidebarRing: 'oklch(0.72 0.12 195)',
 
     // Typography
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: 'Barlow, system-ui, sans-serif',
+    fontBody: 'Barlow, system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes

@@ -17,6 +17,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const themeId = useThemeStore((s) => s.themeId)
   const mode = useThemeStore((s) => s.mode)
   const systemMode = useThemeStore((s) => s.systemMode)
+  const fontOverride = useThemeStore((s) => s.fontOverride)
   const applyCurrentTheme = useThemeStore((s) => s.applyCurrentTheme)
   const setTheme = useThemeStore((s) => s.setTheme)
   const setSystemMode = useThemeStore((s) => s.setSystemMode)
@@ -29,7 +30,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
 
     applyCurrentTheme()
-  }, [applyCurrentTheme, mode, setTheme, systemMode, themeId])
+  }, [applyCurrentTheme, fontOverride, mode, setTheme, systemMode, themeId])
 
   // Listen for system preference changes in a single place.
   useEffect(() => {

@@ -7,7 +7,7 @@
 
 import { Moon, Sun, Monitor, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTheme } from '@/stores/themeStore'
+import { useTheme, AVAILABLE_FONTS } from '@/stores/themeStore'
 import { loadThemeFonts, type Theme, type ThemeMode } from '@/themes'
 import { useEffect } from 'react'
 
@@ -48,7 +48,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
       onClick={onSelect}
       className={cn(
         'group relative flex flex-col overflow-hidden border-2 transition-all',
-        'hover:shadow-lg hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+        'hover:shadow-lg hover:scale-[1.02] focus:outline-none',
         isSelected
           ? 'border-primary shadow-md'
           : 'border-border hover:border-primary/50'
@@ -183,6 +183,60 @@ interface ThemeSwitcherProps {
   columns?: 2 | 3 | 4
 }
 
+function FontSelector() {
+  const { currentTheme, fontOverride, setFontOverride } = useTheme()
+
+  // Resolve the active font: override or theme default
+  const activeFont = fontOverride
+    ?? currentTheme?.light.fontDisplay
+    ?? AVAILABLE_FONTS[0].family
+
+  // Find the matching font entry for the select value
+  const selectedId = AVAILABLE_FONTS.find(f => activeFont.includes(f.name))?.id ?? ''
+
+  return (
+    <div className="flex items-center gap-3">
+      <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+        Font
+      </label>
+      <select
+        value={selectedId}
+        onChange={(e) => {
+          const font = AVAILABLE_FONTS.find(f => f.id === e.target.value)
+          if (!font) return
+          // If selecting the theme's default display font, clear the override
+          const isDefault = currentTheme?.light.fontDisplay.includes(font.name)
+          setFontOverride(isDefault ? null : font.family)
+        }}
+        className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none"
+        style={{ fontFamily: activeFont }}
+      >
+        <optgroup label="Sans-serif">
+          {AVAILABLE_FONTS.filter(f => f.category === 'sans').map(font => (
+            <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+              {font.name}{currentTheme?.light.fontDisplay.includes(font.name) ? ' (theme)' : ''}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Serif">
+          {AVAILABLE_FONTS.filter(f => f.category === 'serif').map(font => (
+            <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+              {font.name}{currentTheme?.light.fontDisplay.includes(font.name) ? ' (theme)' : ''}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Monospace">
+          {AVAILABLE_FONTS.filter(f => f.category === 'mono').map(font => (
+            <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+              {font.name}{currentTheme?.light.fontDisplay.includes(font.name) ? ' (theme)' : ''}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    </div>
+  )
+}
+
 export function ThemeSwitcher({
   className,
   showModeSelector = true,
@@ -216,6 +270,9 @@ export function ThemeSwitcher({
           />
         ))}
       </div>
+
+      {/* Font override selector */}
+      <FontSelector />
     </div>
   )
 }
@@ -231,7 +288,7 @@ export function ThemeModeToggle({ className }: { className?: string }) {
       className={cn(
         'flex h-9 w-9 items-center justify-center rounded-md',
         'text-muted-foreground hover:text-foreground hover:bg-accent',
-        'transition-colors focus:outline-none focus:ring-2 focus:ring-ring',
+        'transition-colors focus:outline-none',
         className
       )}
       title={`Mode: ${modeConfig[mode].label}`}

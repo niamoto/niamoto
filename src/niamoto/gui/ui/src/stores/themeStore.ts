@@ -15,37 +15,45 @@ import {
   getAllThemes,
   applyTheme,
   getSystemMode,
-  laboratoryTheme,
   forestTheme,
   frondTheme,
-  slateTheme,
-  frostTheme,
-  mistTheme,
   lapisTheme,
   tidalTheme,
-  basaltTheme,
   inkTheme,
+  herbierTheme,
 } from '@/themes'
 
 export const DEFAULT_THEME_ID = 'frond'
 
+/** All locally bundled fonts available for override */
+export const AVAILABLE_FONTS = [
+  { id: 'plus-jakarta-sans', name: 'Plus Jakarta Sans', family: '"Plus Jakarta Sans", system-ui, sans-serif', category: 'sans' },
+  { id: 'instrument-sans', name: 'Instrument Sans', family: '"Instrument Sans", system-ui, sans-serif', category: 'sans' },
+  { id: 'barlow', name: 'Barlow', family: 'Barlow, system-ui, sans-serif', category: 'sans' },
+  { id: 'archivo', name: 'Archivo', family: 'Archivo, system-ui, sans-serif', category: 'sans' },
+  { id: 'nunito', name: 'Nunito', family: 'Nunito, system-ui, sans-serif', category: 'sans' },
+  { id: 'dm-sans', name: 'DM Sans', family: '"DM Sans", system-ui, sans-serif', category: 'sans' },
+  { id: 'inter', name: 'Inter', family: 'Inter, system-ui, sans-serif', category: 'sans' },
+  { id: 'crimson-pro', name: 'Crimson Pro', family: '"Crimson Pro", Georgia, serif', category: 'serif' },
+  { id: 'source-serif-4', name: 'Source Serif 4', family: '"Source Serif 4", Georgia, serif', category: 'serif' },
+  { id: 'jetbrains-mono', name: 'JetBrains Mono', family: '"JetBrains Mono", monospace', category: 'mono' },
+  { id: 'ibm-plex-mono', name: 'IBM Plex Mono', family: '"IBM Plex Mono", monospace', category: 'mono' },
+] as const
+
 // Register all built-in themes
 registerTheme(frondTheme)     // Brand default
-registerTheme(slateTheme)
-registerTheme(frostTheme)
-registerTheme(mistTheme)
 registerTheme(lapisTheme)
 registerTheme(tidalTheme)
-registerTheme(basaltTheme)
 registerTheme(inkTheme)
-registerTheme(laboratoryTheme)
 registerTheme(forestTheme)
+registerTheme(herbierTheme)
 
 interface ThemeStore {
   // State
   themeId: string
   mode: ThemeMode
   systemMode: 'light' | 'dark'
+  fontOverride: string | null
 
   // Computed-like getters (call as functions)
   getResolvedMode: () => 'light' | 'dark'
@@ -56,6 +64,7 @@ interface ThemeStore {
   setTheme: (themeId: string) => void
   setMode: (mode: ThemeMode) => void
   setSystemMode: (systemMode: 'light' | 'dark') => void
+  setFontOverride: (font: string | null) => void
   cycleMode: () => void
   applyCurrentTheme: () => void
 }
@@ -68,6 +77,7 @@ export const useThemeStore = create<ThemeStore>()(
       mode: 'system',
       systemMode:
         typeof window !== 'undefined' ? getSystemMode() : 'light',
+      fontOverride: null,
 
       // Getters
       getResolvedMode: () => {
@@ -89,7 +99,7 @@ export const useThemeStore = create<ThemeStore>()(
       // Actions
       setTheme: (themeId: string) => {
         if (getTheme(themeId)) {
-          set({ themeId })
+          set({ themeId, fontOverride: null })
         }
       },
 
@@ -105,11 +115,27 @@ export const useThemeStore = create<ThemeStore>()(
         get().setMode(nextMode)
       },
 
+      setFontOverride: (font: string | null) => {
+        set({ fontOverride: font })
+      },
+
       applyCurrentTheme: () => {
         const theme = get().getCurrentTheme()
         if (theme) {
           const resolvedMode = get().getResolvedMode()
           applyTheme(theme, resolvedMode)
+
+          // Apply font override if set
+          const { fontOverride } = get()
+          if (fontOverride) {
+            const root = document.documentElement
+            root.style.setProperty('--font-display', fontOverride)
+            root.style.setProperty('--font-body', fontOverride)
+            // Mono fonts also override code blocks
+            if (fontOverride.toLowerCase().includes('mono')) {
+              root.style.setProperty('--font-mono', fontOverride)
+            }
+          }
         }
       },
 
@@ -122,6 +148,7 @@ export const useThemeStore = create<ThemeStore>()(
       partialize: (state) => ({
         themeId: state.themeId,
         mode: state.mode,
+        fontOverride: state.fontOverride,
       }),
     }
   )
@@ -133,11 +160,13 @@ export function useTheme() {
   return {
     themeId: store.themeId,
     mode: store.mode,
+    fontOverride: store.fontOverride,
     resolvedMode: store.getResolvedMode(),
     currentTheme: store.getCurrentTheme(),
     themes: store.getAvailableThemes(),
     setTheme: store.setTheme,
     setMode: store.setMode,
+    setFontOverride: store.setFontOverride,
     cycleMode: store.cycleMode,
   }
 }

@@ -51,13 +51,13 @@ export const forestTheme: Theme = {
     // Neutral - Forest atmosphere
     muted: 'oklch(0.95 0.015 145)',
     mutedForeground: 'oklch(0.45 0.03 145)',
-    accent: 'oklch(0.75 0.14 85)',  // Golden sunlight
+    accent: 'oklch(0.75 0.12 85)',  // Golden sunlight
     accentForeground: 'oklch(0.20 0.05 85)',
 
     // Semantic - Natural indicators
-    destructive: 'oklch(0.55 0.20 25)',
+    destructive: 'oklch(0.55 0.16 25)',
     destructiveForeground: 'oklch(0.98 0 0)',
-    success: 'oklch(0.55 0.15 145)',
+    success: 'oklch(0.55 0.12 145)',
     successForeground: 'oklch(0.98 0 0)',
     warning: 'oklch(0.78 0.14 85)',
     warningForeground: 'oklch(0.20 0.05 85)',
@@ -71,7 +71,7 @@ export const forestTheme: Theme = {
 
     // Charts - Forest ecosystem palette
     chart1: 'oklch(0.42 0.12 145)',  // Deep canopy
-    chart2: 'oklch(0.75 0.14 85)',   // Sunlight
+    chart2: 'oklch(0.75 0.12 85)',   // Sunlight
     chart3: 'oklch(0.55 0.10 180)',  // Fern
     chart4: 'oklch(0.50 0.08 40)',   // Bark
     chart5: 'oklch(0.65 0.10 100)',  // Moss
@@ -134,7 +134,7 @@ export const forestTheme: Theme = {
     popoverForeground: 'oklch(0.92 0.015 145)',
 
     // Brand - Luminous green
-    primary: 'oklch(0.65 0.15 145)',
+    primary: 'oklch(0.65 0.12 145)',
     primaryForeground: 'oklch(0.12 0.03 145)',
     secondary: 'oklch(0.22 0.04 145)',
     secondaryForeground: 'oklch(0.88 0.02 145)',
@@ -142,13 +142,13 @@ export const forestTheme: Theme = {
     // Neutral
     muted: 'oklch(0.22 0.03 145)',
     mutedForeground: 'oklch(0.65 0.025 145)',
-    accent: 'oklch(0.80 0.14 85)',  // Moonlit gold
+    accent: 'oklch(0.80 0.12 85)',  // Moonlit gold
     accentForeground: 'oklch(0.12 0.04 85)',
 
     // Semantic
-    destructive: 'oklch(0.62 0.20 25)',
+    destructive: 'oklch(0.62 0.16 25)',
     destructiveForeground: 'oklch(0.12 0 0)',
-    success: 'oklch(0.65 0.15 145)',
+    success: 'oklch(0.65 0.12 145)',
     successForeground: 'oklch(0.12 0 0)',
     warning: 'oklch(0.82 0.14 85)',
     warningForeground: 'oklch(0.12 0.04 85)',
@@ -158,11 +158,11 @@ export const forestTheme: Theme = {
     // Boundaries
     border: 'oklch(0.28 0.03 145)',
     input: 'oklch(0.28 0.03 145)',
-    ring: 'oklch(0.65 0.15 145)',
+    ring: 'oklch(0.65 0.12 145)',
 
     // Charts
-    chart1: 'oklch(0.65 0.15 145)',
-    chart2: 'oklch(0.80 0.14 85)',
+    chart1: 'oklch(0.65 0.12 145)',
+    chart2: 'oklch(0.80 0.12 85)',
     chart3: 'oklch(0.60 0.10 180)',
     chart4: 'oklch(0.55 0.08 40)',
     chart5: 'oklch(0.70 0.10 100)',
@@ -176,12 +176,12 @@ export const forestTheme: Theme = {
     // Sidebar
     sidebar: 'oklch(0.10 0.03 145)',
     sidebarForeground: 'oklch(0.92 0.015 145)',
-    sidebarPrimary: 'oklch(0.65 0.15 145)',
+    sidebarPrimary: 'oklch(0.65 0.12 145)',
     sidebarPrimaryForeground: 'oklch(0.12 0.03 145)',
     sidebarAccent: 'oklch(0.22 0.04 145)',
     sidebarAccentForeground: 'oklch(0.88 0.02 145)',
     sidebarBorder: 'oklch(0.20 0.025 145)',
-    sidebarRing: 'oklch(0.65 0.15 145)',
+    sidebarRing: 'oklch(0.65 0.12 145)',
 
     // Typography
     fontDisplay: 'Nunito, system-ui, sans-serif',

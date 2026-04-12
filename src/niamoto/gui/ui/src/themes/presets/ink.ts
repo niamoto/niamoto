@@ -5,7 +5,7 @@
  * Radical monochrome: everything is black, white, or gray.
  * Sharp corners, assertive borders, no shadows, opaque surfaces.
  *
- * Typography: Inter (clean, editorial)
+ * Typography: Archivo (Swiss-inspired, editorial)
  * Shapes: All zero radius — sharp corners everywhere
  * Shadows: None
  * Effects: Opaque surfaces, no blur
@@ -29,7 +29,7 @@ export const inkTheme: Theme = {
     secondary: '#999999',
     accent: '#666666',
     background: '#fcfcfa',
-    fontDisplay: 'Inter',
+    fontDisplay: 'Archivo',
     borderRadius: '0',
   },
 
@@ -93,8 +93,8 @@ export const inkTheme: Theme = {
     sidebarRing: 'oklch(0.15 0 0)',
 
     // Typography — Inter everywhere
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: 'Archivo, system-ui, sans-serif',
+    fontBody: 'Archivo, system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes — All zero, sharp corners
@@ -184,8 +184,8 @@ export const inkTheme: Theme = {
     sidebarRing: 'oklch(0.92 0.005 90)',
 
     // Typography
-    fontDisplay: 'Inter, system-ui, sans-serif',
-    fontBody: 'Inter, system-ui, sans-serif',
+    fontDisplay: 'Archivo, system-ui, sans-serif',
+    fontBody: 'Archivo, system-ui, sans-serif',
     fontMono: '"JetBrains Mono", monospace',
 
     // Shapes — All zero, sharp corners
