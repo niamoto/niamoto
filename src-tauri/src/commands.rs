@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::{State, Url};
+use tauri::{AppHandle, Manager, State, Url};
 
 const WINDOWS_RESERVED_PROJECT_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
@@ -240,6 +240,26 @@ pub fn get_app_settings(state: State<ConfigState>) -> Result<AppSettings, String
 pub fn set_app_settings(settings: AppSettings, state: State<ConfigState>) -> Result<(), String> {
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
     config.set_settings(settings)
+}
+
+/// Open desktop devtools on demand when debug mode is enabled
+#[tauri::command]
+pub fn open_desktop_devtools(
+    app: AppHandle,
+    state: State<ConfigState>,
+) -> Result<(), String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    if !cfg!(debug_assertions) && !config.debug_mode {
+        return Err("Desktop debug mode is disabled".to_string());
+    }
+    drop(config);
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window not found".to_string())?;
+
+    window.open_devtools();
+    Ok(())
 }
 
 /// Create a new Niamoto project with the standard directory structure

@@ -26,6 +26,10 @@ pub struct AppConfig {
     /// Preferred UI language for the desktop app
     #[serde(default = "default_ui_language")]
     pub ui_language: UiLanguagePreference,
+
+    /// Whether desktop debug tools are enabled for on-demand troubleshooting
+    #[serde(default = "default_debug_mode")]
+    pub debug_mode: bool,
 }
 
 /// Default value for auto_load_last_project
@@ -45,12 +49,18 @@ fn default_ui_language() -> UiLanguagePreference {
     UiLanguagePreference::Auto
 }
 
+fn default_debug_mode() -> bool {
+    false
+}
+
 /// Application settings exposed to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub auto_load_last_project: bool,
     #[serde(default = "default_ui_language")]
     pub ui_language: UiLanguagePreference,
+    #[serde(default = "default_debug_mode")]
+    pub debug_mode: bool,
 }
 
 /// Entry for a recent project
@@ -277,6 +287,7 @@ impl Default for AppConfig {
             last_updated: chrono::Utc::now().to_rfc3339(),
             auto_load_last_project: true,
             ui_language: UiLanguagePreference::Auto,
+            debug_mode: false,
         }
     }
 }
@@ -287,6 +298,7 @@ impl AppConfig {
         AppSettings {
             auto_load_last_project: self.auto_load_last_project,
             ui_language: self.ui_language.clone(),
+            debug_mode: self.debug_mode,
         }
     }
 
@@ -294,6 +306,7 @@ impl AppConfig {
     pub fn set_settings(&mut self, settings: AppSettings) -> Result<(), String> {
         self.auto_load_last_project = settings.auto_load_last_project;
         self.ui_language = settings.ui_language;
+        self.debug_mode = settings.debug_mode;
         self.last_updated = chrono::Utc::now().to_rfc3339();
         self.save()
     }
@@ -312,6 +325,7 @@ mod tests {
         assert!(config.current_project.is_none());
         assert!(config.recent_projects.is_empty());
         assert_eq!(config.ui_language, UiLanguagePreference::Auto);
+        assert!(!config.debug_mode);
     }
 
     #[test]

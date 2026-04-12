@@ -577,6 +577,7 @@ pub fn run() {
             commands::get_niamoto_home,
             commands::get_app_settings,
             commands::set_app_settings,
+            commands::open_desktop_devtools,
             commands::create_project,
             commands::browse_folder,
             commands::open_external_url,
