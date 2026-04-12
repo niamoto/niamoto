@@ -18,6 +18,7 @@ import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
 import { useProjectCreationStore } from '@/stores/projectCreationStore'
+import { AppLoader } from '@/components/ui/app-loader'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/features/welcome/views/WelcomeScreen'))
@@ -80,7 +81,9 @@ const ConfigEditor = lazy(() =>
 // Publish pages (used by PublishModule internally)
 
 const PageFallback = () => (
-  <div className="flex items-center justify-center h-full">Loading...</div>
+  <div className="flex h-full items-center justify-center bg-background">
+    <AppLoader />
+  </div>
 )
 
 // Check if running in Tauri
@@ -229,25 +232,23 @@ function App() {
     return createProject(name, location)
   }
 
+  const fullScreenLoader = (
+    <ThemeProvider>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <AppLoader />
+      </div>
+    </ThemeProvider>
+  )
+
   if (!languageReady || (isTauriMode && welcomeLoading)) {
-    return (
-      <ThemeProvider>
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
-      </ThemeProvider>
-    )
+    return fullScreenLoader
   }
 
   if (isTauriMode && (showWelcome || bootFallbackToWelcome)) {
     return (
       <ThemeProvider>
         <Suspense
-          fallback={
-            <div className="flex h-screen items-center justify-center bg-background">
-              <div className="text-muted-foreground">Loading...</div>
-            </div>
-          }
+          fallback={fullScreenLoader}
         >
           <WelcomeScreen
             recentProjects={recentProjects}
@@ -267,13 +268,7 @@ function App() {
   }
 
   if (!initialized) {
-    return (
-      <ThemeProvider>
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="text-muted-foreground">Loading project...</div>
-        </div>
-      </ThemeProvider>
-    )
+    return fullScreenLoader
   }
 
   return (

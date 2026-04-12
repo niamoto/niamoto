@@ -1,0 +1,57 @@
+.niamoto-app-loader-shell {
+  --niamoto-loader-logo-size: 7.5rem;
+  --niamoto-loader-size: 1.5rem;
+  --niamoto-loader-gap: 1.5rem;
+  --niamoto-loader-stroke: 2px;
+  --niamoto-loader-color-fallback: #2d7a3a;
+
+  display: grid;
+  place-items: center;
+  gap: var(--niamoto-loader-gap);
+  color: var(--niamoto-loader-color, var(--primary, var(--niamoto-loader-color-fallback)));
+}
+
+.niamoto-app-loader-logo {
+  width: var(--niamoto-loader-logo-size);
+  height: var(--niamoto-loader-logo-size);
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.niamoto-app-loader {
+  width: var(--niamoto-loader-size);
+  height: var(--niamoto-loader-size);
+  position: relative;
+}
+
+.niamoto-app-loader--pulse-ring::before,
+.niamoto-app-loader--pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--niamoto-loader-stroke) solid currentColor;
+  border-radius: 999px;
+  animation: niamoto-pulse-ring 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.niamoto-app-loader--pulse-ring::after {
+  animation-delay: 0.6s;
+}
+
+@keyframes niamoto-pulse-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .niamoto-app-loader-shell {
+    --niamoto-loader-color-fallback: #95c98a;
+  }
+}

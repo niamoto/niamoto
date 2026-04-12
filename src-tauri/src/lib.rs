@@ -24,6 +24,8 @@ const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
 const DESKTOP_PROBE_HEADER: &str = "x-niamoto-desktop-probe";
 const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
+const APP_LOADER_CSS: &str =
+    include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -417,7 +419,7 @@ fn startup_ready_url(
 }
 
 /// Show a loading screen with status message
-fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
+fn show_loading_status(window: &tauri::WebviewWindow, _message: &str) {
     let html = format!(
         r#"<!doctype html>
 <html lang="en">
@@ -443,46 +445,30 @@ fn show_loading_status(window: &tauri::WebviewWindow, message: &str) {
         user-select: none;
       }}
       .shell {{
-        text-align: center;
         padding: 40px;
+        --niamoto-loader-color: #2d7a3a;
       }}
-      .logo {{
-        width: 128px;
-        height: 128px;
-        display: block;
-        margin: 0 auto 32px;
-        border-radius: 16px;
-      }}
-      .spinner {{
-        width: 24px;
-        height: 24px;
-        margin: 0 auto 16px;
-        border-radius: 999px;
-        border: 2px solid rgba(0, 0, 0, 0.08);
-        border-top-color: #71717a;
-        animation: spin 0.8s linear infinite;
-      }}
-      p {{
-        margin: 0;
-        font-size: 13px;
-        color: #71717a;
-      }}
-      @keyframes spin {{
-        from {{ transform: rotate(0deg); }}
-        to {{ transform: rotate(360deg); }}
+      {loader_css}
+      @media (prefers-color-scheme: dark) {{
+        body {{
+          background: #18181b;
+          color: #fafafa;
+        }}
+        .shell {{
+          --niamoto-loader-color: #95c98a;
+        }}
       }}
     </style>
   </head>
   <body data-tauri-drag-region>
-    <main class="shell" data-tauri-drag-region>
-      <img class="logo" alt="" src="data:image/png;base64,{icon}" />
-      <div class="spinner" aria-hidden="true"></div>
-      <p>{message}</p>
+    <main class="shell niamoto-app-loader-shell" data-tauri-drag-region>
+      <img class="niamoto-app-loader-logo" alt="" src="data:image/png;base64,{icon}" />
+      <div class="niamoto-app-loader niamoto-app-loader--pulse-ring" aria-hidden="true"></div>
     </main>
   </body>
 </html>"#,
         icon = ICON_BASE64.trim(),
-        message = escape_html(message),
+        loader_css = APP_LOADER_CSS,
     );
 
     navigate_inline_html(window, &html);
