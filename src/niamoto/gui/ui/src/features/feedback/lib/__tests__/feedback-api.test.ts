@@ -67,12 +67,9 @@ describe('feedback-api', () => {
 
     expect(result.success).toBe(true)
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://feedback.example.com/feedback',
+      '/api/feedback/submit',
       expect.objectContaining({
         method: 'POST',
-        headers: {
-          'X-Feedback-Key': 'secret',
-        },
       })
     )
   })

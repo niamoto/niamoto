@@ -36,6 +36,22 @@ class TestCreateApp:
         # CORSMiddleware should be wrapped in a callable
         assert len(app.user_middleware) > 0
 
+    def test_cors_allows_null_origin_for_desktop_iframes(self):
+        """Packaged desktop previews use origin null and must pass CORS."""
+        app = create_app()
+        client = TestClient(app)
+
+        response = client.options(
+            "/api/health",
+            headers={
+                "Origin": "null",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "null"
+
     def test_api_routers_included(self):
         """Test that all API routers are included."""
         app = create_app()
@@ -52,6 +68,7 @@ class TestCreateApp:
             "/api/plugins",
             "/api/transform",
             "/api/export",
+            "/api/feedback",
             "/api/data",
             "/api/entities",
             "/api/deploy",

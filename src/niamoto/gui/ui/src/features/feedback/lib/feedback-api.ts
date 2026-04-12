@@ -2,6 +2,7 @@ import { FeedbackError, type FeedbackPayload, type FeedbackResponse } from '../t
 
 const WORKER_URL = import.meta.env.VITE_FEEDBACK_WORKER_URL || ''
 const API_KEY = import.meta.env.VITE_FEEDBACK_API_KEY || ''
+const FEEDBACK_PROXY_URL = '/api/feedback/submit'
 
 interface FeedbackSubmission {
   payload: FeedbackPayload
@@ -22,15 +23,14 @@ export async function sendFeedback({ payload, screenshot }: FeedbackSubmission):
 
   const formData = new FormData()
   formData.append('payload', JSON.stringify(payload))
+  formData.append('worker_url', workerUrl)
+  formData.append('api_key', apiKey)
   if (screenshot) {
     formData.append('screenshot', screenshot, 'feedback.jpg')
   }
 
-  const response = await fetch(`${workerUrl}/feedback`, {
+  const response = await fetch(FEEDBACK_PROXY_URL, {
     method: 'POST',
-    headers: {
-      'X-Feedback-Key': apiKey,
-    },
     body: formData,
   })
 
