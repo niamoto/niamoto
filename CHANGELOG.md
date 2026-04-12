@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.3] - 2026-04-12
+
+### Refactoring
+
+- Compact desktop UI density
+
+### Other
+
+- Update Tauri lockfile version
+
 ## [v0.14.2] - 2026-04-12
 
 ### Features
