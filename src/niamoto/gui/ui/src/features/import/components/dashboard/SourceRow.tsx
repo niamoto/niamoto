@@ -10,6 +10,7 @@ interface SourceRowAction {
   label: string
   icon?: LucideIcon
   onClick: () => void
+  onIntent?: () => void
   variant?: 'default' | 'outline' | 'ghost'
 }
 
@@ -24,6 +25,7 @@ interface SourceRowProps {
   }
   actions: SourceRowAction[]
   onNameClick?: () => void
+  onIntent?: () => void
 }
 
 export function SourceRow({
@@ -34,12 +36,17 @@ export function SourceRow({
   statusBadge,
   actions,
   onNameClick,
+  onIntent,
 }: SourceRowProps) {
   const [primaryAction, ...secondaryActions] = actions
   const PrimaryActionIcon = primaryAction?.icon
 
   return (
-    <div className="rounded-lg border border-border/60 px-4 py-3">
+    <div
+      className="rounded-lg border border-border/60 px-4 py-3"
+      onMouseEnter={onIntent}
+      onFocusCapture={onIntent}
+    >
       <div className="flex items-center gap-4">
         {/* Identity: icon + name + meta */}
         <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -51,6 +58,8 @@ export function SourceRow({
               <button
                 type="button"
                 className="truncate rounded-sm text-left font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                onMouseEnter={onIntent}
+                onFocus={onIntent}
                 onClick={onNameClick}
               >
                 {name}
@@ -82,6 +91,8 @@ export function SourceRow({
                 variant={action.variant ?? 'ghost'}
                 size="sm"
                 className="h-auto px-2 py-1 text-foreground/70"
+                onMouseEnter={action.onIntent}
+                onFocus={action.onIntent}
                 onClick={action.onClick}
               >
                 {ActionIcon ? <ActionIcon className="mr-1.5 h-3.5 w-3.5" /> : null}
@@ -105,6 +116,8 @@ export function SourceRow({
               <button
                 type="button"
                 className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                onMouseEnter={primaryAction.onIntent}
+                onFocus={primaryAction.onIntent}
                 onClick={primaryAction.onClick}
               >
                 {PrimaryActionIcon ? <PrimaryActionIcon className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}

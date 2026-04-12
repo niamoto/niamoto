@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Database, Columns, Hash } from 'lucide-react'
-import { listTables } from '@/features/import/api/data-explorer'
+import { tablesQueryOptions } from '@/features/import/queryUtils'
 
 interface TableStatsProps {
   tableName: string
@@ -15,11 +15,7 @@ interface TableStatsProps {
 }
 
 export function TableStats({ tableName, kind, hierarchyLevels }: TableStatsProps) {
-  const { data: tables, isLoading } = useQuery({
-    queryKey: ['tables'],
-    queryFn: listTables,
-    staleTime: 60000,
-  })
+  const { data: tables, isLoading } = useQuery(tablesQueryOptions())
 
   const tableInfo = tables?.find((t) => t.name === tableName)
 

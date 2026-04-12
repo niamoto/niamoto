@@ -42,6 +42,7 @@ import { TableStats } from '@/features/import/components/data-preview/TableStats
 import { DatasetConfigEditor } from '@/features/import/components/editors/DatasetConfigEditor'
 import { deleteEntity } from '@/features/import/api/import'
 import { importQueryKeys } from '@/features/import/queryKeys'
+import { removeImportEntityFromCache } from '@/features/import/queryUtils'
 
 interface DatasetDetailPanelProps {
   datasetName: string
@@ -76,6 +77,11 @@ export function DatasetDetailPanel({
     setIsDeleting(true)
     try {
       await deleteEntity('dataset', datasetName, deleteTable)
+      removeImportEntityFromCache(queryClient, {
+        entityType: 'dataset',
+        entityName: datasetName,
+        tableName,
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
         queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
+import { referenceConfigQueryOptions } from '@/features/import/queryUtils'
 
 interface ReferenceConfigEditorProps {
   referenceName: string
@@ -67,11 +68,6 @@ interface ReferenceConfig {
   }
 }
 
-async function fetchReferenceConfig(name: string): Promise<{ name: string; config: ReferenceConfig }> {
-  const response = await apiClient.get(`/config/references/${name}/config`)
-  return response.data
-}
-
 async function saveReferenceConfig(name: string, config: ReferenceConfig): Promise<void> {
   await apiClient.put(`/config/references/${name}/config`, config)
 }
@@ -82,8 +78,11 @@ export function ReferenceConfigEditor({
 }: ReferenceConfigEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { data, isLoading, error } = useQuery({
-    queryKey: ['reference-config', referenceName],
-    queryFn: () => fetchReferenceConfig(referenceName),
+    ...referenceConfigQueryOptions(referenceName),
+    select: (response) => ({
+      ...response,
+      config: response.config as ReferenceConfig,
+    }),
   })
 
   if (isLoading) {
@@ -137,10 +136,14 @@ function ReferenceConfigEditorForm({
     mutationFn: (config: ReferenceConfig) => saveReferenceConfig(referenceName, config),
     onSuccess: async () => {
       setHasChanges(false)
+      queryClient.setQueryData(importQueryKeys.config.reference(referenceName), {
+        name: referenceName,
+        config: localConfig,
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.references() }),
         queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
-        queryClient.invalidateQueries({ queryKey: ['reference-config', referenceName] }),
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.config.reference(referenceName) }),
       ])
       onSaved?.()
     },
