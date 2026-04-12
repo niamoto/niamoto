@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.5] - 2026-04-12
+
+### Bug Fixes
+
+- Improve Linux updater install flow
+- Prevent duplicate update toasts
+- Repair packaged desktop widgets and feedback
+
 ## [v0.14.4] - 2026-04-12
 
 ### Bug Fixes
