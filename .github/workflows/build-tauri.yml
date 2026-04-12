@@ -78,20 +78,8 @@ jobs:
         run: cd src/niamoto/gui/ui && pnpm install --frozen-lockfile
 
       - name: Build frontend
-        env:
-          VITE_FEEDBACK_WORKER_URL: ${{ secrets.VITE_FEEDBACK_WORKER_URL }}
-          VITE_FEEDBACK_API_KEY: ${{ secrets.VITE_FEEDBACK_API_KEY }}
-          FEEDBACK_WORKER_URL: ${{ secrets.FEEDBACK_WORKER_URL }}
-          FEEDBACK_API_KEY: ${{ secrets.FEEDBACK_API_KEY }}
-        shell: bash
-        run: |
-          cd src/niamoto/gui/ui
-          export VITE_FEEDBACK_WORKER_URL="${VITE_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL:-}}"
-          export VITE_FEEDBACK_API_KEY="${VITE_FEEDBACK_API_KEY:-${FEEDBACK_API_KEY:-}}"
-          if [ -z "$VITE_FEEDBACK_WORKER_URL" ] || [ -z "$VITE_FEEDBACK_API_KEY" ]; then
-            echo "::warning::Feedback worker env vars are missing; packaged app feedback will be disabled."
-          fi
-          pnpm run build
+        working-directory: src/niamoto/gui/ui
+        run: pnpm run build
 
       # --- Python sidecar ---
       - uses: actions/setup-python@v6

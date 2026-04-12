@@ -7,6 +7,7 @@ import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import {
   applyUiLanguagePreference,
   getAppSettings,
+  openDesktopDevtools,
 } from '@/shared/desktop/appSettings'
 import {
   clearManualProjectOpenTarget,
@@ -186,6 +187,42 @@ function App() {
       document.title = 'Niamoto'
     }
   }, [projectInfo?.name])
+
+  useEffect(() => {
+    if (!isTauriMode) {
+      return
+    }
+
+    const handleDesktopDebugShortcut = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const isMacShortcut = event.metaKey && event.altKey && key === 'i'
+      const isWindowsLinuxShortcut =
+        (event.ctrlKey && event.shiftKey && key === 'i') || event.key === 'F12'
+
+      if (!isMacShortcut && !isWindowsLinuxShortcut) {
+        return
+      }
+
+      event.preventDefault()
+
+      void (async () => {
+        try {
+          const settings = await getAppSettings()
+          if (!settings.debug_mode) {
+            return
+          }
+          await openDesktopDevtools()
+        } catch (err) {
+          console.error('Failed to open desktop DevTools from shortcut:', err)
+        }
+      })()
+    }
+
+    window.addEventListener('keydown', handleDesktopDebugShortcut)
+    return () => {
+      window.removeEventListener('keydown', handleDesktopDebugShortcut)
+    }
+  }, [isTauriMode])
 
   const handleCreateProject = async (name: string, location: string) => {
     closeProjectCreation()

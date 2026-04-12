@@ -8,11 +8,13 @@ import { invokeDesktop, isDesktopTauri } from '@/shared/desktop/tauri'
 export interface AppSettings {
   auto_load_last_project: boolean
   ui_language: UiLanguagePreference
+  debug_mode: boolean
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   auto_load_last_project: true,
   ui_language: 'auto',
+  debug_mode: false,
 }
 
 const UI_LANGUAGE_PREFERENCE_STORAGE_KEY = 'niamoto.uiLanguagePreference'
@@ -87,6 +89,14 @@ export async function setAppSettings(settings: AppSettings): Promise<void> {
   }
 
   writeStoredUiLanguagePreference(nextSettings.ui_language)
+}
+
+export async function openDesktopDevtools(): Promise<void> {
+  if (!isTauriApp()) {
+    return
+  }
+
+  await invokeDesktop('open_desktop_devtools')
 }
 
 export async function applyUiLanguagePreference(
