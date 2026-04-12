@@ -81,6 +81,65 @@ def test_pipeline_groups_are_unconfigured_when_no_widgets_data(tmp_path, monkeyp
     assert response.groups.items == []
 
 
+def test_pipeline_site_is_unconfigured_when_html_export_params_are_missing(
+    tmp_path, monkeypatch
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "transform.yml").write_text("[]\n")
+    (config_dir / "export.yml").write_text(
+        """
+exports:
+  - name: web_pages
+    enabled: true
+    exporter: html_page_exporter
+    params:
+      site:
+        title: Test
+        lang: fr
+    static_pages: []
+    groups: []
+""".strip()
+    )
+
+    monkeypatch.setattr(pipeline_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(
+        pipeline_router, "get_database_path", lambda: db_dir / "niamoto.duckdb"
+    )
+
+    class DummyStore:
+        def get_running_job(self):
+            return None
+
+        def get_last_run(self, *args, **kwargs):
+            return None
+
+    app = FastAPI()
+    app.state.job_store = DummyStore()
+    app.state.job_store_work_dir = work_dir
+    monkeypatch.setattr(
+        pipeline_router, "resolve_job_store", lambda app: app.state.job_store
+    )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/pipeline/status",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = asyncio.run(pipeline_router.get_pipeline_status(request))
+
+    assert response.site.status == "unconfigured"
+
+
 def test_pipeline_marks_batch_transform_groups_as_fresh(tmp_path: Path, monkeypatch):
     work_dir = tmp_path / "project"
     config_dir = work_dir / "config"

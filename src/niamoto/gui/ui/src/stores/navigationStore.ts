@@ -44,7 +44,7 @@ export const navItems: NavItem[] = [
     labelKey: 'sidebar.nav.site',
     fallbackLabel: 'Site',
     icon: Globe,
-    path: '/site',
+    path: '/site/pages',
     matchPrefix: '/site',
   },
   {

@@ -12,6 +12,7 @@
     "pending": "Pending"
   },
   "publishStatus": {
+    "configurationRequired": "Configuration required",
     "neverGenerated": "Never generated",
     "outOfDate": "Out of date",
     "upToDate": "Up to date"
@@ -48,6 +49,9 @@
     "outputPath": "Directory",
     "success": "Build completed successfully!",
     "error": "Build error",
+    "configurationRequiredTitle": "Site configuration required",
+    "configurationRequired": "Complete and save the site configuration before launching a generation.",
+    "configurationIncomplete": "The site configuration is incomplete. Save the site once so template and output directories are written before generating.",
     "advancedOptions": "Advanced options",
     "lastGenerated": "Last generated",
     "includeTransform": "Recompute statistics before generation",

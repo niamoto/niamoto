@@ -9,10 +9,11 @@ import asyncio
 import yaml
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from niamoto.core.services.exporter import ExporterService
 from niamoto.core.services.transformer import TransformerService
+from niamoto.core.plugins.models import HtmlExporterParams
 from niamoto.common.config import Config
 from niamoto.gui.api.context import (
     get_database_path,
@@ -111,6 +112,93 @@ def get_export_config(config_path: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Failed to parse export configuration: {str(e)}"
         )
+
+
+def _get_selected_export_targets(
+    config: Dict[str, Any],
+    export_types: Optional[List[str]] = None,
+) -> list[Dict[str, Any]]:
+    """Return enabled export targets selected by the request."""
+    exports = config.get("exports", [])
+    if not isinstance(exports, list):
+        return []
+
+    requested = set(export_types) if export_types else None
+    selected: list[Dict[str, Any]] = []
+
+    for target in exports:
+        if not isinstance(target, dict) or not target.get("enabled", True):
+            continue
+
+        name = target.get("name")
+        if requested is not None and name not in requested:
+            continue
+
+        selected.append(target)
+
+    return selected
+
+
+def _format_html_export_validation_error(target_name: str, exc: ValidationError) -> str:
+    """Format a user-facing validation error for HTML exports."""
+    missing_fields = sorted(
+        {
+            ".".join(str(part) for part in error["loc"])
+            for error in exc.errors()
+            if error.get("type") == "missing" and error.get("loc")
+        }
+    )
+
+    if missing_fields:
+        fields_label = ", ".join(missing_fields)
+        return (
+            "Le site n’est pas prêt pour la génération. "
+            f"Complétez la configuration de '{target_name}' puis enregistrez : "
+            f"{fields_label}."
+        )
+
+    return (
+        "Le site n’est pas prêt pour la génération. "
+        f"La configuration de '{target_name}' est invalide."
+    )
+
+
+def _validate_selected_export_targets(
+    config: Dict[str, Any],
+    export_types: Optional[List[str]] = None,
+) -> None:
+    """Fail fast when selected export targets are unknown or invalid."""
+    selected_targets = _get_selected_export_targets(config, export_types)
+
+    if export_types:
+        selected_names = {
+            target.get("name")
+            for target in selected_targets
+            if isinstance(target.get("name"), str)
+        }
+        missing_targets = sorted(set(export_types) - selected_names)
+        if missing_targets:
+            missing_label = ", ".join(missing_targets)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Impossible de lancer la génération. "
+                    f"Ces exports sont introuvables ou désactivés : {missing_label}."
+                ),
+            )
+
+    for target in selected_targets:
+        if target.get("exporter") != "html_page_exporter":
+            continue
+
+        target_name = str(target.get("name", "web_pages"))
+        try:
+            HtmlExporterParams.model_validate(target.get("params") or {})
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=_format_html_export_validation_error(target_name, exc),
+            ) from exc
 
 
 async def execute_export_background(
@@ -369,6 +457,9 @@ async def execute_export(
             status_code=409,
             detail=f"Un calcul est déjà en cours ({running['type']} — {running['progress']}%)",
         )
+
+    config = get_export_config(request.config_path or "config/export.yml")
+    _validate_selected_export_targets(config, request.export_types)
 
     try:
         job = job_store.create_job("export")

@@ -6,8 +6,234 @@
     <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="preload" href="/fonts/plus-jakarta-sans/400-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/plus-jakarta-sans/500-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/plus-jakarta-sans/600-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono/400-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Niamoto</title>
+    <style>
+      :root {
+        --background: oklch(0.97 0.003 250);
+        --foreground: oklch(0.16 0.005 270);
+        --sidebar: oklch(0.96 0.004 250);
+        --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+        --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        color-scheme: light;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background-color: var(--background);
+        color: var(--foreground);
+      }
+
+      body {
+        font-family: var(--font-body);
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+    </style>
+    <script>
+      (() => {
+        const THEME_STORAGE_KEY = 'niamoto-theme'
+        const DEFAULT_THEME_ID = 'frond'
+        const THEME_BOOTSTRAP = {
+          frond: {
+            style: 'brand',
+            light: {
+              background: 'oklch(0.97 0.003 250)',
+              foreground: 'oklch(0.16 0.005 270)',
+              sidebar: 'oklch(0.96 0.004 250)',
+              fontDisplay: '"Plus Jakarta Sans", system-ui, sans-serif',
+              fontBody: '"Plus Jakarta Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.14 0.008 270)',
+              foreground: 'oklch(0.92 0.005 250)',
+              sidebar: 'oklch(0.11 0.008 270)',
+              fontDisplay: '"Plus Jakarta Sans", system-ui, sans-serif',
+              fontBody: '"Plus Jakarta Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+          forest: {
+            style: 'natural',
+            light: {
+              background: 'oklch(0.98 0.008 145)',
+              foreground: 'oklch(0.18 0.04 145)',
+              sidebar: 'oklch(0.97 0.015 145)',
+              fontDisplay: 'Nunito, system-ui, sans-serif',
+              fontBody: '"DM Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.12 0.03 145)',
+              foreground: 'oklch(0.92 0.015 145)',
+              sidebar: 'oklch(0.10 0.03 145)',
+              fontDisplay: 'Nunito, system-ui, sans-serif',
+              fontBody: '"DM Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+          lapis: {
+            style: 'classic',
+            light: {
+              background: 'oklch(0.975 0.005 250)',
+              foreground: 'oklch(0.25 0.04 270)',
+              sidebar: 'oklch(0.97 0.006 250)',
+              fontDisplay: '"Instrument Sans", system-ui, sans-serif',
+              fontBody: '"Instrument Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.18 0.04 250)',
+              foreground: 'oklch(0.90 0.01 250)',
+              sidebar: 'oklch(0.13 0.04 250)',
+              fontDisplay: '"Instrument Sans", system-ui, sans-serif',
+              fontBody: '"Instrument Sans", system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+          tidal: {
+            style: 'cartographic',
+            light: {
+              background: 'oklch(0.97 0.006 230)',
+              foreground: 'oklch(0.18 0.02 240)',
+              sidebar: 'oklch(0.97 0.008 240)',
+              fontDisplay: 'Barlow, system-ui, sans-serif',
+              fontBody: 'Barlow, system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.16 0.03 240)',
+              foreground: 'oklch(0.90 0.01 230)',
+              sidebar: 'oklch(0.12 0.03 240)',
+              fontDisplay: 'Barlow, system-ui, sans-serif',
+              fontBody: 'Barlow, system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+          ink: {
+            style: 'editorial',
+            light: {
+              background: 'oklch(0.99 0.005 90)',
+              foreground: 'oklch(0.15 0 0)',
+              sidebar: 'oklch(0.98 0.003 90)',
+              fontDisplay: 'Archivo, system-ui, sans-serif',
+              fontBody: 'Archivo, system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.13 0 0)',
+              foreground: 'oklch(0.92 0.005 90)',
+              sidebar: 'oklch(0.10 0 0)',
+              fontDisplay: 'Archivo, system-ui, sans-serif',
+              fontBody: 'Archivo, system-ui, sans-serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+          herbier: {
+            style: 'classic',
+            light: {
+              background: 'oklch(0.97 0.008 80)',
+              foreground: 'oklch(0.20 0.02 55)',
+              sidebar: 'oklch(0.96 0.01 80)',
+              fontDisplay: '"Crimson Pro", Georgia, serif',
+              fontBody: '"Source Serif 4", Georgia, serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+            dark: {
+              background: 'oklch(0.15 0.02 55)',
+              foreground: 'oklch(0.90 0.01 80)',
+              sidebar: 'oklch(0.12 0.02 55)',
+              fontDisplay: '"Crimson Pro", Georgia, serif',
+              fontBody: '"Source Serif 4", Georgia, serif',
+              fontMono: '"JetBrains Mono", monospace',
+            },
+          },
+        }
+
+        const root = document.documentElement
+
+        function detectPlatform() {
+          if (typeof navigator === 'undefined') return 'web'
+
+          const userAgentData = navigator.userAgentData
+          if (userAgentData && typeof userAgentData.platform === 'string') {
+            const platform = userAgentData.platform.toLowerCase()
+            if (platform.includes('mac')) return 'macos'
+            if (platform.includes('win')) return 'windows'
+            if (platform.includes('linux')) return 'linux'
+          }
+
+          const platform = navigator.platform.toLowerCase()
+          if (platform.includes('mac')) return 'macos'
+          if (platform.includes('win')) return 'windows'
+          if (platform.includes('linux')) return 'linux'
+
+          return 'web'
+        }
+
+        function readPersistedTheme() {
+          try {
+            const raw = window.localStorage.getItem(THEME_STORAGE_KEY)
+            if (!raw) return null
+
+            const parsed = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object' && parsed.state && typeof parsed.state === 'object') {
+              return parsed.state
+            }
+
+            return parsed
+          } catch {
+            return null
+          }
+        }
+
+        const persistedTheme = readPersistedTheme()
+        const themeId =
+          persistedTheme && typeof persistedTheme.themeId === 'string' && THEME_BOOTSTRAP[persistedTheme.themeId]
+            ? persistedTheme.themeId
+            : DEFAULT_THEME_ID
+        const requestedMode =
+          persistedTheme && (persistedTheme.mode === 'light' || persistedTheme.mode === 'dark' || persistedTheme.mode === 'system')
+            ? persistedTheme.mode
+            : 'system'
+        const resolvedMode =
+          requestedMode === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+            : requestedMode
+        const fontOverride =
+          persistedTheme && typeof persistedTheme.fontOverride === 'string' && persistedTheme.fontOverride.trim()
+            ? persistedTheme.fontOverride
+            : null
+        const theme = THEME_BOOTSTRAP[themeId] || THEME_BOOTSTRAP[DEFAULT_THEME_ID]
+        const tokens = theme[resolvedMode]
+
+        root.dataset.platform = detectPlatform()
+        root.setAttribute('data-theme-style', theme.style)
+        root.classList.remove('light', 'dark')
+        root.classList.add(resolvedMode)
+        root.style.colorScheme = resolvedMode
+        root.style.setProperty('--background', tokens.background)
+        root.style.setProperty('--foreground', tokens.foreground)
+        root.style.setProperty('--sidebar', tokens.sidebar)
+        root.style.setProperty('--font-display', fontOverride || tokens.fontDisplay)
+        root.style.setProperty('--font-body', fontOverride || tokens.fontBody)
+        root.style.setProperty(
+          '--font-mono',
+          fontOverride && fontOverride.toLowerCase().includes('mono') ? fontOverride : tokens.fontMono
+        )
+      })()
+    </script>
   </head>
   <body data-overlayscrollbars-initialize>
     <div id="root"></div>
