@@ -1,4 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  createElement,
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useContext,
+  type ReactNode,
+} from 'react'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
@@ -20,7 +29,15 @@ const INITIAL_DELAY_MS = 5000
 declare const __APP_VERSION__: string
 const APP_VERSION = __APP_VERSION__
 
-export function useAppUpdater() {
+interface AppUpdaterValue extends UpdateInfo {
+  appVersion: string
+  checkForUpdate: () => Promise<void>
+  installUpdate: () => Promise<void>
+}
+
+const AppUpdaterContext = createContext<AppUpdaterValue | null>(null)
+
+function useAppUpdaterController(): AppUpdaterValue {
   const { isDesktop } = useRuntimeMode()
   const { isLinux } = usePlatform()
   const [info, setInfo] = useState<UpdateInfo>({ status: 'idle' })
@@ -148,4 +165,17 @@ export function useAppUpdater() {
     checkForUpdate,
     installUpdate,
   }
+}
+
+export function AppUpdaterProvider({ children }: { children: ReactNode }) {
+  const value = useAppUpdaterController()
+  return createElement(AppUpdaterContext.Provider, { value }, children)
+}
+
+export function useAppUpdater() {
+  const value = useContext(AppUpdaterContext)
+  if (!value) {
+    throw new Error('useAppUpdater must be used within an AppUpdaterProvider')
+  }
+  return value
 }
