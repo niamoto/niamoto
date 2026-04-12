@@ -283,6 +283,10 @@ def _add_export_group(export_config: Dict[str, Any], ref_name: str) -> None:
             "name": "web_pages",
             "enabled": True,
             "exporter": "html_page_exporter",
+            "params": {
+                "template_dir": "templates/",
+                "output_dir": "exports/web",
+            },
             "static_pages": [
                 {
                     "name": "home",
@@ -293,6 +297,10 @@ def _add_export_group(export_config: Dict[str, Any], ref_name: str) -> None:
             "groups": [],
         }
         exports.append(web_export)
+    else:
+        params = web_export.setdefault("params", {})
+        params.setdefault("template_dir", "templates/")
+        params.setdefault("output_dir", "exports/web")
 
     groups = web_export.setdefault("groups", [])
     groups.append(

@@ -648,7 +648,10 @@ async def update_site_config(update: SiteConfigUpdate):
             "name": "web_pages",
             "enabled": True,
             "exporter": "html_page_exporter",
-            "params": {},
+            "params": {
+                "template_dir": "templates/",
+                "output_dir": "exports/web",
+            },
             "static_pages": [_default_root_index_page()],
             "groups": [],
         }
@@ -656,6 +659,8 @@ async def update_site_config(update: SiteConfigUpdate):
 
     # Update params
     params = web_pages.setdefault("params", {})
+    params.setdefault("template_dir", "templates/")
+    params.setdefault("output_dir", "exports/web")
     params["site"] = update.site.model_dump(exclude_none=True)
     if update.template_dir:
         params["template_dir"] = update.template_dir

@@ -12,8 +12,9 @@ from typing import Optional
 
 import yaml
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from niamoto.core.plugins.models import HtmlExporterParams
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.services.job_file_store import JobFileStore
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
@@ -109,6 +110,15 @@ def _has_configured_transform_widgets(group_config: dict) -> bool:
     if isinstance(widgets_data, list):
         return len(widgets_data) > 0
     return bool(widgets_data)
+
+
+def _has_valid_site_export_params(export_entry: dict) -> bool:
+    """Return True when an html_page_exporter has all required params."""
+    try:
+        HtmlExporterParams.model_validate(export_entry.get("params") or {})
+    except ValidationError:
+        return False
+    return True
 
 
 def _get_entities_last_updated() -> Optional[datetime]:
@@ -468,6 +478,7 @@ async def get_pipeline_status(http_request: Request):
     # with a site config block, else "never_run".
     site_config_path = work_dir / "config" / "export.yml"
     site_configured = False
+    site_unconfigured = False
     if site_config_path.exists():
         try:
             with open(site_config_path, "r", encoding="utf-8") as f:
@@ -479,17 +490,23 @@ async def get_pipeline_status(http_request: Request):
                     if exp.get("exporter") == "html_page_exporter" and exp.get(
                         "enabled", True
                     ):
-                        params = exp.get("params", {})
-                        if params.get("site"):
+                        if _has_valid_site_export_params(exp):
                             site_configured = True
                             break
+                        site_unconfigured = True
         except Exception:
             pass
 
     site_summary = _get_site_summary(work_dir)
 
     site_status = StageStatus(
-        status="fresh" if site_configured else "never_run",
+        status=(
+            "fresh"
+            if site_configured
+            else "unconfigured"
+            if site_unconfigured
+            else "never_run"
+        ),
         last_run_at=None,
         items=[],
         summary=site_summary,

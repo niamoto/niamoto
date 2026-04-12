@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 
 export type Platform = 'macos' | 'windows' | 'linux' | 'web'
 
@@ -9,6 +9,19 @@ interface PlatformInfo {
   isLinux: boolean
   isWeb: boolean
   isDesktop: boolean
+}
+
+const KNOWN_PLATFORMS: Platform[] = ['macos', 'windows', 'linux', 'web']
+
+function isPlatform(value: string | null): value is Platform {
+  return value !== null && KNOWN_PLATFORMS.includes(value as Platform)
+}
+
+function getBootstrappedPlatform(): Platform | null {
+  if (typeof document === 'undefined') return null
+
+  const platform = document.documentElement.getAttribute('data-platform')
+  return isPlatform(platform) ? platform : null
 }
 
 /**
@@ -36,7 +49,7 @@ function detectPlatformSync(): Platform {
 }
 
 // Cache the platform detection result
-const detectedPlatform = detectPlatformSync()
+const detectedPlatform = getBootstrappedPlatform() ?? detectPlatformSync()
 
 /**
  * Detect the current platform (macOS, Windows, Linux, or Web)
@@ -46,7 +59,11 @@ export function usePlatform(): PlatformInfo {
   const platform = detectedPlatform
 
   // Also set data-platform attribute on html element
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (document.documentElement.getAttribute('data-platform') === platform) {
+      return
+    }
+
     document.documentElement.setAttribute('data-platform', platform)
   }, [platform])
 

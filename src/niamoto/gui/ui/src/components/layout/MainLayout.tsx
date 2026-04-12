@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { PageTransition } from '@/components/motion/PageTransition'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
 import { BreadcrumbNav } from './BreadcrumbNav'
@@ -12,6 +12,29 @@ import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useJobPolling } from '@/hooks/useJobPolling'
 import { AppUpdaterProvider } from '@/shared/desktop/updater/useAppUpdater'
 import { cn } from '@/lib/utils'
+
+function syncSidebarModeToViewport() {
+  const { sidebarMode, setSidebarMode } = useNavigationStore.getState()
+  const width = window.innerWidth
+
+  if (width < 768) {
+    if (sidebarMode !== 'hidden') {
+      setSidebarMode('hidden')
+    }
+    return
+  }
+
+  if (width < 1024) {
+    if (sidebarMode !== 'compact') {
+      setSidebarMode('compact')
+    }
+    return
+  }
+
+  if (sidebarMode === 'hidden') {
+    setSidebarMode('full')
+  }
+}
 
 export function MainLayout() {
   const location = useLocation()
@@ -43,24 +66,10 @@ export function MainLayout() {
   }, [location.pathname, setBreadcrumbs])
 
   // Handle responsive sidebar
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth
-      if (width < 768) {
-        useNavigationStore.getState().setSidebarMode('hidden')
-      } else if (width < 1024) {
-        useNavigationStore.getState().setSidebarMode('compact')
-      } else {
-        const currentMode = useNavigationStore.getState().sidebarMode
-        if (currentMode === 'hidden') {
-          useNavigationStore.getState().setSidebarMode('full')
-        }
-      }
-    }
-
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+  useLayoutEffect(() => {
+    syncSidebarModeToViewport()
+    window.addEventListener('resize', syncSidebarModeToViewport)
+    return () => window.removeEventListener('resize', syncSidebarModeToViewport)
   }, [])
 
   return (

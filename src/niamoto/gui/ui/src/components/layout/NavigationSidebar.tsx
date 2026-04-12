@@ -119,6 +119,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
               <div key={item.id}>
                 <NavLink
                   to={item.path}
+                  prefetch="intent"
                   className={cn(
                     'flex items-center gap-2.5 rounded-theme-md px-2.5 py-2 text-sm font-medium transition-theme-fast',
                     'hover:bg-accent hover:text-accent-foreground',
@@ -188,6 +189,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
               <div className="flex items-center gap-1">
                 <NavLink
                   to="/tools/settings"
+                  prefetch="intent"
                   className={({ isActive: active }) =>
                     cn(
                       'flex flex-1 items-center gap-2 rounded-theme-sm px-3 py-2 text-sm transition-theme-fast',
@@ -232,6 +234,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
             <>
               <NavLink
                 to="/tools/settings"
+                prefetch="intent"
                 className={({ isActive: active }) =>
                   cn(
                     'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',

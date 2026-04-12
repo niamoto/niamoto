@@ -59,6 +59,7 @@ import {
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/features/publish/api/export'
 import { apiClient } from '@/shared/lib/api/client'
+import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import PublishDeployContent from '@/features/publish/views/deploy'
 import {
@@ -105,12 +106,14 @@ function getPublishStatus({
   currentDeploy,
   hasSuccessfulBuild,
   isStale,
+  siteBuildBlocked,
   t,
 }: {
   currentBuild: BuildJob | null
   currentDeploy: { status: string } | null
   hasSuccessfulBuild: boolean
   isStale: boolean
+  siteBuildBlocked: boolean
   t: (key: string, defaultValue?: string) => string
 }) {
   if (currentDeploy?.status === 'running') {
@@ -118,6 +121,9 @@ function getPublishStatus({
   }
   if (currentBuild?.status === 'running') {
     return { label: t('build.building', 'Generating...'), variant: 'secondary' as const }
+  }
+  if (siteBuildBlocked) {
+    return { label: t('publishStatus.configurationRequired', 'Configuration required'), variant: 'outline' as const }
   }
   if (!hasSuccessfulBuild) {
     return { label: t('publishStatus.neverGenerated', 'Never generated'), variant: 'outline' as const }
@@ -275,12 +281,25 @@ export default function PublishOverview() {
   const groupIndexMutation = useGroupIndexPreview()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
+  const siteStatus = pipelineData?.site?.status
   const groupsStatus = pipelineData?.groups?.status
   const canRecomputeStatistics = groupsStatus !== 'unconfigured'
+  const siteBuildBlocked = siteStatus === 'unconfigured' || siteStatus === 'never_run'
+  const buildActionDisabled = isBuilding || siteBuildBlocked
   const shouldIncludeTransformByDefault = groupsStatus === 'stale' || groupsStatus === 'never_run'
   const includeTransformLabel = groupsStatus === 'never_run'
     ? t('build.includeTransformInitial', 'Compute statistics before generation')
     : t('build.includeTransform', 'Recompute statistics before generation')
+  const buildBlockedTitle = t('build.configurationRequiredTitle', 'Site configuration required')
+  const buildBlockedDescription = siteStatus === 'unconfigured'
+    ? t(
+        'build.configurationIncomplete',
+        'The site configuration is incomplete. Save the site once so template and output directories are written before generating.'
+      )
+    : t(
+        'build.configurationRequired',
+        'Complete and save the site configuration before launching a generation.'
+      )
 
   const configuredPlatforms = PLATFORM_ORDER.filter((platform) => Boolean(platformConfigs[platform]))
   const primaryPlatform = configuredPlatforms.includes(preferredPlatform as DeployPlatform)
@@ -301,6 +320,7 @@ export default function PublishOverview() {
     currentDeploy,
     hasSuccessfulBuild,
     isStale,
+    siteBuildBlocked,
     t: (key, defaultValue) => (defaultValue ? t(key, defaultValue) : t(key)),
   })
 
@@ -339,6 +359,13 @@ export default function PublishOverview() {
   }
 
   const runBuild = async () => {
+    if (siteBuildBlocked) {
+      toast.error(buildBlockedTitle, {
+        description: buildBlockedDescription,
+      })
+      return
+    }
+
     startBuild()
     setCurrentPhase(null)
     const startTime = Date.now()
@@ -393,8 +420,11 @@ export default function PublishOverview() {
       }
     } catch (error) {
       console.error('Build error:', error)
-      completeBuild(undefined, String(error))
-      toast.error(t('build.error', 'Build error'))
+      const errorMessage = getApiErrorMessage(error, t('build.error', 'Build error'))
+      completeBuild(undefined, errorMessage)
+      toast.error(t('build.error', 'Build error'), {
+        description: errorMessage,
+      })
     }
   }
 
@@ -505,7 +535,7 @@ export default function PublishOverview() {
   }
 
   const loadPagePreview = useCallback((page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
-    if (!siteConfig || !page) return
+    if (!siteConfig || !page || siteBuildBlocked) return
     previewMutation.mutate({
       template: page.template || 'page.html',
       context: { ...(page.context || {}) },
@@ -524,10 +554,10 @@ export default function PublishOverview() {
     }, {
       onSuccess: (data) => setDynamicHtml(data.html),
     })
-  }, [i18n.language, previewMutation, siteConfig])
+  }, [i18n.language, previewMutation, siteBuildBlocked, siteConfig])
 
   const loadDynamicPreview = useCallback(() => {
-    if (!siteConfig) return
+    if (!siteConfig || siteBuildBlocked) return
     const indexPage = siteConfig.static_pages.find((page) =>
       page.template === 'index.html' || page.output_file === 'index.html' || page.name === 'index'
     ) || siteConfig.static_pages[0]
@@ -535,10 +565,10 @@ export default function PublishOverview() {
     if (indexPage) {
       loadPagePreview(indexPage)
     }
-  }, [loadPagePreview, siteConfig])
+  }, [loadPagePreview, siteBuildBlocked, siteConfig])
 
   const handlePreviewLinkClick = (href: string) => {
-    if (!siteConfig) return
+    if (!siteConfig || siteBuildBlocked) return
     const normalized = href.replace(/^\//, '')
     const filename = normalized.split('/').pop() || href
 
@@ -582,10 +612,16 @@ export default function PublishOverview() {
   }
 
   useEffect(() => {
-    if (!hasSuccessfulBuild && siteConfig && dynamicHtml === null) {
+    if (!siteBuildBlocked && !hasSuccessfulBuild && siteConfig && dynamicHtml === null) {
       loadDynamicPreview()
     }
-  }, [dynamicHtml, hasSuccessfulBuild, loadDynamicPreview, siteConfig])
+  }, [dynamicHtml, hasSuccessfulBuild, loadDynamicPreview, siteBuildBlocked, siteConfig])
+
+  useEffect(() => {
+    if (siteBuildBlocked && !hasSuccessfulBuild && dynamicHtml !== null) {
+      setDynamicHtml(null)
+    }
+  }, [dynamicHtml, hasSuccessfulBuild, siteBuildBlocked])
 
   const activityItems = [
     ...buildHistory.slice(0, 3).map((job) => ({ type: 'build' as const, ...job })),
@@ -631,14 +667,16 @@ export default function PublishOverview() {
     />
   ) : (
     <PreviewFrame
-      html={dynamicHtml}
-      isLoading={previewMutation.isPending || groupIndexMutation.isPending}
+      html={siteBuildBlocked ? null : dynamicHtml}
+      isLoading={siteBuildBlocked ? false : (previewMutation.isPending || groupIndexMutation.isPending)}
       device={previewDevice}
       onDeviceChange={setPreviewDevice}
-      onRefresh={loadDynamicPreview}
-      onLinkClick={handlePreviewLinkClick}
+      onRefresh={siteBuildBlocked ? undefined : loadDynamicPreview}
+      onLinkClick={siteBuildBlocked ? undefined : handlePreviewLinkClick}
       title={t('overview.previewDynamic', 'Dynamic preview')}
-      emptyMessage={t('overview.noPreview', 'Generate the site to preview the final output')}
+      emptyMessage={siteBuildBlocked
+        ? buildBlockedDescription
+        : t('overview.noPreview', 'Generate the site to preview the final output')}
       className="h-full"
     />
   )
@@ -660,6 +698,17 @@ export default function PublishOverview() {
                 {lastBuild.error?.includes('Network Error')
                   ? t('build.errorNetwork', 'Server connection lost during build. Please retry generation.')
                   : lastBuild.error || t('build.error', 'Build error')}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {siteBuildBlocked && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <span className="font-medium">{buildBlockedTitle}</span>
+                {' '}
+                {buildBlockedDescription}
               </AlertDescription>
             </Alert>
           )}
@@ -716,7 +765,7 @@ export default function PublishOverview() {
               <Clock className="h-4 w-4" />
               <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span>{t('deploy.noBuild', 'You need to generate the site first before deploying.')}</span>
-                <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                <Button size="sm" variant="outline" onClick={runBuild} disabled={buildActionDisabled}>
                   <Package className="mr-2 h-4 w-4" />
                   {t('build.trigger', 'Generate Site')}
                 </Button>
@@ -729,7 +778,7 @@ export default function PublishOverview() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span>{t('deploy.staleWarning', 'The exported site is outdated. Regenerate the site before deploying.')}</span>
-                <Button size="sm" variant="outline" onClick={runBuild} disabled={isBuilding}>
+                <Button size="sm" variant="outline" onClick={runBuild} disabled={buildActionDisabled}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {t('build.rebuild', 'Regenerate Site')}
                 </Button>
@@ -897,7 +946,7 @@ export default function PublishOverview() {
           <Badge variant={publishStatus.variant} className="hidden sm:inline-flex px-3 py-1 text-sm">
             {publishStatus.label}
           </Badge>
-          <Button size="sm" onClick={runBuild} disabled={isBuilding}>
+          <Button size="sm" onClick={runBuild} disabled={buildActionDisabled}>
             {isBuilding ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

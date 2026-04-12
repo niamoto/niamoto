@@ -256,12 +256,56 @@ class TestSiteGroups:
 
             saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
             web_pages = saved_config["exports"][0]
+            assert web_pages["params"]["template_dir"] == "templates/"
+            assert web_pages["params"]["output_dir"] == "exports/web"
             assert web_pages["static_pages"][0]["output_file"] == "index.html"
             assert web_pages["params"]["navigation"][0]["url"] == "/index.html"
             assert (
                 web_pages["params"]["footer_navigation"][0]["links"][0]["url"]
                 == "/index.html"
             )
+
+    def test_update_site_config_repairs_missing_export_directories(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {"site": {"title": "Niamoto", "lang": "fr"}},
+                            "static_pages": [],
+                            "groups": [],
+                        }
+                    ]
+                },
+            )
+
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [],
+                "footer_navigation": [],
+                "static_pages": [],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.put("/api/site/config", json=payload)
+                assert response.status_code == 200, response.text
+
+            saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
+            web_pages = saved_config["exports"][0]
+            assert web_pages["params"]["template_dir"] == "templates/"
+            assert web_pages["params"]["output_dir"] == "exports/web"
 
     def test_update_site_config_adds_default_home_page_when_missing(self):
         with tempfile.TemporaryDirectory() as temp_dir:

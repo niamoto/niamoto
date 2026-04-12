@@ -681,6 +681,8 @@ class TestConfigScaffoldSpatialReferences:
             for export in export_config.get("exports", [])
             if export.get("name") == "web_pages"
         )
+        assert web_export["params"]["template_dir"] == "templates/"
+        assert web_export["params"]["output_dir"] == "exports/web"
         assert web_export["static_pages"] == [
             {
                 "name": "home",

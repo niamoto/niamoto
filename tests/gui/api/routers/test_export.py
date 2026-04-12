@@ -5,12 +5,60 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+import yaml
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.services.job_file_store import JobFileStore
 
 
 class TestExportHistory:
+    def test_execute_export_rejects_invalid_html_export_config(self):
+        with TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+            config_dir = work_dir / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "export.yml").write_text(
+                yaml.safe_dump(
+                    {
+                        "exports": [
+                            {
+                                "name": "web_pages",
+                                "enabled": True,
+                                "exporter": "html_page_exporter",
+                                "params": {},
+                                "static_pages": [],
+                                "groups": [],
+                            }
+                        ]
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with (
+                patch.dict("os.environ", {"NIAMOTO_HOME": str(work_dir)}),
+                patch(
+                    "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+                    return_value=work_dir,
+                ),
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/export/execute",
+                    json={
+                        "config_path": "config/export.yml",
+                        "include_transform": False,
+                    },
+                )
+
+            assert response.status_code == 400, response.text
+            assert (
+                "Le site n’est pas prêt pour la génération" in response.json()["detail"]
+            )
+
     def test_export_jobs_return_project_scoped_history_with_result(self):
         with TemporaryDirectory() as temp_dir:
             work_dir = Path(temp_dir)

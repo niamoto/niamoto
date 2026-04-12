@@ -12,6 +12,7 @@
     "pending": "En attente"
   },
   "publishStatus": {
+    "configurationRequired": "Configuration requise",
     "neverGenerated": "Jamais généré",
     "outOfDate": "Plus à jour",
     "upToDate": "À jour"
@@ -48,6 +49,9 @@
     "outputPath": "Répertoire",
     "success": "Build terminé avec succès !",
     "error": "Erreur lors du build",
+    "configurationRequiredTitle": "Configuration du site requise",
+    "configurationRequired": "Complétez et enregistrez la configuration du site avant de lancer une génération.",
+    "configurationIncomplete": "La configuration du site est incomplète. Enregistrez le site une fois pour écrire les répertoires de templates et de sortie avant de générer.",
     "advancedOptions": "Options avancées",
     "lastGenerated": "Dernière génération",
     "includeTransform": "Recalculer les statistiques avant la génération",
