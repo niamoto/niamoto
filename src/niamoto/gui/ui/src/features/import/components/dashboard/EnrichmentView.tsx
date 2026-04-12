@@ -15,6 +15,7 @@ import { apiClient } from '@/shared/lib/api/client'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { toast } from 'sonner'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface EnrichmentJobSummary {
   id: string
@@ -457,8 +458,8 @@ export function EnrichmentView() {
         onOpenChange={(open) => !open && setActiveReference(null)}
         onConfigSaved={async () => {
           await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['references'] }),
-            queryClient.invalidateQueries({ queryKey: ['import-summary'] }),
+            queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.references() }),
+            queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
           ])
         }}
       />

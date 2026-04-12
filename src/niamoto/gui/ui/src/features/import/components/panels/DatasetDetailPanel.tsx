@@ -41,6 +41,7 @@ import { TableBrowser } from '@/features/import/components/data-preview/TableBro
 import { TableStats } from '@/features/import/components/data-preview/TableStats'
 import { DatasetConfigEditor } from '@/features/import/components/editors/DatasetConfigEditor'
 import { deleteEntity } from '@/features/import/api/import'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface DatasetDetailPanelProps {
   datasetName: string
@@ -75,9 +76,10 @@ export function DatasetDetailPanel({
     setIsDeleting(true)
     try {
       await deleteEntity('dataset', datasetName, deleteTable)
-      queryClient.invalidateQueries({ queryKey: ['entities'] })
-      queryClient.invalidateQueries({ queryKey: ['datasets'] })
-      queryClient.invalidateQueries({ queryKey: ['references'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
+        queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),
+      ])
       setDialogOpen(false)
       onBack?.()
     } catch (error) {

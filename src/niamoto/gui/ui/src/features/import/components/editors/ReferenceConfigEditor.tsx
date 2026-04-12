@@ -37,6 +37,7 @@ import {
   Map,
 } from 'lucide-react'
 import { apiClient } from '@/shared/lib/api/client'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface ReferenceConfigEditorProps {
   referenceName: string
@@ -134,10 +135,13 @@ function ReferenceConfigEditorForm({
 
   const mutation = useMutation({
     mutationFn: (config: ReferenceConfig) => saveReferenceConfig(referenceName, config),
-    onSuccess: () => {
+    onSuccess: async () => {
       setHasChanges(false)
-      queryClient.invalidateQueries({ queryKey: ['references'] })
-      queryClient.invalidateQueries({ queryKey: ['reference-config', referenceName] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.entities.references() }),
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.summary() }),
+        queryClient.invalidateQueries({ queryKey: ['reference-config', referenceName] }),
+      ])
       onSaved?.()
     },
   })

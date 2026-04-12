@@ -46,6 +46,7 @@ import { useDatasets } from '@/features/import/hooks/useDatasets'
 import { useReferences } from '@/features/import/hooks/useReferences'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 type ImportPhase =
   | 'idle'
@@ -153,11 +154,10 @@ export function ImportWizard() {
   const handleImportComplete = useCallback(async () => {
     setPhase('complete')
 
-    // Refresh all data queries
-    queryClient.invalidateQueries({ queryKey: ['entities'] })
-    queryClient.invalidateQueries({ queryKey: ['references'] })
-    queryClient.invalidateQueries({ queryKey: ['datasets'] })
-    queryClient.invalidateQueries({ queryKey: ['pipeline-status'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
+      queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),
+    ])
     queryClient.removeQueries({ queryKey: ['suggestions'] })
     queryClient.removeQueries({ queryKey: ['configured-widgets'] })
     queryClient.removeQueries({ queryKey: ['widget-config'] })

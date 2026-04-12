@@ -47,6 +47,7 @@ import { ReferenceConfigEditor } from '@/features/import/components/editors/Refe
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
 import { deleteEntity } from '@/features/import/api/import'
 import { apiClient } from '@/shared/lib/api/client'
+import { importQueryKeys } from '@/features/import/queryKeys'
 
 interface EnrichmentConfigSource {
   id: string
@@ -133,9 +134,10 @@ export function ReferenceDetailPanel({
     setIsDeleting(true)
     try {
       await deleteEntity('reference', referenceName, deleteTable)
-      queryClient.invalidateQueries({ queryKey: ['entities'] })
-      queryClient.invalidateQueries({ queryKey: ['references'] })
-      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
+        queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),
+      ])
       setDialogOpen(false)
       onBack?.()
     } catch (error) {

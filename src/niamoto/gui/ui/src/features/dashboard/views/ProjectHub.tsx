@@ -1,7 +1,6 @@
 import { Loader2 } from "lucide-react"
 
 import { useDatasets } from "@/hooks/useDatasets"
-import { useProjectInfo } from "@/hooks/useProjectInfo"
 import { useReferences } from "@/hooks/useReferences"
 import { DashboardView } from "../components/DashboardView"
 import { OnboardingView } from "../components/OnboardingView"
@@ -9,11 +8,12 @@ import { OnboardingView } from "../components/OnboardingView"
 export default function ProjectHub() {
   const { data: datasetsData, isLoading: datasetsLoading } = useDatasets()
   const { data: referencesData, isLoading: referencesLoading } = useReferences()
-  const { isLoading: projectLoading } = useProjectInfo()
 
-  const isLoading = datasetsLoading || referencesLoading || projectLoading
+  const isInitialLoading =
+    (datasetsLoading && !datasetsData) ||
+    (referencesLoading && !referencesData)
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
