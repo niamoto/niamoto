@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.4] - 2026-04-12
+
+### Bug Fixes
+
+- Enable Tauri devtools feature for desktop debug mode
+
+### Other
+
+- Update uv.lock
+
 ## [v0.14.3] - 2026-04-12
 
 ### Refactoring
