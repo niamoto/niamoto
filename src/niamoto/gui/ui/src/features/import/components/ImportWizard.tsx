@@ -45,6 +45,7 @@ import { requestBugReport } from '@/features/feedback'
 import { useDatasets } from '@/features/import/hooks/useDatasets'
 import { useReferences } from '@/features/import/hooks/useReferences'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 
 type ImportPhase =
   | 'idle'
@@ -157,6 +158,10 @@ export function ImportWizard() {
     queryClient.invalidateQueries({ queryKey: ['references'] })
     queryClient.invalidateQueries({ queryKey: ['datasets'] })
     queryClient.invalidateQueries({ queryKey: ['pipeline-status'] })
+    queryClient.removeQueries({ queryKey: ['suggestions'] })
+    queryClient.removeQueries({ queryKey: ['configured-widgets'] })
+    queryClient.removeQueries({ queryKey: ['widget-config'] })
+    invalidateAllPreviews(queryClient)
 
     // Redirect to sources dashboard after short delay
     setTimeout(() => {
