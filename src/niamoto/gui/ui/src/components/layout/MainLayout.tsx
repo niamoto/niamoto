@@ -10,7 +10,7 @@ import { FeedbackErrorBoundary } from '@/features/feedback/components/FeedbackEr
 import { recordNavigation } from '@/features/feedback/lib/navigation-tracker'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useJobPolling } from '@/hooks/useJobPolling'
-import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
+import { AppUpdaterProvider } from '@/shared/desktop/updater/useAppUpdater'
 import { cn } from '@/lib/utils'
 
 export function MainLayout() {
@@ -18,7 +18,6 @@ export function MainLayout() {
   const { setBreadcrumbs } = useNavigationStore()
 
   useJobPolling()
-  useAppUpdater()
 
   // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {
@@ -65,31 +64,33 @@ export function MainLayout() {
   }, [])
 
   return (
-    <FeedbackProvider>
-      <div className="flex h-screen overflow-hidden">
-        <NavigationSidebar />
+    <AppUpdaterProvider>
+      <FeedbackProvider>
+        <div className="flex h-screen overflow-hidden">
+          <NavigationSidebar />
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <TopBar />
-          <BreadcrumbNav />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <TopBar />
+            <BreadcrumbNav />
 
-          <main
-            className={cn(
-              'flex-1 overflow-hidden bg-background',
-              'transition-all duration-200'
-            )}
-          >
-            <FeedbackErrorBoundary key={location.pathname}>
-              <PageTransition>
-                <Outlet />
-              </PageTransition>
-            </FeedbackErrorBoundary>
-          </main>
+            <main
+              className={cn(
+                'flex-1 overflow-hidden bg-background',
+                'transition-all duration-200'
+              )}
+            >
+              <FeedbackErrorBoundary key={location.pathname}>
+                <PageTransition>
+                  <Outlet />
+                </PageTransition>
+              </FeedbackErrorBoundary>
+            </main>
+          </div>
+
+          <CommandPalette />
+          <FeedbackModal />
         </div>
-
-        <CommandPalette />
-        <FeedbackModal />
-      </div>
-    </FeedbackProvider>
+      </FeedbackProvider>
+    </AppUpdaterProvider>
   )
 }
