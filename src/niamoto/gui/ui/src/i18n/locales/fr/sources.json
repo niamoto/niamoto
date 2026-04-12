@@ -294,6 +294,7 @@
     "overviewFresh": "À jour",
     "overviewStale": "À recalculer",
     "overviewRunning": "Calcul en cours",
+    "overviewCompleted": "Terminé",
     "overviewError": "Erreur",
     "overviewNeverRun": "Jamais calculé",
     "overviewBlocks": "Blocs",

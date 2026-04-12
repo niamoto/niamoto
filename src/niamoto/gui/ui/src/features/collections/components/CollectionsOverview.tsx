@@ -10,6 +10,7 @@ import { useState } from 'react'
 import {
   usePipelineStatus,
   type EntityStatus,
+  type RunningJob,
 } from '@/hooks/usePipelineStatus'
 import { useConfiguredWidgets } from '@/components/widgets'
 import { useApiExportTargets } from '@/features/collections/hooks/useApiExportConfigs'
@@ -38,6 +39,7 @@ import { toast } from 'sonner'
 interface CollectionCardProps {
   reference: ReferenceInfo
   entityStatus?: EntityStatus
+  activityState?: 'running' | 'completed'
   isRunning?: boolean
   isSubmitting?: boolean
   isDisabled?: boolean
@@ -48,6 +50,7 @@ interface CollectionCardProps {
 function CollectionCard({
   reference,
   entityStatus,
+  activityState,
   isRunning = false,
   isSubmitting = false,
   isDisabled = false,
@@ -72,6 +75,8 @@ function CollectionCard({
   const lastRunAt = entityStatus?.last_run_at
   const canRun = configuredIds.length > 0
   const isBusy = isRunning || isSubmitting
+  const isCompletedInCurrentBatch = activityState === 'completed'
+  const showRunButton = !isBusy && !isCompletedInCurrentBatch
 
   // Kind labels
   const kindLabels: Record<string, string> = {
@@ -98,6 +103,11 @@ function CollectionCard({
             <Badge variant="outline" className="shrink-0 gap-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">
               <SquareCascadeLoader className="h-[14px] w-[14px] gap-[2px]" squareClassName="h-[6px] w-[6px]" />
               {t('collections.overviewRunning', 'Calcul en cours')}
+            </Badge>
+          ) : isCompletedInCurrentBatch ? (
+            <Badge variant="outline" className="shrink-0 gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
+              <CheckCircle className="h-3 w-3" />
+              {t('collections.overviewCompleted', 'Terminé')}
             </Badge>
           ) : isFresh ? (
             <Badge variant="outline" className="shrink-0 gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
@@ -126,7 +136,7 @@ function CollectionCard({
             </Badge>
           )}
         </div>
-        {!isBusy && (
+        {showRunButton && (
           <div className="mt-3 flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
             <Button
               variant="outline"
@@ -289,11 +299,11 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
   const trackedTransformGroups = trackedJobs
     .filter((job) => job.jobType === 'transform')
     .flatMap((job) => getTransformJobGroups(job))
-  const runningGroups = new Set([
-    ...getTransformJobGroups(isTransformRunning ? runningJob : null),
-    ...trackedTransformGroups,
-    ...pendingGroups,
-  ])
+  const activityStateByGroup = getTransformActivityStateByGroup({
+    runningJob: isTransformRunning ? runningJob : null,
+    trackedGroups: trackedTransformGroups,
+    pendingGroups,
+  })
   const startTransform = async (groups: string[], successCount: number) => {
     if (groups.length === 0) {
       toast.error(t('collections.overviewRunVisibleEmpty'))
@@ -378,13 +388,16 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
         </Button>
       </div>
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {references.map((ref) => (
+        {references.map((ref) => {
+          const activityState = activityStateByGroup.get(ref.name)
+          return (
           <CollectionCard
             key={ref.name}
             reference={ref}
-            isRunning={runningGroups.has(ref.name)}
+            activityState={activityState}
+            isRunning={activityState === 'running'}
             isSubmitting={pendingGroups.includes(ref.name)}
-            isDisabled={Boolean(hasActivePipelineJob && !runningGroups.has(ref.name) && !pendingGroups.includes(ref.name))}
+            isDisabled={Boolean(hasActivePipelineJob && activityState !== 'completed' && !pendingGroups.includes(ref.name))}
             entityStatus={
               statusByName.get(ref.name) ??
               (fallbackStatus ? ({ name: ref.name, status: fallbackStatus, last_run_at: null, reason: null } as EntityStatus) : undefined)
@@ -392,7 +405,8 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
             onSelect={onSelect}
             onRun={handleRunSingleCollection}
           />
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -411,4 +425,57 @@ function formatRelativeTime(isoDate: string, t: (key: string, options?: Record<s
   if (hours < 24) return t('collectionPanel.relativeTime.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
   return t('collectionPanel.relativeTime.daysAgo', { count: days })
+}
+
+function getCurrentBatchGroup(message?: string | null): string | null {
+  if (!message) return null
+  const match = message.match(/^Processing\s+(.+?)\s+·/)
+  return match?.[1]?.trim() || null
+}
+
+function getTransformActivityStateByGroup({
+  runningJob,
+  trackedGroups,
+  pendingGroups,
+}: {
+  runningJob: Pick<RunningJob, 'message' | 'group_by' | 'group_bys'> | null
+  trackedGroups: string[]
+  pendingGroups: string[]
+}): Map<string, 'running' | 'completed'> {
+  const states = new Map<string, 'running' | 'completed'>()
+
+  if (runningJob) {
+    const jobGroups = getTransformJobGroups(runningJob)
+    if (jobGroups.length > 0) {
+      const currentGroup = getCurrentBatchGroup(runningJob.message)
+      if (jobGroups.length > 1 && currentGroup && jobGroups.includes(currentGroup)) {
+        for (const groupName of jobGroups) {
+          if (groupName === currentGroup) {
+            states.set(groupName, 'running')
+            break
+          }
+          states.set(groupName, 'completed')
+        }
+        return states
+      }
+
+      for (const groupName of jobGroups) {
+        states.set(groupName, 'running')
+      }
+      return states
+    }
+  }
+
+  if (pendingGroups.length > 0) {
+    for (const groupName of pendingGroups) {
+      states.set(groupName, 'running')
+    }
+    return states
+  }
+
+  for (const groupName of trackedGroups) {
+    states.set(groupName, 'running')
+  }
+
+  return states
 }

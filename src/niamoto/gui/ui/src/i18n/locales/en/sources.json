@@ -294,6 +294,7 @@
     "overviewFresh": "Up to date",
     "overviewStale": "Needs recomputing",
     "overviewRunning": "Running",
+    "overviewCompleted": "Completed",
     "overviewError": "Error",
     "overviewNeverRun": "Never computed",
     "overviewBlocks": "Blocks",
