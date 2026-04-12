@@ -48,6 +48,8 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   }
 
   const isCompact = sidebarMode === 'compact'
+  const showDesktopTrafficLightStrip = showHeader && isDesktop && isMac
+  const showWebBrandHeader = showHeader && !isDesktop
 
   const isActive = (matchPrefix: string) => {
     // Home ("/") must be exact match to avoid highlighting on every route
@@ -63,17 +65,19 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
           className
         )}
       >
-      {/* Header — on macOS the space is reserved for window traffic lights.
-          On other platforms, shows the Niamoto brand. */}
-      {showHeader && (
+      {/* Header behavior:
+          - macOS desktop keeps a drag strip for the native traffic lights
+          - web shows the Niamoto brand
+          - Windows/Linux desktop render no extra header to avoid duplicate branding */}
+      {(showDesktopTrafficLightStrip || showWebBrandHeader) && (
         <div
-          data-tauri-drag-region={isMac && isDesktop ? true : undefined}
+          data-tauri-drag-region={showDesktopTrafficLightStrip ? true : undefined}
           className={cn(
             'flex h-14 shrink-0 items-center border-b',
             isCompact ? 'justify-center px-0' : 'gap-2 px-4'
           )}
         >
-          {!(isMac && isDesktop) && (
+          {showWebBrandHeader && (
             <>
               <img
                 src={niamotoLogo}
