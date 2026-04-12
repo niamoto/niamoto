@@ -52,7 +52,7 @@ export const herbierTheme: Theme = {
     // Neutral — Warm parchment tones
     muted: 'oklch(0.93 0.008 80)',
     mutedForeground: 'oklch(0.52 0.015 55)',
-    accent: 'oklch(0.58 0.08 50)',  // Copper
+    accent: 'oklch(0.55 0.04 70)',  // Copper
     accentForeground: 'oklch(0.97 0 0)',
 
     // Semantic
@@ -72,7 +72,7 @@ export const herbierTheme: Theme = {
 
     // Charts — Herbarium palette
     chart1: 'oklch(0.42 0.08 170)',  // Patina green
-    chart2: 'oklch(0.58 0.08 50)',   // Copper
+    chart2: 'oklch(0.55 0.04 70)',   // Copper
     chart3: 'oklch(0.50 0.08 240)',  // Muted blue
     chart4: 'oklch(0.75 0.12 80)',   // Warm amber
     chart5: 'oklch(0.45 0.06 320)',  // Muted mauve
@@ -143,7 +143,7 @@ export const herbierTheme: Theme = {
     // Neutral
     muted: 'oklch(0.23 0.012 55)',
     mutedForeground: 'oklch(0.58 0.012 55)',
-    accent: 'oklch(0.68 0.08 50)',  // Lighter copper
+    accent: 'oklch(0.65 0.04 70)',  // Lighter copper
     accentForeground: 'oklch(0.15 0 0)',
 
     // Semantic
@@ -163,7 +163,7 @@ export const herbierTheme: Theme = {
 
     // Charts
     chart1: 'oklch(0.62 0.08 170)',
-    chart2: 'oklch(0.68 0.08 50)',
+    chart2: 'oklch(0.65 0.04 70)',
     chart3: 'oklch(0.60 0.08 240)',
     chart4: 'oklch(0.80 0.12 80)',
     chart5: 'oklch(0.55 0.06 320)',
