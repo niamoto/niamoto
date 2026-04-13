@@ -116,8 +116,10 @@
     "updateAvailable": "Version {{version}} disponible",
     "installUpdate": "Installer v{{version}}",
     "installingUpdate": "Installation en cours...",
+    "downloadLatestVersion": "Télécharger la dernière version",
     "checkUpdates": "Vérifier les mises à jour",
     "upToDate": "À jour",
+    "windowsManualUpdateNotice": "Les mises à jour automatiques sont désactivées sur Windows pour éviter les redémarrages système déclenchés par l’installateur MSI. Téléchargez la nouvelle version manuellement.",
     "effectiveLanguage": "Langue active de l’interface : {{language}}"
   },
   "plugins": {
