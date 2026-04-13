@@ -2,9 +2,13 @@ import { useState, useEffect } from "react";
 import { AbsoluteFill, useVideoConfig, delayRender, continueRender } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
+import { slide } from "@remotion/transitions/slide";
 import { DURATIONS, TRANSITION_FRAMES } from "../shared/config";
 import { ensureFontsLoaded } from "../shared/fonts";
 import { theme } from "../shared/theme";
+import { Act1Welcome } from "../acts/Act1Welcome";
+import { Act2ProjectWizard } from "../acts/Act2ProjectWizard";
+import { Act3Import } from "../acts/Act3Import";
 
 export const MarketingLandscape: React.FC = () => {
   const { fps } = useVideoConfig();
@@ -35,11 +39,7 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Act 1 — Welcome */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act1Welcome)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act1Welcome placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act1Welcome />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
@@ -49,25 +49,17 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Act 2 — Project Wizard */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act2ProjectWizard)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act2ProjectWizard placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act2ProjectWizard />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
-          presentation={fade()}
+          presentation={slide({ direction: "from-right" })}
           timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
 
         {/* Act 3 — Import */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act3Import)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act3Import placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act3Import />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
