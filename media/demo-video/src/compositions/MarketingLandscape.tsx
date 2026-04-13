@@ -9,6 +9,9 @@ import { theme } from "../shared/theme";
 import { Act1Welcome } from "../acts/Act1Welcome";
 import { Act2ProjectWizard } from "../acts/Act2ProjectWizard";
 import { Act3Import } from "../acts/Act3Import";
+import { Act4Collections } from "../acts/Act4Collections";
+import { Act5SiteBuilder } from "../acts/Act5SiteBuilder";
+import { Act6Publish } from "../acts/Act6Publish";
 
 export const MarketingLandscape: React.FC = () => {
   const { fps } = useVideoConfig();
@@ -69,11 +72,7 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Act 4 — Collections */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act4Collections)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act4Collections placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act4Collections />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
@@ -83,11 +82,7 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Act 5 — Site Builder */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act5SiteBuilder)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act5SiteBuilder placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act5SiteBuilder />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
@@ -97,11 +92,7 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Act 6 — Publish */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act6Publish)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [Act6Publish placeholder]
-            </span>
-          </AbsoluteFill>
+          <Act6Publish />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
