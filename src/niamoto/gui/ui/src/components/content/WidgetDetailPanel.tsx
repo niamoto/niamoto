@@ -48,6 +48,7 @@ import type { LocalizedString } from '@/components/ui/localized-input'
 import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
+import { recordCollectionsPerf } from '@/features/collections/performance/collectionsPerf'
 
 // La preview individuelle a besoin d'un rendu responsive, mais pas d'occuper
 // toute la hauteur du panneau : on garde donc l'override Plotly, puis on borne
@@ -89,6 +90,7 @@ interface WidgetDetailPanelProps {
   widget: ConfiguredWidget
   groupBy: string
   availableFields?: string[]
+  autoRefreshPreview?: boolean
   onBack: () => void
   onUpdate: (config: Partial<ConfiguredWidget>) => Promise<boolean>
   onDelete: () => Promise<boolean>
@@ -98,6 +100,7 @@ export function WidgetDetailPanel({
   widget,
   groupBy,
   availableFields = [],
+  autoRefreshPreview = true,
   onBack,
   onUpdate,
   onDelete,
@@ -108,17 +111,21 @@ export function WidgetDetailPanel({
     widgetId: string
     activeTab: 'params' | 'yaml'
     previewDraft: Partial<ConfiguredWidget> | null
+    appliedPreviewDraft: Partial<ConfiguredWidget> | null
     formInstanceKey: number
   }>(() => ({
     widgetId: widget.id,
     activeTab: 'params',
     previewDraft: null,
+    appliedPreviewDraft: null,
     formInstanceKey: 0,
   }))
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const activeTab = panelState.widgetId === widget.id ? panelState.activeTab : 'params'
   const previewDraft = panelState.widgetId === widget.id ? panelState.previewDraft : null
+  const appliedPreviewDraft =
+    panelState.widgetId === widget.id ? panelState.appliedPreviewDraft : null
   const formInstanceKey = panelState.widgetId === widget.id ? panelState.formInstanceKey : 0
 
   const updatePanelState = useCallback(
@@ -127,15 +134,18 @@ export function WidgetDetailPanel({
         | {
             activeTab: 'params' | 'yaml'
             previewDraft: Partial<ConfiguredWidget> | null
+            appliedPreviewDraft: Partial<ConfiguredWidget> | null
             formInstanceKey: number
           }
         | ((prev: {
             activeTab: 'params' | 'yaml'
             previewDraft: Partial<ConfiguredWidget> | null
+            appliedPreviewDraft: Partial<ConfiguredWidget> | null
             formInstanceKey: number
           }) => {
             activeTab: 'params' | 'yaml'
             previewDraft: Partial<ConfiguredWidget> | null
+            appliedPreviewDraft: Partial<ConfiguredWidget> | null
             formInstanceKey: number
           }),
     ) => {
@@ -147,6 +157,7 @@ export function WidgetDetailPanel({
                 widgetId: widget.id,
                 activeTab: 'params' as const,
                 previewDraft: null,
+                appliedPreviewDraft: null,
                 formInstanceKey: 0,
               }
 
@@ -155,6 +166,7 @@ export function WidgetDetailPanel({
             ? updater({
                 activeTab: base.activeTab,
                 previewDraft: base.previewDraft,
+                appliedPreviewDraft: base.appliedPreviewDraft,
                 formInstanceKey: base.formInstanceKey,
               })
             : updater
@@ -163,6 +175,7 @@ export function WidgetDetailPanel({
           widgetId: widget.id,
           activeTab: next.activeTab,
           previewDraft: next.previewDraft,
+          appliedPreviewDraft: next.appliedPreviewDraft,
           formInstanceKey: next.formInstanceKey,
         }
       })
@@ -175,11 +188,16 @@ export function WidgetDetailPanel({
   const Icon = CATEGORY_ICONS[category] || BarChart3
   const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS.chart
 
+  const previewSourceDraft = useMemo(
+    () => (autoRefreshPreview ? previewDraft : appliedPreviewDraft),
+    [appliedPreviewDraft, autoRefreshPreview, previewDraft],
+  )
+
   const previewTitle = useMemo(
     () => resolveLocalizedString(
-      (previewDraft?.title as LocalizedString | undefined) ?? widget.title,
+      (previewSourceDraft?.title as LocalizedString | undefined) ?? widget.title,
     ),
-    [previewDraft?.title, widget.title],
+    [previewSourceDraft?.title, widget.title],
   )
 
   // Build PreviewDescriptor
@@ -198,19 +216,19 @@ export function WidgetDetailPanel({
       inline: {
         transformer_plugin: widget.transformerPlugin,
         transformer_params:
-          (previewDraft?.transformerParams as Record<string, unknown> | undefined) ??
+          (previewSourceDraft?.transformerParams as Record<string, unknown> | undefined) ??
           widget.transformerParams,
         widget_plugin: widget.widgetPlugin,
         widget_params:
-          (previewDraft?.widgetParams as Record<string, unknown> | undefined) ??
+          (previewSourceDraft?.widgetParams as Record<string, unknown> | undefined) ??
           widget.widgetParams,
         widget_title: previewTitle || widget.id,
       },
     }
   }, [
     groupBy,
-    previewDraft?.transformerParams,
-    previewDraft?.widgetParams,
+    previewSourceDraft?.transformerParams,
+    previewSourceDraft?.widgetParams,
     previewTitle,
     widget.hasTransformConfig,
     widget.id,
@@ -252,8 +270,17 @@ export function WidgetDetailPanel({
   }, [widget])
 
   const handleRefresh = useCallback(() => {
+    updatePanelState((prev) => ({
+      ...prev,
+      appliedPreviewDraft: prev.previewDraft,
+    }))
     invalidateAllPreviews(queryClient)
-  }, [queryClient])
+    recordCollectionsPerf('collections.detail.preview.refresh', {
+      autoRefreshPreview,
+      groupBy,
+      widgetId: widget.id,
+    })
+  }, [autoRefreshPreview, groupBy, queryClient, updatePanelState, widget.id])
 
   const handleSave = useCallback(async (config: Partial<ConfiguredWidget>): Promise<boolean> => {
     const success = await onUpdate(config)
@@ -261,6 +288,7 @@ export function WidgetDetailPanel({
       updatePanelState((prev) => ({
         ...prev,
         previewDraft: null,
+        appliedPreviewDraft: null,
       }))
       invalidateAllPreviews(queryClient)
     }
@@ -272,6 +300,7 @@ export function WidgetDetailPanel({
       ...prev,
       activeTab: 'params',
       previewDraft: null,
+      appliedPreviewDraft: null,
       formInstanceKey: prev.formInstanceKey + 1,
     }))
   }, [updatePanelState])
@@ -368,7 +397,7 @@ export function WidgetDetailPanel({
           <TabsList className="h-9">
             <TabsTrigger value="params" className="gap-1.5 text-sm">
               <Settings className="h-3.5 w-3.5" />
-              Parametres
+              Paramètres
             </TabsTrigger>
             <TabsTrigger value="yaml" className="gap-1.5 text-sm">
               <FileCode className="h-3.5 w-3.5" />
@@ -402,17 +431,31 @@ export function WidgetDetailPanel({
                 <div className="min-w-0">
                   <p className="text-sm font-medium">Preview</p>
                   <p className="text-xs text-muted-foreground">
-                    {previewDraft ? 'Mise a jour en direct' : 'Version enregistree'}
+                    {autoRefreshPreview
+                      ? (previewDraft ? 'Mise à jour en direct' : 'Version enregistrée')
+                      : (previewDraft ? 'Brouillon en attente d’actualisation' : 'Version enregistrée')}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
+                {autoRefreshPreview ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={handleRefresh}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={handleRefresh}
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Actualiser l’aperçu
+                  </Button>
+                )}
               </div>
 
               <div className="mx-auto flex min-h-0 w-full max-w-[420px] flex-1 overflow-hidden rounded-xl border bg-card lg:h-[520px] lg:flex-none">

@@ -11,6 +11,10 @@
 import { useRef, useEffect } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import type { PreviewDescriptor, PreviewState } from './types'
+import {
+  extractPreviewRenderMs,
+  recordCollectionsPerf,
+} from '@/features/collections/performance/collectionsPerf'
 
 // --- Constantes ---
 
@@ -150,13 +154,27 @@ export function usePreviewFrame(
             signal: combinedSignal,
           })
           if (!res.ok) throw new Error(`Preview ${res.status}`)
-          return res.text()
+          const html = await res.text()
+          const timingMs = extractPreviewRenderMs(res.headers)
+          recordCollectionsPerf('collections.preview.request', {
+            descriptor: descriptor.inline?.widget_plugin ?? descriptor.templateId ?? 'inline',
+            mode: descriptor.mode,
+            timingMs,
+          })
+          return { html, timingMs }
         }
 
         const url = buildPreviewUrl(descriptor)
         const res = await fetch(url, { signal: combinedSignal, cache: 'no-store' })
         if (!res.ok) throw new Error(`Preview ${res.status}`)
-        return res.text()
+        const html = await res.text()
+        const timingMs = extractPreviewRenderMs(res.headers)
+        recordCollectionsPerf('collections.preview.request', {
+          descriptor: descriptor.templateId ?? 'inline',
+          mode: descriptor.mode,
+          timingMs,
+        })
+        return { html, timingMs }
       } finally {
         if (slotAcquired) releaseRenderSlot()
       }
@@ -169,9 +187,10 @@ export function usePreviewFrame(
   })
 
   return {
-    html: query.data ?? null,
+    html: query.data?.html ?? null,
     loading: query.isLoading || query.isFetching,
     error: query.error?.message ?? null,
+    timingMs: query.data?.timingMs ?? null,
   }
 }
 

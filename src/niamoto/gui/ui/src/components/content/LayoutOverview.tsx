@@ -10,13 +10,11 @@
  * - Click to select widget for details
  * - Save changes to layout API
  */
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PreviewPane, injectPreviewOverrides } from '@/components/preview'
-import { usePreviewVisibility } from '@/components/preview/usePreviewVisibility'
 import type { PreviewDescriptor } from '@/lib/preview/types'
-import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import {
   DndContext,
@@ -43,7 +41,6 @@ import {
   AlertCircle,
   Settings2,
   Eye,
-  EyeOff,
   Leaf,
   GripVertical,
   Navigation,
@@ -65,6 +62,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { ConfiguredWidget } from '@/components/widgets'
+import {
+  classifyCollectionsPerformanceTier,
+  resolveCollectionsPreviewMode,
+  type CollectionsPreviewPreference,
+  type ResolvedCollectionsPreviewMode,
+} from './previewPolicy'
+import {
+  measureCollectionsContentSwitch,
+  recordCollectionsPerf,
+} from '@/features/collections/performance/collectionsPerf'
 
 // Types matching layout-editor/types.ts
 interface WidgetLayout {
@@ -156,9 +163,14 @@ async function fetchRepresentatives(groupBy: string): Promise<RepresentativesRes
 interface NavigationSidebarProps {
   groupBy: string
   navigationWidget: NavigationWidgetInfo
+  previewMode: 'off' | 'thumbnail'
 }
 
-function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps) {
+function NavigationSidebar({
+  groupBy,
+  navigationWidget,
+  previewMode,
+}: NavigationSidebarProps) {
   const { t } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
 
@@ -167,7 +179,7 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
   const descriptor: PreviewDescriptor = useMemo(() => ({
     templateId: `${referential}_hierarchical_nav_widget`,
     groupBy,
-    mode: 'full' as const,
+    mode: 'thumbnail' as const,
   }), [referential, groupBy])
 
   const handleRefresh = useCallback(() => {
@@ -201,7 +213,18 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
 
       {/* Preview */}
       <div className="relative flex-1 min-h-0 bg-background">
-        <PreviewPane descriptor={descriptor} className="w-full h-full" />
+        {previewMode === 'off' ? (
+          <div className="flex h-full items-center justify-center bg-muted/20 text-center text-muted-foreground">
+            <div className="space-y-1 px-3">
+              <Badge variant="outline" className="text-xs">
+                {t('layout.previewMode.off')}
+              </Badge>
+              <p className="text-xs">{t('layout.previewDisabled')}</p>
+            </div>
+          </div>
+        ) : (
+          <PreviewPane descriptor={descriptor} className="w-full h-full" />
+        )}
       </div>
 
       {/* Footer */}
@@ -214,15 +237,6 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
   )
 }
 
-// Scaled preview for widgets that need a wider render (maps, info grids).
-// Renders the iframe at a large native width then CSS-transforms it down.
-const SCALED_DIMS: Record<string, { w: number; h: number }> = {
-  interactive_map: { w: 800, h: 500 },
-}
-
-// Plugins that benefit from scale-down (content designed for full-page width)
-const NEEDS_SCALE = new Set(Object.keys(SCALED_DIMS))
-
 // Height hints for chart widgets rendered at native container width
 const CHART_HEIGHTS: Record<string, string> = {
   bar_plot:      'h-72',
@@ -234,73 +248,11 @@ const DEFAULT_CHART_HEIGHT = 'h-64'
 
 // Overrides spécifiques aux miniatures : masquer les contrôles Leaflet
 // (ces miniatures sont en lecture seule, donc pas d'interaction zoom/pan
-// nécessaire). On garde les dimensions natives (400x300 par défaut) pour
-// profiter du scaling appliqué par `ScaledPreview`.
+// nécessaire).
 function injectMiniatureOverrides(html: string): string {
   return injectPreviewOverrides(html, {
     hideLeafletControls: true,
   })
-}
-
-function ScaledPreview({ descriptor, plugin }: { descriptor: PreviewDescriptor; plugin: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
-  const shouldLoad = usePreviewVisibility(containerRef)
-
-  const fullDescriptor = useMemo(
-    () => ({ ...descriptor, mode: 'full' as const }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    descriptorDeps(descriptor),
-  )
-  const { html, loading } = usePreviewFrame(fullDescriptor, shouldLoad)
-
-  const dims = SCALED_DIMS[plugin] ?? { w: 800, h: 400 }
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const observer = new ResizeObserver((entries) => {
-      const containerW = entries[0].contentRect.width
-      if (containerW > 0) setScale(containerW / dims.w)
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [dims.w])
-
-  const scaledHeight = dims.h * scale
-
-  return (
-    <div
-      ref={containerRef}
-      className="w-full overflow-hidden"
-      style={{
-        height: scaledHeight || dims.h,
-        contentVisibility: 'auto',
-        containIntrinsicSize: `${dims.w}px ${dims.h}px`,
-      }}
-    >
-      {(!shouldLoad || loading) && (
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      {html && !loading && (
-        <iframe
-          srcDoc={injectMiniatureOverrides(html)}
-          title="Widget preview"
-          sandbox="allow-scripts"
-          style={{
-            width: dims.w,
-            height: dims.h,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            border: 'none',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-    </div>
-  )
 }
 
 // Sortable Widget Card with preview and selection
@@ -308,22 +260,26 @@ interface SortableWidgetCardProps {
   id: string
   groupBy: string
   widget: WidgetLayout
-  showPreview: boolean
+  previewMode: ResolvedCollectionsPreviewMode
+  isPreviewFocused: boolean
   entityId: string | null
   isDragging: boolean
   onColspanToggle: () => void
   onSelect: () => void
+  onPreviewFocus: () => void
 }
 
 function SortableWidgetCard({
   id,
   groupBy,
   widget,
-  showPreview,
+  previewMode,
+  isPreviewFocused,
   entityId,
   isDragging,
   onColspanToggle,
   onSelect,
+  onPreviewFocus,
 }: SortableWidgetCardProps) {
   const { t } = useTranslation(['widgets', 'common'])
 
@@ -331,7 +287,7 @@ function SortableWidgetCard({
     templateId: widget.data_source,
     groupBy,
     entityId: entityId || undefined,
-    mode: 'full' as const,
+    mode: 'thumbnail' as const,
   }), [widget.data_source, groupBy, entityId])
 
   const {
@@ -351,7 +307,15 @@ function SortableWidgetCard({
   // Column span class
   const colSpanClass = widget.colspan === 1 ? 'col-span-6' : 'col-span-12'
 
-  const shouldRenderPreview = showPreview && !isDragging
+  const shouldRenderPreview =
+    !isDragging
+    && (previewMode === 'thumbnail' || (previewMode === 'focused' && isPreviewFocused))
+
+  const previewMessage = isDragging
+    ? t('layout.moving')
+    : previewMode === 'focused' && !isPreviewFocused
+      ? t('layout.previewOnDemand')
+      : t('layout.previewDisabled')
 
   return (
     <div
@@ -403,20 +367,26 @@ function SortableWidgetCard({
 
       {/* Preview area - clickable for selection */}
       <div
-        className="relative bg-background cursor-pointer"
+        className="relative bg-background cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         onClick={onSelect}
+        onMouseEnter={onPreviewFocus}
+        onFocus={onPreviewFocus}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect()
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         {shouldRenderPreview ? (
           <>
-            {NEEDS_SCALE.has(widget.plugin) ? (
-              <ScaledPreview descriptor={descriptor} plugin={widget.plugin} />
-            ) : (
-              <PreviewPane
-                descriptor={descriptor}
-                className={cn('w-full', CHART_HEIGHTS[widget.plugin] ?? DEFAULT_CHART_HEIGHT)}
-                transformHtml={injectMiniatureOverrides}
-              />
-            )}
+            <PreviewPane
+              descriptor={descriptor}
+              className={cn('w-full', CHART_HEIGHTS[widget.plugin] ?? DEFAULT_CHART_HEIGHT)}
+              transformHtml={injectMiniatureOverrides}
+            />
             {/* Selection overlay on hover */}
             <div className="absolute inset-0 bg-primary/0 hover:bg-primary/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <div className="bg-background/90 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
@@ -431,7 +401,7 @@ function SortableWidgetCard({
               {getPluginLabel(widget.plugin)}
             </Badge>
             <span className="mt-2 text-xs">
-              {isDragging ? t('layout.moving') : t('layout.previewDisabled')}
+              {previewMessage}
             </span>
           </div>
         )}
@@ -451,6 +421,9 @@ function SortableWidgetCard({
 interface LayoutOverviewProps {
   widgets: ConfiguredWidget[]
   groupBy: string
+  previewPreference: CollectionsPreviewPreference
+  onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
+  hardwareConcurrency: number | null
   onSelectWidget: (widget: ConfiguredWidget) => void
   onLayoutSaved?: () => void
 }
@@ -458,6 +431,9 @@ interface LayoutOverviewProps {
 export function LayoutOverview({
   widgets: configuredWidgets,
   groupBy,
+  previewPreference,
+  onPreviewPreferenceChange,
+  hardwareConcurrency,
   onSelectWidget,
   onLayoutSaved,
 }: LayoutOverviewProps) {
@@ -495,7 +471,6 @@ export function LayoutOverview({
     widgets: [],
     hasChanges: false,
   })
-  const [showPreviews, setShowPreviews] = useState(true)
   const [selectedEntityState, setSelectedEntityState] = useState<{
     groupBy: string
     entityId: string | null
@@ -505,17 +480,45 @@ export function LayoutOverview({
   })
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [focusedPreviewCardId, setFocusedPreviewCardId] = useState<string | null>(null)
 
   const layoutSignature = layout?.widgets ? JSON.stringify(layout.widgets) : null
 
-  const localWidgets =
-    layoutDraftState.layoutSignature === layoutSignature
-      ? layoutDraftState.widgets
-      : (layout?.widgets ? [...layout.widgets] : [])
+  const localWidgets = useMemo(
+    () =>
+      layoutDraftState.layoutSignature === layoutSignature
+        ? layoutDraftState.widgets
+        : (layout?.widgets ? [...layout.widgets] : []),
+    [layout, layoutDraftState.layoutSignature, layoutDraftState.widgets, layoutSignature],
+  )
   const hasChanges =
     layoutDraftState.layoutSignature === layoutSignature
       ? layoutDraftState.hasChanges
       : false
+
+  const contentWidgetCount = useMemo(
+    () => localWidgets.filter((w) => !w.is_navigation).length,
+    [localWidgets],
+  )
+  const performanceTier = useMemo(
+    () =>
+      classifyCollectionsPerformanceTier({
+        widgetCount: contentWidgetCount,
+        hardwareConcurrency,
+      }),
+    [contentWidgetCount, hardwareConcurrency],
+  )
+  const resolvedPreviewMode = useMemo(
+    () =>
+      resolveCollectionsPreviewMode({
+        preference: previewPreference,
+        widgetCount: contentWidgetCount,
+        hardwareConcurrency,
+        isDragging,
+      }),
+    [contentWidgetCount, hardwareConcurrency, isDragging, previewPreference],
+  )
+  const navigationPreviewMode = resolvedPreviewMode === 'thumbnail' ? 'thumbnail' : 'off'
 
   const selectedEntityId = useMemo(() => {
     const explicitEntityId =
@@ -654,6 +657,44 @@ export function LayoutOverview({
     }
   }, [configuredWidgets, onSelectWidget])
 
+  const navigationWidget = localWidgets.find((w) => w.is_navigation)
+  const contentWidgets = localWidgets.filter((w) => !w.is_navigation)
+  const widgetIds = contentWidgets.map((w) => `widget-${w.index}`)
+  const activeWidget = activeId
+    ? contentWidgets.find((w) => `widget-${w.index}` === activeId)
+    : null
+  const effectiveFocusedPreviewCardId =
+    focusedPreviewCardId ?? (resolvedPreviewMode === 'focused' && contentWidgets[0]
+      ? `widget-${contentWidgets[0].index}`
+      : null)
+  const activePreviewCount = resolvedPreviewMode === 'thumbnail'
+    ? contentWidgets.length
+    : resolvedPreviewMode === 'focused' && effectiveFocusedPreviewCardId
+      ? 1
+      : 0
+
+  useEffect(() => {
+    const durationMs = measureCollectionsContentSwitch(groupBy, {
+      widgetCount: contentWidgets.length,
+      previewMode: resolvedPreviewMode,
+      performanceTier,
+    })
+    recordCollectionsPerf('collections.layout.state', {
+      activePreviewCount,
+      durationMs,
+      groupBy,
+      performanceTier,
+      previewMode: resolvedPreviewMode,
+      widgetCount: contentWidgets.length,
+    })
+  }, [
+    activePreviewCount,
+    contentWidgets.length,
+    groupBy,
+    performanceTier,
+    resolvedPreviewMode,
+  ])
+
   // Loading state
   if (isLoading) {
     return (
@@ -698,14 +739,6 @@ export function LayoutOverview({
     )
   }
 
-  // Separate navigation from content widgets
-  const navigationWidget = localWidgets.find((w) => w.is_navigation)
-  const contentWidgets = localWidgets.filter((w) => !w.is_navigation)
-  const widgetIds = contentWidgets.map((w) => `widget-${w.index}`)
-  const activeWidget = activeId
-    ? contentWidgets.find((w) => `widget-${w.index}` === activeId)
-    : null
-
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
@@ -724,22 +757,32 @@ export function LayoutOverview({
 
         <div className="flex-1" />
 
-        {/* Center: preview toggle + entity selector */}
-        <Button
-          variant={showPreviews ? 'secondary' : 'outline'}
-          size="sm"
-          className="h-8"
-          onClick={() => setShowPreviews(!showPreviews)}
+        {/* Center: preview policy + entity selector */}
+        <Select
+          value={previewPreference}
+          onValueChange={(value) =>
+            onPreviewPreferenceChange(value as CollectionsPreviewPreference)
+          }
         >
-          {showPreviews ? (
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-          ) : (
-            <EyeOff className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          {t('layout.previews')}
-        </Button>
+          <SelectTrigger className="w-[190px] h-8">
+            <Eye className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+            <SelectValue placeholder={t('layout.previews')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{t('layout.previewMode.auto')}</SelectItem>
+            <SelectItem value="thumbnail">{t('layout.previewMode.thumbnail')}</SelectItem>
+            <SelectItem value="focused">{t('layout.previewMode.focused')}</SelectItem>
+            <SelectItem value="off">{t('layout.previewMode.off')}</SelectItem>
+          </SelectContent>
+        </Select>
 
-        {showPreviews && representatives && representatives.entities.length > 0 && (
+        {previewPreference === 'auto' && performanceTier === 'low' && (
+          <Badge variant="outline" className="text-xs">
+            {t('layout.performanceModeLow')}
+          </Badge>
+        )}
+
+        {resolvedPreviewMode !== 'off' && representatives && representatives.entities.length > 0 && (
           <Select
             value={selectedEntityId || ''}
             onValueChange={handleSelectedEntityChange}
@@ -803,7 +846,7 @@ export function LayoutOverview({
             : t('layout.saveError')}
         </div>
       )}
-      {showPreviews && representativesError && (
+      {resolvedPreviewMode !== 'off' && representativesError && (
         <div className="mx-4 mt-2 bg-warning/10 text-warning border border-warning/30 px-3 py-2 rounded-lg text-sm">
           {t('layout.previewEntitiesUnavailable')}
         </div>
@@ -817,6 +860,7 @@ export function LayoutOverview({
             <NavigationSidebar
               groupBy={groupBy}
               navigationWidget={layout.navigation_widget}
+              previewMode={navigationPreviewMode}
             />
           </div>
         )}
@@ -839,11 +883,13 @@ export function LayoutOverview({
                       id={`widget-${widget.index}`}
                       groupBy={groupBy}
                       widget={widget}
-                      showPreview={showPreviews}
+                      previewMode={resolvedPreviewMode}
+                      isPreviewFocused={effectiveFocusedPreviewCardId === `widget-${widget.index}`}
                       entityId={selectedEntityId}
                       isDragging={isDragging}
                       onColspanToggle={() => handleColspanToggle(widget.index)}
                       onSelect={() => handleSelectWidget(widget)}
+                      onPreviewFocus={() => setFocusedPreviewCardId(`widget-${widget.index}`)}
                     />
                   ))}
                 </div>

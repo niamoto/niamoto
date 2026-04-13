@@ -24,6 +24,7 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const shouldLoad = usePreviewVisibility(containerRef)
+  const usesResponsiveResize = descriptor.mode === 'full'
 
   // Compteur incrémenté à chaque changement de largeur du conteneur
   // pour forcer un re-mount de l'iframe (Plotly re-render à la bonne taille).
@@ -31,23 +32,26 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
   const widthRef = useRef<number>(0)
 
   useEffect(() => {
+    if (!usesResponsiveResize) {
+      return
+    }
+
     const el = containerRef.current
     if (!el) return
 
     const observer = new ResizeObserver((entries) => {
       const w = Math.round(entries[0].contentRect.width)
-      if (widthRef.current !== 0 && w !== widthRef.current) {
+      const bucket = Math.round(w / 24)
+      if (widthRef.current !== 0 && bucket !== widthRef.current) {
         setResizeKey((k) => k + 1)
       }
-      widthRef.current = w
+      widthRef.current = bucket
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [usesResponsiveResize])
 
-  const fullDescriptor = { ...descriptor, mode: 'full' as const }
-
-  const { html, loading, error } = usePreviewFrame(fullDescriptor, shouldLoad)
+  const { html, loading, error } = usePreviewFrame(descriptor, shouldLoad)
 
   // Nettoyage Plotly au démontage
   useEffect(() => {
@@ -68,7 +72,12 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
         containIntrinsicSize: '320px 240px',
       }}
     >
-      {(!shouldLoad || loading) && <PreviewSkeleton descriptor={fullDescriptor} />}
+      {(!shouldLoad || loading) && (
+        <PreviewSkeleton
+          descriptor={descriptor}
+          compact={descriptor.mode === 'thumbnail'}
+        />
+      )}
       {error && !loading && <PreviewError message={error} />}
       {html && !loading && (
         <iframe
@@ -77,6 +86,7 @@ export function PreviewPane({ descriptor, className, transformHtml }: PreviewPan
           srcDoc={transformHtml ? transformHtml(html) : html}
           title="Widget preview"
           sandbox="allow-scripts"
+          loading="lazy"
           style={{
             width: '100%',
             height: '100%',

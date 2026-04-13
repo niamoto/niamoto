@@ -6,6 +6,7 @@ Endpoints :
 """
 
 import logging
+import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -64,11 +65,16 @@ def _error_html(message: str) -> HTMLResponse:
     )
 
 
-def _build_headers(etag: str) -> dict:
-    return {
+def _build_headers(etag: str, render_ms: float | None = None) -> dict:
+    headers = {
         "ETag": f'"{etag}"',
         "Cache-Control": "no-cache",
     }
+    if render_ms is not None:
+        rounded = round(render_ms, 1)
+        headers["Server-Timing"] = f"preview;dur={rounded}"
+        headers["X-Preview-Render-Ms"] = str(rounded)
+    return headers
 
 
 # ---------------------------------------------------------------------------
@@ -114,11 +120,13 @@ async def get_preview(
         if if_none_match.strip('"') == etag:
             return Response(status_code=304, headers={"ETag": f'"{etag}"'})
 
+    started_at = time.perf_counter()
     result = await run_in_threadpool(engine.render, req)
+    render_ms = (time.perf_counter() - started_at) * 1000
 
     return HTMLResponse(
         content=result.html,
-        headers=_build_headers(result.etag),
+        headers=_build_headers(result.etag, render_ms),
     )
 
 
@@ -147,8 +155,10 @@ async def post_preview(body: InlinePreviewBody):
         inline=inline_dict,
     )
 
+    started_at = time.perf_counter()
     result = await run_in_threadpool(engine.render, req)
+    render_ms = (time.perf_counter() - started_at) * 1000
     return HTMLResponse(
         content=result.html,
-        headers=_build_headers(result.etag),
+        headers=_build_headers(result.etag, render_ms),
     )

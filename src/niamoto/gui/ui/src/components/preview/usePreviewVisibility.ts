@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 interface PreviewVisibilityOptions {
   rootMargin?: string
   threshold?: number | number[]
+  freezeOnceVisible?: boolean
 }
 
 export function usePreviewVisibility(
@@ -10,33 +11,36 @@ export function usePreviewVisibility(
   options?: PreviewVisibilityOptions,
 ): boolean {
   const [isVisible, setIsVisible] = useState(false)
-  const [hasBeenVisible, setHasBeenVisible] = useState(false)
   const rootMargin = options?.rootMargin ?? '240px'
   const threshold = options?.threshold ?? 0
+  const freezeOnceVisible = options?.freezeOnceVisible ?? false
 
   useEffect(() => {
     const element = ref.current
-    if (!element || hasBeenVisible) {
+    if (!element) {
       return
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) {
-          setIsVisible(false)
+          if (!freezeOnceVisible) {
+            setIsVisible(false)
+          }
           return
         }
 
         setIsVisible(true)
-        setHasBeenVisible(true)
-        observer.disconnect()
+        if (freezeOnceVisible) {
+          observer.disconnect()
+        }
       },
       { rootMargin, threshold },
     )
 
     observer.observe(element)
     return () => observer.disconnect()
-  }, [hasBeenVisible, ref, rootMargin, threshold])
+  }, [freezeOnceVisible, ref, rootMargin, threshold])
 
-  return hasBeenVisible || isVisible
+  return isVisible
 }
