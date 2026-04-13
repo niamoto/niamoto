@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { isDesktopTauri } from '@/shared/desktop/tauri'
 
 interface RuntimeMode {
   mode: 'desktop' | 'web';
@@ -8,16 +9,28 @@ interface RuntimeMode {
   };
 }
 
+function getInitialRuntimeMode(): RuntimeMode {
+  if (isDesktopTauri()) {
+    return {
+      mode: 'desktop',
+      project: null,
+      features: { project_switching: true },
+    }
+  }
+
+  return {
+    mode: 'web',
+    project: null,
+    features: { project_switching: false },
+  }
+}
+
 /**
  * Hook to detect runtime mode (desktop vs web)
  * Fetches from /api/health/runtime-mode to determine if running in Tauri
  */
 export function useRuntimeMode() {
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>({
-    mode: 'web',
-    project: null,
-    features: { project_switching: false },
-  });
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(() => getInitialRuntimeMode());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -272,19 +272,27 @@ export default function PublishOverview() {
   const [currentPhase, setCurrentPhase] = useState<string | null>(null)
   const [exportPath, setExportPath] = useState('exports')
   const [compactPanel, setCompactPanel] = useState<'actions' | 'preview'>('actions')
+  const autoPreviewKeyRef = useRef<string | null>(null)
 
   const activePanel = searchParams.get('panel')
   const { data: siteConfig } = useSiteConfig()
   const { data: groupsData } = useGroups()
   const { data: pipelineData } = usePipelineStatus()
-  const previewMutation = useTemplatePreview()
-  const groupIndexMutation = useGroupIndexPreview()
+  const { mutate: requestTemplatePreview, isPending: isTemplatePreviewPending } = useTemplatePreview()
+  const { mutate: requestGroupIndexPreview, isPending: isGroupIndexPreviewPending } = useGroupIndexPreview()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
   const siteStatus = pipelineData?.site?.status
   const groupsStatus = pipelineData?.groups?.status
   const canRecomputeStatistics = groupsStatus !== 'unconfigured'
   const siteBuildBlocked = siteStatus === 'unconfigured' || siteStatus === 'never_run'
+  const isDynamicPreviewPending = isTemplatePreviewPending || isGroupIndexPreviewPending
+  const dynamicPreviewKey = siteConfig
+    ? [
+        previewLang,
+        ...siteConfig.static_pages.map((page) => `${page.output_file}:${page.template || 'page.html'}`),
+      ].join('|')
+    : null
   const buildActionDisabled = isBuilding || siteBuildBlocked
   const shouldIncludeTransformByDefault = groupsStatus === 'stale' || groupsStatus === 'never_run'
   const includeTransformLabel = groupsStatus === 'never_run'
@@ -536,7 +544,7 @@ export default function PublishOverview() {
 
   const loadPagePreview = useCallback((page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
     if (!siteConfig || !page || siteBuildBlocked) return
-    previewMutation.mutate({
+    requestTemplatePreview({
       template: page.template || 'page.html',
       context: { ...(page.context || {}) },
       site: siteConfig.site as Record<string, unknown>,
@@ -554,7 +562,7 @@ export default function PublishOverview() {
     }, {
       onSuccess: (data) => setDynamicHtml(data.html),
     })
-  }, [i18n.language, previewMutation, siteBuildBlocked, siteConfig])
+  }, [i18n.language, requestTemplatePreview, siteBuildBlocked, siteConfig])
 
   const loadDynamicPreview = useCallback(() => {
     if (!siteConfig || siteBuildBlocked) return
@@ -568,7 +576,7 @@ export default function PublishOverview() {
   }, [loadPagePreview, siteBuildBlocked, siteConfig])
 
   const handlePreviewLinkClick = (href: string) => {
-    if (!siteConfig || siteBuildBlocked) return
+    if (!siteConfig || siteBuildBlocked || isDynamicPreviewPending) return
     const normalized = href.replace(/^\//, '')
     const filename = normalized.split('/').pop() || href
 
@@ -578,7 +586,7 @@ export default function PublishOverview() {
     })
 
     if (groupByIndex) {
-      groupIndexMutation.mutate({
+      requestGroupIndexPreview({
         groupName: groupByIndex.name,
         request: {
           site: siteConfig.site as Record<string, unknown>,
@@ -612,10 +620,22 @@ export default function PublishOverview() {
   }
 
   useEffect(() => {
-    if (!siteBuildBlocked && !hasSuccessfulBuild && siteConfig && dynamicHtml === null) {
-      loadDynamicPreview()
+    if (siteBuildBlocked || hasSuccessfulBuild) {
+      autoPreviewKeyRef.current = null
+      return
     }
-  }, [dynamicHtml, hasSuccessfulBuild, loadDynamicPreview, siteBuildBlocked, siteConfig])
+
+    if (!siteConfig || dynamicHtml !== null || !dynamicPreviewKey) {
+      return
+    }
+
+    if (autoPreviewKeyRef.current === dynamicPreviewKey) {
+      return
+    }
+
+    autoPreviewKeyRef.current = dynamicPreviewKey
+    loadDynamicPreview()
+  }, [dynamicHtml, dynamicPreviewKey, hasSuccessfulBuild, loadDynamicPreview, siteBuildBlocked, siteConfig])
 
   useEffect(() => {
     if (siteBuildBlocked && !hasSuccessfulBuild && dynamicHtml !== null) {
@@ -668,7 +688,7 @@ export default function PublishOverview() {
   ) : (
     <PreviewFrame
       html={siteBuildBlocked ? null : dynamicHtml}
-      isLoading={siteBuildBlocked ? false : (previewMutation.isPending || groupIndexMutation.isPending)}
+      isLoading={siteBuildBlocked ? false : isDynamicPreviewPending}
       device={previewDevice}
       onDeviceChange={setPreviewDevice}
       onRefresh={siteBuildBlocked ? undefined : loadDynamicPreview}
