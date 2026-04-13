@@ -334,7 +334,7 @@ En particulier, la mention explicite d'un import **DwC-A** au cœur du storyboar
 
 - [x] `pnpm run dev` ouvre le studio
 - [x] chaque scène rend isolément
-- [ ] les polices locales chargent correctement
+- [x] les polices locales chargent correctement
 
 **Acceptance :**
 
