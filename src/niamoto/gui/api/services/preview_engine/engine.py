@@ -84,6 +84,7 @@ logger = logging.getLogger(__name__)
 # Cached TransformerService — shared across preview calls, invalidated
 # when data changes (import, config save, etc.).
 _transformer_svc: "TransformerService | None" = None
+_transformer_svc_context: tuple[str, str] | None = None
 _transformer_svc_lock = threading.Lock()
 
 
@@ -245,18 +246,23 @@ class PreviewEngine:
         the entity registry.  The instance is cached module-wide and
         cleared on ``invalidate()``.
         """
-        global _transformer_svc
-        if _transformer_svc is not None:
+        global _transformer_svc, _transformer_svc_context
+        current_context = (self._db_path, self._config_dir)
+        if _transformer_svc is not None and _transformer_svc_context == current_context:
             return _transformer_svc
 
         with _transformer_svc_lock:
-            if _transformer_svc is not None:
+            if (
+                _transformer_svc is not None
+                and _transformer_svc_context == current_context
+            ):
                 return _transformer_svc
 
             from niamoto.core.services.transformer import TransformerService
 
             svc = TransformerService.for_preview(db, self._config_dir)
             _transformer_svc = svc
+            _transformer_svc_context = current_context
             return svc
 
     # ------------------------------------------------------------------
@@ -345,8 +351,9 @@ class PreviewEngine:
 
     def invalidate(self) -> None:
         """Recompute fingerprint -- called after import or config save."""
-        global _transformer_svc
+        global _transformer_svc, _transformer_svc_context
         _transformer_svc = None
+        _transformer_svc_context = None
         self._data_fingerprint = self._compute_data_fingerprint()
         self._db = None
         self._rich_entity_cache.clear()
@@ -1961,7 +1968,8 @@ def get_preview_engine() -> PreviewEngine | None:
 
 def reset_preview_engine() -> None:
     """Reset the instance -- useful after switching projects."""
-    global _engine_instance, _transformer_svc
+    global _engine_instance, _transformer_svc, _transformer_svc_context
     with _engine_lock:
         _engine_instance = None
         _transformer_svc = None
+        _transformer_svc_context = None

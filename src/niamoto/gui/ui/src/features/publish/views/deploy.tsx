@@ -66,6 +66,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { apiClient } from '@/shared/lib/api/client'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   getProjectName,
   PLATFORM_ORDER,
@@ -653,14 +654,13 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                   {lastDeploy?.deploymentUrl && (
                     <div className="flex items-center gap-2 text-sm">
                       <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-                      <a
-                        href={lastDeploy.deploymentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => void openExternalUrl(lastDeploy.deploymentUrl!)}
                         className="text-primary hover:underline truncate"
                       >
                         {lastDeploy.deploymentUrl}
-                      </a>
+                      </button>
                     </div>
                   )}
 
@@ -685,11 +685,14 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                       )}
                     </Button>
                     {lastDeploy?.deploymentUrl && (
-                      <Button size="sm" variant="outline" className="min-w-[120px]" asChild>
-                        <a href={lastDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          {t('deploy.viewSite', 'View Site')}
-                        </a>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-w-[120px]"
+                        onClick={() => void openExternalUrl(lastDeploy.deploymentUrl!)}
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        {t('deploy.viewSite', 'View Site')}
                       </Button>
                     )}
                     {isCurrentlyDeploying && (
@@ -733,11 +736,13 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 <AlertDescription className="flex items-center justify-between">
                   <span>{t('deploy.success', 'Deployment successful!')}</span>
-                  <Button size="sm" variant="outline" asChild>
-                    <a href={currentDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      {currentDeploy.deploymentUrl}
-                    </a>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void openExternalUrl(currentDeploy.deploymentUrl!)}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    {currentDeploy.deploymentUrl}
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -855,11 +860,13 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
                           ) : null}
                           {t('deploy.credentials.validate', 'Verify')}
                         </Button>
-                        <Button size="sm" variant="outline" asChild>
-                          <a href={meta.tokenUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            {t('deploy.credentials.create', 'Create token')}
-                          </a>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void openExternalUrl(meta.tokenUrl)}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          {t('deploy.credentials.create', 'Create token')}
                         </Button>
                       </div>
                     </div>

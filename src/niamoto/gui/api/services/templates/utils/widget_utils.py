@@ -254,7 +254,8 @@ def find_widget_for_transformer(transformer_name: str) -> Optional[str]:
     Returns the name of the best compatible widget, or None if no match found.
     """
     try:
-        from niamoto.core.plugins import PluginRegistry, PluginType
+        from niamoto.core.plugins.base import PluginType
+        from niamoto.core.plugins.registry import PluginRegistry
         from niamoto.gui.api.services.matcher import SmartMatcher
 
         transformer_class = PluginRegistry.get_plugin(
@@ -287,7 +288,8 @@ def _get_widget_names() -> list[str]:
             return _widget_names
         _widget_names = None
     try:
-        from niamoto.core.plugins import PluginRegistry, PluginType
+        from niamoto.core.plugins.base import PluginType
+        from niamoto.core.plugins.registry import PluginRegistry
 
         names = set(PluginRegistry.get_plugins_by_type(PluginType.WIDGET).keys())
         names |= _WELL_KNOWN_WIDGETS
@@ -308,7 +310,8 @@ def _get_transformer_names() -> list[str]:
             return _transformer_names
         _transformer_names = None
     try:
-        from niamoto.core.plugins import PluginRegistry, PluginType
+        from niamoto.core.plugins.base import PluginType
+        from niamoto.core.plugins.registry import PluginRegistry
 
         names = set(PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER).keys())
         names |= CLASS_OBJECT_EXTRACTORS

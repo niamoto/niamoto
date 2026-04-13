@@ -140,6 +140,9 @@ export function WidgetPreviewPanel({
       return {
         templateId: activeTemplate.template_id,
         groupBy,
+        source: activeTemplate.source_name !== 'occurrences'
+          ? activeTemplate.source_name
+          : undefined,
         mode: 'full' as const,
       }
     }

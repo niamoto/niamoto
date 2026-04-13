@@ -54,6 +54,34 @@ def test_get_preview_engine_rebuilds_when_context_changes(monkeypatch):
     ]
 
 
+def test_get_transformer_service_rebuilds_when_engine_context_changes():
+    preview_engine_module.reset_preview_engine()
+    engine_a = PreviewEngine(
+        "/tmp/project-a/db/niamoto.duckdb", "/tmp/project-a/config"
+    )
+    engine_b = PreviewEngine(
+        "/tmp/project-b/db/niamoto.duckdb", "/tmp/project-b/config"
+    )
+
+    db_a = MagicMock()
+    db_a.db_path = "/tmp/project-a/db/niamoto.duckdb"
+    db_b = MagicMock()
+    db_b.db_path = "/tmp/project-b/db/niamoto.duckdb"
+
+    svc_a = MagicMock()
+    svc_b = MagicMock()
+
+    with patch(
+        "niamoto.core.services.transformer.TransformerService.for_preview",
+        side_effect=[svc_a, svc_b],
+    ) as for_preview:
+        assert engine_a._get_transformer_service(db_a) is svc_a
+        assert engine_b._get_transformer_service(db_b) is svc_b
+
+    assert for_preview.call_count == 2
+    preview_engine_module.reset_preview_engine()
+
+
 # ---------------------------------------------------------------------------
 # _find_rich_entity_id / _query_rich_entity
 # ---------------------------------------------------------------------------
