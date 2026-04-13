@@ -104,7 +104,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
 
   // Group index preview
-  const groupIndexPreviewMutation = useGroupIndexPreview()
+  const {
+    mutate: requestGroupIndexPreview,
+    isPending: isGroupIndexPreviewPending,
+  } = useGroupIndexPreview()
   const [groupIndexHtml, setGroupIndexHtml] = useState<string | null>(null)
 
   // File content for preview
@@ -115,11 +118,15 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { data: previewFileData } = useFileContent(previewFilePath)
 
   const loadGroupIndexPreview = useCallback(() => {
-    if (state.selection?.type !== 'group' || !groupHasIndex || !state.selection.id) {
+    if (
+      state.selection?.type !== 'group'
+      || !groupHasIndex
+      || !state.selection.id
+    ) {
       return
     }
 
-    groupIndexPreviewMutation.mutate(
+    requestGroupIndexPreview(
       {
         groupName: state.selection.id,
         request: {
@@ -141,7 +148,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     )
   }, [
     groupHasIndex,
-    groupIndexPreviewMutation,
+    requestGroupIndexPreview,
     state.editedNavigation,
     state.editedSite,
     state.i18nLanguage,
@@ -610,7 +617,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               {state.selection?.type === 'group' ? (
                 <GroupIndexPreviewPanel
                   html={groupIndexHtml}
-                  isLoading={groupIndexPreviewMutation.isPending}
+                  isLoading={isGroupIndexPreviewPending}
                   device={previewDevice}
                   onDeviceChange={setPreviewDevice}
                   groupName={state.selection.id ?? ''}
