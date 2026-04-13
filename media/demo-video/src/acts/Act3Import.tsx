@@ -6,6 +6,7 @@ import { FileUploadZone } from "../ui/FileUploadZone";
 import { FileTypeChip } from "../ui/FileTypeChip";
 import { YamlPreview } from "../ui/YamlPreview";
 import { ShimmerText } from "../animations/ShimmerText";
+import { TransitionLabel } from "../scenes/TransitionLabel";
 import { CursorOverlay } from "../cursor/CursorOverlay";
 import { CURSOR_PATHS } from "../cursor/cursorPaths";
 import { FILE_TYPES, MOCK_YAML } from "../shared/mockData";
@@ -174,6 +175,11 @@ export const Act3Import: React.FC = () => {
           </div>
         </div>
       </AppWindow>
+
+      {/* Transition label — first 30 frames */}
+      <Sequence from={0} durationInFrames={30}>
+        <TransitionLabel text="Import your data" />
+      </Sequence>
 
       {/* Cursor */}
       <CursorOverlay waypoints={CURSOR_PATHS.act3} />

@@ -6,6 +6,8 @@ import { slide } from "@remotion/transitions/slide";
 import { DURATIONS, TRANSITION_FRAMES } from "../shared/config";
 import { ensureFontsLoaded } from "../shared/fonts";
 import { theme } from "../shared/theme";
+import { IntroLogo } from "../scenes/IntroLogo";
+import { OutroCTA } from "../scenes/OutroCTA";
 import { Act1Welcome } from "../acts/Act1Welcome";
 import { Act2ProjectWizard } from "../acts/Act2ProjectWizard";
 import { Act3Import } from "../acts/Act3Import";
@@ -28,11 +30,7 @@ export const MarketingLandscape: React.FC = () => {
       <TransitionSeries>
         {/* Intro */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.intro)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [IntroScene placeholder]
-            </span>
-          </AbsoluteFill>
+          <IntroLogo />
         </TransitionSeries.Sequence>
 
         <TransitionSeries.Transition
@@ -102,11 +100,7 @@ export const MarketingLandscape: React.FC = () => {
 
         {/* Outro */}
         <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.outro)}>
-          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-            <span style={{ color: theme.textMuted, fontSize: 24 }}>
-              [OutroScene placeholder]
-            </span>
-          </AbsoluteFill>
+          <OutroCTA />
         </TransitionSeries.Sequence>
       </TransitionSeries>
     </AbsoluteFill>

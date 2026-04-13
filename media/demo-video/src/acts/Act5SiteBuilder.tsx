@@ -1,9 +1,10 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Sequence } from "remotion";
 import { fontDisplay } from "../shared/fonts";
 import { theme } from "../shared/theme";
 import { AppWindow } from "../ui/AppWindow";
 import { MockTree, TreeItem } from "../ui/MockTree";
 import { MockPreviewPanel } from "../ui/MockPreviewPanel";
+import { TransitionLabel } from "../scenes/TransitionLabel";
 import { CursorOverlay } from "../cursor/CursorOverlay";
 import { CURSOR_PATHS } from "../cursor/cursorPaths";
 import { MOCK_SITE_TREE } from "../shared/mockData";
@@ -222,6 +223,11 @@ export const Act5SiteBuilder: React.FC = () => {
       </AppWindow>
 
       {/* Cursor */}
+      {/* Transition label — first 30 frames */}
+      <Sequence from={0} durationInFrames={30}>
+        <TransitionLabel text="Build your site" />
+      </Sequence>
+
       <CursorOverlay waypoints={CURSOR_PATHS.act5} />
     </AbsoluteFill>
   );
