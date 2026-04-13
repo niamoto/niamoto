@@ -116,8 +116,10 @@
     "updateAvailable": "Version {{version}} available",
     "installUpdate": "Install v{{version}}",
     "installingUpdate": "Installing update...",
+    "downloadLatestVersion": "Download the latest version",
     "checkUpdates": "Check for updates",
     "upToDate": "Up to date",
+    "windowsManualUpdateNotice": "Automatic updates are disabled on Windows to avoid system restarts triggered by the MSI installer. Download the new version manually instead.",
     "effectiveLanguage": "Current UI language: {{language}}"
   },
   "plugins": {

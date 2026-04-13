@@ -8,6 +8,11 @@ export interface DownloadProgressState {
   label: string
 }
 
+interface DownloadProgressOptions {
+  isLinux: boolean
+  isWindows: boolean
+}
+
 export function createInitialDownloadProgressState(): DownloadProgressState {
   return {
     downloadedBytes: 0,
@@ -21,18 +26,22 @@ export function createInitialDownloadProgressState(): DownloadProgressState {
 export function reduceDownloadProgressEvent(
   state: DownloadProgressState,
   event: DownloadEvent,
-  options: { isLinux: boolean }
+  options: DownloadProgressOptions
 ): DownloadProgressState {
+  const usePercentage = !options.isLinux && !options.isWindows
+
   if (event.event === 'Started') {
     const totalBytes = event.data.contentLength ?? 0
     return {
       downloadedBytes: 0,
       totalBytes,
       status: 'downloading',
-      progress: options.isLinux ? undefined : totalBytes > 0 ? 0 : undefined,
+      progress: usePercentage && totalBytes > 0 ? 0 : undefined,
       label:
         options.isLinux
           ? 'Préparation de la mise à jour... une authentification système peut être requise.'
+          : options.isWindows
+          ? 'Téléchargement de la mise à jour... le programme d’installation Windows prendra le relais.'
           : totalBytes > 0
           ? 'Téléchargement de la mise à jour... 0%'
           : 'Téléchargement de la mise à jour...',
@@ -42,7 +51,7 @@ export function reduceDownloadProgressEvent(
   if (event.event === 'Progress') {
     const downloadedBytes = state.downloadedBytes + event.data.chunkLength
 
-    if (state.totalBytes > 0) {
+    if (usePercentage && state.totalBytes > 0) {
       const progress = Math.min(100, Math.round((downloadedBytes / state.totalBytes) * 100))
       return {
         downloadedBytes,
@@ -58,7 +67,10 @@ export function reduceDownloadProgressEvent(
       totalBytes: state.totalBytes,
       status: 'downloading',
       progress: undefined,
-      label: `Téléchargement de la mise à jour... ${formatBytes(downloadedBytes)}`,
+      label:
+        options.isLinux || options.isWindows
+          ? 'Téléchargement de la mise à jour...'
+          : `Téléchargement de la mise à jour... ${formatBytes(downloadedBytes)}`,
     }
   }
 
@@ -66,9 +78,11 @@ export function reduceDownloadProgressEvent(
     downloadedBytes: state.downloadedBytes,
     totalBytes: state.totalBytes,
     status: 'installing',
-    progress: state.totalBytes > 0 ? 100 : state.progress,
+    progress: usePercentage && state.totalBytes > 0 ? 100 : undefined,
     label: options.isLinux
       ? 'Téléchargement terminé. Validation système et installation en cours...'
+      : options.isWindows
+      ? 'Téléchargement terminé. Le programme d’installation Windows termine la mise à jour...'
       : 'Téléchargement terminé. Installation en cours...',
   }
 }

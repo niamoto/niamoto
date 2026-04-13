@@ -11,6 +11,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   DEFAULT_APP_SETTINGS,
   applyUiLanguagePreference,
@@ -46,8 +47,15 @@ export function Settings() {
   const runtimeMode = useRuntimeMode()
   const { isDesktop, mode, project } = runtimeMode
   const { platform } = usePlatform()
-  const { status, version: updateVersion, appVersion, checkForUpdate, installUpdate, restartApp } =
-    useAppUpdater()
+  const {
+    status,
+    version: updateVersion,
+    appVersion,
+    manualUpdateUrl,
+    checkForUpdate,
+    installUpdate,
+    restartApp,
+  } = useAppUpdater()
   const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState<
@@ -459,7 +467,18 @@ export function Settings() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {status === 'available' ? (
+                {status === 'disabled' ? (
+                  manualUpdateUrl ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void openExternalUrl(manualUpdateUrl)}
+                      size="sm"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {t('settings.downloadLatestVersion', 'Télécharger la dernière version')}
+                    </Button>
+                  ) : null
+                ) : status === 'available' ? (
                   <Button onClick={installUpdate} size="sm">
                     <Download className="mr-2 h-4 w-4" />
                     {t('settings.installUpdate', 'Install v{{version}}', {
@@ -501,6 +520,15 @@ export function Settings() {
                   </p>
                 )}
               </div>
+
+              {status === 'disabled' && (
+                <p className="text-sm text-amber-700">
+                  {t(
+                    'settings.windowsManualUpdateNotice',
+                    'Les mises à jour automatiques sont désactivées sur Windows pour éviter les redémarrages système déclenchés par l’installateur MSI. Téléchargez la nouvelle version manuellement.'
+                  )}
+                </p>
+              )}
 
             </CardContent>
           </Card>

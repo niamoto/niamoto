@@ -8,14 +8,14 @@ describe('downloadProgress', () => {
   it('keeps an indeterminate label when content length is unknown', () => {
     let state = createInitialDownloadProgressState()
 
-    state = reduceDownloadProgressEvent(state, { event: 'Started', data: {} }, { isLinux: false })
+    state = reduceDownloadProgressEvent(state, { event: 'Started', data: {} }, { isLinux: false, isWindows: false })
     expect(state.progress).toBeUndefined()
     expect(state.label).not.toContain('0%')
 
     state = reduceDownloadProgressEvent(
       state,
       { event: 'Progress', data: { chunkLength: 1536 } },
-      { isLinux: false }
+      { isLinux: false, isWindows: false }
     )
 
     expect(state.progress).toBeUndefined()
@@ -28,12 +28,12 @@ describe('downloadProgress', () => {
     state = reduceDownloadProgressEvent(
       state,
       { event: 'Started', data: { contentLength: 400 } },
-      { isLinux: false }
+      { isLinux: false, isWindows: false }
     )
     state = reduceDownloadProgressEvent(
       state,
       { event: 'Progress', data: { chunkLength: 100 } },
-      { isLinux: false }
+      { isLinux: false, isWindows: false }
     )
 
     expect(state.progress).toBe(25)
@@ -44,12 +44,33 @@ describe('downloadProgress', () => {
     const state = reduceDownloadProgressEvent(
       createInitialDownloadProgressState(),
       { event: 'Started', data: { contentLength: 400 } },
-      { isLinux: true }
+      { isLinux: true, isWindows: false }
     )
 
     expect(state.progress).toBeUndefined()
     expect(state.label).toContain('authentification système')
     expect(state.label).not.toContain('0%')
+  })
+
+  it('avoids percentage progress on windows because the native installer takes over', () => {
+    let state = createInitialDownloadProgressState()
+
+    state = reduceDownloadProgressEvent(
+      state,
+      { event: 'Started', data: { contentLength: 400 } },
+      { isLinux: false, isWindows: true }
+    )
+    expect(state.progress).toBeUndefined()
+    expect(state.label).toContain('programme d’installation Windows')
+    expect(state.label).not.toContain('0%')
+
+    state = reduceDownloadProgressEvent(
+      state,
+      { event: 'Progress', data: { chunkLength: 100 } },
+      { isLinux: false, isWindows: true }
+    )
+    expect(state.progress).toBeUndefined()
+    expect(state.label).toBe('Téléchargement de la mise à jour...')
   })
 
   it('switches to an installation label after download completion on linux', () => {
@@ -58,10 +79,22 @@ describe('downloadProgress', () => {
     state = reduceDownloadProgressEvent(
       state,
       { event: 'Finished' },
-      { isLinux: true }
+      { isLinux: true, isWindows: false }
     )
 
     expect(state.status).toBe('installing')
     expect(state.label).toContain('Validation système')
+  })
+
+  it('switches to a native installer label after download completion on windows', () => {
+    const state = reduceDownloadProgressEvent(
+      createInitialDownloadProgressState(),
+      { event: 'Finished' },
+      { isLinux: false, isWindows: true }
+    )
+
+    expect(state.status).toBe('installing')
+    expect(state.progress).toBeUndefined()
+    expect(state.label).toContain('programme d’installation Windows')
   })
 })

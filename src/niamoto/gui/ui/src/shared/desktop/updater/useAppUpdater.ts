@@ -17,9 +17,17 @@ import {
   createInitialDownloadProgressState,
   reduceDownloadProgressEvent,
 } from './downloadProgress'
+import { isInAppUpdateSupported, WINDOWS_MANUAL_UPDATE_URL } from './support'
 
 export interface UpdateInfo {
-  status: 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'restart_required'
+  status:
+    | 'idle'
+    | 'disabled'
+    | 'checking'
+    | 'available'
+    | 'downloading'
+    | 'installing'
+    | 'restart_required'
   version?: string
   progress?: number
 }
@@ -31,6 +39,7 @@ const APP_VERSION = __APP_VERSION__
 
 interface AppUpdaterValue extends UpdateInfo {
   appVersion: string
+  manualUpdateUrl?: string
   checkForUpdate: () => Promise<void>
   installUpdate: () => Promise<void>
   restartApp: () => Promise<void>
@@ -40,11 +49,12 @@ const AppUpdaterContext = createContext<AppUpdaterValue | null>(null)
 
 function useAppUpdaterController(): AppUpdaterValue {
   const { isDesktop } = useRuntimeMode()
-  const { isLinux } = usePlatform()
+  const { platform, isLinux, isWindows } = usePlatform()
   const [info, setInfo] = useState<UpdateInfo>({ status: 'idle' })
   const updateRef = useRef<Awaited<ReturnType<typeof check>> | null>(null)
   const toastIdRef = useRef<string | number | undefined>(undefined)
   const isInstallingRef = useRef(false)
+  const inAppUpdateSupported = isInAppUpdateSupported(platform)
 
   const restartApp = useCallback(async () => {
     try {
@@ -64,7 +74,7 @@ function useAppUpdaterController(): AppUpdaterValue {
 
   const installUpdate = useCallback(async () => {
     const update = updateRef.current
-    if (!update || isInstallingRef.current) return
+    if (!update || isInstallingRef.current || !inAppUpdateSupported) return
 
     isInstallingRef.current = true
     if (toastIdRef.current !== undefined) {
@@ -80,7 +90,10 @@ function useAppUpdaterController(): AppUpdaterValue {
       let downloadState = createInitialDownloadProgressState()
 
       await update.downloadAndInstall((event) => {
-        downloadState = reduceDownloadProgressEvent(downloadState, event, { isLinux })
+        downloadState = reduceDownloadProgressEvent(downloadState, event, {
+          isLinux,
+          isWindows,
+        })
         setInfo(prev => ({
           ...prev,
           status: downloadState.status,
@@ -129,10 +142,10 @@ function useAppUpdaterController(): AppUpdaterValue {
     } finally {
       isInstallingRef.current = false
     }
-  }, [isLinux, restartApp])
+  }, [inAppUpdateSupported, isLinux, isWindows, restartApp])
 
   const checkForUpdate = useCallback(async () => {
-    if (!isDesktop || isInstallingRef.current) return
+    if (!isDesktop || isInstallingRef.current || !inAppUpdateSupported) return
 
     setInfo({ status: 'checking' })
     try {
@@ -158,10 +171,16 @@ function useAppUpdaterController(): AppUpdaterValue {
     } catch {
       setInfo({ status: 'idle' })
     }
-  }, [isDesktop, installUpdate])
+  }, [inAppUpdateSupported, isDesktop, installUpdate])
 
   useEffect(() => {
     if (!isDesktop) return
+
+    if (!inAppUpdateSupported) {
+      updateRef.current = null
+      setInfo((prev) => (prev.status === 'disabled' ? prev : { status: 'disabled' }))
+      return
+    }
 
     const initialTimeout = setTimeout(checkForUpdate, INITIAL_DELAY_MS)
     const interval = setInterval(checkForUpdate, CHECK_INTERVAL_MS)
@@ -170,11 +189,12 @@ function useAppUpdaterController(): AppUpdaterValue {
       clearTimeout(initialTimeout)
       clearInterval(interval)
     }
-  }, [isDesktop, checkForUpdate])
+  }, [checkForUpdate, inAppUpdateSupported, isDesktop])
 
   return {
     ...info,
     appVersion: APP_VERSION,
+    manualUpdateUrl: inAppUpdateSupported ? undefined : WINDOWS_MANUAL_UPDATE_URL,
     checkForUpdate,
     installUpdate,
     restartApp,
