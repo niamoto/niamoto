@@ -144,15 +144,15 @@ export const Act3Import: React.FC = () => {
                   </svg>
                 </div>
 
-                <Sequence from={0} durationInFrames={PHASE_CONFIG_END - PHASE_UPLOAD_END}>
-                  <ShimmerText
-                    text="Auto-configuration..."
-                    fontSize={20}
-                    fontWeight={600}
-                    baseColor={theme.textMuted}
-                    shineColor={theme.textWhite}
-                  />
-                </Sequence>
+                <ShimmerText
+                  text="Auto-configuration..."
+                  fontSize={20}
+                  fontWeight={600}
+                  baseColor={theme.textMuted}
+                  shineColor={theme.textWhite}
+                  startFrame={PHASE_UPLOAD_END}
+                  sweepDurationInFrames={PHASE_CONFIG_END - PHASE_UPLOAD_END}
+                />
 
                 <span
                   style={{

@@ -40,10 +40,6 @@ export const Act5SiteBuilder: React.FC = () => {
   // Editor title follows active item
   const editorTitle = activeItem;
 
-  // Preview title with cross-fade timing
-  const previewChangeFrame = frame >= plotsClickFrame ? plotsClickFrame : speciesClickFrame;
-  const previewNextTitle = frame >= plotsClickFrame ? "Plot Map" : "Species";
-
   // Panel entrance
   const panelOpacity = interpolate(frame, [10, 25], [0, 1], {
     extrapolateLeft: "clamp",
@@ -214,8 +210,10 @@ export const Act5SiteBuilder: React.FC = () => {
             <div style={{ flex: 1, padding: 8 }}>
               <MockPreviewPanel
                 title="Home"
-                changeAtFrame={frame >= speciesClickFrame ? speciesClickFrame : undefined}
-                nextTitle={previewNextTitle}
+                transitions={[
+                  { atFrame: speciesClickFrame, title: "Species" },
+                  { atFrame: plotsClickFrame, title: "Plot Map" },
+                ]}
               />
             </div>
           </div>
