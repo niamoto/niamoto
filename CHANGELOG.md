@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.14.8] - 2026-04-13
+
+### Bug Fixes
+
+- Prevent desktop preview request storms
+
 ## [v0.14.7] - 2026-04-13
 
 ### Bug Fixes
