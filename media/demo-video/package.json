@@ -1,0 +1,25 @@
+{
+  "name": "niamoto-demo-video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Niamoto demo video — Remotion project",
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion render MarketingLandscape out/marketing-landscape.mp4",
+    "preview": "remotion preview"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.448",
+    "@remotion/fonts": "4.0.448",
+    "@remotion/media": "4.0.448",
+    "@remotion/transitions": "4.0.448",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "remotion": "4.0.448"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}
