@@ -28,24 +28,35 @@ export const TransitionLabel: React.FC<TransitionLabelProps> = ({
   return (
     <AbsoluteFill
       style={{
-        justifyContent: "center",
+        justifyContent: "flex-start",
         alignItems: "center",
-        backgroundColor: theme.bgDark,
+        paddingTop: 72,
         opacity,
+        pointerEvents: "none",
         zIndex: 50,
       }}
     >
-      <span
+      <div
         style={{
-          fontFamily: fontDisplay,
-          fontSize: 32,
-          fontWeight: 500,
-          color: theme.textMuted,
-          letterSpacing: 0.5,
+          padding: "10px 18px",
+          borderRadius: 999,
+          backgroundColor: "rgba(30, 30, 34, 0.84)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.22)",
         }}
       >
-        {text}
-      </span>
+        <span
+          style={{
+            fontFamily: fontDisplay,
+            fontSize: 24,
+            fontWeight: 500,
+            color: theme.textMuted,
+            letterSpacing: 0.5,
+          }}
+        >
+          {text}
+        </span>
+      </div>
     </AbsoluteFill>
   );
 };

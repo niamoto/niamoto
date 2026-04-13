@@ -7,6 +7,8 @@ interface ShimmerTextProps {
   shineColor?: string;
   fontSize?: number;
   fontWeight?: number;
+  startFrame?: number;
+  sweepDurationInFrames?: number;
 }
 
 /**
@@ -19,13 +21,16 @@ export const ShimmerText: React.FC<ShimmerTextProps> = ({
   shineColor = "#fafafa",
   fontSize = 32,
   fontWeight = 600,
+  startFrame = 0,
+  sweepDurationInFrames,
 }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { durationInFrames } = useVideoConfig();
+  const localFrame = Math.max(0, frame - startFrame);
 
-  // Sweep from -100% to 200% over 80% of the scene duration
-  const sweepDuration = Math.round(durationInFrames * 0.8);
-  const position = interpolate(frame, [0, sweepDuration], [-100, 200], {
+  // Sweep from -100% to 200% over the requested duration.
+  const sweepDuration = sweepDurationInFrames ?? Math.round(durationInFrames * 0.8);
+  const position = interpolate(localFrame, [0, sweepDuration], [-100, 200], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
