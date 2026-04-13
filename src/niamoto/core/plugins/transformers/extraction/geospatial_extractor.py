@@ -163,6 +163,10 @@ class GeospatialExtractor(TransformerPlugin):
         if not self.registry:
             self.registry = EntityRegistry(db)
 
+    def bind_runtime_config(self, config: Config) -> None:
+        """Bind the transformer to the active project config."""
+        self.config = config
+
     def validate_config(self, config: Dict[str, Any]) -> GeospatialExtractorConfig:
         """Validate configuration and return typed config."""
         try:
