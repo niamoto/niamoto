@@ -1,9 +1,10 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Sequence } from "remotion";
 import { fontDisplay } from "../shared/fonts";
 import { theme } from "../shared/theme";
 import { AppWindow } from "../ui/AppWindow";
 import { MockButton } from "../ui/MockButton";
 import { ProgressBar } from "../ui/ProgressBar";
+import { TransitionLabel } from "../scenes/TransitionLabel";
 import { CursorOverlay } from "../cursor/CursorOverlay";
 import { CURSOR_PATHS } from "../cursor/cursorPaths";
 
@@ -194,6 +195,11 @@ export const Act6Publish: React.FC = () => {
       </AppWindow>
 
       {/* Cursor */}
+      {/* Transition label — first 30 frames */}
+      <Sequence from={0} durationInFrames={30}>
+        <TransitionLabel text="Publish to the web" />
+      </Sequence>
+
       <CursorOverlay waypoints={CURSOR_PATHS.act6} />
     </AbsoluteFill>
   );

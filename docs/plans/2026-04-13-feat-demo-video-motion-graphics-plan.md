@@ -261,7 +261,7 @@ Les phases sont réorganisées en ordre de production sûr : fondations d'abord,
 
 Construire dans cet ordre — chaque composant est testable isolément dans le Studio via une composition dédiée :
 
-- [ ] `AppWindow.tsx` — Frame macOS :
+- [x] `AppWindow.tsx` — Frame macOS :
   - Fond arrondi (`borderRadius: 12`) avec ombre portée
   - Traffic lights (3 cercles colorés, statiques)
   - Titre "Niamoto" centré dans la titlebar
@@ -269,7 +269,7 @@ Construire dans cet ordre — chaque composant est testable isolément dans le S
   - Anime le slide-in de la sidebar quand `showSidebar` passe à `true`
   - Référence : `src/niamoto/gui/ui/src/components/layout/MainLayout.tsx`
 
-- [ ] `Sidebar.tsx` — Navigation latérale :
+- [x] `Sidebar.tsx` — Navigation latérale :
   - 5 items : Home (House), Data (Database), Collections (Layers), Site (Globe), Publish (Send)
   - Item actif avec highlight vert `lightGreen`
   - Logo Niamoto 28×28 en header
@@ -277,26 +277,26 @@ Construire dans cet ordre — chaque composant est testable isolément dans le S
   - Background : `LAYOUT.sidebar.bgColor` (#13131A)
   - Référence : `src/niamoto/gui/ui/src/components/layout/NavigationSidebar.tsx`
 
-- [ ] `TopBar.tsx` — Barre supérieure :
+- [x] `TopBar.tsx` — Barre supérieure :
   - Hauteur `LAYOUT.topbar.height` (48px)
   - Barre de recherche factice (input arrondi, placeholder "Search... ⌘K")
   - Bordure inférieure subtile
   - Référence : `src/niamoto/gui/ui/src/components/layout/TopBar.tsx`
 
-- [ ] `MockButton.tsx` — Bouton avec états :
+- [x] `MockButton.tsx` — Bouton avec états :
   - Props : `variant: "gradient" | "outline" | "default"`, `label`, `icon?`
   - Variant gradient : `background: linear-gradient(to right, #2E7D32, #26A69A)`
   - Spring scale on click (piloté par frame, pas par événement)
   - Référence : boutons de `WelcomeScreen.tsx` et `ProjectCreationWizard.tsx`
 
-- [ ] `MockInput.tsx` — Input avec typing animation :
+- [x] `MockInput.tsx` — Input avec typing animation :
   - Props : `text: string`, `typingStartFrame: number`, `charsPerSecond?: number`
   - Typing via string slicing + curseur clignotant (toggle toutes les 0.5s)
   - Font mono pour path/code, display pour noms
   - Pattern : `text.substring(0, revealedCount)` — jamais d'opacité par caractère
   - Référence : `ProjectCreationWizard.tsx` input field
 
-- [ ] `MockCard.tsx` — Card de collection :
+- [x] `MockCard.tsx` — Card de collection :
   - Props : `name`, `count`, `status`, `widgets`, `exports`
   - Background `cardDark` (#2A2A2E), border radius 7px
   - Badge de statut coloré : fresh (vert), stale (ambre), error (rouge)
@@ -304,40 +304,40 @@ Construire dans cet ordre — chaque composant est testable isolément dans le S
   - Entrée via `SpringPopIn` avec delay staggeré
   - Référence : `CollectionsOverview.tsx` → `CollectionCard`
 
-- [ ] `FileTypeChip.tsx` — Chip de type de fichier :
+- [x] `FileTypeChip.tsx` — Chip de type de fichier :
   - Props : `type: "csv" | "vector" | "raster"`, `extensions: string[]`
   - Couleurs : csv → `#3FA9F5` (steelBlue), vector → `#4BAF50` (lightGreen), raster → `#9333EA` (purple-600)
   - Icônes simplifiées : Table2, Map, Globe (formes géométriques, pas Lucide en direct)
   - Animation slide-in depuis la gauche
   - Référence : `FileUploadZone.tsx` color mapping
 
-- [ ] `FileUploadZone.tsx` — Zone d'upload :
+- [x] `FileUploadZone.tsx` — Zone d'upload :
   - Bordure pointillée (`2px dashed`), icône Upload au centre
   - États : vide → fichiers entrants (chips) → rempli
   - Background subtil au hover/active
   - Référence : `FileUploadZone.tsx` (la vraie)
 
-- [ ] `YamlPreview.tsx` — Bloc de code YAML :
+- [x] `YamlPreview.tsx` — Bloc de code YAML :
   - Font JetBrains Mono, fond plus sombre que `cardDark`
   - Coloration syntaxique simplifiée (clés en lightGreen, valeurs en textWhite, strings en steelBlue)
   - Animation slide-up à l'entrée
   - Contenu : `MOCK_YAML` depuis `mockData.ts`
 
-- [ ] `ProgressBar.tsx` — Barre de progression :
+- [x] `ProgressBar.tsx` — Barre de progression :
   - Props : `startFrame`, `durationInFrames`, `label?`, `steps?: string[]`
   - Interpolation ease-out de 0% à 100%
   - Couleur : `lightGreen` sur fond `cardDark`
   - Label de pourcentage optionnel
   - Deux modes : simple (une barre) et steps (build → deploy avec étapes)
 
-- [ ] `MockTree.tsx` — Arborescence de pages :
+- [x] `MockTree.tsx` — Arborescence de pages :
   - Props : `items` (arbre), `activeItem?`, `expandedItems?`
   - Indentation par niveau, icônes par type (page/collection/template)
   - Highlight de l'item actif
   - Animation d'expansion progressive
   - Référence : `UnifiedSiteTree.tsx`
 
-- [ ] `MockPreviewPanel.tsx` — Prévisualisation :
+- [x] `MockPreviewPanel.tsx` — Prévisualisation :
   - Simule un iframe de site généré via un **mini-layout HTML en divs** (pas d'image statique)
   - Contenu : fond clair (`bgLight`), header vert avec titre "Species", grille 2×2 de placeholder cards, footer simple
   - Quand le curseur clique un item dans `MockTree`, le contenu du preview cross-fade vers un nouveau layout (header change de titre)
@@ -347,12 +347,12 @@ Construire dans cet ordre — chaque composant est testable isolément dans le S
 
 #### 2b. Cursor system
 
-- [ ] Créer `src/cursor/CursorOverlay.tsx` :
+- [x] Créer `src/cursor/CursorOverlay.tsx` :
   - Wrapper `AbsoluteFill` avec `pointerEvents: none`, `z-index: 100`
   - Instancie `CursorFlow` avec les waypoints de l'acte courant
   - Coordonnées relatives à `LAYOUT.window` (pas au canvas)
 
-- [ ] Créer `src/cursor/cursorPaths.ts` — waypoints par acte :
+- [x] Créer `src/cursor/cursorPaths.ts` — waypoints par acte :
   ```typescript
   // Estimations — à ajuster visuellement dans Remotion Studio
   export const CURSOR_PATHS = {
@@ -390,7 +390,7 @@ Construire dans cet ordre — chaque composant est testable isolément dans le S
 
 Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le frame local (0-based dans la Sequence).
 
-- [ ] **Act1Welcome.tsx** — Écran d'accueil :
+- [x] **Act1Welcome.tsx** — Écran d'accueil :
   - Pas d'`AppWindow` (écran plein, fond gradient)
   - Logo Niamoto centré (spring entrance, scale 0.8→1)
   - Tagline sous le logo (fade-in delayed 0.5s)
@@ -398,7 +398,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
   - `CursorOverlay` : arrive et clique "Create New Project" → spring scale du bouton
   - Référence : `src/niamoto/gui/ui/src/features/welcome/views/WelcomeScreen.tsx`
 
-- [ ] **Act2ProjectWizard.tsx** — Création de projet :
+- [x] **Act2ProjectWizard.tsx** — Création de projet :
   - Toujours pas d'`AppWindow` (overlay modal sur fond Welcome)
   - Card centrée avec :
     - Logo petit en haut
@@ -409,7 +409,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
   - Flash de transition vert (confirm) avant passage à l'Act 3
   - Référence : `src/niamoto/gui/ui/src/features/welcome/views/ProjectCreationWizard.tsx`
 
-- [ ] **Act3Import.tsx** — Import de données :
+- [x] **Act3Import.tsx** — Import de données :
   - `AppWindow` avec sidebar (première apparition — sidebar slide-in animé)
   - Sidebar : "Data" actif
   - Séquence interne (3 phases) :
@@ -421,11 +421,11 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 #### 2d. Validation checkpoint
 
-- [ ] `pnpm exec tsc --noEmit` passe sans erreurs
-- [ ] Vérifier dans `pnpm dev` (Remotion Studio) que les 3 actes fonctionnent isolément
-- [ ] Vérifier que les fonts sont bien chargées (pas de fallback système)
-- [ ] Vérifier que le curseur se déplace correctement dans chaque acte
-- [ ] Ajuster les coordonnées du curseur si nécessaire
+- [x] `pnpm exec tsc --noEmit` passe sans erreurs
+- [x] Vérifier dans `pnpm dev` (Remotion Studio) que les 3 actes fonctionnent isolément
+- [x] Vérifier que les fonts sont bien chargées (pas de fallback système)
+- [x] Vérifier que le curseur se déplace correctement dans chaque acte
+- [x] Ajuster les coordonnées du curseur si nécessaire
 
 ### Phase 3: Actes 4-6
 
@@ -433,7 +433,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 #### 3a. Actes 4-6
 
-- [ ] **Act4Collections.tsx** — Collections :
+- [x] **Act4Collections.tsx** — Collections :
   - `AppWindow` avec sidebar, "Collections" actif
   - Header "Collections" avec badge compteur
   - Grille 3 colonnes de `MockCard` (données depuis `MOCK_COLLECTIONS`)
@@ -441,7 +441,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
   - Le curseur survole les cards, hover effect subtil (border lightGreen)
   - Référence : `src/niamoto/gui/ui/src/features/collections/components/CollectionsOverview.tsx`
 
-- [ ] **Act5SiteBuilder.tsx** — Constructeur de site :
+- [x] **Act5SiteBuilder.tsx** — Constructeur de site :
   - `AppWindow` avec sidebar, "Site" actif
   - Layout 3 panneaux fixes (20% / 50% / 30%) :
     - Gauche : `MockTree` avec `MOCK_SITE_TREE`
@@ -450,7 +450,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
   - Séquence : arbre se peuple → curseur clique "Species" → l'éditeur change de titre → la preview cross-fade vers un nouveau layout
   - Référence : `src/niamoto/gui/ui/src/features/site/components/SiteBuilder.tsx`
 
-- [ ] **Act6Publish.tsx** — Publication :
+- [x] **Act6Publish.tsx** — Publication :
   - `AppWindow` avec sidebar, "Publish" actif
   - Séquence en 2 phases :
     1. **Build** (0-7s) : `ProgressBar` "Building site..." de 0% à 100%, steps visibles (Generate pages → Process assets → Create index)
@@ -460,10 +460,10 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 #### 3b. Validation checkpoint
 
-- [ ] `pnpm exec tsc --noEmit` passe sans erreurs
-- [ ] Les 6 actes fonctionnent isolément dans le Studio
-- [ ] Les transitions sidebar entre actes sont fluides (highlight change)
-- [ ] `MockPreviewPanel` cross-fade fonctionne dans l'Act 5
+- [x] `pnpm exec tsc --noEmit` passe sans erreurs
+- [x] Les 6 actes fonctionnent isolément dans le Studio
+- [x] Les transitions sidebar entre actes sont fluides (highlight change)
+- [x] `MockPreviewPanel` cross-fade fonctionne dans l'Act 5
 
 ### Phase 4: Composition & Polish
 
@@ -471,12 +471,12 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 #### 4a. Scenes d'habillage
 
-- [ ] Refactoriser `IntroScene.tsx` (ex `IntroLogo.tsx`) :
+- [x] Refactoriser `IntroScene.tsx` (ex `IntroLogo.tsx`) :
   - Garder le spring entrance du logo
   - Tagline avec fade+blur via `interpolate()` sur `opacity` et `filter: blur()` ("Ecological data, from field to web")
   - Fond `bgDark` uni
 
-- [ ] Créer `TransitionLabel.tsx` :
+- [x] Créer `TransitionLabel.tsx` :
   - Label contextuel affiché en **début d'acte** (pas en overlay — les overlays ne peuvent pas être adjacents aux transitions dans TransitionSeries)
   - Props : `text: string`, `durationInFrames: number`
   - Fade-in 10f, hold, fade-out 10f. Font display, taille 32px, couleur `textMuted`, centré sur fond `bgDark`
@@ -485,7 +485,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
     2. Act 5 (premiers 30f) : "Build your site"
     3. Act 6 (premiers 30f) : "Publish to the web"
 
-- [ ] Refactoriser `OutroScene.tsx` (ex `OutroCTA.tsx`) :
+- [x] Refactoriser `OutroScene.tsx` (ex `OutroCTA.tsx`) :
   - Logo Niamoto + github.com/niamoto/niamoto
   - `arsis.dev` en steelBlue (branding Arsis)
   - Spring staggeré pour les éléments
@@ -493,7 +493,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 #### 4b. Composition principale
 
-- [ ] Reconstruire `MarketingLandscape.tsx` avec `TransitionSeries` :
+- [x] Reconstruire `MarketingLandscape.tsx` avec `TransitionSeries` :
   ```tsx
   <TransitionSeries>
     <TransitionSeries.Sequence durationInFrames={sec(4)}>
@@ -607,7 +607,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 ### Quality
 
-- [ ] `pnpm exec tsc --noEmit` passe sans erreurs (`pnpm build` lance un render Remotion, pas un typecheck)
+- [x] `pnpm exec tsc --noEmit` passe sans erreurs (`pnpm build` lance un render Remotion, pas un typecheck)
 - [ ] Les composants UI sont réutilisables et paramétrables (pas de magic numbers)
 - [ ] Le `DESIGN_SYSTEM.md` est complet et utilisable
 
