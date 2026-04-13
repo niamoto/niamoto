@@ -1,96 +1,131 @@
-import { useVideoConfig } from "remotion";
+import { useState, useEffect } from "react";
+import { AbsoluteFill, useVideoConfig, delayRender, continueRender } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
-import { slide } from "@remotion/transitions/slide";
-import { IntroLogo } from "../scenes/IntroLogo";
-import { PipelineAnimated } from "../scenes/PipelineAnimated";
-import { ScreencastBlock } from "../scenes/ScreencastBlock";
-import { StatsOrMap } from "../scenes/StatsOrMap";
-import { OutroCTA } from "../scenes/OutroCTA";
 import { DURATIONS, TRANSITION_FRAMES } from "../shared/config";
-import "../shared/fonts";
+import { ensureFontsLoaded } from "../shared/fonts";
+import { theme } from "../shared/theme";
 
 export const MarketingLandscape: React.FC = () => {
   const { fps } = useVideoConfig();
+  const [handle] = useState(() => delayRender("Loading fonts"));
+
+  useEffect(() => {
+    ensureFontsLoaded().then(() => continueRender(handle));
+  }, [handle]);
 
   const sec = (s: number) => Math.round(s * fps);
 
   return (
-    <TransitionSeries>
-      {/* 1. Intro Logo */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.introLogo)}>
-        <IntroLogo />
-      </TransitionSeries.Sequence>
+    <AbsoluteFill style={{ backgroundColor: theme.bgDark }}>
+      <TransitionSeries>
+        {/* Intro */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.intro)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [IntroScene placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 2. Problem statement */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.problemStatement)}>
-        <PipelineAnimated mode="problem" />
-      </TransitionSeries.Sequence>
+        {/* Act 1 — Welcome */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act1Welcome)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act1Welcome placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 3. Pipeline animated diagram */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.pipelineAnimated)}>
-        <PipelineAnimated mode="pipeline" />
-      </TransitionSeries.Sequence>
+        {/* Act 2 — Project Wizard */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act2ProjectWizard)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act2ProjectWizard placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={slide({ direction: "from-right" })}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 4. Screencast: Import */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.screencastImport)}>
-        <ScreencastBlock src="01-import-flow.mp4" label="Import" />
-      </TransitionSeries.Sequence>
+        {/* Act 3 — Import */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act3Import)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act3Import placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 5. Screencast: Transform */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.screencastTransform)}>
-        <ScreencastBlock src="02-transform-preview.mp4" label="Transform" />
-      </TransitionSeries.Sequence>
+        {/* Act 4 — Collections */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act4Collections)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act4Collections placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 6. Screencast: Export */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.screencastExport)}>
-        <ScreencastBlock src="03-publish-or-site-preview.mp4" label="Export" />
-      </TransitionSeries.Sequence>
+        {/* Act 5 — Site Builder */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act5SiteBuilder)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act5SiteBuilder placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 7. Stats / Map */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.statsOrMap)}>
-        <StatsOrMap />
-      </TransitionSeries.Sequence>
+        {/* Act 6 — Publish */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.act6Publish)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [Act6Publish placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
 
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
 
-      {/* 8. Outro CTA */}
-      <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.outroCta)}>
-        <OutroCTA />
-      </TransitionSeries.Sequence>
-    </TransitionSeries>
+        {/* Outro */}
+        <TransitionSeries.Sequence durationInFrames={sec(DURATIONS.outro)}>
+          <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+            <span style={{ color: theme.textMuted, fontSize: 24 }}>
+              [OutroScene placeholder]
+            </span>
+          </AbsoluteFill>
+        </TransitionSeries.Sequence>
+      </TransitionSeries>
+    </AbsoluteFill>
   );
 };

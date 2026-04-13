@@ -222,36 +222,36 @@ Les phases sont réorganisées en ordre de production sûr : fondations d'abord,
 
 **Objectif** : Nettoyer, créer l'infrastructure, valider que le Studio démarre.
 
-- [ ] Supprimer les scènes obsolètes :
+- [x] Supprimer les scènes obsolètes :
   - `src/scenes/StatsOrMap.tsx`
   - `src/scenes/PipelineAnimated.tsx`
   - `src/scenes/ScreencastBlock.tsx`
-- [ ] Supprimer les docs obsolètes :
+- [x] Supprimer les docs obsolètes :
   - `SCRIPT.md`
   - `STORYBOARD.md`
-- [ ] Mettre à jour `README.md` pour refléter l'architecture motion graphics (supprimer les références aux screencasts)
-- [ ] Créer les répertoires :
+- [x] Mettre à jour `README.md` pour refléter l'architecture motion graphics (supprimer les références aux screencasts)
+- [x] Créer les répertoires :
   - `src/acts/`
   - `src/ui/`
   - `src/cursor/`
   - `src/animations/`
-- [ ] Créer `src/shared/DESIGN_SYSTEM.md` (voir section Phase 6 pour le contenu)
-- [ ] Créer `src/shared/layout.ts` avec les constantes de layout (AppWindow, sidebar, topbar)
-- [ ] Créer `src/shared/mockData.ts` avec les données fictives génériques
-- [ ] Mettre à jour `src/shared/config.ts` : nouvelles durées pour 6 actes + intro/outro, nouveau calcul `totalFrames`
-- [ ] Bloquer le rendu sur le chargement des fonts : dans `MarketingLandscape.tsx`, appeler `delayRender()` au mount puis `ensureFontsLoaded().then(() => continueRender(handle))`. Le projet expose déjà `ensureFontsLoaded()` dans `fonts.ts` — il suffit de l'utiliser. Pattern :
+- [ ] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) (voir section Phase 6 pour le contenu)
+- [x] Créer `src/shared/layout.ts` avec les constantes de layout (AppWindow, sidebar, topbar)
+- [x] Créer `src/shared/mockData.ts` avec les données fictives génériques
+- [x] Mettre à jour `src/shared/config.ts` : nouvelles durées pour 6 actes + intro/outro, nouveau calcul `totalFrames`
+- [x] Bloquer le rendu sur le chargement des fonts : dans `MarketingLandscape.tsx`, appeler `delayRender()` au mount puis `ensureFontsLoaded().then(() => continueRender(handle))`. Le projet expose déjà `ensureFontsLoaded()` dans `fonts.ts` — il suffit de l'utiliser. Pattern :
   ```tsx
   const [handle] = useState(() => delayRender("Loading fonts"));
   useEffect(() => {
     ensureFontsLoaded().then(() => continueRender(handle));
   }, [handle]);
   ```
-- [ ] Écrire les 3 primitives d'animation vendorées :
+- [x] Écrire les 3 primitives d'animation vendorées :
   - `src/animations/CursorFlow.tsx` — curseur Bézier avec waypoints, click ripple spring, hold. ~80 lignes, 100% `interpolate()`/`spring()`
   - `src/animations/SpringPopIn.tsx` — wrapper scale 0.85→1 via `spring()` + opacity. ~30 lignes
   - `src/animations/ShimmerText.tsx` — gradient animé via `interpolate()` sur `backgroundPosition`, `backgroundClip: text`. ~50 lignes
-- [ ] Mettre à jour `Root.tsx` : supprimer les anciennes compositions, ajouter un placeholder `MarketingLandscape` vide
-- [ ] Vérifier que `pnpm dev` lance le Studio sans erreur
+- [x] Mettre à jour `Root.tsx` : supprimer les anciennes compositions, ajouter un placeholder `MarketingLandscape` vide
+- [x] Vérifier que `pnpm dev` lance le Studio sans erreur
 
 ### Phase 2: UI Components + Actes 1-3
 
@@ -571,7 +571,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 > Note : cette phase est volontairement en dernier. Le DESIGN_SYSTEM.md est plus utile comme documentation de ce qui a été construit que comme spec abstraite écrite avant d'avoir vu le rendu.
 
-- [ ] Créer `src/shared/DESIGN_SYSTEM.md` avec les 9 sections :
+- [ ] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) avec les 9 sections :
   1. **Visual Theme & Atmosphere** : Dark professional, data-forward, minimal chrome
   2. **Color Palette & Roles** : Hex tokens (charcoal, forestGreen, lightGreen, steelBlue, cardDark, textWhite, textMuted) + FileTypeChip colors (csv steelBlue, vector lightGreen, raster #9333EA)
   3. **Typography Rules** : Plus Jakarta Sans (display 400-700) + JetBrains Mono (code 400-500), échelle (48/40/32/24/20/16/14/12)
