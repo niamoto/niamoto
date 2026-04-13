@@ -396,9 +396,10 @@
     "widgetsConfigured": "{{count}} widgets configurés",
     "clickToEdit": "Cliquez pour modifier",
     "unsavedChanges": "Modifications non sauvegardées",
-    "previews": "Previews",
+    "previews": "Aperçus",
     "hidePreviews": "Masquer les previews",
     "showPreviews": "Afficher les previews",
+    "performanceModeLow": "Mode performance",
     "refresh": "Actualiser",
     "save": "Sauvegarder",
     "saving": "Sauvegarde...",
@@ -419,6 +420,13 @@
     "seeDetails": "Voir les détails",
     "moving": "Déplacement...",
     "previewDisabled": "Preview désactivée",
+    "previewOnDemand": "Survolez pour prévisualiser",
+    "previewMode": {
+      "auto": "Automatique",
+      "thumbnail": "Miniatures",
+      "focused": "Ciblé",
+      "off": "Désactivé"
+    },
     "previewEntitiesUnavailable": "Impossible de charger les entités de preview. Les aperçus restent disponibles sans sélection ciblée."
   },
   "listPanel": {

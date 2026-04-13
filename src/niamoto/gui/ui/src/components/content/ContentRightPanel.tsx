@@ -8,12 +8,17 @@
 import { LayoutOverview } from './LayoutOverview'
 import { WidgetDetailPanel } from './WidgetDetailPanel'
 import type { ConfiguredWidget } from '@/components/widgets'
+import type { CollectionsPreviewPreference } from './previewPolicy'
 
 interface ContentRightPanelProps {
   selectedWidget: ConfiguredWidget | null
   allWidgets: ConfiguredWidget[]
   groupBy: string
   availableFields?: string[]
+  previewPreference: CollectionsPreviewPreference
+  onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
+  hardwareConcurrency: number | null
+  detailPreviewAutoRefresh: boolean
   onSelectWidget: (widget: ConfiguredWidget | null) => void
   onBack: () => void
   onUpdateWidget: (widgetId: string, config: Partial<ConfiguredWidget>) => Promise<boolean>
@@ -26,6 +31,10 @@ export function ContentRightPanel({
   allWidgets,
   groupBy,
   availableFields = [],
+  previewPreference,
+  onPreviewPreferenceChange,
+  hardwareConcurrency,
+  detailPreviewAutoRefresh,
   onSelectWidget,
   onBack,
   onUpdateWidget,
@@ -38,6 +47,9 @@ export function ContentRightPanel({
       <LayoutOverview
         widgets={allWidgets}
         groupBy={groupBy}
+        previewPreference={previewPreference}
+        onPreviewPreferenceChange={onPreviewPreferenceChange}
+        hardwareConcurrency={hardwareConcurrency}
         onSelectWidget={onSelectWidget}
         onLayoutSaved={onLayoutSaved}
       />
@@ -50,6 +62,7 @@ export function ContentRightPanel({
       widget={selectedWidget}
       groupBy={groupBy}
       availableFields={availableFields}
+      autoRefreshPreview={detailPreviewAutoRefresh}
       onBack={onBack}
       onUpdate={(config) => onUpdateWidget(selectedWidget.id, config)}
       onDelete={() => onDeleteWidget(selectedWidget.id)}

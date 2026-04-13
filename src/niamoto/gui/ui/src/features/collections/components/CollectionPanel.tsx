@@ -37,6 +37,7 @@ import {
 } from '@/features/collections/hooks/useCollectionTransforms'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { buildCollectionsPath, type CollectionTab } from '@/features/collections/routing'
+import { markCollectionsContentSwitch } from '@/features/collections/performance/collectionsPerf'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
@@ -71,6 +72,12 @@ export function CollectionPanel({
       setActiveTab(initialTab)
     }
   }, [initialTab])
+
+  useEffect(() => {
+    if (activeTab === 'content') {
+      markCollectionsContentSwitch(reference.name)
+    }
+  }, [activeTab, reference.name])
 
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {

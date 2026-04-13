@@ -45,6 +45,8 @@ class TestGetPreview:
         assert "Preview OK" in response.text
         assert response.headers.get("etag") == '"test-etag-123"'
         assert response.headers.get("cache-control") == "no-cache"
+        assert response.headers.get("x-preview-render-ms") is not None
+        assert "preview;dur=" in (response.headers.get("server-timing") or "")
 
         # Vérifier que le moteur a reçu la bonne requête
         mock_engine.render.assert_called_once()
@@ -105,6 +107,7 @@ class TestPostPreview:
             },
         )
         assert response.status_code == 200
+        assert response.headers.get("x-preview-render-ms") is not None
 
         req = mock_engine.render.call_args[0][0]
         assert req.group_by == "taxons"

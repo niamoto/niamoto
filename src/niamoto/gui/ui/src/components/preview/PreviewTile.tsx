@@ -74,6 +74,7 @@ export function PreviewTile({
           srcDoc={html}
           title="Widget preview"
           sandbox="allow-scripts"
+          loading="lazy"
           style={{
             width: 400,
             height: 300,

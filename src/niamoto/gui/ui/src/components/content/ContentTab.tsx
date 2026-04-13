@@ -34,6 +34,13 @@ import { WidgetListPanel } from './WidgetListPanel'
 import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+import {
+  getCollectionsHardwareConcurrency,
+  readStoredCollectionsPreviewPreference,
+  shouldAutoRefreshCollectionsDetailPreview,
+  writeStoredCollectionsPreviewPreference,
+  type CollectionsPreviewPreference,
+} from './previewPolicy'
 
 // Helper to resolve LocalizedString for search
 function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
@@ -67,6 +74,10 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+  const [previewPreference, setPreviewPreference] = useState<CollectionsPreviewPreference>(
+    () => readStoredCollectionsPreviewPreference(),
+  )
+  const hardwareConcurrency = useMemo(() => getCollectionsHardwareConcurrency(), [])
 
   const {
     loading: configuredWidgetsLoading,
@@ -109,6 +120,16 @@ export function ContentTab({ reference }: ContentTabProps) {
       w.widgetPlugin.toLowerCase().includes(query)
     )
   }, [configuredWidgets, searchQuery])
+
+  const detailPreviewAutoRefresh = useMemo(
+    () =>
+      shouldAutoRefreshCollectionsDetailPreview({
+        preference: previewPreference,
+        widgetCount: configuredWidgets.length,
+        hardwareConcurrency,
+      }),
+    [configuredWidgets.length, hardwareConcurrency, previewPreference],
+  )
 
   // Get selected widget data
   const selectedWidget = useMemo(() => {
@@ -195,6 +216,14 @@ export function ContentTab({ reference }: ContentTabProps) {
       setIsCollapsed(true)
     }
   }, [isCollapsed])
+
+  const handlePreviewPreferenceChange = useCallback(
+    (preference: CollectionsPreviewPreference) => {
+      setPreviewPreference(preference)
+      writeStoredCollectionsPreviewPreference(preference)
+    },
+    [],
+  )
 
   return (
     <div className="h-full flex flex-col">
@@ -306,15 +335,19 @@ export function ContentTab({ reference }: ContentTabProps) {
             )}
             <div className="flex-1 min-h-0">
               <ContentRightPanel
-            selectedWidget={selectedWidget}
-            allWidgets={configuredWidgets}
-            groupBy={reference.name}
-            availableFields={availableFields}
-            onSelectWidget={handleSelectWidget}
-            onBack={handleBackToLayout}
-            onUpdateWidget={handleUpdateWidget}
-            onDeleteWidget={handleDeleteWidget}
-            onLayoutSaved={refetchWidgets}
+                selectedWidget={selectedWidget}
+                allWidgets={configuredWidgets}
+                groupBy={reference.name}
+                availableFields={availableFields}
+                previewPreference={previewPreference}
+                onPreviewPreferenceChange={handlePreviewPreferenceChange}
+                hardwareConcurrency={hardwareConcurrency}
+                detailPreviewAutoRefresh={detailPreviewAutoRefresh}
+                onSelectWidget={handleSelectWidget}
+                onBack={handleBackToLayout}
+                onUpdateWidget={handleUpdateWidget}
+                onDeleteWidget={handleDeleteWidget}
+                onLayoutSaved={refetchWidgets}
           />
             </div>
           </div>

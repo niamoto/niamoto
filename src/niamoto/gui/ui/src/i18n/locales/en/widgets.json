@@ -399,6 +399,7 @@
     "previews": "Previews",
     "hidePreviews": "Hide previews",
     "showPreviews": "Show previews",
+    "performanceModeLow": "Performance mode",
     "refresh": "Refresh",
     "save": "Save",
     "saving": "Saving...",
@@ -419,6 +420,13 @@
     "seeDetails": "See details",
     "moving": "Moving...",
     "previewDisabled": "Preview disabled",
+    "previewOnDemand": "Hover to preview",
+    "previewMode": {
+      "auto": "Auto",
+      "thumbnail": "Thumbnails",
+      "focused": "Focused",
+      "off": "Off"
+    },
     "previewEntitiesUnavailable": "Unable to load preview entities. Previews remain available without a targeted selection."
   },
   "listPanel": {
