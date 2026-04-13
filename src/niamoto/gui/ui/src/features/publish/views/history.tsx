@@ -51,6 +51,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { clearExportHistory } from '@/features/publish/api/export'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 
 export default function PublishHistory({ embedded = false }: { embedded?: boolean }) {
   const { t, i18n } = useTranslation('publish')
@@ -246,15 +247,14 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
                           <TableCell>{getStatusBadge(deploy.status)}</TableCell>
                           <TableCell>
                             {deploy.deploymentUrl ? (
-                              <a
-                                href={deploy.deploymentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => void openExternalUrl(deploy.deploymentUrl!)}
                                 className="text-primary hover:underline flex items-center gap-1 text-sm"
                               >
                                 <Globe className="w-3 h-3" />
                                 {t('deploy.viewSite', 'View')}
-                              </a>
+                              </button>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -268,11 +268,9 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 {deploy.deploymentUrl && (
-                                  <DropdownMenuItem asChild>
-                                    <a href={deploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                                      <ExternalLink className="w-4 h-4 mr-2" />
-                                      {t('history.openSite', 'Open site')}
-                                    </a>
+                                  <DropdownMenuItem onClick={() => void openExternalUrl(deploy.deploymentUrl!)}>
+                                    <ExternalLink className="w-4 h-4 mr-2" />
+                                    {t('history.openSite', 'Open site')}
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem onClick={() => setSelectedDeploy(deploy)}>
@@ -448,14 +446,13 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
               {selectedDeploy.deploymentUrl && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">URL</span>
-                  <a
-                    href={selectedDeploy.deploymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => void openExternalUrl(selectedDeploy.deploymentUrl!)}
                     className="text-primary hover:underline text-sm"
                   >
                     {selectedDeploy.deploymentUrl}
-                  </a>
+                  </button>
                 </div>
               )}
               <div className="pt-4 border-t">

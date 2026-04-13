@@ -183,6 +183,12 @@ class TransformerService:
             "available_sources": available_sources,
         }
 
+    def _bind_plugin_runtime_config(self, plugin: Any) -> None:
+        """Inject the active project config into plugins that opt in."""
+        bind_runtime_config = getattr(plugin, "bind_runtime_config", None)
+        if callable(bind_runtime_config):
+            bind_runtime_config(self.config)
+
     def _resolve_widget_input(
         self,
         group_by_name: str,
@@ -235,6 +241,7 @@ class TransformerService:
         transformer = PluginRegistry.get_plugin(
             widget_config["plugin"], PluginType.TRANSFORMER
         )(self.db, registry=self.entity_registry)
+        self._bind_plugin_runtime_config(transformer)
         data_to_pass, available_sources = self._resolve_widget_input(
             group_by_name, group_data, widget_config, group_id
         )
@@ -1027,6 +1034,7 @@ class TransformerService:
             try:
                 plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
                 loader = plugin_class(self.db, registry=self.entity_registry)
+                self._bind_plugin_runtime_config(loader)
             except Exception as e:
                 raise DataTransformError(
                     f"Failed to get loader for source '{source_name}'",

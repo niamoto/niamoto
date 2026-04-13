@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { type Locale, formatDistanceToNow } from 'date-fns'
@@ -52,10 +53,16 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { PreviewFrame, type DeviceSize, DEVICE_DIMENSIONS } from '@/components/ui/preview-frame'
 import {
   useGroups,
-  useGroupIndexPreview,
   useSiteConfig,
-  useTemplatePreview,
+  type GroupIndexPreviewRequest,
+  type SiteConfigResponse,
+  type StaticPage,
+  type TemplatePreviewRequest,
 } from '@/shared/hooks/useSiteConfig'
+import {
+  previewGroupIndex,
+  previewTemplate,
+} from '@/shared/hooks/site-config/siteConfigApi'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/features/publish/api/export'
 import { apiClient } from '@/shared/lib/api/client'
@@ -100,6 +107,57 @@ function formatDateDistance(dateStr: string | undefined, locale: Locale) {
     return dateStr
   }
 }
+
+function buildTemplatePreviewRequest(
+  siteConfig: SiteConfigResponse,
+  page: StaticPage,
+  guiLang: string
+): TemplatePreviewRequest {
+  return {
+    template: page.template || 'page.html',
+    context: { ...(page.context || {}) },
+    site: siteConfig.site as Record<string, unknown>,
+    navigation: siteConfig.navigation.map((item) => ({
+      text: item.text,
+      url: item.url,
+      children: item.children,
+    })),
+    footer_navigation: siteConfig.footer_navigation.map((section) => ({
+      title: section.title,
+      links: section.links,
+    })),
+    output_file: page.output_file,
+    gui_lang: guiLang,
+  }
+}
+
+function buildGroupIndexPreviewRequest(
+  siteConfig: SiteConfigResponse,
+  guiLang: string
+): GroupIndexPreviewRequest {
+  return {
+    site: siteConfig.site as Record<string, unknown>,
+    navigation: siteConfig.navigation.map((item) => ({
+      text: item.text as string,
+      url: item.url,
+      children: item.children,
+    })),
+    gui_lang: guiLang,
+  }
+}
+
+type DynamicPreviewTarget =
+  | {
+      kind: 'template'
+      key: string
+      request: TemplatePreviewRequest
+    }
+  | {
+      kind: 'group-index'
+      key: string
+      groupName: string
+      request: GroupIndexPreviewRequest
+    }
 
 function getPublishStatus({
   currentBuild,
@@ -267,7 +325,7 @@ export default function PublishOverview() {
   const lastSuccessfulBuild = buildHistory.find((job) => job.status === 'completed') ?? null
   const hasSuccessfulBuild = lastSuccessfulBuild !== null
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
-  const [dynamicHtml, setDynamicHtml] = useState<string | null>(null)
+  const [dynamicPreviewTarget, setDynamicPreviewTarget] = useState<DynamicPreviewTarget | null>(null)
   const [includeTransform, setIncludeTransform] = useState(true)
   const [currentPhase, setCurrentPhase] = useState<string | null>(null)
   const [exportPath, setExportPath] = useState('exports')
@@ -278,21 +336,43 @@ export default function PublishOverview() {
   const { data: siteConfig } = useSiteConfig()
   const { data: groupsData } = useGroups()
   const { data: pipelineData } = usePipelineStatus()
-  const { mutate: requestTemplatePreview, isPending: isTemplatePreviewPending } = useTemplatePreview()
-  const { mutate: requestGroupIndexPreview, isPending: isGroupIndexPreviewPending } = useGroupIndexPreview()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
   const siteStatus = pipelineData?.site?.status
   const groupsStatus = pipelineData?.groups?.status
   const canRecomputeStatistics = groupsStatus !== 'unconfigured'
   const siteBuildBlocked = siteStatus === 'unconfigured' || siteStatus === 'never_run'
-  const isDynamicPreviewPending = isTemplatePreviewPending || isGroupIndexPreviewPending
   const dynamicPreviewKey = siteConfig
     ? [
         previewLang,
         ...siteConfig.static_pages.map((page) => `${page.output_file}:${page.template || 'page.html'}`),
       ].join('|')
     : null
+  const dynamicPreviewQuery = useQuery({
+    queryKey: dynamicPreviewTarget
+      ? ['publish-dynamic-preview', dynamicPreviewTarget.kind, dynamicPreviewTarget.key]
+      : ['publish-dynamic-preview', 'idle'],
+    queryFn: async () => {
+      if (!dynamicPreviewTarget) {
+        throw new Error('Missing dynamic preview target')
+      }
+
+      if (dynamicPreviewTarget.kind === 'template') {
+        return previewTemplate(dynamicPreviewTarget.request)
+      }
+
+      return previewGroupIndex(dynamicPreviewTarget.groupName, dynamicPreviewTarget.request)
+    },
+    enabled: Boolean(dynamicPreviewTarget) && !siteBuildBlocked && !hasSuccessfulBuild,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+  const isDynamicPreviewPending = dynamicPreviewQuery.isLoading || dynamicPreviewQuery.isFetching
+  const dynamicHtml = dynamicPreviewQuery.data?.html ?? (
+    dynamicPreviewQuery.error instanceof Error
+      ? `<div style="padding: 20px; color: #ef4444;">Erreur: ${dynamicPreviewQuery.error.message}</div>`
+      : null
+  )
   const buildActionDisabled = isBuilding || siteBuildBlocked
   const shouldIncludeTransformByDefault = groupsStatus === 'stale' || groupsStatus === 'never_run'
   const includeTransformLabel = groupsStatus === 'never_run'
@@ -542,27 +622,15 @@ export default function PublishOverview() {
     }
   }
 
-  const loadPagePreview = useCallback((page: typeof siteConfig extends { static_pages: (infer P)[] } | undefined ? P : never) => {
+  const loadPagePreview = useCallback((page: StaticPage) => {
     if (!siteConfig || !page || siteBuildBlocked) return
-    requestTemplatePreview({
-      template: page.template || 'page.html',
-      context: { ...(page.context || {}) },
-      site: siteConfig.site as Record<string, unknown>,
-      navigation: siteConfig.navigation.map((item) => ({
-        text: item.text,
-        url: item.url,
-        children: item.children,
-      })),
-      footer_navigation: siteConfig.footer_navigation.map((section) => ({
-        title: section.title,
-        links: section.links,
-      })),
-      output_file: page.output_file,
-      gui_lang: i18n.language?.split('-')[0] || 'fr',
-    }, {
-      onSuccess: (data) => setDynamicHtml(data.html),
+    const guiLang = i18n.language?.split('-')[0] || 'fr'
+    setDynamicPreviewTarget({
+      kind: 'template',
+      key: `${dynamicPreviewKey || guiLang}|page|${page.output_file}|${page.template || 'page.html'}`,
+      request: buildTemplatePreviewRequest(siteConfig, page, guiLang),
     })
-  }, [i18n.language, requestTemplatePreview, siteBuildBlocked, siteConfig])
+  }, [dynamicPreviewKey, i18n.language, siteBuildBlocked, siteConfig])
 
   const loadDynamicPreview = useCallback(() => {
     if (!siteConfig || siteBuildBlocked) return
@@ -586,19 +654,12 @@ export default function PublishOverview() {
     })
 
     if (groupByIndex) {
-      requestGroupIndexPreview({
+      const guiLang = i18n.language?.split('-')[0] || 'fr'
+      setDynamicPreviewTarget({
+        kind: 'group-index',
+        key: `${dynamicPreviewKey || guiLang}|group|${groupByIndex.name}`,
         groupName: groupByIndex.name,
-        request: {
-          site: siteConfig.site as Record<string, unknown>,
-          navigation: siteConfig.navigation.map((item) => ({
-            text: item.text as string,
-            url: item.url,
-            children: item.children,
-          })),
-          gui_lang: i18n.language?.split('-')[0] || 'fr',
-        },
-      }, {
-        onSuccess: (data) => setDynamicHtml(data.html),
+        request: buildGroupIndexPreviewRequest(siteConfig, guiLang),
       })
       return
     }
@@ -622,10 +683,11 @@ export default function PublishOverview() {
   useEffect(() => {
     if (siteBuildBlocked || hasSuccessfulBuild) {
       autoPreviewKeyRef.current = null
+      setDynamicPreviewTarget(null)
       return
     }
 
-    if (!siteConfig || dynamicHtml !== null || !dynamicPreviewKey) {
+    if (!siteConfig || !dynamicPreviewKey) {
       return
     }
 
@@ -635,13 +697,13 @@ export default function PublishOverview() {
 
     autoPreviewKeyRef.current = dynamicPreviewKey
     loadDynamicPreview()
-  }, [dynamicHtml, dynamicPreviewKey, hasSuccessfulBuild, loadDynamicPreview, siteBuildBlocked, siteConfig])
+  }, [dynamicPreviewKey, hasSuccessfulBuild, loadDynamicPreview, siteBuildBlocked, siteConfig])
 
   useEffect(() => {
-    if (siteBuildBlocked && !hasSuccessfulBuild && dynamicHtml !== null) {
-      setDynamicHtml(null)
+    if (siteBuildBlocked && !hasSuccessfulBuild && dynamicPreviewTarget !== null) {
+      setDynamicPreviewTarget(null)
     }
-  }, [dynamicHtml, hasSuccessfulBuild, siteBuildBlocked])
+  }, [dynamicPreviewTarget, hasSuccessfulBuild, siteBuildBlocked])
 
   const activityItems = [
     ...buildHistory.slice(0, 3).map((job) => ({ type: 'build' as const, ...job })),
@@ -691,7 +753,15 @@ export default function PublishOverview() {
       isLoading={siteBuildBlocked ? false : isDynamicPreviewPending}
       device={previewDevice}
       onDeviceChange={setPreviewDevice}
-      onRefresh={siteBuildBlocked ? undefined : loadDynamicPreview}
+      onRefresh={siteBuildBlocked
+        ? undefined
+        : () => {
+            if (dynamicPreviewTarget) {
+              void dynamicPreviewQuery.refetch()
+              return
+            }
+            loadDynamicPreview()
+          }}
       onLinkClick={siteBuildBlocked ? undefined : handlePreviewLinkClick}
       title={t('overview.previewDynamic', 'Dynamic preview')}
       emptyMessage={siteBuildBlocked
@@ -857,15 +927,14 @@ export default function PublishOverview() {
                       </p>
                     )}
                     {primaryDeploy?.deploymentUrl && (
-                      <a
-                        href={primaryDeploy.deploymentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => void openExternalUrl(primaryDeploy.deploymentUrl!)}
                         className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                       >
                         <Globe className="h-4 w-4" />
                         {primaryDeploy.deploymentUrl}
-                      </a>
+                      </button>
                     )}
                   </div>
 
@@ -887,11 +956,12 @@ export default function PublishOverview() {
                       )}
                     </Button>
                     {primaryDeploy?.deploymentUrl && (
-                      <Button variant="outline" asChild>
-                        <a href={primaryDeploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          {t('deploy.viewSite', 'View Live Site')}
-                        </a>
+                      <Button
+                        variant="outline"
+                        onClick={() => void openExternalUrl(primaryDeploy.deploymentUrl!)}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        {t('deploy.viewSite', 'View Live Site')}
                       </Button>
                     )}
                     <Button variant="secondary" onClick={() => openPanel('destinations')}>

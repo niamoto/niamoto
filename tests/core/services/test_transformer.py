@@ -426,6 +426,35 @@ class TestTransformerService:
         mock_loader.load_data.assert_called_once()
 
     @patch("niamoto.core.services.transformer.PluginRegistry")
+    def test_get_group_data_binds_runtime_config_to_loader(
+        self, mock_registry, transformer_service
+    ):
+        """Test _get_group_data injects the active config into runtime-aware loaders."""
+        mock_loader_class = Mock()
+        mock_loader = Mock()
+        mock_loader.bind_runtime_config = Mock()
+        mock_loader_class.return_value = mock_loader
+        mock_registry.get_plugin.return_value = mock_loader_class
+        mock_loader.load_data.return_value = pd.DataFrame({"id": [1]})
+
+        group_config = {
+            "sources": [
+                {
+                    "name": "plot_stats",
+                    "data": "imports/raw_plot_stats.csv",
+                    "grouping": "plots",
+                    "relation": {"plugin": "stats_loader", "key": "id_plot"},
+                }
+            ]
+        }
+
+        transformer_service._get_group_data(group_config, None, 1)
+
+        mock_loader.bind_runtime_config.assert_called_once_with(
+            transformer_service.config
+        )
+
+    @patch("niamoto.core.services.transformer.PluginRegistry")
     def test_get_group_data_multiple_sources(
         self, mock_registry, transformer_service, mock_db
     ):

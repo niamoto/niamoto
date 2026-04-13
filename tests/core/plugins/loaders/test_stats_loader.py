@@ -66,6 +66,19 @@ class TestStatsLoader(NiamotoTestCase):
         self.assertIsInstance(validated_config, StatsLoaderConfig)
         self.assertEqual(validated_config.plugin, "stats_loader")
 
+    def test_bind_runtime_config_updates_imports_context(self):
+        """Test runtime config rebinding refreshes import source metadata."""
+        runtime_config = MagicMock()
+        runtime_config.config_dir = os.path.join(self.temp_dir, "other-config")
+        imports_model = MagicMock()
+        imports_model.model_dump.return_value = {"plots": {"type": "csv"}}
+        runtime_config.get_imports_config.return_value = imports_model
+
+        self.loader.bind_runtime_config(runtime_config)
+
+        self.assertEqual(self.loader.config, runtime_config)
+        self.assertEqual(self.loader.imports_config, {"plots": {"type": "csv"}})
+
     # --- Tests for load_data ---
 
     @patch("pandas.read_sql")

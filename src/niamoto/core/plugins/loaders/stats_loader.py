@@ -72,7 +72,18 @@ class StatsLoader(LoaderPlugin):
         """Initialize the loader with database connection."""
         super().__init__(db, registry)
         self.config = Config()
-        # Get typed imports config and convert to dict for compatibility
+        self.imports_config = {}
+        self.bind_runtime_config(self.config)
+        self.logger = logging.getLogger(__name__)
+
+    def bind_runtime_config(self, config: Config) -> None:
+        """Bind the loader to the active project config.
+
+        Preview runs can switch projects inside the same process. In that case,
+        resolving CSV/import paths via a process-global Config() can point to the
+        wrong instance unless the runtime config is injected explicitly.
+        """
+        self.config = config
         try:
             generic_imports = self.config.get_imports_config
             if callable(generic_imports):
@@ -82,7 +93,6 @@ class StatsLoader(LoaderPlugin):
             )
         except Exception:
             self.imports_config = {}
-        self.logger = logging.getLogger(__name__)
 
     def validate_config(self, config: Dict[str, Any]) -> StatsLoaderConfig:
         """Validate plugin configuration."""
