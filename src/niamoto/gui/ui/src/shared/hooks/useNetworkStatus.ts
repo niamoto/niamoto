@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
-interface NetworkStatus {
+export interface NetworkStatus {
   /** Browser reports as online (fast but unreliable) */
   isOnline: boolean
   /** Backend confirmed internet connectivity (reliable, on-demand) */
@@ -9,6 +9,68 @@ interface NetworkStatus {
   isChecking: boolean
   /** Last connectivity check timestamp */
   lastChecked: Date | null
+}
+
+const CONNECTIVITY_TIMEOUT_MS = 5000
+const FOREGROUND_RECHECK_DEBOUNCE_MS = 5000
+
+let inFlightConnectivityProbe: Promise<boolean> | null = null
+let lastConnectivityProbeAt = 0
+
+export function applyConnectivityResult(
+  status: NetworkStatus,
+  online: boolean,
+  checkedAt: Date
+): NetworkStatus {
+  return {
+    ...status,
+    // A successful backend probe heals stale navigator.onLine=false states after resume.
+    isOnline: online ? true : status.isOnline,
+    isInternetAvailable: online,
+    isChecking: false,
+    lastChecked: checkedAt,
+  }
+}
+
+export function getIsOffline(
+  status: Pick<NetworkStatus, 'isOnline' | 'isInternetAvailable'>
+): boolean {
+  if (status.isInternetAvailable === true) {
+    return false
+  }
+
+  if (status.isInternetAvailable === false) {
+    return true
+  }
+
+  return !status.isOnline
+}
+
+async function probeConnectivity(): Promise<boolean> {
+  if (inFlightConnectivityProbe) {
+    return inFlightConnectivityProbe
+  }
+
+  lastConnectivityProbeAt = Date.now()
+  inFlightConnectivityProbe = (async () => {
+    try {
+      const response = await fetch('/api/health/connectivity', {
+        signal: AbortSignal.timeout(CONNECTIVITY_TIMEOUT_MS),
+      })
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
+      return data.online === true
+    } catch {
+      return false
+    } finally {
+      inFlightConnectivityProbe = null
+    }
+  })()
+
+  return inFlightConnectivityProbe
 }
 
 /**
@@ -28,45 +90,25 @@ export function useNetworkStatus() {
     isChecking: false,
     lastChecked: null,
   })
+  const isMountedRef = useRef(true)
 
   // On-demand connectivity check via backend
   const checkConnectivity = useCallback(async (): Promise<boolean> => {
     setStatus((prev) => ({ ...prev, isChecking: true }))
-    try {
-      const response = await fetch('/api/health/connectivity', {
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!response.ok) {
-        setStatus((prev) => ({
-          ...prev,
-          isInternetAvailable: false,
-          isChecking: false,
-          lastChecked: new Date(),
-        }))
-        return false
-      }
-      const data = await response.json()
-      const online = data.online === true
-      setStatus((prev) => ({
-        ...prev,
-        isInternetAvailable: online,
-        isChecking: false,
-        lastChecked: new Date(),
-      }))
-      return online
-    } catch {
-      setStatus((prev) => ({
-        ...prev,
-        isInternetAvailable: false,
-        isChecking: false,
-        lastChecked: new Date(),
-      }))
-      return false
+    const online = await probeConnectivity()
+    const checkedAt = new Date()
+
+    if (isMountedRef.current) {
+      setStatus((prev) => applyConnectivityResult(prev, online, checkedAt))
     }
+
+    return online
   }, [])
 
   // Listen to browser online/offline events
   useEffect(() => {
+    isMountedRef.current = true
+
     const handleOnline = () => {
       // Clear stale offline state immediately, then confirm via backend.
       setStatus((prev) => ({
@@ -77,15 +119,38 @@ export function useNetworkStatus() {
       void checkConnectivity()
     }
     const handleOffline = () => {
-      setStatus((prev) => ({ ...prev, isOnline: false, isInternetAvailable: false }))
+      setStatus((prev) => ({
+        ...prev,
+        isOnline: false,
+        isInternetAvailable: prev.isInternetAvailable === true ? true : null,
+      }))
+      void checkConnectivity()
+    }
+
+    const handleForegroundResume = () => {
+      if (document.visibilityState === 'hidden') {
+        return
+      }
+
+      const now = Date.now()
+      if (now - lastConnectivityProbeAt < FOREGROUND_RECHECK_DEBOUNCE_MS) {
+        return
+      }
+
+      void checkConnectivity()
     }
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+    window.addEventListener('focus', handleForegroundResume)
+    document.addEventListener('visibilitychange', handleForegroundResume)
 
     return () => {
+      isMountedRef.current = false
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('focus', handleForegroundResume)
+      document.removeEventListener('visibilitychange', handleForegroundResume)
     }
   }, [checkConnectivity])
 
@@ -94,6 +159,6 @@ export function useNetworkStatus() {
     /** Trigger an on-demand connectivity check via backend */
     checkConnectivity,
     /** Convenience: is the app likely offline? */
-    isOffline: !status.isOnline || status.isInternetAvailable === false,
+    isOffline: getIsOffline(status),
   }
 }

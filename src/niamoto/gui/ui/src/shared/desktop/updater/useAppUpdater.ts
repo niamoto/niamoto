@@ -13,16 +13,16 @@ import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { usePlatform } from '@/shared/hooks/usePlatform'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   createInitialDownloadProgressState,
   reduceDownloadProgressEvent,
 } from './downloadProgress'
-import { isInAppUpdateSupported, WINDOWS_MANUAL_UPDATE_URL } from './support'
+import { isInAppUpdateInstallSupported, WINDOWS_MANUAL_UPDATE_URL } from './support'
 
 export interface UpdateInfo {
   status:
     | 'idle'
-    | 'disabled'
     | 'checking'
     | 'available'
     | 'downloading'
@@ -54,7 +54,7 @@ function useAppUpdaterController(): AppUpdaterValue {
   const updateRef = useRef<Awaited<ReturnType<typeof check>> | null>(null)
   const toastIdRef = useRef<string | number | undefined>(undefined)
   const isInstallingRef = useRef(false)
-  const inAppUpdateSupported = isInAppUpdateSupported(platform)
+  const inAppUpdateInstallSupported = isInAppUpdateInstallSupported(platform)
 
   const restartApp = useCallback(async () => {
     try {
@@ -74,7 +74,7 @@ function useAppUpdaterController(): AppUpdaterValue {
 
   const installUpdate = useCallback(async () => {
     const update = updateRef.current
-    if (!update || isInstallingRef.current || !inAppUpdateSupported) return
+    if (!update || isInstallingRef.current || !inAppUpdateInstallSupported) return
 
     isInstallingRef.current = true
     if (toastIdRef.current !== undefined) {
@@ -142,10 +142,10 @@ function useAppUpdaterController(): AppUpdaterValue {
     } finally {
       isInstallingRef.current = false
     }
-  }, [inAppUpdateSupported, isLinux, isWindows, restartApp])
+  }, [inAppUpdateInstallSupported, isLinux, isWindows, restartApp])
 
   const checkForUpdate = useCallback(async () => {
-    if (!isDesktop || isInstallingRef.current || !inAppUpdateSupported) return
+    if (!isDesktop || isInstallingRef.current) return
 
     setInfo({ status: 'checking' })
     try {
@@ -161,8 +161,15 @@ function useAppUpdaterController(): AppUpdaterValue {
           description: `Version ${update.version}`,
           duration: Infinity,
           action: {
-            label: 'Installer',
-            onClick: () => installUpdate(),
+            label: inAppUpdateInstallSupported ? 'Installer' : 'Télécharger',
+            onClick: () => {
+              if (inAppUpdateInstallSupported) {
+                void installUpdate()
+                return
+              }
+
+              void openExternalUrl(WINDOWS_MANUAL_UPDATE_URL)
+            },
           },
         })
       } else {
@@ -171,16 +178,10 @@ function useAppUpdaterController(): AppUpdaterValue {
     } catch {
       setInfo({ status: 'idle' })
     }
-  }, [inAppUpdateSupported, isDesktop, installUpdate])
+  }, [inAppUpdateInstallSupported, isDesktop, installUpdate])
 
   useEffect(() => {
     if (!isDesktop) return
-
-    if (!inAppUpdateSupported) {
-      updateRef.current = null
-      setInfo((prev) => (prev.status === 'disabled' ? prev : { status: 'disabled' }))
-      return
-    }
 
     const initialTimeout = setTimeout(checkForUpdate, INITIAL_DELAY_MS)
     const interval = setInterval(checkForUpdate, CHECK_INTERVAL_MS)
@@ -189,12 +190,12 @@ function useAppUpdaterController(): AppUpdaterValue {
       clearTimeout(initialTimeout)
       clearInterval(interval)
     }
-  }, [checkForUpdate, inAppUpdateSupported, isDesktop])
+  }, [checkForUpdate, isDesktop])
 
   return {
     ...info,
     appVersion: APP_VERSION,
-    manualUpdateUrl: inAppUpdateSupported ? undefined : WINDOWS_MANUAL_UPDATE_URL,
+    manualUpdateUrl: inAppUpdateInstallSupported ? undefined : WINDOWS_MANUAL_UPDATE_URL,
     checkForUpdate,
     installUpdate,
     restartApp,

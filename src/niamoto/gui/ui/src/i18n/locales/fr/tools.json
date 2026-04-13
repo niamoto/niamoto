@@ -116,6 +116,7 @@
     "updateAvailable": "Version {{version}} disponible",
     "installUpdate": "Installer v{{version}}",
     "installingUpdate": "Installation en cours...",
+    "downloadUpdate": "Télécharger v{{version}}",
     "downloadLatestVersion": "Télécharger la dernière version",
     "checkUpdates": "Vérifier les mises à jour",
     "upToDate": "À jour",
