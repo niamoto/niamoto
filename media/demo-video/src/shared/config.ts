@@ -9,29 +9,33 @@ export const MARKETING = {
   fps: 30,
 } as const;
 
-// Scene durations in seconds
+// Scene durations in seconds — 6 acts + intro/outro
 export const DURATIONS = {
-  introLogo: 3,
-  problemStatement: 5,
-  pipelineAnimated: 7,
-  screencastImport: 25,
-  screencastTransform: 30,
-  screencastExport: 25,
-  statsOrMap: 10,
-  outroCta: 10,
+  intro: 4,
+  act1Welcome: 8,
+  act2ProjectWizard: 12,
+  act3Import: 20,
+  act4Collections: 14,
+  act5SiteBuilder: 20,
+  act6Publish: 12,
+  outro: 6,
 } as const;
 
-// Transition duration in frames
+// Transition duration in frames (fade or slide)
 export const TRANSITION_FRAMES = 15;
 
-// Total duration in seconds
-export const totalDurationSeconds = Object.values(DURATIONS).reduce(
-  (sum, d) => sum + d,
-  0
-);
-
-// Total duration in frames (approximate, before transition adjustments)
-export const totalDurationFrames = totalDurationSeconds * MARKETING.fps;
+// 8 sequences = 7 transitions
+const TRANSITION_COUNT = 7;
 
 /** Convert seconds to frames at the marketing fps */
 export const sec = (s: number) => Math.round(s * MARKETING.fps);
+
+/** Total raw duration in seconds */
+export const totalDurationSeconds = Object.values(DURATIONS).reduce(
+  (sum, d) => sum + d,
+  0,
+);
+
+/** Total frames accounting for transition overlaps */
+export const totalFrames =
+  sec(totalDurationSeconds) - TRANSITION_COUNT * TRANSITION_FRAMES;
