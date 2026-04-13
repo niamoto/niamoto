@@ -467,7 +467,7 @@ export function Settings() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {status === 'disabled' ? (
+                {status === 'available' ? (
                   manualUpdateUrl ? (
                     <Button
                       variant="outline"
@@ -475,16 +475,18 @@ export function Settings() {
                       size="sm"
                     >
                       <Download className="mr-2 h-4 w-4" />
-                      {t('settings.downloadLatestVersion', 'Télécharger la dernière version')}
+                      {t('settings.downloadUpdate', 'Télécharger v{{version}}', {
+                        version: updateVersion,
+                      })}
                     </Button>
-                  ) : null
-                ) : status === 'available' ? (
-                  <Button onClick={installUpdate} size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    {t('settings.installUpdate', 'Install v{{version}}', {
-                      version: updateVersion,
-                    })}
-                  </Button>
+                  ) : (
+                    <Button onClick={installUpdate} size="sm">
+                      <Download className="mr-2 h-4 w-4" />
+                      {t('settings.installUpdate', 'Install v{{version}}', {
+                        version: updateVersion,
+                      })}
+                    </Button>
+                  )
                 ) : status === 'restart_required' ? (
                   <Button onClick={restartApp} size="sm">
                     <RefreshCw className="mr-2 h-4 w-4" />
@@ -521,7 +523,7 @@ export function Settings() {
                 )}
               </div>
 
-              {status === 'disabled' && (
+              {manualUpdateUrl && (
                 <p className="text-sm text-amber-700">
                   {t(
                     'settings.windowsManualUpdateNotice',
