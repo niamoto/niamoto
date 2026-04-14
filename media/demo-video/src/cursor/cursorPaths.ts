@@ -12,9 +12,8 @@ export const CURSOR_PATHS: Record<string, CursorWaypoint[]> = {
   ],
 
   act2: [
-    { x: 960, y: 580, hold: 96, click: true },
-    { x: 928, y: 642, hold: 90, click: true },
-    { x: 1194, y: 826, hold: 15, click: true },
+    { x: 1048, y: 772, hold: 2 },
+    { x: 1194, y: 826, hold: 12, click: true },
   ],
 
   act3: [
@@ -29,8 +28,10 @@ export const CURSOR_PATHS: Record<string, CursorWaypoint[]> = {
   act4: [
     { x: 958, y: 282, hold: 78, click: true }, // ouvrir taxons
     { x: 362, y: 232, hold: 78, click: true }, // ajouter un widget
-    { x: 710, y: 500, hold: 18, click: true }, // sélectionner suggestion
-    { x: 1690, y: 994, hold: 52, click: true }, // ajouter les widgets
+    { x: 600, y: 498, hold: 6, click: true }, // sélectionner Navigation Taxons
+    { x: 1118, y: 498, hold: 6, click: true }, // sélectionner Informations générales
+    { x: 600, y: 620, hold: 12, click: true }, // sélectionner Geo Pt map
+    { x: 1690, y: 994, hold: 42, click: true }, // ajouter les widgets
     { x: 1738, y: 182, hold: 76, click: true }, // lancer le calcul
   ],
 
