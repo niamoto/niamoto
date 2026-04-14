@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { LocalizedString } from '@/components/ui/localized-input'
 
 const API_BASE = '/api/config'
 
@@ -19,7 +20,7 @@ export interface SuggestedDisplayField {
   name: string
   source: string
   type: 'text' | 'select' | 'boolean' | 'json_array' | 'number'
-  label: string
+  label: LocalizedString
   searchable: boolean
   cardinality?: number
   sample_values?: string[]
@@ -27,6 +28,12 @@ export interface SuggestedDisplayField {
   format?: string
   dynamic_options: boolean
   priority: 'high' | 'low'  // high = extra_data/field_aggregator, low = other transformers
+  display?: 'normal' | 'hidden' | 'image_preview' | 'link'
+  inline_badge?: boolean
+  link_label?: LocalizedString
+  link_title?: LocalizedString
+  link_target?: string
+  image_fields?: Record<string, string>
 }
 
 /**
@@ -58,7 +65,7 @@ export interface IndexDisplayField {
   source: string  // JSON path like "general_info.name.value"
   fallback?: string
   type: 'text' | 'select' | 'boolean' | 'json_array'
-  label?: string
+  label?: LocalizedString
   searchable: boolean
   format?: 'badge' | 'map' | 'number' | 'link'
   mapping?: Record<string, string>
@@ -72,14 +79,14 @@ export interface IndexDisplayField {
   badge_style?: string
   badge_colors?: Record<string, string>
   badge_styles?: Record<string, string>
-  true_label?: string
-  false_label?: string
+  true_label?: LocalizedString
+  false_label?: LocalizedString
   tooltip_mapping?: Record<string, string>
 
   // Link-specific
   link_template?: string
-  link_label?: string
-  link_title?: string
+  link_label?: LocalizedString
+  link_title?: LocalizedString
   link_target?: string
   css_class?: string
   css_style?: string
@@ -101,8 +108,8 @@ export interface IndexFilterConfig {
  * Page configuration
  */
 export interface IndexPageConfig {
-  title: string
-  description?: string
+  title: LocalizedString
+  description?: LocalizedString
   items_per_page: number
 }
 
@@ -395,9 +402,13 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
       label: sf.label,
       searchable: sf.searchable,
       dynamic_options: sf.dynamic_options,
-      display: 'normal',
-      inline_badge: false,
+      display: sf.display ?? 'normal',
+      inline_badge: sf.inline_badge ?? false,
       format: sf.format as IndexDisplayField['format'],
+      link_label: sf.link_label,
+      link_title: sf.link_title,
+      link_target: sf.link_target,
+      image_fields: sf.image_fields,
     }))
 
     // Convert suggested filters to IndexFilterConfig format
