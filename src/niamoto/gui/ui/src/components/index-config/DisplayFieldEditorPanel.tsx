@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { LocalizedInput } from '@/components/ui/localized-input'
 import {
   Select,
   SelectContent,
@@ -198,10 +199,9 @@ export function DisplayFieldEditorPanel({
 
                 <div className="space-y-2">
                   <Label htmlFor="field-label">{t('indexConfig:fieldEditor.labelOptional')}</Label>
-                  <Input
-                    id="field-label"
+                  <LocalizedInput
                     value={localField.label || ''}
-                    onChange={(e) => updateField({ label: e.target.value || undefined })}
+                    onChange={(value) => updateField({ label: value || undefined })}
                     placeholder={t('indexConfig:fieldEditor.displayedName')}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -372,19 +372,17 @@ export function DisplayFieldEditorPanel({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="true-label">{t('indexConfig:fieldEditor.trueLabel')}</Label>
-                    <Input
-                      id="true-label"
+                    <LocalizedInput
                       value={localField.true_label || ''}
-                      onChange={(e) => updateField({ true_label: e.target.value || undefined })}
+                      onChange={(value) => updateField({ true_label: value || undefined })}
                       placeholder="Oui"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="false-label">{t('indexConfig:fieldEditor.falseLabel')}</Label>
-                    <Input
-                      id="false-label"
+                    <LocalizedInput
                       value={localField.false_label || ''}
-                      onChange={(e) => updateField({ false_label: e.target.value || undefined })}
+                      onChange={(value) => updateField({ false_label: value || undefined })}
                       placeholder="Non"
                     />
                   </div>
@@ -420,10 +418,9 @@ export function DisplayFieldEditorPanel({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="link-label">{t('indexConfig:fieldEditor.linkLabel')}</Label>
-                    <Input
-                      id="link-label"
+                    <LocalizedInput
                       value={localField.link_label || ''}
-                      onChange={(e) => updateField({ link_label: e.target.value || undefined })}
+                      onChange={(value) => updateField({ link_label: value || undefined })}
                       placeholder={t('indexConfig:fields.linkLabelPlaceholder')}
                     />
                   </div>

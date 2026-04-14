@@ -503,6 +503,88 @@ class TestSiteGroups:
             assert "http://testserver/api/site/files/niamoto_logo.png" in html
             assert "http://testserver/api/site/assets/css/niamoto.css" in html
 
+    def test_preview_group_index_resolves_localized_labels(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {
+                                    "title": {"fr": "Niamoto FR", "en": "Niamoto EN"},
+                                    "lang": "fr",
+                                    "languages": ["fr", "en"],
+                                },
+                                "navigation": [],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "taxons",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {
+                                            "title": {
+                                                "fr": "Liste des taxons",
+                                                "en": "Taxa list",
+                                            }
+                                        },
+                                        "filters": [],
+                                        "display_fields": [
+                                            {
+                                                "name": "name",
+                                                "source": "name",
+                                                "type": "text",
+                                                "label": {"fr": "Nom", "en": "Name"},
+                                            },
+                                            {
+                                                "name": "endemia",
+                                                "source": "endemia_url",
+                                                "type": "text",
+                                                "display": "link",
+                                                "link_label": {
+                                                    "fr": "Endemia",
+                                                    "en": "Endemia",
+                                                },
+                                                "link_title": {
+                                                    "fr": "Voir sur Endemia",
+                                                    "en": "View on Endemia",
+                                                },
+                                            },
+                                        ],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.post(
+                    "/api/site/preview-group-index/taxons",
+                    json={"gui_lang": "en"},
+                )
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "Taxa list" in html
+            assert '"label": "Name"' in html
+            assert '"link_title": "View on Endemia"' in html
+            assert "{&#39;fr&#39;" not in html
+
     def test_preview_exported_site_falls_back_to_legacy_home_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)

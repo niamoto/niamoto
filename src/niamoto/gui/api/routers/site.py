@@ -11,6 +11,7 @@ import shutil
 from datetime import datetime
 
 from ..context import get_working_directory
+from niamoto.common.i18n import I18nResolver
 
 router = APIRouter()
 
@@ -1532,6 +1533,15 @@ async def preview_group_index(
             site_config.get("lang", "fr") if isinstance(site_config, dict) else "fr"
         )
         lang = (request.gui_lang if request else None) or site_lang
+        available_languages = (
+            site_config.get("languages") if isinstance(site_config, dict) else None
+        ) or [site_lang]
+        i18n_resolver = I18nResolver(
+            default_lang=site_lang,
+            available_languages=list(available_languages),
+        )
+        if isinstance(site_config, dict):
+            site_config = i18n_resolver.resolve_recursive(site_config, lang)
 
         # Navigation — resolve localized strings
         navigation = request.navigation if request and request.navigation else []
@@ -1541,8 +1551,14 @@ async def preview_group_index(
         navigation = _resolve_navigation(navigation, lang)
 
         # Build index_config for the template
-        display_fields = index_gen.get("display_fields", [])
-        page_config = index_gen.get("page_config", {})
+        display_fields = [
+            i18n_resolver.resolve_recursive(field, lang)
+            for field in index_gen.get("display_fields", [])
+        ]
+        page_config = i18n_resolver.resolve_recursive(
+            index_gen.get("page_config", {}),
+            lang,
+        )
 
         # Get output_pattern from group config for correct link generation
         output_pattern = group_config.get("output_pattern", f"{group_name}/{{id}}.html")
