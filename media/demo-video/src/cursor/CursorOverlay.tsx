@@ -5,6 +5,7 @@ interface CursorOverlayProps {
   waypoints: CursorWaypoint[];
   color?: string;
   startFrame?: number;
+  framesPerSegment?: number;
 }
 
 /**
@@ -15,12 +16,18 @@ export const CursorOverlay: React.FC<CursorOverlayProps> = ({
   waypoints,
   color,
   startFrame,
+  framesPerSegment,
 }) => {
   if (waypoints.length === 0) return null;
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none", zIndex: 100 }}>
-      <CursorFlow waypoints={waypoints} color={color} startFrame={startFrame} />
+      <CursorFlow
+        waypoints={waypoints}
+        color={color}
+        startFrame={startFrame}
+        framesPerSegment={framesPerSegment}
+      />
     </AbsoluteFill>
   );
 };

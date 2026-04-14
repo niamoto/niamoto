@@ -1569,7 +1569,7 @@ const ImportFlow: React.FC = () => {
                         height: 42,
                         padding: "0 16px",
                         borderRadius: 6,
-                        background: "#0D9F83",
+                        background: theme.forestGreen,
                         color: "#FFFFFF",
                         display: "inline-flex",
                         alignItems: "center",
@@ -1577,6 +1577,7 @@ const ImportFlow: React.FC = () => {
                         fontFamily: fontDisplay,
                         fontSize: 14,
                         fontWeight: 500,
+                        boxShadow: "0 10px 22px rgba(46, 125, 50, 0.16)",
                       }}
                     >
                       <span>Télécharger 16 fichiers</span>

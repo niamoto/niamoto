@@ -72,24 +72,25 @@ export const Act2ProjectWizard: React.FC = () => {
     extrapolateRight: "clamp",
   });
 
-  const typingStart = 58;
-  const locationFocusFrame = 150;
-  const locationTypingStart = 164;
-  const pathRevealFrame = 236;
-  const createClickFrame = 272;
+  const typingStart = 26;
+  const locationFocusFrame = 108;
+  const locationTypingStart = 112;
+  const pathRevealFrame = 146;
+  const createClickFrame = 176;
 
   const nameLength = MOCK_PROJECT.name.length;
-  const framesPerChar = Math.round(fps / 12);
+  const nameFramesPerChar = 1;
+  const locationFramesPerChar = 1;
   const typingFrame = Math.max(0, frame - typingStart);
   const revealedCount = Math.min(
     nameLength,
-    Math.floor(typingFrame / framesPerChar),
+    Math.floor(typingFrame / nameFramesPerChar),
   );
   const locationLength = MOCK_PROJECT.selectedParentPath.length;
   const locationTypingFrame = Math.max(0, frame - locationTypingStart);
   const revealedLocationCount = Math.min(
     locationLength,
-    Math.floor(locationTypingFrame / framesPerChar),
+    Math.floor(locationTypingFrame / locationFramesPerChar),
   );
   const nameCursorVisible = revealedCount < nameLength || Math.floor(frame / 15) % 2 === 0;
   const locationCursorVisible =
@@ -372,7 +373,7 @@ export const Act2ProjectWizard: React.FC = () => {
         />
       )}
 
-      <CursorOverlay waypoints={CURSOR_PATHS.act2} startFrame={56} />
+      <CursorOverlay waypoints={CURSOR_PATHS.act2} startFrame={150} />
     </AbsoluteFill>
   );
 };

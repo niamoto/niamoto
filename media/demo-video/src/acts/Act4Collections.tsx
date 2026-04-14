@@ -18,7 +18,7 @@ type CatalogWidget = {
   subtitle: string;
   source: string;
   kind: "nav" | "info" | "map" | "bar" | "donut" | "gauge" | "blank";
-  selected?: boolean;
+  selectedStep?: number;
 };
 
 type CatalogGroup = {
@@ -55,7 +55,7 @@ const widgetCatalogGroups: CatalogGroup[] = [
         subtitle: "hierarchical_nav_widget",
         source: "taxons",
         kind: "nav",
-        selected: true,
+        selectedStep: 1,
       },
       {
         id: 1,
@@ -63,7 +63,7 @@ const widgetCatalogGroups: CatalogGroup[] = [
         subtitle: "field_aggregator",
         source: "taxons",
         kind: "info",
-        selected: true,
+        selectedStep: 2,
       },
     ],
   },
@@ -79,7 +79,7 @@ const widgetCatalogGroups: CatalogGroup[] = [
         subtitle: "geospatial_extractor",
         source: "occurrences",
         kind: "map",
-        selected: true,
+        selectedStep: 3,
       },
     ],
   },
@@ -831,16 +831,88 @@ const NavigationTreePanel: React.FC = () => (
 );
 
 const FakeMap: React.FC = () => (
-  <Img
-    src={staticFile("reference/collections-nc-map-card.png")}
+  <div
     style={{
-      width: "100%",
-      display: "block",
-      borderRadius: 10,
+      borderRadius: 8,
       border: `1px solid ${theme.border}`,
       background: "#FFFFFF",
+      overflow: "hidden",
+      width: "100%",
     }}
-  />
+  >
+    <div
+      style={{
+        height: 40,
+        borderBottom: `1px solid ${theme.border}`,
+        padding: "0 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: "#FCFCFD",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontFamily: fontDisplay,
+          fontSize: 12.5,
+          color: "#344054",
+          fontWeight: 600,
+        }}
+      >
+        <span style={{ color: "#98A2B3" }}>⋮</span>
+        <span>Distribution géographique</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          style={{
+            height: 20,
+            padding: "0 8px",
+            borderRadius: 6,
+            background: "#F2F4F7",
+            display: "inline-flex",
+            alignItems: "center",
+            fontFamily: fontDisplay,
+            fontSize: 10,
+            color: "#475467",
+          }}
+        >
+          Interactive map
+        </div>
+        <span style={{ color: "#667085", fontSize: 13 }}>◻︎</span>
+      </div>
+    </div>
+
+    <div style={{ background: "#FFFFFF" }}>
+      <Img
+        src={staticFile("reference/collections-nc-map-wide.png")}
+        style={{
+          width: "100%",
+          height: "auto",
+          display: "block",
+        }}
+      />
+    </div>
+
+    <div
+      style={{
+        height: 28,
+        borderTop: `1px solid ${theme.border}`,
+        padding: "0 14px",
+        display: "flex",
+        alignItems: "center",
+        fontFamily: fontDisplay,
+        fontSize: 10.5,
+        color: "#98A2B3",
+        background: "#FFFFFF",
+      }}
+    >
+      Distribution géographique des occurrences
+    </div>
+  </div>
 );
 
 const WorkspaceCard: React.FC<{
@@ -1613,13 +1685,11 @@ const GroupIcon: React.FC<{ icon: CatalogGroup["icon"] }> = ({ icon }) => {
   );
 };
 
-const selectedWidgetCount = widgetCatalogGroups.reduce(
-  (total, group) => total + group.widgets.filter((widget) => widget.selected).length,
-  0,
-);
-
-const CatalogWidgetCard: React.FC<{ widget: CatalogWidget; selected: boolean }> = ({ widget, selected }) => {
-  const isSelected = selected && widget.selected;
+const CatalogWidgetCard: React.FC<{ widget: CatalogWidget; selectionCount: number }> = ({
+  widget,
+  selectionCount,
+}) => {
+  const isSelected = widget.selectedStep !== undefined && selectionCount >= widget.selectedStep;
 
   return (
     <div
@@ -1729,7 +1799,7 @@ const CatalogWidgetCard: React.FC<{ widget: CatalogWidget; selected: boolean }> 
   );
 };
 
-const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
+const WidgetCatalogModal: React.FC<{ selectionCount: number }> = ({ selectionCount }) => (
   <div
     style={{
       position: "absolute",
@@ -1961,7 +2031,11 @@ const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
                   }}
                 >
                   {group.widgets.map((widget) => (
-                    <CatalogWidgetCard key={`${group.title}-${widget.title}`} widget={widget} selected={selected} />
+                    <CatalogWidgetCard
+                      key={`${group.title}-${widget.title}`}
+                      widget={widget}
+                      selectionCount={selectionCount}
+                    />
                   ))}
                 </div>
               </div>
@@ -1992,7 +2066,7 @@ const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
                 fontWeight: 600,
               }}
             >
-              {selected ? (
+              {selectionCount > 0 ? (
                 <>
                   <span style={{ color: "#15803D" }}>✓</span>
                   <span>Sélectionné</span>
@@ -2141,11 +2215,15 @@ const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
             gap: 8,
             fontFamily: fontDisplay,
             fontSize: 13,
-            color: selected ? "#667085" : "#98A2B3",
+            color: selectionCount > 0 ? "#667085" : "#98A2B3",
           }}
         >
-          {selected ? <span style={{ color: "#16A34A" }}>✓</span> : null}
-          <span>{selected ? `${selectedWidgetCount} champ(s) sélectionné(s)` : "Sélectionnez un widget"}</span>
+          {selectionCount > 0 ? <span style={{ color: "#16A34A" }}>✓</span> : null}
+          <span>
+            {selectionCount > 0
+              ? `${selectionCount} champ(s) sélectionné(s)`
+              : "Sélectionnez un widget"}
+          </span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2170,7 +2248,7 @@ const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
               height: 40,
               padding: "0 16px",
               borderRadius: 8,
-              background: selected ? "#15803D" : "#D1D5DB",
+              background: selectionCount > 0 ? "#15803D" : "#D1D5DB",
               color: "#FFFFFF",
               display: "inline-flex",
               alignItems: "center",
@@ -2181,7 +2259,9 @@ const WidgetCatalogModal: React.FC<{ selected: boolean }> = ({ selected }) => (
             }}
           >
             <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-            <span>Ajouter {selectedWidgetCount} widget(s)</span>
+            <span>
+              {selectionCount > 0 ? `Ajouter ${selectionCount} widget(s)` : "Ajouter des widgets"}
+            </span>
           </div>
         </div>
       </div>
@@ -2216,13 +2296,17 @@ export const Act4Collections: React.FC = () => {
   const configuredEnd = 352;
   const computingStart = 352;
   const computingEnd = 420;
+  const firstSelectionFrame = 202;
+  const secondSelectionFrame = 220;
+  const thirdSelectionFrame = 238;
 
   const showOverview = frame < overviewEnd;
   const showDetail = frame >= detailStart && frame < detailEnd;
   const showModal = frame >= modalStart && frame < modalEnd;
   const showConfigured = frame >= configuredStart && frame < computingStart;
   const showComputing = frame >= computingStart;
-  const modalSelected = frame >= 214;
+  const modalSelectionCount =
+    frame >= thirdSelectionFrame ? 3 : frame >= secondSelectionFrame ? 2 : frame >= firstSelectionFrame ? 1 : 0;
 
   return (
     <AbsoluteFill
@@ -2277,11 +2361,11 @@ export const Act4Collections: React.FC = () => {
             <CollectionConfiguredPage computing />
           </div>
 
-          {showModal && <WidgetCatalogModal selected={modalSelected} />}
+          {showModal && <WidgetCatalogModal selectionCount={modalSelectionCount} />}
         </div>
       </AppWindow>
 
-      <CursorOverlay waypoints={CURSOR_PATHS.act4} startFrame={20} />
+      <CursorOverlay waypoints={CURSOR_PATHS.act4} startFrame={20} framesPerSegment={12} />
     </AbsoluteFill>
   );
 };

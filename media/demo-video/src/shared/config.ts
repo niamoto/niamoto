@@ -13,7 +13,7 @@ export const MARKETING = {
 export const DURATIONS = {
   intro: 4,
   act1Welcome: 3,
-  act2ProjectWizard: 12,
+  act2ProjectWizard: 8,
   act3Import: 20,
   act4Collections: 14,
   act5SiteBuilder: 14,

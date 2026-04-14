@@ -8,9 +8,9 @@ export const LAYOUT = {
 
   // AppWindow — large centered desktop frame
   window: {
-    x: 60,
+    x: 100,
     y: 40,
-    width: 1800,
+    width: 1720,
     height: 980,
     borderRadius: 20,
   },

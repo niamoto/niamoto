@@ -210,7 +210,25 @@ const Chip: React.FC<{ label: string; tone?: "default" | "active" | "soft" }> = 
   );
 };
 
-const PrimaryButton: React.FC<{ label: string; icon?: string }> = ({ label, icon }) => (
+const SaveIcon = ({ color = "#FFFFFF" }: { color?: string }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 4h11l3 3v13H5z" />
+    <path d="M8 4v6h8V4" />
+    <path d="M8 20v-6h8v6" />
+  </svg>
+);
+
+const TrashIcon = ({ color = "#DC2626" }: { color?: string }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M19 6l-1 14H6L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+  </svg>
+);
+
+const PrimaryButton: React.FC<{ label: string; icon?: React.ReactNode }> = ({ label, icon }) => (
   <div
     style={{
       height: 32,
@@ -227,7 +245,7 @@ const PrimaryButton: React.FC<{ label: string; icon?: string }> = ({ label, icon
       boxShadow: "inset 0 -1px 0 rgba(0,0,0,0.08)",
     }}
   >
-    {icon && <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>}
+    {icon}
     <span>{label}</span>
   </div>
 );
@@ -505,9 +523,9 @@ const ListScreen: React.FC = () => (
     contentHeader={
       <div
         style={{
-          height: 86,
+          height: 98,
           borderBottom: `1px solid ${theme.border}`,
-          padding: "16px 18px",
+          padding: "14px 18px 12px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
@@ -522,11 +540,11 @@ const ListScreen: React.FC = () => (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <SecondaryButton label="Reconfigurer" icon={<span style={{ fontSize: 15 }}>↻</span>} />
-            <PrimaryButton label="Enregistrer" icon="💾" />
+            <PrimaryButton label="Enregistrer" icon={<SaveIcon />} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <SecondaryButton label="Aperçu" icon={<span style={{ fontSize: 14 }}>◉</span>} />
-            <PrimaryButton label="Nouvelle page" icon="＋" />
+            <PrimaryButton label="Nouvelle page" icon={<span style={{ fontSize: 18, lineHeight: 1 }}>+</span>} />
           </div>
         </div>
       </div>
@@ -627,9 +645,9 @@ const TemplateScreen: React.FC = () => (
     contentHeader={
       <div
         style={{
-          height: 86,
+          height: 98,
           borderBottom: `1px solid ${theme.border}`,
-          padding: "16px 18px",
+          padding: "14px 18px 12px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
@@ -638,7 +656,7 @@ const TemplateScreen: React.FC = () => (
         <div />
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <SecondaryButton label="Reconfigurer" icon={<span style={{ fontSize: 15 }}>↻</span>} />
-          <PrimaryButton label="Enregistrer" icon="💾" />
+          <PrimaryButton label="Enregistrer" icon={<SaveIcon />} />
         </div>
       </div>
     }
@@ -675,9 +693,9 @@ const EditorScreen: React.FC = () => (
     contentHeader={
       <div
         style={{
-          height: 86,
+          height: 98,
           borderBottom: `1px solid ${theme.border}`,
-          padding: "16px 18px",
+          padding: "14px 18px 12px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
@@ -695,8 +713,8 @@ const EditorScreen: React.FC = () => (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <SecondaryButton label="Reconfigurer" icon={<span style={{ fontSize: 15 }}>↻</span>} />
           <SecondaryButton label="Aperçu" icon={<span style={{ fontSize: 14 }}>◉</span>} />
-          <PrimaryButton label="Enregistrer" icon="💾" />
-          <SecondaryButton label="Supprimer" icon={<span style={{ fontSize: 15, color: "#DC2626" }}>🗑</span>} />
+          <PrimaryButton label="Enregistrer" icon={<SaveIcon />} />
+          <SecondaryButton label="Supprimer" icon={<TrashIcon />} />
         </div>
       </div>
     }
