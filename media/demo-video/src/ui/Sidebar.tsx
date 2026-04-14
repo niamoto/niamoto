@@ -6,7 +6,6 @@ interface SidebarProps {
   activeItem?: NavItemId;
 }
 
-/** SVG icons for sidebar navigation — simple geometric shapes */
 const icons: Record<string, React.FC<{ color: string }>> = {
   house: ({ color }) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
@@ -43,10 +42,6 @@ const icons: Record<string, React.FC<{ color: string }>> = {
   ),
 };
 
-/**
- * Navigation sidebar matching Niamoto's sidebar layout.
- * Static rendering — active item highlight is prop-driven.
- */
 export const Sidebar: React.FC<SidebarProps> = ({ activeItem }) => {
   return (
     <div
@@ -56,55 +51,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem }) => {
         backgroundColor: LAYOUT.sidebar.bgColor,
         display: "flex",
         flexDirection: "column",
-        paddingTop: LAYOUT.titlebar.height + 12,
-        borderRight: "1px solid rgba(255,255,255,0.06)",
+        borderRight: `1px solid ${theme.border}`,
       }}
     >
-      {/* Logo area */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "0 16px 16px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          marginBottom: 8,
+          margin: "14px 14px 18px",
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "rgba(255,255,255,0.68)",
+          border: `1px solid ${theme.border}`,
         }}
       >
-        {/* Niamoto logo placeholder — small green circle */}
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            background: `linear-gradient(135deg, ${theme.forestGreen}, ${theme.lightGreen})`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <span style={{ color: "white", fontSize: 14, fontWeight: 700, fontFamily: fontDisplay }}>
-            N
-          </span>
-        </div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="1.8">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg>
         <span
           style={{
             fontFamily: fontDisplay,
             fontSize: 14,
-            fontWeight: 600,
-            color: theme.textWhite,
+            fontWeight: 500,
+            color: theme.textDark,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
-          Niamoto
+          nouvelle-cale...
         </span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={theme.textMuted}
+          strokeWidth="1.8"
+          style={{ marginLeft: "auto", flexShrink: 0 }}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </div>
 
-      {/* Nav items */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 8px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 10px" }}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.id === activeItem;
           const IconComponent = icons[item.icon];
-          const color = isActive ? theme.lightGreen : theme.textMuted;
+          const color = isActive ? theme.sidebarActiveText : "#667085";
 
           return (
             <div
@@ -113,17 +108,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem }) => {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "8px 12px",
-                borderRadius: 6,
-                background: isActive ? "rgba(75, 175, 80, 0.1)" : "transparent",
+                padding: "11px 12px",
+                borderRadius: 9,
+                background: isActive ? theme.sidebarActiveBg : "transparent",
               }}
             >
               {IconComponent && <IconComponent color={color} />}
               <span
                 style={{
                   fontFamily: fontDisplay,
-                  fontSize: 13,
-                  fontWeight: isActive ? 600 : 400,
+                  fontSize: 14,
+                  fontWeight: isActive ? 600 : 500,
                   color,
                 }}
               >
@@ -132,6 +127,57 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem }) => {
             </div>
           );
         })}
+      </div>
+
+      <div style={{ marginTop: "auto", padding: "0 14px 14px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: theme.textMuted,
+            fontFamily: fontDisplay,
+            fontSize: 12,
+            marginBottom: 14,
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>⌘ K</span>
+          <span>Outils & recherche</span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: theme.textDark,
+            fontFamily: fontDisplay,
+            fontSize: 14,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={theme.textDark} strokeWidth="1.8">
+              <path d="M12.22 2h-.44a2 2 0 0 0-1.92 1.44l-.18.64a2 2 0 0 1-1.03 1.23l-.58.29a2 2 0 0 1-1.58.11l-.63-.2a2 2 0 0 0-2.24.9l-.22.38a2 2 0 0 0 .24 2.4l.42.5a2 2 0 0 1 .44 1.54l-.06.65a2 2 0 0 1-.78 1.37l-.52.4a2 2 0 0 0-.58 2.34l.17.41a2 2 0 0 0 2.04 1.22l.65-.05a2 2 0 0 1 1.5.48l.5.43a2 2 0 0 1 .63 1.42l.05.65A2 2 0 0 0 9.2 22h.42a2 2 0 0 0 1.88-1.35l.22-.64a2 2 0 0 1 1.08-1.18l.6-.28a2 2 0 0 1 1.57-.05l.63.22a2 2 0 0 0 2.27-.82l.23-.37a2 2 0 0 0-.14-2.41l-.4-.52a2 2 0 0 1-.38-1.55l.08-.65a2 2 0 0 1 .82-1.35l.53-.38a2 2 0 0 0 .66-2.31l-.15-.42a2 2 0 0 0-2-1.3l-.65.03a2 2 0 0 1-1.48-.52l-.48-.45a2 2 0 0 1-.6-1.43l-.03-.65A2 2 0 0 0 12.22 2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>Paramètres</span>
+          </div>
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 6,
+              border: `1px solid ${theme.borderStrong}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: theme.textMuted,
+              fontWeight: 600,
+            }}
+          >
+            +
+          </div>
+        </div>
       </div>
     </div>
   );

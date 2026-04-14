@@ -6,34 +6,33 @@
 export const LAYOUT = {
   canvas: { width: 1920, height: 1080 },
 
-  // AppWindow — centered with subtle margin
+  // AppWindow — large centered desktop frame
   window: {
-    x: 40,
-    y: 30,
-    width: 1840,
-    height: 1020,
-    borderRadius: 12,
-    shadow: "0 25px 80px rgba(0,0,0,0.6)",
+    x: 60,
+    y: 40,
+    width: 1800,
+    height: 980,
+    borderRadius: 20,
   },
 
   // macOS traffic lights
   trafficLights: {
-    x: 56,
-    y: 46,
-    size: 12,
+    x: 84,
+    y: 60,
+    size: 14,
     gap: 8,
     colors: ["#FF5F57", "#FEBC2E", "#28C840"] as const,
   },
 
-  titlebar: { height: 32 },
+  titlebar: { height: 44 },
 
   // Sidebar (full mode, hidden for acts 1-2)
   sidebar: {
-    width: 200,
-    bgColor: "#13131A",
+    width: 230,
+    bgColor: "#EEF2F6",
   },
 
-  topbar: { height: 48 },
+  topbar: { height: 58 },
 
   // Content area varies by sidebar visibility:
   // With sidebar: x=240, y=80, w=1600, h=940
@@ -42,11 +41,11 @@ export const LAYOUT = {
 
 /** Navigation items matching the real Niamoto sidebar */
 export const NAV_ITEMS = [
-  { id: "home", label: "Home", icon: "house" },
-  { id: "data", label: "Data", icon: "database" },
+  { id: "home", label: "Accueil", icon: "house" },
+  { id: "data", label: "Données", icon: "database" },
   { id: "collections", label: "Collections", icon: "layers" },
   { id: "site", label: "Site", icon: "globe" },
-  { id: "publish", label: "Publish", icon: "send" },
+  { id: "publish", label: "Publication", icon: "send" },
 ] as const;
 
 export type NavItemId = (typeof NAV_ITEMS)[number]["id"];

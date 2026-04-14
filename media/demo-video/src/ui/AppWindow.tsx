@@ -1,32 +1,32 @@
-import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
-import { LAYOUT } from "../shared/layout";
+import { useCurrentFrame, interpolate } from "remotion";
+import { LAYOUT, NavItemId } from "../shared/layout";
 import { theme } from "../shared/theme";
 import { fontDisplay } from "../shared/fonts";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
-import { NavItemId } from "../shared/layout";
 
 interface AppWindowProps {
   showSidebar?: boolean;
+  showTopBar?: boolean;
   activeSidebarItem?: NavItemId;
   sidebarSlideInDuration?: number;
+  title?: string | null;
+  windowStyle?: React.CSSProperties;
   children: React.ReactNode;
 }
 
-/**
- * macOS-style application window frame.
- * Traffic lights, titlebar, optional sidebar with slide-in animation.
- */
 export const AppWindow: React.FC<AppWindowProps> = ({
   showSidebar = true,
+  showTopBar = true,
   activeSidebarItem,
   sidebarSlideInDuration = 20,
+  title = null,
+  windowStyle,
   children,
 }) => {
   const frame = useCurrentFrame();
   const { window: win, trafficLights: tl, titlebar, sidebar } = LAYOUT;
 
-  // Sidebar slide-in animation
   const sidebarProgress = showSidebar
     ? interpolate(frame, [0, sidebarSlideInDuration], [0, 1], {
         extrapolateLeft: "clamp",
@@ -45,12 +45,13 @@ export const AppWindow: React.FC<AppWindowProps> = ({
         width: win.width,
         height: win.height,
         borderRadius: win.borderRadius,
-        boxShadow: win.shadow,
         overflow: "hidden",
-        backgroundColor: theme.bgDark,
+        backgroundColor: theme.windowBg,
+        border: `1px solid ${theme.border}`,
+        boxShadow: theme.shadowWindow,
+        ...windowStyle,
       }}
     >
-      {/* Titlebar */}
       <div
         style={{
           height: titlebar.height,
@@ -58,12 +59,21 @@ export const AppWindow: React.FC<AppWindowProps> = ({
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
-          backgroundColor: LAYOUT.sidebar.bgColor,
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          backgroundColor: theme.titlebarBg,
+          borderBottom: `1px solid ${theme.border}`,
         }}
       >
-        {/* Traffic lights */}
-        <div style={{ position: "absolute", left: tl.x - win.x, top: 0, height: "100%", display: "flex", alignItems: "center", gap: tl.gap }}>
+        <div
+          style={{
+            position: "absolute",
+            left: tl.x - win.x,
+            top: 0,
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: tl.gap,
+          }}
+        >
           {tl.colors.map((color, i) => (
             <div
               key={i}
@@ -72,32 +82,32 @@ export const AppWindow: React.FC<AppWindowProps> = ({
                 height: tl.size,
                 borderRadius: "50%",
                 backgroundColor: color,
+                boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.12)",
               }}
             />
           ))}
         </div>
 
-        {/* Title */}
-        <span
-          style={{
-            fontFamily: fontDisplay,
-            fontSize: 12,
-            fontWeight: 500,
-            color: theme.textMuted,
-          }}
-        >
-          Niamoto
-        </span>
+        {title && (
+          <span
+            style={{
+              fontFamily: fontDisplay,
+              fontSize: 12,
+              fontWeight: 500,
+              color: theme.textMuted,
+            }}
+          >
+            {title}
+          </span>
+        )}
       </div>
 
-      {/* Body */}
       <div
         style={{
           display: "flex",
           height: win.height - titlebar.height,
         }}
       >
-        {/* Sidebar */}
         {showSidebar && (
           <div
             style={{
@@ -110,19 +120,17 @@ export const AppWindow: React.FC<AppWindowProps> = ({
           </div>
         )}
 
-        {/* Main content area */}
         <div
           style={{
             flex: 1,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
+            background: theme.windowBg,
           }}
         >
-          <TopBar />
-          <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-            {children}
-          </div>
+          {showTopBar && <TopBar />}
+          <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>{children}</div>
         </div>
       </div>
     </div>

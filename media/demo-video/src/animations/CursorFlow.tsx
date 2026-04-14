@@ -12,6 +12,7 @@ interface CursorFlowProps {
   color?: string;
   size?: number;
   framesPerSegment?: number;
+  startFrame?: number;
 }
 
 /**
@@ -24,11 +25,18 @@ export const CursorFlow: React.FC<CursorFlowProps> = ({
   color = "#FFFFFF",
   size = 20,
   framesPerSegment = 24,
+  startFrame = 0,
 }) => {
-  const frame = useCurrentFrame();
+  const frame = useCurrentFrame() - startFrame;
   const { fps } = useVideoConfig();
 
   if (waypoints.length === 0) return null;
+  if (frame < 0) return null;
+
+  // Pointer tip inside the 24x24 SVG path.
+  // Waypoint coordinates represent the actual click hotspot, not the SVG box.
+  const hotspotX = size * (5.5 / 24);
+  const hotspotY = size * (3.21 / 24);
 
   // Build timeline: [move to wp0] [hold wp0] [move to wp1] [hold wp1] ...
   const timeline: Array<{
@@ -152,8 +160,8 @@ export const CursorFlow: React.FC<CursorFlowProps> = ({
         viewBox="0 0 24 24"
         style={{
           position: "absolute",
-          left: x,
-          top: y,
+          left: x - hotspotX,
+          top: y - hotspotY,
           transform: `scale(${clickScale})`,
           transformOrigin: "top left",
           pointerEvents: "none",

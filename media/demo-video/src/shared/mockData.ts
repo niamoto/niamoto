@@ -51,7 +51,9 @@ export const MOCK_SITE_TREE = [
 // Project creation (Act 2)
 export const MOCK_PROJECT = {
   name: "my-ecology-project",
-  path: "~/projects/my-ecology-project",
+  defaultParentPath: "/Users/username/Projects",
+  selectedParentPath: "/Users/username/Projects",
+  fullPath: "/Users/username/Projects/my-ecology-project",
 };
 
 // File types for import (Act 3)
