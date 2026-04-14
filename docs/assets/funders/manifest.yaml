@@ -1,0 +1,90 @@
+# Niamoto — Partenaires, financeurs et collaborateurs scientifiques
+# Liste extraite de l'index du portail Nouvelle-Calédonie (exports/web/fr/index.html)
+# Rôles à confirmer par Julien — distinction financeur / partenaire scientifique
+
+partners:
+  - id: pn
+    name: Province Nord
+    logo: pn_100.png
+    url: https://www.province-nord.nc
+    role: funder  # collectivité néo-calédonienne, financeur du portail NC
+    scope: nc
+
+  - id: ps
+    name: Province Sud
+    logo: ps_100.png
+    url: https://www.province-sud.nc
+    role: funder  # collectivité néo-calédonienne, financeur du portail NC
+    scope: nc
+
+  - id: ofb
+    name: OFB
+    full_name: Office Français de la Biodiversité
+    logo: ofb_100.png
+    url: https://www.ofb.gouv.fr
+    role: funder  # agence nationale FR
+    scope: france
+
+  - id: ird
+    name: IRD
+    full_name: Institut de Recherche pour le Développement
+    logo: ird_100.png
+    url: https://nouvelle-caledonie.ird.fr
+    role: partner_research  # institut de recherche, porteur scientifique
+    scope: international
+
+  - id: cirad
+    name: CIRAD
+    full_name: Centre de coopération internationale en recherche agronomique pour le développement
+    logo: cirad_100.png
+    url: https://www.cirad.fr
+    role: partner_research
+    scope: international
+
+  - id: amap
+    name: UMR AMAP
+    full_name: botAnique et Modélisation de l'Architecture des Plantes
+    logo: amap_100.png
+    url: https://amap.cirad.fr
+    role: partner_research  # unité mixte de recherche CIRAD/INRAE/IRD
+    scope: france
+
+  - id: iac
+    name: IAC
+    full_name: Institut Agronomique néo-Calédonien
+    logo: iac_100.png
+    url: https://iac.nc
+    role: partner_research
+    scope: nc
+
+  - id: endemia
+    name: Endemia
+    full_name: Association Endemia (conservation biodiversité NC)
+    logo: endemia_100.png
+    url: https://endemia.nc
+    role: partner_data  # fournisseur de données, association
+    scope: nc
+
+  - id: herbarium
+    name: Herbier de Nouvelle-Calédonie
+    logo: herbarium_100.png
+    url: http://publish.plantnet-project.org/project/herbier-noumea
+    role: partner_data  # herbier, fournisseur de données taxonomiques
+    scope: nc
+
+# Déploiements Niamoto
+instances:
+  - region: Nouvelle-Calédonie
+    status: active  # portail en ligne
+    url: null  # à compléter
+    lead_partners: [pn, ps, ird, iac]
+
+  - region: Gabon – Cameroun
+    status: upcoming
+    url: null
+    lead_partners: []  # à compléter
+
+  - region: Guyane
+    status: upcoming
+    url: null
+    lead_partners: []  # à compléter
