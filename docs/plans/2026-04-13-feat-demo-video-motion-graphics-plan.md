@@ -235,7 +235,7 @@ Les phases sont réorganisées en ordre de production sûr : fondations d'abord,
   - `src/ui/`
   - `src/cursor/`
   - `src/animations/`
-- [ ] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) (voir section Phase 6 pour le contenu)
+- [x] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) (voir section Phase 6 pour le contenu)
 - [x] Créer `src/shared/layout.ts` avec les constantes de layout (AppWindow, sidebar, topbar)
 - [x] Créer `src/shared/mockData.ts` avec les données fictives génériques
 - [x] Mettre à jour `src/shared/config.ts` : nouvelles durées pour 6 actes + intro/outro, nouveau calcul `totalFrames`
@@ -571,7 +571,7 @@ Chaque acte est un composant React autonome. `useCurrentFrame()` retourne le fra
 
 > Note : cette phase est volontairement en dernier. Le DESIGN_SYSTEM.md est plus utile comme documentation de ce qui a été construit que comme spec abstraite écrite avant d'avoir vu le rendu.
 
-- [ ] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) avec les 9 sections :
+- [x] Créer `src/shared/DESIGN_SYSTEM.md` (Phase 5) avec les 9 sections :
   1. **Visual Theme & Atmosphere** : Dark professional, data-forward, minimal chrome
   2. **Color Palette & Roles** : Hex tokens (charcoal, forestGreen, lightGreen, steelBlue, cardDark, textWhite, textMuted) + FileTypeChip colors (csv steelBlue, vector lightGreen, raster #9333EA)
   3. **Typography Rules** : Plus Jakarta Sans (display 400-700) + JetBrains Mono (code 400-500), échelle (48/40/32/24/20/16/14/12)
