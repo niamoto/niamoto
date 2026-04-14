@@ -4,6 +4,7 @@ import { CursorFlow, CursorWaypoint } from "../animations/CursorFlow";
 interface CursorOverlayProps {
   waypoints: CursorWaypoint[];
   color?: string;
+  startFrame?: number;
 }
 
 /**
@@ -13,12 +14,13 @@ interface CursorOverlayProps {
 export const CursorOverlay: React.FC<CursorOverlayProps> = ({
   waypoints,
   color,
+  startFrame,
 }) => {
   if (waypoints.length === 0) return null;
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none", zIndex: 100 }}>
-      <CursorFlow waypoints={waypoints} color={color} />
+      <CursorFlow waypoints={waypoints} color={color} startFrame={startFrame} />
     </AbsoluteFill>
   );
 };

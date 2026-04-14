@@ -39,19 +39,20 @@ export const MockButton: React.FC<MockButtonProps> = ({
 
   const bgStyles: Record<string, React.CSSProperties> = {
     gradient: {
-      background: "linear-gradient(to right, #2E7D32, #26A69A)",
-      color: theme.textWhite,
+      background: `linear-gradient(180deg, ${theme.lightGreen}, ${theme.forestGreen})`,
+      color: theme.textOnPrimary,
       border: "none",
+      boxShadow: "0 10px 24px rgba(46, 125, 50, 0.18)",
     },
     outline: {
-      background: "transparent",
-      color: theme.textWhite,
-      border: `1.5px solid ${theme.textMuted}`,
+      background: "rgba(255,255,255,0.96)",
+      color: theme.textDark,
+      border: `1px solid ${theme.borderStrong}`,
     },
     default: {
       background: theme.cardDark,
-      color: theme.textWhite,
-      border: `1px solid rgba(255,255,255,0.1)`,
+      color: theme.textDark,
+      border: `1px solid ${theme.border}`,
     },
   };
 
@@ -65,7 +66,7 @@ export const MockButton: React.FC<MockButtonProps> = ({
         padding: "12px 28px",
         borderRadius: 8,
         fontFamily: fontDisplay,
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 600,
         cursor: "pointer",
         transform: `scale(${scale})`,

@@ -1,28 +1,69 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
-import { fontDisplay } from "../shared/fonts";
-import { theme } from "../shared/theme";
-import { MockButton } from "../ui/MockButton";
-import { MockInput } from "../ui/MockInput";
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { CursorOverlay } from "../cursor/CursorOverlay";
 import { CURSOR_PATHS } from "../cursor/cursorPaths";
+import { fontDisplay, fontMono } from "../shared/fonts";
 import { MOCK_PROJECT } from "../shared/mockData";
+import { theme } from "../shared/theme";
+import { AppWindow } from "../ui/AppWindow";
+import { NiamotoLogo } from "../ui/NiamotoLogo";
 
-/**
- * Act 2 — Project creation wizard.
- * No AppWindow (overlay card on Welcome-style background).
- * Cursor clicks input, types name, then clicks "Create".
- * Duration: 12s (360 frames @ 30fps)
- */
+const WizardButton: React.FC<{
+  label: string;
+  variant: "primary" | "secondary";
+  icon: React.ReactNode;
+  clickAtFrame?: number;
+}> = ({ label, variant, icon, clickAtFrame }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  let scale = 1;
+  if (clickAtFrame !== undefined && frame >= clickAtFrame) {
+    scale = spring({
+      frame: frame - clickAtFrame,
+      fps,
+      config: { damping: 12, stiffness: 210, mass: 0.55 },
+      from: 0.95,
+      to: 1,
+    });
+  }
+
+  const isPrimary = variant === "primary";
+
+  return (
+    <div
+      style={{
+        height: 44,
+        padding: isPrimary ? "0 18px" : "0 16px",
+        borderRadius: 6,
+        border: isPrimary ? "none" : `1px solid ${theme.borderStrong}`,
+        background: isPrimary ? theme.forestGreen : "#FFFFFF",
+        color: isPrimary ? "#FFFFFF" : theme.textDark,
+        boxShadow: isPrimary ? "0 10px 26px rgba(46, 125, 50, 0.16)" : "none",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        fontFamily: fontDisplay,
+        fontSize: 16,
+        fontWeight: 500,
+        transform: `scale(${scale})`,
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </div>
+  );
+};
+
 export const Act2ProjectWizard: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Card entrance: spring scale
   const cardScale = spring({
     frame,
     fps,
     config: { damping: 14, stiffness: 120 },
-    from: 0.9,
+    from: 0.975,
     to: 1,
   });
 
@@ -31,26 +72,38 @@ export const Act2ProjectWizard: React.FC = () => {
     extrapolateRight: "clamp",
   });
 
-  // Typing starts after cursor clicks input (~frame 60 = 2s)
-  const typingStart = 60;
+  const typingStart = 58;
+  const locationFocusFrame = 150;
+  const locationTypingStart = 164;
+  const pathRevealFrame = 236;
+  const createClickFrame = 272;
 
-  // Create button click at ~frame 260 (8.7s)
-  const createClickFrame = 260;
-
-  // Path display appears as name is typed
   const nameLength = MOCK_PROJECT.name.length;
   const framesPerChar = Math.round(fps / 12);
-  const typingEndFrame = typingStart + nameLength * framesPerChar;
+  const typingFrame = Math.max(0, frame - typingStart);
+  const revealedCount = Math.min(
+    nameLength,
+    Math.floor(typingFrame / framesPerChar),
+  );
+  const locationLength = MOCK_PROJECT.selectedParentPath.length;
+  const locationTypingFrame = Math.max(0, frame - locationTypingStart);
+  const revealedLocationCount = Math.min(
+    locationLength,
+    Math.floor(locationTypingFrame / framesPerChar),
+  );
+  const nameCursorVisible = revealedCount < nameLength || Math.floor(frame / 15) % 2 === 0;
+  const locationCursorVisible =
+    revealedLocationCount < locationLength || Math.floor(frame / 15) % 2 === 0;
+  const isNameFieldFocused = frame < locationFocusFrame;
+  const isLocationFieldFocused = frame >= locationFocusFrame && frame < pathRevealFrame;
+  const parentPath = frame >= locationTypingStart
+    ? MOCK_PROJECT.selectedParentPath.substring(0, revealedLocationCount)
+    : "";
+  const showFullPath = frame >= pathRevealFrame;
 
-  const pathOpacity = interpolate(frame, [typingStart + 30, typingStart + 45], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  // Green flash on create
   const flashOpacity =
     frame >= createClickFrame + 5
-      ? interpolate(frame, [createClickFrame + 5, createClickFrame + 25], [0.3, 0], {
+      ? interpolate(frame, [createClickFrame + 5, createClickFrame + 25], [0.2, 0], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         })
@@ -59,142 +112,267 @@ export const Act2ProjectWizard: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        background: `radial-gradient(ellipse at 50% 30%, #252530 0%, ${theme.bgDark} 70%)`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        background: `linear-gradient(180deg, ${theme.canvasGradientStart}, ${theme.canvasGradientEnd})`,
       }}
     >
-      {/* Card */}
-      <div
-        style={{
-          transform: `scale(${cardScale})`,
-          opacity: cardOpacity,
-          background: theme.cardDark,
-          borderRadius: 14,
-          padding: "40px 48px",
-          width: 500,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 24,
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-        }}
-      >
-        {/* Mini logo */}
+      <AppWindow showSidebar={false} showTopBar={false}>
         <div
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            background: `linear-gradient(135deg, ${theme.forestGreen}, #26A69A)`,
+            height: "100%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            background: theme.windowBg,
           }}
         >
-          <span
-            style={{
-              fontFamily: fontDisplay,
-              fontSize: 24,
-              fontWeight: 700,
-              color: "white",
-            }}
-          >
-            N
-          </span>
-        </div>
-
-        {/* Title */}
-        <div style={{ textAlign: "center" }}>
           <div
             style={{
-              fontFamily: fontDisplay,
-              fontSize: 22,
-              fontWeight: 700,
-              color: theme.textWhite,
-              marginBottom: 4,
-            }}
-          >
-            Create New Project
-          </div>
-          <div
-            style={{
-              fontFamily: fontDisplay,
-              fontSize: 14,
-              color: theme.textMuted,
-            }}
-          >
-            Set up a new Niamoto project
-          </div>
-        </div>
-
-        {/* Form */}
-        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
-          <MockInput
-            label="Project Name"
-            text={MOCK_PROJECT.name}
-            typingStartFrame={typingStart}
-            placeholder="my-ecological-project"
-            mono
-          />
-
-          {/* Path display */}
-          <div
-            style={{
-              opacity: pathOpacity,
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: 6,
-              padding: "8px 12px",
+              width: 640,
+              opacity: cardOpacity,
+              transform: `scale(${cardScale})`,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              gap: 6,
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="1.5">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            <span
+            <NiamotoLogo width={96} />
+
+            <div
               style={{
+                marginTop: 28,
                 fontFamily: fontDisplay,
-                fontSize: 12,
+                fontSize: 32,
+                lineHeight: 1.05,
+                fontWeight: 700,
+                color: theme.textDark,
+                letterSpacing: -0.8,
+              }}
+            >
+              Créer un nouveau projet
+            </div>
+
+            <div
+              style={{
+                marginTop: 8,
+                fontFamily: fontDisplay,
+                fontSize: 16,
                 color: theme.textMuted,
               }}
             >
-              {MOCK_PROJECT.path}
-            </span>
+              Configurer un nouveau projet Niamoto
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                marginTop: 38,
+                background: "#FFFFFF",
+                borderRadius: 10,
+                border: `1px solid ${theme.border}`,
+                boxShadow: "0 12px 28px rgba(15, 23, 42, 0.06)",
+                padding: "28px 26px 22px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: fontDisplay,
+                  fontSize: 17,
+                  fontWeight: 500,
+                  color: theme.textDark,
+                }}
+              >
+                Nom du projet
+              </div>
+
+              <div
+                style={{
+                  marginTop: 9,
+                  height: 46,
+                  borderRadius: 10,
+                  border: isNameFieldFocused
+                    ? `2px solid ${theme.forestGreen}`
+                    : `1px solid ${theme.borderStrong}`,
+                  background: "#FFFFFF",
+                  boxShadow: isNameFieldFocused
+                    ? "0 0 0 3px rgba(46, 125, 50, 0.08)"
+                    : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                }}
+                >
+                  <span
+                    style={{
+                      fontFamily: fontMono,
+                      fontSize: 15,
+                      color: revealedCount === 0 ? theme.textSoft : "#4B5563",
+                    }}
+                    >
+                    {revealedCount === 0
+                      ? "my-ecological-project"
+                      : MOCK_PROJECT.name.substring(0, revealedCount)}
+                  </span>
+                  {isNameFieldFocused && nameCursorVisible && (
+                    <span
+                      style={{
+                        width: 2,
+                        height: 18,
+                        marginLeft: 1,
+                        background: theme.forestGreen,
+                      }}
+                    />
+                  )}
+                </div>
+
+              <div
+                style={{
+                  marginTop: 24,
+                  fontFamily: fontDisplay,
+                  fontSize: 17,
+                  fontWeight: 500,
+                  color: theme.textDark,
+                }}
+              >
+                Emplacement
+              </div>
+
+              <div
+                style={{
+                  marginTop: 9,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    height: 46,
+                    borderRadius: 10,
+                    border: isLocationFieldFocused
+                      ? `2px solid ${theme.forestGreen}`
+                      : `1px solid ${theme.borderStrong}`,
+                    background: "#FFFFFF",
+                    boxShadow: isLocationFieldFocused
+                      ? "0 0 0 3px rgba(46, 125, 50, 0.08)"
+                      : "none",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    fontFamily: fontMono,
+                    fontSize: 15,
+                    color: parentPath.length > 0 ? "#4B5563" : theme.textSoft,
+                  }}
+                >
+                  <span>{parentPath.length > 0 ? parentPath : "Saisir un emplacement"}</span>
+                  {isLocationFieldFocused && locationCursorVisible && (
+                    <span
+                      style={{
+                        width: 2,
+                        height: 18,
+                        marginLeft: 1,
+                        background: theme.forestGreen,
+                      }}
+                    />
+                  )}
+                </div>
+                <div
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: 10,
+                    border: `1px solid ${theme.borderStrong}`,
+                    background: "#FFFFFF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="1.9">
+                    <path d="M20 18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 24,
+                  fontFamily: fontDisplay,
+                  fontSize: 17,
+                  fontWeight: 500,
+                  color: theme.textMuted,
+                }}
+              >
+                Répertoire du projet
+              </div>
+
+              <div
+                style={{
+                  marginTop: 9,
+                  height: 46,
+                  borderRadius: 10,
+                  border: `1px solid ${theme.borderStrong}`,
+                  background: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  fontFamily: fontMono,
+                  fontSize: 15,
+                  color: showFullPath ? "#4B5563" : theme.textSoft,
+                }}
+              >
+                {showFullPath ? MOCK_PROJECT.fullPath : "/Users/username/Projects/my-ecology-project"}
+              </div>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                marginTop: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <WizardButton
+                label="Annuler"
+                variant="secondary"
+                icon={
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.textDark} strokeWidth="2.1">
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                }
+              />
+
+              <WizardButton
+                label="Créer le projet"
+                variant="primary"
+                clickAtFrame={createClickFrame}
+                icon={
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                }
+              />
+            </div>
           </div>
         </div>
+      </AppWindow>
 
-        {/* Buttons */}
-        <div style={{ display: "flex", gap: 12, width: "100%", justifyContent: "flex-end", marginTop: 8 }}>
-          <MockButton label="Cancel" variant="outline" />
-          <MockButton
-            label="Create Project"
-            variant="gradient"
-            clickAtFrame={createClickFrame}
-            icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            }
-          />
-        </div>
-      </div>
-
-      {/* Green flash overlay */}
       {flashOpacity > 0 && (
         <AbsoluteFill
           style={{
-            background: `radial-gradient(circle at center, ${theme.lightGreen}40 0%, transparent 70%)`,
+            background: "radial-gradient(circle at center, rgba(46, 125, 50, 0.18) 0%, transparent 68%)",
             opacity: flashOpacity,
           }}
         />
       )}
 
-      {/* Cursor */}
-      <CursorOverlay waypoints={CURSOR_PATHS.act2} />
+      <CursorOverlay waypoints={CURSOR_PATHS.act2} startFrame={56} />
     </AbsoluteFill>
   );
 };

@@ -12,12 +12,12 @@ export const MARKETING = {
 // Scene durations in seconds — 6 acts + intro/outro
 export const DURATIONS = {
   intro: 4,
-  act1Welcome: 8,
+  act1Welcome: 3,
   act2ProjectWizard: 12,
   act3Import: 20,
   act4Collections: 14,
-  act5SiteBuilder: 20,
-  act6Publish: 12,
+  act5SiteBuilder: 14,
+  act6Publish: 18,
   outro: 6,
 } as const;
 

@@ -49,7 +49,7 @@ export const MockInput: React.FC<MockInputProps> = ({
             fontFamily: fontDisplay,
             fontSize: 13,
             fontWeight: 500,
-            color: theme.textMuted,
+            color: theme.textDark,
           }}
         >
           {label}
@@ -57,16 +57,17 @@ export const MockInput: React.FC<MockInputProps> = ({
       )}
       <div
         style={{
-          background: "rgba(255,255,255,0.05)",
-          border: `1px solid rgba(255,255,255,0.15)`,
+          background: "rgba(255,255,255,0.96)",
+          border: `1px solid ${theme.borderStrong}`,
           borderRadius: 8,
           padding: "10px 14px",
           fontFamily: mono ? fontMono : fontDisplay,
           fontSize: 15,
-          color: showPlaceholder ? theme.textMuted : theme.textWhite,
+          color: showPlaceholder ? theme.textMuted : theme.textDark,
           minWidth: 300,
           display: "flex",
           alignItems: "center",
+          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
         }}
       >
         <span>{showPlaceholder ? placeholder : displayedText}</span>
