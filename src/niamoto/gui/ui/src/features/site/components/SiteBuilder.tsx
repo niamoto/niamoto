@@ -432,6 +432,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           <ScrollArea className="h-full">
             <div className="p-4">
               <GroupPageViewer
+                key={`group-${currentGroup.name}-${JSON.stringify(currentGroup.index_generator ?? null)}`}
                 group={currentGroup}
                 onBack={() => state.setSelection(null)}
                 onEnableIndexPage={() => state.handleEnableGroupIndexPage(currentGroup.name)}
