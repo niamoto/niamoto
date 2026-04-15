@@ -27,8 +27,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { LocalizedInput } from '@/components/ui/localized-input'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Accordion,
@@ -96,21 +96,24 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null)
-  const previewMutation = useGroupIndexPreview()
+  const {
+    mutate: requestGroupIndexPreview,
+    isPending: isPreviewPending,
+  } = useGroupIndexPreview()
 
   const loadPreview = useCallback(() => {
     if (!config.enabled) {
       return
     }
 
-    previewMutation.mutate(
+    requestGroupIndexPreview(
       { groupName: groupBy },
       {
         onSuccess: (data) => setPreviewHtml(data.html),
         onError: () => setPreviewHtml(null),
       }
     )
-  }, [config.enabled, groupBy, previewMutation])
+  }, [config.enabled, groupBy, requestGroupIndexPreview])
 
   // Load preview when enabled and showPreview is true
   useEffect(() => {
@@ -398,21 +401,20 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="page-title">{t('pageSettings.title')}</Label>
-                      <Input
-                        id="page-title"
+                      <LocalizedInput
                         value={config.page_config.title}
-                        onChange={(e) => setPageConfig({ title: e.target.value })}
+                        onChange={(value) => setPageConfig({ title: value || '' })}
                         placeholder={t('pageSettings.titlePlaceholder')}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="page-description">{t('pageSettings.description')}</Label>
-                      <Textarea
-                        id="page-description"
+                      <LocalizedInput
                         value={config.page_config.description || ''}
-                        onChange={(e) => setPageConfig({ description: e.target.value || undefined })}
+                        onChange={(value) => setPageConfig({ description: value || undefined })}
                         placeholder={t('pageSettings.descriptionPlaceholder')}
+                        multiline
                         rows={2}
                       />
                     </div>
@@ -597,7 +599,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
               ) : showPreview ? (
                 <PreviewFrame
                   html={previewHtml}
-                  isLoading={previewMutation.isPending}
+                  isLoading={isPreviewPending}
                   device={previewDevice}
                   onDeviceChange={setPreviewDevice}
                   onRefresh={loadPreview}

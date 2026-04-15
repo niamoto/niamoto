@@ -1,0 +1,160 @@
+{
+  "id": 948049381,
+  "name": "Araucariaceae",
+  "rank": "Famille",
+  "rankEn": "Family",
+  "occurrences": 3539,
+  "endemic": true,
+  "note": "Données relevées visuellement depuis /fr/taxons/948049381.html le 2026-04-15. Régénérer via scripts/extract-taxon-data.mjs si le dataset change.",
+
+  "subTaxons": [
+    { "name": "Araucaria montana", "count": 643, "color": "#4A90C5" },
+    { "name": "Agathis ovata", "count": 498, "color": "#C2336A" },
+    { "name": "Agathis lanceolata", "count": 466, "color": "#7CB342" },
+    { "name": "Araucaria rulei", "count": 254, "color": "#6B46C1" },
+    { "name": "Agathis moorei", "count": 247, "color": "#E08B3C" },
+    { "name": "Araucaria bernieri", "count": 235, "color": "#3FA89D" },
+    { "name": "Araucaria luxurians", "count": 231, "color": "#D4699B" },
+    { "name": "Araucaria scopulorum", "count": 183, "color": "#7A8F3A" },
+    { "name": "Araucaria columnaris", "count": 139, "color": "#6AA6D4" },
+    { "name": "Araucaria biramulata", "count": 125, "color": "#B24642" }
+  ],
+
+  "dbhDistribution": {
+    "unit": "cm",
+    "yUnit": "%",
+    "bins": [
+      { "range": "10-20", "min": 10, "max": 20, "value": 37.42 },
+      { "range": "20-30", "min": 20, "max": 30, "value": 22.22 },
+      { "range": "30-40", "min": 30, "max": 40, "value": 13.89 },
+      { "range": "40-50", "min": 40, "max": 50, "value": 10.78 },
+      { "range": "50-75", "min": 50, "max": 75, "value": 12.42 },
+      { "range": "75-100", "min": 75, "max": 100, "value": 2.78 },
+      { "range": "100-200", "min": 100, "max": 200, "value": 0.16 },
+      { "range": "200-300", "min": 200, "max": 300, "value": 0.33 }
+    ]
+  },
+
+  "phenology": {
+    "months": ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Déc"],
+    "note": "Bars empilées 3 séries (fruit/fleur/autre — à préciser sur la page source). Valeurs approximatives à re-vérifier.",
+    "series": [
+      {
+        "name": "fruit",
+        "color": "#E08B3C",
+        "values": [2, 3, 5, 6, 4, 2, 1, 1, 2, 3, 4, 3]
+      },
+      {
+        "name": "fleur",
+        "color": "#7CB342",
+        "values": [3, 4, 5, 8, 10, 12, 8, 5, 3, 2, 3, 5]
+      },
+      {
+        "name": "autre",
+        "color": "#4A90C5",
+        "values": [1, 2, 2, 3, 3, 4, 3, 2, 2, 2, 2, 2]
+      }
+    ]
+  },
+
+  "holdridge": {
+    "unit": "%",
+    "bins": [
+      { "label": "Sec", "value": 2.88, "color": "#E08B3C" },
+      { "label": "Humide", "value": 46.75, "color": "#7CB342" },
+      { "label": "Très humide", "value": 50.37, "color": "#4A90C5" }
+    ]
+  },
+
+  "substrate": {
+    "type": "donut",
+    "segments": [
+      { "label": "Ultramafique (UM)", "value": 82.8, "color": "#C28E5F" },
+      { "label": "Non-ultramafique (NUM)", "value": 17.1, "color": "#A0693F" }
+    ]
+  },
+
+  "rainfall": {
+    "unit": "mm/an",
+    "yUnit": "%",
+    "bins": [
+      { "range": "4500+", "min": 4500, "max": null, "value": 0.14 },
+      { "range": "4000-4500", "min": 4000, "max": 4500, "value": 1.84 },
+      { "range": "3500-4000", "min": 3500, "max": 4000, "value": 3.71 },
+      { "range": "3000-3500", "min": 3000, "max": 3500, "value": 13.63 },
+      { "range": "2500-3000", "min": 2500, "max": 3000, "value": 21.71 },
+      { "range": "2000-2500", "min": 2000, "max": 2500, "value": 31.84 },
+      { "range": "1500-2000", "min": 1500, "max": 2000, "value": 20.42 },
+      { "range": "1000-1500", "min": 1000, "max": 1500, "value": 6.7 }
+    ]
+  },
+
+  "mapSampling": {
+    "note": "Sous-échantillon de points pour lisibilité teaser. Pour la vraie carte avec 3539 points, utiliser la data complète via le script d'extraction.",
+    "totalOccurrences": 3539,
+    "hotSpots": [
+      { "label": "Poindimié / Kouaoua", "lon": 165.4, "lat": -20.95, "count": 50, "description": "Hot spot Araucaria montana" },
+      { "label": "Nouméa / Païta", "lon": 166.3, "lat": -22.2, "count": 42, "description": "Hot spot Araucaria columnaris" },
+      { "label": "Canala / Thio", "lon": 166.0, "lat": -21.5, "count": 28, "description": "Cluster intermediate" }
+    ],
+    "diffusePoints": [
+      { "lon": 164.3, "lat": -20.15, "count": 3 },
+      { "lon": 164.8, "lat": -20.5, "count": 5 },
+      { "lon": 165.2, "lat": -20.8, "count": 8 },
+      { "lon": 165.6, "lat": -21.1, "count": 12 },
+      { "lon": 165.9, "lat": -21.4, "count": 18 },
+      { "lon": 166.2, "lat": -21.7, "count": 22 },
+      { "lon": 166.5, "lat": -22.0, "count": 15 },
+      { "lon": 166.8, "lat": -22.3, "count": 10 },
+      { "lon": 167.3, "lat": -20.8, "count": 4 },
+      { "lon": 167.5, "lat": -21.2, "count": 6 },
+      { "lon": 164.5, "lat": -20.3, "count": 5 },
+      { "lon": 164.9, "lat": -20.6, "count": 7 }
+    ]
+  },
+
+  "taxonomicHierarchy": [
+    {
+      "level": "order",
+      "name": "Pinales"
+    },
+    {
+      "level": "family",
+      "name": "Araucariaceae",
+      "active": true,
+      "children": [
+        {
+          "level": "genus",
+          "name": "Agathis",
+          "children": [
+            { "level": "species", "name": "Agathis corbassonii" },
+            { "level": "species", "name": "Agathis lanceolata" },
+            { "level": "species", "name": "Agathis moorei" },
+            { "level": "species", "name": "Agathis ovata" }
+          ]
+        },
+        {
+          "level": "genus",
+          "name": "Araucaria",
+          "children": [
+            { "level": "species", "name": "Araucaria bernieri" },
+            { "level": "species", "name": "Araucaria bidwillii" },
+            { "level": "species", "name": "Araucaria biramulata" },
+            { "level": "species", "name": "Araucaria columnaris" },
+            { "level": "species", "name": "Araucaria cunninghamii" },
+            { "level": "species", "name": "Araucaria humboldtensis" },
+            { "level": "species", "name": "Araucaria laubenfelsii" },
+            { "level": "species", "name": "Araucaria luxurians" },
+            { "level": "species", "name": "Araucaria montana" },
+            { "level": "species", "name": "Araucaria muelleri" },
+            { "level": "species", "name": "Araucaria nemorosa" },
+            { "level": "species", "name": "Araucaria rulei" },
+            { "level": "species", "name": "Araucaria schmidii" },
+            { "level": "species", "name": "Araucaria scopulorum" },
+            { "level": "species", "name": "Araucaria subulata" }
+          ]
+        }
+      ]
+    }
+  ]
+}

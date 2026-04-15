@@ -451,6 +451,90 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         mock_jinja_env.get_template.assert_called_once_with("_group_index.html")
 
     @patch("builtins.open", create=True)
+    def test_generate_index_resolves_localized_index_labels(self, mock_open):
+        """Localized index labels should be resolved for the current export language."""
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        mock_template = Mock()
+        mock_template.render.return_value = "<html>Index Page</html>"
+        mock_jinja_env = Mock()
+        mock_jinja_env.get_template.return_value = mock_template
+
+        mock_html_params = Mock()
+        mock_html_params.site = Mock()
+        mock_html_params.site.model_dump.return_value = {
+            "title": {"fr": "Site FR", "en": "Site EN"},
+            "lang": "fr",
+            "languages": ["fr", "en"],
+        }
+        mock_html_params.navigation = []
+        mock_html_params.footer_navigation = []
+
+        config = IndexGeneratorConfig(
+            template="_group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="name",
+                    source="name",
+                    label={"fr": "Nom", "en": "Name"},
+                    type="text",
+                ),
+                IndexGeneratorDisplayField(
+                    name="endemic",
+                    source="endemic",
+                    label={"fr": "Endémique", "en": "Endemic"},
+                    type="boolean",
+                    true_label={"fr": "Oui", "en": "Yes"},
+                    false_label={"fr": "Non", "en": "No"},
+                ),
+                IndexGeneratorDisplayField(
+                    name="endemia",
+                    source="endemia_url",
+                    type="text",
+                    display="link",
+                    link_label={"fr": "Endemia", "en": "Endemia"},
+                    link_title={"fr": "Voir sur Endemia", "en": "View on Endemia"},
+                ),
+            ],
+            page_config=IndexGeneratorPageConfig(
+                title={"fr": "Liste des taxons", "en": "Taxa list"},
+                description={"fr": "Description FR", "en": "Description EN"},
+                items_per_page=20,
+            ),
+        )
+
+        with patch.object(
+            self.plugin,
+            "_get_group_data",
+            return_value=[{"taxon_id": 1, "name": "Species 1", "endemic": True}],
+        ):
+            with patch("pathlib.Path.mkdir"):
+                self.plugin.generate_index(
+                    "taxon",
+                    config,
+                    self.test_output_dir,
+                    mock_jinja_env,
+                    mock_html_params,
+                    lang="en",
+                    languages=["fr", "en"],
+                )
+
+        context = mock_template.render.call_args[0][0]
+
+        self.assertEqual(context["site"]["title"], "Site EN")
+        self.assertEqual(context["page_config"]["title"], "Taxa list")
+        self.assertEqual(context["page_config"]["description"], "Description EN")
+        self.assertEqual(context["index_config"]["display_fields"][0]["label"], "Name")
+        self.assertEqual(
+            context["index_config"]["display_fields"][1]["true_label"], "Yes"
+        )
+        self.assertEqual(
+            context["index_config"]["display_fields"][2]["link_title"],
+            "View on Endemia",
+        )
+
+    @patch("builtins.open", create=True)
     def test_generate_index_no_data(self, mock_open):
         """Test index generation with no data."""
         # Mock jinja environment
