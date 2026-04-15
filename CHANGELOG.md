@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.0] - 2026-04-15
+
+### Features
+
+- Add landing teaser with Niamoto product mocks (demo-video)
+- Add Niamoto marketing site plan with partner assets
+- Improve index generator configuration workflow
+- Build Remotion product demo
+- Wire Intro/Outro scenes and add TransitionLabels (demo-video)
+- Add Acts 4-6 — Collections, Site Builder, Publish (demo-video)
+- Add UI components, cursor system, and Acts 1-3 (demo-video)
+- Bootstrap Remotion demo video project (media)
+
+### Bug Fixes
+
+- Resolve site builder lint warning
+- Polish demo video interactions
+- Refine demo video transitions
+- Bind geospatial extractor to runtime config
+- Stabilize previews and GitHub Pages deployment
+
+### Refactoring
+
+- Replace screencast architecture with motion graphics foundation (demo-video)
+
+### Documentation
+
+- Move DESIGN_SYSTEM.md to docs/ for project-wide visibility
+- Add DESIGN_SYSTEM.md documenting the visual system (demo-video)
+- Add motion graphics brainstorm and implementation plan
+- Mark Phase 0+1 checkboxes as complete in demo video plan
+
+### Other
+
+- Apply rounded corners for Windows/Linux and macOS HIG padding (icons)
+- Update lock files for v0.14.7
+
 ## [v0.14.8] - 2026-04-13
 
 ### Bug Fixes
