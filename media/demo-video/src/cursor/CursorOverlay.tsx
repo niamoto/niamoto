@@ -4,6 +4,7 @@ import { CursorFlow, CursorWaypoint } from "../animations/CursorFlow";
 interface CursorOverlayProps {
   waypoints: CursorWaypoint[];
   color?: string;
+  size?: number;
   startFrame?: number;
   framesPerSegment?: number;
 }
@@ -15,6 +16,7 @@ interface CursorOverlayProps {
 export const CursorOverlay: React.FC<CursorOverlayProps> = ({
   waypoints,
   color,
+  size,
   startFrame,
   framesPerSegment,
 }) => {
@@ -25,6 +27,7 @@ export const CursorOverlay: React.FC<CursorOverlayProps> = ({
       <CursorFlow
         waypoints={waypoints}
         color={color}
+        size={size}
         startFrame={startFrame}
         framesPerSegment={framesPerSegment}
       />
