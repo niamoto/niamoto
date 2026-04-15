@@ -1,5 +1,6 @@
 import { Composition, Folder } from "remotion";
 import { MarketingLandscape } from "./compositions/MarketingLandscape";
+import { LandingTeaser } from "./compositions/LandingTeaser";
 import { IntroLogo } from "./scenes/IntroLogo";
 import { OutroCTA } from "./scenes/OutroCTA";
 import { Act1Welcome } from "./acts/Act1Welcome";
@@ -9,6 +10,20 @@ import { Act4Collections } from "./acts/Act4Collections";
 import { Act5SiteBuilder } from "./acts/Act5SiteBuilder";
 import { Act6Publish } from "./acts/Act6Publish";
 import { MARKETING, DURATIONS, sec, totalFrames } from "./shared/config";
+import { LANDING_TEASER, TEASER_DURATIONS, landingTeaserFrames, teaserSec } from "./teaser/config";
+import { TeaserOpener } from "./teaser/scenes/TeaserOpener";
+import { TeaserDataIntake } from "./teaser/scenes/TeaserDataIntake";
+import { TeaserStructure } from "./teaser/scenes/TeaserStructure";
+import { TeaserPublish } from "./teaser/scenes/TeaserPublish";
+import { TeaserEndCard } from "./teaser/scenes/TeaserEndCard";
+import {
+  PreviewDBHDistribution,
+  PreviewSubstrateDonut,
+  PreviewOccurrencesBarChart,
+  PreviewPhenologyCalendar,
+  PreviewTaxonomicNav,
+  PreviewBubbleMapNC,
+} from "./teaser/widgets/previews";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -21,6 +36,15 @@ export const RemotionRoot: React.FC = () => {
         fps={MARKETING.fps}
         width={MARKETING.width}
         height={MARKETING.height}
+      />
+
+      <Composition
+        id={LANDING_TEASER.id}
+        component={LandingTeaser}
+        durationInFrames={landingTeaserFrames}
+        fps={LANDING_TEASER.fps}
+        width={LANDING_TEASER.width}
+        height={LANDING_TEASER.height}
       />
 
       {/* Isolated scene previews */}
@@ -92,6 +116,100 @@ export const RemotionRoot: React.FC = () => {
           fps={MARKETING.fps}
           width={MARKETING.width}
           height={MARKETING.height}
+        />
+      </Folder>
+
+      <Folder name="Landing-Teaser">
+        <Composition
+          id="TeaserOpener"
+          component={TeaserOpener}
+          durationInFrames={teaserSec(TEASER_DURATIONS.opener)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="TeaserDataIntake"
+          component={TeaserDataIntake}
+          durationInFrames={teaserSec(TEASER_DURATIONS.dataIntake)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="TeaserStructure"
+          component={TeaserStructure}
+          durationInFrames={teaserSec(TEASER_DURATIONS.structure)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="TeaserPublish"
+          component={TeaserPublish}
+          durationInFrames={teaserSec(TEASER_DURATIONS.publish)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="TeaserEndCard"
+          component={TeaserEndCard}
+          durationInFrames={teaserSec(TEASER_DURATIONS.endCard)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+      </Folder>
+
+      <Folder name="Teaser-Widgets">
+        <Composition
+          id="WidgetBubbleMapNC"
+          component={PreviewBubbleMapNC}
+          durationInFrames={teaserSec(4)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="WidgetDBHDistribution"
+          component={PreviewDBHDistribution}
+          durationInFrames={teaserSec(3)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="WidgetSubstrateDonut"
+          component={PreviewSubstrateDonut}
+          durationInFrames={teaserSec(3)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="WidgetOccurrencesBarChart"
+          component={PreviewOccurrencesBarChart}
+          durationInFrames={teaserSec(4)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="WidgetPhenologyCalendar"
+          component={PreviewPhenologyCalendar}
+          durationInFrames={teaserSec(3)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
+        />
+        <Composition
+          id="WidgetTaxonomicNav"
+          component={PreviewTaxonomicNav}
+          durationInFrames={teaserSec(3)}
+          fps={LANDING_TEASER.fps}
+          width={LANDING_TEASER.width}
+          height={LANDING_TEASER.height}
         />
       </Folder>
     </>

@@ -20,6 +20,12 @@ pnpm run build
 
 Outputs `out/marketing-landscape.mp4` (1920x1080, 30fps, ~92s).
 
+```bash
+pnpm run build:teaser
+```
+
+Outputs `out/landing-teaser.mp4` (1920x1080, 30fps, ~45s).
+
 ## Type Check
 
 ```bash
@@ -34,6 +40,18 @@ src/
   index.ts                       # registerRoot
   compositions/
     MarketingLandscape.tsx       # Main 16:9 marketing video (TransitionSeries)
+    LandingTeaser.tsx            # ~45s landing teaser composition
+  teaser/                        # Dedicated teaser modules and scenes
+    config.ts                    # Teaser timings and composition metadata
+    copy.ts                      # Short editorial copy
+    theme.ts                     # Teaser palette mirroring the real Niamoto product
+    PIXEL_REFERENCES.md          # Component <-> screenshot reference table + locked decisions
+    data/
+      taxon-vedette.json         # Araucariaceae dataset used by widgets (3539 occurrences)
+    widgets/                     # Niamoto-specific widgets rendered with recharts/react-simple-maps
+    ui/                          # Simulated cursor + public site chrome
+    components/                  # Shared teaser primitives (editorial overlay)
+    scenes/                      # Opener, intake, structure, publish, end-card
   acts/                          # 6 acts of the user journey
     Act1Welcome.tsx              # Welcome screen + "Create New Project"
     Act2ProjectWizard.tsx        # Project creation wizard
@@ -76,6 +94,11 @@ public/
   logo/                          # Niamoto logo PNG
   fonts/                         # Local WOFF2 fonts
 ```
+
+## Compositions
+
+- `MarketingLandscape`: full walkthrough video for product demonstrations
+- `LandingTeaser`: shorter editorial asset for landing usage
 
 ## Theme
 
