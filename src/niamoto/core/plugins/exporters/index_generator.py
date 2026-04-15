@@ -14,6 +14,12 @@ from typing import Any, Dict, List, Optional
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ProcessError
+from niamoto.common.hierarchy_context import (
+    build_hierarchy_contexts,
+    detect_hierarchy_metadata,
+)
+from niamoto.common.i18n import I18nResolver
+from niamoto.common.table_resolver import resolve_entity_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, register
 from niamoto.core.plugins.models import IndexGeneratorConfig, IndexGeneratorDisplayField
 
@@ -134,6 +140,129 @@ class IndexGeneratorPlugin(ExporterPlugin):
 
         return value
 
+    def _resolve_entity_join_column(
+        self,
+        entity_table: str,
+        entity_columns: set[str],
+        item_ids: set[Any],
+        id_column: str,
+    ) -> Optional[str]:
+        """Pick the entity-side join column that matches the transformed IDs best."""
+        best_column: Optional[str] = None
+        best_overlap = 0
+
+        for candidate in [id_column, "id"]:
+            if candidate not in entity_columns:
+                continue
+
+            query = (
+                f'SELECT "{candidate}" FROM "{entity_table}" '
+                f'WHERE "{candidate}" IS NOT NULL'
+            )
+            rows = self.db.fetch_all(query)
+            overlap = sum(1 for row in rows if row[candidate] in item_ids)
+
+            if overlap > best_overlap:
+                best_column = candidate
+                best_overlap = overlap
+
+        return best_column
+
+    def _get_entity_rows_by_group_id(
+        self,
+        group_by: str,
+        id_column: str,
+        config: IndexGeneratorConfig,
+        item_ids: set[Any],
+    ) -> Dict[Any, Dict[str, Any]]:
+        """Load entity-side fields such as extra_data for the current reference."""
+        entity_table = resolve_entity_table(self.db, group_by, kind="reference")
+        if (
+            not entity_table
+            or entity_table == group_by
+            or not self.db.has_table(entity_table)
+        ):
+            return {}
+
+        try:
+            entity_columns = set(self.db.get_table_columns(entity_table))
+        except TypeError:
+            logger.debug(
+                "Skipping entity merge for '%s': columns for '%s' are not iterable",
+                group_by,
+                entity_table,
+            )
+            return {}
+
+        if not entity_columns:
+            return {}
+
+        join_column = self._resolve_entity_join_column(
+            entity_table, entity_columns, item_ids, id_column
+        )
+        if not join_column:
+            logger.debug(
+                "Skipping entity merge for '%s': no join column matches transformed IDs in '%s'",
+                group_by,
+                entity_table,
+            )
+            return {}
+
+        selected_columns = {join_column}
+        hierarchy_metadata = detect_hierarchy_metadata(
+            entity_columns, join_field=join_column
+        )
+        if hierarchy_metadata is not None:
+            selected_columns.add(hierarchy_metadata.id_field)
+            selected_columns.add(hierarchy_metadata.rank_field)
+            selected_columns.add(hierarchy_metadata.name_field)
+            if hierarchy_metadata.parent_field:
+                selected_columns.add(hierarchy_metadata.parent_field)
+            if hierarchy_metadata.left_field:
+                selected_columns.add(hierarchy_metadata.left_field)
+            if hierarchy_metadata.right_field:
+                selected_columns.add(hierarchy_metadata.right_field)
+
+        for field in config.display_fields:
+            field_root = field.source.split(".", 1)[0]
+            if field_root in entity_columns:
+                selected_columns.add(field_root)
+
+            if field.fallback and field.fallback in entity_columns:
+                selected_columns.add(field.fallback)
+
+        for filter_config in config.filters or []:
+            field_root = filter_config.field.split(".", 1)[0]
+            if field_root in entity_columns:
+                selected_columns.add(field_root)
+
+        if len(selected_columns) == 1:
+            return {}
+
+        quoted_columns = ", ".join(f'"{column}"' for column in sorted(selected_columns))
+        query = (
+            f'SELECT {quoted_columns} FROM "{entity_table}" ORDER BY "{join_column}"'
+        )
+
+        rows = self.db.fetch_all(query)
+        entity_rows = {
+            row[join_column]: dict(row)
+            for row in rows
+            if row.get(join_column) is not None
+        }
+
+        if hierarchy_metadata is None or not entity_rows:
+            return entity_rows
+
+        hierarchy_contexts = build_hierarchy_contexts(
+            entity_rows.values(), hierarchy_metadata
+        )
+        for join_value, context in hierarchy_contexts.items():
+            if join_value in entity_rows:
+                entity_rows[join_value]["hierarchy_context"] = context
+
+        return entity_rows
+
     def _get_group_data(
         self, group_by: str, config: IndexGeneratorConfig
     ) -> List[Dict[str, Any]]:
@@ -169,10 +298,22 @@ class IndexGeneratorPlugin(ExporterPlugin):
             # Convert to list of dicts
             items = [dict(row) for row in results]
             logger.info(f"Found {len(items)} items in table '{table_name}'")
+            item_ids = {
+                item[id_column] for item in items if item.get(id_column) is not None
+            }
+            entity_rows = self._get_entity_rows_by_group_id(
+                group_by, id_column, config, item_ids
+            )
 
             # Process each item
             processed_items = []
             for item in items:
+                entity_row = entity_rows.get(item.get(id_column))
+                if entity_row:
+                    for key, value in entity_row.items():
+                        if key not in item or item[key] is None:
+                            item[key] = value
+
                 # Parse all JSON fields (not just general_info)
                 for key, value in item.items():
                     # Try to parse any field that looks like JSON
@@ -270,6 +411,36 @@ class IndexGeneratorPlugin(ExporterPlugin):
             nav_depth = max(len(output_file.relative_to(output_dir).parts) - 1, 0)
             is_multilang = bool(lang and languages and len(languages) > 1)
             depth = nav_depth + (1 if is_multilang else 0)
+            site_context_data = (
+                site_context
+                if site_context is not None
+                else html_params.site.model_dump()
+                if html_params.site
+                else {}
+            )
+            default_lang = (
+                lang
+                or site_context_data.get("lang")
+                or site_context_data.get("current_lang")
+                or "fr"
+            )
+            available_languages = (
+                list(languages or [])
+                or list(site_context_data.get("languages") or [])
+                or [default_lang]
+            )
+            i18n_resolver = I18nResolver(
+                default_lang=default_lang,
+                available_languages=available_languages,
+            )
+            resolved_site_context = i18n_resolver.resolve_recursive(site_context_data)
+            resolved_page_config = i18n_resolver.resolve_recursive(
+                config.page_config.model_dump()
+            )
+            resolved_display_fields = [
+                i18n_resolver.resolve_recursive(field.model_dump())
+                for field in config.display_fields
+            ]
 
             # Prepare template context
             index_config = {
@@ -278,21 +449,15 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 "output_pattern": config.output_pattern.format(
                     group_by=group_by, id="{id}"
                 ),
-                "page_config": config.page_config.model_dump(),
-                "display_fields": [
-                    field.model_dump() for field in config.display_fields
-                ],
+                "page_config": resolved_page_config,
+                "display_fields": resolved_display_fields,
                 "views": [view.model_dump() for view in config.views]
                 if config.views
                 else [],
             }
 
             context = {
-                "site": site_context
-                if site_context is not None
-                else html_params.site.model_dump()
-                if html_params.site
-                else {},
+                "site": resolved_site_context,
                 "navigation": navigation
                 if navigation is not None
                 else html_params.navigation
@@ -306,7 +471,7 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 "group_by": group_by,
                 "index_config": index_config,
                 "items_data": items_data,
-                "page_config": config.page_config.model_dump(),
+                "page_config": resolved_page_config,
                 "nav_depth": nav_depth,
                 "depth": depth,
                 "current_lang": lang,

@@ -1006,10 +1006,21 @@
             displayImages = allImages.slice(0, 10);
         }
         // Si c'est un objet avec une URL
-        else if (typeof imageData === 'object' && imageData.url) {
+        else if (typeof imageData === 'object' && !Array.isArray(imageData)) {
             const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
+            const fullField = imageField?.image_fields?.full || 'big_thumb';
             const urlField = imageField?.image_fields?.url || 'url';
-            allImages = [imageData[thumbField] || imageData[urlField] || imageData.small_thumb || imageData.url];
+            const resolvedImage =
+                imageData[thumbField]
+                || imageData[urlField]
+                || imageData[fullField]
+                || imageData.small_thumb
+                || imageData.big_thumb
+                || imageData.url
+                || null;
+            if (resolvedImage) {
+                allImages = [resolvedImage];
+            }
             displayImages = allImages;
         }
 
@@ -1029,7 +1040,16 @@
                 if (typeof img === 'string') return img;
                 return img[fullField] || img[urlField] || img.big_thumb || img.url || img;
             }) :
-            allImages;
+            (typeof imageData === 'object' && imageData !== null && !Array.isArray(imageData)) ?
+                [
+                    imageData[fullField]
+                    || imageData[urlField]
+                    || imageData[thumbField]
+                    || imageData.big_thumb
+                    || imageData.small_thumb
+                    || imageData.url
+                ].filter(Boolean) :
+                allImages;
 
         // Créer une grille d'images pour la zone droite
         const imageElements = displayImages.map((imageUrl, index) => {

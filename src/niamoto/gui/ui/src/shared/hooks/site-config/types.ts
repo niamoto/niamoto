@@ -105,26 +105,47 @@ export interface GroupIndexConfig {
   enabled: boolean
   template: string
   page_config: {
-    title?: string
-    description?: string
+    title?: LocalizedString
+    description?: LocalizedString
     items_per_page?: number
   }
   filters: Array<{
     field: string
-    values: string[]
+    values: Array<string | number | boolean>
     operator: string
   }>
   display_fields: Array<{
     name: string
     source: string
     type: string
-    label?: string
+    fallback?: string
+    label?: LocalizedString
     searchable?: boolean
     format?: string
+    mapping?: Record<string, string>
+    filter_options?: Array<{ value: string; label: string }>
+    dynamic_options?: boolean
+    display?: 'normal' | 'hidden' | 'image_preview' | 'link'
+    inline_badge?: boolean
+    badge_color?: string
+    badge_style?: string
+    badge_colors?: Record<string, string>
+    badge_styles?: Record<string, string>
+    true_label?: LocalizedString
+    false_label?: LocalizedString
+    tooltip_mapping?: Record<string, string>
+    link_template?: string
+    link_label?: LocalizedString
+    link_title?: LocalizedString
+    link_target?: string
+    css_class?: string
+    css_style?: string
+    image_fields?: Record<string, string>
   }>
   views: Array<{
     type: string
     default: boolean
+    template?: string
   }>
 }
 

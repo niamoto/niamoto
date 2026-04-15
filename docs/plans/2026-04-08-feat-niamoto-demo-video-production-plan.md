@@ -299,12 +299,12 @@ En particulier, la mention explicite d'un import **DwC-A** au cœur du storyboar
 
 **Livrables :**
 
-- [ ] Créer `media/demo-video/`
-- [ ] Rédiger `SCRIPT.md` en version courte
-- [ ] Rédiger `STORYBOARD.md` avec 8 scènes max
-- [ ] Choisir le thème de capture : `frond`, `tidal` ou `ink`
+- [x] Créer `media/demo-video/`
+- [x] Rédiger `SCRIPT.md` en version courte
+- [x] Rédiger `STORYBOARD.md` avec 8 scènes max
+- [x] Choisir le thème de capture : `frond`, `tidal` ou `ink`
 - [ ] Vérifier les écrans réellement montrables dans `test-instance/niamoto-nc`
-- [ ] Localiser le logo et les fonts réutilisables
+- [x] Localiser le logo et les fonts réutilisables
 - [ ] Sélectionner une piste musicale
 
 **Acceptance :**
@@ -317,24 +317,24 @@ En particulier, la mention explicite d'un import **DwC-A** au cœur du storyboar
 
 **Livrables code :**
 
-- [ ] projet `media/demo-video` initialisé
-- [ ] `.gitignore` local
-- [ ] `Root.tsx`
-- [ ] `shared/theme.ts`
-- [ ] `shared/fonts.ts`
-- [ ] `shared/config.ts`
-- [ ] `IntroLogo.tsx`
-- [ ] `PipelineAnimated.tsx`
-- [ ] `ScreencastBlock.tsx`
-- [ ] `StatsOrMap.tsx`
-- [ ] `OutroCTA.tsx`
-- [ ] `README.md`
+- [x] projet `media/demo-video` initialisé
+- [x] `.gitignore` local
+- [x] `Root.tsx`
+- [x] `shared/theme.ts`
+- [x] `shared/fonts.ts`
+- [x] `shared/config.ts`
+- [x] `IntroLogo.tsx`
+- [x] `PipelineAnimated.tsx`
+- [x] `ScreencastBlock.tsx`
+- [x] `StatsOrMap.tsx`
+- [x] `OutroCTA.tsx`
+- [x] `README.md`
 
 **Tests manuels :**
 
-- [ ] `pnpm run dev` ouvre le studio
-- [ ] chaque scène rend isolément
-- [ ] les polices locales chargent correctement
+- [x] `pnpm run dev` ouvre le studio
+- [x] chaque scène rend isolément
+- [x] les polices locales chargent correctement
 
 **Acceptance :**
 
@@ -346,7 +346,7 @@ En particulier, la mention explicite d'un import **DwC-A** au cœur du storyboar
 
 **Livrables :**
 
-- [ ] `MarketingLandscape.tsx`
+- [x] `MarketingLandscape.tsx`
 - [ ] 3 screencasts capturés puis trimmés
 - [ ] intégration d'une piste audio
 - [ ] enchaînement final 90-120 s

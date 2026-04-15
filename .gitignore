@@ -162,3 +162,6 @@ data/**/.DS_Store
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Stitch (Google Labs) generated assets — regenerable from project cloud
+.stitch/

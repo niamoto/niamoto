@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any, Literal, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
+import re
 import yaml
 import shutil
 from datetime import datetime
@@ -20,6 +21,12 @@ from niamoto.gui.api.services.templates.config_service import (
     find_or_create_transform_group as _find_or_create_transform_group_impl,
 )
 from niamoto.core.plugins.models import ExportConfig as ExportConfigModel
+from niamoto.common.hierarchy_context import (
+    build_hierarchy_contexts,
+    detect_hierarchy_metadata,
+    normalize_hierarchy_key,
+)
+from niamoto.common.i18n import LocalizedString
 
 router = APIRouter()
 
@@ -1840,8 +1847,8 @@ async def delete_export_widget(group_by: str, widget_id: str) -> Dict[str, bool]
 class IndexGeneratorPageConfigUpdate(BaseModel):
     """Page configuration for index generator."""
 
-    title: str
-    description: Optional[str] = None
+    title: LocalizedString
+    description: Optional[LocalizedString] = None
     items_per_page: int = 24
 
 
@@ -1860,24 +1867,24 @@ class IndexGeneratorDisplayFieldUpdate(BaseModel):
     source: str
     fallback: Optional[str] = None
     type: str = "text"
-    label: Optional[str] = None
+    label: Optional[LocalizedString] = None
     searchable: bool = False
     format: Optional[str] = None
     mapping: Optional[Dict[str, str]] = None
     filter_options: Optional[List[Dict[str, str]]] = None
     dynamic_options: bool = False
     inline_badge: bool = False
-    true_label: Optional[str] = None
-    false_label: Optional[str] = None
+    true_label: Optional[LocalizedString] = None
+    false_label: Optional[LocalizedString] = None
     badge_color: Optional[str] = None
     badge_style: Optional[str] = None
     badge_colors: Optional[Dict[str, str]] = None
     badge_styles: Optional[Dict[str, str]] = None
     tooltip_mapping: Optional[Dict[str, str]] = None
     display: Optional[str] = None
-    link_label: Optional[str] = None
+    link_label: Optional[LocalizedString] = None
     link_template: Optional[str] = None
-    link_title: Optional[str] = None
+    link_title: Optional[LocalizedString] = None
     link_target: Optional[str] = None
     css_class: Optional[str] = None
     css_style: Optional[str] = None
@@ -2377,6 +2384,12 @@ class SuggestedDisplayField(BaseModel):
     format: Optional[str] = None
     dynamic_options: bool = False
     priority: str = "high"  # high, low - indicates importance for index display
+    display: Optional[str] = None
+    inline_badge: bool = False
+    link_label: Optional[str] = None
+    link_title: Optional[str] = None
+    link_target: Optional[str] = None
+    image_fields: Optional[Dict[str, str]] = None
 
 
 class SuggestedFilter(BaseModel):
@@ -2396,6 +2409,287 @@ class IndexFieldSuggestions(BaseModel):
     display_fields: List[SuggestedDisplayField]
     filters: List[SuggestedFilter]
     total_entities: int
+
+
+def _looks_like_url(value: Any) -> bool:
+    """Return whether a sample value looks like a URL or image data URI."""
+    return isinstance(value, str) and value.startswith(
+        ("http://", "https://", "/", "data:image/")
+    )
+
+
+def _get_field_leaf_name(path: str) -> str:
+    """Return the meaningful field name for a dotted path."""
+    parts = path.split(".")
+    if (
+        path.startswith("hierarchy_context.")
+        and len(parts) >= 3
+        and parts[-1] == "name"
+    ):
+        return parts[-2]
+    if len(parts) >= 2 and parts[-1] == "value":
+        return parts[-2]
+    return parts[-1] if parts else path
+
+
+def _humanize_identifier(identifier: str) -> str:
+    """Turn snake/kebab-case identifiers into compact labels."""
+    tokens = [token for token in re.split(r"[_\-]+", identifier) if token]
+    if not tokens:
+        return identifier.title()
+
+    ignored_prefixes = {"api", "provider", "source"}
+    while tokens and tokens[0].lower() in ignored_prefixes:
+        tokens = tokens[1:]
+
+    if not tokens:
+        tokens = [identifier]
+
+    acronyms = {"gbif", "iucn", "nc", "url", "api", "id", "ui", "dwc"}
+    return " ".join(
+        token.upper() if token.lower() in acronyms else token.capitalize()
+        for token in tokens
+    )
+
+
+def _extract_enrichment_provider(path: str) -> Optional[str]:
+    """Extract the enrichment provider slug from an extra_data path."""
+    parts = path.split(".")
+    if "sources" not in parts:
+        return None
+
+    source_index = parts.index("sources")
+    if source_index + 1 >= len(parts):
+        return None
+    return parts[source_index + 1]
+
+
+def _detect_image_variant(
+    path: str, sample_values: Optional[List[str]]
+) -> Optional[str]:
+    """Classify flattened image fields into thumbnail/full/url variants."""
+    values = sample_values or []
+    if not any(_looks_like_url(value) for value in values):
+        return None
+
+    lower_path = path.lower()
+    leaf = lower_path.split(".")[-1]
+
+    if "image_big" in leaf or "big_thumb" in leaf or "full" in leaf or "large" in leaf:
+        return "full"
+
+    if (
+        "image_small" in leaf
+        or "small_thumb" in leaf
+        or "thumbnail" in leaf
+        or ("thumb" in leaf and "big" not in leaf)
+        or "preview" in leaf
+    ):
+        return "thumbnail"
+
+    if "image" in lower_path and "url" in leaf:
+        return "url"
+
+    return None
+
+
+def _build_link_display_metadata(
+    path: str, info: Dict[str, Any]
+) -> Optional[Dict[str, str]]:
+    """Build display metadata for URL-like fields."""
+    if info.get("type") != "text":
+        return None
+
+    sample_values = info.get("sample_values") or []
+    if not sample_values or not any(_looks_like_url(value) for value in sample_values):
+        return None
+    if _detect_image_variant(path, sample_values):
+        return None
+
+    leaf_name = _get_field_leaf_name(path)
+    lower_leaf = leaf_name.lower()
+    url_tokens = ("url", "uri", "link", "href", "website", "webpage", "permalink")
+    if not any(token in lower_leaf for token in url_tokens):
+        return None
+
+    provider_slug = _extract_enrichment_provider(path)
+    provider_label = _humanize_identifier(provider_slug) if provider_slug else None
+
+    base_name = leaf_name
+    for suffix in (
+        "_url",
+        "_uri",
+        "_link",
+        "_href",
+        "_website",
+        "_webpage",
+        "_permalink",
+    ):
+        if lower_leaf.endswith(suffix):
+            base_name = leaf_name[: -len(suffix)]
+            break
+
+    generic_names = {
+        "url",
+        "uri",
+        "link",
+        "href",
+        "website",
+        "webpage",
+        "permalink",
+        "external",
+        "external_url",
+    }
+
+    if not base_name or base_name.lower() in generic_names:
+        base_name = provider_slug or "external_link"
+
+    link_label = _humanize_identifier(base_name)
+    if provider_label and lower_leaf in generic_names:
+        link_label = provider_label
+
+    link_target = (
+        "_blank"
+        if any(
+            isinstance(value, str) and value.startswith(("http://", "https://"))
+            for value in sample_values
+        )
+        else None
+    )
+
+    return {
+        "name": re.sub(r"[^a-z0-9]+", "_", base_name.lower()).strip("_")
+        or "external_link",
+        "label": link_label,
+        "link_label": link_label,
+        "link_title": f"Voir sur {link_label}",
+        "link_target": link_target or "",
+    }
+
+
+def _should_inline_boolean_badge(path: str) -> bool:
+    """Promote high-signal boolean fields to inline badges."""
+    badge_tokens = {
+        "endemic",
+        "endemicity",
+        "protected",
+        "native",
+        "introduced",
+        "invasive",
+        "threatened",
+        "endangered",
+        "rare",
+        "vulnerable",
+        "extinct",
+        "flagship",
+    }
+    lower_name = _get_field_leaf_name(path).lower()
+    return any(token in lower_name for token in badge_tokens)
+
+
+def _is_image_collection_path(path: str, info: Dict[str, Any]) -> bool:
+    """Detect array-like image collections already present in transformed data."""
+    if info.get("type") != "json_array":
+        return False
+
+    lower_path = path.lower()
+    return any(
+        token in lower_path
+        for token in ("image", "images", "photo", "photos", "picture", "gallery")
+    )
+
+
+def _build_image_display_field_suggestions(
+    field_analysis: Dict[str, Dict[str, Any]],
+) -> tuple[List[SuggestedDisplayField], set[str]]:
+    """Create synthetic image-preview fields from flattened image URLs."""
+    suggestions: List[SuggestedDisplayField] = []
+    consumed_paths: set[str] = set()
+
+    for path, info in field_analysis.items():
+        if not _is_image_collection_path(path, info):
+            continue
+
+        suggestions.append(
+            SuggestedDisplayField(
+                name="images",
+                source=path,
+                type="json_array",
+                label="Images",
+                searchable=False,
+                cardinality=info.get("cardinality"),
+                sample_values=info.get("sample_values"),
+                suggested_as_filter=False,
+                dynamic_options=False,
+                priority=info.get("priority", "high"),
+                display="image_preview",
+            )
+        )
+        consumed_paths.add(path)
+
+    grouped_variants: Dict[str, Dict[str, Any]] = {}
+
+    for path, info in field_analysis.items():
+        variant = _detect_image_variant(path, info.get("sample_values"))
+        if not variant:
+            continue
+
+        parent_path = path.rsplit(".", 1)[0]
+        group = grouped_variants.setdefault(
+            parent_path,
+            {
+                "priority": info.get("priority", "high"),
+                "paths": set(),
+                "variants": {},
+            },
+        )
+        group["paths"].add(path)
+        if info.get("priority", "low") == "high":
+            group["priority"] = "high"
+        group["variants"].setdefault(variant, path)
+
+    for parent_path, group in grouped_variants.items():
+        variant_paths = group["variants"]
+        if not variant_paths:
+            continue
+
+        image_fields: Dict[str, str] = {}
+        if "thumbnail" in variant_paths:
+            image_fields["thumbnail"] = variant_paths["thumbnail"].split(".")[-1]
+        if "full" in variant_paths:
+            image_fields["full"] = variant_paths["full"].split(".")[-1]
+        if "url" in variant_paths:
+            image_fields["url"] = variant_paths["url"].split(".")[-1]
+        elif "full" in variant_paths:
+            image_fields["url"] = variant_paths["full"].split(".")[-1]
+        elif "thumbnail" in variant_paths:
+            image_fields["url"] = variant_paths["thumbnail"].split(".")[-1]
+
+        suggestions.append(
+            SuggestedDisplayField(
+                name="images",
+                source=parent_path,
+                type="json_array",
+                label="Images",
+                searchable=False,
+                suggested_as_filter=False,
+                dynamic_options=False,
+                priority=group["priority"],
+                display="image_preview",
+                image_fields=image_fields or None,
+            )
+        )
+        consumed_paths.update(group["paths"])
+
+    suggestions.sort(
+        key=lambda field: (
+            0 if not field.source.startswith("extra_data.") else 1,
+            0 if field.priority == "high" else 1,
+            field.source,
+        )
+    )
+
+    return suggestions, consumed_paths
 
 
 @router.get("/export/api-targets/{export_name}/groups/{group_by}/suggestions")
@@ -2481,6 +2775,11 @@ def _detect_field_type(values: List[Any]) -> str:
 
 def _generate_label(path: str) -> str:
     """Generate a human-readable label from a JSON path."""
+    if path.startswith("hierarchy_context."):
+        parts = path.split(".")
+        if len(parts) >= 3 and parts[-1] == "name":
+            return _humanize_identifier(parts[-2])
+
     # Extract the meaningful part
     parts = path.split(".")
 
@@ -2496,8 +2795,17 @@ def _generate_label(path: str) -> str:
     return label.title()
 
 
+def _get_suggestion_label(path: str, info: Dict[str, Any]) -> str:
+    """Return the preferred label for an inferred display field."""
+    if info.get("synthetic_label"):
+        return str(info["synthetic_label"])
+    return _generate_label(path)
+
+
 def _is_name_field(path: str) -> bool:
     """Check if this is likely a name/title field."""
+    if path.startswith("hierarchy_context."):
+        return False
     name_indicators = ["name", "title", "label", "full_name", "nom"]
     lower_path = path.lower()
     return any(ind in lower_path for ind in name_indicators)
@@ -2527,6 +2835,57 @@ def _is_rank_field(path: str) -> bool:
     return any(ind in lower_path for ind in rank_indicators)
 
 
+def _is_metadata_field(path: str) -> bool:
+    """Skip technical timestamps and sync metadata from auto-config."""
+    metadata_indicators = {
+        "created_at",
+        "updated_at",
+        "enriched_at",
+        "modified_at",
+        "imported_at",
+        "synced_at",
+        "fetched_at",
+        "last_updated",
+        "last_synced",
+    }
+    lower_path = path.lower()
+    leaf = lower_path.split(".")[-1]
+    return leaf in metadata_indicators
+
+
+def _is_parent_context_field(path: str) -> bool:
+    """Identify ancestor context fields that are only useful if populated."""
+    lower_path = path.lower()
+    return "parent_" in lower_path or ".parent." in lower_path
+
+
+def _is_identifier_field(path: str, group_by: Optional[str] = None) -> bool:
+    """Skip internal identifier fields from index suggestions."""
+    lower_path = path.lower()
+    leaf = _get_field_leaf_name(lower_path)
+    if leaf in {"id", "uuid"}:
+        return True
+    if leaf.endswith("_id") or leaf.startswith("id_"):
+        return True
+    if group_by and lower_path == f"{group_by.lower()}_id":
+        return True
+    return False
+
+
+def _is_enrichment_metadata_field(path: str) -> bool:
+    """Skip API-enrichment bookkeeping fields that are not user-facing content."""
+    lower_path = path.lower()
+    if "api_enrichment.sources" not in lower_path:
+        return False
+
+    leaf = lower_path.split(".")[-1]
+    if leaf in {"label", "status", "source", "provider"}:
+        return True
+    if leaf.endswith("_id") or leaf.startswith("id_") or leaf == "api_id":
+        return True
+    return False
+
+
 def _detect_terminal_ranks(values: List[str]) -> List[str]:
     """
     Detect terminal/leaf ranks from a list of rank values.
@@ -2553,6 +2912,9 @@ def _detect_terminal_ranks(values: List[str]) -> List[str]:
         # English
         "species",
         "subspecies",
+        "infra",
+        "infraspecies",
+        "infra-specific",
         "variety",
         "form",
         "cultivar",
@@ -2573,18 +2935,235 @@ def _detect_terminal_ranks(values: List[str]) -> List[str]:
     ]
 
     terminal_values = []
+    seen_values = set()
     for val in values:
         if val is None:
             continue
         lower_val = str(val).lower().strip()
         # Check if value matches any terminal pattern
-        if any(
-            pattern in lower_val or lower_val == pattern
-            for pattern in terminal_patterns
+        if (
+            any(
+                pattern in lower_val or lower_val == pattern
+                for pattern in terminal_patterns
+            )
+            and val not in seen_values
         ):
+            seen_values.add(val)
             terminal_values.append(val)
 
     return terminal_values
+
+
+def _extract_path_value_from_record(record: Dict[str, Any], path: str) -> Any:
+    """Extract a dotted path value from a DB record with JSON columns."""
+    import json
+
+    parts = path.split(".")
+    if not parts:
+        return None
+
+    current: Any = record.get(parts[0])
+    if isinstance(current, str):
+        stripped = current.strip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            try:
+                current = json.loads(stripped)
+            except json.JSONDecodeError:
+                pass
+
+    for key in parts[1:]:
+        if isinstance(current, str):
+            stripped = current.strip()
+            if stripped.startswith("{") or stripped.startswith("["):
+                try:
+                    current = json.loads(stripped)
+                except json.JSONDecodeError:
+                    return None
+        if isinstance(current, dict):
+            current = current.get(key)
+        else:
+            return None
+
+    return current
+
+
+def _load_table_records(db_path: Path, table_name: str) -> List[Dict[str, Any]]:
+    """Load full table records for richer suggestion heuristics."""
+    from niamoto.common.database import Database
+    from niamoto.common.table_resolver import quote_identifier
+    from sqlalchemy import text
+
+    db = Database(str(db_path), read_only=True)
+    try:
+        quoted_table = quote_identifier(db, table_name)
+        rows = (
+            db.session.execute(text(f"SELECT * FROM {quoted_table}")).mappings().all()
+        )
+        return [dict(row) for row in rows]
+    finally:
+        db.close_db_session()
+
+
+def _get_distinct_values_for_path(
+    records: List[Dict[str, Any]], path: str
+) -> List[Any]:
+    """Return distinct non-null values for a dotted path while preserving order."""
+    values: List[Any] = []
+    seen: set[str] = set()
+
+    for record in records:
+        value = _extract_path_value_from_record(record, path)
+        if value is None or isinstance(value, (dict, list)):
+            continue
+        normalized = str(value)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        values.append(value)
+
+    return values
+
+
+def _filter_records_by_path_values(
+    records: List[Dict[str, Any]], path: str, allowed_values: List[Any]
+) -> List[Dict[str, Any]]:
+    """Filter records by a dotted path value."""
+    allowed = {str(value) for value in allowed_values}
+    return [
+        record
+        for record in records
+        if str(_extract_path_value_from_record(record, path)) in allowed
+    ]
+
+
+def _get_path_coverage(records: List[Dict[str, Any]], path: str) -> float:
+    """Return the ratio of records with a non-empty scalar value for the path."""
+    if not records:
+        return 0.0
+
+    populated = 0
+    for record in records:
+        value = _extract_path_value_from_record(record, path)
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if isinstance(value, (dict, list)) and not value:
+            continue
+        populated += 1
+
+    return populated / len(records)
+
+
+def _resolve_join_column_for_records(
+    records: List[Dict[str, Any]], item_ids: set[Any], candidate_columns: List[str]
+) -> Optional[str]:
+    """Pick the record column whose values overlap the transformed IDs the best."""
+    best_column: Optional[str] = None
+    best_overlap = 0
+
+    for candidate in candidate_columns:
+        overlap = sum(1 for record in records if record.get(candidate) in item_ids)
+        if overlap > best_overlap:
+            best_column = candidate
+            best_overlap = overlap
+
+    return best_column
+
+
+def _build_hierarchy_context_field_analysis(
+    source_records: List[Dict[str, Any]],
+    transformed_records: List[Dict[str, Any]],
+    id_column: str,
+    terminal_item_ids: set[Any],
+    terminal_rank_values: List[Any],
+) -> Dict[str, Dict[str, Any]]:
+    """Create synthetic ancestor fields from the source hierarchy context."""
+    if not source_records or not transformed_records:
+        return {}
+
+    item_ids = {record.get(id_column) for record in transformed_records}
+    item_ids.discard(None)
+    if not item_ids:
+        return {}
+
+    join_column = _resolve_join_column_for_records(
+        source_records, item_ids, [id_column, "id"]
+    )
+    if not join_column:
+        return {}
+
+    hierarchy_metadata = detect_hierarchy_metadata(
+        source_records[0].keys(), join_field=join_column
+    )
+    if hierarchy_metadata is None:
+        return {}
+
+    hierarchy_contexts = build_hierarchy_contexts(source_records, hierarchy_metadata)
+    if not hierarchy_contexts:
+        return {}
+
+    relevant_item_ids = terminal_item_ids or set(hierarchy_contexts)
+    terminal_rank_keys = {
+        normalize_hierarchy_key(value)
+        for value in terminal_rank_values
+        if value is not None
+    }
+
+    values_by_rank: Dict[str, List[str]] = {}
+    labels_by_rank: Dict[str, str] = {}
+    distances_by_rank: Dict[str, List[int]] = {}
+
+    for item_id in relevant_item_ids:
+        context = hierarchy_contexts.get(item_id) or {}
+        for rank_key, entry in context.items():
+            if rank_key in terminal_rank_keys:
+                continue
+
+            name_value = entry.get("name")
+            if name_value in (None, ""):
+                continue
+
+            values_by_rank.setdefault(rank_key, []).append(str(name_value))
+            labels_by_rank.setdefault(rank_key, str(entry.get("rank") or rank_key))
+            distances_by_rank.setdefault(rank_key, []).append(
+                int(entry.get("distance", 0))
+            )
+
+    if not values_by_rank:
+        return {}
+
+    ordered_rank_keys = sorted(
+        values_by_rank,
+        key=lambda rank_key: (
+            sum(distances_by_rank.get(rank_key, [99]))
+            / max(len(distances_by_rank.get(rank_key, [])), 1),
+            -len(values_by_rank[rank_key]),
+            rank_key,
+        ),
+    )
+
+    synthetic_fields: Dict[str, Dict[str, Any]] = {}
+    for rank_key in ordered_rank_keys[:3]:
+        values = values_by_rank[rank_key]
+        if not values:
+            continue
+
+        unique_values = list(dict.fromkeys(values))
+        coverage = len(values) / max(len(relevant_item_ids), 1)
+        if coverage < 0.4:
+            continue
+
+        synthetic_fields[f"hierarchy_context.{rank_key}.name"] = {
+            "type": "select" if 1 < len(unique_values) <= 20 else "text",
+            "cardinality": len(set(unique_values)),
+            "sample_values": unique_values[:10],
+            "total_values": len(values),
+            "priority": "high",
+            "synthetic_label": _humanize_identifier(labels_by_rank[rank_key]),
+        }
+
+    return synthetic_fields
 
 
 def _detect_hierarchical_structure(df: Any) -> Dict[str, Any]:
@@ -3003,29 +3582,34 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 detail=f"Could not find source table for '{source_entity}'",
             )
 
-        # Check if transformed stats table exists
-        stats_table = f"{group_by}_stats"
-        transformed_table_exists = False
+        # Prefer the actual transformed output table when available.
+        transformed_table = None
 
         db = Database(str(db_path), read_only=True)
         try:
-            transformed_table_exists = db.has_table(stats_table)
+            for candidate in (group_by, f"{group_by}_stats"):
+                if db.has_table(candidate):
+                    transformed_table = candidate
+                    break
         finally:
             db.close_db_session()
 
         field_analysis = {}
+        source_df = None
+        source_records: List[Dict[str, Any]] = []
         total_count = 0
 
-        if transformed_table_exists:
+        if transformed_table:
             # Use the actual transformed data
             db = Database(str(db_path), read_only=True)
             try:
-                quoted_stats_table = quote_identifier(db, stats_table)
+                quoted_transformed_table = quote_identifier(db, transformed_table)
                 df = pd.read_sql(
-                    text(f"SELECT * FROM {quoted_stats_table} LIMIT 100"), db.engine
+                    text(f"SELECT * FROM {quoted_transformed_table} LIMIT 100"),
+                    db.engine,
                 )
                 total_count = pd.read_sql(
-                    text(f"SELECT COUNT(*) as cnt FROM {quoted_stats_table}"),
+                    text(f"SELECT COUNT(*) as cnt FROM {quoted_transformed_table}"),
                     db.engine,
                 ).iloc[0]["cnt"]
 
@@ -3043,7 +3627,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     if isinstance(sample_value, dict):
                         # Extract paths from JSON column
                         all_paths = []
-                        for row_value in values[:20]:
+                        for row_value in values:
                             if isinstance(row_value, dict):
                                 paths = _extract_json_paths(row_value, col)
                                 all_paths.extend(paths)
@@ -3059,7 +3643,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                                 path_values[path].append(value)
 
                         for path, vals in path_values.items():
-                            if len(vals) < 3:
+                            if not vals:
                                 continue
                             field_type = _detect_field_type(vals)
                             unique_vals = list(
@@ -3070,6 +3654,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                                 "cardinality": len(set(str(v) for v in vals)),
                                 "sample_values": unique_vals,
                                 "total_values": len(vals),
+                                "priority": "high",
                             }
                     else:
                         field_type = _detect_field_type(values)
@@ -3081,7 +3666,16 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                             "cardinality": len(set(str(v) for v in values)),
                             "sample_values": unique_vals,
                             "total_values": len(values),
+                            "priority": "high",
                         }
+
+                if source_table and source_table != transformed_table:
+                    quoted_source_table = quote_identifier(db, source_table)
+                    source_df = pd.read_sql(
+                        text(f"SELECT * FROM {quoted_source_table} LIMIT 100"),
+                        db.engine,
+                    )
+                    field_analysis.update(_extract_extra_data_fields(source_df))
             finally:
                 db.close_db_session()
         else:
@@ -3106,6 +3700,22 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             finally:
                 db.close_db_session()
 
+        if source_df is not None:
+            inferred_schema = _infer_schema_from_transform_config(
+                group_config, source_df
+            )
+            has_declared_transformed_paths = any(
+                not path.startswith("extra_data.") for path in inferred_schema
+            )
+            if has_declared_transformed_paths:
+                for path, info in field_analysis.items():
+                    if path in inferred_schema:
+                        info["priority"] = inferred_schema[path].get(
+                            "priority", info.get("priority", "high")
+                        )
+                    elif not path.startswith(("extra_data.", "hierarchy_context.")):
+                        info["priority"] = "low"
+
         if not field_analysis:
             return IndexFieldSuggestions(
                 display_fields=[], filters=[], total_entities=int(total_count)
@@ -3125,8 +3735,57 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         finally:
             db.close_db_session()
 
+        transformed_records: Optional[List[Dict[str, Any]]] = None
+        terminal_rank_path: Optional[str] = None
+        terminal_rank_values: List[Any] = []
+        terminal_records: List[Dict[str, Any]] = []
+        group_id_column = f"{group_by}_id"
+
+        if transformed_table and hierarchy_info["is_hierarchical"]:
+            rank_paths = [path for path in field_analysis if _is_rank_field(path)]
+            if rank_paths:
+                transformed_records = _load_table_records(db_path, transformed_table)
+                terminal_rank_path = sorted(
+                    rank_paths, key=lambda path: (".value" not in path, path)
+                )[0]
+                all_rank_values = _get_distinct_values_for_path(
+                    transformed_records, terminal_rank_path
+                )
+                terminal_rank_values = _detect_terminal_ranks(all_rank_values)
+                if terminal_rank_values:
+                    terminal_records = _filter_records_by_path_values(
+                        transformed_records, terminal_rank_path, terminal_rank_values
+                    )
+
+        if (
+            transformed_table
+            and hierarchy_info["is_hierarchical"]
+            and source_table
+            and source_table != transformed_table
+        ):
+            if transformed_records is None:
+                transformed_records = _load_table_records(db_path, transformed_table)
+            source_records = _load_table_records(db_path, source_table)
+            terminal_item_ids = {
+                record.get(group_id_column)
+                for record in terminal_records
+                if record.get(group_id_column) is not None
+            }
+            field_analysis.update(
+                _build_hierarchy_context_field_analysis(
+                    source_records=source_records,
+                    transformed_records=transformed_records,
+                    id_column=group_id_column,
+                    terminal_item_ids=terminal_item_ids,
+                    terminal_rank_values=terminal_rank_values,
+                )
+            )
+
         # Generate suggestions
-        display_fields = []
+        image_display_fields, consumed_image_paths = (
+            _build_image_display_field_suggestions(field_analysis)
+        )
+        display_fields = list(image_display_fields)
         filters = []
 
         # Track if we found a rank field with terminal values for hierarchical entities
@@ -3148,7 +3807,34 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         )
 
         for path, info in sorted_fields:
+            if path in consumed_image_paths:
+                continue
+
             priority = info.get("priority", "low")
+            field_type = info["type"]
+            link_display_metadata = _build_link_display_metadata(path, info)
+
+            if _is_metadata_field(path):
+                continue
+            if _is_enrichment_metadata_field(path):
+                continue
+            if _is_identifier_field(path, group_by):
+                continue
+
+            if (
+                field_type == "text"
+                and _is_category_field(path)
+                and 1 < info["cardinality"] <= 20
+            ):
+                field_type = "select"
+
+            if (
+                terminal_records
+                and path != terminal_rank_path
+                and _is_parent_context_field(path)
+                and _get_path_coverage(terminal_records, path) < 0.4
+            ):
+                continue
 
             # For initial suggestions, only include high priority fields
             # Low priority fields are skipped (user can add manually)
@@ -3156,38 +3842,56 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 continue
 
             # Skip if cardinality is too high for meaningful display
-            if info["type"] == "text" and info["cardinality"] > 50:
-                if not _is_name_field(path):
+            if field_type == "text" and info["cardinality"] > 50:
+                if (
+                    not _is_name_field(path)
+                    and not link_display_metadata
+                    and not path.startswith("hierarchy_context.")
+                ):
                     continue
 
             # Skip json_array types (not useful for index display)
-            if info["type"] == "json_array":
+            if field_type == "json_array":
                 continue
 
             # Create display field suggestion
-            is_searchable = _is_name_field(path)
+            is_searchable = _is_name_field(path) and not link_display_metadata
             is_filter_candidate = (
-                info["type"] in ["select", "boolean"]
+                field_type in ["select", "boolean"]
                 and info["cardinality"] <= 20
                 and info["cardinality"] >= 2
             )
 
             # Determine format
             format_hint = None
-            if info["type"] == "select":
+            if field_type == "select":
                 format_hint = "map"
-            elif info["type"] == "boolean":
+            elif field_type == "boolean":
                 format_hint = "badge"
 
-            field_name = (
-                path.split(".")[-2] if path.endswith(".value") else path.split(".")[-1]
-            )
+            field_name = _get_field_leaf_name(path)
+            field_label = _get_suggestion_label(path, info)
+            display_hint = None
+            inline_badge = False
+            link_label = None
+            link_title = None
+            link_target = None
+
+            if link_display_metadata:
+                field_name = link_display_metadata["name"]
+                field_label = link_display_metadata["label"]
+                display_hint = "link"
+                link_label = link_display_metadata["link_label"]
+                link_title = link_display_metadata["link_title"]
+                link_target = link_display_metadata["link_target"] or None
+            elif field_type == "boolean" and _should_inline_boolean_badge(path):
+                inline_badge = True
 
             display_field = SuggestedDisplayField(
                 name=field_name,
                 source=path,
-                type=info["type"],
-                label=_generate_label(path),
+                type=field_type,
+                label=field_label,
                 searchable=is_searchable,
                 cardinality=info["cardinality"],
                 sample_values=info["sample_values"],
@@ -3195,6 +3899,11 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 format=format_hint,
                 dynamic_options=is_filter_candidate and info["cardinality"] > 5,
                 priority=priority,
+                display=display_hint,
+                inline_badge=inline_badge,
+                link_label=link_label,
+                link_title=link_title,
+                link_target=link_target,
             )
             display_fields.append(display_field)
 
@@ -3210,29 +3919,11 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     and is_rank
                     and not rank_filter_added
                 ):
-                    # For rank fields, fetch ALL distinct values from source table
-                    # because sample might not include terminal ranks
-                    all_rank_values = filter_values  # Default to sample
-                    try:
-                        # Extract the column name from path (e.g., "widget.rank_name.value" -> "rank_name")
-                        rank_col = (
-                            path.split(".")[-2]
-                            if path.endswith(".value")
-                            else path.split(".")[-1]
-                        )
-                        db = Database(str(db_path), read_only=True)
-                        try:
-                            distinct_df = pd.read_sql(
-                                f"SELECT DISTINCT {rank_col} FROM {source_table} WHERE {rank_col} IS NOT NULL",
-                                db.engine,
-                            )
-                            all_rank_values = distinct_df[rank_col].tolist()
-                        finally:
-                            db.close_db_session()
-                    except Exception:
-                        pass  # Fall back to sample values
-
-                    terminal_values = _detect_terminal_ranks(all_rank_values)
+                    terminal_values = (
+                        terminal_rank_values if path == terminal_rank_path else []
+                    )
+                    if not terminal_values:
+                        terminal_values = _detect_terminal_ranks(filter_values)
                     if terminal_values:
                         # Add rank filter with terminal values pre-selected
                         filters.insert(
@@ -3240,8 +3931,9 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                             SuggestedFilter(
                                 field=path,
                                 source=path,
-                                label=_generate_label(path) + " (terminaux)",
-                                type=info["type"],
+                                label=_get_suggestion_label(path, info)
+                                + " (terminaux)",
+                                type=field_type,
                                 values=terminal_values,  # Only terminal ranks
                                 operator="in",
                             ),
@@ -3253,8 +3945,8 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     SuggestedFilter(
                         field=path,
                         source=path,
-                        label=_generate_label(path),
-                        type=info["type"],
+                        label=_get_suggestion_label(path, info),
+                        type=field_type,
                         values=filter_values,
                         operator="in",
                     )
@@ -3288,11 +3980,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         seen_filter_names: set = set()
 
         for flt in filters:
-            filter_name = (
-                flt.field.split(".")[-2]
-                if flt.field.endswith(".value")
-                else flt.field.split(".")[-1]
-            )
+            filter_name = _get_field_leaf_name(flt.field)
             is_extra_data_source = flt.source.startswith("extra_data.")
 
             if filter_name not in seen_filter_names:
@@ -3301,11 +3989,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             elif not is_extra_data_source:
                 # Replace extra_data filter with transformation filter
                 for i, existing_flt in enumerate(deduplicated_filters):
-                    existing_name = (
-                        existing_flt.field.split(".")[-2]
-                        if existing_flt.field.endswith(".value")
-                        else existing_flt.field.split(".")[-1]
-                    )
+                    existing_name = _get_field_leaf_name(existing_flt.field)
                     if existing_name == filter_name and existing_flt.source.startswith(
                         "extra_data."
                     ):

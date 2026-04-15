@@ -228,16 +228,16 @@ class IndexGeneratorDisplayField(BaseModel):
     badge_style: Optional[str] = None  # Inline CSS styles for badge
     badge_colors: Optional[Dict[str, str]] = None  # Map values to CSS classes
     badge_styles: Optional[Dict[str, str]] = None  # Map values to inline styles
-    true_label: Optional[str] = None  # Label for boolean=true
-    false_label: Optional[str] = None  # Label for boolean=false
+    true_label: Optional[LocalizedString] = None  # Label for boolean=true
+    false_label: Optional[LocalizedString] = None  # Label for boolean=false
     tooltip_mapping: Optional[Dict[str, str]] = None  # Tooltips for mapped values
 
     # Link-specific fields (for display="link")
     link_template: Optional[str] = (
         None  # URL template with placeholders (e.g., "https://example.com/{value}")
     )
-    link_label: Optional[str] = None  # Link text label
-    link_title: Optional[str] = None  # Link title attribute (tooltip)
+    link_label: Optional[LocalizedString] = None  # Link text label
+    link_title: Optional[LocalizedString] = None  # Link title attribute (tooltip)
     link_target: Optional[str] = None  # Link target (_blank, _self, etc.)
     css_class: Optional[str] = None  # CSS classes for styling
     css_style: Optional[str] = None  # Inline CSS styles
