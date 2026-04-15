@@ -7,7 +7,7 @@
  * - Index generator summary and editorial labels
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Folder,
@@ -80,10 +80,6 @@ export function GroupPageViewer({
   const [draftIndexConfig, setDraftIndexConfig] = useState<GroupIndexConfig | null>(
     indexConfig ? cloneIndexConfig(indexConfig) : null
   )
-
-  useEffect(() => {
-    setDraftIndexConfig(indexConfig ? cloneIndexConfig(indexConfig) : null)
-  }, [indexConfig])
 
   const editableIndexConfig = draftIndexConfig ?? indexConfig ?? null
 
