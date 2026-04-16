@@ -58,7 +58,7 @@ Pour développer et tester :
 
 **Terminal 1** - FastAPI :
 ```bash
-python scripts/dev_api.py --instance test-instance/niamoto-nc
+uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 ```
 
 **Terminal 2** - Tauri :

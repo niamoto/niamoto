@@ -11,7 +11,11 @@ import pandas as pd
 import yaml
 from fastapi.testclient import TestClient
 
-from niamoto.gui.api.routers.config import _extract_extra_data_fields
+from niamoto.gui.api.routers import config as config_router
+from niamoto.gui.api.routers.config import (
+    _analyze_dataframe_fields,
+    _extract_extra_data_fields,
+)
 from niamoto.gui.api.app import create_app
 
 
@@ -75,6 +79,26 @@ def test_extract_extra_data_fields_keeps_legacy_flat_enrichment_paths():
     assert "extra_data.api_enrichment.api_id" in schema
     assert "extra_data.api_enrichment.rank_name" in schema
     assert "extra_data.enriched_at" in schema
+
+
+def test_analyze_dataframe_fields_expands_dict_paths_even_when_first_value_is_not_a_dict():
+    df = pd.DataFrame(
+        {
+            "mixed_json": [
+                '["ignored"]',
+                '{"nested":{"label":"Abebaia"}}',
+                '{"nested":{"label":"Pycnandra"}}',
+            ]
+        }
+    )
+
+    schema = _analyze_dataframe_fields(df)
+
+    assert "mixed_json.nested.label" in schema
+    assert schema["mixed_json.nested.label"]["sample_values"] == [
+        "Abebaia",
+        "Pycnandra",
+    ]
 
 
 def test_update_index_generator_accepts_localized_strings(tmp_path: Path):
@@ -951,9 +975,15 @@ def test_index_suggestions_fallback_to_reference_fields_without_transformed_tabl
     finally:
         conn.close()
 
-    with patch(
-        "niamoto.gui.api.routers.config.get_working_directory",
-        return_value=project_dir,
+    with (
+        patch(
+            "niamoto.gui.api.routers.config.get_working_directory",
+            return_value=project_dir,
+        ),
+        patch(
+            "niamoto.gui.api.routers.config._load_table_records",
+            wraps=config_router._load_table_records,
+        ) as load_table_records,
     ):
         client = TestClient(create_app())
         response = client.get("/api/config/export/taxons/index-generator/suggestions")
@@ -975,6 +1005,27 @@ def test_index_suggestions_fallback_to_reference_fields_without_transformed_tabl
         flt for flt in payload["filters"] if flt["source"] == "rank_name"
     )
     assert rank_filter["values"] == ["species", "infra"]
+
+    entity_taxons_calls = [
+        call
+        for call in load_table_records.call_args_list
+        if call.args[1] == "entity_taxons"
+    ]
+    assert entity_taxons_calls
+
+    loaded_column_sets = [set(call.kwargs["columns"]) for call in entity_taxons_calls]
+    assert {"rank_name", "taxons_id", "id"} in loaded_column_sets
+    assert {
+        "id",
+        "taxons_id",
+        "full_name",
+        "rank_name",
+        "parent_id",
+        "lft",
+        "rght",
+    } in loaded_column_sets
+    assert all("extra_data" not in columns for columns in loaded_column_sets)
+    assert all("level" not in columns for columns in loaded_column_sets)
 
 
 def test_index_suggestions_infer_future_paths_before_first_transform_run(

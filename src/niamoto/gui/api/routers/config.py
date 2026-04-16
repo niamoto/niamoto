@@ -2769,13 +2769,12 @@ def _analyze_dataframe_fields(
         if not values:
             continue
 
-        sample_value = values[0]
+        dict_values = [value for value in values if isinstance(value, dict)]
 
-        if isinstance(sample_value, dict):
+        if dict_values:
             all_paths: List[tuple[str, Any]] = []
-            for row_value in values:
-                if isinstance(row_value, dict):
-                    all_paths.extend(_extract_json_paths(row_value, col))
+            for row_value in dict_values:
+                all_paths.extend(_extract_json_paths(row_value, col))
 
             path_values: Dict[str, List[Any]] = {}
             for path, value in all_paths:
@@ -2813,6 +2812,53 @@ def _analyze_dataframe_fields(
         }
 
     return field_analysis
+
+
+def _get_path_root(path: str) -> str:
+    """Return the column name that stores the root of a dotted path."""
+    return path.split(".", 1)[0]
+
+
+def _deduplicate_columns(columns: List[str]) -> List[str]:
+    """Preserve column order while removing empty and duplicate names."""
+    unique_columns: List[str] = []
+    seen_columns: set[str] = set()
+
+    for column in columns:
+        if not column or column in seen_columns:
+            continue
+        seen_columns.add(column)
+        unique_columns.append(column)
+
+    return unique_columns
+
+
+def _get_hierarchy_record_columns(
+    available_columns: List[str], *, join_candidates: List[str]
+) -> List[str]:
+    """Select the minimal set of hierarchy columns needed for context inference."""
+    selected_columns = [
+        column for column in join_candidates if column in set(available_columns)
+    ]
+    hierarchy_metadata = detect_hierarchy_metadata(available_columns)
+    if hierarchy_metadata is None:
+        return _deduplicate_columns(selected_columns)
+
+    selected_columns.extend(
+        [
+            hierarchy_metadata.id_field,
+            hierarchy_metadata.rank_field,
+            hierarchy_metadata.name_field,
+        ]
+    )
+    if hierarchy_metadata.parent_field:
+        selected_columns.append(hierarchy_metadata.parent_field)
+    if hierarchy_metadata.left_field:
+        selected_columns.append(hierarchy_metadata.left_field)
+    if hierarchy_metadata.right_field:
+        selected_columns.append(hierarchy_metadata.right_field)
+
+    return _deduplicate_columns(selected_columns)
 
 
 def _detect_field_type(values: List[Any]) -> str:
@@ -3073,8 +3119,13 @@ def _extract_path_value_from_record(record: Dict[str, Any], path: str) -> Any:
     return current
 
 
-def _load_table_records(db_path: Path, table_name: str) -> List[Dict[str, Any]]:
-    """Load full table records for richer suggestion heuristics."""
+def _load_table_records(
+    db_path: Path,
+    table_name: str,
+    *,
+    columns: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Load table records, optionally selecting only the requested columns."""
     from niamoto.common.database import Database
     from niamoto.common.table_resolver import quote_identifier
     from sqlalchemy import text
@@ -3082,8 +3133,16 @@ def _load_table_records(db_path: Path, table_name: str) -> List[Dict[str, Any]]:
     db = Database(str(db_path), read_only=True)
     try:
         quoted_table = quote_identifier(db, table_name)
+        if columns:
+            quoted_columns = ", ".join(
+                quote_identifier(db, column) for column in _deduplicate_columns(columns)
+            )
+        else:
+            quoted_columns = "*"
         rows = (
-            db.session.execute(text(f"SELECT * FROM {quoted_table}")).mappings().all()
+            db.session.execute(text(f"SELECT {quoted_columns} FROM {quoted_table}"))
+            .mappings()
+            .all()
         )
         return [dict(row) for row in rows]
     finally:
@@ -3683,6 +3742,8 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         field_analysis = {}
         inferred_schema: Dict[str, Dict[str, Any]] = {}
         source_df = None
+        source_columns: List[str] = []
+        transformed_columns: List[str] = []
         source_records: List[Dict[str, Any]] = []
         total_count = 0
 
@@ -3695,6 +3756,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     text(f"SELECT * FROM {quoted_transformed_table} LIMIT 100"),
                     db.engine,
                 )
+                transformed_columns = list(df.columns)
                 total_count = pd.read_sql(
                     text(f"SELECT COUNT(*) as cnt FROM {quoted_transformed_table}"),
                     db.engine,
@@ -3708,6 +3770,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                         text(f"SELECT * FROM {quoted_source_table} LIMIT 100"),
                         db.engine,
                     )
+                    source_columns = list(source_df.columns)
                     field_analysis.update(_extract_extra_data_fields(source_df))
             finally:
                 db.close_db_session()
@@ -3720,6 +3783,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     text(f"SELECT * FROM {quoted_source_table} LIMIT 100"),
                     db.engine,
                 )
+                source_columns = list(source_df.columns)
                 total_count = pd.read_sql(
                     text(f"SELECT COUNT(*) as cnt FROM {quoted_source_table}"),
                     db.engine,
@@ -3789,6 +3853,8 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             check_df = pd.read_sql(
                 text(f"SELECT * FROM {quoted_source_table} LIMIT 10"), db.engine
             )
+            if not source_columns:
+                source_columns = list(check_df.columns)
             hierarchy_info = _detect_hierarchical_structure(check_df)
         except Exception:
             pass
@@ -3797,6 +3863,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         transformed_records: Optional[List[Dict[str, Any]]] = None
         terminal_rank_path: Optional[str] = None
+        record_rank_path: Optional[str] = None
         terminal_rank_values: List[Any] = []
         terminal_records: List[Dict[str, Any]] = []
         group_id_column = f"{group_by}_id"
@@ -3805,13 +3872,28 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             rank_paths = [path for path in field_analysis if _is_rank_field(path)]
             if rank_paths:
                 records_table = transformed_table or source_table
-                transformed_records = _load_table_records(db_path, records_table)
                 terminal_rank_path = sorted(
                     rank_paths, key=lambda path: (".value" not in path, path)
                 )[0]
                 record_rank_path = (
                     field_analysis.get(terminal_rank_path, {}).get("source_column")
                     or terminal_rank_path
+                )
+                available_record_columns = (
+                    transformed_columns
+                    if records_table == transformed_table
+                    else source_columns
+                )
+                transformed_records = _load_table_records(
+                    db_path,
+                    records_table,
+                    columns=[
+                        column
+                        for column in _deduplicate_columns(
+                            [_get_path_root(record_rank_path), group_id_column, "id"]
+                        )
+                        if column in set(available_record_columns)
+                    ],
                 )
                 all_rank_values = _get_distinct_values_for_path(
                     transformed_records, record_rank_path
@@ -3826,7 +3908,13 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         if hierarchy_info["is_hierarchical"] and source_table:
             if not source_records:
-                source_records = _load_table_records(db_path, source_table)
+                source_records = _load_table_records(
+                    db_path,
+                    source_table,
+                    columns=_get_hierarchy_record_columns(
+                        source_columns, join_candidates=[group_id_column, "id"]
+                    ),
+                )
 
             hierarchy_transformed_records: List[Dict[str, Any]] = []
             hierarchy_id_column = group_id_column
@@ -3834,7 +3922,18 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             if transformed_table and source_table != transformed_table:
                 if transformed_records is None:
                     transformed_records = _load_table_records(
-                        db_path, transformed_table
+                        db_path,
+                        transformed_table,
+                        columns=[
+                            column
+                            for column in _deduplicate_columns(
+                                [
+                                    _get_path_root(record_rank_path or ""),
+                                    group_id_column,
+                                ]
+                            )
+                            if column in set(transformed_columns)
+                        ],
                     )
                 hierarchy_transformed_records = transformed_records
             else:

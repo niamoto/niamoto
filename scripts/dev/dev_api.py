@@ -8,15 +8,15 @@ the instance directory.
 
 Usage:
     # Using command-line argument
-    python scripts/dev_api.py --instance test-instance/niamoto-nc
+    uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 
     # Using environment variable
     export NIAMOTO_HOME=/path/to/instance
-    python scripts/dev_api.py
+    uv run python scripts/dev/dev_api.py
 
     # From the instance directory (auto-detect)
     cd test-instance/niamoto-nc
-    python ../../scripts/dev_api.py
+    uv run python ../../scripts/dev/dev_api.py
 """
 
 import os

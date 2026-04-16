@@ -38,8 +38,10 @@ pip install niamoto[all]
 ```bash
 git clone https://github.com/niamoto/niamoto.git
 cd niamoto
-pip install -e ".[dev]"
+pip install -e .
 ```
+
+For contributor tooling such as Ruff, MyPy, pytest, and pre-commit, prefer the `uv` workflow below.
 
 ## Installation via uv (recommended)
 
@@ -66,7 +68,15 @@ uv pip install niamoto
 ```bash
 git clone https://github.com/niamoto/niamoto.git
 cd niamoto
-uv pip install -e ".[dev]"
+uv venv
+source .venv/bin/activate
+uv sync --group dev
+```
+
+If you also build the documentation regularly:
+
+```bash
+uv sync --group dev --extra docs
 ```
 
 ## Verify Installation

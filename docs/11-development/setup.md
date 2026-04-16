@@ -38,14 +38,18 @@ source .venv/bin/activate
 ### 4. Install Niamoto in Development Mode
 
 ```bash
-uv pip install -e ".[dev]"
+uv sync --group dev
 ```
 
-The `-e` flag installs the package in editable mode, meaning source code changes are immediately reflected without needing to reinstall the package.
+`uv sync` installs the project in editable mode together with the selected dependency groups. If you build documentation frequently, you can also sync the documentation extra once:
+
+```bash
+uv sync --group dev --extra docs
+```
 
 ## Managing Multiple Niamoto Installations
 
-When using `uv pip install -e .`, you may have multiple Niamoto installations on your system:
+When working on the project locally, you may have multiple Niamoto installations on your system:
 
 - **Editable installation**: Installed in your project's virtual environment (e.g., `.venv/lib/python3.12/site-packages`)
 - **Global installation**: May exist if previously installed with `pip install niamoto` or `pipx install niamoto`
@@ -78,29 +82,29 @@ The development installation includes several tools for maintaining code quality
 - **mypy**: For static type checking
 - **pytest**: For running tests
 - **ruff**: For linting and formatting
-- **sphinx**: For building documentation
+- **sphinx**: For building documentation via the `docs` extra
 
 ### Running Code Quality Checks
 
 ```bash
 # Type checking
-mypy src/niamoto
+uv run --group dev mypy src/niamoto
 
 # Linting and formatting
-ruff check src/ --fix
-ruff format src/
+uv run --group dev ruff check src/ --fix
+uv run --group dev ruff format src/
 
 # Running tests
-pytest
-pytest --cov=src --cov-report html  # With coverage report
+uv run --group dev pytest
+uv run --group dev pytest --cov=src --cov-report html  # With coverage report
 ```
 
 ### Building Documentation
 
 ```bash
 cd docs
-sphinx-apidoc -o . ../src/niamoto
-make html
+uv run --group dev --extra docs sphinx-apidoc -o . ../src/niamoto
+uv run --group dev --extra docs make html
 ```
 
 ## Development Workflow
@@ -122,16 +126,16 @@ git checkout -b feature/your-feature-name
 
 ```bash
 # Format your code
-ruff format src/
+uv run --group dev ruff format src/
 
 # Check for linting issues
-ruff check src/ --fix
+uv run --group dev ruff check src/ --fix
 
 # Run type checking
-mypy src/niamoto
+uv run --group dev mypy src/niamoto
 
 # Run tests
-pytest
+uv run --group dev pytest
 ```
 
 ### 4. Commit Your Changes
@@ -139,7 +143,7 @@ pytest
 Use the smart commit script for automatic pre-commit checks:
 
 ```bash
-./scripts/smart_commit.sh "feat: add new feature"
+./scripts/dev/smart_commit.sh "feat: add new feature"
 ```
 
 Or commit manually:
@@ -162,13 +166,13 @@ Then create a pull request on GitHub.
 ### Generate Requirements Files
 
 ```bash
-python scripts/generate_requirements.py
+uv run python scripts/build/generate_requirements.py
 ```
 
 ### Build Tailwind CSS
 
 ```bash
-python scripts/build_tailwind_standalone.py
+uv run python scripts/build/build_tailwind_standalone.py
 ```
 
 ### Publish to PyPI
@@ -181,7 +185,7 @@ PyPI publication is automated via GitHub Actions. Creating a GitHub Release trig
 
 If you encounter import errors, ensure:
 1. Your virtual environment is activated
-2. You've installed in editable mode (`-e` flag)
+2. You've synced the project dependencies with `uv sync --group dev`
 3. You're running from the project root directory
 
 ### Type Checking Errors

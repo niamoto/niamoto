@@ -24,17 +24,17 @@ cd niamoto
 
 # Install dependencies
 uv venv
-uv pip install -e ".[dev]"
+uv sync --group dev
 
 # Install GUI dependencies
 cd src/niamoto/gui/ui
 pnpm install
 
 # Run tests
-uv run pytest
+uv run --group dev pytest
 
 # Start development
-niamoto gui --reload
+uv run niamoto gui --reload
 ```
 
 ## 🧪 Testing
@@ -42,25 +42,25 @@ niamoto gui --reload
 ### Run Tests
 ```bash
 # All tests
-uv run pytest
+uv run --group dev pytest
 
 # Specific test
-uv run pytest tests/core/test_import.py -v
+uv run --group dev pytest tests/core/test_import.py -v
 
 # With coverage
-uv run pytest --cov=niamoto
+uv run --group dev pytest --cov=niamoto
 ```
 
 ### Code Quality
 ```bash
 # Type checking
-mypy src/niamoto
+uv run --group dev mypy src/niamoto
 
 # Linting
-ruff check src/ --fix
+uv run --group dev ruff check src/ --fix
 
 # Formatting
-ruff format src/
+uv run --group dev ruff format src/
 ```
 
 ## 📝 Development Workflow
@@ -75,16 +75,16 @@ ruff format src/
 
 ```bash
 # Generate requirements
-python scripts/generate_requirements.py
+uv run python scripts/build/generate_requirements.py
 
 # Build Tailwind CSS
-python scripts/build_tailwind_standalone.py
+uv run python scripts/build/build_tailwind_standalone.py
 
 # Smart commit with pre-commit
-./scripts/smart_commit.sh "message"
+./scripts/dev/smart_commit.sh "message"
 
 # Build documentation
-cd docs && sphinx-apidoc -o . ../src/niamoto && make html
+cd docs && uv run --group dev --extra docs sphinx-apidoc -o . ../src/niamoto && uv run --group dev --extra docs make html
 ```
 
 ## 🔗 Related Documentation
