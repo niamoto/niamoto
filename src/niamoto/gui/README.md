@@ -68,7 +68,7 @@ http://127.0.0.1:5173
 Backend:
 
 ```bash
-python scripts/dev_api.py --instance test-instance/niamoto-nc
+uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 ```
 
 Frontend:

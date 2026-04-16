@@ -17,10 +17,10 @@ Thank you for your interest in contributing to Niamoto! This document provides g
    # Using uv (recommended)
    uv venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   uv pip install -e ".[dev]"
+   uv sync --group dev
 
    # Install pre-commit hooks
-   pre-commit install
+   uv run --group dev pre-commit install
    ```
 
 3. **Set up GUI development (if working on the interface)**
@@ -46,23 +46,23 @@ git checkout -b fix/your-bug-fix
 ### 3. Test your changes
 ```bash
 # Run tests
-uv run pytest
+uv run --group dev pytest
 
 # Run specific test
-uv run pytest tests/path/to/test.py -v
+uv run --group dev pytest tests/path/to/test.py -v
 
 # Check type hints
-mypy src/niamoto
+uv run --group dev mypy src/niamoto
 
 # Lint and format
-ruff check src/ --fix
-ruff format src/
+uv run --group dev ruff check src/ --fix
+uv run --group dev ruff format src/
 ```
 
 ### 4. Commit your changes
 ```bash
 # Use the smart commit script (recommended)
-./scripts/smart_commit.sh "feat: add new feature"
+./scripts/dev/smart_commit.sh "feat: add new feature"
 
 # Or commit manually
 git add .

@@ -5,11 +5,11 @@ Complete reference for all development commands. For quick reference, see [CLAUD
 ## Testing & Quality
 
 ```bash
-uv run pytest                              # Run all tests
-uv run pytest tests/path/test_file.py -v   # Run specific test
-mypy src/niamoto                           # Type checking
-ruff check src/ --fix                      # Lint with auto-fix
-ruff format src/                           # Format code
+uv run --group dev pytest                              # Run all tests
+uv run --group dev pytest tests/path/test_file.py -v   # Run specific test
+uv run --group dev mypy src/niamoto                    # Type checking
+uv run --group dev ruff check src/ --fix               # Lint with auto-fix
+uv run --group dev ruff format src/                    # Format code
 ```
 
 ## Database Commands
@@ -40,7 +40,7 @@ uv run python scripts/data/query_db.py --interactive                   # SQL REP
 
 ```bash
 # Terminal 1: Backend
-python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
+uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 
 # Terminal 2: Frontend
 cd src/niamoto/gui/ui && pnpm run dev
@@ -51,7 +51,7 @@ cd src/niamoto/gui/ui && pnpm run dev
 ```bash
 cd src/niamoto/gui/ui && pnpm install      # Install dependencies
 cd src/niamoto/gui/ui && pnpm run build    # Build for production
-niamoto gui --port 8080 --no-browser       # Launch (serves from dist/)
+uv run niamoto gui --port 8080 --no-browser  # Launch (serves from dist/)
 ```
 
 ### Instance Context
@@ -64,10 +64,10 @@ The GUI determines which instance to use in this order:
 ## Build & Publish
 
 ```bash
-python scripts/build/generate_requirements.py   # Generate requirements.txt
-python scripts/build/build_tailwind_standalone.py  # Build Tailwind CSS
+uv run python scripts/build/generate_requirements.py   # Generate requirements.txt
+uv run python scripts/build/build_tailwind_standalone.py  # Build Tailwind CSS
 # PyPI publish is automated via GitHub Actions (publish-pypi.yml)
-cd docs && sphinx-apidoc -o . ../src/niamoto && make html  # Build docs
+cd docs && uv run --group dev --extra docs sphinx-apidoc -o . ../src/niamoto && uv run --group dev --extra docs make html  # Build docs
 ```
 
 ## Git Workflow

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Script to generate requirements.txt and requirements-dev.txt files."""
+"""Script to generate requirements.txt and dev-requirements.txt files."""
 
 import subprocess
 import sys
@@ -52,7 +52,7 @@ def main() -> int:
     print("Generating main requirements.txt...")
     run_command(["uv", "pip", "compile", "pyproject.toml", "-o", "requirements.txt"])
 
-    # Generate requirements-dev.txt
+    # Generate dev-requirements.txt from the shared development dependency group.
     print("Generating dev-requirements.txt...")
     run_command(
         [
@@ -60,7 +60,7 @@ def main() -> int:
             "pip",
             "compile",
             "pyproject.toml",
-            "--extra",
+            "--group",
             "dev",
             "-o",
             "dev-requirements.txt",

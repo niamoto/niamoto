@@ -47,23 +47,23 @@ Python environment:
 
 ```bash
 uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --group dev
 ```
 
 Useful project commands:
 
 ```bash
 uv run niamoto --help
-pytest
-pytest -m "not integration"
+uv run --group dev pytest
+uv run --group dev pytest -m "not integration"
 uv run tox -e py312
 ```
 
 GUI development:
 
 ```bash
-./scripts/dev_gui.sh test-instance/niamoto-nc
-python scripts/dev_api.py --instance test-instance/niamoto-nc
+./scripts/dev/dev_web.sh test-instance/niamoto-nc
+uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 cd src/niamoto/gui/ui && pnpm dev
 cd src/niamoto/gui/ui && pnpm build
 ```
@@ -71,7 +71,7 @@ cd src/niamoto/gui/ui && pnpm build
 If you change GUI styling that depends on the standalone Tailwind bundle, run:
 
 ```bash
-python scripts/build_tailwind_standalone.py
+uv run python scripts/build/build_tailwind_standalone.py
 ```
 
 ## Coding Conventions

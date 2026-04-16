@@ -141,69 +141,7 @@ Documentation = "https://github.com/niamoto/niamoto#readme"
 niamoto = "niamoto.cli:cli"
 
 [project.optional-dependencies]
-dev = [
-    # -------------
-    # Type Stubs
-    # -------------
-    # Type stubs for runtime dependencies
-    "types-shapely>=2.0.0",
-    "types-click>=7.1.8",
-    "types-tabulate>=0.9.0.3",
-    "types-pluggy>=1.2.0.2",
-    "pandas-stubs>=2.1.1.230928",
-    "types-pyyaml>=6.0.12.20240311",
-
-    # -------------
-    # Testing Tools
-    # -------------
-
-    # pytest - A mature full-featured Python testing tool.
-    # Documentation: https://docs.pytest.org/
-    "pytest>=7.4.3",
-
-    # pytest-cov - Plugin for pytest that measures code coverage during test execution.
-    # Documentation: https://pytest-cov.readthedocs.io/
-    "pytest-cov>=4.1.0",
-
-    # pytest-mock - Thin-wrapper around the mock package for easier use with pytest.
-    # Documentation: https://github.com/pytest-dev/pytest-mock
-    "pytest-mock>=3.12.0",
-
-    # requests-mock - Mock HTTP requests made by the requests library.
-    # Documentation: https://requests-mock.readthedocs.io/
-    "requests-mock>=1.12.1",
-
-    # hypothesis - Library for property-based testing.
-    # Documentation: https://hypothesis.readthedocs.io/
-    "hypothesis>=6.88.3",
-
-    # -------------
-    # Linting & Formatting
-    # -------------
-
-    # An extremely fast Python linter and code formatter, written in Rust.
-    # Documentation: https://docs.astral.sh/ruff/
-    "ruff>=0.1.5",
-
-    # ----------------
-    # Type Checking
-    # ----------------
-
-    # mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
-    # Documentation: http://mypy-lang.org/
-    "mypy>=1.19.1",
-    # SQLAlchemy typing helpers stay in dev-only dependencies; the desktop runtime
-    # does not need mypy or its compiled mypyc payload.
-    "sqlalchemy[mypy]>=2.0.44",
-
-    # ----------------------------
-    # Development Utilities
-    # ----------------------------
-
-    # pre-commit - Framework for managing multi-language pre-commit hooks.
-    # Documentation: https://pre-commit.com/
-    "pre-commit>=4.5.1",
-
+docs = [
     # ------------------
     # Documentation Tools
     # ------------------
@@ -222,31 +160,36 @@ dev = [
     # pyperclip - Cross-platform Python module for copy and paste clipboard functions.
     # Documentation: https://pypi.org/project/pyperclip/
     "pyperclip>=1.8.2",
-    "pathspec>=0.11.2",
-    "pytest-stub>=1.1.0",
-
-    # ----------------------------
-    # Additional Development Tools
-    # ----------------------------
-
-    # ipython - Advanced interactive Python shell.
-    # Documentation: https://ipython.org/
-    "ipython>=8.17.2",
-    "setuptools>=75.8.0",
-    "bump2version>=1.0.1"
 ]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [dependency-groups]
 dev = [
     "bump2version>=1.0.1",
+    "hypothesis>=6.88.3",
+    "ipython>=8.17.2",
+    "mypy>=1.19.1",
+    "pandas-stubs>=2.1.1.230928",
+    "pathspec>=0.11.2",
     "pre-commit>=4.5.1",
     "pytest>=8.4.1,<9.0.0",
     "pytest-cov>=7.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.15.0",
+    "pytest-stub>=1.1.0",
     "pytest-xdist>=3.5.0",
     "requests-mock>=1.12.1",
+    "ruff>=0.1.5",
+    "setuptools>=75.8.0",
+    "sqlalchemy[mypy]>=2.0.44",
     "tox>=4.52.0",
+    "types-click>=7.1.8",
+    "types-pluggy>=1.2.0.2",
+    "types-pyyaml>=6.0.12.20240311",
+    "types-shapely>=2.0.0",
+    "types-tabulate>=0.9.0.3",
 ]
 
 [tool.hatch.build.targets.wheel]

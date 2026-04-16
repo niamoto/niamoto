@@ -25,7 +25,7 @@ Typical workflow:
 Or manually:
 
 ```bash
-python scripts/dev_api.py --instance test-instance/niamoto-nc
+uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 cd src/niamoto/gui/ui && pnpm dev
 ```
 

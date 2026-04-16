@@ -115,7 +115,7 @@ pip install niamoto
 git clone https://github.com/niamoto/niamoto.git
 cd niamoto
 uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --group dev
 ```
 
 📋 **[Detailed Installation Guide](docs/01-getting-started/installation.md)**
