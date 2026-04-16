@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles, FileCode, Globe, Package, ExternalLink } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,11 +37,53 @@ function asDisplayText(value: unknown): string {
   return String(value)
 }
 
+function isStructuredValue(value: unknown): value is Record<string, unknown> | unknown[] {
+  return typeof value === 'object' && value !== null
+}
+
+function stringifyStructuredValue(value: Record<string, unknown> | unknown[]): string {
+  return JSON.stringify(
+    value,
+    (_key, nestedValue) => (typeof nestedValue === 'bigint' ? nestedValue.toString() : nestedValue),
+    2
+  )
+}
+
+function getStructuredValuePreview(value: Record<string, unknown> | unknown[]): string {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '[]'
+    }
+
+    const preview = value
+      .slice(0, 2)
+      .map((item) => (typeof item === 'object' && item !== null ? '{…}' : String(item)))
+      .join(', ')
+
+    return `[${preview}${value.length > 2 ? ', …' : ''}]`
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length === 0) {
+    return '{}'
+  }
+
+  const preview = entries
+    .slice(0, 2)
+    .map(([key, nestedValue]) =>
+      `${key}: ${typeof nestedValue === 'object' && nestedValue !== null ? '{…}' : String(nestedValue)}`
+    )
+    .join(', ')
+
+  return `{ ${preview}${entries.length > 2 ? ', …' : ''} }`
+}
+
 export function DataExplorer() {
   const { t } = useTranslation(['tools', 'common'])
   const navigate = useNavigate()
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState<string | undefined>(undefined)
   const [tables, setTables] = useState<TableInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null)
@@ -60,6 +103,11 @@ export function DataExplorer() {
   const [jsonViewerModal, setJsonViewerModal] = useState(false)
   const [selectedJsonFile, setSelectedJsonFile] = useState<ExportFileContent | null>(null)
   const [jsonFileLoading, setJsonFileLoading] = useState(false)
+  const [jsonCellViewerOpen, setJsonCellViewerOpen] = useState(false)
+  const [selectedJsonCell, setSelectedJsonCell] = useState<{
+    column: string
+    value: Record<string, unknown> | unknown[]
+  } | null>(null)
 
   const loadExports = useCallback(async () => {
     setExportsLoading(true)
@@ -87,7 +135,7 @@ export function DataExplorer() {
     }
   }, [t])
 
-  const loadTableData = useCallback(async () => {
+  const loadTableData = useCallback(async (whereClause: string | undefined = appliedQuery) => {
     if (!selectedTable) return
 
     setQuerying(true)
@@ -96,7 +144,7 @@ export function DataExplorer() {
         table: selectedTable,
         limit: pageSize,
         offset: currentPage * pageSize,
-        where: searchQuery || undefined
+        where: whereClause
       })
       setQueryResult(result)
     } catch (error) {
@@ -105,7 +153,7 @@ export function DataExplorer() {
     } finally {
       setQuerying(false)
     }
-  }, [currentPage, searchQuery, selectedTable, t])
+  }, [appliedQuery, currentPage, selectedTable, t])
 
   // Load tables on mount
   useEffect(() => {
@@ -136,7 +184,7 @@ export function DataExplorer() {
     }
   }
 
-  // Load query results when table changes
+  // Load query results when table, page, or applied query changes
   useEffect(() => {
     if (selectedTable) {
       void loadTableData()
@@ -144,16 +192,23 @@ export function DataExplorer() {
   }, [loadTableData, selectedTable])
 
   const handleSearch = () => {
+    const nextQuery = searchQuery.trim() || undefined
+    const queryChanged = nextQuery !== appliedQuery
+
+    setAppliedQuery(nextQuery)
     if (currentPage !== 0) {
       setCurrentPage(0)
       return
     }
-    void loadTableData()
+    if (!queryChanged) {
+      void loadTableData(nextQuery)
+    }
   }
 
   const handleTableSelect = (tableName: string) => {
     setSelectedTable(tableName)
     setSearchQuery('')
+    setAppliedQuery(undefined)
     setCurrentPage(0)
     setQueryResult(null)
   }
@@ -173,6 +228,11 @@ export function DataExplorer() {
     } finally {
       setEnrichmentLoading(false)
     }
+  }
+
+  const handleJsonCellClick = (column: string, value: Record<string, unknown> | unknown[]) => {
+    setSelectedJsonCell({ column, value })
+    setJsonCellViewerOpen(true)
   }
 
   const enrichmentImages = Array.isArray(enrichmentData?.api_enrichment.images)
@@ -246,22 +306,44 @@ export function DataExplorer() {
                   <button
                     key={table.name}
                     onClick={() => handleTableSelect(table.name)}
-                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    className={cn(
+                      'w-full rounded-lg border p-3 text-left transition-colors',
                       selectedTable === table.name
-                        ? 'bg-accent border-accent-foreground/20'
-                        : 'hover:bg-muted border-transparent'
-                    }`}
+                        ? 'border-primary/20 bg-primary/10 text-primary'
+                        : 'border-transparent hover:bg-muted'
+                    )}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Table className="h-4 w-4 text-muted-foreground" />
+                        <Table
+                          className={cn(
+                            'h-4 w-4',
+                            selectedTable === table.name
+                              ? 'text-primary/80'
+                              : 'text-muted-foreground'
+                          )}
+                        />
                         <span className="font-medium">{table.name}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">
+                      <span
+                        className={cn(
+                          'text-sm',
+                          selectedTable === table.name
+                            ? 'text-primary/70'
+                            : 'text-muted-foreground'
+                        )}
+                      >
                         {table.count.toLocaleString()}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p
+                      className={cn(
+                        'mt-1 text-xs',
+                        selectedTable === table.name
+                          ? 'text-primary/70'
+                          : 'text-muted-foreground'
+                      )}
+                    >
                       {table.description}
                     </p>
                   </button>
@@ -289,7 +371,10 @@ export function DataExplorer() {
                       placeholder={t('dataExplorer.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       className="flex-1"
                     />
                     <Button onClick={handleSearch} disabled={querying}>
@@ -387,9 +472,24 @@ export function DataExplorer() {
                               {queryResult.columns.map((col) => (
                                 <td key={col} className="px-4 py-2 whitespace-nowrap">
                                   {row[col] !== null && row[col] !== undefined
-                                    ? String(row[col]).length > 100
-                                      ? String(row[col]).substring(0, 100) + '...'
-                                      : String(row[col])
+                                    ? isStructuredValue(row[col])
+                                      ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleJsonCellClick(col, row[col] as Record<string, unknown> | unknown[])}
+                                          className="inline-flex max-w-[280px] flex-col items-start gap-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-left transition-colors hover:bg-muted"
+                                        >
+                                          <span className="max-w-full truncate font-mono text-xs text-foreground">
+                                            {getStructuredValuePreview(row[col] as Record<string, unknown> | unknown[])}
+                                          </span>
+                                          <span className="text-[11px] text-muted-foreground">
+                                            {t('dataExplorer.viewJson', 'Voir JSON')}
+                                          </span>
+                                        </button>
+                                      )
+                                      : String(row[col]).length > 100
+                                        ? String(row[col]).substring(0, 100) + '...'
+                                        : String(row[col])
                                     : <span className="text-muted-foreground italic">null</span>
                                   }
                                 </td>
@@ -782,6 +882,53 @@ export function DataExplorer() {
               {t('dataExplorer.noDataAvailable')}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Query Result JSON Cell Viewer */}
+      <Dialog
+        open={jsonCellViewerOpen}
+        onOpenChange={(open) => {
+          setJsonCellViewerOpen(open)
+          if (!open) {
+            setSelectedJsonCell(null)
+          }
+        }}
+      >
+        <DialogContent className="!max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{t('dataExplorer.jsonFieldViewer', 'Champ JSON')}</DialogTitle>
+            <DialogDescription>
+              {selectedJsonCell
+                ? t('dataExplorer.jsonFieldViewerDescription', { column: selectedJsonCell.column, defaultValue: `Colonne : ${selectedJsonCell.column}` })
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedJsonCell ? (
+            <div className="flex-1 min-h-0">
+              <div className="h-[520px] overflow-hidden rounded-lg border">
+                <LazyMonacoEditor
+                  height="100%"
+                  language="json"
+                  value={stringifyStructuredValue(selectedJsonCell.value)}
+                  theme="vs-dark"
+                  suspenseFallback={
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  }
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

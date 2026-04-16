@@ -18,7 +18,7 @@ import {
   createInitialDownloadProgressState,
   reduceDownloadProgressEvent,
 } from './downloadProgress'
-import { isInAppUpdateInstallSupported, WINDOWS_MANUAL_UPDATE_URL } from './support'
+import { getManualUpdateUrl, isInAppUpdateInstallSupported } from './support'
 
 export interface UpdateInfo {
   status:
@@ -55,6 +55,9 @@ function useAppUpdaterController(): AppUpdaterValue {
   const toastIdRef = useRef<string | number | undefined>(undefined)
   const isInstallingRef = useRef(false)
   const inAppUpdateInstallSupported = isInAppUpdateInstallSupported(platform)
+  const manualUpdateUrl = inAppUpdateInstallSupported
+    ? undefined
+    : getManualUpdateUrl(platform, updateRef.current?.rawJson)
 
   const restartApp = useCallback(async () => {
     try {
@@ -154,6 +157,7 @@ function useAppUpdaterController(): AppUpdaterValue {
       if (update) {
         updateRef.current = update
         setInfo({ status: 'available', version: update.version })
+        const updateDownloadUrl = getManualUpdateUrl(platform, update.rawJson)
         if (toastIdRef.current !== undefined) {
           toast.dismiss(toastIdRef.current)
         }
@@ -168,17 +172,21 @@ function useAppUpdaterController(): AppUpdaterValue {
                 return
               }
 
-              void openExternalUrl(WINDOWS_MANUAL_UPDATE_URL)
+              if (updateDownloadUrl) {
+                void openExternalUrl(updateDownloadUrl)
+              }
             },
           },
         })
       } else {
+        updateRef.current = null
         setInfo({ status: 'idle' })
       }
     } catch {
+      updateRef.current = null
       setInfo({ status: 'idle' })
     }
-  }, [inAppUpdateInstallSupported, isDesktop, installUpdate])
+  }, [inAppUpdateInstallSupported, isDesktop, installUpdate, platform])
 
   useEffect(() => {
     if (!isDesktop) return
@@ -195,7 +203,7 @@ function useAppUpdaterController(): AppUpdaterValue {
   return {
     ...info,
     appVersion: APP_VERSION,
-    manualUpdateUrl: inAppUpdateInstallSupported ? undefined : WINDOWS_MANUAL_UPDATE_URL,
+    manualUpdateUrl,
     checkForUpdate,
     installUpdate,
     restartApp,

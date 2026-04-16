@@ -46,6 +46,18 @@ def test_build_where_clause_supports_not_in(dummy_db: _DummyDB):
     assert set(params.values()) == {"draft", "archived"}
 
 
+def test_build_where_clause_supports_double_quoted_strings(dummy_db: _DummyDB):
+    clause, params = _build_where_clause(
+        'rank_name = "species" OR full_name LIKE "%Araucaria%"',
+        {"rank_name", "full_name"},
+        dummy_db,
+    )
+
+    assert clause.startswith(" WHERE ")
+    assert " OR " in clause
+    assert params == {"w_0": "species", "w_1": "%Araucaria%"}
+
+
 def test_build_where_clause_supports_is_not_null_and_or(dummy_db: _DummyDB):
     clause, params = _build_where_clause(
         "extra_data IS NOT NULL OR active = true",

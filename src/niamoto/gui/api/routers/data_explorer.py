@@ -66,6 +66,7 @@ def _build_where_clause(
             <=|>=|<>|!=|=|<|>|
             \bAND\b|\bOR\b|\bNOT\b|\bIN\b|\bIS\b|\bNULL\b|\bLIKE\b|\bILIKE\b|\bBETWEEN\b|
             '(?:''|[^'])*'|
+            "(?:""|[^"])*"|
             -?\d+\.\d+|-?\d+|
             \btrue\b|\bfalse\b|
             [A-Za-z_][A-Za-z0-9_]*
@@ -97,6 +98,8 @@ def _build_where_clause(
     def parse_literal(token: str) -> Any:
         if token.startswith("'") and token.endswith("'") and len(token) >= 2:
             return token[1:-1].replace("''", "'")
+        if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+            return token[1:-1].replace('""', '"')
         if re.match(r"^-?\d+$", token):
             return int(token)
         if re.match(r"^-?\d+\.\d+$", token):

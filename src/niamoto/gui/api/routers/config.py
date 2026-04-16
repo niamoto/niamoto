@@ -2736,6 +2736,85 @@ def _extract_json_paths(
     return paths
 
 
+def _parse_embedded_json_value(value: Any) -> Any:
+    """Decode JSON-looking scalar values from DuckDB/Pandas rows when possible."""
+    import json
+
+    if not isinstance(value, str):
+        return value
+
+    stripped = value.strip()
+    if not stripped or stripped[0] not in "{[":
+        return value
+
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        return value
+
+
+def _analyze_dataframe_fields(
+    df: Any, *, default_priority: str = "high"
+) -> Dict[str, Dict[str, Any]]:
+    """Infer scalar and nested JSON fields directly from a dataframe sample."""
+    field_analysis: Dict[str, Dict[str, Any]] = {}
+
+    for col in df.columns:
+        if col.startswith("_") or col in ["created_at", "updated_at"]:
+            continue
+
+        values = [
+            _parse_embedded_json_value(value) for value in df[col].dropna().tolist()
+        ]
+        if not values:
+            continue
+
+        sample_value = values[0]
+
+        if isinstance(sample_value, dict):
+            all_paths: List[tuple[str, Any]] = []
+            for row_value in values:
+                if isinstance(row_value, dict):
+                    all_paths.extend(_extract_json_paths(row_value, col))
+
+            path_values: Dict[str, List[Any]] = {}
+            for path, value in all_paths:
+                if path not in path_values:
+                    path_values[path] = []
+                if value is not None and not isinstance(value, (dict, list)):
+                    path_values[path].append(value)
+
+            for path, nested_values in path_values.items():
+                if not nested_values:
+                    continue
+
+                field_analysis[path] = {
+                    "type": _detect_field_type(nested_values),
+                    "cardinality": len(
+                        set(str(v) for v in nested_values if v is not None)
+                    ),
+                    "sample_values": list(
+                        dict.fromkeys(str(v) for v in nested_values if v is not None)
+                    )[:10],
+                    "total_values": len(nested_values),
+                    "priority": default_priority,
+                }
+            continue
+
+        field_analysis[col] = {
+            "type": _detect_field_type(values),
+            "cardinality": len(set(str(v) for v in values if v is not None)),
+            "sample_values": list(
+                dict.fromkeys(str(v) for v in values if v is not None)
+            )[:10],
+            "total_values": len(values),
+            "priority": default_priority,
+            "source_column": col,
+        }
+
+    return field_analysis
+
+
 def _detect_field_type(values: List[Any]) -> str:
     """Detect the field type based on sample values."""
     if not values:
@@ -2857,6 +2936,13 @@ def _is_parent_context_field(path: str) -> bool:
     """Identify ancestor context fields that are only useful if populated."""
     lower_path = path.lower()
     return "parent_" in lower_path or ".parent." in lower_path
+
+
+def _is_hierarchy_structure_field(path: str) -> bool:
+    """Skip hierarchy bookkeeping columns that are not meaningful content."""
+    lower_path = path.lower()
+    leaf = _get_field_leaf_name(lower_path)
+    return leaf in {"lft", "rght", "level", "depth", "full_path"}
 
 
 def _is_identifier_field(path: str, group_by: Optional[str] = None) -> bool:
@@ -3595,6 +3681,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             db.close_db_session()
 
         field_analysis = {}
+        inferred_schema: Dict[str, Dict[str, Any]] = {}
         source_df = None
         source_records: List[Dict[str, Any]] = []
         total_count = 0
@@ -3613,61 +3700,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     db.engine,
                 ).iloc[0]["cnt"]
 
-                # Analyze each column
-                for col in df.columns:
-                    if col.startswith("_") or col in ["created_at", "updated_at"]:
-                        continue
-
-                    values = df[col].dropna().tolist()
-                    if not values:
-                        continue
-
-                    sample_value = values[0] if values else None
-
-                    if isinstance(sample_value, dict):
-                        # Extract paths from JSON column
-                        all_paths = []
-                        for row_value in values:
-                            if isinstance(row_value, dict):
-                                paths = _extract_json_paths(row_value, col)
-                                all_paths.extend(paths)
-
-                        # Group by path and collect values
-                        path_values = {}
-                        for path, value in all_paths:
-                            if path not in path_values:
-                                path_values[path] = []
-                            if value is not None and not isinstance(
-                                value, (dict, list)
-                            ):
-                                path_values[path].append(value)
-
-                        for path, vals in path_values.items():
-                            if not vals:
-                                continue
-                            field_type = _detect_field_type(vals)
-                            unique_vals = list(
-                                set(str(v) for v in vals if v is not None)
-                            )[:10]
-                            field_analysis[path] = {
-                                "type": field_type,
-                                "cardinality": len(set(str(v) for v in vals)),
-                                "sample_values": unique_vals,
-                                "total_values": len(vals),
-                                "priority": "high",
-                            }
-                    else:
-                        field_type = _detect_field_type(values)
-                        unique_vals = list(
-                            set(str(v) for v in values if v is not None)
-                        )[:10]
-                        field_analysis[col] = {
-                            "type": field_type,
-                            "cardinality": len(set(str(v) for v in values)),
-                            "sample_values": unique_vals,
-                            "total_values": len(values),
-                            "priority": "high",
-                        }
+                field_analysis = _analyze_dataframe_fields(df)
 
                 if source_table and source_table != transformed_table:
                     quoted_source_table = quote_identifier(db, source_table)
@@ -3692,18 +3725,45 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     db.engine,
                 ).iloc[0]["cnt"]
 
-                # Infer schema from transform config
-                field_analysis = _infer_schema_from_transform_config(
+                inferred_schema = _infer_schema_from_transform_config(
                     group_config, source_df
                 )
+                field_analysis = dict(inferred_schema)
+
+                direct_source_analysis = _analyze_dataframe_fields(source_df)
+                represented_source_columns = {
+                    str(info.get("source_column"))
+                    for info in inferred_schema.values()
+                    if info.get("source_column")
+                }
+                has_declared_transformed_paths = any(
+                    not path.startswith("extra_data.") for path in inferred_schema
+                )
+
+                for path, info in direct_source_analysis.items():
+                    if path in field_analysis:
+                        continue
+                    if path in represented_source_columns:
+                        continue
+
+                    direct_info = dict(info)
+                    if has_declared_transformed_paths and not (
+                        _is_name_field(path)
+                        or _is_category_field(path)
+                        or path.startswith("extra_data.")
+                    ):
+                        direct_info["priority"] = "low"
+
+                    field_analysis[path] = direct_info
 
             finally:
                 db.close_db_session()
 
         if source_df is not None:
-            inferred_schema = _infer_schema_from_transform_config(
-                group_config, source_df
-            )
+            if not inferred_schema:
+                inferred_schema = _infer_schema_from_transform_config(
+                    group_config, source_df
+                )
             has_declared_transformed_paths = any(
                 not path.startswith("extra_data.") for path in inferred_schema
             )
@@ -3741,41 +3801,59 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         terminal_records: List[Dict[str, Any]] = []
         group_id_column = f"{group_by}_id"
 
-        if transformed_table and hierarchy_info["is_hierarchical"]:
+        if hierarchy_info["is_hierarchical"]:
             rank_paths = [path for path in field_analysis if _is_rank_field(path)]
             if rank_paths:
-                transformed_records = _load_table_records(db_path, transformed_table)
+                records_table = transformed_table or source_table
+                transformed_records = _load_table_records(db_path, records_table)
                 terminal_rank_path = sorted(
                     rank_paths, key=lambda path: (".value" not in path, path)
                 )[0]
+                record_rank_path = (
+                    field_analysis.get(terminal_rank_path, {}).get("source_column")
+                    or terminal_rank_path
+                )
                 all_rank_values = _get_distinct_values_for_path(
-                    transformed_records, terminal_rank_path
+                    transformed_records, record_rank_path
                 )
                 terminal_rank_values = _detect_terminal_ranks(all_rank_values)
                 if terminal_rank_values:
                     terminal_records = _filter_records_by_path_values(
-                        transformed_records, terminal_rank_path, terminal_rank_values
+                        transformed_records,
+                        record_rank_path,
+                        terminal_rank_values,
                     )
 
-        if (
-            transformed_table
-            and hierarchy_info["is_hierarchical"]
-            and source_table
-            and source_table != transformed_table
-        ):
-            if transformed_records is None:
-                transformed_records = _load_table_records(db_path, transformed_table)
-            source_records = _load_table_records(db_path, source_table)
+        if hierarchy_info["is_hierarchical"] and source_table:
+            if not source_records:
+                source_records = _load_table_records(db_path, source_table)
+
+            hierarchy_transformed_records: List[Dict[str, Any]] = []
+            hierarchy_id_column = group_id_column
+
+            if transformed_table and source_table != transformed_table:
+                if transformed_records is None:
+                    transformed_records = _load_table_records(
+                        db_path, transformed_table
+                    )
+                hierarchy_transformed_records = transformed_records
+            else:
+                hierarchy_transformed_records = source_records
+                if hierarchy_transformed_records and (
+                    hierarchy_id_column not in hierarchy_transformed_records[0]
+                ):
+                    hierarchy_id_column = "id"
+
             terminal_item_ids = {
-                record.get(group_id_column)
+                record.get(hierarchy_id_column)
                 for record in terminal_records
-                if record.get(group_id_column) is not None
+                if record.get(hierarchy_id_column) is not None
             }
             field_analysis.update(
                 _build_hierarchy_context_field_analysis(
                     source_records=source_records,
-                    transformed_records=transformed_records,
-                    id_column=group_id_column,
+                    transformed_records=hierarchy_transformed_records,
+                    id_column=hierarchy_id_column,
                     terminal_item_ids=terminal_item_ids,
                     terminal_rank_values=terminal_rank_values,
                 )
@@ -3817,6 +3895,8 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             if _is_metadata_field(path):
                 continue
             if _is_enrichment_metadata_field(path):
+                continue
+            if _is_hierarchy_structure_field(path):
                 continue
             if _is_identifier_field(path, group_by):
                 continue
