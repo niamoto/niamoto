@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.1] - 2026-04-16
+
+### Bug Fixes
+
+- Stabilize collection auto-detect and desktop tools
+
+### Other
+
+- Bump rustls-webpki to 0.103.12 (RUSTSEC-2026-0098)
+
 ## [v0.15.0] - 2026-04-15
 
 ### Features
