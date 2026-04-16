@@ -894,6 +894,189 @@ def test_index_suggestions_promote_provider_specific_url_suffixes_to_links(
     assert endemia_link["link_target"] == "_blank"
 
 
+def test_index_suggestions_fallback_to_reference_fields_without_transformed_table(
+    tmp_path: Path,
+):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "source": "taxons",
+                    "widgets_data": {},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id BIGINT,
+                taxons_id BIGINT,
+                full_name VARCHAR,
+                rank_name VARCHAR,
+                parent_id BIGINT,
+                level BIGINT,
+                lft BIGINT,
+                rght BIGINT,
+                extra_data JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (1, 11, 'Sapotaceae', 'family', NULL, 1, 1, 6, '{}'),
+                (2, 22, 'Abebaia', 'genus', 1, 2, 2, 5, '{}'),
+                (3, 101, 'Abebaia dissecta', 'species', 2, 3, 3, 4, '{"api_enrichment":{"sources":{"api-endemia-nc":{"data":{"endemic":true}}}}}'),
+                (4, 44, 'Pycnandra', 'genus', 1, 2, 7, 12, '{}'),
+                (5, 202, 'Pycnandra minor', 'infra', 4, 3, 8, 11, '{"api_enrichment":{"sources":{"api-endemia-nc":{"data":{"endemic":false}}}}}')
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/taxons/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    display_field_sources = {field["source"] for field in payload["display_fields"]}
+
+    assert "full_name" in display_field_sources
+    assert "rank_name" in display_field_sources
+    assert "hierarchy_context.family.name" in display_field_sources
+    assert "hierarchy_context.genus.name" in display_field_sources
+    assert "level" not in display_field_sources
+    assert "lft" not in display_field_sources
+    assert "rght" not in display_field_sources
+
+    rank_filter = next(
+        flt for flt in payload["filters"] if flt["source"] == "rank_name"
+    )
+    assert rank_filter["values"] == ["species", "infra"]
+
+
+def test_index_suggestions_infer_future_paths_before_first_transform_run(
+    tmp_path: Path,
+):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "source": "taxons",
+                    "widgets_data": {
+                        "general_info": {
+                            "plugin": "field_aggregator",
+                            "params": {
+                                "fields": [
+                                    {
+                                        "source": "taxons",
+                                        "field": "full_name",
+                                        "target": "name",
+                                    },
+                                    {
+                                        "source": "taxons",
+                                        "field": "rank_name",
+                                        "target": "rank",
+                                    },
+                                ]
+                            },
+                        }
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id BIGINT,
+                taxons_id BIGINT,
+                full_name VARCHAR,
+                rank_name VARCHAR,
+                parent_id BIGINT,
+                level BIGINT,
+                lft BIGINT,
+                rght BIGINT,
+                extra_data JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (1, 11, 'Sapotaceae', 'family', NULL, 1, 1, 6, '{}'),
+                (2, 22, 'Abebaia', 'genus', 1, 2, 2, 5, '{}'),
+                (3, 101, 'Abebaia dissecta', 'species', 2, 3, 3, 4, '{}'),
+                (4, 44, 'Pycnandra', 'genus', 1, 2, 7, 12, '{}'),
+                (5, 202, 'Pycnandra minor', 'infra', 4, 3, 8, 11, '{}')
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/taxons/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    display_field_sources = {field["source"] for field in payload["display_fields"]}
+
+    assert "general_info.name.value" in display_field_sources
+    assert "general_info.rank.value" in display_field_sources
+    assert "full_name" not in display_field_sources
+    assert "rank_name" not in display_field_sources
+    assert "hierarchy_context.family.name" in display_field_sources
+    assert "hierarchy_context.genus.name" in display_field_sources
+
+    rank_filter = next(
+        flt for flt in payload["filters"] if flt["source"] == "general_info.rank.value"
+    )
+    assert rank_filter["values"] == ["species", "infra"]
+
+
 def test_index_suggestions_recover_hierarchy_ancestors_from_reference_table(
     tmp_path: Path,
 ):
