@@ -108,9 +108,9 @@ The frontend preview hook uses TanStack Query for:
 
 Main frontend files:
 
-- [src/niamoto/gui/ui/src/lib/preview/types.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/preview/types.ts)
-- [src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
+- [`src/niamoto/gui/ui/src/lib/preview/types.ts`](../../src/niamoto/gui/ui/src/lib/preview/types.ts)
+- [`src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`](../../src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
 
 ## Related document
 
-- [../architecture/preview-system.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/preview-system.md)
+- [GUI preview system](../09-architecture/gui-preview-system.md)

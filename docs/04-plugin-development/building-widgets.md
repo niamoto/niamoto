@@ -138,7 +138,7 @@ def render(self, data, config):
 ## Preview et Thumbnails
 
 Les widgets sont prévisualisés dans la GUI via le système de preview unifié
-(voir `docs/06-gui/preview-architecture.md`). Le moteur de preview rend chaque
+(voir [`../09-architecture/gui-preview-system.md`](../09-architecture/gui-preview-system.md)). Le moteur de preview rend chaque
 widget dans une iframe `srcDoc` avec deux modes :
 
 ### Modes de rendu

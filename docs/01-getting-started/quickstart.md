@@ -328,10 +328,10 @@ Check logs in `logs/niamoto.log` to identify the error.
 
 ## Next Steps
 
-1. **Customize templates**: See [Template Guide](../08-configuration/templates-hierarchy.md)
-2. **Add widgets**: See [Widget Reference](../02-data-pipeline/widget-system.md)
+1. **Customize templates**: See [Reference](../06-reference/README.md)
+2. **Add widgets**: See [Widget workflow](../06-reference/widgets-and-transform-workflow.md)
 3. **Create plugins**: See [Plugin Development](../04-plugin-development/creating-transformers.md)
-4. **Deploy the site**: See [Deployment Guide](../11-development/deployment.md)
+4. **Deploy the site**: See [CLI automation](../03-cli-automation/README.md)
 
 ## Resources
 

@@ -47,5 +47,5 @@ Earlier documentation described this area through outdated tab-based or wizard-b
 
 ## Related docs
 
-- [../operations/transform.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/operations/transform.md)
-- [../architecture/preview-system.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/preview-system.md)
+- [Transform workflow (user guide)](../02-user-guide/transform.md)
+- [GUI preview system (architecture)](../09-architecture/gui-preview-system.md)

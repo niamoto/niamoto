@@ -11,9 +11,9 @@ The practical unit of work is the group:
 
 ## Main entry points
 
-- [src/niamoto/gui/ui/src/features/groups](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/groups)
-- [src/niamoto/gui/ui/src/components/widgets](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components/widgets)
-- [src/niamoto/gui/ui/src/lib/preview](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/preview)
+- [`src/niamoto/gui/ui/src/features/groups`](../../src/niamoto/gui/ui/src/features/groups)
+- [`src/niamoto/gui/ui/src/components/widgets`](../../src/niamoto/gui/ui/src/components/widgets)
+- [`src/niamoto/gui/ui/src/lib/preview`](../../src/niamoto/gui/ui/src/lib/preview)
 
 ## Current model
 
@@ -51,6 +51,6 @@ That is not the current GUI model and should be treated as historical design exp
 
 ## Related documents
 
-- [../reference/transform-plugins.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/transform-plugins.md)
-- [../reference/widgets-and-transform-workflow.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/widgets-and-transform-workflow.md)
-- [../architecture/preview-system.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/architecture/preview-system.md)
+- [Transform plugins reference](../06-reference/transform-plugins.md)
+- [Widgets and transform workflow](../06-reference/widgets-and-transform-workflow.md)
+- [GUI preview system](../09-architecture/gui-preview-system.md)

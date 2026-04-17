@@ -39,7 +39,7 @@ In packaged or end-user mode:
 
 The build output used for this mode is:
 
-- [src/niamoto/gui/ui/dist](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/dist)
+- [src/niamoto/gui/ui/dist](../../src/niamoto/gui/ui/dist)
 
 ## Desktop runtime
 

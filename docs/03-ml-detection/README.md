@@ -64,6 +64,7 @@ experiments, and dated planning material.
 
 - [ML workspace README](../../ml/README.md) — operational commands and where to
   look in the offline ML workspace
-- [Data Pipeline](../02-data-pipeline/README.md) — import/runtime integration
-- [Configuration](../08-configuration/README.md) — configuration strategies
-- [API Reference](../05-api-reference/README.md) — API-level documentation
+- [User Guide](../02-user-guide/README.md) — how ML auto-detection
+  plugs into the import workflow
+- [Reference](../06-reference/README.md) — API-level documentation and
+  config schemas

@@ -1,75 +1,84 @@
 # Architecture
 
-System architecture and design decisions for Niamoto.
+> Status: Active
+> Audience: Maintainers, contributors, reviewers evaluating Niamoto.
+> Purpose: System design, decision records, and long-form rationale.
 
-## 📚 Documents in this Section
+## Start here
 
-- **[System Overview](system-overview.md)** - High-level architecture (coming soon)
-- **[Plugin System](plugin-system.md)** - Plugin architecture analysis
-- **[Pipeline Unified](pipeline-unified.md)** - Unified pipeline interface
-- **[Corrections Roadmap](corrections-roadmap.md)** - System improvements plan
+- [system-overview.md](system-overview.md) — high-level layering of
+  the platform.
+- [pipeline-unified.md](pipeline-unified.md) — how import, transform,
+  and export connect through DuckDB.
+- [plugin-system.md](plugin-system.md) — the plugin registry and its
+  types.
+- [adr/](adr/) — architecture decision records.
 
-## 🏗️ Core Architecture
+## If you want to…
 
-### Three-Layer Design
+- **Understand how the desktop and CLI share code** — see
+  [gui-overview.md](gui-overview.md),
+  [gui-runtime.md](gui-runtime.md).
+- **Understand the preview system** — see
+  [gui-preview-system.md](gui-preview-system.md).
+- **Read the decision history** — see [adr/](adr/):
+  - [0001-adopt-duckdb.md](adr/0001-adopt-duckdb.md)
+  - [0002-retire-legacy-importers.md](adr/0002-retire-legacy-importers.md)
+  - [0003-derived-references-with-duckdb.md](adr/0003-derived-references-with-duckdb.md)
+  - [0004-generic-import-system.md](adr/0004-generic-import-system.md)
+- **See the target architecture for 2026** — see
+  [target-architecture-2026.md](target-architecture-2026.md),
+  [target-architecture-2026-execution-plan.md](target-architecture-2026-execution-plan.md).
 
+## Structure
+
+### Active reference
+- [system-overview.md](system-overview.md)
+- [pipeline-unified.md](pipeline-unified.md)
+- [plugin-system.md](plugin-system.md)
+- [gui-overview.md](gui-overview.md)
+- [gui-runtime.md](gui-runtime.md)
+- [gui-preview-system.md](gui-preview-system.md)
+
+### Roadmaps and evolving targets
+- [target-architecture-2026.md](target-architecture-2026.md)
+- [target-architecture-2026-comex-cto.md](target-architecture-2026-comex-cto.md)
+- [target-architecture-2026-execution-plan.md](target-architecture-2026-execution-plan.md)
+- [corrections-roadmap.md](corrections-roadmap.md)
+- [plugin-improvement.md](plugin-improvement.md)
+- [technical-analysis.md](technical-analysis.md)
+
+### Decision records
+- [adr/](adr/)
+
+## Core principles
+
+1. **Plugin-first.** Loaders, transformers, exporters, and widgets are
+   all plugins. The core stays thin.
+2. **Configuration-driven.** YAML controls the pipeline.
+3. **DuckDB-centric.** Analytics, recursive CTEs, spatial extension.
+4. **Type-safe.** Pydantic models on every plugin boundary.
+5. **Deterministic IDs.** Hash-based IDs make re-imports stable
+   (configurable via `id_strategy` in `import.yml`).
+
+## Three-layer model
+
+```text
+┌────────────────────────────────┐
+│  Presentation                  │
+│  Desktop (Tauri) · CLI · API   │
+├────────────────────────────────┤
+│  Services & plugins            │
+│  Loaders · transformers · …    │
+├────────────────────────────────┤
+│  Data                          │
+│  DuckDB · EntityRegistry       │
+└────────────────────────────────┘
 ```
-┌─────────────────────────────┐
-│      Presentation Layer      │
-│        (GUI / CLI)          │
-├─────────────────────────────┤
-│       Service Layer         │
-│  (Components & Plugins)     │
-├─────────────────────────────┤
-│        Data Layer           │
-│   (DuckDB + Registry)      │
-└─────────────────────────────┘
-```
 
-### Key Principles
+## Related
 
-1. **Plugin-Based** - Everything is a plugin
-2. **Configuration-Driven** - YAML controls behavior
-3. **Database-Centric** - DuckDB as the main analytical source
-4. **Type-Safe** - Pydantic models everywhere
-5. **Modular** - Clear separation of concerns
-
-## 🔌 Plugin Architecture
-
-- Global registry pattern
-- Four plugin types (Loader, Transformer, Exporter, Widget)
-- Decorator-based registration
-- Configuration validation
-
-## 🔄 Data Pipeline
-
-```
-Import → Database → Transform → Database → Export
-```
-
-- Each phase reads/writes to database
-- Transformations are chainable
-- Widgets are data consumers
-
-## 🎯 Design Decisions
-
-- **DuckDB for Analytics** — Fast ingestion (`read_csv_auto`), recursive CTEs, spatial extension
-- **Static Site Generation** — No runtime dependencies
-- **Plugin Registry** — Extensibility without modifying the core
-- **YAML Configuration** — Human-readable and version-controllable
-- **Entity Registry** — Transform/Export/GUI services now resolve tables via a persistent registry
-- **Hash-Based ID Generation** — Hierarchical IDs use MD5 hashes (e.g., `2071543557`) rather than sequences to ensure stability during reimports. Configurable via `id_strategy` in `import.yml`.
-
-## 📄 Architectural Decision Records (ADR)
-
-- [ADR 0001 — DuckDB Adoption](adr/0001-adopt-duckdb.md)
-- [ADR 0002 — Retirement of Specialized Importers](adr/0002-retire-legacy-importers.md)
-
-## 🔗 Related Documentation
-
-- [Plugin Development](../04-plugin-development/README.md) - Building plugins
-- [Data Pipeline](../02-data-pipeline/README.md) - Pipeline implementation
-- [Roadmaps](../10-roadmaps/README.md) - Future architecture plans
-
----
-*For implementation details, see code and API documentation*
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) —
+  building plugins that use these interfaces.
+- [../10-roadmaps/README.md](../10-roadmaps/README.md) — long-running
+  plans that shape architecture.

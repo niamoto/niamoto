@@ -21,8 +21,8 @@ The backend is responsible for:
 
 Key entry points:
 
-- [src/niamoto/gui/api/app.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/app.py)
-- [src/niamoto/gui/api/context.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/context.py)
+- [src/niamoto/gui/api/app.py](../../src/niamoto/gui/api/app.py)
+- [src/niamoto/gui/api/context.py](../../src/niamoto/gui/api/context.py)
 
 ### Frontend
 
@@ -37,15 +37,15 @@ The frontend is responsible for:
 
 The current frontend structure is feature-oriented:
 
-- [src/app](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/app)
-- [src/features](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features)
-- [src/shared](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/shared)
+- [src/app](../../src/niamoto/gui/ui/src/app)
+- [src/features](../../src/niamoto/gui/ui/src/features)
+- [src/shared](../../src/niamoto/gui/ui/src/shared)
 
 Transitional root folders still exist, but they are no longer the default extension points:
 
-- [src/hooks](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/hooks): compatibility façades for hooks that are being moved into `src/features` or `src/shared`
-- [src/lib/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/api): compatibility façades for feature APIs that are being moved closer to their domain
-- [src/components](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components): shared UI primitives plus legacy domain components still awaiting migration
+- [src/hooks](../../src/niamoto/gui/ui/src/hooks): compatibility façades for hooks that are being moved into `src/features` or `src/shared`
+- [src/lib/api](../../src/niamoto/gui/ui/src/lib/api): compatibility façades for feature APIs that are being moved closer to their domain
+- [src/components](../../src/niamoto/gui/ui/src/components): shared UI primitives plus legacy domain components still awaiting migration
 
 Current architecture guardrails:
 
@@ -69,5 +69,5 @@ Current architecture guardrails:
 
 For low-level structure and conventions, prefer the code-level READMEs:
 
-- [src/niamoto/gui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/README.md)
-- [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
+- [src/niamoto/gui/README.md](../../src/niamoto/gui/README.md)
+- [src/niamoto/gui/ui/README.md](../../src/niamoto/gui/ui/README.md)

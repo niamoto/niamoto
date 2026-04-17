@@ -28,10 +28,10 @@ In practice, the backend has specialized branches depending on widget type, but 
 
 Main backend files:
 
-- [src/niamoto/gui/api/services/preview_engine/engine.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/services/preview_engine/engine.py)
-- [src/niamoto/gui/api/services/preview_engine/models.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/services/preview_engine/models.py)
-- [src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py)
-- [src/niamoto/gui/api/routers/preview.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/routers/preview.py)
+- [`src/niamoto/gui/api/services/preview_engine/engine.py`](../../src/niamoto/gui/api/services/preview_engine/engine.py)
+- [`src/niamoto/gui/api/services/preview_engine/models.py`](../../src/niamoto/gui/api/services/preview_engine/models.py)
+- [`src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py`](../../src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py)
+- [`src/niamoto/gui/api/routers/preview.py`](../../src/niamoto/gui/api/routers/preview.py)
 
 The engine returns:
 
@@ -43,9 +43,9 @@ The engine returns:
 
 Main frontend files:
 
-- [src/niamoto/gui/ui/src/lib/preview/types.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/preview/types.ts)
-- [src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
-- [src/niamoto/gui/ui/src/components/preview](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components/preview)
+- [`src/niamoto/gui/ui/src/lib/preview/types.ts`](../../src/niamoto/gui/ui/src/lib/preview/types.ts)
+- [`src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`](../../src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
+- [`src/niamoto/gui/ui/src/components/preview`](../../src/niamoto/gui/ui/src/components/preview)
 
 The frontend layer handles:
 
@@ -78,4 +78,4 @@ The main principles are:
 
 For the HTTP contract, see:
 
-- [../reference/preview-api.md](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui/reference/preview-api.md)
+- [GUI preview API reference](../06-reference/gui-preview-api.md)

@@ -17,12 +17,12 @@ The GUI consumes transform plugins to:
 
 Frontend:
 
-- [src/niamoto/gui/ui/src/features/groups](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/groups)
-- [src/niamoto/gui/ui/src/components/widgets](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components/widgets)
+- [src/niamoto/gui/ui/src/features/groups](../../src/niamoto/gui/ui/src/features/groups)
+- [src/niamoto/gui/ui/src/components/widgets](../../src/niamoto/gui/ui/src/components/widgets)
 
 Backend:
 
-- plugin implementations under [src/niamoto/core/plugins/transformers](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/plugins/transformers)
+- plugin implementations under [src/niamoto/core/plugins/transformers](../../src/niamoto/core/plugins/transformers)
 
 ## Common plugin families
 

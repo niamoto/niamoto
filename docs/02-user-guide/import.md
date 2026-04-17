@@ -14,21 +14,21 @@ It is no longer a static multi-step form. The current flow is built around:
 
 Frontend:
 
-- [src/niamoto/gui/ui/src/features/import/module/DataModule.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/module/DataModule.tsx)
-- [src/niamoto/gui/ui/src/features/import/components/ImportWizard.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/components/ImportWizard.tsx)
-- [src/niamoto/gui/ui/src/features/import/components/review/AutoConfigDisplay.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/components/review/AutoConfigDisplay.tsx)
-- [src/niamoto/gui/ui/src/features/import/components/dashboard/ImportDashboard.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/components/dashboard/ImportDashboard.tsx)
+- [src/niamoto/gui/ui/src/features/import/module/DataModule.tsx](../../src/niamoto/gui/ui/src/features/import/module/DataModule.tsx)
+- [src/niamoto/gui/ui/src/features/import/components/ImportWizard.tsx](../../src/niamoto/gui/ui/src/features/import/components/ImportWizard.tsx)
+- [src/niamoto/gui/ui/src/features/import/components/review/AutoConfigDisplay.tsx](../../src/niamoto/gui/ui/src/features/import/components/review/AutoConfigDisplay.tsx)
+- [src/niamoto/gui/ui/src/features/import/components/dashboard/ImportDashboard.tsx](../../src/niamoto/gui/ui/src/features/import/components/dashboard/ImportDashboard.tsx)
 
 Frontend job hooks:
 
-- [src/niamoto/gui/ui/src/features/import/hooks/useAutoConfigureJob.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/hooks/useAutoConfigureJob.ts)
-- [src/niamoto/gui/ui/src/features/import/hooks/useImportJob.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import/hooks/useImportJob.ts)
+- [src/niamoto/gui/ui/src/features/import/hooks/useAutoConfigureJob.ts](../../src/niamoto/gui/ui/src/features/import/hooks/useAutoConfigureJob.ts)
+- [src/niamoto/gui/ui/src/features/import/hooks/useImportJob.ts](../../src/niamoto/gui/ui/src/features/import/hooks/useImportJob.ts)
 
 Backend:
 
-- [src/niamoto/gui/api/routers/imports.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/routers/imports.py)
-- [src/niamoto/gui/api/routers/smart_config.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/routers/smart_config.py)
-- [src/niamoto/core/imports/auto_config_service.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core/imports/auto_config_service.py)
+- [src/niamoto/gui/api/routers/imports.py](../../src/niamoto/gui/api/routers/imports.py)
+- [src/niamoto/gui/api/routers/smart_config.py](../../src/niamoto/gui/api/routers/smart_config.py)
+- [src/niamoto/core/imports/auto_config_service.py](../../src/niamoto/core/imports/auto_config_service.py)
 
 ## Current user flow
 

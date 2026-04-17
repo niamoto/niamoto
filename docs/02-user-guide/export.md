@@ -9,8 +9,8 @@ The older idea of a generic “export builder” is not the best description of 
 
 ## Main entry points
 
-- [src/niamoto/gui/ui/src/features/site](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/site)
-- [src/niamoto/gui/ui/src/features/publish](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/publish)
+- [src/niamoto/gui/ui/src/features/site](../../src/niamoto/gui/ui/src/features/site)
+- [src/niamoto/gui/ui/src/features/publish](../../src/niamoto/gui/ui/src/features/publish)
 
 ## Current split
 

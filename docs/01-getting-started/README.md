@@ -1,27 +1,33 @@
 # Getting Started
 
-Welcome to Niamoto! This section will help you get up and running quickly.
+> Status: Active
+> Audience: First-time Niamoto users.
+> Purpose: Install, open a project, ship a first portal.
 
-## 📚 Documents in this Section
+## Start here
 
-- **[Installation](installation.md)** - System requirements and installation process
-- **[Quick Start](quickstart.md)** - Create your first Niamoto project
-- **[Core Concepts](concepts.md)** - Understanding Niamoto's architecture
-- **[First Pipeline](first-pipeline.md)** - Build your first data pipeline (coming soon)
+- [installation.md](installation.md) — install the desktop app or the
+  Python CLI.
+- [first-project.md](first-project.md) — onboarding walk-through:
+  welcome screen, import, preview, publish.
+- [concepts.md](concepts.md) — how import, transform, and export fit
+  together, and where plugins plug in.
 
-## 🚀 Quick Navigation
+## If you want to…
 
-1. Start with [Installation](installation.md) to set up Niamoto
-2. Follow the [Quick Start](quickstart.md) guide for a hands-on introduction
-3. Read [Core Concepts](concepts.md) to understand the fundamentals
-4. Build your [First Pipeline](first-pipeline.md) to see Niamoto in action
+- **Ship a portal as fast as possible** — install the desktop app,
+  follow [first-project.md](first-project.md).
+- **Drive Niamoto from the shell** — install via `pip install niamoto`,
+  then read [quickstart.md](quickstart.md) and
+  [../03-cli-automation/README.md](../03-cli-automation/README.md).
+- **Understand the pipeline before writing YAML** —
+  [concepts.md](concepts.md) first.
 
-## 📖 Next Steps
+## Related
 
-Once you're comfortable with the basics, explore:
-- [Data Pipeline](../02-data-pipeline/README.md) - Learn about data flow
-- [Tutorials](../07-tutorials/README.md) - Real-world examples
-- [Configuration](../08-configuration/README.md) - Customize your setup
-
----
-*For help and support, see [Troubleshooting](../12-troubleshooting/README.md)*
+- [../02-user-guide/README.md](../02-user-guide/README.md) — day-to-day
+  desktop workflow.
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) —
+  write custom transformers and widgets.
+- [../99-troubleshooting/README.md](../99-troubleshooting/README.md) —
+  common issues.
