@@ -1,0 +1,59 @@
+name: Docs
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'pyproject.toml'
+      - '.readthedocs.yaml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'pyproject.toml'
+      - '.readthedocs.yaml'
+      - '.github/workflows/docs.yml'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev libproj-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install project with docs extras
+        run: |
+          uv pip install --system -e ".[docs]"
+
+      - name: Build Sphinx docs
+        run: |
+          sphinx-build -W -b html docs docs/_build
+
+      - name: Upload built docs
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-html
+          path: docs/_build/
+          if-no-files-found: error

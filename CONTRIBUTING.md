@@ -151,16 +151,31 @@ uv run pytest tests/core/test_import.py -v
 ## 📚 Documentation
 
 ### Updating Documentation
-- Update relevant documentation in `docs/`
-- Follow the numbered structure (01-getting-started, 02-data-pipeline, etc.)
-- Include examples and use cases
-- Update README.md if adding major features
+
+The public docs live under `docs/` and follow a lifecycle layout:
+
+- `01-getting-started/` — install and first project
+- `02-user-guide/` — desktop workflows: import, transform, preview, export
+- `03-cli-automation/` — CLI, automation, CI/CD recipes
+- `04-plugin-development/` — transformers, widgets, loaders, exporters
+- `05-ml-detection/` — auto-detection research and training
+- `06-reference/` — API, CLI commands, config schemas
+- `09-architecture/` — ADRs, system design
+- `10-roadmaps/` — dated plans and target architectures
+- `99-troubleshooting/` — common issues and desktop smoke tests
+
+Legacy content lives under `docs/_archive/` and is not part of the live
+site. `docs/plans/`, `docs/brainstorms/` and `docs/ideation/` are internal
+journals; they stay in the repo but are excluded from the rendered docs.
 
 ### Documentation Style
-- Write in English
-- Use clear, concise language
-- Include code examples
-- Add links to related documentation
+
+- Write in English.
+- Follow `docs/STYLE_GUIDE.md` for voice, banned vocabulary (AI-slop), and
+  preferred product verbs.
+- Prefer short sentences and action verbs over adjectives.
+- Include runnable code examples when they clarify behaviour.
+- Add links to related pages with relative paths, not absolute ones.
 
 ## 🔄 Pull Request Process
 
@@ -255,4 +270,5 @@ Your contributions make Niamoto better for everyone. We appreciate your time and
 
 ---
 
-*For more information, see the [Development Guide](docs/11-development/)*
+*For more information, see the [project README](README.md) and
+[docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md).*
