@@ -56,6 +56,7 @@ exclude_patterns = [
     "plans/**",
     "brainstorms/**",
     "ideation/**",
+    "superpowers/**",
 ]
 
 

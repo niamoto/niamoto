@@ -8,7 +8,7 @@ Successfully implemented a pattern matching system for auto-discovery of transfo
 
 ### 1. Base Class Updates
 
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/base.py`
+**File**: `src/niamoto/core/plugins/base.py`
 
 #### TransformerPlugin
 Added `output_structure` attribute:
@@ -28,7 +28,7 @@ class WidgetPlugin(Plugin, ABC):
 
 ### 2. SmartMatcher Refactoring
 
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/matching/matcher.py`
+**File**: `src/niamoto/core/plugins/matching/matcher.py`
 
 Completely refactored the SmartMatcher to use structure-based pattern matching:
 
@@ -52,7 +52,7 @@ Completely refactored the SmartMatcher to use structure-based pattern matching:
 ### 3. Plugin Updates
 
 #### BinnedDistribution Transformer
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/transformers/distribution/binned_distribution.py`
+**File**: `src/niamoto/core/plugins/transformers/distribution/binned_distribution.py`
 
 ```python
 @register("binned_distribution", PluginType.TRANSFORMER)
@@ -66,7 +66,7 @@ class BinnedDistribution(TransformerPlugin):
 ```
 
 #### BarPlotWidget
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/widgets/bar_plot.py`
+**File**: `src/niamoto/core/plugins/widgets/bar_plot.py`
 
 ```python
 @register("bar_plot", PluginType.WIDGET)
@@ -84,7 +84,7 @@ class BarPlotWidget(WidgetPlugin):
 
 ### 4. Comprehensive Tests
 
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/tests/core/plugins/matching/test_pattern_matching.py`
+**File**: `tests/core/plugins/matching/test_pattern_matching.py`
 
 Created 16 comprehensive tests covering:
 - ✅ Exact structure match (1.0 score)
@@ -103,7 +103,7 @@ Created 16 comprehensive tests covering:
 ### 5. Documentation
 
 #### Pattern Matching README
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/matching/README.md`
+**File**: `src/niamoto/core/plugins/matching/README.md`
 
 Comprehensive documentation including:
 - Philosophy and design decisions
@@ -114,7 +114,7 @@ Comprehensive documentation including:
 - FAQ
 
 #### Demo Script
-**File**: `/Users/julienbarbe/Dev/Niamoto/Niamoto/scripts/test_pattern_matching.py`
+**File**: `scripts/test_pattern_matching.py`
 
 Interactive demo showing:
 - Transformer output structures
@@ -161,17 +161,17 @@ suggestions = matcher.find_compatible_widgets(BinnedDistribution)
 
 ## Files Modified
 
-1. `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/base.py` - Base class updates
-2. `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/matching/matcher.py` - SmartMatcher refactoring
-3. `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/transformers/distribution/binned_distribution.py` - Transformer pattern
-4. `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/widgets/bar_plot.py` - Widget patterns
+1. `src/niamoto/core/plugins/base.py` - Base class updates
+2. `src/niamoto/core/plugins/matching/matcher.py` - SmartMatcher refactoring
+3. `src/niamoto/core/plugins/transformers/distribution/binned_distribution.py` - Transformer pattern
+4. `src/niamoto/core/plugins/widgets/bar_plot.py` - Widget patterns
 
 ## Files Created
 
-1. `/Users/julienbarbe/Dev/Niamoto/Niamoto/tests/core/plugins/matching/__init__.py` - Test package
-2. `/Users/julienbarbe/Dev/Niamoto/Niamoto/tests/core/plugins/matching/test_pattern_matching.py` - Comprehensive tests
-3. `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/matching/README.md` - Documentation
-4. `/Users/julienbarbe/Dev/Niamoto/Niamoto/scripts/test_pattern_matching.py` - Demo script
+1. `tests/core/plugins/matching/__init__.py` - Test package
+2. `tests/core/plugins/matching/test_pattern_matching.py` - Comprehensive tests
+3. `src/niamoto/core/plugins/matching/README.md` - Documentation
+4. `scripts/test_pattern_matching.py` - Demo script
 
 ## Migration Path
 

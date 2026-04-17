@@ -2,10 +2,10 @@
 
 ## 📌 Fichiers de Configuration de Référence
 
-Les spécifications suivantes sont basées sur les fichiers de configuration d'une instance Niamoto complète :
-- **Import** : `/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-og/config/import.yml`
-- **Transform** : `/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-og/config/transform.yml`
-- **Export** : `/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-og/config/export.yml`
+Les spécifications suivantes sont basées sur les fichiers de configuration d'une instance Niamoto complète (voir `test-instance/` dans le dépôt) :
+- **Import** : `test-instance/<instance>/config/import.yml`
+- **Transform** : `test-instance/<instance>/config/transform.yml`
+- **Export** : `test-instance/<instance>/config/export.yml`
 
 Ces fichiers définissent la structure exacte des données attendues pour chaque étape du pipeline.
 
