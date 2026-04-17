@@ -1,6 +1,6 @@
 # Roadmaps
 
-> Status: Active archive — dated plans that shaped recent releases.
+> Status: Maintained — dated plans that shape recent and upcoming releases.
 > Audience: Maintainers, contributors tracking long-term direction.
 > Purpose: Keep the long-running roadmaps readable; point to dated plans.
 

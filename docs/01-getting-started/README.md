@@ -23,6 +23,14 @@
 - **Understand the pipeline before writing YAML** —
   [concepts.md](concepts.md) first.
 
+## Structure
+
+### Active reference
+- [installation.md](installation.md)
+- [first-project.md](first-project.md)
+- [concepts.md](concepts.md)
+- [quickstart.md](quickstart.md) — CLI quickstart, kept for scripters.
+
 ## Related
 
 - [../02-user-guide/README.md](../02-user-guide/README.md) — day-to-day

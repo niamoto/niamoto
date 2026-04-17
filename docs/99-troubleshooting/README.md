@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Status: Stub — being migrated from `12-troubleshooting/` and expanded for the desktop app.
+> Status: Stub — being migrated from the legacy `12-troubleshooting/` and expanded for the desktop app.
 > Audience: All users.
 > Purpose: Fix the most common failures quickly.
 

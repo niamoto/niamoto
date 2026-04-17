@@ -62,6 +62,16 @@ class MyPlugin(TransformerPlugin):
 4. Configure it in `transform.yml` or `export.yml`.
 5. Add unit and integration tests under `tests/plugins/`.
 
+## Structure
+
+### Active reference
+- [architecture.md](architecture.md)
+- [creating-transformers.md](creating-transformers.md)
+- [building-widgets.md](building-widgets.md)
+- [custom-exporters.md](custom-exporters.md)
+- [database-aggregator-guide.md](database-aggregator-guide.md)
+- [database-aggregator.md](database-aggregator.md)
+
 ## Related
 
 - [../06-reference/README.md](../06-reference/README.md) — API and

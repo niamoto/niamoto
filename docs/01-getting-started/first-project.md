@@ -46,7 +46,7 @@ occurrences, plots, shapes, raster):
 Review the suggestions, adjust what the classifier missed, hit
 *Import*. A progress panel reports rows ingested and rows rejected.
 
-See [../03-ml-detection/README.md](../03-ml-detection/README.md) for
+See [../05-ml-detection/README.md](../05-ml-detection/README.md) for
 the details of the auto-detection pipeline.
 
 ## 3. Explore the collections

@@ -1,6 +1,6 @@
 # User Guide
 
-> Status: Active — being filled in during the desktop-first docs refonte.
+> Status: Active — being filled in during the desktop-first docs rewrite.
 > Audience: Researchers, data stewards, anyone who uses the Niamoto desktop app.
 > Purpose: Walk through the day-to-day desktop workflow.
 

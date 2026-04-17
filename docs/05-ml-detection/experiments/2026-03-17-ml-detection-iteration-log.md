@@ -831,7 +831,7 @@ Pivot décidé :
 
 Document de référence :
 
-- [Autoresearch Surrogate Loop](docs/03-ml-detection/autoresearch-surrogate-loop.md)
+- [Autoresearch Surrogate Loop](docs/05-ml-detection/autoresearch-surrogate-loop.md)
 
 ## Entrée du 2026-03-18 — première mesure surrogate loop
 
@@ -1057,5 +1057,5 @@ Erreurs restantes :
 - batch optimization commitée (entraînement 20x plus rapide)
 - évaluation par instance opérationnelle sur niamoto-subset
 - prochaine étape : câbler le ML dans l'auto-config (plan documenté dans
-  `docs/03-ml-detection/README.md` and the active reference docs in
-  `docs/03-ml-detection/`)
+  `docs/05-ml-detection/README.md` and the active reference docs in
+  `docs/05-ml-detection/`)

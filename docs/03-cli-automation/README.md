@@ -1,6 +1,6 @@
 # CLI & Automation
 
-> Status: Stub — to be filled in during the desktop-first docs refonte.
+> Status: Stub — to be filled in during the desktop-first docs rewrite.
 > Audience: Developers, data engineers, operators who script Niamoto.
 > Purpose: Drive the Niamoto pipeline without the desktop UI.
 
