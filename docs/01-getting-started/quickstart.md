@@ -1,340 +1,138 @@
-# Quick Start Guide
+# CLI quickstart
 
-This guide helps you create your first Niamoto project in less than 10 minutes. We'll create a website showcasing ecological data from New Caledonia.
+Drive Niamoto from a shell. For the desktop path, read
+[first-project.md](first-project.md).
 
 ## Prerequisites
 
-- Niamoto installed (see [Installation Guide](installation.md))
-- A terminal/console
-- ~500 MB of free disk space
+- Install the CLI with [installation.md](installation.md).
+- Open a terminal.
+- Put your source files somewhere you can copy into the project.
 
-## Step 1: Create a New Project
-
-```bash
-# Create a folder for your project
-mkdir my-niamoto-project
-cd my-niamoto-project
-
-# Initialize the project
-niamoto init
-```
-
-This command creates the following structure:
-```
-my-niamoto-project/
-├── config/          # YAML configuration files
-│   ├── config.yml   # General configuration
-│   ├── import.yml   # Import configuration
-│   ├── transform.yml # Transform configuration
-│   └── export.yml   # Export configuration
-├── imports/         # Source data (CSV, GeoPackage...)
-├── exports/         # Generated website
-├── plugins/         # Custom plugins
-├── plugins/         # Custom templates
-├── db/             # SQLite database
-└── logs/           # Log files
-```
-
-## Step 2: Download Example Data
-
-For this guide, we use real data from New Caledonia:
+## 1. Create a project
 
 ```bash
-# Download example data
-git clone https://github.com/niamoto/niamoto-example-data.git temp-data
-
-# Copy necessary files
-cp temp-data/occurrences.csv imports/
-cp temp-data/plots.csv imports/
-cp -r temp-data/shapes imports/
-
-# Clean up
-rm -rf temp-data
+niamoto init my-project
+cd my-project
+export NIAMOTO_HOME="$PWD"
 ```
 
-## Step 3: Configure Data Import
+`niamoto init` writes the standard project tree:
 
-Edit `config/import.yml`:
-
-```yaml
-# Import taxonomy from occurrences
-taxonomy:
-  type: csv
-  path: "imports/occurrences.csv"
-  source: "occurrence"
-  ranks: "family,genus,species,infra"
-  occurrence_columns:
-    taxon_id: "id_taxon"
-    family: "family"
-    genus: "genus"
-    species: "species"
-    infra: "infra"
-
-# Import occurrences (trees)
-occurrences:
-  type: csv
-  path: "imports/occurrences.csv"
-  identifier: "id_taxonref"
-  location_field: "geo_pt"
-
-# Import plots
-plots:
-  type: csv
-  path: "imports/plots.csv"
-  identifier: "id_plot"
-  locality_field: "plot"
-  location_field: "geo_pt"
-  link_field: "locality"
-  occurrence_link_field: "plot_name"
-
-# Import geographic shapes
-shapes:
-  - type: "Provinces"
-    path: "imports/shapes/provinces.gpkg"
-    id_field: "id"
-    name_field: "name"
-
-  - type: "Forets"
-    path: "imports/shapes/forests.gpkg"
-    id_field: "id"
-    name_field: "forest_type"
+```text
+my-project/
+├── config/
+│   ├── config.yml
+│   ├── import.yml
+│   ├── transform.yml
+│   └── export.yml
+├── imports/
+├── exports/
+├── plugins/
+├── templates/
+├── db/
+└── logs/
 ```
 
-## Step 4: Configure Transformations
+`niamoto init` also tries to open the GUI. Close it if you only want the CLI
+scaffold.
 
-Edit `config/transform.yml` to calculate statistics:
+## 2. Copy your source data
 
-```yaml
-# Transformations for taxa
-- group_by: taxon
-  source:
-    data: occurrences
-    grouping: taxon_ref
+Put your raw files in `imports/`. A first project often starts with:
 
-  widgets_data:
-    # General information
-    general_info:
-      plugin: field_aggregator
-      params:
-        fields:
-          - source: taxon_ref
-            field: full_name
-            target: name
-          - source: occurrences
-            field: id
-            target: count
-            transformation: count
+- one CSV or spreadsheet for observations
+- one reference file for taxonomy, plots, or stations
+- optional GeoPackage, shapefile, or raster layers
 
-    # Distribution map
-    distribution_map:
-      plugin: geospatial_extractor
-      params:
-        source: occurrences
-        field: geo_pt
-        format: geojson
+If you want sample data, use the repository linked from
+[first-project.md](first-project.md).
 
-    # Top 10 species
-    top_species:
-      plugin: top_ranking
-      params:
-        source: occurrences
-        field: taxon_ref_id
-        count: 10
+## 3. Fill the config files
 
-# Transformations for plots
-- group_by: plot
-  source:
-    data: plots
+Open these files:
 
-  widgets_data:
-    # Species richness
-    species_richness:
-      plugin: species_richness
-      params:
-        occurrence_data: occurrences
-        location_field: plot_id
+- `config/import.yml`
+- `config/transform.yml`
+- `config/export.yml`
 
-    # Shannon index
-    shannon_index:
-      plugin: shannon_diversity
-      params:
-        occurrence_data: occurrences
-        location_field: plot_id
-```
+`niamoto init` writes commented examples into each file. Start from those blocks
+or copy a known-good config from an existing project.
 
-## Step 5: Configure Export
+Run `niamoto gui` once if you want the desktop interface to write the config
+files, then come back to the CLI.
 
-Edit `config/export.yml`:
+Keep these roles in mind:
 
-```yaml
-# General site configuration
-site:
-  title: "New Caledonia Biodiversity"
-  description: "Portal for New Caledonia flora data"
-  base_url: "/"
+- `import.yml` defines datasets and references
+- `transform.yml` defines grouped outputs in `widgets_data`
+- `export.yml` defines export targets, pages, and widgets
 
-# Pages to generate
-pages:
-  # Home page
-  - name: "index"
-    template: "index.html"
-    title: "Home"
+For the canonical shapes, use:
 
-  # Taxon pages
-  - name: "taxa"
-    type: "group"
-    template: "taxon_template.html"
-    index_template: "taxon_index.html"
-    group: "taxon"
-    widgets:
-      - type: info_grid
-        data: general_info
-        config:
-          title: "General Information"
+- [concepts.md](concepts.md)
+- [../06-reference/configuration-guide.md](../06-reference/configuration-guide.md)
+- [../03-cli-automation/README.md](../03-cli-automation/README.md)
 
-      - type: interactive_map
-        data: distribution_map
-        config:
-          title: "Distribution"
-          height: 400
-
-      - type: bar_plot
-        data: top_species
-        config:
-          title: "Top 10 Species"
-
-  # Plot pages
-  - name: "plots"
-    type: "group"
-    template: "plot_template.html"
-    index_template: "plot_index.html"
-    group: "plot"
-    widgets:
-      - type: summary_stats
-        data: species_richness
-        config:
-          title: "Species Richness"
-
-      - type: radial_gauge
-        data: shannon_index
-        config:
-          title: "Diversity Index"
-```
-
-## Step 6: Run the Complete Pipeline
+## 4. Check the import config
 
 ```bash
-# Execute the entire pipeline (import + transform + export)
-niamoto run
-
-# Or run step by step:
-niamoto import    # Import data
-niamoto transform # Calculate statistics
-niamoto export    # Generate website
+niamoto import check
 ```
 
-## Step 7: View the Result
+Use `niamoto import check --entity <name>` when you want to isolate one entity.
+
+## 5. Run the pipeline
+
+For a first pass, run each phase yourself:
 
 ```bash
-# Start a local web server
-cd exports/web
-python -m http.server 8000
-
-# Open in browser
-# http://localhost:8000
+niamoto import
+niamoto transform
+niamoto export
 ```
 
-## Generated Site Structure
-
-Your site will contain:
-
-```
-exports/web/
-├── index.html           # Home page
-├── taxon/              # Species pages
-│   ├── index.html      # Taxa index
-│   ├── 1.html          # Species 1 page
-│   ├── 2.html          # Species 2 page
-│   └── ...
-├── plot/               # Plot pages
-│   ├── index.html      # Plot index
-│   ├── 1.html          # Plot 1 page
-│   └── ...
-└── assets/             # CSS, JS, images
-    ├── css/
-    └── js/
-```
-
-## Quick Customization
-
-### Add a Logo
-
-Place your logo in `imports/assets/logo.png` and reference it in `config/export.yml`:
-
-```yaml
-site:
-  logo: "assets/logo.png"
-```
-
-### Change Colors
-
-Create `templates/custom.css`:
-
-```css
-:root {
-  --primary-color: #2e7d32;
-  --secondary-color: #1976d2;
-}
-```
-
-### Add a Static Page
-
-In `config/export.yml`:
-
-```yaml
-pages:
-  - name: "about"
-    template: "about.html"
-    title: "About"
-    content_file: "content/about.md"
-```
-
-## Useful Commands
+When the project looks stable, use the bundled command:
 
 ```bash
-# View database statistics
+niamoto run --no-reset
+```
+
+`niamoto run` resets the environment by default. Use `--no-reset` unless you
+want a clean rebuild.
+
+## 6. Inspect the result
+
+Check the database:
+
+```bash
 niamoto stats
-
-# Reload only transformations
-niamoto transform --force
-
-# Export with different template
-niamoto export --template-dir ./my-templates
-
-# Enable detailed logs
-niamoto run --verbose
 ```
 
-## Troubleshooting
+Serve the generated site:
 
-### "File not found" Error
-Check that paths in `import.yml` are relative to the project folder.
+```bash
+python -m http.server --directory exports/web 8000
+```
 
-### "Invalid column" Error
-Verify that column names in your CSV files match those in `import.yml`.
+Then open [http://localhost:8000](http://localhost:8000).
 
-### Blank Page
-Check logs in `logs/niamoto.log` to identify the error.
+## 7. Deploy
 
-## Next Steps
+When the exported site looks right, publish it with:
 
-1. **Customize templates**: See [Reference](../06-reference/README.md)
-2. **Add widgets**: See [Widget workflow](../06-reference/widgets-and-transform-workflow.md)
-3. **Create plugins**: See [Plugin Development](../04-plugin-development/creating-transformers.md)
-4. **Deploy the site**: See [CLI automation](../03-cli-automation/README.md)
+```bash
+niamoto deploy
+```
 
-## Resources
+If you deploy often, store defaults in `config/deploy.yml`. See
+[../03-cli-automation/README.md](../03-cli-automation/README.md).
 
-- [Complete example data](https://github.com/niamoto/niamoto-example-data)
-- [Custom templates](https://github.com/niamoto/niamoto-templates)
-- [Community plugins](https://github.com/niamoto/niamoto-plugins)
+## Next reads
+
+- [../03-cli-automation/README.md](../03-cli-automation/README.md) for command
+  patterns, `deploy.yml`, CI, and cron.
+- [../06-reference/cli-commands.md](../06-reference/cli-commands.md) for the
+  command reference.
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) if
+  the built-in plugins stop short.

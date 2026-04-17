@@ -13,6 +13,12 @@ useful context, but they are no longer the canonical source of truth.
 
 ## Canonical sources now
 
-- Dated planning docs: [../../plans/](../../plans/)
+- Dated planning docs: `docs/plans/`
 - Active ML reference docs: [../README.md](../README.md)
 - Current training sources actually used by the code: [../current-training-sources.md](../current-training-sources.md)
+
+```{toctree}
+:hidden:
+
+acquisition-history-and-source-strategy
+```

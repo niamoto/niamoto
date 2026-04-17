@@ -41,7 +41,7 @@ We are progressively retiring specialized importers in favor of a generic engine
 3. Implement generic import engine (DuckDB connectors, validations, execution plan).
 4. Adapt Transform/Export to use Registry (remove `Config()` coupling in plugins).
 5. Retire legacy importers and remove rigid SQLAlchemy models.
-6. Update documentation (`docs/10-roadmaps/generic-import-ultrathink.md`, GUI README) and provide migration guide.
+6. Update documentation (`docs/08-roadmaps/generic-import-ultrathink.md`, GUI README) and provide migration guide.
 
 ## Follow-up 2025-10-08
 - ✅ Operational DuckDB registry: `registry.py`/`legacy_registry.py` expose entities to Transform/Export services and GUI.

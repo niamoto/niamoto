@@ -209,8 +209,8 @@ entities:
 
 ## References
 
-- [Roadmap: Derived References Implementation](../../10-roadmaps/archive/derived-references-implementation-plan.md)
-- [Generic Import Refactor Roadmap](../../10-roadmaps/generic-import-refactor-roadmap.md)
+- `docs/08-roadmaps/archive/derived-references-implementation-plan.md`
+- `docs/08-roadmaps/generic-import-refactor-roadmap.md`
 - [DuckDB Documentation](https://duckdb.org/docs/)
 - [Adjacency List vs Nested Sets](https://www.slideshare.net/billkarwin/models-for-hierarchical-data)
 

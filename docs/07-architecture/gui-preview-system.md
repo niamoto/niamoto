@@ -1,6 +1,6 @@
 # Preview System
 
-The preview system allows the GUI to render widgets before publication.
+The preview system renders widgets in the GUI before publication.
 
 It is used for:
 
@@ -16,7 +16,8 @@ The preview flow is:
 resolve -> load -> transform -> render -> wrap
 ```
 
-In practice, the backend has specialized branches depending on widget type, but the mental model remains the same:
+The backend has specialized branches depending on widget type, but the same
+flow still applies:
 
 1. resolve the requested widget/template
 2. load the relevant source data
@@ -28,10 +29,10 @@ In practice, the backend has specialized branches depending on widget type, but 
 
 Main backend files:
 
-- [`src/niamoto/gui/api/services/preview_engine/engine.py`](../../src/niamoto/gui/api/services/preview_engine/engine.py)
-- [`src/niamoto/gui/api/services/preview_engine/models.py`](../../src/niamoto/gui/api/services/preview_engine/models.py)
-- [`src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py`](../../src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py)
-- [`src/niamoto/gui/api/routers/preview.py`](../../src/niamoto/gui/api/routers/preview.py)
+- `src/niamoto/gui/api/services/preview_engine/engine.py`
+- `src/niamoto/gui/api/services/preview_engine/models.py`
+- `src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py`
+- `src/niamoto/gui/api/routers/preview.py`
 
 The engine returns:
 
@@ -43,9 +44,9 @@ The engine returns:
 
 Main frontend files:
 
-- [`src/niamoto/gui/ui/src/lib/preview/types.ts`](../../src/niamoto/gui/ui/src/lib/preview/types.ts)
-- [`src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`](../../src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
-- [`src/niamoto/gui/ui/src/components/preview`](../../src/niamoto/gui/ui/src/components/preview)
+- `src/niamoto/gui/ui/src/lib/preview/types.ts`
+- `src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`
+- `src/niamoto/gui/ui/src/components/preview`
 
 The frontend layer handles:
 
@@ -58,7 +59,7 @@ The frontend layer handles:
 
 The preview system uses custom Plotly bundles instead of the full Plotly distribution.
 
-This matters because:
+That split keeps preview payloads smaller:
 
 - chart previews and map previews do not need the same payload
 - the GUI can choose a smaller bundle for non-map widgets
@@ -68,14 +69,12 @@ This matters because:
 
 Preview HTML is rendered in sandboxed iframes.
 
-The main principles are:
+The backend and frontend keep three rules in place:
 
 - isolate preview content from the parent UI
 - avoid direct DOM access from preview code
 - escape dynamic content before interpolation
 
-## Related reference
-
-For the HTTP contract, see:
+## Related docs
 
 - [GUI preview API reference](../06-reference/gui-preview-api.md)

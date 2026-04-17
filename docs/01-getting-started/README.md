@@ -4,38 +4,49 @@
 > Audience: First-time Niamoto users.
 > Purpose: Install, open a project, ship a first portal.
 
-## Start here
+## Choose a path
 
-- [installation.md](installation.md) — install the desktop app or the
+- Start with [installation.md](installation.md). Pick the desktop app or the
   Python CLI.
-- [first-project.md](first-project.md) — onboarding walk-through:
-  welcome screen, import, preview, publish.
-- [concepts.md](concepts.md) — how import, transform, and export fit
-  together, and where plugins plug in.
+- Follow [first-project.md](first-project.md) if you want the desktop path from
+  project creation to publish.
+- Read [concepts.md](concepts.md) if you want the pipeline model before you
+  edit config files.
 
-## If you want to…
+## In this section
 
-- **Ship a portal as fast as possible** — install the desktop app,
-  follow [first-project.md](first-project.md).
-- **Drive Niamoto from the shell** — install via `pip install niamoto`,
-  then read [quickstart.md](quickstart.md) and
-  [../03-cli-automation/README.md](../03-cli-automation/README.md).
-- **Understand the pipeline before writing YAML** —
-  [concepts.md](concepts.md) first.
-
-## Structure
-
-### Active reference
 - [installation.md](installation.md)
 - [first-project.md](first-project.md)
+- [quickstart.md](quickstart.md)
 - [concepts.md](concepts.md)
-- [quickstart.md](quickstart.md) — CLI quickstart, kept for scripters.
+
+## If you use the desktop app
+
+- Install the desktop build.
+- Follow [first-project.md](first-project.md).
+- Continue with [../02-user-guide/README.md](../02-user-guide/README.md).
+
+## If you use the CLI
+
+- Install `niamoto`.
+- Read [quickstart.md](quickstart.md).
+- Keep [../03-cli-automation/README.md](../03-cli-automation/README.md) open for
+  the command map.
 
 ## Related
 
-- [../02-user-guide/README.md](../02-user-guide/README.md) — day-to-day
-  desktop workflow.
-- [../04-plugin-development/README.md](../04-plugin-development/README.md) —
-  write custom transformers and widgets.
-- [../99-troubleshooting/README.md](../99-troubleshooting/README.md) —
-  common issues.
+- [../02-user-guide/README.md](../02-user-guide/README.md) for the desktop
+  workflow after setup.
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) for
+  custom transformers, widgets, loaders, exporters, and deployers.
+- [../09-troubleshooting/README.md](../09-troubleshooting/README.md) for common
+  issues.
+
+```{toctree}
+:hidden:
+
+installation
+first-project
+concepts
+quickstart
+```

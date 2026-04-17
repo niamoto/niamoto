@@ -96,7 +96,7 @@ them in the docs or the README.
 - Always use relative links between docs pages, never absolute file
   paths like `/Users/...` or `https://github.com/.../blob/...`.
 - Link text should read naturally. Prefer "see
-  [Import guide](02-user-guide/import.md)" over "see [here](…)".
+  [Import guide](02-user-guide/import.md)" over "see the import page".
 
 ### Emoji
 
@@ -165,5 +165,5 @@ After drafting any README or doc page:
 
 ## References
 
-- [CONTRIBUTING.md](../CONTRIBUTING.md)
-- [Plan: 2026-04-17 docs refonte](plans/2026-04-17-refactor-documentation-desktop-first-plan.md)
+- `CONTRIBUTING.md`
+- `docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md`

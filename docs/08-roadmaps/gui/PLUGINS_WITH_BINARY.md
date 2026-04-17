@@ -311,5 +311,5 @@ Usage:
 ## 📚 Resources
 
 - [Binary Distribution Guide](BINARY_DISTRIBUTION.md)
-- [Plugin Development Guide](../src/niamoto/core/plugins/README.md)
+- `src/niamoto/core/plugins/README.md`
 - [Python Package Index](https://pypi.org/) - Find libraries

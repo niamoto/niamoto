@@ -25,17 +25,17 @@ experiments, and dated planning material.
   - [Current Training Sources](current-training-sources.md)
 - **Train or evaluate the stack**
   - [Training & Evaluation Guide](training-guide.md)
-  - [ML workspace README](../../ml/README.md)
+  - `ml/README.md`
 - **Understand current autoresearch rules**
   - [Autoresearch Surrogate Loop](autoresearch-surrogate-loop.md)
-  - [Autoresearch programmes](../../ml/programmes/)
+  - `ml/programmes/`
 - **Review experiment history**
   - [Experiments index](experiments/README.md)
 - **Review exploratory ideas or older planning docs**
   - [Research notes](research/README.md)
   - [Archive](archive/README.md)
 - **Find the latest dated plans**
-  - [docs/plans](../plans/)
+  - `docs/plans/`
 
 ## Structure
 
@@ -62,9 +62,22 @@ experiments, and dated planning material.
 
 ## Related runtime and code-adjacent docs
 
-- [ML workspace README](../../ml/README.md) — operational commands and where to
-  look in the offline ML workspace
+- `ml/README.md` — operational commands and where to look in the offline ML
+  workspace
 - [User Guide](../02-user-guide/README.md) — how ML auto-detection
   plugs into the import workflow
 - [Reference](../06-reference/README.md) — API-level documentation and
   config schemas
+
+```{toctree}
+:hidden:
+
+overview
+branch-architecture
+training-guide
+current-training-sources
+autoresearch-surrogate-loop
+research/README
+experiments/README
+archive/README
+```

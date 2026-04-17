@@ -63,7 +63,7 @@ git push origin vX.Y.Z
 
 **Use case**: Production releases, multi-platform distribution.
 
-See [.github/RELEASE.md](../.github/RELEASE.md) for detailed release instructions.
+See `.github/RELEASE.md` for detailed release instructions.
 
 ## 🚀 Usage
 
@@ -264,9 +264,9 @@ chmod +x niamoto
 ## 📚 Resources
 
 - [PyInstaller Documentation](https://pyinstaller.org/en/stable/)
-- [Release Process Guide](../.github/RELEASE.md)
-- [Build Scripts README](../build_scripts/README.md)
-- [GitHub Actions Workflow](../.github/workflows/build-binaries.yml)
+- `.github/RELEASE.md`
+- `build_scripts/README.md`
+- `.github/workflows/build-binaries.yml`
 
 ## 🔄 Update Process
 

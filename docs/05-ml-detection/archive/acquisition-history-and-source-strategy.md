@@ -4,7 +4,7 @@
 > Audience: Team, AI agents
 > Purpose: Preserve the earlier acquisition strategy and candidate-source
 > reasoning that informed the current ML dataset expansion work
-> Canonical current plans: [../../plans/](../../plans/)
+> Canonical current plans: `docs/plans/`
 
 ## Why this document is archived
 

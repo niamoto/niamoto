@@ -1,8 +1,9 @@
 # Widgets and Transform Workflow
 
-This document explains how widgets, transformers, and group configuration relate inside the GUI.
+Widgets in the GUI combine three layers: data selection, transform logic, and
+rendering.
 
-## Core idea
+## Pipeline
 
 A GUI widget usually combines:
 
@@ -16,7 +17,7 @@ In simplified form:
 source data -> transformer -> structured output -> widget renderer -> preview / publish output
 ```
 
-## User-facing workflow
+## In the editor
 
 Inside the group configuration flow, the user typically:
 
@@ -27,7 +28,7 @@ Inside the group configuration flow, the user typically:
 5. previews the result
 6. saves the configuration
 
-## Source types
+## Data sources
 
 Widgets may operate on:
 
@@ -36,16 +37,7 @@ Widgets may operate on:
 - auxiliary supporting sources
 - raster or spatial layers depending on plugin type
 
-## Why this document exists
-
-Earlier documentation described this area through outdated tab-based or wizard-based screens. The current product is better understood through the relationship between:
-
-- groups
-- widgets
-- transformer-backed configuration
-- preview and publish flows
-
 ## Related docs
 
 - [Transform workflow (user guide)](../02-user-guide/transform.md)
-- [GUI preview system (architecture)](../09-architecture/gui-preview-system.md)
+- [GUI preview system (architecture)](../07-architecture/gui-preview-system.md)

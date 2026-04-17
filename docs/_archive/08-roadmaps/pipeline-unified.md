@@ -1,5 +1,11 @@
 # Interface Pipeline Unifiée Niamoto - Spécifications et Roadmap
 
+Cette page décrit une proposition de future interface pipeline unifiée. Elle ne
+décrit pas l’interface actuelle du produit. Pour l’architecture en production,
+commence par [../07-architecture/system-overview.md](../07-architecture/system-overview.md),
+[../07-architecture/gui-overview.md](../07-architecture/gui-overview.md) et
+[../07-architecture/gui-runtime.md](../07-architecture/gui-runtime.md).
+
 ## 📌 Fichiers de Configuration de Référence
 
 Les spécifications suivantes sont basées sur les fichiers de configuration d'une instance Niamoto complète (voir `test-instance/` dans le dépôt) :

@@ -36,7 +36,7 @@
 - Computes statistics and maps through a plugin-driven transform
   pipeline.
 - Generates a static biodiversity portal, ready to publish on GitHub
-  Pages, S3, or your own server.
+  Pages, Cloudflare, Netlify, Vercel, Render, or your own server via SSH.
 
 The desktop app is the primary interface. The Python CLI covers
 automation, CI, and advanced pipelines.

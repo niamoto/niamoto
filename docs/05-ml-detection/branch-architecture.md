@@ -50,8 +50,8 @@ essential, but must stay conservative:
 
 References:
 
-- [alias_registry.py](src/niamoto/core/imports/ml/alias_registry.py)
-- [column_aliases.yaml](src/niamoto/core/imports/ml/column_aliases.yaml)
+- `src/niamoto/core/imports/ml/alias_registry.py`
+- `src/niamoto/core/imports/ml/column_aliases.yaml`
 
 ### 2. Header Branch
 
@@ -65,8 +65,8 @@ Technology:
 
 References:
 
-- [train_header_model.py](../../ml/scripts/train/train_header_model.py)
-- [header_features.py](src/niamoto/core/imports/ml/header_features.py)
+- `ml/scripts/train/train_header_model.py`
+- `src/niamoto/core/imports/ml/header_features.py`
 
 ### 3. Values Branch
 
@@ -86,8 +86,8 @@ It is less accurate alone than `header`, but it is decisive for:
 
 References:
 
-- [train_value_model.py](../../ml/scripts/train/train_value_model.py)
-- [value_features.py](src/niamoto/core/imports/ml/value_features.py)
+- `ml/scripts/train/train_value_model.py`
+- `src/niamoto/core/imports/ml/value_features.py`
 
 ### 4. Fusion
 
@@ -103,8 +103,8 @@ dominant on a particular domain.
 
 References:
 
-- [train_fusion.py](../../ml/scripts/train/train_fusion.py)
-- [fusion_features.py](src/niamoto/core/imports/ml/fusion_features.py)
+- `ml/scripts/train/train_fusion.py`
+- `src/niamoto/core/imports/ml/fusion_features.py`
 
 ### 5. Product Semantic Projection
 
@@ -119,9 +119,9 @@ This layer is what aligns detection with the Niamoto product.
 
 References:
 
-- [semantic_profile.py](src/niamoto/core/imports/ml/semantic_profile.py)
-- [affordance_matcher.py](src/niamoto/core/imports/ml/affordance_matcher.py)
-- [profiler.py](src/niamoto/core/imports/profiler.py)
+- `src/niamoto/core/imports/ml/semantic_profile.py`
+- `src/niamoto/core/imports/ml/affordance_matcher.py`
+- `src/niamoto/core/imports/profiler.py`
 
 ## Why This Architecture
 
@@ -153,8 +153,8 @@ improve:
 ## Retained Evaluation Ground Truth
 
 The final metric targeted by the branch is the `NiamotoOfflineScore`, computed
-in [evaluation.py](../../ml/scripts/eval/evaluation.py)
-and exposed by [evaluate.py](../../ml/scripts/eval/evaluate.py).
+in `ml/scripts/eval/evaluation.py` and exposed by
+`ml/scripts/eval/evaluate.py`.
 
 The score combines:
 
@@ -196,9 +196,9 @@ What it must not do:
 
 Three loop levels are useful:
 
-- [niamoto-header-model.md](../../ml/programmes/niamoto-header-model.md)
-- [niamoto-values-model.md](../../ml/programmes/niamoto-values-model.md)
-- [niamoto-fusion.md](../../ml/programmes/niamoto-fusion.md)
+- `ml/programmes/niamoto-header-model.md`
+- `ml/programmes/niamoto-values-model.md`
+- `ml/programmes/niamoto-fusion.md`
 
 The `fusion` programme now plays the role of the **full-stack** programme.
 

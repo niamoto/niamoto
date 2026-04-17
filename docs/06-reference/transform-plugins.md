@@ -1,10 +1,9 @@
 # Transform Plugins Reference
 
-This document explains how transform plugins fit into the GUI.
+Transformer schemas drive several parts of the GUI. The source code and config
+models remain the source of truth for exact parameters and validation rules.
 
-It is not intended to be the exhaustive canonical specification of every transformer parameter. The source code and plugin schemas remain the final source of truth.
-
-## What the GUI uses
+## What the GUI reads from plugins
 
 The GUI consumes transform plugins to:
 
@@ -13,20 +12,13 @@ The GUI consumes transform plugins to:
 - validate transform-backed widget configuration
 - produce previewable outputs
 
-## Main areas involved
+## Main code areas
 
-Frontend:
+- frontend: `src/niamoto/gui/ui/src/features/collections`
+- frontend widgets: `src/niamoto/gui/ui/src/components/widgets`
+- backend plugins: `src/niamoto/core/plugins/transformers`
 
-- [src/niamoto/gui/ui/src/features/groups](../../src/niamoto/gui/ui/src/features/groups)
-- [src/niamoto/gui/ui/src/components/widgets](../../src/niamoto/gui/ui/src/components/widgets)
-
-Backend:
-
-- plugin implementations under [src/niamoto/core/plugins/transformers](../../src/niamoto/core/plugins/transformers)
-
-## Common plugin families
-
-Examples of plugin families surfaced in the GUI include:
+## Plugin families commonly surfaced in the GUI
 
 - aggregation plugins
 - statistical summary plugins
@@ -34,12 +26,8 @@ Examples of plugin families surfaced in the GUI include:
 - extraction plugins
 - geospatial and raster-oriented plugins
 
-## Recommended documentation strategy
-
-When a plugin changes:
+## When a plugin changes
 
 1. update the plugin implementation and schema
 2. update the GUI forms if needed
 3. update user-facing guidance only when behavior or expected usage changes materially
-
-Keeping a hand-maintained full catalog in this folder is fragile. Prefer linking directly to the relevant plugin or schema when precision matters.

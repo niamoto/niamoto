@@ -1,141 +1,143 @@
-# Niamoto Plugin System Overview
+# Plugin System Architecture
 
-## Introduction
+Niamoto discovers plugins, validates config with Pydantic, then calls the matching runtime hook.
 
-Niamoto's plugin system employs a "Configuration over Code" philosophy, allowing users to extend functionality through configuration rather than modifying core code. This architecture enables seamless integration of both built-in and custom functionalities while maintaining a clean separation between the core system and extensions.
+## Discovery And Override Rules
 
-## Key Components
+`PluginLoader.load_plugins_with_cascade(project_path)` scans three locations in this order:
 
-### 1. Plugin Registry
+1. `project/plugins`
+2. `~/.niamoto/plugins`
+3. bundled plugins under `src/niamoto/core/plugins`
 
-The Plugin Registry is the central repository for all plugins in the system. It:
-
-- Maintains a catalog of all available plugins organized by type
-- Handles plugin registration and metadata storage
-- Provides type-safe access to plugins
-- Resolves plugin dependencies
+The first plugin name wins. A project plugin can override a user or bundled plugin with the same registered name.
 
 ```python
-# Example: Getting a plugin from the registry
-transformer = PluginRegistry.get_plugin("binned_distribution", PluginType.TRANSFORMER)
-```
+from pathlib import Path
 
-### 2. Plugin Loader
+from niamoto.core.plugins.plugin_loader import PluginLoader
 
-The Plugin Loader handles the dynamic discovery and loading of plugins:
-
-- Loads core plugins bundled with Niamoto
-- Discovers and loads project-specific plugins
-- Manages plugin lifecycle (loading, unloading, reloading)
-- Resolves import paths and handles module loading
-
-```python
-# Example: Loading project plugins
 loader = PluginLoader()
-loader.load_project_plugins("/path/to/project/plugins")
+loader.load_plugins_with_cascade(Path("/path/to/project"))
 ```
 
-### 3. Plugin Types
+## Registry
 
-Niamoto supports four main plugin types:
+Each plugin registers itself with `@register("name", PluginType.X)`. Niamoto stores that class in `PluginRegistry` and looks it up by name and type.
 
-| Plugin Type | Purpose | Config File |
-|-------------|---------|-------------|
-| **Loader** | Data source loading | import.yml |
-| **Transformer** | Data transformation and calculation | transform.yml |
-| **Exporter** | Output generation | export.yml |
-| **Widget** | Visualization components | export.yml |
+```python
+from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.registry import PluginRegistry
 
-### 4. Base Plugin Classes
-
-Each plugin type inherits from a base abstract class that defines its interface and basic functionality:
-
-- **Plugin**: Base class for all plugins
-- **LoaderPlugin**: Interface for data loading plugins
-- **TransformerPlugin**: Interface for data transformation plugins
-- **ExporterPlugin**: Interface for data export plugins
-- **WidgetPlugin**: Interface for visualization widgets
-
-### 5. Configuration System
-
-The configuration-driven approach uses YAML files to:
-
-- Define which plugins to use
-- Configure plugin parameters
-- Establish plugin execution order
-- Link plugins together in a workflow
-
-## Plugin Lifecycle
-
-1. **Discovery**: Plugin classes are discovered by scanning plugin directories
-2. **Registration**: Plugins register themselves with the Plugin Registry
-3. **Configuration**: Users configure plugins through YAML files
-4. **Validation**: Plugin configurations are validated before execution
-5. **Execution**: Plugins are executed according to the workflow
-6. **Result Storage**: Plugin outputs are stored for further processing
-
-## Configuration Files
-
-Niamoto uses three main YAML configuration files:
-
-### import.yml
-Defines data sources and how they should be loaded.
-
-```yaml
-taxonomy:
-  type: csv
-  path: "imports/taxonomy.csv"
-  source: "occurrence"
-  ranks: "family,genus,species,infra"
+widget_class = PluginRegistry.get_plugin("bar_plot", PluginType.WIDGET)
 ```
 
-### transform.yml
-Defines data transformations and calculations.
+## Plugin Types
+
+| Type | Base class | Typical config surface | Runtime hook |
+| --- | --- | --- | --- |
+| Loader | `LoaderPlugin` | `transform.yml` source relations | `load_data(...)` |
+| Transformer | `TransformerPlugin` | `transform.yml` `widgets_data` entries | `transform(data, config)` |
+| Widget | `WidgetPlugin` | `export.yml` widget entries | `render(data, params)` |
+| Exporter | `ExporterPlugin` | `export.yml` targets | `export(target_config, repository, group_filter=None)` |
+| Deployer | `DeployerPlugin` | `deploy.yml` and deploy commands | async deploy / unpublish methods |
+
+## Config Models
+
+Most plugins expose two pieces of validation:
+
+- `config_model` validates the full config entry, usually `plugin + params`
+- `param_schema` exposes typed params for GUI forms and runtime validation
+
+Niamoto uses `BasePluginParams`, `PluginConfig`, `WidgetConfig`, and `TargetConfig` as the shared building blocks.
+
+## Transform Config Shape
+
+Transform groups live in a top-level list. Each widget entry points at one transformer plugin.
 
 ```yaml
-- group_by: taxon
+- group_by: plots
+  sources:
+    - name: occurrences
+      data: occurrences
+      grouping: plots
+      relation:
+        plugin: direct_reference
+        key: plot_id
   widgets_data:
     dbh_distribution:
       plugin: binned_distribution
+      source: occurrences
       params:
-        source: occurrences
         field: dbh
-        bins: [10, 20, 30, 40, 50, 75, 100]
+        bins: [10, 20, 30, 40, 50]
 ```
 
-### export.yml
-Defines widgets and export formats.
+## Export Config Shape
+
+Export targets live under `exports:`. Widgets belong inside `groups[*].widgets`.
 
 ```yaml
-- group_by: taxon
-  widgets:
-    dbh_distribution:
-      type: bar_chart
-      title: "DBH Distribution"
-      source: dbh_distribution
-      datasets:
-        - label: "Occurrences"
-          data_key: "counts"
+exports:
+  - name: web_pages
+    exporter: html_page_exporter
+    params:
+      template_dir: templates
+      output_dir: exports/web
+    groups:
+      - group_by: plots
+        widgets:
+          - plugin: info_grid
+            title: Plot summary
+            data_source: general_info
+            params:
+              items:
+                - label: Elevation
+                  source: elevation
 ```
 
-## Extending Niamoto with Custom Plugins
+## Widget Runtime
 
-Users can extend Niamoto by adding custom plugins to their project's `plugins` directory:
+Niamoto validates each widget entry as a `WidgetConfig`, instantiates the plugin, validates `params` with that widget's `param_schema`, then calls `render(data, params)`.
 
+The widget config stores:
+
+- `plugin`
+- `data_source`
+- `title`
+- `description`
+- `params`
+- `layout`
+
+`title` and `description` live at the widget level, not inside `params`.
+
+## Exporter Runtime
+
+`ExporterService` validates `export.yml` as an `ExportConfig`, loads the exporter plugin, and calls:
+
+```python
+exporter.export(target_config=target, repository=self.db, group_filter=group_filter)
 ```
+
+A custom exporter therefore needs to accept `target_config`, `repository`, and the optional `group_filter`.
+
+## Deployers
+
+Deployers sit after export generation. The CLI and GUI register deployer plugins such as `github`, `netlify`, `cloudflare`, `vercel`, `render`, and `ssh`. You configure them in `deploy.yml` or with `niamoto deploy`.
+
+## Project Layout
+
+```text
 project/
-  ├── plugins/
-  │   ├── transformers/
-  │   │   └── my_custom_transformer.py
-  │   ├── loaders/
-  │   │   └── my_custom_loader.py
-  │   └── exporters/
-  │       └── my_custom_exporter.py
-  ├── config/
-  │   ├── import.yml
-  │   ├── transform.yml
-  │   └── export.yml
-  └── ...
+  plugins/
+    loaders/
+    transformers/
+    widgets/
+    exporters/
+    deployers/
+  config/
+    import.yml
+    transform.yml
+    export.yml
+    deploy.yml
 ```
-
-These plugins will be automatically discovered and registered when Niamoto starts.

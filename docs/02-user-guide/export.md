@@ -1,55 +1,59 @@
 # Export and Publish Workflow
 
-The current GUI distinguishes between:
+The desktop app splits export work between the site area and the publish area:
 
 - site configuration
+- local and exported-site preview
 - publish/build operations
 
-The older idea of a generic “export builder” is not the best description of the current product.
+## Entry points
 
-## Main entry points
+- `src/niamoto/gui/ui/src/features/site`
+- `src/niamoto/gui/ui/src/features/publish`
+- `src/niamoto/gui/ui/src/features/site/components/SiteBuilderPreview.tsx`
+- `src/niamoto/gui/ui/src/features/publish/views/index.tsx`
+- `src/niamoto/gui/ui/src/features/publish/views/deployPlatformConfig.tsx`
 
-- [src/niamoto/gui/ui/src/features/site](../../src/niamoto/gui/ui/src/features/site)
-- [src/niamoto/gui/ui/src/features/publish](../../src/niamoto/gui/ui/src/features/publish)
+## Site area
 
-## Current split
-
-### Site
-
-The site area covers:
+Use the site area for:
 
 - navigation
 - pages
 - appearance
 - content editing
-- references between content and generated group pages
+- references between content and generated collection pages
+- in-context preview while editing templates and pages
 
-### Publish
+## Publish area
 
-The publish area covers:
+Use the publish area for:
 
+- preview of the generated exported site
 - build status
 - deployment-oriented actions
 - generated output lifecycle
+- deployment destinations and credentials
 
-## Product model
+## Typical workflow
 
-Users generally move through these stages:
+Most projects follow this order:
 
 1. Import and configure data
-2. Configure groups and widgets
+2. Configure collections and widgets
 3. Configure the site
-4. Build and publish
+4. Preview the result
+5. Build and publish
 
-This is more accurate than a generic “export type selector” model.
+## Supported deployment targets
 
-## Why this matters
+The current product exposes these publish destinations:
 
-Earlier GUI notes described:
+- Cloudflare Workers
+- GitHub Pages
+- Netlify
+- Vercel
+- Render
+- SSH / rsync
 
-- dashboards as export types
-- mobile app export
-- a theme-first export builder
-- a generic deploy wizard
-
-Those descriptions were exploratory and should not be treated as the current implementation.
+The CLI and the GUI surface the same deployment targets today.

@@ -1,5 +1,13 @@
 # Niamoto Technical Analysis
 
+This document captures an earlier high-level analysis. It predates parts of the
+current runtime, including the DuckDB-first architecture and the five-plugin
+model with deployers. Use
+[../07-architecture/system-overview.md](../07-architecture/system-overview.md),
+[../07-architecture/plugin-system.md](../07-architecture/plugin-system.md), and
+[../06-reference/database-schema.md](../06-reference/database-schema.md) for the
+current architecture.
+
 ## Executive Summary
 
 Niamoto is a sophisticated ecological data platform that demonstrates advanced software architecture and autonomous project management through its implementation of a complete data pipeline system. The platform processes botanical and ecological data from multiple sources, transforms it through a plugin-based architecture, and generates static websites with rich interactive visualizations.

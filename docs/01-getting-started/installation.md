@@ -1,7 +1,7 @@
 # Installation
 
-Niamoto ships two surfaces: a native desktop app and a Python CLI.
-Most users want the desktop app. The CLI covers automation and CI.
+Niamoto gives you two entry points: a desktop app and a Python CLI.
+Install the desktop app unless you need automation, CI, or server runs.
 
 ## Desktop app (recommended)
 
@@ -25,7 +25,7 @@ Signed builds for macOS, Windows, and Linux live on the
 
 ### Windows notes
 
-- The `.msi` installs for the current user — no admin rights needed.
+- The `.msi` installs for the current user. No admin rights needed.
 - WebView2 is bundled; Windows 10 and later include what the app needs.
 
 ### Linux notes
@@ -40,12 +40,12 @@ Signed builds for macOS, Windows, and Linux live on the
 
 ## Python CLI (automation, CI)
 
-The CLI drives the same pipeline as the desktop app, without the UI.
+The CLI runs the same pipeline as the desktop app, without the UI.
 It requires Python 3.12 or newer.
 
 ### With uv (recommended)
 
-[uv](https://github.com/astral-sh/uv) is a fast Python package manager.
+[uv](https://github.com/astral-sh/uv) installs and runs Python tools.
 
 ```bash
 # macOS / Linux
@@ -77,9 +77,8 @@ Add `--extra docs` if you also build the Sphinx docs locally.
 
 ## Geospatial dependencies (CLI only)
 
-Niamoto reads shapefiles, GeoPackages, and rasters via GDAL. The
-desktop app bundles the libraries it needs. The CLI picks them up from
-the host system.
+Niamoto reads shapefiles, GeoPackages, and rasters through GDAL. The desktop app
+bundles what it needs. The CLI uses the GDAL libraries on your machine.
 
 ### macOS
 
@@ -108,7 +107,7 @@ binary directory to your `PATH`.
 
 Launch Niamoto from your Applications / Start menu / launcher. The
 welcome screen should appear within a few seconds. If it stalls, see
-[../99-troubleshooting/README.md](../99-troubleshooting/README.md).
+[../09-troubleshooting/README.md](../09-troubleshooting/README.md).
 
 ### CLI
 
@@ -116,23 +115,19 @@ welcome screen should appear within a few seconds. If it stalls, see
 niamoto --help
 ```
 
-You should see a list of commands: `init`, `import`, `transform`,
-`export`, `run`, `stats`, `deploy`, `plugins`.
+You should see commands such as `init`, `import`, `transform`, `export`, `run`,
+`stats`, `deploy`, and `plugins`.
 
 ## Next steps
 
-- Open the desktop app and follow
-  [first-project.md](first-project.md).
-- If you installed the CLI, run through
-  [quickstart.md](quickstart.md) — it walks through the whole pipeline
-  without the UI.
+- Open the desktop app and follow [first-project.md](first-project.md).
+- If you installed the CLI, read [quickstart.md](quickstart.md).
 
 ## Troubleshooting
 
-- **`command not found: niamoto`** — `~/.local/bin` (or the Windows
-  Scripts folder) is not on `PATH`. Add it, or run
+- **`command not found: niamoto`**: `~/.local/bin` or the Windows Scripts
+  folder is not on `PATH`. Add it, or run
   `python -m niamoto --help`.
-- **`No module named 'osgeo'`** — install the system GDAL first, then
+- **`No module named 'osgeo'`**: install the system GDAL first, then
   `pip install GDAL==$(gdal-config --version)`.
-- Full list in
-  [../99-troubleshooting/README.md](../99-troubleshooting/README.md).
+- Full list: [../09-troubleshooting/README.md](../09-troubleshooting/README.md).

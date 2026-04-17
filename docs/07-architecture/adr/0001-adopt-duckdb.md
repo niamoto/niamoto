@@ -36,9 +36,9 @@ We are migrating Niamoto's analytical infrastructure to DuckDB:
 ### Actions
 
 1. Adapt `Database` + unit tests for DuckDB.
-2. Document configuration (`docs/09-architecture/README.md`, installation guides).
+2. Document configuration (`docs/07-architecture/README.md`, installation guides).
 3. Update scripts (bootstrap, tests) to create/initialize the DuckDB file.
-4. Prepare a migration guide (`docs/10-roadmaps/generic-import-ultrathink.md` ➜ migration appendix) with `ATTACH` examples.
+4. Prepare a migration guide (`docs/08-roadmaps/generic-import-ultrathink.md` ➜ migration appendix) with `ATTACH` examples.
 
 ## Follow-up 2025-10-08
 - ✅ DuckDB helpers (SQL execution, introspection) integrated via registry and refactored loaders (`core/common/database.py`, `core/imports/registry.py`).

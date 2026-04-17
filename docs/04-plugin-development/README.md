@@ -1,82 +1,89 @@
 # Plugin Development
 
-> Status: Active
-> Audience: Python developers extending Niamoto.
-> Purpose: Write transformers, loaders, widgets, and exporters.
+Build custom plugins for Niamoto without patching the core runtime.
 
-Niamoto supports four plugin types that plug into the pipeline:
+## Plugin Types
 
-| Type         | Registered with              | Purpose                                   |
-| ------------ | ---------------------------- | ----------------------------------------- |
-| Loaders      | `PluginType.LOADER`          | Read data from CSVs, GIS files, APIs.     |
-| Transformers | `PluginType.TRANSFORMER`     | Compute statistics, aggregates, indices.  |
-| Exporters    | `PluginType.EXPORTER`        | Produce HTML, JSON, or file artifacts.    |
-| Widgets      | `PluginType.WIDGET`          | Render interactive charts, maps, tables.  |
+| Type | Register with | Where Niamoto uses it | What it does |
+| --- | --- | --- | --- |
+| Loader | `PluginType.LOADER` | `transform.yml` source relations and some enrichment flows | Fetch rows before a transform runs |
+| Transformer | `PluginType.TRANSFORMER` | `transform.yml` | Compute derived data |
+| Widget | `PluginType.WIDGET` | `export.yml` widget lists | Render HTML for exported pages |
+| Exporter | `PluginType.EXPORTER` | `export.yml` targets | Generate files or sites |
+| Deployer | `PluginType.DEPLOYER` | `deploy.yml` and `niamoto deploy` | Publish generated exports |
 
-## Start here
+## Start Here
 
-- [architecture.md](architecture.md) — how plugins plug into the
-  import / transform / export pipeline.
-- [creating-transformers.md](creating-transformers.md) — build a
-  transformer, register it, validate its config.
-- [building-widgets.md](building-widgets.md) — render a custom widget,
-  wire it to a transformer, preview it in the GUI.
-- [custom-exporters.md](custom-exporters.md) — generate custom
-  output artifacts.
-- [database-aggregator-guide.md](database-aggregator-guide.md) — a
-  worked example combining several plugin types.
+- [architecture.md](architecture.md) explains registry, loading, and config surfaces.
+- [creating-transformers.md](creating-transformers.md) shows how to write a transformer and validate its config.
+- [building-widgets.md](building-widgets.md) covers widget params, rendering, and `export.yml`.
+- [custom-exporters.md](custom-exporters.md) covers exporter params, target configs, and output generation.
+- [database-aggregator-guide.md](database-aggregator-guide.md) documents the SQL-based transformer that ships with Niamoto.
 
-## If you want to…
-
-- **Add a new statistic** — write a transformer
-  ([creating-transformers.md](creating-transformers.md)).
-- **Render data in a new way** — write a widget
-  ([building-widgets.md](building-widgets.md)).
-- **Ingest a new file format** — write a loader
-  (see [architecture.md](architecture.md) for the base class).
-- **Emit a new export artifact** — write an exporter
-  ([custom-exporters.md](custom-exporters.md)).
-- **Look at a complex real plugin** — read
-  [database-aggregator.md](database-aggregator.md).
-
-## Skeleton
+## Minimal Transformer
 
 ```python
-from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from typing import Any, Dict, Literal
+
+import pandas as pd
+from pydantic import Field
+
+from niamoto.core.plugins.base import PluginType, TransformerPlugin, register
+from niamoto.core.plugins.models import BasePluginParams, PluginConfig
 
 
-@register("my_plugin", PluginType.TRANSFORMER)
-class MyPlugin(TransformerPlugin):
-    config_model = MyPluginConfig  # Pydantic model
+class MeanDbhParams(BasePluginParams):
+    field: str = Field(default="dbh")
 
-    def transform(self, data, config):
-        # compute and return
-        return processed
+
+class MeanDbhConfig(PluginConfig):
+    plugin: Literal["mean_dbh"] = "mean_dbh"
+    params: MeanDbhParams
+
+
+@register("mean_dbh", PluginType.TRANSFORMER)
+class MeanDbhTransformer(TransformerPlugin):
+    config_model = MeanDbhConfig
+    param_schema = MeanDbhParams
+
+    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, float]:
+        validated = self.config_model(**config)
+        params = validated.params
+        return {"mean_dbh": float(data[params.field].dropna().mean())}
 ```
 
 ## Workflow
 
 1. Pick the plugin type.
-2. Implement the plugin class and its Pydantic `config_model`.
-3. Register with `@register("name", PluginType.X)`.
-4. Configure it in `transform.yml` or `export.yml`.
-5. Add unit and integration tests under `tests/plugins/`.
+2. Define a params model with `BasePluginParams`.
+3. Define a config model that wraps `plugin` and `params`.
+4. Register the class with `@register("name", PluginType.X)`.
+5. Wire it into `transform.yml`, `export.yml`, or `deploy.yml`.
+6. Add tests under the matching tree in `tests/core/plugins/`.
 
-## Structure
+## Test Locations
 
-### Active reference
-- [architecture.md](architecture.md)
-- [creating-transformers.md](creating-transformers.md)
-- [building-widgets.md](building-widgets.md)
-- [custom-exporters.md](custom-exporters.md)
-- [database-aggregator-guide.md](database-aggregator-guide.md)
-- [database-aggregator.md](database-aggregator.md)
+- Transformers: `tests/core/plugins/transformers/`
+- Widgets: `tests/core/plugins/widgets/`
+- Exporters: `tests/core/plugins/exporters/`
+- Loaders: `tests/core/plugins/loaders/`
+- Deployers: `tests/core/plugins/deployers/`
 
 ## Related
 
-- [../06-reference/README.md](../06-reference/README.md) — API and
-  schema references.
-- [../05-ml-detection/README.md](../05-ml-detection/README.md) — how
-  the ML classifier plugs into the import workflow.
-- [../09-architecture/README.md](../09-architecture/README.md) — the
-  plugin system in context.
+- [../06-reference/README.md](../06-reference/README.md)
+- [../05-ml-detection/README.md](../05-ml-detection/README.md)
+- [../07-architecture/README.md](../07-architecture/README.md)
+
+```{toctree}
+:hidden:
+
+architecture
+creating-transformers
+building-widgets
+custom-exporters
+database-aggregator
+database-aggregator-guide
+examples/darwin-core-export
+examples/taxonomy-enricher
+```

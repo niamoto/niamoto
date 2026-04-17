@@ -69,9 +69,18 @@ Pick the path that matches your profile:
    :caption: Project
    :hidden:
 
-   09-architecture/README
-   10-roadmaps/README
-   99-troubleshooting/README
+   07-architecture/README
+   08-roadmaps/README
+   09-troubleshooting/README
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Internal
+   :hidden:
+
+   README
+   STYLE_GUIDE
+   DESIGN_SYSTEM
 
 Indices
 =======

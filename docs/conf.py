@@ -34,6 +34,10 @@ extensions = [
 ]
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
+suppress_warnings = [
+    "autodoc.import_object",
+    "misc.highlighting_failure",
+]
 
 # Configuration pour myst_parser
 myst_enable_extensions = [
@@ -73,38 +77,95 @@ redirects = {
     "02-data-pipeline/export-process": "../02-user-guide/export.html",
     "02-data-pipeline/data-preparation": "../02-user-guide/import.html",
     "02-data-pipeline/widget-system": "../02-user-guide/transform.html",
-    # 05-api-reference -> 06-reference. Granular redirects land on the
-    # section index until the individual pages are migrated from
-    # docs/_archive/05-api-reference/ into docs/06-reference/.
+    # 05-api-reference -> 06-reference.
     "05-api-reference/index": "../06-reference/README.html",
     "05-api-reference/README": "../06-reference/README.html",
-    "05-api-reference/cli-commands": "../06-reference/README.html",
-    "05-api-reference/core-api": "../06-reference/README.html",
-    "05-api-reference/database-schema": "../06-reference/README.html",
-    "05-api-reference/plugin-api": "../06-reference/README.html",
-    "05-api-reference/external-apis": "../06-reference/README.html",
-    "05-api-reference/api-export-guide": "../06-reference/README.html",
-    # 06-gui -> split across 02-user-guide, 06-reference, 09-architecture,
-    # 99-troubleshooting (see docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md).
+    "05-api-reference/cli-commands": "../06-reference/cli-commands.html",
+    "05-api-reference/core-api": "../06-reference/core-api.html",
+    "05-api-reference/database-schema": "../06-reference/database-schema.html",
+    "05-api-reference/plugin-api": "../06-reference/plugin-api.html",
+    "05-api-reference/external-apis": "../06-reference/external-apis.html",
+    "05-api-reference/api-export-guide": "../06-reference/api-export-guide.html",
+    # 09-architecture -> 07-architecture
+    "09-architecture/index": "../07-architecture/README.html",
+    "09-architecture/README": "../07-architecture/README.html",
+    "09-architecture/corrections-roadmap": "../08-roadmaps/README.html",
+    "09-architecture/gui-overview": "../07-architecture/gui-overview.html",
+    "09-architecture/gui-preview-system": "../07-architecture/gui-preview-system.html",
+    "09-architecture/gui-runtime": "../07-architecture/gui-runtime.html",
+    "09-architecture/pipeline-unified": "../08-roadmaps/README.html",
+    "09-architecture/plugin-improvement": "../08-roadmaps/README.html",
+    "09-architecture/plugin-system": "../07-architecture/plugin-system.html",
+    "09-architecture/system-overview": "../07-architecture/system-overview.html",
+    "09-architecture/target-architecture-2026": "../08-roadmaps/target-architecture-2026.html",
+    "09-architecture/target-architecture-2026-comex-cto": "../08-roadmaps/target-architecture-2026-comex-cto.html",
+    "09-architecture/target-architecture-2026-execution-plan": "../08-roadmaps/target-architecture-2026-execution-plan.html",
+    "09-architecture/technical-analysis": "../08-roadmaps/README.html",
+    # 07-architecture pages that were reclassified as roadmaps/plans
+    "07-architecture/pipeline-unified": "../08-roadmaps/README.html",
+    "07-architecture/corrections-roadmap": "../08-roadmaps/README.html",
+    "07-architecture/plugin-improvement": "../08-roadmaps/README.html",
+    "07-architecture/target-architecture-2026": "../08-roadmaps/target-architecture-2026.html",
+    "07-architecture/target-architecture-2026-comex-cto": "../08-roadmaps/target-architecture-2026-comex-cto.html",
+    "07-architecture/target-architecture-2026-execution-plan": "../08-roadmaps/target-architecture-2026-execution-plan.html",
+    "07-architecture/technical-analysis": "../08-roadmaps/README.html",
+    "09-architecture/adr/0001-adopt-duckdb": "../../07-architecture/adr/0001-adopt-duckdb.html",
+    "09-architecture/adr/0002-retire-legacy-importers": "../../07-architecture/adr/0002-retire-legacy-importers.html",
+    "09-architecture/adr/0003-derived-references-with-duckdb": "../../07-architecture/adr/0003-derived-references-with-duckdb.html",
+    "09-architecture/adr/0004-generic-import-system": "../../07-architecture/adr/0004-generic-import-system.html",
+    # 10-roadmaps -> 08-roadmaps
+    "10-roadmaps/index": "../08-roadmaps/README.html",
+    "10-roadmaps/README": "../08-roadmaps/README.html",
+    "10-roadmaps/auto-detection-mvp": "../08-roadmaps/auto-detection-mvp.html",
+    "10-roadmaps/error-handling": "../08-roadmaps/error-handling.html",
+    "10-roadmaps/pattern-matching-implementation-summary": "../08-roadmaps/README.html",
+    "10-roadmaps/gui-finalization/00-overview": "../../08-roadmaps/gui-finalization/00-overview.html",
+    "10-roadmaps/gui-finalization/01-phase-import": "../../08-roadmaps/gui-finalization/01-phase-import.html",
+    "10-roadmaps/gui-finalization/02-phase-transform-export": "../../08-roadmaps/gui-finalization/02-phase-transform-export.html",
+    "10-roadmaps/gui/ARCHITECTURE_MULTI_PROJETS": "../../08-roadmaps/gui/ARCHITECTURE_MULTI_PROJETS.html",
+    "10-roadmaps/gui/BINARY_DISTRIBUTION": "../../08-roadmaps/gui/BINARY_DISTRIBUTION.html",
+    "10-roadmaps/gui/DESKTOP_APP": "../../08-roadmaps/gui/DESKTOP_APP.html",
+    "10-roadmaps/gui/PLUGINS_WITH_BINARY": "../../08-roadmaps/gui/PLUGINS_WITH_BINARY.html",
+    "10-roadmaps/gui/fastapi-dual-purpose-architecture": "../../07-architecture/gui-runtime.html",
+    "10-roadmaps/gui/operations/export": "../../../02-user-guide/export.html",
+    "10-roadmaps/gui/operations/import": "../../../02-user-guide/import.html",
+    "10-roadmaps/gui/operations/transform": "../../../02-user-guide/transform.html",
+    # retired 08-roadmaps pages now redirect to section landing pages or current docs
+    "08-roadmaps/pattern-matching-implementation-summary": "../08-roadmaps/README.html",
+    "08-roadmaps/pipeline-unified": "../08-roadmaps/README.html",
+    "08-roadmaps/corrections-roadmap": "../08-roadmaps/README.html",
+    "08-roadmaps/plugin-improvement": "../08-roadmaps/README.html",
+    "08-roadmaps/technical-analysis": "../08-roadmaps/README.html",
+    "08-roadmaps/gui/fastapi-dual-purpose-architecture": "../../07-architecture/gui-runtime.html",
+    "08-roadmaps/gui/operations/import": "../../02-user-guide/import.html",
+    "08-roadmaps/gui/operations/transform": "../../02-user-guide/transform.html",
+    "08-roadmaps/gui/operations/export": "../../02-user-guide/export.html",
+    # 99-troubleshooting -> 09-troubleshooting
+    "99-troubleshooting/index": "../09-troubleshooting/README.html",
+    "99-troubleshooting/README": "../09-troubleshooting/README.html",
+    "99-troubleshooting/common-issues": "../09-troubleshooting/common-issues.html",
+    "99-troubleshooting/desktop-smoke-tests": "../09-troubleshooting/desktop-smoke-tests.html",
+    # 06-gui -> split across 02-user-guide, 06-reference, 07-architecture,
+    # 09-troubleshooting (see docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md).
     "06-gui/index": "../02-user-guide/README.html",
     "06-gui/README": "../02-user-guide/README.html",
     "06-gui/operations/import": "../../02-user-guide/import.html",
     "06-gui/operations/transform": "../../02-user-guide/transform.html",
     "06-gui/operations/export": "../../02-user-guide/export.html",
-    "06-gui/operations/desktop-smoke-tests": "../../99-troubleshooting/desktop-smoke-tests.html",
-    "06-gui/architecture/overview": "../../09-architecture/gui-overview.html",
-    "06-gui/architecture/backend-frontend-runtime": "../../09-architecture/gui-runtime.html",
-    "06-gui/architecture/preview-system": "../../09-architecture/gui-preview-system.html",
+    "06-gui/operations/desktop-smoke-tests": "../../09-troubleshooting/desktop-smoke-tests.html",
+    "06-gui/architecture/overview": "../../07-architecture/gui-overview.html",
+    "06-gui/architecture/backend-frontend-runtime": "../../07-architecture/gui-runtime.html",
+    "06-gui/architecture/preview-system": "../../07-architecture/gui-preview-system.html",
     "06-gui/reference/preview-api": "../../06-reference/gui-preview-api.html",
     "06-gui/reference/transform-plugins": "../../06-reference/transform-plugins.html",
     "06-gui/reference/widgets-and-transform-workflow": "../../06-reference/widgets-and-transform-workflow.html",
     # 08-configuration -> 06-reference
-    "08-configuration/index": "../06-reference/README.html",
-    "08-configuration/README": "../06-reference/README.html",
-    "08-configuration/configuration-guide": "../06-reference/README.html",
-    "08-configuration/configuration-analysis": "../06-reference/README.html",
-    "08-configuration/yaml-strategies": "../06-reference/README.html",
-    "08-configuration/templates-hierarchy": "../06-reference/README.html",
+    "08-configuration/index": "../06-reference/configuration-guide.html",
+    "08-configuration/README": "../06-reference/configuration-guide.html",
+    "08-configuration/configuration-guide": "../06-reference/configuration-guide.html",
+    "08-configuration/configuration-analysis": "../06-reference/configuration-analysis.html",
+    "08-configuration/yaml-strategies": "../06-reference/yaml-strategies.html",
+    "08-configuration/templates-hierarchy": "../06-reference/templates-hierarchy.html",
     # 11-development -> CONTRIBUTING (at repo root, linked from docs)
     "11-development/index": "../README.html",
     "11-development/README": "../README.html",
@@ -113,12 +174,10 @@ redirects = {
     "11-development/contributing": "../README.html",
     "11-development/deployment": "../README.html",
     "11-development/testing": "../README.html",
-    # 12-troubleshooting -> 99-troubleshooting. common-issues lands on
-    # the section index until the page is migrated from
-    # docs/_archive/12-troubleshooting/common-issues.md.
-    "12-troubleshooting/index": "../99-troubleshooting/README.html",
-    "12-troubleshooting/README": "../99-troubleshooting/README.html",
-    "12-troubleshooting/common-issues": "../99-troubleshooting/README.html",
+    # 12-troubleshooting -> 09-troubleshooting
+    "12-troubleshooting/index": "../09-troubleshooting/README.html",
+    "12-troubleshooting/README": "../09-troubleshooting/README.html",
+    "12-troubleshooting/common-issues": "../09-troubleshooting/common-issues.html",
     # 07-tutorials was archived; land on the user guide index until
     # tutorial pages are rewritten under 02-user-guide/tutorials/.
     "07-tutorials/index": "../02-user-guide/README.html",

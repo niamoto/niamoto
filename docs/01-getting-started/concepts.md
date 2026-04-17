@@ -1,332 +1,152 @@
-# Niamoto Core Concepts
+# Niamoto core concepts
 
-This guide presents the key concepts to understand Niamoto's architecture and operation.
+Niamoto runs one pipeline through three config files:
 
-## Overview
-
-Niamoto is an ecological data platform designed with a pipeline architecture:
-
-```
-┌─────────┐     ┌───────────┐     ┌────────┐
-│ IMPORT  │ --> │ TRANSFORM │ --> │ EXPORT │
-└─────────┘     └───────────┘     └────────┘
-     ↓                ↓                ↓
-[CSV Data]      [Statistics]    [Website]
-[GIS Files]     [Aggregations]  [JSON API]
+```text
+import.yml    -> load raw data
+transform.yml -> compute grouped outputs
+export.yml    -> render pages or APIs
 ```
 
-## 1. The Data Pipeline
+The desktop app edits the same project files as the CLI. The interface changes.
+The project model does not.
 
-### Import
-The import phase loads your source data into a SQLite database:
+## 1. Project layout
 
-- **Supported data**: CSV, GeoPackage, Shapefile
-- **Entity types**: Taxonomy, Occurrences, Plots, Geographic shapes
-- **Validation**: Automatic data consistency checking
+When you run `niamoto init`, Niamoto creates this tree:
 
-### Transform
-The transformation phase calculates statistics and prepares data for display:
-
-- **Aggregations**: Grouping by taxon, plot, or geographic area
-- **Calculations**: Ecological indices, descriptive statistics
-- **Enrichment**: Adding data via external APIs
-
-### Export
-The export phase generates a static website and/or API:
-
-- **Static site**: HTML/CSS/JS ready to deploy
-- **Widgets**: Reusable visual components
-- **Templates**: Complete rendering customization
-
-## 2. Data Structure
-
-### Taxonomy
-The taxonomic hierarchy organizes species:
-
-```
-Family
-└── Genus
-    └── Species
-        └── Subspecies (optional)
-```
-
-**Example**:
-```
-Araucariaceae
-└── Araucaria
-    ├── Araucaria columnaris
-    └── Araucaria montana
-```
-
-### Occurrences
-Occurrences represent individual observations:
-
-```python
-{
-    "id": 12345,
-    "taxon_ref_id": 1,
-    "latitude": -22.2764,
-    "longitude": 166.4580,
-    "dbh": 45.5,  # Diameter at breast height
-    "height": 12.3,
-    "date_obs": "2024-03-15"
-}
-```
-
-### Plots
-Plots are delimited study areas:
-
-```python
-{
-    "id": 1,
-    "name": "Mont Panié Plot 01",
-    "latitude": -20.5819,
-    "longitude": 164.7672,
-    "elevation": 1250,
-    "area": 2500  # m²
-}
-```
-
-### Shapes
-Geographic shapes define zones (provinces, forests, etc.):
-
-```python
-{
-    "id": 1,
-    "name": "Northern Province",
-    "type": "province",
-    "geometry": "POLYGON(...)"  # WKT or GeoJSON format
-}
-```
-
-## 3. Plugin System
-
-Niamoto uses an extensible plugin system:
-
-### Plugin Types
-
-#### Loader
-Load additional data into entities:
-- `nested_set`: Manages hierarchies
-- `spatial`: Calculates spatial relationships
-- `api_taxonomy_enricher`: Enriches via API
-
-#### Transformer
-Transform and aggregate data:
-- `field_aggregator`: Aggregates fields
-- `species_richness`: Calculates species richness
-- `shannon_diversity`: Calculates Shannon index
-
-#### Widget
-Generate visualizations:
-- `interactive_map`: Interactive map
-- `bar_plot`: Bar chart
-- `summary_stats`: Summary statistics
-
-#### Exporter
-Export to different formats:
-- `html_page_exporter`: HTML pages
-- `json_api_exporter`: JSON API
-
-### Creating a Plugin
-
-```python
-from niamoto.core.plugins.base import TransformerPlugin, register
-
-@register("my_plugin", PluginType.TRANSFORMER)
-class MyPlugin(TransformerPlugin):
-    def transform(self, data, config):
-        # Transformation logic
-        return result
-```
-
-## 4. YAML Configuration
-
-### File Structure
-
-```
+```text
 config/
-├── config.yml      # General configuration
-├── import.yml      # Data sources
-├── transform.yml   # Transformation pipeline
-└── export.yml      # Site generation
+imports/
+exports/
+plugins/
+templates/
+db/
+logs/
 ```
 
-### References and Chains
+`config.yml` points to the database, output directories, templates, and plugins.
 
-Transformations can reference other results:
+## 2. Import
 
-```yaml
-- name: base_calculation
-  plugin: species_count
+`import.yml` defines the raw entities that enter the project database.
 
-- name: advanced_calculation
-  plugin: normalize
-  input: "@base_calculation"  # Reference to previous result
-```
+You usually split them into:
 
-### Available Functions
+- `datasets` for observations, measurements, and other raw rows
+- `references` for taxonomy, plots, shapes, or classification tables
 
-In transformation chains:
-- `@sum()`: Sum
-- `@mean()`: Average
-- `@count()`: Count
-- `@unique()`: Unique values
+For each entity, you tell Niamoto:
 
-## 5. Database
+- where the source lives
+- which fields to load
+- how datasets link to references
 
-### SQLAlchemy Architecture
+That import step gives the rest of the pipeline a stable project database.
 
-Niamoto uses SQLAlchemy with declarative models:
+## 3. Transform
 
-```python
-# Simplified model
-class Occurrence(Base):
-    __tablename__ = 'occurrences'
+`transform.yml` is a list of groups. Each group picks one `group_by` entity and
+computes outputs for that entity in `widgets_data`.
 
-    id = Column(Integer, primary_key=True)
-    taxon_ref_id = Column(Integer, ForeignKey('taxon_ref.id'))
-    geo_pt = Column(Geometry('POINT'))
+- `group_by` says which entity owns the output rows
+- `sources` define the extra data each group can read
+- `widgets_data` runs transformer plugins and stores their results
 
-    # Relationships
-    taxon = relationship('TaxonRef')
-```
+Those results become the inputs for HTML widgets, JSON exports, previews, and
+other tooling.
 
-### Spatial Extensions
+## 4. Export
 
-GeoAlchemy2 enables spatial queries:
+`export.yml` defines an `exports:` list. Each target picks one exporter.
 
-```python
-# Find occurrences within radius
-nearby = session.query(Occurrence).filter(
-    func.ST_DWithin(
-        Occurrence.geo_pt,
-        center_point,
-        1000  # meters
-    )
-)
-```
+The two common cases are:
 
-## 6. Templates and Widgets
+- `html_page_exporter` for a static website
+- `json_api_exporter` for API files
 
-### Template System
+An HTML target usually contains:
 
-Niamoto uses a **two-level template system**:
+- `params` for site settings, template paths, navigation, and assets
+- optional `static_pages`
+- `groups` for detail pages and index pages
 
-**Built-in Templates** (provided by Niamoto):
-- `static_page.html` - All static pages
-- `group_detail.html` - Individual entity pages (taxon, plot, shape)
-- `group_index.html` - Entity list pages with search/filtering
-- `_base.html` - Base layout with navigation
+Each `groups[*].widgets` entry points at a `data_source` that came from
+`transform.yml`.
 
-**Project Templates** (optional overrides):
-```
-templates/              # Your custom templates (optional)
-├── custom_home.html    # Override static page template
-├── assets/             # Your CSS, JS, images
-│   ├── css/
-│   └── js/
-└── content/            # Markdown content files
-    └── about.md
-```
+## 5. Plugins
 
-**Template Precedence**: Project templates override built-in templates automatically. No configuration needed - just create files to override defaults.
+Plugins extend each stage of the pipeline.
 
-### Widgets
+Niamoto registers five families:
 
-Widgets are rendered directly by their plugins and **do not use separate template files**. You can style widget output with CSS.
+- loaders
+- transformers
+- widgets
+- exporters
+- deployers
 
-### Template Context
+Use built-in plugins first. Write your own plugin when the stock ones stop
+short.
 
-Templates receive:
-- `entity`: Current entity (taxon, plot...)
-- `widgets`: Rendered widget HTML
-- `site`: Global configuration
-- `navigation`: Menu structure
+## 6. Templates and widgets
 
-## 7. Typical Workflow
+Templates control page layout. Put overrides in `templates/`.
 
-### 1. Data Preparation
+Widgets do a different job. A widget plugin reads transformed data and returns
+HTML for one block inside a page. You configure the widget in `export.yml` with:
 
-```bash
-# Check CSV format
-head -5 imports/occurrences.csv
+- `plugin`
+- `data_source`
+- `title`
+- `description`
+- `params`
+- `layout`
 
-# Validate coordinates
-ogr2ogr -f CSV /vsistdout/ imports/shapes/provinces.gpkg -sql "SELECT COUNT(*) FROM provinces"
-```
+If you want to change page structure, edit templates. If you want a new data
+block, edit widgets.
 
-### 2. Configuration
+## 7. Desktop app and CLI
 
-```yaml
-# import.yml
-occurrences:
-  type: csv
-  path: "imports/occurrences.csv"
-  mapping:
-    # Map CSV columns to Niamoto fields
-```
+The desktop app and the CLI touch the same project.
 
-### 3. Execution
+Use the desktop app when you want:
 
-```bash
-# Initial import
-niamoto import
+- import assistance
+- previews
+- page composition
+- guided deploy setup
 
-# Verification
-niamoto stats
+Use the CLI when you want:
 
-# Transformation
-niamoto transform
+- repeatable runs
+- CI or cron jobs
+- scripted deploys
+- versioned config changes
 
-# Export
-niamoto export
-```
+You can switch between them at any point.
 
-### 4. Deployment
+## 8. A normal project loop
 
-```bash
-# Copy to server
-rsync -avz exports/web/ user@server:/var/www/
+Most projects follow this loop:
 
-# Or use GitHub Pages
-niamoto deploy --github-pages
-```
+1. Copy raw files into `imports/`.
+2. Fill `import.yml`.
+3. Run `niamoto import`.
+4. Fill `transform.yml`.
+5. Run `niamoto transform`.
+6. Fill `export.yml`.
+7. Run `niamoto export`.
+8. Publish with `niamoto deploy` when the site looks right.
 
-## 8. Best Practices
+For repeated runs, many teams use `niamoto run --no-reset`.
 
-### Data Organization
+## Next reads
 
-1. **Identifier consistency**: Use unique IDs
-2. **Normalization**: Separate taxonomy and occurrences
-3. **Validation**: Check data before import
-
-### Performance
-
-1. **Indexes**: Create indexes on frequently queried fields
-2. **Cache**: Enable cache for external APIs
-3. **Pagination**: Limit number of entities per page
-
-### Maintenance
-
-1. **Versioning**: Tag your configurations
-2. **Backup**: Back up database before updates
-3. **Documentation**: Document your custom plugins
-
-## Summary
-
-Niamoto transforms your raw ecological data into an interactive website through:
-
-1. A structured **pipeline** (Import → Transform → Export)
-2. An extensible **plugin system**
-3. Declarative **YAML configuration**
-4. Reusable **visual widgets**
-5. A **relational database** with spatial support
-
-This modular architecture allows you to create biodiversity portals adapted to your specific needs while remaining maintainable and scalable.
-
-## Next Steps
-
-- [Reference](../06-reference/README.md) — API, config schemas, CLI
-- [Plugin development](../04-plugin-development/creating-transformers.md)
-- [Widget workflow](../06-reference/widgets-and-transform-workflow.md)
+- [quickstart.md](quickstart.md) for the shell workflow
+- [../03-cli-automation/README.md](../03-cli-automation/README.md) for command
+  patterns and deployment
+- [../06-reference/configuration-guide.md](../06-reference/configuration-guide.md)
+  for schema details
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) for
+  custom plugins

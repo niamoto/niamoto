@@ -1,12 +1,13 @@
 # Preview API Reference
 
-The preview API generates HTML previews for widgets and related GUI preview surfaces.
+The desktop backend renders HTML previews for widgets and related preview
+surfaces in the GUI.
 
 ## Endpoints
 
 ### `GET /api/preview/{template_id}`
 
-Render the preview HTML for a widget identified by `template_id`.
+Render the stored preview HTML for a widget identified by `template_id`.
 
 Query parameters:
 
@@ -108,9 +109,9 @@ The frontend preview hook uses TanStack Query for:
 
 Main frontend files:
 
-- [`src/niamoto/gui/ui/src/lib/preview/types.ts`](../../src/niamoto/gui/ui/src/lib/preview/types.ts)
-- [`src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`](../../src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts)
+- `src/niamoto/gui/ui/src/lib/preview/types.ts`
+- `src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`
 
-## Related document
+## Related docs
 
-- [GUI preview system](../09-architecture/gui-preview-system.md)
+- [GUI preview system](../07-architecture/gui-preview-system.md)

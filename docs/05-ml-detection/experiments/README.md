@@ -30,3 +30,12 @@ Each experiment note should stay compact and follow the same structure:
 4. Results
 5. Interpretation
 6. Decision or next step
+
+```{toctree}
+:hidden:
+
+2026-03-17-ml-detection-iteration-log
+2026-03-20-multi-instance-eval-and-improvement
+2026-03-21-anonymous-holdout-rework
+2026-03-21-acquisition-wave-retrain
+```

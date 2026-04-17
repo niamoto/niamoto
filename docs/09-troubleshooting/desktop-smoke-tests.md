@@ -4,7 +4,7 @@ Use this checklist before calling a desktop build healthy on macOS, Linux, or Wi
 
 ## Current build matrix
 
-The current CI workflow in [build-tauri.yml](../../.github/workflows/build-tauri.yml) produces:
+The current CI workflow in `.github/workflows/build-tauri.yml` produces:
 
 - macOS arm64
 - Linux x86_64

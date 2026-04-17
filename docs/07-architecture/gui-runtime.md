@@ -39,7 +39,7 @@ In packaged or end-user mode:
 
 The build output used for this mode is:
 
-- [src/niamoto/gui/ui/dist](../../src/niamoto/gui/ui/dist)
+- `src/niamoto/gui/ui/dist`
 
 ## Desktop runtime
 
@@ -52,12 +52,12 @@ When running through Tauri:
 - local fonts are loaded from `public/fonts` instead of Google Fonts
 - the welcome screen and project selection flow are especially relevant
 
-## Practical implication
+## What to separate when you document or change the GUI
 
-When documenting or changing GUI behavior, it is important to distinguish:
+Keep these layers distinct:
 
 - backend API concerns
 - frontend state and routing concerns
 - runtime-specific behavior for desktop mode
 
-These three layers share one product surface, but they are not the same implementation layer.
+Users see one product. The code does not live in one layer.
