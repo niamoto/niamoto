@@ -25,8 +25,32 @@ class TestCreateApp:
     def test_app_docs_urls(self):
         """Test API documentation URLs."""
         app = create_app()
+        assert app.openapi_url == "/api/openapi.json"
         assert app.docs_url == "/api/docs"
         assert app.redoc_url == "/api/redoc"
+
+    def test_docs_ui_points_to_api_scoped_openapi_url(self):
+        """Swagger UI should load the API-scoped OpenAPI schema."""
+        app = create_app()
+        client = TestClient(app)
+
+        response = client.get("/api/docs")
+
+        assert response.status_code == 200
+        assert "url: '/api/openapi.json'" in response.text
+
+    def test_openapi_schema_is_available_on_api_and_legacy_urls(self):
+        """Keep the schema available on both URLs while the UI migrates."""
+        app = create_app()
+        client = TestClient(app)
+
+        api_scoped = client.get("/api/openapi.json")
+        legacy = client.get("/openapi.json")
+
+        assert api_scoped.status_code == 200
+        assert api_scoped.json()["openapi"] == "3.1.0"
+        assert legacy.status_code == 200
+        assert legacy.json()["openapi"] == "3.1.0"
 
     def test_cors_middleware_configured(self):
         """Test CORS middleware is added."""

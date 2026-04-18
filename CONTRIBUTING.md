@@ -1,10 +1,10 @@
 # Contributing to Niamoto
 
-Thank you for your interest in contributing to Niamoto! This document provides guidelines and information for contributors.
+This document covers the development setup, code style, and PR process.
 
 ## 🚀 Getting Started
 
-### Development Setup
+### Development setup
 
 1. **Fork and clone the repository**
    ```bash
@@ -39,9 +39,9 @@ git checkout -b fix/your-bug-fix
 ```
 
 ### 2. Make your changes
-- Write clean, documented code
-- Follow existing patterns and conventions
-- Add tests for new functionality
+- Follow existing patterns and conventions.
+- Add tests for new functionality.
+- Document non-obvious behaviour inline.
 
 ### 3. Test your changes
 ```bash
@@ -71,7 +71,7 @@ git commit -m "feat: add new feature"
 
 ## 🎨 Code Style
 
-### Python Code
+### Python code
 - **Formatting**: Black (via ruff format)
 - **Linting**: Ruff
 - **Type hints**: Required for all public functions
@@ -107,14 +107,14 @@ def process_data(
     pass
 ```
 
-### TypeScript/React Code (GUI)
+### TypeScript/React code (GUI)
 - Follow existing patterns in `src/niamoto/gui/ui/`
 - Use TypeScript strict mode
 - Follow React best practices
 
 ## 🧪 Testing
 
-### Writing Tests
+### Writing tests
 - Place tests in `tests/` mirroring the source structure
 - Use descriptive test names
 - Test both success and failure cases
@@ -136,7 +136,7 @@ def test_some_class_fails_with_invalid_input():
         SomeClass(param=None)
 ```
 
-### Running Tests
+### Running tests
 ```bash
 # All tests
 uv run pytest
@@ -150,17 +150,32 @@ uv run pytest tests/core/test_import.py -v
 
 ## 📚 Documentation
 
-### Updating Documentation
-- Update relevant documentation in `docs/`
-- Follow the numbered structure (01-getting-started, 02-data-pipeline, etc.)
-- Include examples and use cases
-- Update README.md if adding major features
+### Updating documentation
 
-### Documentation Style
-- Write in English
-- Use clear, concise language
-- Include code examples
-- Add links to related documentation
+The public docs live under `docs/` and follow a lifecycle layout:
+
+- `01-getting-started/` — install and first project
+- `02-user-guide/` — desktop workflows: import, transform, preview, export
+- `03-cli-automation/` — CLI, automation, CI/CD recipes
+- `04-plugin-development/` — transformers, widgets, loaders, exporters
+- `05-ml-detection/` — auto-detection research and training
+- `06-reference/` — API, CLI commands, config schemas
+- `09-architecture/` — ADRs, system design
+- `10-roadmaps/` — dated plans and target architectures
+- `99-troubleshooting/` — common issues and desktop smoke tests
+
+Legacy content lives under `docs/_archive/` and is not part of the live
+site. `docs/plans/`, `docs/brainstorms/` and `docs/ideation/` are internal
+journals; they stay in the repo but are excluded from the rendered docs.
+
+### Documentation style
+
+- Write in English.
+- Follow `docs/STYLE_GUIDE.md` for voice, banned vocabulary (AI-slop), and
+  preferred product verbs.
+- Prefer short sentences and action verbs over adjectives.
+- Include runnable code examples when they clarify behaviour.
+- Add links to related pages with relative paths, not absolute ones.
 
 ## 🔄 Pull Request Process
 
@@ -170,14 +185,14 @@ uv run pytest tests/core/test_import.py -v
 3. ✅ Documentation is updated
 4. ✅ Commit messages follow conventions
 
-### PR Guidelines
-- **Title**: Clear and descriptive
-- **Description**: Explain what, why, and how
-- **Screenshots**: Include for UI changes
-- **Tests**: Add tests for new features
-- **Breaking changes**: Clearly marked
+### PR guidelines
+- **Title**: one sentence, imperative mood.
+- **Description**: what changed, why, and how to test.
+- **Screenshots**: include for UI changes.
+- **Tests**: add tests for new features.
+- **Breaking changes**: mark them explicitly.
 
-### Commit Message Convention
+### Commit message convention
 We follow conventional commits:
 ```
 type(scope): description
@@ -209,7 +224,7 @@ Closes #123
 
 ## 🐛 Reporting Issues
 
-### Bug Reports
+### Bug reports
 Include:
 - Clear description
 - Steps to reproduce
@@ -218,7 +233,7 @@ Include:
 - System information
 - Error messages/logs
 
-### Feature Requests
+### Feature requests
 Include:
 - Use case description
 - Proposed solution
@@ -227,13 +242,13 @@ Include:
 
 ## 💡 Areas for Contribution
 
-### High Priority
+### High priority
 - 🧪 Test coverage improvements
 - 📚 Documentation translations
 - 🐛 Bug fixes
 - 🎨 UI/UX improvements
 
-### Feature Areas
+### Feature areas
 - 🤖 ML detection improvements
 - 🔌 New plugins
 - 📊 New visualizations
@@ -249,10 +264,7 @@ Include:
 
 By contributing, you agree that your contributions will be licensed under the GPL-3.0 License.
 
-## 🙏 Thank You!
-
-Your contributions make Niamoto better for everyone. We appreciate your time and effort!
-
 ---
 
-*For more information, see the [Development Guide](docs/11-development/)*
+*See the [project README](README.md) and
+[docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md) for writing guidelines.*

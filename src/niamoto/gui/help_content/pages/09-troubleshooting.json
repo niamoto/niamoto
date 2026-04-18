@@ -1,0 +1,39 @@
+{
+  "slug": "09-troubleshooting",
+  "path": "/help/09-troubleshooting",
+  "title": "Troubleshooting",
+  "description": "desktop smoke tests.md — maintainers' checklist before shipping a desktop build. common issues.md — quick fixes for the most frequent CLI, config, export, and desktop failures.",
+  "page_type": "markdown",
+  "section_slug": "09-troubleshooting",
+  "is_section_index": true,
+  "headings": [
+    {
+      "title": "Start here",
+      "level": 2,
+      "id": "start-here"
+    },
+    {
+      "title": "If you want to…",
+      "level": 2,
+      "id": "if-you-want-to"
+    },
+    {
+      "title": "Structure",
+      "level": 2,
+      "id": "structure"
+    },
+    {
+      "title": "Active reference",
+      "level": 3,
+      "id": "active-reference"
+    },
+    {
+      "title": "Related",
+      "level": 2,
+      "id": "related"
+    }
+  ],
+  "html": "<h1 id=\"troubleshooting\">Troubleshooting</h1>\n<blockquote>\n<p>Status: Active\nAudience: All users.\nPurpose: Fix the most common failures quickly.</p>\n</blockquote>\n<h2 id=\"start-here\">Start here</h2>\n<ul>\n<li><a href=\"/help/09-troubleshooting/desktop-smoke-tests\">desktop-smoke-tests.md</a> — maintainers' checklist before shipping a desktop build.</li>\n<li><a href=\"/help/09-troubleshooting/common-issues\">common-issues.md</a> — quick fixes for the most frequent CLI, config, export, and desktop failures.</li>\n</ul>\n<h2 id=\"if-you-want-to\">If you want to…</h2>\n<ul>\n<li><strong>Debug import or transform errors</strong> — a dedicated page is on its way, see\n  <a href=\"/help/09-troubleshooting/common-issues\">common-issues.md</a>.</li>\n<li><strong>Understand why the desktop app refuses to start</strong> — see\n  <a href=\"/help/09-troubleshooting/common-issues\">common-issues.md</a> first, then the desktop smoke tests.</li>\n</ul>\n<h2 id=\"structure\">Structure</h2>\n<h3 id=\"active-reference\">Active reference</h3>\n<ul>\n<li><a href=\"/help/09-troubleshooting/desktop-smoke-tests\">desktop-smoke-tests.md</a></li>\n<li><a href=\"/help/09-troubleshooting/common-issues\">common-issues.md</a></li>\n</ul>\n<h2 id=\"related\">Related</h2>\n<ul>\n<li><a href=\"/help/02-user-guide\">02-user-guide/README.md</a></li>\n<li><a href=\"/help/03-cli-automation\">03-cli-automation/README.md</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "09-troubleshooting/README.md"
+}

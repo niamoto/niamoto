@@ -1,27 +1,52 @@
 # Getting Started
 
-Welcome to Niamoto! This section will help you get up and running quickly.
+> Status: Active
+> Audience: First-time Niamoto users.
+> Purpose: Install, open a project, ship a first portal.
 
-## 📚 Documents in this Section
+## Choose a path
 
-- **[Installation](installation.md)** - System requirements and installation process
-- **[Quick Start](quickstart.md)** - Create your first Niamoto project
-- **[Core Concepts](concepts.md)** - Understanding Niamoto's architecture
-- **[First Pipeline](first-pipeline.md)** - Build your first data pipeline (coming soon)
+- Start with [installation.md](installation.md). Pick the desktop app or the
+  Python CLI.
+- Follow [first-project.md](first-project.md) if you want the desktop path from
+  project creation to publish.
+- Read [concepts.md](concepts.md) if you want the pipeline model before you
+  edit config files.
 
-## 🚀 Quick Navigation
+## In this section
 
-1. Start with [Installation](installation.md) to set up Niamoto
-2. Follow the [Quick Start](quickstart.md) guide for a hands-on introduction
-3. Read [Core Concepts](concepts.md) to understand the fundamentals
-4. Build your [First Pipeline](first-pipeline.md) to see Niamoto in action
+- [installation.md](installation.md)
+- [first-project.md](first-project.md)
+- [quickstart.md](quickstart.md)
+- [concepts.md](concepts.md)
 
-## 📖 Next Steps
+## If you use the desktop app
 
-Once you're comfortable with the basics, explore:
-- [Data Pipeline](../02-data-pipeline/README.md) - Learn about data flow
-- [Tutorials](../07-tutorials/README.md) - Real-world examples
-- [Configuration](../08-configuration/README.md) - Customize your setup
+- Install the desktop build.
+- Follow [first-project.md](first-project.md).
+- Continue with [../02-user-guide/README.md](../02-user-guide/README.md).
 
----
-*For help and support, see [Troubleshooting](../12-troubleshooting/README.md)*
+## If you use the CLI
+
+- Install `niamoto`.
+- Read [quickstart.md](quickstart.md).
+- Keep [../03-cli-automation/README.md](../03-cli-automation/README.md) open for
+  the command map.
+
+## Related
+
+- [../02-user-guide/README.md](../02-user-guide/README.md) for the desktop
+  workflow after setup.
+- [../04-plugin-development/README.md](../04-plugin-development/README.md) for
+  custom transformers, widgets, loaders, exporters, and deployers.
+- [../09-troubleshooting/README.md](../09-troubleshooting/README.md) for common
+  issues.
+
+```{toctree}
+:hidden:
+
+installation
+first-project
+concepts
+quickstart
+```

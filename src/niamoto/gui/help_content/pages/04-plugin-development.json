@@ -1,0 +1,44 @@
+{
+  "slug": "04-plugin-development",
+  "path": "/help/04-plugin-development",
+  "title": "Plugin Development",
+  "description": "Build custom plugins for Niamoto without patching the core runtime.",
+  "page_type": "markdown",
+  "section_slug": "04-plugin-development",
+  "is_section_index": true,
+  "headings": [
+    {
+      "title": "Plugin Types",
+      "level": 2,
+      "id": "plugin-types"
+    },
+    {
+      "title": "Start Here",
+      "level": 2,
+      "id": "start-here"
+    },
+    {
+      "title": "Minimal Transformer",
+      "level": 2,
+      "id": "minimal-transformer"
+    },
+    {
+      "title": "Workflow",
+      "level": 2,
+      "id": "workflow"
+    },
+    {
+      "title": "Test Locations",
+      "level": 2,
+      "id": "test-locations"
+    },
+    {
+      "title": "Related",
+      "level": 2,
+      "id": "related"
+    }
+  ],
+  "html": "<h1 id=\"plugin-development\">Plugin Development</h1>\n<p>Build custom plugins for Niamoto without patching the core runtime.</p>\n<h2 id=\"plugin-types\">Plugin Types</h2>\n<table>\n<thead>\n<tr>\n<th>Type</th>\n<th>Register with</th>\n<th>Where Niamoto uses it</th>\n<th>What it does</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Loader</td>\n<td><code>PluginType.LOADER</code></td>\n<td><code>transform.yml</code> source relations and some enrichment flows</td>\n<td>Fetch rows before a transform runs</td>\n</tr>\n<tr>\n<td>Transformer</td>\n<td><code>PluginType.TRANSFORMER</code></td>\n<td><code>transform.yml</code></td>\n<td>Compute derived data</td>\n</tr>\n<tr>\n<td>Widget</td>\n<td><code>PluginType.WIDGET</code></td>\n<td><code>export.yml</code> widget lists</td>\n<td>Render HTML for exported pages</td>\n</tr>\n<tr>\n<td>Exporter</td>\n<td><code>PluginType.EXPORTER</code></td>\n<td><code>export.yml</code> targets</td>\n<td>Generate files or sites</td>\n</tr>\n<tr>\n<td>Deployer</td>\n<td><code>PluginType.DEPLOYER</code></td>\n<td><code>deploy.yml</code> and <code>niamoto deploy</code></td>\n<td>Publish generated exports</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"start-here\">Start Here</h2>\n<ul>\n<li><a href=\"/help/04-plugin-development/architecture\">architecture.md</a> explains registry, loading, and config surfaces.</li>\n<li><a href=\"/help/04-plugin-development/creating-transformers\">creating-transformers.md</a> shows how to write a transformer and validate its config.</li>\n<li><a href=\"/help/04-plugin-development/building-widgets\">building-widgets.md</a> covers widget params, rendering, and <code>export.yml</code>.</li>\n<li><a href=\"/help/04-plugin-development/custom-exporters\">custom-exporters.md</a> covers exporter params, target configs, and output generation.</li>\n<li><a href=\"/help/04-plugin-development/database-aggregator-guide\">database-aggregator-guide.md</a> documents the SQL-based transformer that ships with Niamoto.</li>\n</ul>\n<h2 id=\"minimal-transformer\">Minimal Transformer</h2>\n<pre><code class=\"language-python\">from typing import Any, Dict, Literal\n\nimport pandas as pd\nfrom pydantic import Field\n\nfrom niamoto.core.plugins.base import PluginType, TransformerPlugin, register\nfrom niamoto.core.plugins.models import BasePluginParams, PluginConfig\n\n\nclass MeanDbhParams(BasePluginParams):\n    field: str = Field(default=&quot;dbh&quot;)\n\n\nclass MeanDbhConfig(PluginConfig):\n    plugin: Literal[&quot;mean_dbh&quot;] = &quot;mean_dbh&quot;\n    params: MeanDbhParams\n\n\n@register(&quot;mean_dbh&quot;, PluginType.TRANSFORMER)\nclass MeanDbhTransformer(TransformerPlugin):\n    config_model = MeanDbhConfig\n    param_schema = MeanDbhParams\n\n    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -&gt; Dict[str, float]:\n        validated = self.config_model(**config)\n        params = validated.params\n        return {&quot;mean_dbh&quot;: float(data[params.field].dropna().mean())}\n</code></pre>\n<h2 id=\"workflow\">Workflow</h2>\n<ol>\n<li>Pick the plugin type.</li>\n<li>Define a params model with <code>BasePluginParams</code>.</li>\n<li>Define a config model that wraps <code>plugin</code> and <code>params</code>.</li>\n<li>Register the class with <code>@register(\"name\", PluginType.X)</code>.</li>\n<li>Wire it into <code>transform.yml</code>, <code>export.yml</code>, or <code>deploy.yml</code>.</li>\n<li>Add tests under the matching tree in <code>tests/core/plugins/</code>.</li>\n</ol>\n<h2 id=\"test-locations\">Test Locations</h2>\n<ul>\n<li>Transformers: <code>tests/core/plugins/transformers/</code></li>\n<li>Widgets: <code>tests/core/plugins/widgets/</code></li>\n<li>Exporters: <code>tests/core/plugins/exporters/</code></li>\n<li>Loaders: <code>tests/core/plugins/loaders/</code></li>\n<li>Deployers: <code>tests/core/plugins/deployers/</code></li>\n</ul>\n<h2 id=\"related\">Related</h2>\n<ul>\n<li><a href=\"/help/06-reference\">../06-reference/README.md</a></li>\n<li><a href=\"/help/05-ml-detection\">../05-ml-detection/README.md</a></li>\n<li><a href=\"/help/07-architecture\">../07-architecture/README.md</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "04-plugin-development/README.md"
+}

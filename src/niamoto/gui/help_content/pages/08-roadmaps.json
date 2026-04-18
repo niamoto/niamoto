@@ -1,0 +1,24 @@
+{
+  "slug": "08-roadmaps",
+  "path": "/help/08-roadmaps",
+  "title": "Roadmaps",
+  "description": "This section is now intentionally thin.",
+  "page_type": "markdown",
+  "section_slug": "08-roadmaps",
+  "is_section_index": true,
+  "headings": [
+    {
+      "title": "What still lives here",
+      "level": 2,
+      "id": "what-still-lives-here"
+    },
+    {
+      "title": "Why this section changed",
+      "level": 2,
+      "id": "why-this-section-changed"
+    }
+  ],
+  "html": "<h1 id=\"roadmaps\">Roadmaps</h1>\n<p>This section is now intentionally thin.</p>\n<p>Most of the old roadmap material has been removed from the public docs tree.\nWhat remains here is only a minimal landing page and a small number of\nrepository artifacts that are not part of the rendered documentation site.</p>\n<h2 id=\"what-still-lives-here\">What still lives here</h2>\n<ul>\n<li><code>docs/08-roadmaps/README.md</code>: this landing page</li>\n<li><code>docs/08-roadmaps/gbif-challenge-2026.html</code>: standalone presentation kept in\n  the repository, but not published in the rendered docs site</li>\n</ul>\n<h2 id=\"why-this-section-changed\">Why this section changed</h2>\n<p>The old roadmap folder had become a mix of target architecture, execution\nplans, GUI rollout notes, and temporary analysis documents. Keeping all of that\nas a public top-level section made the docs harder to trust and harder to\nnavigate, so the surviving public docs now point readers back to current\narchitecture in <a href=\"/help/07-architecture\">../07-architecture/README.md</a>\ninstead of treating old planning material as active reference content.</p>",
+  "asset_path": null,
+  "source_path": "08-roadmaps/README.md"
+}

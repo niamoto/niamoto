@@ -1,0 +1,64 @@
+{
+  "slug": "05-ml-detection/overview",
+  "path": "/help/05-ml-detection/overview",
+  "title": "Automatic column detection",
+  "description": "You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column (\"this is a diameter, this is a species, this is coordinates\"), Niamoto automatically detects the content and proposes a co",
+  "page_type": "markdown",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "What it does",
+      "level": 2,
+      "id": "what-it-does"
+    },
+    {
+      "title": "Why it is necessary",
+      "level": 2,
+      "id": "why-it-is-necessary"
+    },
+    {
+      "title": "How it works",
+      "level": 2,
+      "id": "how-it-works"
+    },
+    {
+      "title": "Training data",
+      "level": 2,
+      "id": "training-data"
+    },
+    {
+      "title": "Contributing",
+      "level": 2,
+      "id": "contributing"
+    },
+    {
+      "title": "Current scores",
+      "level": 2,
+      "id": "current-scores"
+    },
+    {
+      "title": "Known limitations",
+      "level": 2,
+      "id": "known-limitations"
+    },
+    {
+      "title": "Technical architecture",
+      "level": 2,
+      "id": "technical-architecture"
+    },
+    {
+      "title": "Academic References",
+      "level": 2,
+      "id": "academic-references"
+    },
+    {
+      "title": "Key files",
+      "level": 2,
+      "id": "key-files"
+    }
+  ],
+  "html": "<h1 id=\"automatic-column-detection\">Automatic column detection</h1>\n<blockquote>\n<p>Status: Active\nAudience: Team, AI agents, curious developers\nPurpose: Conceptual overview of the ML detection system and its current\nstate</p>\n</blockquote>\n<h2 id=\"what-it-does\">What it does</h2>\n<p>You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column (\"this is a diameter, this is a species, this is coordinates\"), Niamoto <strong>automatically detects</strong> the content and proposes a complete dashboard: diameter histogram, distribution map, breakdown by family.</p>\n<p>You only need to adjust if necessary.</p>\n<h2 id=\"why-it-is-necessary\">Why it is necessary</h2>\n<p>Every team names its columns differently:</p>\n<table>\n<thead>\n<tr>\n<th>What it is</th>\n<th>French Guiana</th>\n<th>France IFN</th>\n<th>FIA (US)</th>\n<th>Spain</th>\n<th>Anonymous</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Diameter</td>\n<td><code>diam</code></td>\n<td><code>C13</code></td>\n<td><code>DIA</code></td>\n<td><code>dap</code></td>\n<td><code>X1</code></td>\n</tr>\n<tr>\n<td>Height</td>\n<td><code>haut</code></td>\n<td><code>HTOT</code></td>\n<td><code>HT</code></td>\n<td><code>altura</code></td>\n<td><code>col_2</code></td>\n</tr>\n<tr>\n<td>Species</td>\n<td><code>espece</code></td>\n<td><code>ESPAR</code></td>\n<td><code>SPCD</code></td>\n<td><code>especie</code></td>\n<td><code>X5</code></td>\n</tr>\n<tr>\n<td>Latitude</td>\n<td><code>lat</code></td>\n<td><code>YL</code></td>\n<td><code>LAT</code></td>\n<td><code>latitud</code></td>\n<td><code>col_3</code></td>\n</tr>\n</tbody>\n</table>\n<p>Without automatic detection, every user must manually configure their columns before being able to visualise anything. This is a barrier to adoption.</p>\n<h2 id=\"how-it-works\">How it works</h2>\n<p>The system detects the <strong>role</strong> of each column — that is, what can be done with it:</p>\n<table>\n<thead>\n<tr>\n<th>Detected role</th>\n<th>What Niamoto proposes</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Numeric measurement</td>\n<td>Histogram, statistical summary, scatter plot</td>\n</tr>\n<tr>\n<td>Taxonomy</td>\n<td>Breakdown by family/genus, sunburst</td>\n</tr>\n<tr>\n<td>Geographic coordinates</td>\n<td>Interactive map</td>\n</tr>\n<tr>\n<td>Temporal data</td>\n<td>Timeline, year filter</td>\n</tr>\n<tr>\n<td>Category</td>\n<td>Bar chart, donut chart</td>\n</tr>\n<tr>\n<td>Identifier</td>\n<td>Join key between tables</td>\n</tr>\n</tbody>\n</table>\n<p>Two complementary signals are combined to achieve this:</p>\n<ol>\n<li>\n<p><strong>The column name</strong> — <code>diametre</code> and <code>diametro</code> share the same letter sequences. A character n-gram model naturally groups them together, even across related languages.</p>\n</li>\n<li>\n<p><strong>The values</strong> — a diameter follows a log-normal distribution between 5 and 300, coordinates lie between -90 and 90, a species name follows the \"Genus species\" format. When the column name is anonymous (<code>X1</code>), the values take over.</p>\n</li>\n</ol>\n<p>Both are fused into a final prediction. The user can then refine each transformer/widget pair in the GUI.</p>\n<h2 id=\"training-data\">Training data</h2>\n<p>The model is trained on <strong>2,540 labelled columns</strong> from:</p>\n<ul>\n<li><strong>104 real datasets</strong>: IFN France, FIA US, GBIF variants, GUYADIV, tested\n  Niamoto instances, TAXREF, ETS extensions, sPlotOpen, and several tropical or\n  research-oriented ecological datasets</li>\n<li><strong>6 continents</strong>, <strong>8 languages</strong> (EN, FR, ES, PT, DE, ID + anonymous headers)</li>\n<li><strong>61 concepts</strong> organised into roles: taxonomy, location, measurements, environment, statistics, temporal, categories, identifiers</li>\n</ul>\n<p>All detection runs locally with scikit-learn (~3 MB of dependencies). No network required, no LLM.</p>\n<h2 id=\"contributing\">Contributing</h2>\n<p>To improve detection for a poorly recognised column type:</p>\n<ol>\n<li>\n<p><strong>Add aliases</strong> in <code>src/niamoto/core/imports/ml/column_aliases.yaml</code> — no ML needed, just a YAML file. Example: add <code>\"circonference\"</code> as an alias for <code>measurement.diameter</code> in French.</p>\n</li>\n<li>\n<p><strong>Add training data</strong> in <code>ml/scripts/data/build_gold_set.py</code> — label the columns from a new dataset and reference it in the source list.</p>\n</li>\n<li>\n<p><strong>Retrain</strong>: <code>uv run python -m ml.scripts.train.train_header_model &amp;&amp; uv run python -m ml.scripts.train.train_value_model</code></p>\n</li>\n</ol>\n<h2 id=\"current-scores\">Current scores</h2>\n<table>\n<thead>\n<tr>\n<th>Model</th>\n<th>Macro-F1</th>\n<th>What this means</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Header (column name)</td>\n<td>0.77</td>\n<td>The strongest branch when names are informative</td>\n</tr>\n<tr>\n<td>Values (statistical values)</td>\n<td>0.38</td>\n<td>Values alone remain ambiguous, but they are improving on anonymous and numeric cases</td>\n</tr>\n<tr>\n<td>Fusion (header + values)</td>\n<td>ProductScore 80.84 / GlobalScore 82.76</td>\n<td>Combined signal from both branches on the current offline benchmark</td>\n</tr>\n</tbody>\n</table>\n<p>The header score is the most important because in the majority of cases columns have informative names. The values model kicks in when the name is anonymous or ambiguous.</p>\n<h2 id=\"known-limitations\">Known limitations</h2>\n<ul>\n<li>Very rare columns (&lt; 5 examples in the gold set) are grouped under generic categories</li>\n<li>Confidence calibration is not yet in place — the model cannot yet say \"I am 85% confident\"</li>\n<li>The values model remains weak at distinguishing two measurement types from each other (diameter vs height) — but this is not blocking since the \"measurement\" role is sufficient to suggest a histogram</li>\n</ul>\n<h2 id=\"technical-architecture\">Technical architecture</h2>\n<pre><code>Imported CSV\n     │\n     ├── Column name ──→ TF-IDF char n-grams ──→ LogisticRegression\n     │                                                   │\n     ├── Values ──→ 37 statistical features ──→ HistGradientBoosting\n     │                                                   │\n     └── Fusion ──→ LogReg calibrated on probabilities from both branches\n                          │\n                   Detected role + confidence\n                          │\n                   Suggested transformer/widget pairs\n</code></pre>\n<h2 id=\"academic-references\">Academic References</h2>\n<table>\n<thead>\n<tr>\n<th>Project</th>\n<th>Year</th>\n<th>Approach</th>\n<th>Features</th>\n<th>Performance</th>\n<th>Ecological Relevance</th>\n<th>Status</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Sherlock</strong></td>\n<td>2019</td>\n<td>Deep NN</td>\n<td>1,588</td>\n<td>F1: 0.89</td>\n<td>Low (generic types)</td>\n<td>Abandoned</td>\n</tr>\n<tr>\n<td><strong>Sato</strong></td>\n<td>2020</td>\n<td>Hybrid DL + Topic</td>\n<td>1,588+</td>\n<td>F1: 0.92</td>\n<td>Low</td>\n<td>Inactive</td>\n</tr>\n<tr>\n<td><strong>Pythagoras</strong></td>\n<td>2024</td>\n<td>GNN</td>\n<td>Graph-based</td>\n<td>F1: 0.94</td>\n<td>Medium (numeric)</td>\n<td>Active</td>\n</tr>\n<tr>\n<td><strong>GAIT</strong></td>\n<td>2024</td>\n<td>GNN variants</td>\n<td>Multi-graph</td>\n<td>F1: 0.93</td>\n<td>Medium</td>\n<td>Active</td>\n</tr>\n<tr>\n<td><strong>GitTables</strong></td>\n<td>2023</td>\n<td>Dataset</td>\n<td>N/A</td>\n<td>Benchmark</td>\n<td>High (diverse)</td>\n<td>Active</td>\n</tr>\n</tbody>\n</table>\n<p>Niamoto's approach differs from these academic systems: it uses a lightweight hybrid pipeline (TF-IDF + HistGradientBoosting + Fusion) optimized for ecological data, running fully offline with scikit-learn (~3 MB).</p>\n<h2 id=\"key-files\">Key files</h2>\n<table>\n<thead>\n<tr>\n<th>File</th>\n<th>Purpose</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>src/niamoto/core/imports/ml/alias_registry.py</code></td>\n<td>Name → concept matching via multilingual aliases</td>\n</tr>\n<tr>\n<td><code>src/niamoto/core/imports/ml/column_aliases.yaml</code></td>\n<td>25 concepts × 8 languages</td>\n</tr>\n<tr>\n<td><code>ml/scripts/eval/evaluation.py</code></td>\n<td>Evaluation harness (GroupKFold, holdouts)</td>\n</tr>\n<tr>\n<td><code>ml/scripts/data/concept_taxonomy.py</code></td>\n<td>Fusion of 111 fine concepts → 61 concepts</td>\n</tr>\n<tr>\n<td><code>src/niamoto/core/imports/profiler.py</code></td>\n<td>DataProfiler with <code>ml_mode=auto/off/force</code></td>\n</tr>\n<tr>\n<td><code>ml/scripts/data/build_gold_set.py</code></td>\n<td>Gold set construction (88 sources)</td>\n</tr>\n<tr>\n<td><code>ml/scripts/train/train_header_model.py</code></td>\n<td>Header branch training</td>\n</tr>\n<tr>\n<td><code>ml/scripts/train/train_value_model.py</code></td>\n<td>Values branch training</td>\n</tr>\n<tr>\n<td><code>ml/scripts/eval/evaluate.py</code></td>\n<td>CLI metric for evaluation</td>\n</tr>\n<tr>\n<td><code>ml/data/gold_set.json</code></td>\n<td>2,231 labelled columns</td>\n</tr>\n</tbody>\n</table>",
+  "asset_path": null,
+  "source_path": "05-ml-detection/overview.md"
+}

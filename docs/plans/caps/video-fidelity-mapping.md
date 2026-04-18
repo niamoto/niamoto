@@ -8,50 +8,50 @@ Objectif : corriger la vidéo pour qu’elle colle à l’interface actuelle au 
 
 ### Intro / accueil
 
-- [01.splash-loading.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/01.splash-loading.png) : splash réel
-- [02.welcome-project-picker.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/02.welcome-project-picker.png) : écran d’accueil avec choix créer / ouvrir
+- [01.splash-loading.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/01.splash-loading.png) : splash réel
+- [02.welcome-project-picker.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/02.welcome-project-picker.png) : écran d’accueil avec choix créer / ouvrir
 
 ### Création de projet
 
-- [03.project-create-empty.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/03.project-create-empty.png) : formulaire vide
-- [04.project-create-name.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/04.project-create-name.png) : saisie du nom
-- [05.project-create-ready.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/05.project-create-ready.png) : formulaire complété
+- [03.project-create-empty.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/03.project-create-empty.png) : formulaire vide
+- [04.project-create-name.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/04.project-create-name.png) : saisie du nom
+- [05.project-create-ready.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/05.project-create-ready.png) : formulaire complété
 
 ### Import
 
-- [06.dashboard-get-started.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/06.dashboard-get-started.png) : dashboard de démarrage
-- [07.import-sources-select.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/07.import-sources-select.png) : sélection des sources
-- [08.import-sources-review.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/08.import-sources-review.png) : import avec liste de fichiers
-- [09.import-analysis-running.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/09.import-analysis-running.png) : analyse en cours
-- [10.import-analysis-progress.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/10.import-analysis-progress.png) : progression d’analyse
-- [11.import-config-detected.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/11.import-config-detected.png) : configuration détectée
-- [12.import-processing-running.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/12.import-processing-running.png) : import en cours
-- [13.data-dashboard-summary.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/13.data-dashboard-summary.png) : données importées
+- [06.dashboard-get-started.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/06.dashboard-get-started.png) : dashboard de démarrage
+- [07.import-sources-select.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/07.import-sources-select.png) : sélection des sources
+- [08.import-sources-review.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/08.import-sources-review.png) : import avec liste de fichiers
+- [09.import-analysis-running.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/09.import-analysis-running.png) : analyse en cours
+- [10.import-analysis-progress.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/10.import-analysis-progress.png) : progression d’analyse
+- [11.import-config-detected.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/11.import-config-detected.png) : configuration détectée
+- [12.import-processing-running.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/12.import-processing-running.png) : import en cours
+- [13.data-dashboard-summary.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/13.data-dashboard-summary.png) : données importées
 
 ### Collections
 
-- [14.collections-widget-config.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/14.collections-widget-config.png) : configuration d’un widget
-- [15.collections-overview.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/15.collections-overview.png) : vue d’ensemble collections
-- [16.collections-add-widget-modal.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/16.collections-add-widget-modal.png) : ajout de widget
-- [17.collections-widget-catalog.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/17.collections-widget-catalog.png) : catalogue de widgets
-- [18.collections-explorer-detail.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/18.collections-explorer-detail.png) : explorer / détail de collection
-- [20.collections-processing.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/20.collections-processing.png) : calcul des collections
+- [14.collections-widget-config.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/14.collections-widget-config.png) : configuration d’un widget
+- [15.collections-overview.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/15.collections-overview.png) : vue d’ensemble collections
+- [16.collections-add-widget-modal.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/16.collections-add-widget-modal.png) : ajout de widget
+- [17.collections-widget-catalog.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/17.collections-widget-catalog.png) : catalogue de widgets
+- [18.collections-explorer-detail.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/18.collections-explorer-detail.png) : explorer / détail de collection
+- [20.collections-processing.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/20.collections-processing.png) : calcul des collections
 
 ### Site Builder
 
-- [21.site-builder-home-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/21.site-builder-home-page.png) : page d’accueil du site
-- [22.site-builder-methodology-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/22.site-builder-methodology-page.png) : page méthodologie
-- [23.site-builder-collection-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/23.site-builder-collection-page.png) : page de collection
-- [19.public-site-dashboard.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/19.public-site-dashboard.png) : rendu public à injecter dans les previews
+- [21.site-builder-home-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/21.site-builder-home-page.png) : page d’accueil du site
+- [22.site-builder-methodology-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/22.site-builder-methodology-page.png) : page méthodologie
+- [23.site-builder-collection-page.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/23.site-builder-collection-page.png) : page de collection
+- [19.public-site-dashboard.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/19.public-site-dashboard.png) : rendu public à injecter dans les previews
 
 ### Publication / déploiement
 
-- [24.publish-preview-loading.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/24.publish-preview-loading.png) : publication avec preview en chargement
-- [25.publish-generation-preview.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/25.publish-generation-preview.png) : preview visible pendant la génération
-- [26.deploy-provider-picker.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/26.deploy-provider-picker.png) : choix du provider
-- [27.deploy-github-pages-config.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/27.deploy-github-pages-config.png) : configuration GitHub Pages
-- [28.deploy-build-log.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/28.deploy-build-log.png) : log de déploiement
-- [29.deploy-success.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/29.deploy-success.png) : succès du déploiement
+- [24.publish-preview-loading.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/24.publish-preview-loading.png) : publication avec preview en chargement
+- [25.publish-generation-preview.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/25.publish-generation-preview.png) : preview visible pendant la génération
+- [26.deploy-provider-picker.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/26.deploy-provider-picker.png) : choix du provider
+- [27.deploy-github-pages-config.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/27.deploy-github-pages-config.png) : configuration GitHub Pages
+- [28.deploy-build-log.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/28.deploy-build-log.png) : log de déploiement
+- [29.deploy-success.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/29.deploy-success.png) : succès du déploiement
 
 ## Mapping par acte
 
@@ -93,5 +93,5 @@ Raison : leur structure générale est bonne, mais le niveau de fidélité visue
 ## Décisions visuelles à prendre dès maintenant
 
 - Utiliser les captures comme vérité de palette, d’espacement et de structure.
-- Considérer [19.public-site-dashboard.png](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/caps/19.public-site-dashboard.png) comme référence de contenu pour les aperçus de site, pas comme un acte desktop autonome.
+- Considérer [19.public-site-dashboard.png](/Users/julienbarbe/Dev/clients/niamoto/docs/assets/screenshots/desktop/19.public-site-dashboard.png) comme référence de contenu pour les aperçus de site, pas comme un acte desktop autonome.
 - Garder le storytelling actuel de la vidéo, mais remplacer les écrans “fictifs” par des reconstitutions proches de l’application actuelle.

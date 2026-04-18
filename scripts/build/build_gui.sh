@@ -11,6 +11,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 GUI_DIR="$PROJECT_ROOT/src/niamoto/gui/ui"
 
+cd "$PROJECT_ROOT"
+
+echo "Syncing in-app documentation..."
+if command -v uv &> /dev/null; then
+    uv run python scripts/build/sync_app_docs.py
+else
+    python3 scripts/build/sync_app_docs.py
+fi
+
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
     echo "Error: Node.js is not installed. Please install Node.js first."

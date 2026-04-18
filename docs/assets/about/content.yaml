@@ -1,0 +1,130 @@
+meta:
+  source_showcase_url: https://nc.niamoto.org/showcase
+  last_verified: 2026-04-18
+
+sections:
+  fr:
+    summary: Niamoto est développé par une petite équipe interdisciplinaire et soutenu par des partenaires institutionnels engagés dans la conservation de la biodiversité.
+    team:
+      title: Niamoteam
+      intro: Projet collaboratif open-source pour la conservation de la biodiversité.
+    partners:
+      title: Partenaires & financeurs
+      intro: >
+        Le développement de Niamoto s'inscrit dans le cadre du projet de recherche
+        "Partenariat pour l'Analyse des DynaMIques de REforestation et de la
+        résilience forestière (ADMIRE)", établi entre la Province Nord, l'IAC et
+        le Cirad. Ce projet vise à développer des outils informatiques pour l'aide
+        à la décision dans la gestion des espaces naturels de la Province Nord de la
+        Nouvelle-Calédonie.
+  en:
+    summary: Niamoto is developed by a small interdisciplinary team and supported by institutional partners committed to biodiversity conservation.
+    team:
+      title: Niamoteam
+      intro: Open-source collaborative project for biodiversity conservation.
+    partners:
+      title: Partners & funders
+      intro: >
+        Niamoto was developed within the ADMIRE research project
+        ("Partnership for the Analysis of Reforestation Dynamics and Forest
+        Resilience"), established by Province Nord, IAC, and Cirad. The project
+        develops software that supports decision-making for the management of
+        natural areas in Province Nord, New Caledonia.
+
+team:
+  - id: philippe-birnbaum
+    name: Philippe Birnbaum
+    role:
+      fr: CIRAD · UMR AMAP
+      en: CIRAD · UMR AMAP
+  - id: dimitri-justeau-allaire
+    name: Dimitri Justeau-Allaire
+    role:
+      fr: IRD · UMR AMAP
+      en: IRD · UMR AMAP
+  - id: gilles-dauby
+    name: Gilles Dauby
+    role:
+      fr: IRD · UMR AMAP
+      en: IRD · UMR AMAP
+  - id: julien-barbe
+    name: Julien Barbe
+    role:
+      fr: Développeur
+      en: Developer
+
+organizations:
+  - id: pn
+    name:
+      fr: Province Nord
+      en: Province Nord
+    url: https://www.province-nord.nc/
+    logo: docs/assets/funders/pn_100.png
+    categories: [partner, funder]
+  - id: ps
+    name:
+      fr: Province Sud
+      en: Province Sud
+    url: https://www.province-sud.nc/
+    logo: docs/assets/funders/ps_100.png
+    categories: [partner]
+  - id: endemia
+    name:
+      fr: Endemia
+      en: Endemia
+    url: https://endemia.nc/
+    logo: docs/assets/funders/endemia_100.png
+    categories: [partner]
+  - id: amap
+    name:
+      fr: UMR AMAP
+      en: UMR AMAP
+    url: https://amap.cirad.fr/
+    logo: docs/assets/funders/amap_100.png
+    categories: [partner]
+  - id: herbarium
+    name:
+      fr: Herbarium
+      en: Herbarium
+    url: http://publish.plantnet-project.org/project/nou
+    logo: docs/assets/funders/herbarium_100.png
+    categories: [partner]
+  - id: iac
+    name:
+      fr: IAC
+      en: IAC
+    url: https://iac.nc/
+    logo: docs/assets/funders/iac_100.png
+    categories: [partner]
+  - id: ird
+    name:
+      fr: IRD
+      en: IRD
+    url: https://nouvelle-caledonie.ird.fr/
+    logo: docs/assets/funders/ird_100.png
+    categories: [partner]
+  - id: cirad
+    name:
+      fr: Cirad
+      en: Cirad
+    url: https://cirad.fr/
+    logo: docs/assets/funders/cirad_100.png
+    categories: [partner]
+  - id: ofb
+    name:
+      fr: OFB
+      en: OFB
+    url: https://www.ofb.gouv.fr/
+    logo: docs/assets/funders/ofb_100.png
+    categories: [partner, funder]
+
+organization_order:
+  - pn
+  - ps
+  - endemia
+  - amap
+  - herbarium
+  - iac
+  - ird
+  - cirad
+  - ofb

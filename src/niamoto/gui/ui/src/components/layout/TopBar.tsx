@@ -1,5 +1,14 @@
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Command, Search, HelpCircle, Menu, WifiOff, PanelLeft } from 'lucide-react'
+import {
+  Command,
+  FileText,
+  HelpCircle,
+  Menu,
+  PanelLeft,
+  Search,
+  WifiOff,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
@@ -25,6 +34,7 @@ export function TopBar({ className }: TopBarProps) {
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode, toggleSidebar } = useNavigationStore()
   const { isOffline } = useNetworkStatus()
   const { isMac, isDesktop } = usePlatform()
+  const navigate = useNavigate()
 
   return (
     <header
@@ -123,16 +133,16 @@ export function TopBar({ className }: TopBarProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{t('help.title', 'Help')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate('/help')}>
               <FileText className="mr-2 h-4 w-4" />
               {t('help.documentation', 'Documentation')}
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setCommandPaletteOpen(true)}>
               <Command className="mr-2 h-4 w-4" />
               {t('help.shortcuts', 'Keyboard shortcuts')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate('/tools/settings')}>
               {t('help.about', 'About Niamoto')}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -142,5 +152,3 @@ export function TopBar({ className }: TopBarProps) {
     </header>
   )
 }
-
-import { FileText } from 'lucide-react'

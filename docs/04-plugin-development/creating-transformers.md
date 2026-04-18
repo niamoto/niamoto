@@ -459,8 +459,8 @@ def test_threshold_analysis_params_validation():
         ThresholdAnalysisParams(field="dbh", threshold=-1.0)
 ```
 
-Lancer les tests :
+Run the relevant transformer tests:
 
 ```bash
-uv run pytest plugins/tests/ -v
+uv run pytest tests/core/plugins/transformers/ -v
 ```

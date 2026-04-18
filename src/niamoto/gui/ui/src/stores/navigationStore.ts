@@ -77,11 +77,12 @@ export const routeLabels: Record<string, string> = {
   '/publish/build': 'Build',
   '/publish/deploy': 'Deploy',
   '/publish/history': 'History',
+  '/help': 'Documentation',
   '/tools/explorer': 'Data Explorer',
   '/tools/preview': 'Preview',
   '/tools/settings': 'Settings',
   '/tools/plugins': 'Plugins',
-  '/tools/docs': 'Documentation',
+  '/tools/docs': 'API Documentation',
   '/tools/config-editor': 'Config Editor',
 }
 

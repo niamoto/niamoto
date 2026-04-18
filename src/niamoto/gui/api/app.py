@@ -8,6 +8,7 @@ import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from niamoto.common.utils.logging_utils import setup_logging
@@ -18,6 +19,7 @@ from .routers import (
     database,
     files,
     health,
+    help,
     imports,
     layers,
     plugins,
@@ -85,6 +87,7 @@ def create_app() -> FastAPI:
         title="Niamoto GUI API",
         description="API for Niamoto visual configuration interface",
         version="1.0.0",
+        openapi_url="/api/openapi.json",
         docs_url="/api/docs",
         redoc_url="/api/redoc",
     )
@@ -119,8 +122,14 @@ def create_app() -> FastAPI:
     async def _log_startup_event() -> None:
         log_desktop_startup("FastAPI startup event fired")
 
+    @app.get("/openapi.json", include_in_schema=False)
+    async def openapi_compat() -> JSONResponse:
+        """Compatibility alias for clients still requesting the legacy OpenAPI URL."""
+        return JSONResponse(app.openapi())
+
     # Include API routers FIRST (before static files)
     app.include_router(health.router)  # Health check endpoint for Tauri
+    app.include_router(help.router, prefix="/api", tags=["help"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])

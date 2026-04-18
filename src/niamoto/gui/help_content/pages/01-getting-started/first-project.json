@@ -1,0 +1,49 @@
+{
+  "slug": "01-getting-started/first-project",
+  "path": "/help/01-getting-started/first-project",
+  "title": "Your first Niamoto project",
+  "description": "Follow the desktop app from the welcome screen to a published portal.",
+  "page_type": "markdown",
+  "section_slug": "01-getting-started",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Prerequisites",
+      "level": 2,
+      "id": "prerequisites"
+    },
+    {
+      "title": "1. Create a project",
+      "level": 2,
+      "id": "1-create-a-project"
+    },
+    {
+      "title": "2. Import your data",
+      "level": 2,
+      "id": "2-import-your-data"
+    },
+    {
+      "title": "3. Explore the collections",
+      "level": 2,
+      "id": "3-explore-the-collections"
+    },
+    {
+      "title": "4. Arrange the portal",
+      "level": 2,
+      "id": "4-arrange-the-portal"
+    },
+    {
+      "title": "5. Publish",
+      "level": 2,
+      "id": "5-publish"
+    },
+    {
+      "title": "What's next",
+      "level": 2,
+      "id": "whats-next"
+    }
+  ],
+  "html": "<h1 id=\"your-first-niamoto-project\">Your first Niamoto project</h1>\n<p>Follow the desktop app from the welcome screen to a published portal.</p>\n<h2 id=\"prerequisites\">Prerequisites</h2>\n<ul>\n<li>Niamoto desktop installed (<a href=\"/help/01-getting-started/installation\">installation.md</a>).</li>\n<li>Your data (a CSV of occurrences, and optionally shapefiles), or a\n  sample from\n  <a href=\"https://github.com/niamoto/niamoto-example-data\">niamoto-example-data</a>.</li>\n</ul>\n<h2 id=\"1-create-a-project\">1. Create a project</h2>\n<p>Launch the app. The welcome screen shows recent projects and a button to create\na new one:</p>\n<p><img alt=\"Welcome screen\" src=\"/api/help/assets/screenshots/desktop/02.welcome-project-picker.png\" /></p>\n<p>Click <em>Create project</em>, pick a name and a folder. Niamoto creates the standard\ntree:</p>\n<pre><code>my-project/\n├── config/\n│   ├── config.yml\n│   ├── import.yml\n│   ├── transform.yml\n│   └── export.yml\n├── imports/\n├── exports/\n├── plugins/\n├── templates/\n├── db/\n└── logs/\n</code></pre>\n<h2 id=\"2-import-your-data\">2. Import your data</h2>\n<p>Drop CSVs, shapefiles, or GeoPackages onto the import screen. Niamoto's\nclassifier suggests a role for each column: taxonomy, occurrences, plots,\nshapes, or raster.</p>\n<p><img alt=\"Import with auto-detection\" src=\"/api/help/assets/screenshots/desktop/11.import-config-detected.png\" /></p>\n<p>Review the suggestions, fix the misses, then click <em>Import</em>. The progress panel\nshows imported rows and rejected rows.</p>\n<p>See <a href=\"/help/05-ml-detection\">../05-ml-detection/README.md</a> for\nthe details of the auto-detection pipeline.</p>\n<h2 id=\"3-explore-the-collections\">3. Explore the collections</h2>\n<p>The dashboard lists the collections Niamoto built: taxa, plots, shapes. Open a\ncollection to inspect raw rows and computed widgets:</p>\n<p><img alt=\"Collections overview\" src=\"/api/help/assets/screenshots/desktop/15.collections-overview.png\" /></p>\n<p>Each collection exposes the widgets available for that data. Niamoto renders the\npreviews against your local project.</p>\n<h2 id=\"4-arrange-the-portal\">4. Arrange the portal</h2>\n<p>Open the site builder. Drag widgets into pages, set titles and descriptions,\nthen wire the navigation:</p>\n<p><img alt=\"Site builder home page\" src=\"/api/help/assets/screenshots/desktop/21.site-builder-home-page.png\" /></p>\n<h2 id=\"5-publish\">5. Publish</h2>\n<p>When the preview looks right, click <em>Publish</em>. Pick a deployment target:\nCloudflare Workers, GitHub Pages, Netlify, Vercel, Render, or SSH / rsync.\nNiamoto renders the static site, uploads it, and returns the result:</p>\n<p><img alt=\"Deploy success\" src=\"/api/help/assets/screenshots/desktop/29.deploy-success.png\" /></p>\n<h2 id=\"whats-next\">What's next</h2>\n<ul>\n<li><a href=\"/help/01-getting-started/concepts\">concepts.md</a> for the import, transform, and export model behind\n  the UI.</li>\n<li><a href=\"/help/02-user-guide\">../02-user-guide/README.md</a> for the detailed\n  desktop tour.</li>\n<li><a href=\"/help/02-user-guide/import\">../02-user-guide/import.md</a> for the full import\n  workflow.</li>\n<li><a href=\"/help/02-user-guide/collections\">../02-user-guide/collections.md</a> for\n  collection outputs and widgets.</li>\n<li><a href=\"/help/02-user-guide/site\">../02-user-guide/site.md</a> for pages, navigation,\n  and appearance.</li>\n<li><a href=\"/help/02-user-guide/publish\">../02-user-guide/publish.md</a> for build preview\n  and deployment.</li>\n<li><a href=\"/help/03-cli-automation\">../03-cli-automation/README.md</a> for the same\n  pipeline from a shell.</li>\n<li><a href=\"/help/04-plugin-development\">../04-plugin-development/README.md</a> for\n  custom transformers, widgets, loaders, exporters, and deployers.</li>\n</ul>",
+  "asset_path": null,
+  "source_path": "01-getting-started/first-project.md"
+}

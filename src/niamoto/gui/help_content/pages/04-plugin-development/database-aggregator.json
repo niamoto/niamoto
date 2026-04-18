@@ -1,0 +1,44 @@
+{
+  "slug": "04-plugin-development/database-aggregator",
+  "path": "/help/04-plugin-development/database-aggregator",
+  "title": "Database Aggregator",
+  "description": "database aggregator is a real transformer plugin. Niamoto ships it in src/niamoto/core/plugins/transformers/aggregation/database aggregator.py.",
+  "page_type": "markdown",
+  "section_slug": "04-plugin-development",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "What It Does",
+      "level": 2,
+      "id": "what-it-does"
+    },
+    {
+      "title": "Config Shape",
+      "level": 2,
+      "id": "config-shape"
+    },
+    {
+      "title": "Output Formats",
+      "level": 2,
+      "id": "output-formats"
+    },
+    {
+      "title": "Safety",
+      "level": 2,
+      "id": "safety"
+    },
+    {
+      "title": "Current Limitation",
+      "level": 2,
+      "id": "current-limitation"
+    },
+    {
+      "title": "When To Use It",
+      "level": 2,
+      "id": "when-to-use-it"
+    }
+  ],
+  "html": "<h1 id=\"database-aggregator\">Database Aggregator</h1>\n<p><code>database_aggregator</code> is a real transformer plugin. Niamoto ships it in <code>src/niamoto/core/plugins/transformers/aggregation/database_aggregator.py</code>.</p>\n<h2 id=\"what-it-does\">What It Does</h2>\n<p>The plugin executes read-only SQL queries against the project database and returns structured results that other widgets or exporters can consume.</p>\n<p>It supports:</p>\n<ul>\n<li>direct SQL queries</li>\n<li>reusable SQL templates</li>\n<li>computed fields derived from query results</li>\n<li>basic database validation before execution</li>\n</ul>\n<h2 id=\"config-shape\">Config Shape</h2>\n<p>The plugin expects a normal transformer entry:</p>\n<pre><code class=\"language-yaml\">site_stats:\n  plugin: database_aggregator\n  params:\n    queries:\n      species_count:\n        sql: &quot;SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'&quot;\n      occurrence_count:\n        sql: &quot;SELECT COUNT(*) FROM occurrences&quot;\n    computed_fields:\n      occurrences_per_species:\n        expression: &quot;round(occurrence_count / species_count, 1) if species_count else 0&quot;\n        dependencies: [occurrence_count, species_count]\n</code></pre>\n<p>Paste that block under a <code>widgets_data:</code> section in <code>transform.yml</code>.</p>\n<h2 id=\"output-formats\">Output Formats</h2>\n<p>Each query can return one of four formats:</p>\n<table>\n<thead>\n<tr>\n<th>Format</th>\n<th>Result</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>scalar</code></td>\n<td>single value</td>\n</tr>\n<tr>\n<td><code>table</code></td>\n<td>list of dictionaries</td>\n</tr>\n<tr>\n<td><code>series</code></td>\n<td>single-column list</td>\n</tr>\n<tr>\n<td><code>single_row</code></td>\n<td>one dictionary</td>\n</tr>\n</tbody>\n</table>\n<p>The plugin also adds <code>_metadata</code> with <code>computed_at</code>, <code>plugin</code>, and query counts.</p>\n<h2 id=\"safety\">Safety</h2>\n<p>The plugin only accepts <code>SELECT</code> statements. It rejects patterns such as:</p>\n<ul>\n<li><code>DROP</code></li>\n<li><code>DELETE</code></li>\n<li><code>INSERT</code></li>\n<li><code>UPDATE</code></li>\n<li>SQL comments</li>\n<li><code>EXEC</code></li>\n</ul>\n<h2 id=\"current-limitation\">Current Limitation</h2>\n<p><code>database_aggregator</code> does not inject the current <code>group_id</code> into your SQL. If you attach it to a transform group with many items and your query does not depend on that group, Niamoto will recompute the same result for every item in that group.</p>\n<p>That means the plugin works best when you:</p>\n<ul>\n<li>need advanced SQL and accept repeated execution</li>\n<li>use a workflow that materializes one canonical result row</li>\n<li>keep the query cost low enough for repeated runs</li>\n</ul>\n<p>Do not assume that <code>group_by: global</code> has special built-in behavior. The current transform runtime does not reserve that group name.</p>\n<h2 id=\"when-to-use-it\">When To Use It</h2>\n<p>Use <code>database_aggregator</code> when the standard transformers cannot express the query you need, especially for:</p>\n<ul>\n<li>multi-table joins</li>\n<li>SQL aggregations with custom grouping</li>\n<li>summary tables for dashboards</li>\n<li>derived metrics that combine several SQL results</li>\n</ul>\n<p>If a regular transformer can compute the same result with structured inputs, use that transformer first.</p>",
+  "asset_path": null,
+  "source_path": "04-plugin-development/database-aggregator.md"
+}

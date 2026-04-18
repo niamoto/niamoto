@@ -68,6 +68,14 @@ if publish_assets_dir.exists():
             relative_path = file.parent.relative_to(SRC_DIR)
             add_data_file(file, relative_path)
 
+help_content_dir = NIAMOTO_SRC / 'gui' / 'help_content'
+if help_content_dir.exists():
+    print(f"[OK] Including in-app docs pack from {help_content_dir}")
+    for file in help_content_dir.rglob('*'):
+        if file.is_file():
+            relative_path = file.parent.relative_to(SRC_DIR)
+            add_data_file(file, relative_path)
+
 # CRITICAL: Also include models directory if it exists
 models_dir = ROOT_DIR / 'models'
 if models_dir.exists():

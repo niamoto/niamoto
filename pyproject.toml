@@ -5,29 +5,42 @@ build-backend = "hatchling.build"
 [project]
 name = "niamoto"
 version = "0.15.1"
-description = ""
+description = "Desktop studio and CLI for ecological data: import biodiversity records, compute statistics and maps, publish a static portal."
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
 authors = [
     {name = "Julien Barbe", email = "julien.barbe@me.com"}
 ]
-keywords = ["niamoto"]
+keywords = [
+    "ecology",
+    "biodiversity",
+    "taxonomy",
+    "desktop-app",
+    "static-site-generator",
+    "geospatial",
+    "duckdb",
+    "tauri",
+    "data-pipeline",
+    "scientific-publishing",
+]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: GIS",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Scientific/Engineering :: Visualization",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Utilities",
 ]
 requires-python = ">=3.12,<4"
 dependencies = [
@@ -135,31 +148,30 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/niamoto/niamoto"
 Repository = "https://github.com/niamoto/niamoto"
-Documentation = "https://github.com/niamoto/niamoto#readme"
+Documentation = "https://niamoto.readthedocs.io"
+Changelog = "https://github.com/niamoto/niamoto/blob/main/CHANGELOG.md"
+Issues = "https://github.com/niamoto/niamoto/issues"
+Discussions = "https://github.com/niamoto/niamoto/discussions"
 
 [project.scripts]
 niamoto = "niamoto.cli:cli"
 
 [project.optional-dependencies]
 docs = [
-    # ------------------
-    # Documentation Tools
-    # ------------------
-
     # sphinx - Tool to create intelligent and beautiful documentation.
     # Documentation: https://www.sphinx-doc.org/
-    "sphinx>=7.2.6",
-    "sphinxcontrib-napoleon>=0.7",
-    "myst-parser>=4.0",
-    "sphinx-markdown-builder>=0.6.10",
-
-    # furo - A clean, customizable Sphinx theme for Python documentation.
+    "sphinx>=7.3.7,<9",
+    "myst-parser>=4.0,<5",
+    "sphinx-markdown-builder>=0.6.8",
+    # furo - Clean, customizable Sphinx theme.
     # Documentation: https://pradyunsg.me/furo/
-    "furo>=2023.9.10",
-
-    # pyperclip - Cross-platform Python module for copy and paste clipboard functions.
-    # Documentation: https://pypi.org/project/pyperclip/
-    "pyperclip>=1.8.2",
+    "furo>=2024.1.29",
+    # sphinx-design - Cards, grids, tabs, badges used across section READMEs.
+    "sphinx-design>=0.5.0",
+    # sphinx-copybutton - Copy-to-clipboard button on code blocks.
+    "sphinx-copybutton>=0.5.2",
+    # sphinx-reredirects - HTML redirects for renamed pages (see docs/conf.py).
+    "sphinx-reredirects>=0.1.3",
 ]
 
 [tool.uv]
@@ -198,6 +210,7 @@ packages = ["src/niamoto"]
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
 "ml/models" = "niamoto/models"
+"src/niamoto/gui/help_content" = "niamoto/gui/help_content"
 # GUI dist files - only included when building for PyPI with publish.sh
 # Commented out for CI/CD compatibility
 # "src/niamoto/gui/ui/dist" = "niamoto/gui/ui/dist"
