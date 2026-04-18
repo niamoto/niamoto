@@ -61,6 +61,7 @@ exclude_patterns = [
     "brainstorms/**",
     "ideation/**",
     "superpowers/**",
+    "10-niamoto-design-system/**",
     "gbif-challenge-2026.html",
     "assets/about/README-about.en.md",
 ]
