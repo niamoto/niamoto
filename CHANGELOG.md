@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.3] - 2026-04-18
+
+### Bug Fixes
+
+- Allow accented project names in GUI wizard
+- Point CLI help output to the new GitHub Pages docs URL
+- Exclude internal design system from Sphinx build
+
+### Documentation
+
+- Migrate from ReadTheDocs to GitHub Pages
+- Refresh README hero screenshots
+- Refresh README visuals
+- Rewrite contributing guide
+
+### Other
+
+- Remove retired design-system exclusions
+- Add English desktop screenshots and dashboard polish
+
 ## [v0.15.2] - 2026-04-18
 
 ### Features
