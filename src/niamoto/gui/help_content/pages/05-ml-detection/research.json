@@ -1,0 +1,24 @@
+{
+  "slug": "05-ml-detection/research",
+  "path": "/help/05-ml-detection/research",
+  "title": "Research Notes",
+  "description": "This folder contains exploratory material that is useful for orientation and longer term thinking, but is not the source of truth for the current implementation.",
+  "page_type": "markdown",
+  "section_slug": "05-ml-detection",
+  "is_section_index": true,
+  "headings": [
+    {
+      "title": "Current notes",
+      "level": 2,
+      "id": "current-notes"
+    },
+    {
+      "title": "Canonical sources",
+      "level": 2,
+      "id": "canonical-sources"
+    }
+  ],
+  "html": "<h1 id=\"research-notes\">Research Notes</h1>\n<blockquote>\n<p>Status: Research\nAudience: Team, AI agents\nPurpose: Forward-looking documents, exploratory ideas, and non-canonical ML\ndirections</p>\n</blockquote>\n<p>This folder contains exploratory material that is useful for orientation and\nlonger-term thinking, but is not the source of truth for the current\nimplementation.</p>\n<h2 id=\"current-notes\">Current notes</h2>\n<ul>\n<li><a href=\"/help/05-ml-detection/research/ai-possibilities-cartography\">AI possibilities cartography</a></li>\n</ul>\n<h2 id=\"canonical-sources\">Canonical sources</h2>\n<ul>\n<li>Current implementation: <a href=\"/help/05-ml-detection/overview\">../overview.md</a></li>\n<li>Current architecture: <a href=\"/help/05-ml-detection/branch-architecture\">../branch-architecture.md</a></li>\n<li>Current training/eval workflow: <a href=\"/help/05-ml-detection/training-guide\">../training-guide.md</a></li>\n<li>Current source inventory used by the code: <a href=\"/help/05-ml-detection/current-training-sources\">../current-training-sources.md</a></li>\n<li>Current dated plans: <code>docs/plans/</code></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "05-ml-detection/research/README.md"
+}

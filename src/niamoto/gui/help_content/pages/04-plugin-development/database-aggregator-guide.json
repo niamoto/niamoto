@@ -1,0 +1,79 @@
+{
+  "slug": "04-plugin-development/database-aggregator-guide",
+  "path": "/help/04-plugin-development/database-aggregator-guide",
+  "title": "Database Aggregator Guide",
+  "description": "Use database aggregator when you need read only SQL inside a transformer entry.",
+  "page_type": "markdown",
+  "section_slug": "04-plugin-development",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Minimal Config Block",
+      "level": 2,
+      "id": "minimal-config-block"
+    },
+    {
+      "title": "Query Forms",
+      "level": 2,
+      "id": "query-forms"
+    },
+    {
+      "title": "String query",
+      "level": 3,
+      "id": "string-query"
+    },
+    {
+      "title": "Full query object",
+      "level": 3,
+      "id": "full-query-object"
+    },
+    {
+      "title": "Templates",
+      "level": 2,
+      "id": "templates"
+    },
+    {
+      "title": "Computed Fields",
+      "level": 2,
+      "id": "computed-fields"
+    },
+    {
+      "title": "Validation Options",
+      "level": 2,
+      "id": "validation-options"
+    },
+    {
+      "title": "Output Examples",
+      "level": 2,
+      "id": "output-examples"
+    },
+    {
+      "title": "Scalar result",
+      "level": 3,
+      "id": "scalar-result"
+    },
+    {
+      "title": "Table result",
+      "level": 3,
+      "id": "table-result"
+    },
+    {
+      "title": "Single row result",
+      "level": 3,
+      "id": "single-row-result"
+    },
+    {
+      "title": "Consuming The Result In A Widget",
+      "level": 2,
+      "id": "consuming-the-result-in-a-widget"
+    },
+    {
+      "title": "Practical Constraint",
+      "level": 2,
+      "id": "practical-constraint"
+    }
+  ],
+  "html": "<h1 id=\"database-aggregator-guide\">Database Aggregator Guide</h1>\n<p>Use <code>database_aggregator</code> when you need read-only SQL inside a transformer entry.</p>\n<h2 id=\"minimal-config-block\">Minimal Config Block</h2>\n<p>Place this block under <code>widgets_data:</code> in an existing transform group.</p>\n<pre><code class=\"language-yaml\">site_stats:\n  plugin: database_aggregator\n  params:\n    queries:\n      species_count: &quot;SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'&quot;\n      occurrence_count: &quot;SELECT COUNT(*) FROM occurrences&quot;\n</code></pre>\n<p>Niamoto validates the block as a normal transformer config:</p>\n<ul>\n<li><code>plugin</code></li>\n<li><code>params.queries</code></li>\n<li><code>params.templates</code></li>\n<li><code>params.computed_fields</code></li>\n<li><code>params.validation</code></li>\n</ul>\n<h2 id=\"query-forms\">Query Forms</h2>\n<h3 id=\"string-query\">String query</h3>\n<pre><code class=\"language-yaml\">queries:\n  total_species: &quot;SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'&quot;\n</code></pre>\n<h3 id=\"full-query-object\">Full query object</h3>\n<pre><code class=\"language-yaml\">queries:\n  species_by_province:\n    sql: |\n      SELECT\n        s.label AS province,\n        COUNT(DISTINCT t.id) AS species_count\n      FROM shape_ref s\n      LEFT JOIN occurrences o ON ST_Contains(ST_GeomFromText(s.location), o.geo_pt)\n      LEFT JOIN taxon_ref t ON o.taxon_ref_id = t.id\n      WHERE s.type = 'province' AND t.rank_name = 'species'\n      GROUP BY s.label\n      ORDER BY species_count DESC\n    format: table\n    description: Species count by province\n    timeout: 60\n</code></pre>\n<h2 id=\"templates\">Templates</h2>\n<p>Use templates when several queries share one SQL pattern.</p>\n<pre><code class=\"language-yaml\">templates:\n  count_by_field:\n    sql: &quot;SELECT {field}, COUNT(*) AS count FROM {table} GROUP BY {field} ORDER BY count DESC LIMIT {limit}&quot;\n    params: [field, table, limit]\n\nqueries:\n  species_by_family:\n    template: count_by_field\n    template_params:\n      field: family\n      table: taxon_ref\n      limit: &quot;10&quot;\n    format: table\n</code></pre>\n<p>The plugin validates that every template parameter declared in <code>params</code> is present in <code>template_params</code>.</p>\n<h2 id=\"computed-fields\">Computed Fields</h2>\n<p>Computed fields run after SQL queries complete.</p>\n<pre><code class=\"language-yaml\">computed_fields:\n  endemic_percentage:\n    expression: &quot;round((endemic_species * 100.0) / total_species, 1) if total_species else 0&quot;\n    dependencies: [endemic_species, total_species]\n</code></pre>\n<p>Available helpers include:</p>\n<ul>\n<li><code>abs</code></li>\n<li><code>round</code></li>\n<li><code>min</code></li>\n<li><code>max</code></li>\n<li><code>sum</code></li>\n<li><code>len</code></li>\n<li><code>int</code></li>\n<li><code>float</code></li>\n<li><code>pow</code></li>\n<li><code>sqrt</code></li>\n<li><code>ceil</code></li>\n<li><code>floor</code></li>\n</ul>\n<h2 id=\"validation-options\">Validation Options</h2>\n<pre><code class=\"language-yaml\">validation:\n  check_referential_integrity: true\n  max_execution_time: 30\n  required_tables: [taxon_ref, occurrences, plot_ref]\n</code></pre>\n<h2 id=\"output-examples\">Output Examples</h2>\n<h3 id=\"scalar-result\">Scalar result</h3>\n<pre><code class=\"language-json\">42\n</code></pre>\n<h3 id=\"table-result\">Table result</h3>\n<pre><code class=\"language-json\">[\n  {&quot;province&quot;: &quot;North&quot;, &quot;species_count&quot;: 120},\n  {&quot;province&quot;: &quot;South&quot;, &quot;species_count&quot;: 98}\n]\n</code></pre>\n<h3 id=\"single-row-result\">Single-row result</h3>\n<pre><code class=\"language-json\">{&quot;with_coords&quot;: 44500, &quot;total&quot;: 45678, &quot;percentage&quot;: 97.4}\n</code></pre>\n<h2 id=\"consuming-the-result-in-a-widget\">Consuming The Result In A Widget</h2>\n<p>Reference the transformer output through <code>data_source</code> in <code>export.yml</code>.</p>\n<pre><code class=\"language-yaml\">- plugin: info_grid\n  title: Site overview\n  data_source: site_stats\n  params:\n    items:\n      - label: Total species\n        source: species_count\n      - label: Total occurrences\n        source: occurrence_count\n</code></pre>\n<p>This example is a widget snippet, not a full export target. Put it inside <code>exports[*].groups[*].widgets</code>.</p>\n<h2 id=\"practical-constraint\">Practical Constraint</h2>\n<p><code>database_aggregator</code> runs inside the transform pipeline. The current runtime does not provide a special site-wide <code>global</code> group and does not pass <code>group_id</code> into the SQL layer. If you bind this transformer to a normal group, Niamoto may execute the same query once per group item.</p>\n<p>Use it when that tradeoff is acceptable. If you need one shared dashboard dataset, treat that as a workflow decision and verify the surrounding transform/export pipeline, not just the plugin config.</p>",
+  "asset_path": null,
+  "source_path": "04-plugin-development/database-aggregator-guide.md"
+}

@@ -1,274 +1,150 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/assets/niamoto_logo.png" alt="Niamoto Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/assets/niamoto_logo.png" alt="Niamoto" width="180" />
 
   <h1>Niamoto</h1>
 
   <p>
-    <strong>A powerful CLI tool for ecological data management and visualization</strong>
+    <strong>Turn ecological data into a biodiversity portal from a native desktop app or a Python CLI.</strong>
   </p>
 
   <p>
-    Transform your ecological data into interactive websites with taxonomic analysis,
-    statistical insights, and beautiful visualizations.
+    <a href="https://pypi.org/project/niamoto"><img src="https://img.shields.io/pypi/v/niamoto?color=2563eb&style=flat-square" alt="PyPI version"></a>
+    <a href="https://pypi.org/project/niamoto"><img src="https://img.shields.io/pypi/pyversions/niamoto?style=flat-square" alt="Python versions"></a>
+    <a href="https://github.com/niamoto/niamoto/blob/main/LICENSE"><img src="https://img.shields.io/github/license/niamoto/niamoto?style=flat-square" alt="License"></a>
+    <a href="https://codecov.io/gh/niamoto/niamoto"><img src="https://img.shields.io/codecov/c/github/niamoto/niamoto/main?style=flat-square" alt="Coverage"></a>
+    <a href="https://niamoto.readthedocs.io"><img src="https://img.shields.io/readthedocs/niamoto/latest?style=flat-square" alt="Documentation"></a>
   </p>
 
-  [![PyPI - Version](https://img.shields.io/pypi/v/niamoto?color=blue&style=for-the-badge)](https://pypi.org/project/niamoto)
-  [![Python Versions](https://img.shields.io/pypi/pyversions/niamoto?style=for-the-badge)](https://pypi.org/project/niamoto)
-  [![License](https://img.shields.io/github/license/niamoto/niamoto?style=for-the-badge)](LICENSE)
-  [![Codecov (with branch)](https://img.shields.io/codecov/c/github/niamoto/niamoto/main?style=for-the-badge)](https://codecov.io/gh/niamoto/niamoto)
-  [![Read the Docs (version)](https://img.shields.io/readthedocs/niamoto/latest?style=for-the-badge)](https://niamoto.readthedocs.io/)
-
-  [🔗 **View Live Demo**](https://niamoto.github.io/niamoto-static-site/) | [📖 **Browse Documentation**](https://niamoto.readthedocs.io/)
+  <p>
+    <a href="https://github.com/niamoto/niamoto/releases/latest"><strong>Download the desktop app</strong></a>
+    ·
+    <a href="https://niamoto.readthedocs.io">Documentation</a>
+    ·
+    <a href="https://niamoto.github.io/niamoto-static-site/">Live demo</a>
+  </p>
 </div>
 
-## 🚀 Quick Start
+<br/>
 
-```bash
-# Install Niamoto
-pip install niamoto
+<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/hero-split.png" alt="Niamoto desktop studio and generated portal" />
 
-# Initialize your project
-niamoto init
+## What Niamoto does
 
-# Import your data
-niamoto import
+- Import ecological tables, layers, and rasters into one project.
+- Suggest file and column roles, so you can start from a working configuration.
+- Build collections, widgets, statistics, and maps from that data.
+- Publish a static biodiversity portal to GitHub Pages, Cloudflare Workers,
+  Netlify, Vercel, Render, or your own server over SSH.
 
-# Generate statistics
-niamoto transform
+The desktop app is the main interface. The Python CLI handles automation, CI,
+and repeatable runs.
 
-# Create your website
-niamoto export
-```
+## Pick your path
 
-**✨ That's it!** Your ecological data website is ready at `exports/web/`.
+| You are…         | Start here                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| A researcher      | [Desktop onboarding](https://niamoto.readthedocs.io/en/latest/01-getting-started/README.html)         |
+| A project lead    | [User guide](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html)                      |
+| A developer       | [Plugin development guide](https://niamoto.readthedocs.io/en/latest/04-plugin-development/README.html) |
 
-## 🖼️ Screenshots
+## Install
 
-### Taxonomic Index Page
-![Taxonomic Index](https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/taxon-index.png)
-*Browse and search through your taxonomic data with interactive filters*
+### Desktop (recommended)
 
-### Taxon Detail Page
-![Taxon Detail](https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/taxon-detail.png)
-*Detailed view with statistics, distributions, and interactive visualizations*
+Signed builds for macOS, Windows, and Linux live on the
+[releases page](https://github.com/niamoto/niamoto/releases/latest).
 
-## ✨ Features
+### Command line (automation, CI)
 
-- 🌿 **Ecological Data Management** - Import and manage taxonomic, occurrence, and plot data
-- 📊 **Statistical Analysis** - Built-in plugins for distributions, rankings, and summaries
-- 🗺️ **Geospatial Analysis** - Interactive maps and spatial statistics
-- 📈 **Data Visualization** - Charts, maps, and dashboards with Plotly
-- 🏗️ **Plugin System** - Extensible architecture for custom transformations and generations
-- 🌐 **Static Site Generation** - Generate fast, SEO-friendly websites
-- ⚡ **CLI Interface** - Simple commands for the entire workflow
-- 🔧 **Configuration-Driven** - YAML-based configuration for reproducibility
-
-## 🎯 Use Cases
-
-Niamoto is perfect for:
-
-- **Research Institutions** - Manage biodiversity databases and generate research websites
-- **Conservation Organizations** - Track species distributions and create public dashboards
-- **Botanical Gardens** - Document collections and share taxonomic information
-- **Environmental Consultants** - Analyze ecological data and create client reports
-- **Government Agencies** - Monitor biodiversity and publish open data portals
-
----
-
-## 📖 Table of Contents
-
-- [🚀 Quick Start](#-quick-start)
-- [🖼️ Screenshots](#️-screenshots)
-  - [Taxonomic Index Page](#taxonomic-index-page)
-  - [Taxon Detail Page](#taxon-detail-page)
-- [✨ Features](#-features)
-- [🎯 Use Cases](#-use-cases)
-- [📖 Table of Contents](#-table-of-contents)
-- [📦 Installation](#-installation)
-  - [For Users](#for-users)
-  - [For Developers](#for-developers)
-- [🏃‍♂️ Usage](#️-usage)
-  - [Initial Setup](#initial-setup)
-  - [Data Import](#data-import)
-  - [Generate Statistics and Website](#generate-statistics-and-website)
-- [📂 Project Structure](#-project-structure)
-- [🔧 Configuration](#-configuration)
-- [🧩 Plugin System](#-plugin-system)
-- [👩‍💻 Development](#-development)
-- [📚 Documentation](#-documentation)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-- [❓ FAQ](#-faq)
-- [🤝 Community \& Support](#-community--support)
-- [📅 Changelog](#-changelog)
-
-## 📦 Installation
-
-### For Users
 ```bash
 pip install niamoto
+niamoto --help
 ```
 
-### For Developers
-```bash
-# Clone and setup development environment
-git clone https://github.com/niamoto/niamoto.git
-cd niamoto
-uv venv && source .venv/bin/activate
-uv sync --group dev
-```
+Requires Python 3.12 or newer. See
+[CLI & automation docs](https://niamoto.readthedocs.io/en/latest/03-cli-automation/README.html)
+for scripting recipes.
 
-📋 **[Detailed Installation Guide](docs/01-getting-started/installation.md)**
+## Quick start
 
-## 🏃‍♂️ Usage
+### Desktop path
 
-### Initial Setup
+1. Download the latest desktop build from the
+   [releases page](https://github.com/niamoto/niamoto/releases/latest).
+2. Grab a sample dataset from
+   [niamoto-example-data](https://github.com/niamoto/niamoto-example-data) or
+   open your own CSVs, layers, and rasters.
+3. Continue with
+   [Desktop onboarding](https://niamoto.readthedocs.io/en/latest/01-getting-started/README.html)
+   and then the
+   [Desktop App Tour](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html).
 
-```bash
-# Initialize your project
-niamoto init
+### CLI path
 
-# This creates the default configuration files:
-# - config/config.yml     (global settings)
-# - config/import.yml     (data sources)
-# - config/transform.yml  (data processing)
-# - config/export.yml     (website generation)
-```
+1. Install the package with `pip install niamoto`.
+2. Run `niamoto --help`.
+3. Follow the
+   [CLI & automation docs](https://niamoto.readthedocs.io/en/latest/03-cli-automation/README.html)
+   for project init, scripted runs, and CI.
 
-### Data Import
+## A glance at the studio
 
-```bash
-# Import all data sources from import.yml
-niamoto import
+The desktop app reads your raw files, suggests a configuration, previews each
+widget, and lets you publish the result:
 
-# Or import specific data types
-niamoto import taxonomy <file>
-niamoto import occurrences <file>
-niamoto import plots <file>
-```
+<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/11.import-config-detected.png" alt="Niamoto import screen with ML auto-detected column roles" />
 
-### Generate Statistics and Website
+The full walk-through lives in the
+[Desktop App Tour](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html).
+If you want to see the generated result first,
+[the live demo](https://niamoto.github.io/niamoto-static-site/) shows what the
+published portal looks like.
 
-```bash
-# Process data transformations
-niamoto transform
+## Resources
 
-# Generate static website
-niamoto export
+- **Documentation** — [niamoto.readthedocs.io](https://niamoto.readthedocs.io)
+- **Live demo** — [New Caledonia forests portal](https://niamoto.github.io/niamoto-static-site/)
+- **Discussions** — [GitHub Discussions](https://github.com/niamoto/niamoto/discussions)
+- **Issues** — [GitHub Issues](https://github.com/niamoto/niamoto/issues)
+- **Changelog** — [CHANGELOG.md](https://github.com/niamoto/niamoto/blob/main/CHANGELOG.md)
+- **Contributing** — [CONTRIBUTING.md](https://github.com/niamoto/niamoto/blob/main/CONTRIBUTING.md) · [STYLE_GUIDE.md](https://github.com/niamoto/niamoto/blob/main/docs/STYLE_GUIDE.md)
 
-# Your website is ready at exports/web/
-```
+<!-- about:start -->
 
-📖 **[Complete CLI Reference](docs/05-api-reference/cli-commands.md)** | **[Data Import Guide](docs/02-data-pipeline/import-configuration.md)**
+## About Niamoto
 
-## 📂 Project Structure
+Niamoto is developed by a small interdisciplinary team and supported by institutional partners committed to biodiversity conservation.
 
-```bash
-config/          - YAML configuration files for data pipeline:
-  config.yml     - Global configuration options
-  import.yml     - Data import configuration
-  transform.yml  - Data transformation configuration
-  export.yml     - Widget and chart configurations
+### Niamoteam
 
-db/              - Database files and schemas
-exports/         - Generated widget data and statistics
-imports/         - Raw data files (CSV, shapefiles, rasters)
-logs/            - Application logs and debug information
-plugins/         - Custom plugin directory for extending functionality
-templates/       - Custom Jinja2 templates for website generation
-```
+Open-source collaborative project for biodiversity conservation.
 
-## 🔧 Configuration
+- **Philippe Birnbaum** — CIRAD · UMR AMAP
+- **Dimitri Justeau-Allaire** — IRD · UMR AMAP
+- **Gilles Dauby** — IRD · UMR AMAP
+- **Julien Barbe** — Developer
 
-Niamoto uses YAML configuration files to define your data pipeline:
+### Partners & funders
 
-- `config/import.yml` - Data sources (CSV, GIS files)
-- `config/transform.yml` - Data processing and statistics
-- `config/export.yml` - Website generation and visualizations
+Niamoto was developed within the ADMIRE research project ("Partnership for the Analysis of Reforestation Dynamics and Forest Resilience"), established by Province Nord, IAC, and Cirad. The project develops software that supports decision-making for the management of natural areas in Province Nord, New Caledonia.
 
-📖 **[Complete Configuration Guide](docs/08-configuration/configuration-guide.md)** | **[Data Import Guide](docs/02-data-pipeline/import-configuration.md)**
+<p align="center">
+  <a href="https://www.province-nord.nc/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/pn_100.png" alt="Province Nord" height="52" /></a>
+  <a href="https://www.province-sud.nc/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/ps_100.png" alt="Province Sud" height="52" /></a>
+  <a href="https://endemia.nc/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/endemia_100.png" alt="Endemia" height="52" /></a>
+  <a href="https://amap.cirad.fr/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/amap_100.png" alt="UMR AMAP" height="52" /></a>
+  <a href="http://publish.plantnet-project.org/project/nou"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/herbarium_100.png" alt="Herbarium" height="52" /></a>
+  <a href="https://iac.nc/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/iac_100.png" alt="IAC" height="52" /></a>
+  <a href="https://nouvelle-caledonie.ird.fr/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/ird_100.png" alt="IRD" height="52" /></a>
+  <a href="https://cirad.fr/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/cirad_100.png" alt="Cirad" height="52" /></a>
+  <a href="https://www.ofb.gouv.fr/"><img src="https://raw.githubusercontent.com/niamoto/niamoto/HEAD/docs/assets/funders/ofb_100.png" alt="OFB" height="52" /></a>
+</p>
 
-## 🧩 Plugin System
+<p align="center"><sub><a href="https://www.province-nord.nc/">Province Nord</a> · <a href="https://www.province-sud.nc/">Province Sud</a> · <a href="https://endemia.nc/">Endemia</a> · <a href="https://amap.cirad.fr/">UMR AMAP</a> · <a href="http://publish.plantnet-project.org/project/nou">Herbarium</a> · <a href="https://iac.nc/">IAC</a> · <a href="https://nouvelle-caledonie.ird.fr/">IRD</a> · <a href="https://cirad.fr/">Cirad</a> · <a href="https://www.ofb.gouv.fr/">OFB</a></sub></p>
 
-Niamoto includes built-in plugins for data transformation and visualization, with support for custom plugins.
+<!-- about:end -->
 
-📖 **[Plugin Development Guide](docs/04-plugin-development/creating-transformers.md)** | **[Plugin API Reference](docs/05-api-reference/plugin-api.md)**
+## License
 
-## 👩‍💻 Development
-
-For development setup, testing, and contribution guidelines:
-
-📖 **[Development Setup Guide](docs/11-development/setup.md)** | **[Contributing Guidelines](CONTRIBUTING.md)**
-
-## 📚 Documentation
-
-The complete documentation is available in the `docs/` directory and online:
-
-- 📖 **[Online Documentation](https://niamoto.readthedocs.io/)**
-- 🚀 **[Getting Started Guide](docs/01-getting-started/quickstart.md)**
-- 📋 **[Configuration Guide](docs/08-configuration/configuration-guide.md)**
-- 🧩 **[Plugin Development](docs/04-plugin-development/)**
-- 📖 **[API Reference](docs/05-api-reference/)**
-- 🤖 **[ML Detection System](docs/03-ml-detection/)**
-- 📊 **[Data Pipeline](docs/02-data-pipeline/)**
-
-To build the documentation locally:
-
-```bash
-cd docs
-sphinx-apidoc -o . ../src/niamoto
-make html
-```
-
-## 🤝 Contributing
-
-We welcome contributions to Niamoto! Here's how you can help:
-
-1. Check for open issues or open a new issue to start a discussion
-2. Fork the repository and create your feature branch
-3. Write tests for new features and ensure existing tests pass
-4. Follow our coding standards (Black formatting, type hints, docstrings)
-5. Submit a pull request
-
-📖 **[Contributing Guide](CONTRIBUTING.md)**
-
-## 📄 License
-
-`niamoto` is distributed under the terms of the [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html) license.
-
-## ❓ FAQ
-
-<details>
-<summary><strong>What data formats does Niamoto support?</strong></summary>
-
-Niamoto supports CSV files for taxonomic and occurrence data, and common GIS formats (Shapefile, GeoPackage, GeoTIFF) for spatial data.
-</details>
-
-<details>
-<summary><strong>Can I customize the generated website?</strong></summary>
-
-Yes! Niamoto uses Jinja2 templates and supports custom CSS. You can completely customize the look and feel of your website.
-</details>
-
-<details>
-<summary><strong>How do I add custom data transformations?</strong></summary>
-
-You can create custom plugins by extending the base plugin classes. See our [Plugin Development Guide](docs/04-plugin-development/creating-transformers.md).
-</details>
-
-<details>
-<summary><strong>Is Niamoto suitable for large datasets?</strong></summary>
-
-Yes! Niamoto uses SQLite with spatial extensions and is optimized for performance. It can handle datasets with millions of records efficiently.
-</details>
-
-## 🤝 Community & Support
-
-- 💬 **Discussions** - [GitHub Discussions](https://github.com/niamoto/niamoto/discussions)
-- 🐛 **Bug Reports** - [GitHub Issues](https://github.com/niamoto/niamoto/issues)
-- 📖 **Documentation** - [niamoto.readthedocs.io](https://niamoto.readthedocs.io/)
-- 🔗 **Live Demo** - [niamoto.github.io/niamoto-static-site](https://niamoto.github.io/niamoto-static-site/)
-
-## 📅 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
+`niamoto` is distributed under
+[GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html).

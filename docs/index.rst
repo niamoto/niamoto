@@ -1,158 +1,89 @@
-.. Niamoto documentation master file, created by
-   sphinx-quickstart on Mon Nov  6 23:50:41 2023.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Niamoto Documentation
-=======================
+=====================
 
-Niamoto is an ecological data platform for creating biodiversity web portals.
+Niamoto is a desktop-first platform for ecological data. Import your
+biodiversity records, transform them into statistics and maps, and
+publish a static web portal — all from a native app. A Python CLI covers
+automation and CI needs.
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Overview
-   :hidden:
+Pick the path that matches your profile:
 
-   README
+.. grid:: 1 1 3 3
+   :gutter: 3
+
+   .. grid-item-card:: Researcher / botanist
+      :link: 01-getting-started/README
+      :link-type: doc
+
+      Install the desktop app, open a project, import your data, publish
+      a portal in thirty minutes.
+
+   .. grid-item-card:: Institution / evaluator
+      :link: 02-user-guide/README
+      :link-type: doc
+
+      Follow the detailed desktop path from import to collections,
+      site builder, and publish.
+
+   .. grid-item-card:: Developer / plugin author
+      :link: 04-plugin-development/README
+      :link-type: doc
+
+      Extend Niamoto with custom transformers, widgets, loaders and
+      exporters.
+
 
 .. toctree::
    :maxdepth: 2
-   :glob:
    :caption: Getting Started
    :hidden:
 
-   01-getting-started/*
+   01-getting-started/README
 
 .. toctree::
    :maxdepth: 2
-   :glob:
-   :caption: Data Pipeline
+   :caption: User Guide
    :hidden:
 
-   02-data-pipeline/*
+   02-user-guide/README
 
 .. toctree::
    :maxdepth: 2
-   :glob:
-   :caption: ML Detection
+   :caption: Advanced
    :hidden:
 
-   03-ml-detection/*
+   03-cli-automation/README
+   04-plugin-development/README
+   05-ml-detection/README
 
 .. toctree::
    :maxdepth: 2
-   :glob:
-   :caption: Plugin Development
+   :caption: Reference
    :hidden:
 
-   04-plugin-development/*
-   04-plugin-development/*/*
+   06-reference/README
+   06-reference/api/modules
 
 .. toctree::
    :maxdepth: 2
-   :glob:
-   :caption: API Reference
+   :caption: Project
    :hidden:
 
-   05-api-reference/*
-   modules
+   07-architecture/README
+   08-roadmaps/README
+   09-troubleshooting/README
 
 .. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: GUI
+   :maxdepth: 1
+   :caption: Internal
    :hidden:
 
-   06-gui/*
-   06-gui/*/*
+   README
+   STYLE_GUIDE
+   DESIGN_SYSTEM
 
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Tutorials
-   :hidden:
-
-   07-tutorials/*
-   07-tutorials/*/*
-
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Configuration
-   :hidden:
-
-   08-configuration/*
-
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Architecture
-   :hidden:
-
-   09-architecture/*
-   09-architecture/*/*
-
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Roadmaps
-   :hidden:
-
-   10-roadmaps/*
-   10-roadmaps/*/*
-   10-roadmaps/*/*/*
-
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Development
-   :hidden:
-
-   11-development/*
-
-.. toctree::
-   :maxdepth: 2
-   :glob:
-   :caption: Troubleshooting
-   :hidden:
-
-   12-troubleshooting/*
-
-Quick Start
------------
-
-1. **Installation**: :doc:`01-getting-started/installation`
-
-   .. code-block:: bash
-
-      pip install niamoto
-
-2. **First Project**: :doc:`01-getting-started/quickstart`
-
-   .. code-block:: bash
-
-      niamoto init
-      niamoto run
-
-3. **Key Concepts**: :doc:`01-getting-started/concepts`
-
-Main Resources
---------------
-
-* **Configuration**: :doc:`08-configuration/configuration-guide` - Master YAML files
-* **Data Pipeline**: :doc:`02-data-pipeline/transform-pipeline` - Manage transformations
-* **Plugin Development**: :doc:`04-plugin-development/creating-transformers` - Build custom logic
-* **GUI Workflow**: :doc:`06-gui/user-workflow` - Navigate the interface
-
-Getting Help
-------------
-
-* `GitHub Issues <https://github.com/niamoto/niamoto/issues>`_
-* `Discussions <https://github.com/niamoto/niamoto/discussions>`_
-* :doc:`12-troubleshooting/common-issues`
-
-Indices and Tables
-==================
+Indices
+=======
 
 * :ref:`genindex`
 * :ref:`modindex`

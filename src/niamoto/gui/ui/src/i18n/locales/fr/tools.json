@@ -111,7 +111,7 @@
     "debugDiagnosticCopied": "Diagnostic copié",
     "debugDiagnosticCopyError": "Impossible de copier le diagnostic",
     "about": "À propos",
-    "aboutDesc": "Version de l’application et mises à jour",
+    "aboutDesc": "Version de l’application, équipe et partenaires institutionnels",
     "currentVersion": "Version actuelle",
     "updateAvailable": "Version {{version}} disponible",
     "installUpdate": "Installer v{{version}}",

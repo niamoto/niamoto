@@ -1,0 +1,29 @@
+{
+  "slug": "06-reference/configuration-guide",
+  "path": "/help/06-reference/configuration-guide",
+  "title": "Configuration Guide",
+  "description": "Niamoto splits configuration by pipeline stage so each file answers one question.",
+  "page_type": "markdown",
+  "section_slug": "06-reference",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Main files",
+      "level": 2,
+      "id": "main-files"
+    },
+    {
+      "title": "Boundary rules",
+      "level": 2,
+      "id": "boundary-rules"
+    },
+    {
+      "title": "Related docs",
+      "level": 2,
+      "id": "related-docs"
+    }
+  ],
+  "html": "<h1 id=\"configuration-guide\">Configuration Guide</h1>\n<p>Niamoto splits configuration by pipeline stage so each file answers one\nquestion.</p>\n<h2 id=\"main-files\">Main files</h2>\n<ul>\n<li><code>config.yml</code>: runtime settings such as paths and shared services</li>\n<li><code>import.yml</code>: raw sources, entity definitions, and import rules</li>\n<li><code>transform.yml</code>: grouped statistics and reusable computed outputs</li>\n<li><code>export.yml</code>: website export and machine-readable outputs</li>\n<li><code>deploy.yml</code>: deployment targets and platform settings, when present</li>\n</ul>\n<h2 id=\"boundary-rules\">Boundary rules</h2>\n<ul>\n<li><code>import.yml</code> answers: where does the data come from?</li>\n<li><code>transform.yml</code> answers: what do we compute from it?</li>\n<li><code>export.yml</code> answers: how do we publish it?</li>\n<li><code>deploy.yml</code> answers: where do published outputs go?</li>\n</ul>\n<p>If a change spans more than one of these questions, document the boundary\nexplicitly instead of hiding it in one large config block.</p>\n<h2 id=\"related-docs\">Related docs</h2>\n<ul>\n<li><a href=\"/help/02-user-guide/import\">Import workflow</a></li>\n<li><a href=\"/help/02-user-guide/collections\">Collections</a></li>\n<li><a href=\"/help/02-user-guide/publish\">Publish</a></li>\n<li><a href=\"/help/06-reference/plugin-api\">plugin-api.md</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "06-reference/configuration-guide.md"
+}

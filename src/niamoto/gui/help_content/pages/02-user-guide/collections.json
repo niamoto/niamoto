@@ -1,0 +1,44 @@
+{
+  "slug": "02-user-guide/collections",
+  "path": "/help/02-user-guide/collections",
+  "title": "Collections",
+  "description": "Collections is the reader facing name for the desktop area that manages grouped outputs. Behind the interface, this stage spans config/transform.yml and the collection facing parts of config/export.yml.",
+  "page_type": "markdown",
+  "section_slug": "02-user-guide",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "1. Start from the collections overview",
+      "level": 2,
+      "id": "1-start-from-the-collections-overview"
+    },
+    {
+      "title": "2. Configure collection content",
+      "level": 2,
+      "id": "2-configure-collection-content"
+    },
+    {
+      "title": "3. Add widgets from the gallery",
+      "level": 2,
+      "id": "3-add-widgets-from-the-gallery"
+    },
+    {
+      "title": "4. Recompute and validate the result",
+      "level": 2,
+      "id": "4-recompute-and-validate-the-result"
+    },
+    {
+      "title": "How this stage fits the full flow",
+      "level": 2,
+      "id": "how-this-stage-fits-the-full-flow"
+    },
+    {
+      "title": "Related",
+      "level": 2,
+      "id": "related"
+    }
+  ],
+  "html": "<h1 id=\"collections\">Collections</h1>\n<p>Collections is the reader-facing name for the desktop area that manages grouped\noutputs. Behind the interface, this stage spans <code>config/transform.yml</code> and the\ncollection-facing parts of <code>config/export.yml</code>.</p>\n<p>Use Collections to:</p>\n<ul>\n<li>inspect the collections created from imported data</li>\n<li>configure widgets and other computed outputs</li>\n<li>preview a collection before recomputing everything</li>\n<li>recompute and validate the generated collection content</li>\n</ul>\n<h2 id=\"1-start-from-the-collections-overview\">1. Start from the collections overview</h2>\n<p>After import, open the collections area to see the project entities Niamoto can\nturn into pages, widgets, and reusable outputs.</p>\n<p><img alt=\"Collections overview\" src=\"/api/help/assets/screenshots/desktop/15.collections-overview.png\" /></p>\n<p>Typical collections include taxa, plots, or shapes, but the exact set depends\non the project you imported.</p>\n<h2 id=\"2-configure-collection-content\">2. Configure collection content</h2>\n<p>Open a collection to edit the content blocks attached to it.</p>\n<p><img alt=\"Collection page before widget setup\" src=\"/api/help/assets/screenshots/desktop/16.collection-page.png\" /></p>\n<p>This is where you decide:</p>\n<ul>\n<li>which widgets belong to the collection</li>\n<li>which source fields or grouped values feed them</li>\n<li>which parameters shape the final result</li>\n</ul>\n<p>Niamoto keeps the workflow UI-first. You do not need to start from raw YAML, but\nthe changes you make here can update both <code>config/transform.yml</code> and\n<code>config/export.yml</code>, depending on whether you are defining data, widget display,\nlist pages, or API outputs.</p>\n<h2 id=\"3-add-widgets-from-the-gallery\">3. Add widgets from the gallery</h2>\n<p>When you need a new content block, open the widget picker and browse the\navailable suggestions.</p>\n<p><img alt=\"Add widget modal\" src=\"/api/help/assets/screenshots/desktop/16.collections-add-widget-modal.png\" /></p>\n<p>The gallery helps you discover:</p>\n<ul>\n<li>recommended widgets for the current collection</li>\n<li>plugin-backed parameter forms</li>\n<li>combinations that already make sense for the available data</li>\n</ul>\n<p>For a more focused view of widget selection, list pages, and API outputs, see\n<a href=\"/help/02-user-guide/widget-catalogue\">widget-catalogue.md</a>.</p>\n<h2 id=\"4-recompute-and-validate-the-result\">4. Recompute and validate the result</h2>\n<p>After editing a collection, recompute it so the saved configuration and the\ngenerated output stay aligned.</p>\n<p><img alt=\"Collections processing\" src=\"/api/help/assets/screenshots/desktop/19.collection-computation.png\" /></p>\n<p>Use this step when:</p>\n<ul>\n<li>you added or removed widgets</li>\n<li>a parameter changed</li>\n<li>imported data changed and the collection needs a fresh run</li>\n</ul>\n<h2 id=\"how-this-stage-fits-the-full-flow\">How this stage fits the full flow</h2>\n<p>Collections sits between Import and Site:</p>\n<ul>\n<li>Import loads the project data</li>\n<li>Collections defines reusable grouped outputs</li>\n<li>Site arranges those outputs into the generated portal</li>\n<li>Publish builds and deploys the final result</li>\n</ul>\n<h2 id=\"related\">Related</h2>\n<ul>\n<li><a href=\"/help/02-user-guide/widget-catalogue\">widget-catalogue.md</a></li>\n<li><a href=\"/help/02-user-guide/preview\">preview.md</a></li>\n<li><a href=\"/help/02-user-guide/site\">site.md</a></li>\n<li><a href=\"/help/06-reference/transform-plugins\">../06-reference/transform-plugins.md</a></li>\n<li><a href=\"/help/06-reference/widgets-and-transform-workflow\">../06-reference/widgets-and-transform-workflow.md</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "02-user-guide/collections.md"
+}

@@ -1,274 +1,133 @@
-# Installing Niamoto
+# Installation
 
-This guide walks you through installing Niamoto on your system.
+Niamoto gives you two entry points: a desktop app and a Python CLI.
+Install the desktop app unless you need automation, CI, or server runs.
 
-## Prerequisites
+## Desktop app (recommended)
 
-### Operating System
-- Linux (Ubuntu 20.04+, Debian 10+)
-- macOS (10.15+)
-- Windows 10+ (WSL2 recommended)
+Signed builds for macOS, Windows, and Linux live on the
+[releases page](https://github.com/niamoto/niamoto/releases/latest).
 
-### Required Software
-- Python 3.9 or higher
-- pip or uv (Python package manager)
-- Git (for cloning examples)
-- SQLite 3.35+ (usually included with Python)
+| Platform         | Artifact                         |
+| ---------------- | -------------------------------- |
+| macOS (arm64)    | `Niamoto_*_aarch64.dmg`          |
+| macOS (x86_64)   | `Niamoto_*_x64.dmg`              |
+| Windows (x86_64) | `Niamoto_*_x64_en-US.msi`        |
+| Debian / Ubuntu  | `niamoto_*_amd64.deb`            |
+| Linux (generic)  | `niamoto_*_amd64.AppImage`       |
 
-### Optional but Recommended
-- GDAL/OGR (for advanced geospatial features)
-- QGIS (for visualizing spatial data)
+### macOS notes
 
-## Installation via pip
+- On the first launch, right-click the `.dmg` or the `.app` and choose
+  *Open* to clear Gatekeeper. Later launches go through normally.
+- If macOS still blocks the app, open
+  *System Settings → Privacy & Security* and click *Open Anyway*.
 
-### 1. Simple Installation
+### Windows notes
 
-```bash
-pip install niamoto
-```
+- The `.msi` installs for the current user. No admin rights needed.
+- WebView2 is bundled; Windows 10 and later include what the app needs.
 
-### 2. Installation with All Dependencies
+### Linux notes
 
-```bash
-pip install niamoto[all]
-```
+- `.deb` works on Debian, Ubuntu, Linux Mint, and derivatives.
+- `.AppImage` runs on most distributions without an installer:
 
-### 3. Development Installation
+  ```bash
+  chmod +x niamoto_*_amd64.AppImage
+  ./niamoto_*_amd64.AppImage
+  ```
 
-```bash
-git clone https://github.com/niamoto/niamoto.git
-cd niamoto
-pip install -e .
-```
+## Python CLI (automation, CI)
 
-For contributor tooling such as Ruff, MyPy, pytest, and pre-commit, prefer the `uv` workflow below.
+The CLI runs the same pipeline as the desktop app, without the UI.
+It requires Python 3.12 or newer.
 
-## Installation via uv (recommended)
+### With uv (recommended)
 
-[uv](https://github.com/astral-sh/uv) is a modern and fast Python package manager.
-
-### 1. Install uv
+[uv](https://github.com/astral-sh/uv) installs and runs Python tools.
 
 ```bash
-# On macOS/Linux
+# macOS / Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# On Windows
+# Windows (PowerShell)
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
 
-### 2. Install Niamoto with uv
-
-```bash
 uv pip install niamoto
-```
-
-### 3. Development Installation with uv
-
-```bash
-git clone https://github.com/niamoto/niamoto.git
-cd niamoto
-uv venv
-source .venv/bin/activate
-uv sync --group dev
-```
-
-If you also build the documentation regularly:
-
-```bash
-uv sync --group dev --extra docs
-```
-
-## Verify Installation
-
-### 1. Check Version
-
-```bash
 niamoto --version
 ```
 
-You should see something like:
-```
-niamoto, version 0.5.3
+### With pip
+
+```bash
+pip install niamoto
+niamoto --version
 ```
 
-### 2. Display Help
+### Development install
+
+```bash
+git clone https://github.com/niamoto/niamoto.git
+cd niamoto
+uv sync --group dev
+```
+
+Add `--extra docs` if you also build the Sphinx docs locally.
+
+## Geospatial dependencies (CLI only)
+
+Niamoto reads shapefiles, GeoPackages, and rasters through GDAL. The desktop app
+bundles what it needs. The CLI uses the GDAL libraries on your machine.
+
+### macOS
+
+```bash
+brew install gdal
+gdalinfo --version
+```
+
+### Debian / Ubuntu
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  gdal-bin libgdal-dev python3-gdal libspatialite-dev
+gdalinfo --version
+```
+
+### Windows
+
+Install [OSGeo4W](https://trac.osgeo.org/osgeo4w/) and add the GDAL
+binary directory to your `PATH`.
+
+## Verify the install
+
+### Desktop app
+
+Launch Niamoto from your Applications / Start menu / launcher. The
+welcome screen should appear within a few seconds. If it stalls, see
+[../09-troubleshooting/README.md](../09-troubleshooting/README.md).
+
+### CLI
 
 ```bash
 niamoto --help
 ```
 
-This will show all available commands:
-```
-Usage: niamoto [OPTIONS] COMMAND [ARGS]...
+You should see commands such as `init`, `import`, `transform`, `export`, `run`,
+`stats`, `deploy`, and `plugins`.
 
-  Niamoto CLI - Ecological data platform
+## Next steps
 
-Options:
-  --version  Show the version and exit.
-  --help     Show this message and exit.
+- Open the desktop app and follow [first-project.md](first-project.md).
+- If you installed the CLI, read [quickstart.md](quickstart.md).
 
-Commands:
-  init       Initialize a new Niamoto project
-  import     Import data from CSV/GIS files
-  transform  Run data transformations
-  export     Export to static site
-  run        Run entire pipeline
-  stats      Display database statistics
-  deploy     Deploy to web server
-  plugins    Manage plugins
-```
+## Troubleshooting
 
-### 3. Quick Test
-
-Create a test project:
-
-```bash
-# Create a folder for testing
-mkdir test-niamoto
-cd test-niamoto
-
-# Initialize a project
-niamoto init
-
-# Check the created structure
-ls -la
-```
-
-You should see:
-```
-.
-├── config/
-│   ├── config.yml
-│   ├── import.yml
-│   ├── transform.yml
-│   └── export.yml
-├── imports/
-├── exports/
-├── plugins/
-├── templates/
-└── logs/
-```
-
-## Installing Geospatial Dependencies
-
-### On Ubuntu/Debian
-
-```bash
-# Install GDAL and dependencies
-sudo apt-get update
-sudo apt-get install -y \
-    gdal-bin \
-    libgdal-dev \
-    python3-gdal \
-    libspatialite-dev
-
-# Verify installation
-gdalinfo --version
-```
-
-### On macOS
-
-```bash
-# With Homebrew
-brew install gdal
-brew install spatialite-tools
-
-# Verify installation
-gdalinfo --version
-```
-
-### On Windows
-
-1. Download and install [OSGeo4W](https://trac.osgeo.org/osgeo4w/)
-2. Select GDAL and SQLite/Spatialite packages
-3. Add installation path to system PATH
-
-## Environment Configuration
-
-### Optional Environment Variables
-
-```bash
-# Set default path for Niamoto projects
-export NIAMOTO_HOME=$HOME/.niamoto
-
-# Enable detailed logging
-export NIAMOTO_LOG_LEVEL=DEBUG
-
-# Set locale (important for special characters)
-export LC_ALL=en_US.UTF-8
-export LANG=en_US.UTF-8
-```
-
-### Git Configuration (for contributors)
-
-```bash
-# Clone repository with examples
-git clone https://github.com/niamoto/niamoto.git
-cd niamoto
-
-# Install pre-commit hooks
-pip install pre-commit
-pre-commit install
-```
-
-## Common Installation Issues
-
-### Error: "command not found: niamoto"
-
-The binary is not in your PATH. Solutions:
-
-```bash
-# Check where pip installs scripts
-python -m site --user-base
-
-# Add to PATH (Linux/macOS)
-export PATH="$HOME/.local/bin:$PATH"
-
-# Or use python -m
-python -m niamoto --version
-```
-
-### Error: "No module named 'gdal'"
-
-Python bindings for GDAL are not installed:
-
-```bash
-# Install with pip
-pip install GDAL==$(gdal-config --version)
-
-# Or with conda
-conda install -c conda-forge gdal
-```
-
-### Permission Error
-
-If you get permission errors during installation:
-
-```bash
-# Install in user space
-pip install --user niamoto
-
-# Or use a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or
-venv\Scripts\activate  # Windows
-pip install niamoto
-```
-
-## Next Steps
-
-Once Niamoto is successfully installed:
-
-1. Follow the [Quick Start Guide](quickstart.md) to create your first project
-2. Explore [Core Concepts](concepts.md) to understand the architecture
-3. Download [example data](https://github.com/niamoto/niamoto-example-data) for testing
-
-## Support
-
-If you encounter issues:
-
-1. Review [Common Issues](../12-troubleshooting/common-issues.md)
-2. Look at [GitHub issues](https://github.com/niamoto/niamoto/issues)
-3. Join the community on [Discussions](https://github.com/niamoto/niamoto/discussions)
+- **`command not found: niamoto`**: `~/.local/bin` or the Windows Scripts
+  folder is not on `PATH`. Add it, or run
+  `python -m niamoto --help`.
+- **`No module named 'osgeo'`**: install the system GDAL first, then
+  `pip install GDAL==$(gdal-config --version)`.
+- Full list: [../09-troubleshooting/README.md](../09-troubleshooting/README.md).

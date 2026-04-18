@@ -1,0 +1,4070 @@
+{
+  "generated_at": "2026-04-18T11:14:51.042694+00:00",
+  "sections": [
+    {
+      "slug": "01-getting-started",
+      "title": "Getting Started",
+      "description": "Start with installation.md. Pick the desktop app or the Python CLI. Follow first project.md if you want the desktop path from project creation to publish. Read concepts.md if you want the pipeline model before you edit c",
+      "path": "/help/01-getting-started",
+      "article_count": 5,
+      "pages": [
+        {
+          "slug": "01-getting-started",
+          "path": "/help/01-getting-started",
+          "title": "Getting Started",
+          "description": "Start with installation.md. Pick the desktop app or the Python CLI. Follow first project.md if you want the desktop path from project creation to publish. Read concepts.md if you want the pipeline model before you edit c",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Choose a path",
+              "level": 2,
+              "id": "choose-a-path"
+            },
+            {
+              "title": "In this section",
+              "level": 2,
+              "id": "in-this-section"
+            },
+            {
+              "title": "If you use the desktop app",
+              "level": 2,
+              "id": "if-you-use-the-desktop-app"
+            },
+            {
+              "title": "If you use the CLI",
+              "level": 2,
+              "id": "if-you-use-the-cli"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "01-getting-started/installation",
+          "path": "/help/01-getting-started/installation",
+          "title": "Installation",
+          "description": "Niamoto gives you two entry points: a desktop app and a Python CLI. Install the desktop app unless you need automation, CI, or server runs.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Desktop app (recommended)",
+              "level": 2,
+              "id": "desktop-app-recommended"
+            },
+            {
+              "title": "macOS notes",
+              "level": 3,
+              "id": "macos-notes"
+            },
+            {
+              "title": "Windows notes",
+              "level": 3,
+              "id": "windows-notes"
+            },
+            {
+              "title": "Linux notes",
+              "level": 3,
+              "id": "linux-notes"
+            },
+            {
+              "title": "Python CLI (automation, CI)",
+              "level": 2,
+              "id": "python-cli-automation-ci"
+            },
+            {
+              "title": "With uv (recommended)",
+              "level": 3,
+              "id": "with-uv-recommended"
+            },
+            {
+              "title": "With pip",
+              "level": 3,
+              "id": "with-pip"
+            },
+            {
+              "title": "Development install",
+              "level": 3,
+              "id": "development-install"
+            },
+            {
+              "title": "Geospatial dependencies (CLI only)",
+              "level": 2,
+              "id": "geospatial-dependencies-cli-only"
+            },
+            {
+              "title": "macOS",
+              "level": 3,
+              "id": "macos"
+            },
+            {
+              "title": "Debian / Ubuntu",
+              "level": 3,
+              "id": "debian-ubuntu"
+            },
+            {
+              "title": "Windows",
+              "level": 3,
+              "id": "windows"
+            },
+            {
+              "title": "Verify the install",
+              "level": 2,
+              "id": "verify-the-install"
+            },
+            {
+              "title": "Desktop app",
+              "level": 3,
+              "id": "desktop-app"
+            },
+            {
+              "title": "CLI",
+              "level": 3,
+              "id": "cli"
+            },
+            {
+              "title": "Next steps",
+              "level": 2,
+              "id": "next-steps"
+            },
+            {
+              "title": "Troubleshooting",
+              "level": 2,
+              "id": "troubleshooting"
+            }
+          ]
+        },
+        {
+          "slug": "01-getting-started/first-project",
+          "path": "/help/01-getting-started/first-project",
+          "title": "Your first Niamoto project",
+          "description": "Follow the desktop app from the welcome screen to a published portal.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Prerequisites",
+              "level": 2,
+              "id": "prerequisites"
+            },
+            {
+              "title": "1. Create a project",
+              "level": 2,
+              "id": "1-create-a-project"
+            },
+            {
+              "title": "2. Import your data",
+              "level": 2,
+              "id": "2-import-your-data"
+            },
+            {
+              "title": "3. Explore the collections",
+              "level": 2,
+              "id": "3-explore-the-collections"
+            },
+            {
+              "title": "4. Arrange the portal",
+              "level": 2,
+              "id": "4-arrange-the-portal"
+            },
+            {
+              "title": "5. Publish",
+              "level": 2,
+              "id": "5-publish"
+            },
+            {
+              "title": "What's next",
+              "level": 2,
+              "id": "whats-next"
+            }
+          ]
+        },
+        {
+          "slug": "01-getting-started/concepts",
+          "path": "/help/01-getting-started/concepts",
+          "title": "Niamoto core concepts",
+          "description": "Niamoto runs one pipeline through three config files:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "1. Project layout",
+              "level": 2,
+              "id": "1-project-layout"
+            },
+            {
+              "title": "2. Import",
+              "level": 2,
+              "id": "2-import"
+            },
+            {
+              "title": "3. Transform",
+              "level": 2,
+              "id": "3-transform"
+            },
+            {
+              "title": "4. Export",
+              "level": 2,
+              "id": "4-export"
+            },
+            {
+              "title": "5. Plugins",
+              "level": 2,
+              "id": "5-plugins"
+            },
+            {
+              "title": "6. Templates and widgets",
+              "level": 2,
+              "id": "6-templates-and-widgets"
+            },
+            {
+              "title": "7. Desktop app and CLI",
+              "level": 2,
+              "id": "7-desktop-app-and-cli"
+            },
+            {
+              "title": "8. A normal project loop",
+              "level": 2,
+              "id": "8-a-normal-project-loop"
+            },
+            {
+              "title": "Next reads",
+              "level": 2,
+              "id": "next-reads"
+            }
+          ]
+        },
+        {
+          "slug": "01-getting-started/quickstart",
+          "path": "/help/01-getting-started/quickstart",
+          "title": "CLI quickstart",
+          "description": "Drive Niamoto from a shell. For the desktop path, read first project.md.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Prerequisites",
+              "level": 2,
+              "id": "prerequisites"
+            },
+            {
+              "title": "1. Create a project",
+              "level": 2,
+              "id": "1-create-a-project"
+            },
+            {
+              "title": "2. Copy your source data",
+              "level": 2,
+              "id": "2-copy-your-source-data"
+            },
+            {
+              "title": "3. Fill the config files",
+              "level": 2,
+              "id": "3-fill-the-config-files"
+            },
+            {
+              "title": "4. Check the import config",
+              "level": 2,
+              "id": "4-check-the-import-config"
+            },
+            {
+              "title": "5. Run the pipeline",
+              "level": 2,
+              "id": "5-run-the-pipeline"
+            },
+            {
+              "title": "6. Inspect the result",
+              "level": 2,
+              "id": "6-inspect-the-result"
+            },
+            {
+              "title": "7. Deploy",
+              "level": 2,
+              "id": "7-deploy"
+            },
+            {
+              "title": "Next reads",
+              "level": 2,
+              "id": "next-reads"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "02-user-guide",
+      "title": "Desktop App Tour",
+      "description": "Use this section when you already have the desktop app installed and want the full UI path from project setup to publication.",
+      "path": "/help/02-user-guide",
+      "article_count": 7,
+      "pages": [
+        {
+          "slug": "02-user-guide",
+          "path": "/help/02-user-guide",
+          "title": "Desktop App Tour",
+          "description": "Use this section when you already have the desktop app installed and want the full UI path from project setup to publication.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Main path",
+              "level": 2,
+              "id": "main-path"
+            },
+            {
+              "title": "1. Create or open a project",
+              "level": 3,
+              "id": "1-create-or-open-a-project"
+            },
+            {
+              "title": "2. Import the project data",
+              "level": 3,
+              "id": "2-import-the-project-data"
+            },
+            {
+              "title": "3. Configure collections",
+              "level": 3,
+              "id": "3-configure-collections"
+            },
+            {
+              "title": "4. Build the site",
+              "level": 3,
+              "id": "4-build-the-site"
+            },
+            {
+              "title": "5. Publish the portal",
+              "level": 3,
+              "id": "5-publish-the-portal"
+            },
+            {
+              "title": "Module pages",
+              "level": 2,
+              "id": "module-pages"
+            },
+            {
+              "title": "Supporting references",
+              "level": 2,
+              "id": "supporting-references"
+            },
+            {
+              "title": "Other routes",
+              "level": 2,
+              "id": "other-routes"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/import",
+          "path": "/help/02-user-guide/import",
+          "title": "Import",
+          "description": "Import is where a project becomes usable. Add the source files, let Niamoto detect their roles, review the generated configuration, then load the data into the project workspace.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What this stage controls",
+              "level": 2,
+              "id": "what-this-stage-controls"
+            },
+            {
+              "title": "1. Add the source files",
+              "level": 2,
+              "id": "1-add-the-source-files"
+            },
+            {
+              "title": "2. Let Niamoto analyse the files",
+              "level": 2,
+              "id": "2-let-niamoto-analyse-the-files"
+            },
+            {
+              "title": "3. Review the generated configuration",
+              "level": 2,
+              "id": "3-review-the-generated-configuration"
+            },
+            {
+              "title": "4. Run the import",
+              "level": 2,
+              "id": "4-run-the-import"
+            },
+            {
+              "title": "Optional follow up: enrichment",
+              "level": 2,
+              "id": "optional-follow-up-enrichment"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/collections",
+          "path": "/help/02-user-guide/collections",
+          "title": "Collections",
+          "description": "Collections is the reader facing name for the desktop area that manages grouped outputs. Behind the interface, this stage spans config/transform.yml and the collection facing parts of config/export.yml.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "1. Start from the collections overview",
+              "level": 2,
+              "id": "1-start-from-the-collections-overview"
+            },
+            {
+              "title": "2. Configure collection content",
+              "level": 2,
+              "id": "2-configure-collection-content"
+            },
+            {
+              "title": "3. Add widgets from the gallery",
+              "level": 2,
+              "id": "3-add-widgets-from-the-gallery"
+            },
+            {
+              "title": "4. Recompute and validate the result",
+              "level": 2,
+              "id": "4-recompute-and-validate-the-result"
+            },
+            {
+              "title": "How this stage fits the full flow",
+              "level": 2,
+              "id": "how-this-stage-fits-the-full-flow"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/site",
+          "path": "/help/02-user-guide/site",
+          "title": "Site Builder",
+          "description": "The Site area turns imported and computed project content into the public portal structure. This is where you shape pages, navigation, and presentation before you move to Publish.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What this stage is for",
+              "level": 2,
+              "id": "what-this-stage-is-for"
+            },
+            {
+              "title": "1. Edit shared pages",
+              "level": 2,
+              "id": "1-edit-shared-pages"
+            },
+            {
+              "title": "2. Build the supporting pages",
+              "level": 2,
+              "id": "2-build-the-supporting-pages"
+            },
+            {
+              "title": "3. Configure collection pages",
+              "level": 2,
+              "id": "3-configure-collection-pages"
+            },
+            {
+              "title": "Behind the UI",
+              "level": 2,
+              "id": "behind-the-ui"
+            },
+            {
+              "title": "What comes next",
+              "level": 2,
+              "id": "what-comes-next"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/publish",
+          "path": "/help/02-user-guide/publish",
+          "title": "Publish",
+          "description": "Publish is the final desktop stage. Use it to build the generated site, inspect the result, choose a deployment target, and follow the deployment status to the end.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What this stage is for",
+              "level": 2,
+              "id": "what-this-stage-is-for"
+            },
+            {
+              "title": "1. Build and inspect the generated site",
+              "level": 2,
+              "id": "1-build-and-inspect-the-generated-site"
+            },
+            {
+              "title": "2. Choose a deployment target",
+              "level": 2,
+              "id": "2-choose-a-deployment-target"
+            },
+            {
+              "title": "3. Fill in provider settings",
+              "level": 2,
+              "id": "3-fill-in-provider-settings"
+            },
+            {
+              "title": "4. Review logs and final status",
+              "level": 2,
+              "id": "4-review-logs-and-final-status"
+            },
+            {
+              "title": "Behind the UI",
+              "level": 2,
+              "id": "behind-the-ui"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/widget-catalogue",
+          "path": "/help/02-user-guide/widget-catalogue",
+          "title": "Widget Catalogue and Collection Extras",
+          "description": "This page is a supporting reference for the Collections area. Use it when the main collections.md page is not enough and you need to focus on widget selection, list pages, or API oriented outputs.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Use this page for",
+              "level": 2,
+              "id": "use-this-page-for"
+            },
+            {
+              "title": "Widget selection",
+              "level": 2,
+              "id": "widget-selection"
+            },
+            {
+              "title": "Collection extras beyond a single widget",
+              "level": 2,
+              "id": "collection-extras-beyond-a-single-widget"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "02-user-guide/preview",
+          "path": "/help/02-user-guide/preview",
+          "title": "Preview Surfaces",
+          "description": "Preview is not one separate stage of the product. It appears inside three different parts of the desktop workflow.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "1. Widget preview in Collections",
+              "level": 2,
+              "id": "1-widget-preview-in-collections"
+            },
+            {
+              "title": "2. Site preview in the Site Builder",
+              "level": 2,
+              "id": "2-site-preview-in-the-site-builder"
+            },
+            {
+              "title": "3. Generated site preview in Publish",
+              "level": 2,
+              "id": "3-generated-site-preview-in-publish"
+            },
+            {
+              "title": "One concept, three questions",
+              "level": 2,
+              "id": "one-concept-three-questions"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "03-cli-automation",
+      "title": "CLI & Automation",
+      "description": "Run this path when you want the Niamoto pipeline from a shell, CI job, or server.",
+      "path": "/help/03-cli-automation",
+      "article_count": 1,
+      "pages": [
+        {
+          "slug": "03-cli-automation",
+          "path": "/help/03-cli-automation",
+          "title": "CLI & Automation",
+          "description": "Run this path when you want the Niamoto pipeline from a shell, CI job, or server.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Start here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "Main commands",
+              "level": 2,
+              "id": "main-commands"
+            },
+            {
+              "title": "Common workflows",
+              "level": 2,
+              "id": "common-workflows"
+            },
+            {
+              "title": "Initialize a project",
+              "level": 3,
+              "id": "initialize-a-project"
+            },
+            {
+              "title": "Refresh a project from the shell",
+              "level": 3,
+              "id": "refresh-a-project-from-the-shell"
+            },
+            {
+              "title": "Run the bundled pipeline safely",
+              "level": 3,
+              "id": "run-the-bundled-pipeline-safely"
+            },
+            {
+              "title": "Inspect configuration drift before importing",
+              "level": 3,
+              "id": "inspect-configuration-drift-before-importing"
+            },
+            {
+              "title": "Deploy a generated site",
+              "level": 3,
+              "id": "deploy-a-generated-site"
+            },
+            {
+              "title": "config/deploy.yml",
+              "level": 2,
+              "id": "configdeployyml"
+            },
+            {
+              "title": "CI and cron",
+              "level": 2,
+              "id": "ci-and-cron"
+            },
+            {
+              "title": "Also useful",
+              "level": 2,
+              "id": "also-useful"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "04-plugin-development",
+      "title": "Plugin Development",
+      "description": "Build custom plugins for Niamoto without patching the core runtime.",
+      "path": "/help/04-plugin-development",
+      "article_count": 9,
+      "pages": [
+        {
+          "slug": "04-plugin-development",
+          "path": "/help/04-plugin-development",
+          "title": "Plugin Development",
+          "description": "Build custom plugins for Niamoto without patching the core runtime.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Plugin Types",
+              "level": 2,
+              "id": "plugin-types"
+            },
+            {
+              "title": "Start Here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "Minimal Transformer",
+              "level": 2,
+              "id": "minimal-transformer"
+            },
+            {
+              "title": "Workflow",
+              "level": 2,
+              "id": "workflow"
+            },
+            {
+              "title": "Test Locations",
+              "level": 2,
+              "id": "test-locations"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/architecture",
+          "path": "/help/04-plugin-development/architecture",
+          "title": "Plugin System Architecture",
+          "description": "Niamoto discovers plugins, validates config with Pydantic, then calls the matching runtime hook.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Discovery And Override Rules",
+              "level": 2,
+              "id": "discovery-and-override-rules"
+            },
+            {
+              "title": "Registry",
+              "level": 2,
+              "id": "registry"
+            },
+            {
+              "title": "Plugin Types",
+              "level": 2,
+              "id": "plugin-types"
+            },
+            {
+              "title": "Config Models",
+              "level": 2,
+              "id": "config-models"
+            },
+            {
+              "title": "Transform Config Shape",
+              "level": 2,
+              "id": "transform-config-shape"
+            },
+            {
+              "title": "Export Config Shape",
+              "level": 2,
+              "id": "export-config-shape"
+            },
+            {
+              "title": "Widget Runtime",
+              "level": 2,
+              "id": "widget-runtime"
+            },
+            {
+              "title": "Exporter Runtime",
+              "level": 2,
+              "id": "exporter-runtime"
+            },
+            {
+              "title": "Deployers",
+              "level": 2,
+              "id": "deployers"
+            },
+            {
+              "title": "Project Layout",
+              "level": 2,
+              "id": "project-layout"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/creating-transformers",
+          "path": "/help/04-plugin-development/creating-transformers",
+          "title": "Guide de développement de plugins",
+          "description": "Ce guide explique comment créer des plugins pour la plateforme Niamoto. Les plugins permettent d'étendre les fonctionnalités sans modifier le code principal.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Table des matières",
+              "level": 2,
+              "id": "table-des-matieres"
+            },
+            {
+              "title": "Prérequis",
+              "level": 2,
+              "id": "prerequis"
+            },
+            {
+              "title": "Structure des fichiers",
+              "level": 2,
+              "id": "structure-des-fichiers"
+            },
+            {
+              "title": "Créer un plugin Transformer",
+              "level": 2,
+              "id": "creer-un-plugin-transformer"
+            },
+            {
+              "title": "Étape 1 : Définir le modèle de paramètres",
+              "level": 3,
+              "id": "etape-1-definir-le-modele-de-parametres"
+            },
+            {
+              "title": "Étape 2 : Définir le modèle de configuration",
+              "level": 3,
+              "id": "etape-2-definir-le-modele-de-configuration"
+            },
+            {
+              "title": "Étape 3 : Implémenter la classe du plugin",
+              "level": 3,
+              "id": "etape-3-implementer-la-classe-du-plugin"
+            },
+            {
+              "title": "Étape 4 : Configurer en YAML",
+              "level": 3,
+              "id": "etape-4-configurer-en-yaml"
+            },
+            {
+              "title": "Modèles de configuration en détail",
+              "level": 2,
+              "id": "modeles-de-configuration-en-detail"
+            },
+            {
+              "title": "BasePluginParams — paramètres typés",
+              "level": 3,
+              "id": "basepluginparams-parametres-types"
+            },
+            {
+              "title": "PluginConfig — enveloppe YAML",
+              "level": 3,
+              "id": "pluginconfig-enveloppe-yaml"
+            },
+            {
+              "title": "param schema vs config model",
+              "level": 3,
+              "id": "param_schema-vs-config_model"
+            },
+            {
+              "title": "Indices GUI (json schema extra)",
+              "level": 2,
+              "id": "indices-gui-json_schema_extra"
+            },
+            {
+              "title": "Widgets de formulaire",
+              "level": 3,
+              "id": "widgets-de-formulaire"
+            },
+            {
+              "title": "Autres indices",
+              "level": 3,
+              "id": "autres-indices"
+            },
+            {
+              "title": "Exemple réel : raster stats",
+              "level": 3,
+              "id": "exemple-reel-raster_stats"
+            },
+            {
+              "title": "Sujets avancés",
+              "level": 2,
+              "id": "sujets-avances"
+            },
+            {
+              "title": "Chaînes de plugins",
+              "level": 3,
+              "id": "chaines-de-plugins"
+            },
+            {
+              "title": "Gestion des erreurs",
+              "level": 3,
+              "id": "gestion-des-erreurs"
+            },
+            {
+              "title": "Tester un plugin",
+              "level": 3,
+              "id": "tester-un-plugin"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/building-widgets",
+          "path": "/help/04-plugin-development/building-widgets",
+          "title": "Building Widgets",
+          "description": "{html.escape(params.empty_message)}",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Runtime Contract",
+              "level": 2,
+              "id": "runtime-contract"
+            },
+            {
+              "title": "What Goes In param schema",
+              "level": 2,
+              "id": "what-goes-in-param_schema"
+            },
+            {
+              "title": "export.yml Shape",
+              "level": 2,
+              "id": "exportyml-shape"
+            },
+            {
+              "title": "Dependencies",
+              "level": 2,
+              "id": "dependencies"
+            },
+            {
+              "title": "HTML Safety",
+              "level": 2,
+              "id": "html-safety"
+            },
+            {
+              "title": "Preview",
+              "level": 2,
+              "id": "preview"
+            },
+            {
+              "title": "Tests",
+              "level": 2,
+              "id": "tests"
+            },
+            {
+              "title": "Practical Rules",
+              "level": 2,
+              "id": "practical-rules"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/custom-exporters",
+          "path": "/help/04-plugin-development/custom-exporters",
+          "title": "Custom Exporters",
+          "description": "Exporters turn validated export.yml targets into files, folders, or API payloads. ExporterService passes the whole target config to the plugin, not a loose data/config/output path triple.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Runtime Contract",
+              "level": 2,
+              "id": "runtime-contract"
+            },
+            {
+              "title": "What Niamoto Passes To The Exporter",
+              "level": 2,
+              "id": "what-niamoto-passes-to-the-exporter"
+            },
+            {
+              "title": "export.yml Shape",
+              "level": 2,
+              "id": "exportyml-shape"
+            },
+            {
+              "title": "Where To Read Data",
+              "level": 2,
+              "id": "where-to-read-data"
+            },
+            {
+              "title": "Validation",
+              "level": 2,
+              "id": "validation"
+            },
+            {
+              "title": "Static Pages And Widgets",
+              "level": 2,
+              "id": "static-pages-and-widgets"
+            },
+            {
+              "title": "Tests",
+              "level": 2,
+              "id": "tests"
+            },
+            {
+              "title": "Practical Rules",
+              "level": 2,
+              "id": "practical-rules"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/database-aggregator-guide",
+          "path": "/help/04-plugin-development/database-aggregator-guide",
+          "title": "Database Aggregator Guide",
+          "description": "Use database aggregator when you need read only SQL inside a transformer entry.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Minimal Config Block",
+              "level": 2,
+              "id": "minimal-config-block"
+            },
+            {
+              "title": "Query Forms",
+              "level": 2,
+              "id": "query-forms"
+            },
+            {
+              "title": "String query",
+              "level": 3,
+              "id": "string-query"
+            },
+            {
+              "title": "Full query object",
+              "level": 3,
+              "id": "full-query-object"
+            },
+            {
+              "title": "Templates",
+              "level": 2,
+              "id": "templates"
+            },
+            {
+              "title": "Computed Fields",
+              "level": 2,
+              "id": "computed-fields"
+            },
+            {
+              "title": "Validation Options",
+              "level": 2,
+              "id": "validation-options"
+            },
+            {
+              "title": "Output Examples",
+              "level": 2,
+              "id": "output-examples"
+            },
+            {
+              "title": "Scalar result",
+              "level": 3,
+              "id": "scalar-result"
+            },
+            {
+              "title": "Table result",
+              "level": 3,
+              "id": "table-result"
+            },
+            {
+              "title": "Single row result",
+              "level": 3,
+              "id": "single-row-result"
+            },
+            {
+              "title": "Consuming The Result In A Widget",
+              "level": 2,
+              "id": "consuming-the-result-in-a-widget"
+            },
+            {
+              "title": "Practical Constraint",
+              "level": 2,
+              "id": "practical-constraint"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/database-aggregator",
+          "path": "/help/04-plugin-development/database-aggregator",
+          "title": "Database Aggregator",
+          "description": "database aggregator is a real transformer plugin. Niamoto ships it in src/niamoto/core/plugins/transformers/aggregation/database aggregator.py.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What It Does",
+              "level": 2,
+              "id": "what-it-does"
+            },
+            {
+              "title": "Config Shape",
+              "level": 2,
+              "id": "config-shape"
+            },
+            {
+              "title": "Output Formats",
+              "level": 2,
+              "id": "output-formats"
+            },
+            {
+              "title": "Safety",
+              "level": 2,
+              "id": "safety"
+            },
+            {
+              "title": "Current Limitation",
+              "level": 2,
+              "id": "current-limitation"
+            },
+            {
+              "title": "When To Use It",
+              "level": 2,
+              "id": "when-to-use-it"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/examples/darwin-core-export",
+          "path": "/help/04-plugin-development/examples/darwin-core-export",
+          "title": "Darwin Core Export Guide",
+          "description": "This guide covers exporting biodiversity data in Darwin Core format, the global standard for sharing biological occurrence information. Niamoto's Darwin Core export enables seamless integration with GBIF, iDigBio, and ot",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Overview",
+              "level": 2,
+              "id": "overview"
+            },
+            {
+              "title": "Key Principles",
+              "level": 3,
+              "id": "key-principles"
+            },
+            {
+              "title": "Darwin Core Export Configuration",
+              "level": 2,
+              "id": "darwin-core-export-configuration"
+            },
+            {
+              "title": "Basic Setup",
+              "level": 3,
+              "id": "basic-setup"
+            },
+            {
+              "title": "Generated File Structure",
+              "level": 3,
+              "id": "generated-file-structure"
+            },
+            {
+              "title": "Darwin Core Field Mapping",
+              "level": 2,
+              "id": "darwin-core-field-mapping"
+            },
+            {
+              "title": "Core Record Structure",
+              "level": 3,
+              "id": "core-record-structure"
+            },
+            {
+              "title": "Reference System Explained",
+              "level": 2,
+              "id": "reference-system-explained"
+            },
+            {
+              "title": "@source vs @taxon References",
+              "level": 3,
+              "id": "source-vs-taxon-references"
+            },
+            {
+              "title": "Generator Functions",
+              "level": 2,
+              "id": "generator-functions"
+            },
+            {
+              "title": "Coordinate Processing",
+              "level": 3,
+              "id": "coordinate-processing"
+            },
+            {
+              "title": "Date Formatting",
+              "level": 3,
+              "id": "date-formatting"
+            },
+            {
+              "title": "Scientific Name Parsing",
+              "level": 3,
+              "id": "scientific-name-parsing"
+            },
+            {
+              "title": "Measurements Formatting",
+              "level": 3,
+              "id": "measurements-formatting"
+            },
+            {
+              "title": "Phenology Formatting",
+              "level": 3,
+              "id": "phenology-formatting"
+            },
+            {
+              "title": "Habitat Description",
+              "level": 3,
+              "id": "habitat-description"
+            },
+            {
+              "title": "Generated Output Format",
+              "level": 2,
+              "id": "generated-output-format"
+            },
+            {
+              "title": "Individual Occurrence Record",
+              "level": 3,
+              "id": "individual-occurrence-record"
+            },
+            {
+              "title": "Taxon Index File",
+              "level": 3,
+              "id": "taxon-index-file"
+            },
+            {
+              "title": "Data Quality &amp; Validation",
+              "level": 2,
+              "id": "data-quality-validation"
+            },
+            {
+              "title": "Automatic Data Cleaning",
+              "level": 3,
+              "id": "automatic-data-cleaning"
+            },
+            {
+              "title": "Quality Checks",
+              "level": 3,
+              "id": "quality-checks"
+            },
+            {
+              "title": "Common Issues",
+              "level": 3,
+              "id": "common-issues"
+            },
+            {
+              "title": "Darwin Core Standards Compliance",
+              "level": 2,
+              "id": "darwin-core-standards-compliance"
+            },
+            {
+              "title": "Required vs Optional Terms",
+              "level": 3,
+              "id": "required-vs-optional-terms"
+            },
+            {
+              "title": "GBIF Compatibility",
+              "level": 3,
+              "id": "gbif-compatibility"
+            },
+            {
+              "title": "Publishing to GBIF",
+              "level": 3,
+              "id": "publishing-to-gbif"
+            },
+            {
+              "title": "Advanced Configuration",
+              "level": 2,
+              "id": "advanced-configuration"
+            },
+            {
+              "title": "Custom Field Mapping",
+              "level": 3,
+              "id": "custom-field-mapping"
+            },
+            {
+              "title": "Multiple Export Formats",
+              "level": 3,
+              "id": "multiple-export-formats"
+            },
+            {
+              "title": "Filtering Exports",
+              "level": 3,
+              "id": "filtering-exports"
+            },
+            {
+              "title": "Performance Optimization",
+              "level": 2,
+              "id": "performance-optimization"
+            },
+            {
+              "title": "Large Dataset Handling",
+              "level": 3,
+              "id": "large-dataset-handling"
+            },
+            {
+              "title": "Memory Management",
+              "level": 3,
+              "id": "memory-management"
+            },
+            {
+              "title": "Integration Examples",
+              "level": 2,
+              "id": "integration-examples"
+            },
+            {
+              "title": "Research Applications",
+              "level": 3,
+              "id": "research-applications"
+            },
+            {
+              "title": "Data Aggregation Platforms",
+              "level": 3,
+              "id": "data-aggregation-platforms"
+            },
+            {
+              "title": "Troubleshooting",
+              "level": 2,
+              "id": "troubleshooting"
+            },
+            {
+              "title": "Common Export Issues",
+              "level": 3,
+              "id": "common-export-issues"
+            },
+            {
+              "title": "Validation Tools",
+              "level": 3,
+              "id": "validation-tools"
+            },
+            {
+              "title": "Related Documentation",
+              "level": 2,
+              "id": "related-documentation"
+            }
+          ]
+        },
+        {
+          "slug": "04-plugin-development/examples/taxonomy-enricher",
+          "path": "/help/04-plugin-development/examples/taxonomy-enricher",
+          "title": "Configuration examples in import.yml",
+          "description": "Here are some complete configuration examples in import.yml for different API scenarios:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "1. API with API key in the header (e.g., Endemia)",
+              "level": 2,
+              "id": "1-api-with-api-key-in-the-header-eg-endemia"
+            },
+            {
+              "title": "2. API with OAuth2 (client credentials)",
+              "level": 2,
+              "id": "2-api-with-oauth2-client-credentials"
+            },
+            {
+              "title": "3. API with Basic authentication",
+              "level": 2,
+              "id": "3-api-with-basic-authentication"
+            },
+            {
+              "title": "4. API with Bearer Token (e.g., an internal API)",
+              "level": 2,
+              "id": "4-api-with-bearer-token-eg-an-internal-api"
+            },
+            {
+              "title": "5. API without authentication (public API)",
+              "level": 2,
+              "id": "5-api-without-authentication-public-api"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "05-ml-detection",
+      "title": "ML Detection & Auto Configuration",
+      "description": "This section explains how Niamoto detects semantic column types, how the ML stack is trained and evaluated, and where to find the current research, experiments, and dated planning material.",
+      "path": "/help/05-ml-detection",
+      "article_count": 16,
+      "pages": [
+        {
+          "slug": "05-ml-detection",
+          "path": "/help/05-ml-detection",
+          "title": "ML Detection & Auto Configuration",
+          "description": "This section explains how Niamoto detects semantic column types, how the ML stack is trained and evaluated, and where to find the current research, experiments, and dated planning material.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Start here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "If you want to...",
+              "level": 2,
+              "id": "if-you-want-to"
+            },
+            {
+              "title": "Structure",
+              "level": 2,
+              "id": "structure"
+            },
+            {
+              "title": "Active reference",
+              "level": 3,
+              "id": "active-reference"
+            },
+            {
+              "title": "Research",
+              "level": 3,
+              "id": "research"
+            },
+            {
+              "title": "Experiments",
+              "level": 3,
+              "id": "experiments"
+            },
+            {
+              "title": "Archive",
+              "level": 3,
+              "id": "archive"
+            },
+            {
+              "title": "Related runtime and code adjacent docs",
+              "level": 2,
+              "id": "related-runtime-and-code-adjacent-docs"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/overview",
+          "path": "/help/05-ml-detection/overview",
+          "title": "Automatic column detection",
+          "description": "You import a forest inventory CSV file into Niamoto. Instead of manually configuring each column (\"this is a diameter, this is a species, this is coordinates\"), Niamoto automatically detects the content and proposes a co",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What it does",
+              "level": 2,
+              "id": "what-it-does"
+            },
+            {
+              "title": "Why it is necessary",
+              "level": 2,
+              "id": "why-it-is-necessary"
+            },
+            {
+              "title": "How it works",
+              "level": 2,
+              "id": "how-it-works"
+            },
+            {
+              "title": "Training data",
+              "level": 2,
+              "id": "training-data"
+            },
+            {
+              "title": "Contributing",
+              "level": 2,
+              "id": "contributing"
+            },
+            {
+              "title": "Current scores",
+              "level": 2,
+              "id": "current-scores"
+            },
+            {
+              "title": "Known limitations",
+              "level": 2,
+              "id": "known-limitations"
+            },
+            {
+              "title": "Technical architecture",
+              "level": 2,
+              "id": "technical-architecture"
+            },
+            {
+              "title": "Academic References",
+              "level": 2,
+              "id": "academic-references"
+            },
+            {
+              "title": "Key files",
+              "level": 2,
+              "id": "key-files"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/branch-architecture",
+          "path": "/help/05-ml-detection/branch-architecture",
+          "title": "ML Detection Branch Architecture",
+          "description": "This document describes what the feat/ml detection improvement branch aims to achieve, the architecture adopted, and how autoresearch should be used in Niamoto.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Purpose",
+              "level": 2,
+              "id": "purpose"
+            },
+            {
+              "title": "Product Objective",
+              "level": 2,
+              "id": "product-objective"
+            },
+            {
+              "title": "Adopted Architecture",
+              "level": 2,
+              "id": "adopted-architecture"
+            },
+            {
+              "title": "1. Exact Aliases",
+              "level": 3,
+              "id": "1-exact-aliases"
+            },
+            {
+              "title": "2. Header Branch",
+              "level": 3,
+              "id": "2-header-branch"
+            },
+            {
+              "title": "3. Values Branch",
+              "level": 3,
+              "id": "3-values-branch"
+            },
+            {
+              "title": "4. Fusion",
+              "level": 3,
+              "id": "4-fusion"
+            },
+            {
+              "title": "5. Product Semantic Projection",
+              "level": 3,
+              "id": "5-product-semantic-projection"
+            },
+            {
+              "title": "Why This Architecture",
+              "level": 2,
+              "id": "why-this-architecture"
+            },
+            {
+              "title": "What We Are Really Trying to Improve",
+              "level": 2,
+              "id": "what-we-are-really-trying-to-improve"
+            },
+            {
+              "title": "Retained Evaluation Ground Truth",
+              "level": 2,
+              "id": "retained-evaluation-ground-truth"
+            },
+            {
+              "title": "Role of Autoresearch",
+              "level": 2,
+              "id": "role-of-autoresearch"
+            },
+            {
+              "title": "Recommended Autoresearch Programmes",
+              "level": 2,
+              "id": "recommended-autoresearch-programmes"
+            },
+            {
+              "title": "Current Guardrails",
+              "level": 2,
+              "id": "current-guardrails"
+            },
+            {
+              "title": "Recommended Direction",
+              "level": 2,
+              "id": "recommended-direction"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/training-guide",
+          "path": "/help/05-ml-detection/training-guide",
+          "title": "ML Detection — Training & Evaluation Guide",
+          "description": "This guide explains how to build the gold set, train the three ML branches, evaluate the stack, and decide what kind of improvement is needed next.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Pipeline overview",
+              "level": 2,
+              "id": "pipeline-overview"
+            },
+            {
+              "title": "1. Source data",
+              "level": 2,
+              "id": "1-source-data"
+            },
+            {
+              "title": "Silver data",
+              "level": 3,
+              "id": "silver-data"
+            },
+            {
+              "title": "Niamoto instance datasets",
+              "level": 3,
+              "id": "niamoto-instance-datasets"
+            },
+            {
+              "title": "Evaluation annotations",
+              "level": 3,
+              "id": "evaluation-annotations"
+            },
+            {
+              "title": "2. Gold set",
+              "level": 2,
+              "id": "2-gold-set"
+            },
+            {
+              "title": "Build the gold set",
+              "level": 3,
+              "id": "build-the-gold-set"
+            },
+            {
+              "title": "Add a new source",
+              "level": 3,
+              "id": "add-a-new-source"
+            },
+            {
+              "title": "Concept taxonomy",
+              "level": 3,
+              "id": "concept-taxonomy"
+            },
+            {
+              "title": "3. Training",
+              "level": 2,
+              "id": "3-training"
+            },
+            {
+              "title": "Header model",
+              "level": 3,
+              "id": "header-model"
+            },
+            {
+              "title": "Value model",
+              "level": 3,
+              "id": "value-model"
+            },
+            {
+              "title": "Fusion model",
+              "level": 3,
+              "id": "fusion-model"
+            },
+            {
+              "title": "Full retrain",
+              "level": 3,
+              "id": "full-retrain"
+            },
+            {
+              "title": "4. Alias registry",
+              "level": 2,
+              "id": "4-alias-registry"
+            },
+            {
+              "title": "5. Evaluation",
+              "level": 2,
+              "id": "5-evaluation"
+            },
+            {
+              "title": "Annotated datasets",
+              "level": 3,
+              "id": "annotated-datasets"
+            },
+            {
+              "title": "Full real dataset suite",
+              "level": 3,
+              "id": "full-real-dataset-suite"
+            },
+            {
+              "title": "Single dataset evaluation",
+              "level": 3,
+              "id": "single-dataset-evaluation"
+            },
+            {
+              "title": "Tier only evaluation",
+              "level": 3,
+              "id": "tier-only-evaluation"
+            },
+            {
+              "title": "Gold set / holdout evaluation",
+              "level": 3,
+              "id": "gold-set-holdout-evaluation"
+            },
+            {
+              "title": "6. Improvement cycle",
+              "level": 2,
+              "id": "6-improvement-cycle"
+            },
+            {
+              "title": "Choose the action",
+              "level": 3,
+              "id": "choose-the-action"
+            },
+            {
+              "title": "Verify annotations against real values",
+              "level": 3,
+              "id": "verify-annotations-against-real-values"
+            },
+            {
+              "title": "Protect benchmark integrity",
+              "level": 3,
+              "id": "protect-benchmark-integrity"
+            },
+            {
+              "title": "Quick reference",
+              "level": 2,
+              "id": "quick-reference"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/current-training-sources",
+          "path": "/help/05-ml-detection/current-training-sources",
+          "title": "Current Training Sources",
+          "description": "This document lists the sources that are actually used by the code when the gold set is rebuilt.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "How to read this page",
+              "level": 2,
+              "id": "how-to-read-this-page"
+            },
+            {
+              "title": "Explicitly excluded from training",
+              "level": 2,
+              "id": "explicitly-excluded-from-training"
+            },
+            {
+              "title": "Current source families",
+              "level": 2,
+              "id": "current-source-families"
+            },
+            {
+              "title": "Product and instance close datasets",
+              "level": 3,
+              "id": "product-and-instance-close-datasets"
+            },
+            {
+              "title": "Test and fixture datasets used by the build pipeline",
+              "level": 3,
+              "id": "test-and-fixture-datasets-used-by-the-build-pipeline"
+            },
+            {
+              "title": "IFN France",
+              "level": 3,
+              "id": "ifn-france"
+            },
+            {
+              "title": "Standards based acquisitions",
+              "level": 3,
+              "id": "standards-based-acquisitions"
+            },
+            {
+              "title": "FIA and inventory style sources",
+              "level": 3,
+              "id": "fia-and-inventory-style-sources"
+            },
+            {
+              "title": "Pasoh and research field datasets",
+              "level": 3,
+              "id": "pasoh-and-research-field-datasets"
+            },
+            {
+              "title": "Broad GBIF corpus",
+              "level": 3,
+              "id": "broad-gbif-corpus"
+            },
+            {
+              "title": "Targeted regional and institutional GBIF batches",
+              "level": 3,
+              "id": "targeted-regional-and-institutional-gbif-batches"
+            },
+            {
+              "title": "Zenodo and research oriented datasets",
+              "level": 3,
+              "id": "zenodo-and-research-oriented-datasets"
+            },
+            {
+              "title": "Notes",
+              "level": 2,
+              "id": "notes"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/autoresearch-surrogate-loop",
+          "path": "/help/05-ml-detection/autoresearch-surrogate-loop",
+          "title": "Autoresearch Surrogate Loop",
+          "description": "This document formalises the following pivot:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Purpose",
+              "level": 2,
+              "id": "purpose"
+            },
+            {
+              "title": "Observed Problem",
+              "level": 2,
+              "id": "observed-problem"
+            },
+            {
+              "title": "Decision",
+              "level": 2,
+              "id": "decision"
+            },
+            {
+              "title": "Principle of the Fusion Only Loop",
+              "level": 2,
+              "id": "principle-of-the-fusion-only-loop"
+            },
+            {
+              "title": "What the Surrogate Loop Must Optimise",
+              "level": 2,
+              "id": "what-the-surrogate-loop-must-optimise"
+            },
+            {
+              "title": "Caches to Produce",
+              "level": 2,
+              "id": "caches-to-produce"
+            },
+            {
+              "title": "Two Surrogate Levels",
+              "level": 2,
+              "id": "two-surrogate-levels"
+            },
+            {
+              "title": "1. Ultra Fast Surrogate",
+              "level": 3,
+              "id": "1-ultra-fast-surrogate"
+            },
+            {
+              "title": "2. Promotion Surrogate",
+              "level": 3,
+              "id": "2-promotion-surrogate"
+            },
+            {
+              "title": "Recommended Validation Chain",
+              "level": 2,
+              "id": "recommended-validation-chain"
+            },
+            {
+              "title": "Recommended Acceptance Rule",
+              "level": 2,
+              "id": "recommended-acceptance-rule"
+            },
+            {
+              "title": "Recommended Initial Scope",
+              "level": 2,
+              "id": "recommended-initial-scope"
+            },
+            {
+              "title": "Non Goals",
+              "level": 2,
+              "id": "non-goals"
+            },
+            {
+              "title": "Current State",
+              "level": 2,
+              "id": "current-state"
+            },
+            {
+              "title": "First Measurements",
+              "level": 2,
+              "id": "first-measurements"
+            },
+            {
+              "title": "Reference Decision",
+              "level": 2,
+              "id": "reference-decision"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/experiments",
+          "path": "/help/05-ml-detection/experiments",
+          "title": "Experiments Index",
+          "description": "Use this folder for dated, narrative experiment notes:",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Current logs",
+              "level": 2,
+              "id": "current-logs"
+            },
+            {
+              "title": "Recommended log shape",
+              "level": 2,
+              "id": "recommended-log-shape"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/research",
+          "path": "/help/05-ml-detection/research",
+          "title": "Research Notes",
+          "description": "This folder contains exploratory material that is useful for orientation and longer term thinking, but is not the source of truth for the current implementation.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Current notes",
+              "level": 2,
+              "id": "current-notes"
+            },
+            {
+              "title": "Canonical sources",
+              "level": 2,
+              "id": "canonical-sources"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/archive",
+          "path": "/help/05-ml-detection/archive",
+          "title": "Archive",
+          "description": "These files are preserved because they still explain past decisions or contain useful context, but they are no longer the canonical source of truth.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Archived documents",
+              "level": 2,
+              "id": "archived-documents"
+            },
+            {
+              "title": "Canonical sources now",
+              "level": 2,
+              "id": "canonical-sources-now"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/ml-detection-dashboard",
+          "path": "/help/05-ml-detection/ml-detection-dashboard",
+          "title": "Niamoto — ML Semantic Column Detection: Dashboard",
+          "description": "Niamoto — Generic Ecological Data Platform",
+          "page_type": "html",
+          "is_section_index": false,
+          "headings": []
+        },
+        {
+          "slug": "05-ml-detection/archive/acquisition-history-and-source-strategy",
+          "path": "/help/05-ml-detection/archive/acquisition-history-and-source-strategy",
+          "title": "Acquisition History and Source Strategy",
+          "description": "This document merges two earlier files:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Why this document is archived",
+              "level": 2,
+              "id": "why-this-document-is-archived"
+            },
+            {
+              "title": "Historical acquisition principles",
+              "level": 2,
+              "id": "historical-acquisition-principles"
+            },
+            {
+              "title": "Historical target profile",
+              "level": 2,
+              "id": "historical-target-profile"
+            },
+            {
+              "title": "Historical storage direction",
+              "level": 2,
+              "id": "historical-storage-direction"
+            },
+            {
+              "title": "Historical source prioritization",
+              "level": 2,
+              "id": "historical-source-prioritization"
+            },
+            {
+              "title": "Priority A — very close to the product",
+              "level": 3,
+              "id": "priority-a-very-close-to-the-product"
+            },
+            {
+              "title": "Priority B — useful neighboring datasets",
+              "level": 3,
+              "id": "priority-b-useful-neighboring-datasets"
+            },
+            {
+              "title": "Priority C — controlled expansion",
+              "level": 3,
+              "id": "priority-c-controlled-expansion"
+            },
+            {
+              "title": "Examples from the original shortlist",
+              "level": 2,
+              "id": "examples-from-the-original-shortlist"
+            },
+            {
+              "title": "What this archive is still useful for",
+              "level": 2,
+              "id": "what-this-archive-is-still-useful-for"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log",
+          "path": "/help/05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log",
+          "title": "ML Detection Iteration Log — 2026 03 17",
+          "description": "This is the longest historical log in the folder. It documents:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "English summary",
+              "level": 2,
+              "id": "english-summary"
+            },
+            {
+              "title": "Objet",
+              "level": 2,
+              "id": "objet"
+            },
+            {
+              "title": "Contexte de départ",
+              "level": 2,
+              "id": "contexte-de-depart"
+            },
+            {
+              "title": "Mesure de référence observée",
+              "level": 2,
+              "id": "mesure-de-reference-observee"
+            },
+            {
+              "title": "Lecture initiale",
+              "level": 2,
+              "id": "lecture-initiale"
+            },
+            {
+              "title": "Diagnostic ciblé sur forest inventory",
+              "level": 2,
+              "id": "diagnostic-cible-sur-forest_inventory"
+            },
+            {
+              "title": "Constat principal",
+              "level": 3,
+              "id": "constat-principal"
+            },
+            {
+              "title": "Confusions saillantes",
+              "level": 3,
+              "id": "confusions-saillantes"
+            },
+            {
+              "title": "Exemples d'erreurs à haute confiance",
+              "level": 3,
+              "id": "exemples-derreurs-a-haute-confiance"
+            },
+            {
+              "title": "Hypothèse de travail",
+              "level": 2,
+              "id": "hypothese-de-travail"
+            },
+            {
+              "title": "Changements tentés",
+              "level": 2,
+              "id": "changements-tentes"
+            },
+            {
+              "title": "1. Factorisation des features values",
+              "level": 3,
+              "id": "1-factorisation-des-features-values"
+            },
+            {
+              "title": "2. Enrichissement des meta features de fusion",
+              "level": 3,
+              "id": "2-enrichissement-des-meta-features-de-fusion"
+            },
+            {
+              "title": "3. Heuristique ciblée de damping",
+              "level": 3,
+              "id": "3-heuristique-ciblee-de-damping"
+            },
+            {
+              "title": "Résultats ciblés après itération",
+              "level": 2,
+              "id": "resultats-cibles-apres-iteration"
+            },
+            {
+              "title": "Baseline ciblée",
+              "level": 3,
+              "id": "baseline-ciblee"
+            },
+            {
+              "title": "Après factorisation values + meta features de fusion + damping",
+              "level": 3,
+              "id": "apres-factorisation-values-meta-features-de-fusion-damping"
+            },
+            {
+              "title": "Interprétation",
+              "level": 2,
+              "id": "interpretation"
+            },
+            {
+              "title": "Validation globale de l'itération",
+              "level": 2,
+              "id": "validation-globale-de-literation"
+            },
+            {
+              "title": "Sous scores et holdouts après itération",
+              "level": 3,
+              "id": "sous-scores-et-holdouts-apres-iteration"
+            },
+            {
+              "title": "Ce qui s'améliore",
+              "level": 3,
+              "id": "ce-qui-sameliore"
+            },
+            {
+              "title": "Ce qui se dégrade",
+              "level": 3,
+              "id": "ce-qui-se-degrade"
+            },
+            {
+              "title": "Point critique sur forest inventory",
+              "level": 3,
+              "id": "point-critique-sur-forest_inventory"
+            },
+            {
+              "title": "Verdict sur l'itération",
+              "level": 2,
+              "id": "verdict-sur-literation"
+            },
+            {
+              "title": "Décisions prises",
+              "level": 2,
+              "id": "decisions-prises"
+            },
+            {
+              "title": "Ce que cette itération nous apprend",
+              "level": 2,
+              "id": "ce-que-cette-iteration-nous-apprend"
+            },
+            {
+              "title": "Prochaines itérations recommandées",
+              "level": 2,
+              "id": "prochaines-iterations-recommandees"
+            },
+            {
+              "title": "Court terme",
+              "level": 3,
+              "id": "court-terme"
+            },
+            {
+              "title": "Si le gain global tient",
+              "level": 3,
+              "id": "si-le-gain-global-tient"
+            },
+            {
+              "title": "Si le gain global ne tient pas",
+              "level": 3,
+              "id": "si-le-gain-global-ne-tient-pas"
+            },
+            {
+              "title": "Évolution décidée du benchmark",
+              "level": 2,
+              "id": "evolution-decidee-du-benchmark"
+            },
+            {
+              "title": "Commandes utiles",
+              "level": 2,
+              "id": "commandes-utiles"
+            },
+            {
+              "title": "Lot Guyane 1 — acquisition et intégration",
+              "level": 2,
+              "id": "lot-guyane-1-acquisition-et-integration"
+            },
+            {
+              "title": "Vérification d'accès Dataverse",
+              "level": 3,
+              "id": "verification-dacces-dataverse"
+            },
+            {
+              "title": "Fichiers récupérés",
+              "level": 3,
+              "id": "fichiers-recuperes"
+            },
+            {
+              "title": "Lecture du schéma",
+              "level": 3,
+              "id": "lecture-du-schema"
+            },
+            {
+              "title": "Intégration retenue",
+              "level": 3,
+              "id": "integration-retenue"
+            },
+            {
+              "title": "Correction d'outillage connexe",
+              "level": 3,
+              "id": "correction-doutillage-connexe"
+            },
+            {
+              "title": "Décision",
+              "level": 3,
+              "id": "decision"
+            },
+            {
+              "title": "Lot GBIF ciblé 1 — régional général",
+              "level": 2,
+              "id": "lot-gbif-cible-1-regional-general"
+            },
+            {
+              "title": "Lecture",
+              "level": 3,
+              "id": "lecture"
+            },
+            {
+              "title": "Intégration gold set",
+              "level": 3,
+              "id": "integration-gold-set"
+            },
+            {
+              "title": "Lot GBIF ciblé 2 — institutionnel",
+              "level": 2,
+              "id": "lot-gbif-cible-2-institutionnel"
+            },
+            {
+              "title": "Test de rendement",
+              "level": 3,
+              "id": "test-de-rendement"
+            },
+            {
+              "title": "Lot institutionnel retenu",
+              "level": 3,
+              "id": "lot-institutionnel-retenu"
+            },
+            {
+              "title": "Intégration gold set",
+              "level": 3,
+              "id": "integration-gold-set_1"
+            },
+            {
+              "title": "Effet cumulé sur le gold set",
+              "level": 3,
+              "id": "effet-cumule-sur-le-gold-set"
+            },
+            {
+              "title": "Entrée du 2026 03 18 — run sur gold set enrichi",
+              "level": 2,
+              "id": "entree-du-2026-03-18-run-sur-gold-set-enrichi"
+            },
+            {
+              "title": "Résultat global",
+              "level": 3,
+              "id": "resultat-global"
+            },
+            {
+              "title": "Diagnostics marquants",
+              "level": 3,
+              "id": "diagnostics-marquants"
+            },
+            {
+              "title": "Lecture des nouveaux sous buckets",
+              "level": 3,
+              "id": "lecture-des-nouveaux-sous-buckets"
+            },
+            {
+              "title": "Interprétation",
+              "level": 3,
+              "id": "interpretation_1"
+            },
+            {
+              "title": "Décision sur le protocole",
+              "level": 3,
+              "id": "decision-sur-le-protocole"
+            },
+            {
+              "title": "Entrée du 2026 03 18 — baseline ProductScore",
+              "level": 2,
+              "id": "entree-du-2026-03-18-baseline-productscore"
+            },
+            {
+              "title": "Entrée du 2026 03 18 — pivot autoresearch",
+              "level": 2,
+              "id": "entree-du-2026-03-18-pivot-autoresearch"
+            },
+            {
+              "title": "Conclusion",
+              "level": 3,
+              "id": "conclusion"
+            },
+            {
+              "title": "Décision",
+              "level": 3,
+              "id": "decision_1"
+            },
+            {
+              "title": "Entrée du 2026 03 18 — première mesure surrogate loop",
+              "level": 2,
+              "id": "entree-du-2026-03-18-premiere-mesure-surrogate-loop"
+            },
+            {
+              "title": "Première tentative",
+              "level": 3,
+              "id": "premiere-tentative"
+            },
+            {
+              "title": "Correctif appliqué",
+              "level": 3,
+              "id": "correctif-applique"
+            },
+            {
+              "title": "Mesures après optimisation",
+              "level": 3,
+              "id": "mesures-apres-optimisation"
+            },
+            {
+              "title": "Lecture",
+              "level": 3,
+              "id": "lecture_1"
+            },
+            {
+              "title": "Entrée du 2026 03 19 — corrections runner et premier gain autoresearch",
+              "level": 2,
+              "id": "entree-du-2026-03-19-corrections-runner-et-premier-gain-autoresearch"
+            },
+            {
+              "title": "Corrections du runner surrogate",
+              "level": 3,
+              "id": "corrections-du-runner-surrogate"
+            },
+            {
+              "title": "Remplacement Codex → Claude",
+              "level": 3,
+              "id": "remplacement-codex-claude"
+            },
+            {
+              "title": "Run Codex (2026 03 18) — 150 itérations",
+              "level": 3,
+              "id": "run-codex-2026-03-18-150-iterations"
+            },
+            {
+              "title": "Premier gain Claude — cross rank reciprocity",
+              "level": 3,
+              "id": "premier-gain-claude-cross-rank-reciprocity"
+            },
+            {
+              "title": "Nouvelles baselines après gain",
+              "level": 3,
+              "id": "nouvelles-baselines-apres-gain"
+            },
+            {
+              "title": "Run Claude post gain — 50 itérations (2026 03 19)",
+              "level": 3,
+              "id": "run-claude-post-gain-50-iterations-2026-03-19"
+            },
+            {
+              "title": "Lecture",
+              "level": 3,
+              "id": "lecture_2"
+            },
+            {
+              "title": "Décision",
+              "level": 3,
+              "id": "decision_2"
+            },
+            {
+              "title": "Entrée du 2026 03 20 — réentraînement, validation ProductScore, optimisation batch",
+              "level": 2,
+              "id": "entree-du-2026-03-20-reentrainement-validation-productscore-optimisation-batch"
+            },
+            {
+              "title": "Réentraînement des 3 modèles",
+              "level": 3,
+              "id": "reentrainement-des-3-modeles"
+            },
+            {
+              "title": "Validation ProductScore — gain confirmé",
+              "level": 3,
+              "id": "validation-productscore-gain-confirme"
+            },
+            {
+              "title": "Optimisation batch de l'entraînement fusion",
+              "level": 3,
+              "id": "optimisation-batch-de-lentrainement-fusion"
+            },
+            {
+              "title": "Évaluation par instance — niamoto subset",
+              "level": 3,
+              "id": "evaluation-par-instance-niamoto-subset"
+            },
+            {
+              "title": "Décisions de cette session",
+              "level": 3,
+              "id": "decisions-de-cette-session"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/experiments/2026-03-20-multi-instance-eval-and-improvement",
+          "path": "/help/05-ml-detection/experiments/2026-03-20-multi-instance-eval-and-improvement",
+          "title": "Multi Instance ML Evaluation and Improvement (2026 03 20)",
+          "description": "This session evaluated the ML stack on several real datasets, corrected annotation issues by inspecting actual values, enriched the alias registry, and retrained the models on an enriched gold set.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Evaluation setup",
+              "level": 2,
+              "id": "evaluation-setup"
+            },
+            {
+              "title": "Score progression",
+              "level": 2,
+              "id": "score-progression"
+            },
+            {
+              "title": "V1 — Initial annotations",
+              "level": 3,
+              "id": "v1-initial-annotations"
+            },
+            {
+              "title": "V2 — After taxonomy + plot name correction",
+              "level": 3,
+              "id": "v2-after-taxonomy-plot_name-correction"
+            },
+            {
+              "title": "V3 — After value level annotation verification",
+              "level": 3,
+              "id": "v3-after-value-level-annotation-verification"
+            },
+            {
+              "title": "V4 — After alias registry enrichment",
+              "level": 3,
+              "id": "v4-after-alias-registry-enrichment"
+            },
+            {
+              "title": "Gold set diagnosis",
+              "level": 2,
+              "id": "gold-set-diagnosis"
+            },
+            {
+              "title": "Actions taken",
+              "level": 2,
+              "id": "actions-taken"
+            },
+            {
+              "title": "Gold set enrichment",
+              "level": 3,
+              "id": "gold-set-enrichment"
+            },
+            {
+              "title": "V5 — Retrain on the enriched gold set",
+              "level": 3,
+              "id": "v5-retrain-on-the-enriched-gold-set"
+            },
+            {
+              "title": "V5 — Results after retrain",
+              "level": 3,
+              "id": "v5-results-after-retrain"
+            },
+            {
+              "title": "Session summary",
+              "level": 2,
+              "id": "session-summary"
+            },
+            {
+              "title": "ProductScore and GlobalScore after V5",
+              "level": 2,
+              "id": "productscore-and-globalscore-after-v5"
+            },
+            {
+              "title": "Other notable outcome",
+              "level": 2,
+              "id": "other-notable-outcome"
+            },
+            {
+              "title": "Remaining weak areas after V5",
+              "level": 2,
+              "id": "remaining-weak-areas-after-v5"
+            },
+            {
+              "title": "Reproduction commands",
+              "level": 2,
+              "id": "reproduction-commands"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain",
+          "path": "/help/05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain",
+          "title": "Acquisition Wave Retrain and Evaluation (2026 03 21)",
+          "description": "This run measures the effect of the acquisition wave on the ML detection stack after:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Data integrated before retrain",
+              "level": 2,
+              "id": "data-integrated-before-retrain"
+            },
+            {
+              "title": "Added to the gold set",
+              "level": 3,
+              "id": "added-to-the-gold-set"
+            },
+            {
+              "title": "Added at runtime only",
+              "level": 3,
+              "id": "added-at-runtime-only"
+            },
+            {
+              "title": "Explicitly left out",
+              "level": 3,
+              "id": "explicitly-left-out"
+            },
+            {
+              "title": "Resulting gold set",
+              "level": 2,
+              "id": "resulting-gold-set"
+            },
+            {
+              "title": "Commands run",
+              "level": 2,
+              "id": "commands-run"
+            },
+            {
+              "title": "Training results",
+              "level": 2,
+              "id": "training-results"
+            },
+            {
+              "title": "Warnings",
+              "level": 3,
+              "id": "warnings"
+            },
+            {
+              "title": "Evaluation results",
+              "level": 2,
+              "id": "evaluation-results"
+            },
+            {
+              "title": "Internal benchmarks after retrain",
+              "level": 3,
+              "id": "internal-benchmarks-after-retrain"
+            },
+            {
+              "title": "Full eval suite (9 datasets, 478 columns)",
+              "level": 3,
+              "id": "full-eval-suite-9-datasets-478-columns"
+            },
+            {
+              "title": "Product oriented aggregate view (7 datasets, 418 columns)",
+              "level": 3,
+              "id": "product-oriented-aggregate-view-7-datasets-418-columns"
+            },
+            {
+              "title": "Interpretation",
+              "level": 2,
+              "id": "interpretation"
+            },
+            {
+              "title": "What worked well",
+              "level": 3,
+              "id": "what-worked-well"
+            },
+            {
+              "title": "What remains weak",
+              "level": 3,
+              "id": "what-remains-weak"
+            },
+            {
+              "title": "Conclusion",
+              "level": 2,
+              "id": "conclusion"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/experiments/2026-03-21-anonymous-holdout-rework",
+          "path": "/help/05-ml-detection/experiments/2026-03-21-anonymous-holdout-rework",
+          "title": "Anonymous Holdout Rework (2026 03 21)",
+          "description": "The previous anonymous holdout was synthetic, overly easy, and permanently inflated the benchmark. This rework replaced it with a holdout built from real gold set columns anonymized with generic names.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Problem",
+              "level": 2,
+              "id": "problem"
+            },
+            {
+              "title": "Implemented solution",
+              "level": 2,
+              "id": "implemented-solution"
+            },
+            {
+              "title": "New build anonymous holdout()",
+              "level": 3,
+              "id": "new-_build_anonymous_holdout"
+            },
+            {
+              "title": "Removal of the old mechanism",
+              "level": 3,
+              "id": "removal-of-the-old-mechanism"
+            },
+            {
+              "title": "Values only anonymous metric",
+              "level": 3,
+              "id": "values-only-anonymous-metric"
+            },
+            {
+              "title": "Results",
+              "level": 2,
+              "id": "results"
+            },
+            {
+              "title": "New holdout distribution",
+              "level": 3,
+              "id": "new-holdout-distribution"
+            },
+            {
+              "title": "Score changes",
+              "level": 3,
+              "id": "score-changes"
+            },
+            {
+              "title": "Interpretation",
+              "level": 2,
+              "id": "interpretation"
+            },
+            {
+              "title": "Bug fixed during the session",
+              "level": 3,
+              "id": "bug-fixed-during-the-session"
+            },
+            {
+              "title": "Modified files",
+              "level": 2,
+              "id": "modified-files"
+            },
+            {
+              "title": "Reproduction commands",
+              "level": 2,
+              "id": "reproduction-commands"
+            }
+          ]
+        },
+        {
+          "slug": "05-ml-detection/research/ai-possibilities-cartography",
+          "path": "/help/05-ml-detection/research/ai-possibilities-cartography",
+          "title": "AI Possibilities Cartography for Niamoto",
+          "description": "March 2026 — exploratory note",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "English summary",
+              "level": 2,
+              "id": "english-summary"
+            },
+            {
+              "title": "Contexte",
+              "level": 2,
+              "id": "contexte"
+            },
+            {
+              "title": "Vue d'ensemble",
+              "level": 2,
+              "id": "vue-densemble"
+            },
+            {
+              "title": "1. Comprendre les colonnes (ce qu'on fait déjà)",
+              "level": 2,
+              "id": "1-comprendre-les-colonnes-ce-quon-fait-deja"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a"
+            },
+            {
+              "title": "Ce qui existe de mieux",
+              "level": 3,
+              "id": "ce-qui-existe-de-mieux"
+            },
+            {
+              "title": "Embeddings multilingues (sentence transformers)",
+              "level": 4,
+              "id": "embeddings-multilingues-sentence-transformers"
+            },
+            {
+              "title": "Small Language Models (SLM) en zero shot",
+              "level": 4,
+              "id": "small-language-models-slm-en-zero-shot"
+            },
+            {
+              "title": "Modèles tabulaires spécialisés (Sherlock, Sato, DoDuo)",
+              "level": 4,
+              "id": "modeles-tabulaires-specialises-sherlock-sato-doduo"
+            },
+            {
+              "title": "ColBERT / ModernColBERT / Reason ModernColBERT",
+              "level": 4,
+              "id": "colbert-moderncolbert-reason-moderncolbert"
+            },
+            {
+              "title": "2. Comprendre le dataset (relations inter colonnes)",
+              "level": 2,
+              "id": "2-comprendre-le-dataset-relations-inter-colonnes"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_1"
+            },
+            {
+              "title": "Ce qui pourrait exister",
+              "level": 3,
+              "id": "ce-qui-pourrait-exister"
+            },
+            {
+              "title": "Suggestions cross colonnes par SLM",
+              "level": 4,
+              "id": "suggestions-cross-colonnes-par-slm"
+            },
+            {
+              "title": "3. Vérifier la qualité",
+              "level": 2,
+              "id": "3-verifier-la-qualite"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_2"
+            },
+            {
+              "title": "Ce qui existe",
+              "level": 3,
+              "id": "ce-qui-existe"
+            },
+            {
+              "title": "Profilage automatique",
+              "level": 4,
+              "id": "profilage-automatique"
+            },
+            {
+              "title": "Détection d'anomalies par ML",
+              "level": 4,
+              "id": "detection-danomalies-par-ml"
+            },
+            {
+              "title": "4. Transformer et agréger (suggestions intelligentes)",
+              "level": 2,
+              "id": "4-transformer-et-agreger-suggestions-intelligentes"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_3"
+            },
+            {
+              "title": "Ce qui pourrait exister",
+              "level": 3,
+              "id": "ce-qui-pourrait-exister_1"
+            },
+            {
+              "title": "Templates de transformations paramétrés",
+              "level": 4,
+              "id": "templates-de-transformations-parametres"
+            },
+            {
+              "title": "5. Visualiser (suggestion et génération de charts)",
+              "level": 2,
+              "id": "5-visualiser-suggestion-et-generation-de-charts"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_4"
+            },
+            {
+              "title": "Ce qui existe",
+              "level": 3,
+              "id": "ce-qui-existe_1"
+            },
+            {
+              "title": "LIDA (Microsoft Research, 2023)",
+              "level": 4,
+              "id": "lida-microsoft-research-2023"
+            },
+            {
+              "title": "Data Formulator (Microsoft Research, 2024)",
+              "level": 4,
+              "id": "data-formulator-microsoft-research-2024"
+            },
+            {
+              "title": "Approche pragmatique : templates de widgets",
+              "level": 4,
+              "id": "approche-pragmatique-templates-de-widgets"
+            },
+            {
+              "title": "Génération de specs Plotly par SLM",
+              "level": 4,
+              "id": "generation-de-specs-plotly-par-slm"
+            },
+            {
+              "title": "6. Raconter (résumés narratifs)",
+              "level": 2,
+              "id": "6-raconter-resumes-narratifs"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_5"
+            },
+            {
+              "title": "Ce qui pourrait exister",
+              "level": 3,
+              "id": "ce-qui-pourrait-exister_2"
+            },
+            {
+              "title": "Descriptions auto générées de widgets",
+              "level": 4,
+              "id": "descriptions-auto-generees-de-widgets"
+            },
+            {
+              "title": "7. Interroger (langage naturel → SQL)",
+              "level": 2,
+              "id": "7-interroger-langage-naturel-sql"
+            },
+            {
+              "title": "Ce qu'on a",
+              "level": 3,
+              "id": "ce-quon-a_6"
+            },
+            {
+              "title": "Ce qui existe",
+              "level": 3,
+              "id": "ce-qui-existe_2"
+            },
+            {
+              "title": "Text to SQL",
+              "level": 4,
+              "id": "text-to-sql"
+            },
+            {
+              "title": "Matrice de décision",
+              "level": 2,
+              "id": "matrice-de-decision"
+            },
+            {
+              "title": "Ce qui ne vaut PAS le coup (et pourquoi)",
+              "level": 2,
+              "id": "ce-qui-ne-vaut-pas-le-coup-et-pourquoi"
+            },
+            {
+              "title": "La vraie priorité",
+              "level": 2,
+              "id": "la-vraie-priorite"
+            },
+            {
+              "title": "Vision cible",
+              "level": 2,
+              "id": "vision-cible"
+            },
+            {
+              "title": "Références",
+              "level": 2,
+              "id": "references"
+            },
+            {
+              "title": "Modèles mentionnés",
+              "level": 3,
+              "id": "modeles-mentionnes"
+            },
+            {
+              "title": "Outils",
+              "level": 3,
+              "id": "outils"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "06-reference",
+      "title": "Reference",
+      "description": "This section collects source level and configuration references for Niamoto. Use it when you need the current command surface, plugin contracts, YAML boundaries, database shape, or preview API.",
+      "path": "/help/06-reference",
+      "article_count": 14,
+      "pages": [
+        {
+          "slug": "06-reference",
+          "path": "/help/06-reference",
+          "title": "Reference",
+          "description": "This section collects source level and configuration references for Niamoto. Use it when you need the current command surface, plugin contracts, YAML boundaries, database shape, or preview API.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Start here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "By topic",
+              "level": 2,
+              "id": "by-topic"
+            },
+            {
+              "title": "Commands and APIs",
+              "level": 3,
+              "id": "commands-and-apis"
+            },
+            {
+              "title": "Configuration and data",
+              "level": 3,
+              "id": "configuration-and-data"
+            },
+            {
+              "title": "Plugins and rendering",
+              "level": 3,
+              "id": "plugins-and-rendering"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/cli-commands",
+          "path": "/help/06-reference/cli-commands",
+          "title": "CLI Commands Reference",
+          "description": "The CLI itself is the source of truth for flags and subcommands. This page points to the main command groups and the docs that explain how they fit together.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main command groups",
+              "level": 2,
+              "id": "main-command-groups"
+            },
+            {
+              "title": "Check the installed version",
+              "level": 2,
+              "id": "check-the-installed-version"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/configuration-guide",
+          "path": "/help/06-reference/configuration-guide",
+          "title": "Configuration Guide",
+          "description": "Niamoto splits configuration by pipeline stage so each file answers one question.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main files",
+              "level": 2,
+              "id": "main-files"
+            },
+            {
+              "title": "Boundary rules",
+              "level": 2,
+              "id": "boundary-rules"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/database-schema",
+          "path": "/help/06-reference/database-schema",
+          "title": "Database Schema Reference",
+          "description": "DuckDB is the default project database at db/niamoto.duckdb. SQLite still works for .db and .sqlite paths, but new desktop projects default to DuckDB.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Stable metadata tables",
+              "level": 2,
+              "id": "stable-metadata-tables"
+            },
+            {
+              "title": "niamoto metadata entities",
+              "level": 3,
+              "id": "niamoto_metadata_entities"
+            },
+            {
+              "title": "niamoto metadata transform sources",
+              "level": 3,
+              "id": "niamoto_metadata_transform_sources"
+            },
+            {
+              "title": "Imported project tables",
+              "level": 2,
+              "id": "imported-project-tables"
+            },
+            {
+              "title": "Transform result tables",
+              "level": 2,
+              "id": "transform-result-tables"
+            },
+            {
+              "title": "Configuration files that shape the schema",
+              "level": 2,
+              "id": "configuration-files-that-shape-the-schema"
+            },
+            {
+              "title": "How to inspect a project database",
+              "level": 2,
+              "id": "how-to-inspect-a-project-database"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/gui-preview-api",
+          "path": "/help/06-reference/gui-preview-api",
+          "title": "Preview API Reference",
+          "description": "The desktop backend renders HTML previews for widgets and related preview surfaces in the GUI.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Endpoints",
+              "level": 2,
+              "id": "endpoints"
+            },
+            {
+              "title": "GET /api/preview/{template id}",
+              "level": 3,
+              "id": "get-apipreviewtemplate_id"
+            },
+            {
+              "title": "POST /api/preview",
+              "level": 3,
+              "id": "post-apipreview"
+            },
+            {
+              "title": "GET /api/templates/preview/{template id}",
+              "level": 3,
+              "id": "get-apitemplatespreviewtemplate_id"
+            },
+            {
+              "title": "Response model",
+              "level": 2,
+              "id": "response-model"
+            },
+            {
+              "title": "Preview modes",
+              "level": 2,
+              "id": "preview-modes"
+            },
+            {
+              "title": "Cache model",
+              "level": 2,
+              "id": "cache-model"
+            },
+            {
+              "title": "HTTP cache",
+              "level": 3,
+              "id": "http-cache"
+            },
+            {
+              "title": "Frontend cache",
+              "level": 3,
+              "id": "frontend-cache"
+            },
+            {
+              "title": "Frontend usage",
+              "level": 2,
+              "id": "frontend-usage"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/transform-plugins",
+          "path": "/help/06-reference/transform-plugins",
+          "title": "Transform Plugins Reference",
+          "description": "Transformer schemas drive several parts of the GUI. The source code and config models remain the source of truth for exact parameters and validation rules.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "What the GUI reads from plugins",
+              "level": 2,
+              "id": "what-the-gui-reads-from-plugins"
+            },
+            {
+              "title": "Main code areas",
+              "level": 2,
+              "id": "main-code-areas"
+            },
+            {
+              "title": "Plugin families commonly surfaced in the GUI",
+              "level": 2,
+              "id": "plugin-families-commonly-surfaced-in-the-gui"
+            },
+            {
+              "title": "When a plugin changes",
+              "level": 2,
+              "id": "when-a-plugin-changes"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/widgets-and-transform-workflow",
+          "path": "/help/06-reference/widgets-and-transform-workflow",
+          "title": "Widgets and Transform Workflow",
+          "description": "Widgets in the GUI combine three layers: data selection, transform logic, and rendering.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Pipeline",
+              "level": 2,
+              "id": "pipeline"
+            },
+            {
+              "title": "In the editor",
+              "level": 2,
+              "id": "in-the-editor"
+            },
+            {
+              "title": "Data sources",
+              "level": 2,
+              "id": "data-sources"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/core-api",
+          "path": "/help/06-reference/core-api",
+          "title": "Core API Reference",
+          "description": "Niamoto does not maintain a separate handwritten \"core API\" document. The practical entry points are the autogenerated package reference and the service, plugin, publish, and GUI API modules used by the product.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main areas",
+              "level": 2,
+              "id": "main-areas"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/external-apis",
+          "path": "/help/06-reference/external-apis",
+          "title": "External APIs Reference",
+          "description": "Niamoto talks to external services in several parts of the product rather than through a single central gateway.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main integration areas",
+              "level": 2,
+              "id": "main-integration-areas"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/api-export-guide",
+          "path": "/help/06-reference/api-export-guide",
+          "title": "API Export Guide",
+          "description": "Niamoto can publish machine readable outputs alongside the website export. The implementation lives in the exporter layer.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main exporters",
+              "level": 2,
+              "id": "main-exporters"
+            },
+            {
+              "title": "Export configuration surface",
+              "level": 2,
+              "id": "export-configuration-surface"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/configuration-analysis",
+          "path": "/help/06-reference/configuration-analysis",
+          "title": "Configuration Analysis",
+          "description": "Use this checklist when reviewing a complex configuration change.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Checklist",
+              "level": 2,
+              "id": "checklist"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/yaml-strategies",
+          "path": "/help/06-reference/yaml-strategies",
+          "title": "YAML Strategies",
+          "description": "Keep YAML explicit. Reuse only the parts that are genuinely stable.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Practical rules",
+              "level": 2,
+              "id": "practical-rules"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/templates-hierarchy",
+          "path": "/help/06-reference/templates-hierarchy",
+          "title": "Templates and Hierarchy Patterns",
+          "description": "Reusable templates help when a block stays stable across several entities or widgets. Hierarchies stay easier to debug when identifiers and parent child relationships remain visible in configuration.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Templates",
+              "level": 2,
+              "id": "templates"
+            },
+            {
+              "title": "Hierarchies",
+              "level": 2,
+              "id": "hierarchies"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "06-reference/plugin-api",
+          "path": "/help/06-reference/plugin-api",
+          "title": "Plugin API Reference",
+          "description": "Niamoto exposes five plugin families across the pipeline:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Source of truth",
+              "level": 2,
+              "id": "source-of-truth"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "07-architecture",
+      "title": "Architecture",
+      "description": "This section describes the current Niamoto architecture.",
+      "path": "/help/07-architecture",
+      "article_count": 10,
+      "pages": [
+        {
+          "slug": "07-architecture",
+          "path": "/help/07-architecture",
+          "title": "Architecture",
+          "description": "This section describes the current Niamoto architecture.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Start here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "Current architecture",
+              "level": 2,
+              "id": "current-architecture"
+            },
+            {
+              "title": "Historical decision notes",
+              "level": 2,
+              "id": "historical-decision-notes"
+            },
+            {
+              "title": "Core principles",
+              "level": 2,
+              "id": "core-principles"
+            },
+            {
+              "title": "Three layer model",
+              "level": 2,
+              "id": "three-layer-model"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/system-overview",
+          "path": "/help/07-architecture/system-overview",
+          "title": "System Overview",
+          "description": "Niamoto moves data through three pipeline stages:",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Product surfaces",
+              "level": 2,
+              "id": "product-surfaces"
+            },
+            {
+              "title": "Core layers",
+              "level": 2,
+              "id": "core-layers"
+            },
+            {
+              "title": "Configuration",
+              "level": 3,
+              "id": "configuration"
+            },
+            {
+              "title": "Services and plugins",
+              "level": 3,
+              "id": "services-and-plugins"
+            },
+            {
+              "title": "Persistence",
+              "level": 3,
+              "id": "persistence"
+            },
+            {
+              "title": "Runtime flow",
+              "level": 2,
+              "id": "runtime-flow"
+            },
+            {
+              "title": "Where to go next",
+              "level": 2,
+              "id": "where-to-go-next"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/plugin-system",
+          "path": "/help/07-architecture/plugin-system",
+          "title": "Plugin System",
+          "description": "Niamoto uses plugins for the parts of the pipeline that change from one project to another: loading data, computing grouped outputs, rendering widgets, exporting files, and publishing artifacts.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Plugin families",
+              "level": 2,
+              "id": "plugin-families"
+            },
+            {
+              "title": "Registration",
+              "level": 2,
+              "id": "registration"
+            },
+            {
+              "title": "Loading and override order",
+              "level": 2,
+              "id": "loading-and-override-order"
+            },
+            {
+              "title": "Config validation",
+              "level": 2,
+              "id": "config-validation"
+            },
+            {
+              "title": "Where plugins run",
+              "level": 2,
+              "id": "where-plugins-run"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/gui-overview",
+          "path": "/help/07-architecture/gui-overview",
+          "title": "GUI Architecture Overview",
+          "description": "Niamoto GUI is the interactive layer used to configure, inspect, and operate a Niamoto project.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Main responsibilities",
+              "level": 2,
+              "id": "main-responsibilities"
+            },
+            {
+              "title": "Backend",
+              "level": 3,
+              "id": "backend"
+            },
+            {
+              "title": "Frontend",
+              "level": 3,
+              "id": "frontend"
+            },
+            {
+              "title": "Main GUI domains",
+              "level": 2,
+              "id": "main-gui-domains"
+            },
+            {
+              "title": "Code entry points",
+              "level": 2,
+              "id": "code-entry-points"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/gui-runtime",
+          "path": "/help/07-architecture/gui-runtime",
+          "title": "Backend / Frontend Runtime Model",
+          "description": "Niamoto GUI runs in two main modes.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Development mode",
+              "level": 2,
+              "id": "development-mode"
+            },
+            {
+              "title": "Packaged mode",
+              "level": 2,
+              "id": "packaged-mode"
+            },
+            {
+              "title": "Desktop runtime",
+              "level": 2,
+              "id": "desktop-runtime"
+            },
+            {
+              "title": "What to separate when you document or change the GUI",
+              "level": 2,
+              "id": "what-to-separate-when-you-document-or-change-the-gui"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/gui-preview-system",
+          "path": "/help/07-architecture/gui-preview-system",
+          "title": "Preview System",
+          "description": "The preview system renders widgets in the GUI before publication.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "High level model",
+              "level": 2,
+              "id": "high-level-model"
+            },
+            {
+              "title": "Backend pieces",
+              "level": 2,
+              "id": "backend-pieces"
+            },
+            {
+              "title": "Frontend pieces",
+              "level": 2,
+              "id": "frontend-pieces"
+            },
+            {
+              "title": "Plotly bundles",
+              "level": 2,
+              "id": "plotly-bundles"
+            },
+            {
+              "title": "Security model",
+              "level": 2,
+              "id": "security-model"
+            },
+            {
+              "title": "Related docs",
+              "level": 2,
+              "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/adr/0001-adopt-duckdb",
+          "path": "/help/07-architecture/adr/0001-adopt-duckdb",
+          "title": "ADR 0001 — DuckDB Adoption as Primary Analytics Engine",
+          "description": "Status: Adopted (2025 10 08)",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Decision",
+              "level": 2,
+              "id": "decision"
+            },
+            {
+              "title": "Consequences",
+              "level": 2,
+              "id": "consequences"
+            },
+            {
+              "title": "Positive",
+              "level": 3,
+              "id": "positive"
+            },
+            {
+              "title": "Negative / Points of Attention",
+              "level": 3,
+              "id": "negative-points-of-attention"
+            },
+            {
+              "title": "Actions",
+              "level": 3,
+              "id": "actions"
+            },
+            {
+              "title": "Follow up 2025 10 08",
+              "level": 2,
+              "id": "follow-up-2025-10-08"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/adr/0002-retire-legacy-importers",
+          "path": "/help/07-architecture/adr/0002-retire-legacy-importers",
+          "title": "ADR 0002 — Retirement of Specialized Importers in Favor of Generic Import Registry",
+          "description": "Status: Adopted (2025 10 08)",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Decision",
+              "level": 2,
+              "id": "decision"
+            },
+            {
+              "title": "Consequences",
+              "level": 2,
+              "id": "consequences"
+            },
+            {
+              "title": "Positive",
+              "level": 3,
+              "id": "positive"
+            },
+            {
+              "title": "Negative / Points of Attention",
+              "level": 3,
+              "id": "negative-points-of-attention"
+            },
+            {
+              "title": "Actions",
+              "level": 3,
+              "id": "actions"
+            },
+            {
+              "title": "Follow up 2025 10 08",
+              "level": 2,
+              "id": "follow-up-2025-10-08"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/adr/0003-derived-references-with-duckdb",
+          "path": "/help/07-architecture/adr/0003-derived-references-with-duckdb",
+          "title": "ADR 0003: Derived References with DuckDB CTEs",
+          "description": "Status: Accepted Date: 2025 10 09 Author: Claude (with @julienbarbe)",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Decision",
+              "level": 2,
+              "id": "decision"
+            },
+            {
+              "title": "Key Components",
+              "level": 3,
+              "id": "key-components"
+            },
+            {
+              "title": "1. Configuration Models (config models.py)",
+              "level": 4,
+              "id": "1-configuration-models-config_modelspy"
+            },
+            {
+              "title": "2. HierarchyBuilder (hierarchy builder.py)",
+              "level": 4,
+              "id": "2-hierarchybuilder-hierarchy_builderpy"
+            },
+            {
+              "title": "3. GenericImporter (engine.py)",
+              "level": 4,
+              "id": "3-genericimporter-enginepy"
+            },
+            {
+              "title": "4. ImporterService (importer.py)",
+              "level": 4,
+              "id": "4-importerservice-importerpy"
+            },
+            {
+              "title": "Example Configuration",
+              "level": 3,
+              "id": "example-configuration"
+            },
+            {
+              "title": "Consequences",
+              "level": 2,
+              "id": "consequences"
+            },
+            {
+              "title": "Positive",
+              "level": 3,
+              "id": "positive"
+            },
+            {
+              "title": "Negative",
+              "level": 3,
+              "id": "negative"
+            },
+            {
+              "title": "Migration Path",
+              "level": 3,
+              "id": "migration-path"
+            },
+            {
+              "title": "Alternatives Considered",
+              "level": 2,
+              "id": "alternatives-considered"
+            },
+            {
+              "title": "1. Keep pandas based extraction",
+              "level": 3,
+              "id": "1-keep-pandas-based-extraction"
+            },
+            {
+              "title": "2. Use nested sets (lft/rght)",
+              "level": 3,
+              "id": "2-use-nested-sets-lftrght"
+            },
+            {
+              "title": "3. Hardcode taxonomy extraction",
+              "level": 3,
+              "id": "3-hardcode-taxonomy-extraction"
+            },
+            {
+              "title": "4. External tool (e.g., Apache Spark)",
+              "level": 3,
+              "id": "4-external-tool-eg-apache-spark"
+            },
+            {
+              "title": "Implementation Status",
+              "level": 2,
+              "id": "implementation-status"
+            },
+            {
+              "title": "References",
+              "level": 2,
+              "id": "references"
+            },
+            {
+              "title": "Notes",
+              "level": 2,
+              "id": "notes"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/adr/0004-generic-import-system",
+          "path": "/help/07-architecture/adr/0004-generic-import-system",
+          "title": "ADR 0004 — Generic Import System: Configuration Driven Architecture",
+          "description": "Status: Adopted (2025 10 13)",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Context",
+              "level": 2,
+              "id": "context"
+            },
+            {
+              "title": "Problems with the Legacy System",
+              "level": 3,
+              "id": "problems-with-the-legacy-system"
+            },
+            {
+              "title": "Decision",
+              "level": 2,
+              "id": "decision"
+            },
+            {
+              "title": "Core Architecture",
+              "level": 3,
+              "id": "core-architecture"
+            },
+            {
+              "title": "Three Entity Types",
+              "level": 3,
+              "id": "three-entity-types"
+            },
+            {
+              "title": "Plugin Genericization (Phase 8)",
+              "level": 3,
+              "id": "plugin-genericization-phase-8"
+            },
+            {
+              "title": "Implementation Phases (Completed)",
+              "level": 2,
+              "id": "implementation-phases-completed"
+            },
+            {
+              "title": "Phase 0 3: Foundation",
+              "level": 3,
+              "id": "phase-0-3-foundation"
+            },
+            {
+              "title": "Phase 4 5: Hierarchy Systems",
+              "level": 3,
+              "id": "phase-4-5-hierarchy-systems"
+            },
+            {
+              "title": "Phase 6 7: Service Integration",
+              "level": 3,
+              "id": "phase-6-7-service-integration"
+            },
+            {
+              "title": "Phase 8: Plugin Genericization",
+              "level": 3,
+              "id": "phase-8-plugin-genericization"
+            },
+            {
+              "title": "Consequences",
+              "level": 2,
+              "id": "consequences"
+            },
+            {
+              "title": "Positive",
+              "level": 3,
+              "id": "positive"
+            },
+            {
+              "title": "Challenges &amp; Migration Requirements",
+              "level": 3,
+              "id": "challenges-migration-requirements"
+            },
+            {
+              "title": "Technical Debt Retired",
+              "level": 3,
+              "id": "technical-debt-retired"
+            },
+            {
+              "title": "Related ADRs",
+              "level": 2,
+              "id": "related-adrs"
+            },
+            {
+              "title": "Validation",
+              "level": 2,
+              "id": "validation"
+            },
+            {
+              "title": "Next Steps",
+              "level": 2,
+              "id": "next-steps"
+            },
+            {
+              "title": "Status",
+              "level": 2,
+              "id": "status"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "08-roadmaps",
+      "title": "Roadmaps",
+      "description": "This section is now intentionally thin.",
+      "path": "/help/08-roadmaps",
+      "article_count": 2,
+      "pages": [
+        {
+          "slug": "08-roadmaps",
+          "path": "/help/08-roadmaps",
+          "title": "Roadmaps",
+          "description": "This section is now intentionally thin.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "What still lives here",
+              "level": 2,
+              "id": "what-still-lives-here"
+            },
+            {
+              "title": "Why this section changed",
+              "level": 2,
+              "id": "why-this-section-changed"
+            }
+          ]
+        },
+        {
+          "slug": "08-roadmaps/gbif-challenge-2026",
+          "path": "/help/08-roadmaps/gbif-challenge-2026",
+          "title": "Niamoto - GBIF Ebbe Nielsen Challenge 2026",
+          "description": "Rapport d'opportunité pour la participation de Niamoto au concours international GBIF récompensant les outils innovants pour la biodiversite.",
+          "page_type": "html",
+          "is_section_index": false,
+          "headings": []
+        }
+      ]
+    },
+    {
+      "slug": "09-troubleshooting",
+      "title": "Troubleshooting",
+      "description": "desktop smoke tests.md — maintainers' checklist before shipping a desktop build. common issues.md — quick fixes for the most frequent CLI, config, export, and desktop failures.",
+      "path": "/help/09-troubleshooting",
+      "article_count": 3,
+      "pages": [
+        {
+          "slug": "09-troubleshooting",
+          "path": "/help/09-troubleshooting",
+          "title": "Troubleshooting",
+          "description": "desktop smoke tests.md — maintainers' checklist before shipping a desktop build. common issues.md — quick fixes for the most frequent CLI, config, export, and desktop failures.",
+          "page_type": "markdown",
+          "is_section_index": true,
+          "headings": [
+            {
+              "title": "Start here",
+              "level": 2,
+              "id": "start-here"
+            },
+            {
+              "title": "If you want to…",
+              "level": 2,
+              "id": "if-you-want-to"
+            },
+            {
+              "title": "Structure",
+              "level": 2,
+              "id": "structure"
+            },
+            {
+              "title": "Active reference",
+              "level": 3,
+              "id": "active-reference"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
+          "slug": "09-troubleshooting/desktop-smoke-tests",
+          "path": "/help/09-troubleshooting/desktop-smoke-tests",
+          "title": "Desktop Smoke Tests",
+          "description": "Use this checklist before calling a desktop build healthy on macOS, Linux, or Windows.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Current build matrix",
+              "level": 2,
+              "id": "current-build-matrix"
+            },
+            {
+              "title": "Startup",
+              "level": 2,
+              "id": "startup"
+            },
+            {
+              "title": "Project selection",
+              "level": 2,
+              "id": "project-selection"
+            },
+            {
+              "title": "Core workflows",
+              "level": 2,
+              "id": "core-workflows"
+            },
+            {
+              "title": "Platform specific checks",
+              "level": 2,
+              "id": "platform-specific-checks"
+            },
+            {
+              "title": "Windows",
+              "level": 3,
+              "id": "windows"
+            },
+            {
+              "title": "Linux",
+              "level": 3,
+              "id": "linux"
+            },
+            {
+              "title": "macOS",
+              "level": 3,
+              "id": "macos"
+            }
+          ]
+        },
+        {
+          "slug": "09-troubleshooting/common-issues",
+          "path": "/help/09-troubleshooting/common-issues",
+          "title": "Common Issues",
+          "description": "Use this page for the most common CLI, import, collections, publish, and desktop startup failures.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "CLI or environment problems",
+              "level": 2,
+              "id": "cli-or-environment-problems"
+            },
+            {
+              "title": "Missing project or config files",
+              "level": 2,
+              "id": "missing-project-or-config-files"
+            },
+            {
+              "title": "Import failures",
+              "level": 2,
+              "id": "import-failures"
+            },
+            {
+              "title": "Collections or transform failures",
+              "level": 2,
+              "id": "collections-or-transform-failures"
+            },
+            {
+              "title": "Publish or export failures",
+              "level": 2,
+              "id": "publish-or-export-failures"
+            },
+            {
+              "title": "Desktop startup issues",
+              "level": 2,
+              "id": "desktop-startup-issues"
+            },
+            {
+              "title": "macOS Gatekeeper",
+              "level": 3,
+              "id": "macos-gatekeeper"
+            },
+            {
+              "title": "Windows startup or blank UI",
+              "level": 3,
+              "id": "windows-startup-or-blank-ui"
+            },
+            {
+              "title": "Linux .AppImage and native dependencies",
+              "level": 3,
+              "id": "linux-appimage-and-native-dependencies"
+            },
+            {
+              "title": "Project path and writable directories",
+              "level": 3,
+              "id": "project-path-and-writable-directories"
+            },
+            {
+              "title": "Go to the code when",
+              "level": 2,
+              "id": "go-to-the-code-when"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "default_path": "/help/01-getting-started"
+}

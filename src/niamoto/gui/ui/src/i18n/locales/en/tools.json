@@ -111,7 +111,7 @@
     "debugDiagnosticCopied": "Diagnostic copied",
     "debugDiagnosticCopyError": "Unable to copy diagnostic",
     "about": "About",
-    "aboutDesc": "Application version and updates",
+    "aboutDesc": "Application version, team, and institutional partners",
     "currentVersion": "Current version",
     "updateAvailable": "Version {{version}} available",
     "installUpdate": "Install v{{version}}",

@@ -1,0 +1,399 @@
+{
+  "slug": "05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log",
+  "path": "/help/05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log",
+  "title": "ML Detection Iteration Log — 2026 03 17",
+  "description": "This is the longest historical log in the folder. It documents:",
+  "page_type": "markdown",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "English summary",
+      "level": 2,
+      "id": "english-summary"
+    },
+    {
+      "title": "Objet",
+      "level": 2,
+      "id": "objet"
+    },
+    {
+      "title": "Contexte de départ",
+      "level": 2,
+      "id": "contexte-de-depart"
+    },
+    {
+      "title": "Mesure de référence observée",
+      "level": 2,
+      "id": "mesure-de-reference-observee"
+    },
+    {
+      "title": "Lecture initiale",
+      "level": 2,
+      "id": "lecture-initiale"
+    },
+    {
+      "title": "Diagnostic ciblé sur forest inventory",
+      "level": 2,
+      "id": "diagnostic-cible-sur-forest_inventory"
+    },
+    {
+      "title": "Constat principal",
+      "level": 3,
+      "id": "constat-principal"
+    },
+    {
+      "title": "Confusions saillantes",
+      "level": 3,
+      "id": "confusions-saillantes"
+    },
+    {
+      "title": "Exemples d'erreurs à haute confiance",
+      "level": 3,
+      "id": "exemples-derreurs-a-haute-confiance"
+    },
+    {
+      "title": "Hypothèse de travail",
+      "level": 2,
+      "id": "hypothese-de-travail"
+    },
+    {
+      "title": "Changements tentés",
+      "level": 2,
+      "id": "changements-tentes"
+    },
+    {
+      "title": "1. Factorisation des features values",
+      "level": 3,
+      "id": "1-factorisation-des-features-values"
+    },
+    {
+      "title": "2. Enrichissement des meta features de fusion",
+      "level": 3,
+      "id": "2-enrichissement-des-meta-features-de-fusion"
+    },
+    {
+      "title": "3. Heuristique ciblée de damping",
+      "level": 3,
+      "id": "3-heuristique-ciblee-de-damping"
+    },
+    {
+      "title": "Résultats ciblés après itération",
+      "level": 2,
+      "id": "resultats-cibles-apres-iteration"
+    },
+    {
+      "title": "Baseline ciblée",
+      "level": 3,
+      "id": "baseline-ciblee"
+    },
+    {
+      "title": "Après factorisation values + meta features de fusion + damping",
+      "level": 3,
+      "id": "apres-factorisation-values-meta-features-de-fusion-damping"
+    },
+    {
+      "title": "Interprétation",
+      "level": 2,
+      "id": "interpretation"
+    },
+    {
+      "title": "Validation globale de l'itération",
+      "level": 2,
+      "id": "validation-globale-de-literation"
+    },
+    {
+      "title": "Sous scores et holdouts après itération",
+      "level": 3,
+      "id": "sous-scores-et-holdouts-apres-iteration"
+    },
+    {
+      "title": "Ce qui s'améliore",
+      "level": 3,
+      "id": "ce-qui-sameliore"
+    },
+    {
+      "title": "Ce qui se dégrade",
+      "level": 3,
+      "id": "ce-qui-se-degrade"
+    },
+    {
+      "title": "Point critique sur forest inventory",
+      "level": 3,
+      "id": "point-critique-sur-forest_inventory"
+    },
+    {
+      "title": "Verdict sur l'itération",
+      "level": 2,
+      "id": "verdict-sur-literation"
+    },
+    {
+      "title": "Décisions prises",
+      "level": 2,
+      "id": "decisions-prises"
+    },
+    {
+      "title": "Ce que cette itération nous apprend",
+      "level": 2,
+      "id": "ce-que-cette-iteration-nous-apprend"
+    },
+    {
+      "title": "Prochaines itérations recommandées",
+      "level": 2,
+      "id": "prochaines-iterations-recommandees"
+    },
+    {
+      "title": "Court terme",
+      "level": 3,
+      "id": "court-terme"
+    },
+    {
+      "title": "Si le gain global tient",
+      "level": 3,
+      "id": "si-le-gain-global-tient"
+    },
+    {
+      "title": "Si le gain global ne tient pas",
+      "level": 3,
+      "id": "si-le-gain-global-ne-tient-pas"
+    },
+    {
+      "title": "Évolution décidée du benchmark",
+      "level": 2,
+      "id": "evolution-decidee-du-benchmark"
+    },
+    {
+      "title": "Commandes utiles",
+      "level": 2,
+      "id": "commandes-utiles"
+    },
+    {
+      "title": "Lot Guyane 1 — acquisition et intégration",
+      "level": 2,
+      "id": "lot-guyane-1-acquisition-et-integration"
+    },
+    {
+      "title": "Vérification d'accès Dataverse",
+      "level": 3,
+      "id": "verification-dacces-dataverse"
+    },
+    {
+      "title": "Fichiers récupérés",
+      "level": 3,
+      "id": "fichiers-recuperes"
+    },
+    {
+      "title": "Lecture du schéma",
+      "level": 3,
+      "id": "lecture-du-schema"
+    },
+    {
+      "title": "Intégration retenue",
+      "level": 3,
+      "id": "integration-retenue"
+    },
+    {
+      "title": "Correction d'outillage connexe",
+      "level": 3,
+      "id": "correction-doutillage-connexe"
+    },
+    {
+      "title": "Décision",
+      "level": 3,
+      "id": "decision"
+    },
+    {
+      "title": "Lot GBIF ciblé 1 — régional général",
+      "level": 2,
+      "id": "lot-gbif-cible-1-regional-general"
+    },
+    {
+      "title": "Lecture",
+      "level": 3,
+      "id": "lecture"
+    },
+    {
+      "title": "Intégration gold set",
+      "level": 3,
+      "id": "integration-gold-set"
+    },
+    {
+      "title": "Lot GBIF ciblé 2 — institutionnel",
+      "level": 2,
+      "id": "lot-gbif-cible-2-institutionnel"
+    },
+    {
+      "title": "Test de rendement",
+      "level": 3,
+      "id": "test-de-rendement"
+    },
+    {
+      "title": "Lot institutionnel retenu",
+      "level": 3,
+      "id": "lot-institutionnel-retenu"
+    },
+    {
+      "title": "Intégration gold set",
+      "level": 3,
+      "id": "integration-gold-set_1"
+    },
+    {
+      "title": "Effet cumulé sur le gold set",
+      "level": 3,
+      "id": "effet-cumule-sur-le-gold-set"
+    },
+    {
+      "title": "Entrée du 2026 03 18 — run sur gold set enrichi",
+      "level": 2,
+      "id": "entree-du-2026-03-18-run-sur-gold-set-enrichi"
+    },
+    {
+      "title": "Résultat global",
+      "level": 3,
+      "id": "resultat-global"
+    },
+    {
+      "title": "Diagnostics marquants",
+      "level": 3,
+      "id": "diagnostics-marquants"
+    },
+    {
+      "title": "Lecture des nouveaux sous buckets",
+      "level": 3,
+      "id": "lecture-des-nouveaux-sous-buckets"
+    },
+    {
+      "title": "Interprétation",
+      "level": 3,
+      "id": "interpretation_1"
+    },
+    {
+      "title": "Décision sur le protocole",
+      "level": 3,
+      "id": "decision-sur-le-protocole"
+    },
+    {
+      "title": "Entrée du 2026 03 18 — baseline ProductScore",
+      "level": 2,
+      "id": "entree-du-2026-03-18-baseline-productscore"
+    },
+    {
+      "title": "Entrée du 2026 03 18 — pivot autoresearch",
+      "level": 2,
+      "id": "entree-du-2026-03-18-pivot-autoresearch"
+    },
+    {
+      "title": "Conclusion",
+      "level": 3,
+      "id": "conclusion"
+    },
+    {
+      "title": "Décision",
+      "level": 3,
+      "id": "decision_1"
+    },
+    {
+      "title": "Entrée du 2026 03 18 — première mesure surrogate loop",
+      "level": 2,
+      "id": "entree-du-2026-03-18-premiere-mesure-surrogate-loop"
+    },
+    {
+      "title": "Première tentative",
+      "level": 3,
+      "id": "premiere-tentative"
+    },
+    {
+      "title": "Correctif appliqué",
+      "level": 3,
+      "id": "correctif-applique"
+    },
+    {
+      "title": "Mesures après optimisation",
+      "level": 3,
+      "id": "mesures-apres-optimisation"
+    },
+    {
+      "title": "Lecture",
+      "level": 3,
+      "id": "lecture_1"
+    },
+    {
+      "title": "Entrée du 2026 03 19 — corrections runner et premier gain autoresearch",
+      "level": 2,
+      "id": "entree-du-2026-03-19-corrections-runner-et-premier-gain-autoresearch"
+    },
+    {
+      "title": "Corrections du runner surrogate",
+      "level": 3,
+      "id": "corrections-du-runner-surrogate"
+    },
+    {
+      "title": "Remplacement Codex → Claude",
+      "level": 3,
+      "id": "remplacement-codex-claude"
+    },
+    {
+      "title": "Run Codex (2026 03 18) — 150 itérations",
+      "level": 3,
+      "id": "run-codex-2026-03-18-150-iterations"
+    },
+    {
+      "title": "Premier gain Claude — cross rank reciprocity",
+      "level": 3,
+      "id": "premier-gain-claude-cross-rank-reciprocity"
+    },
+    {
+      "title": "Nouvelles baselines après gain",
+      "level": 3,
+      "id": "nouvelles-baselines-apres-gain"
+    },
+    {
+      "title": "Run Claude post gain — 50 itérations (2026 03 19)",
+      "level": 3,
+      "id": "run-claude-post-gain-50-iterations-2026-03-19"
+    },
+    {
+      "title": "Lecture",
+      "level": 3,
+      "id": "lecture_2"
+    },
+    {
+      "title": "Décision",
+      "level": 3,
+      "id": "decision_2"
+    },
+    {
+      "title": "Entrée du 2026 03 20 — réentraînement, validation ProductScore, optimisation batch",
+      "level": 2,
+      "id": "entree-du-2026-03-20-reentrainement-validation-productscore-optimisation-batch"
+    },
+    {
+      "title": "Réentraînement des 3 modèles",
+      "level": 3,
+      "id": "reentrainement-des-3-modeles"
+    },
+    {
+      "title": "Validation ProductScore — gain confirmé",
+      "level": 3,
+      "id": "validation-productscore-gain-confirme"
+    },
+    {
+      "title": "Optimisation batch de l'entraînement fusion",
+      "level": 3,
+      "id": "optimisation-batch-de-lentrainement-fusion"
+    },
+    {
+      "title": "Évaluation par instance — niamoto subset",
+      "level": 3,
+      "id": "evaluation-par-instance-niamoto-subset"
+    },
+    {
+      "title": "Décisions de cette session",
+      "level": 3,
+      "id": "decisions-de-cette-session"
+    }
+  ],
+  "html": "<h1 id=\"ml-detection-iteration-log-2026-03-17\">ML Detection Iteration Log — 2026-03-17</h1>\n<blockquote>\n<p>Status: Experiment\nAudience: Team, AI agents\nPurpose: Historical detailed iteration log for the <code>feat/ml-detection-improvement</code>\nbranch</p>\n</blockquote>\n<h2 id=\"english-summary\">English summary</h2>\n<p>This is the longest historical log in the folder. It documents:</p>\n<ul>\n<li>the first <code>niamoto-score</code> baseline</li>\n<li>the diagnosis of weak holdout families such as <code>forest_inventory</code></li>\n<li>early changes to value features and fusion features</li>\n<li>the move toward a more product-oriented benchmark</li>\n<li>the first surrogate/autoresearch decisions</li>\n<li>the first acquisition lots and their effect on the benchmark</li>\n</ul>\n<p>The detailed body below is preserved as historical working material and still\ncontains French wording from the original session notes.</p>\n<h2 id=\"objet\">Objet</h2>\n<p>Ce journal capture l'état des expérimentations réalisées sur la branche\n<code>feat/ml-detection-improvement</code>, avec focus sur :</p>\n<ul>\n<li>le nouveau protocole <code>niamoto-score</code></li>\n<li>les points faibles révélés par les holdouts</li>\n<li>les corrections tentées</li>\n<li>les décisions prises pour les itérations suivantes</li>\n</ul>\n<p>Ce document est daté et doit pouvoir être complété par de nouvelles entrées au\nfil de l'expérimentation.</p>\n<h2 id=\"contexte-de-depart\">Contexte de départ</h2>\n<p>La branche a migré d'une logique historique plus monolithique vers un pipeline\nhybride :</p>\n<ul>\n<li>alias exacts</li>\n<li>modèle header</li>\n<li>modèle values</li>\n<li>modèle de fusion</li>\n<li>projection vers <code>semantic_profile</code> et affordances</li>\n</ul>\n<p>En parallèle, le protocole d'évaluation a été renforcé :</p>\n<ul>\n<li>suppression de la fuite de données dans l'évaluation fusion</li>\n<li>réalignement progressif train/runtime</li>\n<li>ajout du <code>NiamotoOfflineScore</code></li>\n<li>ajout de holdouts langue, famille et anonymous</li>\n<li>ajout d'un logging de progression pour les runs longues</li>\n</ul>\n<h2 id=\"mesure-de-reference-observee\">Mesure de référence observée</h2>\n<p>Run complet <code>niamoto-score</code> observé avant les itérations ciblées de ce journal :</p>\n<pre><code class=\"language-text\">NiamotoOfflineScore = 78.8351\n</code></pre>\n<p>Sous-scores et holdouts marquants :</p>\n<ul>\n<li><code>primary</code> : <code>78.835</code></li>\n<li><code>holdout_lang[fr]</code> : <code>67.491</code></li>\n<li><code>holdout_lang[es]</code> : <code>88.599</code></li>\n<li><code>holdout_lang[de]</code> : <code>88.949</code></li>\n<li><code>holdout_lang[zh]</code> : <code>100.000</code></li>\n<li><code>holdout_family[dwc_gbif]</code> : <code>71.407</code></li>\n<li><code>holdout_family[forest_inventory]</code> : <code>47.918</code></li>\n<li><code>holdout_family[research_traits]</code> : <code>66.891</code></li>\n<li><code>holdout_family[tropical_field]</code> : <code>54.146</code></li>\n<li><code>holdout_anonymous</code> : <code>94.583</code></li>\n<li><code>diagnostic_synthetic</code> : <code>67.388</code></li>\n</ul>\n<h2 id=\"lecture-initiale\">Lecture initiale</h2>\n<p>Le signal principal n'est pas un problème global de colonne anonyme. Au\ncontraire, le holdout anonymous est fort.</p>\n<p>Les faiblesses se concentrent sur :</p>\n<ul>\n<li>certaines familles de datasets réels ;</li>\n<li>en particulier <code>forest_inventory</code> ;</li>\n<li>puis <code>tropical_field</code> ;</li>\n<li>et, dans une moindre mesure, <code>fr</code>.</li>\n</ul>\n<p>Conclusion provisoire :</p>\n<ul>\n<li>la stack sait bien exploiter les patterns forts et les headers lisibles ;</li>\n<li>elle généralise encore mal sur certains domaines métier ;</li>\n<li>le problème semble plus <strong>domain-specific</strong> que purement linguistique.</li>\n</ul>\n<h2 id=\"diagnostic-cible-sur-forest_inventory\">Diagnostic ciblé sur forest_inventory</h2>\n<p>Un diagnostic dédié a été exécuté sur le holdout <code>forest_inventory</code>.</p>\n<p>Mesure ciblée de référence :</p>\n<ul>\n<li><code>forest_role_f1 = 0.2769</code></li>\n<li><code>forest_concept_f1 = 0.2008</code></li>\n</ul>\n<h3 id=\"constat-principal\">Constat principal</h3>\n<p>La fusion suivait trop souvent la branche <code>values</code> sur des erreurs systématiques.</p>\n<p>Distribution des sources d'erreur observées :</p>\n<ul>\n<li><code>89</code> erreurs <code>followed_value_wrong</code></li>\n<li><code>32</code> erreurs <code>followed_header_wrong</code></li>\n<li><code>27</code> erreurs <code>header_right_value_wrong</code></li>\n<li><code>12</code> erreurs <code>both_wrong_same</code></li>\n</ul>\n<p>Lecture :</p>\n<ul>\n<li>la branche <code>values</code> dominait trop sur ce domaine ;</li>\n<li>elle poussait des concepts inadaptés sur des colonnes codées métier ;</li>\n<li>la fusion ne corrigeait pas suffisamment ce biais.</li>\n</ul>\n<h3 id=\"confusions-saillantes\">Confusions saillantes</h3>\n<p>Confusions de rôle :</p>\n<ul>\n<li><code>category -&gt; statistic</code></li>\n<li><code>identifier -&gt; statistic</code></li>\n<li><code>category -&gt; location</code></li>\n<li><code>measurement -&gt; statistic</code></li>\n</ul>\n<p>Confusions de concepts :</p>\n<ul>\n<li><code>location.admin_area -&gt; event.date</code></li>\n<li><code>identifier.plot -&gt; statistic.count</code></li>\n<li><code>category.tree_condition -&gt; statistic.count</code></li>\n<li><code>measurement.cover -&gt; statistic.count</code></li>\n<li><code>identifier.record -&gt; statistic.count</code></li>\n</ul>\n<h3 id=\"exemples-derreurs-a-haute-confiance\">Exemples d'erreurs à haute confiance</h3>\n<p>Exemples observés :</p>\n<ul>\n<li><code>TCL</code> prédit <code>statistic.count</code> au lieu de <code>measurement.cover</code></li>\n<li><code>TCA</code> prédit <code>statistic.count</code> au lieu de <code>measurement.cover</code></li>\n<li><code>PEUPNR</code> prédit <code>statistic.count</code> au lieu de <code>category.management</code></li>\n<li><code>AGENTCD</code> prédit <code>statistic.count</code> au lieu de <code>category.damage</code></li>\n<li><code>COUNTYCD</code> prédit <code>statistic.count</code> au lieu de <code>location.admin_area</code></li>\n</ul>\n<p>Lecture :</p>\n<ul>\n<li>les colonnes codées d'inventaire forestier étaient mal reconnues ;</li>\n<li>le système les interprétait trop souvent comme des comptes ou des mesures\n  simples.</li>\n</ul>\n<h2 id=\"hypothese-de-travail\">Hypothèse de travail</h2>\n<p>Hypothèse centrale de cette itération :</p>\n<blockquote>\n<p>Le principal défaut sur <code>forest_inventory</code> n'est pas l'absence totale de\nsignal, mais une sur-dominance de la branche <code>values</code> sur des colonnes codées\nmétier, combinée à une fusion trop permissive.</p>\n</blockquote>\n<h2 id=\"changements-tentes\">Changements tentés</h2>\n<h3 id=\"1-factorisation-des-features-values\">1. Factorisation des features values</h3>\n<p>Objectif :</p>\n<ul>\n<li>supprimer le mismatch train/runtime sur les features values ;</li>\n<li>disposer d'un point unique pour enrichir les signaux utiles aux colonnes\n  codées.</li>\n</ul>\n<p>Changements :</p>\n<ul>\n<li>création de <code>src/niamoto/core/imports/ml/value_features.py</code></li>\n<li>réutilisation depuis :</li>\n<li><code>ml/scripts/train/train_value_model.py</code></li>\n<li><code>src/niamoto/core/imports/ml/classifier.py</code></li>\n</ul>\n<p>Nouveaux signaux ajoutés :</p>\n<ul>\n<li><code>n_unique_values</code></li>\n<li><code>dominant_ratio</code></li>\n<li><code>fixed_length_ratio</code></li>\n<li><code>short_code_ratio</code></li>\n<li><code>dense_integer_domain</code></li>\n<li><code>tiny_integer_domain</code></li>\n</ul>\n<h3 id=\"2-enrichissement-des-meta-features-de-fusion\">2. Enrichissement des meta-features de fusion</h3>\n<p>Objectif :</p>\n<ul>\n<li>rendre la fusion plus sensible au désaccord header/values ;</li>\n<li>détecter les cas où <code>values</code> pousse <code>statistic.count</code> sur un header codé.</li>\n</ul>\n<p>Changements :</p>\n<ul>\n<li>création de <code>src/niamoto/core/imports/ml/fusion_features.py</code></li>\n<li>ajout dans la fusion de :</li>\n<li>max proba</li>\n<li>marge top1-top2</li>\n<li>entropie</li>\n<li>accord/désaccord</li>\n<li>flags <code>statistic.count</code></li>\n<li>détection de header code-like</li>\n</ul>\n<h3 id=\"3-heuristique-ciblee-de-damping\">3. Heuristique ciblée de damping</h3>\n<p>Une première tentative d'injecter l'information \"coded header\" dans le modèle\nheader lui-même a été testée puis retirée, car elle dégradait <code>forest_role_f1</code>.</p>\n<p>La correction conservée est plus ciblée :</p>\n<ul>\n<li>si un header est manifestement code-like ;</li>\n<li>et si une branche pousse fortement <code>statistic.count</code> ;</li>\n<li>alors la confiance <code>statistic.count</code> est amortie avant la fusion.</li>\n</ul>\n<p>But :</p>\n<ul>\n<li>corriger un faux positif fréquent ;</li>\n<li>sans reconfigurer agressivement le modèle header.</li>\n</ul>\n<h2 id=\"resultats-cibles-apres-iteration\">Résultats ciblés après itération</h2>\n<h3 id=\"baseline-ciblee\">Baseline ciblée</h3>\n<ul>\n<li><code>forest_role_f1 = 0.2769</code></li>\n<li><code>forest_concept_f1 = 0.2008</code></li>\n</ul>\n<h3 id=\"apres-factorisation-values-meta-features-de-fusion-damping\">Après factorisation values + meta-features de fusion + damping</h3>\n<ul>\n<li><code>forest_role_f1 = 0.2960</code></li>\n<li><code>forest_concept_f1 = 0.1938</code></li>\n</ul>\n<h2 id=\"interpretation\">Interprétation</h2>\n<p>Le signal obtenu est cohérent avec l'objectif produit :</p>\n<ul>\n<li>amélioration du <strong>rôle</strong> sur le domaine difficile ;</li>\n<li>pas encore d'amélioration sur le concept fin.</li>\n</ul>\n<p>À ce stade, l'itération semble surtout améliorer le comportement produit\npertinent, pas la précision académique du concept.</p>\n<p>Validation globale encore requise :</p>\n<ul>\n<li>rerun complet <code>niamoto-score</code></li>\n<li>vérification qu'on n'améliore pas <code>forest_inventory</code> en cassant d'autres\n  familles</li>\n</ul>\n<h2 id=\"validation-globale-de-literation\">Validation globale de l'itération</h2>\n<p>Le rerun complet <code>niamoto-score</code> a été exécuté après cette itération.</p>\n<p>Résultat final :</p>\n<pre><code class=\"language-text\">NiamotoOfflineScore = 79.1135\n</code></pre>\n<p>Comparaison avec la baseline observée avant l'itération :</p>\n<ul>\n<li>baseline : <code>78.8351</code></li>\n<li>itération : <code>79.1135</code></li>\n<li>delta global : <code>+0.2784</code></li>\n</ul>\n<h3 id=\"sous-scores-et-holdouts-apres-iteration\">Sous-scores et holdouts après itération</h3>\n<ul>\n<li><code>primary</code> : <code>79.113</code></li>\n<li><code>holdout_lang[fr]</code> : <code>66.465</code></li>\n<li><code>holdout_lang[es]</code> : <code>91.329</code></li>\n<li><code>holdout_lang[de]</code> : <code>92.380</code></li>\n<li><code>holdout_lang[zh]</code> : <code>99.444</code></li>\n<li><code>holdout_family[dwc_gbif]</code> : <code>68.267</code></li>\n<li><code>holdout_family[forest_inventory]</code> : <code>41.654</code></li>\n<li><code>holdout_family[research_traits]</code> : <code>65.081</code></li>\n<li><code>holdout_family[tropical_field]</code> : <code>57.131</code></li>\n<li><code>holdout_anonymous</code> : <code>100.000</code></li>\n<li><code>diagnostic_synthetic</code> : <code>71.785</code></li>\n</ul>\n<h3 id=\"ce-qui-sameliore\">Ce qui s'améliore</h3>\n<ul>\n<li><code>primary</code> monte légèrement</li>\n<li><code>es</code> et <code>de</code> montent nettement</li>\n<li><code>tropical_field</code> monte</li>\n<li><code>anonymous</code> devient excellent</li>\n<li><code>forest_inventory</code> améliore bien son <code>role_f1</code></li>\n</ul>\n<h3 id=\"ce-qui-se-degrade\">Ce qui se dégrade</h3>\n<ul>\n<li><code>fr</code> baisse légèrement</li>\n<li><code>dwc_gbif</code> baisse nettement</li>\n<li><code>research_traits</code> baisse</li>\n<li><code>forest_inventory</code> baisse fortement en score global</li>\n</ul>\n<h3 id=\"point-critique-sur-forest_inventory\">Point critique sur forest_inventory</h3>\n<p>Le résultat <code>forest_inventory</code> après itération est particulièrement important :</p>\n<ul>\n<li><code>NiamotoOfflineScore = 41.654</code></li>\n<li><code>role = 0.296</code></li>\n<li><code>critical = 0.533</code></li>\n<li><code>pairs = 0.390</code></li>\n<li><code>confQ = 0.500</code></li>\n<li><code>hc_err = 0.500</code></li>\n</ul>\n<p>Lecture :</p>\n<ul>\n<li>le <strong>rôle</strong> s'améliore bien par rapport à la baseline ciblée ;</li>\n<li>mais la confiance, la cohérence dataset-level et les erreurs à haute\n  confiance se dégradent trop fortement ;</li>\n<li>le mécanisme actuel améliore un aspect local mais abîme trop le comportement\n  global sur ce garde-fou critique.</li>\n</ul>\n<h2 id=\"verdict-sur-literation\">Verdict sur l'itération</h2>\n<p>Verdict retenu :</p>\n<blockquote>\n<p>itération <strong>non validée</strong> comme nouveau baseline de la stack</p>\n</blockquote>\n<p>Raison :</p>\n<ul>\n<li>le gain global est trop faible ;</li>\n<li>il est obtenu au prix d'une dégradation trop forte sur <code>forest_inventory</code> ;</li>\n<li>la baisse sur <code>dwc_gbif</code> et <code>research_traits</code> rend l'amélioration globale peu\n  défendable ;</li>\n<li>l'hypothèse était bonne, mais l'implémentation du correctif reste trop\n  agressive ou mal calibrée.</li>\n</ul>\n<p>Ce qui est conservé de cette itération :</p>\n<ul>\n<li>le diagnostic détaillé ;</li>\n<li>la compréhension du biais <code>values -&gt; statistic.count</code> ;</li>\n<li>la nécessité de traiter <code>forest_inventory</code> comme garde-fou explicite.</li>\n</ul>\n<h2 id=\"decisions-prises\">Décisions prises</h2>\n<ul>\n<li>conserver la factorisation shared des features values ;</li>\n<li>conserver les meta-features de fusion ;</li>\n<li>ne pas promouvoir automatiquement le damping ciblé actuel comme nouveau\n  baseline sans nouvelle itération plus prudente ;</li>\n<li>ne pas conserver l'injection directe de <code>coded</code> dans le texte header ;</li>\n<li>utiliser <code>forest_inventory</code> comme garde-fou explicite dans les prochaines\n  décisions d'<code>autoresearch</code>.</li>\n</ul>\n<h2 id=\"ce-que-cette-iteration-nous-apprend\">Ce que cette itération nous apprend</h2>\n<ol>\n<li>Le vrai point faible n'est pas d'abord la langue française.</li>\n<li>Le vrai point faible est le comportement sur certains domaines métier,\n   notamment l'inventaire forestier.</li>\n<li>Les gains les plus utiles passent par :\n   - une meilleure fusion ;\n   - une meilleure prudence ;\n   - des signaux plus explicites sur les colonnes codées ;\n   - des garde-fous orientés domaine.</li>\n</ol>\n<h2 id=\"prochaines-iterations-recommandees\">Prochaines itérations recommandées</h2>\n<h3 id=\"court-terme\">Court terme</h3>\n<ul>\n<li>finir la validation complète <code>niamoto-score</code></li>\n<li>comparer avant/après sur tous les holdouts</li>\n<li>décider si l'itération est gardée au niveau stack complet</li>\n</ul>\n<h3 id=\"si-le-gain-global-tient\">Si le gain global tient</h3>\n<ul>\n<li>ajouter un reporting dédié sur les prédictions <code>-&gt; statistic.count</code></li>\n<li>intégrer <code>forest_inventory</code> comme garde-fou <code>autoresearch</code></li>\n<li>attaquer ensuite <code>tropical_field</code></li>\n</ul>\n<h3 id=\"si-le-gain-global-ne-tient-pas\">Si le gain global ne tient pas</h3>\n<ul>\n<li>conserver l'analyse ;</li>\n<li>réduire la portée de l'heuristique ;</li>\n<li>ou déplacer la logique vers une fusion plus structurée au lieu d'un damping\n  simple</li>\n</ul>\n<h2 id=\"evolution-decidee-du-benchmark\">Évolution décidée du benchmark</h2>\n<p>Après cette run, il a été décidé de faire évoluer le benchmark avant une\nnouvelle itération ML.</p>\n<p>Objectif :</p>\n<ul>\n<li>rendre les diagnostics plus honnêtes ;</li>\n<li>mieux séparer anglais standard et anglais métier ;</li>\n<li>éviter de surinterpréter des splits faciles comme <code>zh</code>.</li>\n</ul>\n<p>Changements ajoutés au reporting de <code>ml/scripts/eval/evaluate.py</code> :</p>\n<ul>\n<li><code>diagnostic_lang[zh]</code> comme diagnostic secondaire et non plus holdout\n  stratégique</li>\n<li><code>diagnostic_subset[en_standard]</code></li>\n<li><code>diagnostic_subset[en_field]</code></li>\n<li><code>diagnostic_subset[coded_headers]</code></li>\n<li><code>diagnostic_subset[gbif_core_standard]</code></li>\n<li><code>diagnostic_subset[gbif_extended]</code></li>\n<li>split interne de <code>forest_inventory</code> :</li>\n<li><code>forest_inventory/ifn_fr</code></li>\n<li><code>forest_inventory/fia_en</code></li>\n<li><code>forest_inventory/nordic_inventory</code></li>\n<li>split interne de <code>dwc_gbif</code> :</li>\n<li><code>dwc_gbif/core_standard</code></li>\n<li><code>dwc_gbif/extended</code></li>\n</ul>\n<p>Décision associée :</p>\n<ul>\n<li>ne pas changer immédiatement la formule du <code>NiamotoOfflineScore</code></li>\n<li>changer d'abord le reporting et les garde-fous</li>\n<li>relancer ensuite une run complète pour identifier le vrai point faible :\n  <code>IFN</code>, <code>FIA</code>, <code>GBIF standard</code>, <code>GBIF étendu</code>, <code>en_field</code>, ou headers codés</li>\n</ul>\n<h2 id=\"commandes-utiles\">Commandes utiles</h2>\n<p>Validation complète avec progression :</p>\n<pre><code class=\"language-bash\">OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress\n</code></pre>\n<p>Boucle silencieuse compatible autoresearch :</p>\n<pre><code class=\"language-bash\">.venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --quiet\n</code></pre>\n<p>Run recommandée après évolution du benchmark :</p>\n<pre><code class=\"language-bash\">OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 LOKY_MAX_CPU_COUNT=1 .venv/bin/python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3 --verbose-progress\n</code></pre>\n<h2 id=\"lot-guyane-1-acquisition-et-integration\">Lot Guyane 1 — acquisition et intégration</h2>\n<p>Un premier lot Guyane a été traité pour rapprocher le benchmark des jeux\nréellement visés côté produit.</p>\n<h3 id=\"verification-dacces-dataverse\">Vérification d'accès Dataverse</h3>\n<p>Jeux inspectés :</p>\n<ul>\n<li><code>ForestScan / Paracou</code></li>\n<li><code>Trinite Forest Censuses</code></li>\n<li><code>Tresor Forest Censuses</code></li>\n<li><code>Tibourou Forest Censuses</code></li>\n<li><code>Montagne Tortue Forest Censuses</code></li>\n</ul>\n<p>Résultat vérifié :</p>\n<ul>\n<li>le CSV principal <code>ForestScan / Paracou</code> est publiquement téléchargeable ;</li>\n<li>les CSV principaux <code>Trinite</code>, <code>Tresor</code>, <code>Tibourou</code> et <code>Montagne Tortue</code> sont\n  restreints et exposés via <code>fileAccessRequest</code> ;</li>\n<li>leurs fichiers de description restent publics et ont été récupérés localement\n  comme support de préparation.</li>\n</ul>\n<h3 id=\"fichiers-recuperes\">Fichiers récupérés</h3>\n<p>Sous <code>ml/data/silver/guyane/</code> :</p>\n<ul>\n<li><code>paracou/FGPlotsCensusData2023.csv</code></li>\n<li><code>paracou/FGPlotsDescription.csv</code></li>\n<li><code>trinite/TriniteDescription.csv</code></li>\n<li><code>tresor/TresorDescription.csv</code></li>\n<li><code>tibourou/TibourouDescription.csv</code></li>\n<li><code>montagne_tortue/Montagne_TortueDescription.csv</code></li>\n</ul>\n<h3 id=\"lecture-du-schema\">Lecture du schéma</h3>\n<p>Constats utiles :</p>\n<ul>\n<li>le census Paracou contient <code>38</code> colonnes ;</li>\n<li>les fichiers de description Guyafor ont un schéma homogène de <code>53</code> colonnes ;</li>\n<li>le census Paracou est immédiatement utile pour le benchmark\n  <code>tropical_field / plot_inventory</code> ;</li>\n<li>les fichiers de description sont utiles pour préparer les futurs labels, mais\n  pas encore assez sûrs pour être injectés dans le gold set sans risque de\n  bruit et de redondance.</li>\n</ul>\n<h3 id=\"integration-retenue\">Intégration retenue</h3>\n<p>Choix fait :</p>\n<ul>\n<li>intégrer seulement le census <code>Paracou / ForestScan</code> ;</li>\n<li>ne pas intégrer les fichiers de description ;</li>\n<li>garder les autres datasets Guyane en attente d'accès à leurs CSV principaux.</li>\n</ul>\n<p>Changements réalisés :</p>\n<ul>\n<li>ajout d'un bloc <code>FORESTSCAN_PARACOU_LABELS</code> dans\n  <code>ml/scripts/data/build_gold_set.py</code></li>\n<li>ajout de la source <code>forestscan_paracou_census</code> dans <code>SOURCES</code></li>\n<li>régénération du gold set</li>\n</ul>\n<p>Résultat :</p>\n<ul>\n<li><code>forestscan_paracou_census</code> apporte <code>34</code> colonnes gold ;</li>\n<li>le gold set passe à <code>2265</code> colonnes au total, dont <code>1669</code> gold et <code>596</code>\n  synthetic.</li>\n</ul>\n<h3 id=\"correction-doutillage-connexe\">Correction d'outillage connexe</h3>\n<p>Défaut corrigé dans\n<code>ml/scripts/data/build_gold_set.py</code> :</p>\n<ul>\n<li><code>uv run python -m ml.scripts.data.build_gold_set</code> cassait sur\n  <code>ModuleNotFoundError: scripts</code></li>\n<li>le script ajoute maintenant à la fois <code>src/</code> et la racine du repo au\n  <code>sys.path</code></li>\n<li>les deux modes fonctionnent désormais :</li>\n<li><code>uv run python -m ml.scripts.data.build_gold_set</code></li>\n<li><code>uv run python -m ml.scripts.data.build_gold_set</code></li>\n</ul>\n<h3 id=\"decision\">Décision</h3>\n<p>État du lot Guyane 1 :</p>\n<ul>\n<li><code>Paracou / ForestScan</code> : intégré</li>\n<li><code>Trinite / Tresor / Tibourou / Montagne Tortue</code> : documentés localement mais\n  non intégrés faute d'accès aux CSV census</li>\n</ul>\n<p>Suite logique :</p>\n<ul>\n<li>ajouter ensuite un premier lot <code>GBIF ciblé</code></li>\n<li>ou intégrer des datasets d'instances réelles dès qu'ils sont disponibles</li>\n</ul>\n<h2 id=\"lot-gbif-cible-1-regional-general\">Lot GBIF ciblé 1 — régional général</h2>\n<p>Un premier lot GBIF régional a été récupéré via l'API publique\n<code>occurrence/search</code> avec les contraintes suivantes :</p>\n<ul>\n<li>régions : <code>NC</code>, <code>GF</code>, <code>GA</code>, <code>CM</code></li>\n<li>règne : <code>Plantae</code></li>\n<li>volume cible : <code>5000</code> occurrences par région</li>\n</ul>\n<p>Sorties créées sous <code>ml/data/silver/gbif_targeted/</code> :</p>\n<ul>\n<li><code>new_caledonia/occurrences.csv</code></li>\n<li><code>guyane/occurrences.csv</code></li>\n<li><code>gabon/occurrences.csv</code></li>\n<li><code>cameroon/occurrences.csv</code></li>\n</ul>\n<p>Volumes récupérés :</p>\n<ul>\n<li><code>new_caledonia</code> : <code>5000 / 442442</code></li>\n<li><code>guyane</code> : <code>5000 / 299072</code></li>\n<li><code>gabon</code> : <code>5000 / 583825</code></li>\n<li><code>cameroon</code> : <code>5000 / 621574</code></li>\n</ul>\n<h3 id=\"lecture\">Lecture</h3>\n<p>Ce lot est utile pour construire un sous-benchmark GBIF régional, mais il est\nfortement tiré par les jeux observationnels grand public, en particulier des\ndatasets type <code>iNaturalist</code>.</p>\n<p>Conclusion :</p>\n<ul>\n<li>bon lot <code>GBIF régional général</code></li>\n<li>mauvais candidat comme unique approximation du GBIF institutionnel</li>\n</ul>\n<h3 id=\"integration-gold-set\">Intégration gold set</h3>\n<p>Les sources suivantes ont été ajoutées dans\n<code>ml/scripts/data/build_gold_set.py</code> :</p>\n<ul>\n<li><code>gbif_targeted_new_caledonia</code></li>\n<li><code>gbif_targeted_guyane</code></li>\n<li><code>gbif_targeted_gabon</code></li>\n<li><code>gbif_targeted_cameroon</code></li>\n</ul>\n<p>Apport observé :</p>\n<ul>\n<li><code>41</code> colonnes pour <code>new_caledonia</code></li>\n<li><code>38</code> colonnes pour <code>guyane</code></li>\n<li><code>37</code> colonnes pour <code>gabon</code></li>\n<li><code>39</code> colonnes pour <code>cameroon</code></li>\n</ul>\n<h2 id=\"lot-gbif-cible-2-institutionnel\">Lot GBIF ciblé 2 — institutionnel</h2>\n<p>Un second flux a ensuite été ajouté pour isoler un sous-corpus plus\ninstitutionnel.</p>\n<p>Filtre retenu :</p>\n<ul>\n<li><code>basisOfRecord in {PRESERVED_SPECIMEN, MATERIAL_SAMPLE, OCCURRENCE}</code></li>\n<li>présence d'au moins un champ institutionnel :</li>\n<li><code>institutionCode</code></li>\n<li><code>collectionCode</code></li>\n<li><code>institutionID</code></li>\n<li><code>collectionKey</code></li>\n<li>exclusion explicite des gros jeux observationnels :</li>\n<li><code>iNaturalist</code></li>\n<li><code>observation.org</code></li>\n<li><code>Pl@ntNet</code></li>\n<li><code>eBird</code></li>\n<li>quelques autres catalogues analogues</li>\n</ul>\n<h3 id=\"test-de-rendement\">Test de rendement</h3>\n<p>Un sample <code>institutional</code> a été exécuté sur <code>5000</code> enregistrements scannés par\nrégion.</p>\n<p>Résultat :</p>\n<ul>\n<li><code>new_caledonia</code> : <code>6</code></li>\n<li><code>guyane</code> : <code>16</code></li>\n<li><code>gabon</code> : <code>200</code> (cap atteint)</li>\n<li><code>cameroon</code> : <code>200</code> (cap atteint)</li>\n</ul>\n<p>Lecture :</p>\n<ul>\n<li><code>NC</code> et <code>GF</code> ont très peu d'institutionnel dans les premiers résultats\n  régionaux ;</li>\n<li><code>GA</code> et <code>CM</code> ont un rendement institutionnel suffisant ;</li>\n<li>il est pertinent de conserver <code>NC/GF</code> dans le lot général et <code>GA/CM</code> dans un\n  lot institutionnel dédié.</li>\n</ul>\n<h3 id=\"lot-institutionnel-retenu\">Lot institutionnel retenu</h3>\n<p>Le lot complet retenu à ce stade est :</p>\n<ul>\n<li><code>gabon</code></li>\n<li><code>cameroon</code></li>\n</ul>\n<p>Sorties créées sous <code>ml/data/silver/gbif_targeted_institutional/</code> :</p>\n<ul>\n<li><code>gabon/occurrences.csv</code></li>\n<li><code>cameroon/occurrences.csv</code></li>\n</ul>\n<p>Volumes retenus :</p>\n<ul>\n<li><code>gabon</code> : <code>2000</code></li>\n<li><code>cameroon</code> : <code>2000</code></li>\n</ul>\n<p>Qualité observée :</p>\n<ul>\n<li>forte présence de <code>PRESERVED_SPECIMEN</code></li>\n<li>jeux type <code>Tropicos</code></li>\n<li>signal nettement plus institutionnel que le lot GBIF régional général</li>\n</ul>\n<h3 id=\"integration-gold-set_1\">Intégration gold set</h3>\n<p>Les sources suivantes ont été ajoutées dans\n<code>ml/scripts/data/build_gold_set.py</code> :</p>\n<ul>\n<li><code>gbif_targeted_institutional_gabon</code></li>\n<li><code>gbif_targeted_institutional_cameroon</code></li>\n</ul>\n<p>Apport observé :</p>\n<ul>\n<li><code>36</code> colonnes pour <code>gabon</code></li>\n<li><code>36</code> colonnes pour <code>cameroon</code></li>\n</ul>\n<h3 id=\"effet-cumule-sur-le-gold-set\">Effet cumulé sur le gold set</h3>\n<p>Après intégration du lot GBIF général puis du lot institutionnel <code>GA/CM</code> :</p>\n<ul>\n<li><code>ml/data/gold_set.json</code> passe à <code>2492</code> colonnes</li>\n<li>dont <code>1896</code> gold et <code>596</code> synthetic</li>\n</ul>\n<p>Décision retenue :</p>\n<ul>\n<li>conserver <code>gbif_targeted/</code> comme sous-corpus régional général</li>\n<li>conserver <code>gbif_targeted_institutional/gabon</code> et <code>cameroon</code> comme\n  sous-corpus institutionnel</li>\n<li>ne pas forcer pour l'instant un scan institutionnel profond sur\n  <code>new_caledonia</code> et <code>guyane</code></li>\n</ul>\n<h2 id=\"entree-du-2026-03-18-run-sur-gold-set-enrichi\">Entrée du 2026-03-18 — run sur gold set enrichi</h2>\n<p>Avant cette run, les copies de référence locales ont été internalisées dans\n<code>ml/data/silver/</code> et <code>ml/scripts/data/build_gold_set.py</code>\na été réaligné pour ne plus dépendre de copies hors repo pour :</p>\n<ul>\n<li><code>guyadiv_trees</code></li>\n<li><code>guyadiv_plots</code></li>\n<li><code>afrique_occ</code></li>\n<li><code>afrique_plots</code></li>\n<li><code>nc_occ</code></li>\n<li><code>nc_plots</code></li>\n</ul>\n<p>Le gold set reste à ce stade à :</p>\n<ul>\n<li><code>2492</code> colonnes au total</li>\n<li><code>1896</code> gold</li>\n<li><code>596</code> synthetic</li>\n</ul>\n<h3 id=\"resultat-global\">Résultat global</h3>\n<p>Run complète observée :</p>\n<pre><code class=\"language-text\">NiamotoOfflineScore = 78.6199\n</code></pre>\n<p>Comparaison avec la run documentée précédente :</p>\n<ul>\n<li>run précédente : <code>79.1135</code></li>\n<li>nouvelle run : <code>78.6199</code></li>\n<li>delta global : <code>-0.4936</code></li>\n</ul>\n<h3 id=\"diagnostics-marquants\">Diagnostics marquants</h3>\n<ul>\n<li><code>primary</code> : <code>78.620</code></li>\n<li><code>holdout_lang[fr]</code> : <code>66.176</code></li>\n<li><code>holdout_lang[es]</code> : <code>89.457</code></li>\n<li><code>holdout_lang[de]</code> : <code>92.742</code></li>\n<li><code>holdout_family[dwc_gbif]</code> : <code>70.210</code></li>\n<li><code>holdout_family[tropical_field]</code> : <code>63.952</code></li>\n<li><code>holdout_family[research_traits]</code> : <code>71.370</code></li>\n<li><code>holdout_anonymous</code> : <code>100.000</code></li>\n<li><code>diagnostic_synthetic</code> : <code>70.892</code></li>\n</ul>\n<p>Diagnostics structurels :</p>\n<ul>\n<li><code>diagnostic_subset[en_standard]</code> : <code>95.656</code></li>\n<li><code>diagnostic_subset[en_field]</code> : <code>75.917</code></li>\n<li><code>diagnostic_subset[coded_headers]</code> : <code>72.606</code></li>\n<li><code>diagnostic_subset[gbif_core_standard]</code> : <code>96.322</code></li>\n<li><code>diagnostic_subset[gbif_extended]</code> : <code>87.025</code></li>\n</ul>\n<h3 id=\"lecture-des-nouveaux-sous-buckets\">Lecture des nouveaux sous-buckets</h3>\n<p>Le split <code>forest_inventory</code> confirme très nettement que le problème principal\nde ce bloc n'est pas homogène :</p>\n<ul>\n<li><code>forest_inventory</code> : <code>41.841</code></li>\n<li><code>forest_inventory/ifn_fr</code> : <code>17.950</code></li>\n<li><code>forest_inventory/fia_en</code> : <code>50.306</code></li>\n<li><code>forest_inventory/nordic_inventory</code> : <code>65.225</code></li>\n</ul>\n<p>Lecture :</p>\n<ul>\n<li><code>ifn_fr</code> est de loin le sous-bucket le plus faible ;</li>\n<li><code>fia_en</code> est difficile mais moins catastrophique ;</li>\n<li><code>nordic_inventory</code> reste le sous-cas le plus tolérable.</li>\n</ul>\n<h3 id=\"interpretation_1\">Interprétation</h3>\n<p>Cette run ne change pas la conclusion de fond :</p>\n<ul>\n<li>les points forts restent <code>GBIF standard</code>, <code>anglais standard</code>, <code>anonymous</code> ;</li>\n<li>les points faibles restent <code>en_field</code>, les <code>coded_headers</code>, et certains\n  domaines métier compacts ;</li>\n<li><code>forest_inventory</code>, et surtout <code>ifn_fr</code>, est un bon révélateur de fragilité,\n  mais ne doit pas piloter seul la roadmap produit.</li>\n</ul>\n<p>Pour la cible produit visée à ce stade, les signaux les plus utiles restent :</p>\n<ul>\n<li><code>tropical_field</code></li>\n<li><code>research_traits</code></li>\n<li><code>gbif_core_standard</code></li>\n<li><code>gbif_extended</code></li>\n<li><code>en_field</code></li>\n</ul>\n<h3 id=\"decision-sur-le-protocole\">Décision sur le protocole</h3>\n<p>Décision prise après cette run :</p>\n<ul>\n<li>retirer <code>zh</code> du protocole courant ;</li>\n<li>ne plus l'utiliser comme diagnostic reporté dans la boucle standard ;</li>\n<li>garder l'accent sur <code>fr</code>, <code>es</code>, <code>de</code>, <code>tropical_field</code>, <code>research_traits</code>,\n  <code>gbif_*</code>, <code>en_field</code> et <code>coded_headers</code>.</li>\n</ul>\n<p>Conséquence :</p>\n<ul>\n<li>la prochaine run sera un peu plus propre côté reporting ;</li>\n<li><code>zh</code> est désormais considéré comme non stratégique pour la décision produit.</li>\n</ul>\n<h2 id=\"entree-du-2026-03-18-baseline-productscore\">Entrée du 2026-03-18 — baseline ProductScore</h2>\n<p>Le protocole de décision a ensuite été enrichi avec un <code>ProductScore</code>\nspécifique à la cible produit courante.</p>\n<p>Poids retenus :</p>\n<ul>\n<li><code>tropical_field</code> : <code>30%</code></li>\n<li><code>research_traits</code> : <code>15%</code></li>\n<li><code>gbif_core_standard</code> : <code>20%</code></li>\n<li><code>gbif_extended</code> : <code>10%</code></li>\n<li><code>en_field</code> : <code>15%</code></li>\n<li><code>anonymous</code> : <code>10%</code></li>\n</ul>\n<p>Baseline observée :</p>\n<pre><code class=\"language-text\">ProductScore = 79.2454\n</code></pre>\n<p>Détail de la baseline :</p>\n<ul>\n<li><code>tropical_field</code> : <code>63.952</code></li>\n<li><code>research_traits</code> : <code>71.370</code></li>\n<li><code>gbif_core_standard</code> : <code>96.322</code></li>\n<li><code>gbif_extended</code> : <code>87.025</code></li>\n<li><code>en_field</code> : <code>75.917</code></li>\n<li><code>anonymous</code> : <code>100.000</code></li>\n</ul>\n<p>Décision associée :</p>\n<ul>\n<li>utiliser <code>product-score</code> comme cible principale d'<code>autoresearch</code></li>\n<li>conserver <code>niamoto-score</code> comme garde-fou global secondaire</li>\n<li>conserver <code>forest_inventory</code> comme stress test secondaire, sans le laisser\n  piloter la décision finale</li>\n</ul>\n<h2 id=\"entree-du-2026-03-18-pivot-autoresearch\">Entrée du 2026-03-18 — pivot autoresearch</h2>\n<p>Après plusieurs essais, le constat est devenu clair :</p>\n<ul>\n<li>les boucles stack complètes trouvent parfois des candidats plausibles ;</li>\n<li>mais la validation complète est trop coûteuse pour une itération autonome\n  dense ;</li>\n<li>même les variantes <code>fast</code> restent trop lentes pour atteindre un vrai rythme\n  <code>autoresearch</code>.</li>\n</ul>\n<h3 id=\"conclusion\">Conclusion</h3>\n<p>Le problème principal n'est plus la seule qualité de la métrique.</p>\n<p>Le vrai problème est la granularité de la recherche :</p>\n<ul>\n<li>on réentraîne trop de choses pour des changements locaux ;</li>\n<li>on dépense le budget en certification au lieu d'explorer ;</li>\n<li>la boucle autonome reste trop lente pour délivrer sa valeur.</li>\n</ul>\n<h3 id=\"decision_1\">Décision</h3>\n<p>Pivot décidé :</p>\n<ul>\n<li>documenter puis construire une <strong>surrogate loop fusion-only</strong></li>\n<li>séparer l'exploration autonome de la validation stack complète</li>\n<li>réserver <code>product-score</code> et <code>niamoto-score</code> à la promotion des meilleurs\n  candidats, pas à chaque itération</li>\n</ul>\n<p>Document de référence :</p>\n<ul>\n<li><code>docs/05-ml-detection/autoresearch-surrogate-loop.md</code></li>\n</ul>\n<h2 id=\"entree-du-2026-03-18-premiere-mesure-surrogate-loop\">Entrée du 2026-03-18 — première mesure surrogate loop</h2>\n<p>La surrogate loop <code>fusion-only</code> a été implémentée puis mesurée sur le gold set\ncourant.</p>\n<h3 id=\"premiere-tentative\">Première tentative</h3>\n<ul>\n<li>builder du cache interrompu après environ <code>16 min</code></li>\n<li>diagnostic :</li>\n<li>coût du build trop élevé</li>\n<li>principale cause identifiée : prédictions <code>header/value</code> faites record par\n    record</li>\n</ul>\n<h3 id=\"correctif-applique\">Correctif appliqué</h3>\n<ul>\n<li>batch prediction pour <code>header</code></li>\n<li>batch prediction pour <code>values</code></li>\n<li>extraction metadata batchée</li>\n<li>logging par fold dans le builder</li>\n</ul>\n<h3 id=\"mesures-apres-optimisation\">Mesures après optimisation</h3>\n<p>Build du cache :</p>\n<pre><code class=\"language-text\">build_fusion_surrogate_cache --splits 3\nreal = 490.08s\n</code></pre>\n<p>Soit environ <code>8m10s</code> de préchauffe one-shot.</p>\n<p>Baseline <code>surrogate-fast</code> sur cache chaud :</p>\n<pre><code class=\"language-text\">FusionSurrogateFast = 55.6326\nreal = 1.66s\n</code></pre>\n<p>Baseline <code>surrogate-mid</code> sur cache chaud :</p>\n<pre><code class=\"language-text\">FusionSurrogateMid = 59.2746\nreal = 1.31s\n</code></pre>\n<h3 id=\"lecture_1\">Lecture</h3>\n<ul>\n<li>le build du cache reste un coût réel, mais il est désormais ponctuel ;</li>\n<li>les évaluations <code>surrogate-fast</code> et <code>surrogate-mid</code> sont enfin dans la bonne\n  zone pour <code>autoresearch</code> ;</li>\n<li>la surrogate loop devient donc exploitable pour une exploration dense ;</li>\n<li>le prochain enjeu n'est plus la faisabilité du pivot, mais la stratégie de\n  promotion des candidats gagnants vers <code>product-score-fast-fast</code>, puis\n  <code>product-score</code>, puis <code>niamoto-score</code>.</li>\n</ul>\n<h2 id=\"entree-du-2026-03-19-corrections-runner-et-premier-gain-autoresearch\">Entrée du 2026-03-19 — corrections runner et premier gain autoresearch</h2>\n<h3 id=\"corrections-du-runner-surrogate\">Corrections du runner surrogate</h3>\n<p>Trois problèmes identifiés et corrigés dans\n<code>ml/scripts/research/run_fusion_surrogate_autoresearch.py</code> :</p>\n<ol>\n<li>\n<p><strong>Validation stack trop coûteuse</strong> — Quand un candidat passait\n   <code>surrogate-mid</code>, le runner lançait <code>product-score-fast-fast</code> (bloquant\n   pendant des heures). Correction : <code>--defer-stack-validation</code> (défaut true),\n   les candidats passants vont dans <code>.autoresearch/fusion-surrogate-promotions.jsonl</code>.</p>\n</li>\n<li>\n<p><strong>Fichiers hors périmètre</strong> — L'iter 11 du run Codex avait touché le log\n   d'expérimentations. Correction : statut <code>reject_scope</code>, rejet immédiat si\n   des fichiers hors <code>DEFAULT_ALLOWED_PATHS</code> sont touchés.</p>\n</li>\n<li>\n<p><strong>Pre-commit hooks bloquants</strong> — Le commit automatique échouait car\n   <code>ruff-format</code> reformatait les fichiers stagés. Correction : <code>--no-verify</code>\n   pour les commits automatiques du runner.</p>\n</li>\n<li>\n<p><strong>restore_paths crashait sur fichiers untracked</strong> — <code>git restore --source=HEAD</code>\n   échoue sur les fichiers qui n'existent pas dans HEAD. Correction : séparer\n   tracked (restore) et untracked (unlink).</p>\n</li>\n</ol>\n<h3 id=\"remplacement-codex-claude\">Remplacement Codex → Claude</h3>\n<p>Après épuisement des crédits Codex, le moteur a été remplacé par\n<code>claude -p --dangerously-skip-permissions</code>.</p>\n<h3 id=\"run-codex-2026-03-18-150-iterations\">Run Codex (2026-03-18) — 150 itérations</h3>\n<ul>\n<li><code>141</code> <code>codex_error</code> (symlinks cassés <code>~/.codex/skills/</code>)</li>\n<li><code>9</code> itérations utiles : <code>7</code> reject_fast, <code>2</code> reject_mid</li>\n<li>meilleur fast : <code>55.8177</code> (baseline <code>55.6326</code>)</li>\n<li>meilleur mid : <code>58.9922</code> (baseline <code>59.2746</code>)</li>\n<li><code>0</code> promotion</li>\n</ul>\n<h3 id=\"premier-gain-claude-cross-rank-reciprocity\">Premier gain Claude — cross-rank reciprocity</h3>\n<p>L'itération 2 du premier run Claude a produit un candidat gagnant\n(fast <code>55.6326 → 56.5524</code>, delta <code>+0.9198</code>). Le candidat a aussi amélioré\nmid (<code>59.2746 → 60.1680</code>, delta <code>+0.8934</code>).</p>\n<p>4 nouvelles features de fusion ajoutées :</p>\n<ol>\n<li><code>header_top1_value_rank</code> — position du concept #1 header dans le classement\n   values (0 = aussi #1, 1 = dernier)</li>\n<li><code>value_top1_header_rank</code> — l'inverse</li>\n<li><code>top2_cross_match</code> — le #2 d'une branche correspond au #1 de l'autre</li>\n<li><code>both_weak</code> — les deux branches sont faibles (max proba &lt; 0.3)</li>\n</ol>\n<p>Fichiers modifiés : <code>train_fusion.py</code> et <code>classifier.py</code>.</p>\n<h3 id=\"nouvelles-baselines-apres-gain\">Nouvelles baselines après gain</h3>\n<pre><code class=\"language-text\">surrogate-fast = 56.5524 (était 55.6326, +0.92)\nsurrogate-mid  = 60.1680 (était 59.2746, +0.89)\n</code></pre>\n<h3 id=\"run-claude-post-gain-50-iterations-2026-03-19\">Run Claude post-gain — 50 itérations (2026-03-19)</h3>\n<ul>\n<li><code>50</code> itérations complétées</li>\n<li><code>50</code> reject_fast</li>\n<li>meilleur fast : <code>56.1821</code> (baseline <code>56.5524</code>)</li>\n<li><code>0</code> promotion</li>\n</ul>\n<h3 id=\"lecture_2\">Lecture</h3>\n<p>Le gain cross-rank reciprocity semble être un <strong>plateau</strong> pour le périmètre\nactuel de recherche. 50 itérations supplémentaires n'ont pas réussi à battre\nla nouvelle baseline.</p>\n<p>Hypothèses pour débloquer :</p>\n<ul>\n<li>élargir <code>DEFAULT_ALLOWED_PATHS</code> (ajouter <code>fusion_features.py</code>)</li>\n<li>enrichir le prompt avec des hypothèses plus ciblées</li>\n<li>relancer un run stack complète sur header ou values</li>\n<li>reconstruire le cache surrogate après un gain header/values</li>\n</ul>\n<h3 id=\"decision_2\">Décision</h3>\n<ul>\n<li>conserver le gain cross-rank reciprocity comme nouvelle baseline fusion</li>\n<li>ne pas relancer autoresearch fusion immédiatement</li>\n<li>passer à l'évaluation end-to-end par instance (niamoto-subset) pour mesurer\n  l'impact réel du ML sur les suggestions de widgets</li>\n</ul>\n<h2 id=\"entree-du-2026-03-20-reentrainement-validation-productscore-optimisation-batch\">Entrée du 2026-03-20 — réentraînement, validation ProductScore, optimisation batch</h2>\n<h3 id=\"reentrainement-des-3-modeles\">Réentraînement des 3 modèles</h3>\n<p>Les modèles <code>.joblib</code> dans <code>ml/models/</code> étaient toujours les anciens — l'autoresearch\nmodifiait le code des features de fusion mais n'entraînait pas les modèles. Les\nscores surrogate étaient un proxy local, pas le vrai score produit.</p>\n<p>Réentraînement complet exécuté :</p>\n<ul>\n<li>header : macro-F1 = 0.7614</li>\n<li>values : macro-F1 = 0.3783</li>\n<li>fusion : mean macro-F1 = 0.6899 (leak-free CV, 5 folds)</li>\n</ul>\n<p>Durée totale : ~5h (goulot = extraction record par record dans le leak-free CV).</p>\n<h3 id=\"validation-productscore-gain-confirme\">Validation ProductScore — gain confirmé</h3>\n<pre><code class=\"language-text\">ProductScore = 80.0372 (baseline 79.2454, delta +0.79)\n</code></pre>\n<p>Détail par bucket :</p>\n<table>\n<thead>\n<tr>\n<th>Bucket</th>\n<th>Avant</th>\n<th>Après</th>\n<th>Delta</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>tropical_field</td>\n<td>63.95</td>\n<td>64.88</td>\n<td>+0.93</td>\n</tr>\n<tr>\n<td>research_traits</td>\n<td>71.37</td>\n<td>70.98</td>\n<td>-0.39</td>\n</tr>\n<tr>\n<td>gbif_core_standard</td>\n<td>96.32</td>\n<td>95.87</td>\n<td>-0.46</td>\n</tr>\n<tr>\n<td>gbif_extended</td>\n<td>87.03</td>\n<td>89.75</td>\n<td>+2.72</td>\n</tr>\n<tr>\n<td>en_field</td>\n<td>75.92</td>\n<td>78.53</td>\n<td>+2.61</td>\n</tr>\n<tr>\n<td>anonymous</td>\n<td>100.0</td>\n<td>100.0</td>\n<td>=</td>\n</tr>\n</tbody>\n</table>\n<p>Gains notables : <code>en_field</code> +2.61, <code>gbif_extended</code> +2.72, <code>tropical_field</code> +0.93.</p>\n<p>Régression : <code>fr</code> -4.07 (holdout, pas dans le ProductScore).</p>\n<h3 id=\"optimisation-batch-de-lentrainement-fusion\">Optimisation batch de l'entraînement fusion</h3>\n<p>Le goulot de l'entraînement était <code>extract_fusion_features()</code> appelée record\npar record (~15 000 appels séquentiels pour le leak-free CV).</p>\n<p>La version batch <code>extract_fusion_branch_probabilities_batch()</code> existait déjà\npour le cache surrogate. Elle a été câblée dans <code>train_fusion.py</code> pour\nremplacer les 3 boucles record par record.</p>\n<p>Résultat :</p>\n<ul>\n<li>scores strictement identiques (même macro-F1 par fold au centième)</li>\n<li>temps : <strong>5h → 15 min</strong> (~20x plus rapide)</li>\n<li>zéro perte de qualité</li>\n</ul>\n<h3 id=\"evaluation-par-instance-niamoto-subset\">Évaluation par instance — niamoto-subset</h3>\n<p>Un script <code>ml/scripts/eval/evaluate_instance.py</code> a été créé pour comparer la\ndétection ML avec l'<code>import.yml</code> validé d'une instance réelle.</p>\n<p>Résultats sur <code>niamoto-subset</code> (29 colonnes, 9 évaluées via ground truth) :</p>\n<table>\n<thead>\n<tr>\n<th>Mode</th>\n<th>Role correct</th>\n<th>Concept correct</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Alias seul</td>\n<td>4/9 (44%)</td>\n<td>4/9 (44%)</td>\n</tr>\n<tr>\n<td>ML (modèles réentraînés)</td>\n<td>6/9 (67%)</td>\n<td>5/9 (56%)</td>\n</tr>\n</tbody>\n</table>\n<p>Gains ML par rapport aux alias seuls :</p>\n<ul>\n<li><code>id_plot</code> : non détecté → <code>identifier.plot</code> (rôle correct)</li>\n<li><code>geo_pt</code> : non détecté → <code>location.coordinate</code> (rôle + concept corrects, 0.93)</li>\n</ul>\n<p>Erreurs restantes :</p>\n<ul>\n<li><code>infra</code> → <code>measurement.diameter</code> (faux, confiance faible 0.32)</li>\n<li><code>plot_name</code> → <code>location.locality</code> (alias impose à confiance 1.0)</li>\n<li><code>location</code> → pas trouvé (champ schema, pas colonne CSV)</li>\n</ul>\n<h3 id=\"decisions-de-cette-session\">Décisions de cette session</h3>\n<ul>\n<li>ProductScore 80.04 validé comme nouvelle baseline</li>\n<li>modèles réentraînés commités</li>\n<li>batch optimization commitée (entraînement 20x plus rapide)</li>\n<li>évaluation par instance opérationnelle sur niamoto-subset</li>\n<li>prochaine étape : câbler le ML dans l'auto-config (plan documenté dans\n  <code>docs/05-ml-detection/README.md</code> and the active reference docs in\n  <code>docs/05-ml-detection/</code>)</li>\n</ul>",
+  "asset_path": null,
+  "source_path": "05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log.md"
+}

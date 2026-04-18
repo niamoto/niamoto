@@ -1,0 +1,34 @@
+{
+  "slug": "06-reference/transform-plugins",
+  "path": "/help/06-reference/transform-plugins",
+  "title": "Transform Plugins Reference",
+  "description": "Transformer schemas drive several parts of the GUI. The source code and config models remain the source of truth for exact parameters and validation rules.",
+  "page_type": "markdown",
+  "section_slug": "06-reference",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "What the GUI reads from plugins",
+      "level": 2,
+      "id": "what-the-gui-reads-from-plugins"
+    },
+    {
+      "title": "Main code areas",
+      "level": 2,
+      "id": "main-code-areas"
+    },
+    {
+      "title": "Plugin families commonly surfaced in the GUI",
+      "level": 2,
+      "id": "plugin-families-commonly-surfaced-in-the-gui"
+    },
+    {
+      "title": "When a plugin changes",
+      "level": 2,
+      "id": "when-a-plugin-changes"
+    }
+  ],
+  "html": "<h1 id=\"transform-plugins-reference\">Transform Plugins Reference</h1>\n<p>Transformer schemas drive several parts of the GUI. The source code and config\nmodels remain the source of truth for exact parameters and validation rules.</p>\n<h2 id=\"what-the-gui-reads-from-plugins\">What the GUI reads from plugins</h2>\n<p>The GUI consumes transform plugins to:</p>\n<ul>\n<li>generate parameter forms</li>\n<li>power widget suggestions</li>\n<li>validate transform-backed widget configuration</li>\n<li>produce previewable outputs</li>\n</ul>\n<h2 id=\"main-code-areas\">Main code areas</h2>\n<ul>\n<li>frontend: <code>src/niamoto/gui/ui/src/features/collections</code></li>\n<li>frontend widgets: <code>src/niamoto/gui/ui/src/components/widgets</code></li>\n<li>backend plugins: <code>src/niamoto/core/plugins/transformers</code></li>\n</ul>\n<h2 id=\"plugin-families-commonly-surfaced-in-the-gui\">Plugin families commonly surfaced in the GUI</h2>\n<ul>\n<li>aggregation plugins</li>\n<li>statistical summary plugins</li>\n<li>distribution plugins</li>\n<li>extraction plugins</li>\n<li>geospatial and raster-oriented plugins</li>\n</ul>\n<h2 id=\"when-a-plugin-changes\">When a plugin changes</h2>\n<ol>\n<li>update the plugin implementation and schema</li>\n<li>update the GUI forms if needed</li>\n<li>update user-facing guidance only when behavior or expected usage changes materially</li>\n</ol>",
+  "asset_path": null,
+  "source_path": "06-reference/transform-plugins.md"
+}

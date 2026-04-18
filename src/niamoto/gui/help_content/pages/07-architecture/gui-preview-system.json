@@ -1,0 +1,44 @@
+{
+  "slug": "07-architecture/gui-preview-system",
+  "path": "/help/07-architecture/gui-preview-system",
+  "title": "Preview System",
+  "description": "The preview system renders widgets in the GUI before publication.",
+  "page_type": "markdown",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "High level model",
+      "level": 2,
+      "id": "high-level-model"
+    },
+    {
+      "title": "Backend pieces",
+      "level": 2,
+      "id": "backend-pieces"
+    },
+    {
+      "title": "Frontend pieces",
+      "level": 2,
+      "id": "frontend-pieces"
+    },
+    {
+      "title": "Plotly bundles",
+      "level": 2,
+      "id": "plotly-bundles"
+    },
+    {
+      "title": "Security model",
+      "level": 2,
+      "id": "security-model"
+    },
+    {
+      "title": "Related docs",
+      "level": 2,
+      "id": "related-docs"
+    }
+  ],
+  "html": "<h1 id=\"preview-system\">Preview System</h1>\n<p>The preview system renders widgets in the GUI before publication.</p>\n<p>It is used for:</p>\n<ul>\n<li>lightweight preview tiles in lists and grids</li>\n<li>full preview panes in detailed editors</li>\n<li>inline validation of widget and transform combinations</li>\n</ul>\n<h2 id=\"high-level-model\">High-level model</h2>\n<p>The preview flow is:</p>\n<pre><code class=\"language-text\">resolve -&gt; load -&gt; transform -&gt; render -&gt; wrap\n</code></pre>\n<p>The backend has specialized branches depending on widget type, but the same\nflow still applies:</p>\n<ol>\n<li>resolve the requested widget/template</li>\n<li>load the relevant source data</li>\n<li>run the transformer if needed</li>\n<li>render the widget output</li>\n<li>wrap it into safe HTML for iframe display</li>\n</ol>\n<h2 id=\"backend-pieces\">Backend pieces</h2>\n<p>Main backend files:</p>\n<ul>\n<li><code>src/niamoto/gui/api/services/preview_engine/engine.py</code></li>\n<li><code>src/niamoto/gui/api/services/preview_engine/models.py</code></li>\n<li><code>src/niamoto/gui/api/services/preview_engine/plotly_bundle_resolver.py</code></li>\n<li><code>src/niamoto/gui/api/routers/preview.py</code></li>\n</ul>\n<p>The engine returns:</p>\n<ul>\n<li>a complete HTML document for <code>iframe srcDoc</code></li>\n<li>an <code>etag</code> for conditional cache handling</li>\n<li>a preview key and optional warnings</li>\n</ul>\n<h2 id=\"frontend-pieces\">Frontend pieces</h2>\n<p>Main frontend files:</p>\n<ul>\n<li><code>src/niamoto/gui/ui/src/lib/preview/types.ts</code></li>\n<li><code>src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts</code></li>\n<li><code>src/niamoto/gui/ui/src/components/preview</code></li>\n</ul>\n<p>The frontend layer handles:</p>\n<ul>\n<li>query caching and deduplication</li>\n<li>thumbnail vs full preview modes</li>\n<li>visibility-aware loading</li>\n<li>iframe lifecycle and error display</li>\n</ul>\n<h2 id=\"plotly-bundles\">Plotly bundles</h2>\n<p>The preview system uses custom Plotly bundles instead of the full Plotly distribution.</p>\n<p>That split keeps preview payloads smaller:</p>\n<ul>\n<li>chart previews and map previews do not need the same payload</li>\n<li>the GUI can choose a smaller bundle for non-map widgets</li>\n<li>bundle selection is resolved automatically by the backend</li>\n</ul>\n<h2 id=\"security-model\">Security model</h2>\n<p>Preview HTML is rendered in sandboxed iframes.</p>\n<p>The backend and frontend keep three rules in place:</p>\n<ul>\n<li>isolate preview content from the parent UI</li>\n<li>avoid direct DOM access from preview code</li>\n<li>escape dynamic content before interpolation</li>\n</ul>\n<h2 id=\"related-docs\">Related docs</h2>\n<ul>\n<li><a href=\"/help/06-reference/gui-preview-api\">GUI preview API reference</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "07-architecture/gui-preview-system.md"
+}

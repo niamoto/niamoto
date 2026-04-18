@@ -1,17 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Copy,
-  Check,
-  Download,
-  Info,
-  Languages,
-  Loader2,
-  RefreshCw,
-  Settings2,
-} from 'lucide-react'
+import { Copy, Languages, Loader2, Settings2 } from 'lucide-react'
 import { useAppUpdater } from '@/shared/desktop/updater/useAppUpdater'
-import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   DEFAULT_APP_SETTINGS,
   applyUiLanguagePreference,
@@ -23,6 +13,7 @@ import {
 import type { UiLanguage, UiLanguagePreference } from '@/i18n'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { usePlatform } from '@/shared/hooks/usePlatform'
+import { AboutPanel } from '@/features/tools/components/AboutPanel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -242,8 +233,8 @@ export function Settings() {
                       })}
                 </p>
               </div>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -431,109 +422,15 @@ export function Settings() {
         </div>
 
         {isDesktop && (
-          <Card className="h-fit">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Info className="h-5 w-5" />
-                {t('settings.about', 'About')}
-              </CardTitle>
-              <CardDescription>
-                {t('settings.aboutDesc', 'Application version and updates')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label>{t('settings.currentVersion', 'Current version')}</Label>
-                  <p className="font-mono text-sm text-muted-foreground">v{appVersion}</p>
-                </div>
-                {(status === 'available' || status === 'restart_required') && updateVersion && (
-                  <div className="text-right">
-                    {status === 'available' ? (
-                      <p className="text-sm font-medium text-green-600">
-                        {t('settings.updateAvailable', 'Version {{version}} available', {
-                          version: updateVersion,
-                        })}
-                      </p>
-                    ) : (
-                      <p className="text-sm font-medium text-amber-600">
-                        {t('settings.restartRequired', 'Restart required to use v{{version}}', {
-                          version: updateVersion,
-                        })}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {status === 'available' ? (
-                  manualUpdateUrl ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void openExternalUrl(manualUpdateUrl)}
-                      size="sm"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      {t('settings.downloadUpdate', 'Télécharger v{{version}}', {
-                        version: updateVersion,
-                      })}
-                    </Button>
-                  ) : (
-                    <Button onClick={installUpdate} size="sm">
-                      <Download className="mr-2 h-4 w-4" />
-                      {t('settings.installUpdate', 'Install v{{version}}', {
-                        version: updateVersion,
-                      })}
-                    </Button>
-                  )
-                ) : status === 'restart_required' ? (
-                  <Button onClick={restartApp} size="sm">
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {t('settings.restartNow', 'Restart now')}
-                  </Button>
-                ) : status === 'downloading' || status === 'installing' ? (
-                  <Button disabled size="sm">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {status === 'installing'
-                      ? t('settings.installingUpdate', 'Installing update...')
-                      : t('settings.downloadingUpdate', 'Downloading update...')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={checkForUpdate}
-                    disabled={status === 'checking'}
-                    size="sm"
-                  >
-                    {status === 'checking' ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                    )}
-                    {t('settings.checkUpdates', 'Check for updates')}
-                  </Button>
-                )}
-
-                {status === 'idle' && (
-                  <p className="flex items-center text-sm text-muted-foreground">
-                    <Check className="mr-1 h-4 w-4 text-green-500" />
-                    {t('settings.upToDate', 'Up to date')}
-                  </p>
-                )}
-              </div>
-
-              {manualUpdateUrl && (
-                <p className="text-sm text-amber-700">
-                  {t(
-                    'settings.windowsManualUpdateNotice',
-                    'Les mises à jour automatiques sont désactivées sur Windows pour éviter les redémarrages système déclenchés par l’installateur MSI. Téléchargez la nouvelle version manuellement.'
-                  )}
-                </p>
-              )}
-
-            </CardContent>
-          </Card>
+          <AboutPanel
+            appVersion={appVersion}
+            status={status}
+            updateVersion={updateVersion}
+            manualUpdateUrl={manualUpdateUrl}
+            onCheckForUpdate={checkForUpdate}
+            onInstallUpdate={installUpdate}
+            onRestartApp={restartApp}
+          />
         )}
       </div>
     </div>

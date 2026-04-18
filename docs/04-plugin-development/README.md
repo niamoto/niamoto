@@ -1,56 +1,89 @@
 # Plugin Development
 
-Create custom plugins to extend Niamoto's functionality.
+Build custom plugins for Niamoto without patching the core runtime.
 
-## 📚 Documents in this Section
+## Plugin Types
 
-- **[Architecture](architecture.md)** - Plugin system architecture
-- **[Creating Transformers](creating-transformers.md)** - Build data transformers
-- **[Building Widgets](building-widgets.md)** - Create visualization widgets
-- **[Custom Exporters](custom-exporters.md)** - Develop export plugins
-- **[Database Aggregator](database-aggregator.md)** - Database plugin example
+| Type | Register with | Where Niamoto uses it | What it does |
+| --- | --- | --- | --- |
+| Loader | `PluginType.LOADER` | `transform.yml` source relations and some enrichment flows | Fetch rows before a transform runs |
+| Transformer | `PluginType.TRANSFORMER` | `transform.yml` | Compute derived data |
+| Widget | `PluginType.WIDGET` | `export.yml` widget lists | Render HTML for exported pages |
+| Exporter | `PluginType.EXPORTER` | `export.yml` targets | Generate files or sites |
+| Deployer | `PluginType.DEPLOYER` | `deploy.yml` and `niamoto deploy` | Publish generated exports |
 
-## 🔌 Plugin Types
+## Start Here
 
-Niamoto supports four types of plugins:
+- [architecture.md](architecture.md) explains registry, loading, and config surfaces.
+- [creating-transformers.md](creating-transformers.md) shows how to write a transformer and validate its config.
+- [building-widgets.md](building-widgets.md) covers widget params, rendering, and `export.yml`.
+- [custom-exporters.md](custom-exporters.md) covers exporter params, target configs, and output generation.
+- [database-aggregator-guide.md](database-aggregator-guide.md) documents the SQL-based transformer that ships with Niamoto.
 
-1. **Loaders**: Import data from various sources
-2. **Transformers**: Process and transform data
-3. **Exporters**: Generate outputs
-4. **Widgets**: Create interactive visualizations
-
-## 🎯 Getting Started
+## Minimal Transformer
 
 ```python
-from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from typing import Any, Dict, Literal
 
-@register("my_plugin", PluginType.TRANSFORMER)
-class MyPlugin(TransformerPlugin):
-    def transform(self, data, config):
-        # Your transformation logic
-        return processed_data
+import pandas as pd
+from pydantic import Field
+
+from niamoto.core.plugins.base import PluginType, TransformerPlugin, register
+from niamoto.core.plugins.models import BasePluginParams, PluginConfig
+
+
+class MeanDbhParams(BasePluginParams):
+    field: str = Field(default="dbh")
+
+
+class MeanDbhConfig(PluginConfig):
+    plugin: Literal["mean_dbh"] = "mean_dbh"
+    params: MeanDbhParams
+
+
+@register("mean_dbh", PluginType.TRANSFORMER)
+class MeanDbhTransformer(TransformerPlugin):
+    config_model = MeanDbhConfig
+    param_schema = MeanDbhParams
+
+    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, float]:
+        validated = self.config_model(**config)
+        params = validated.params
+        return {"mean_dbh": float(data[params.field].dropna().mean())}
 ```
 
-## 🛠️ Development Workflow
+## Workflow
 
-1. Choose plugin type: [Architecture](architecture.md)
-2. Implement plugin class: See type-specific guides
-3. Register with decorator: `@register()`
-4. Configure in YAML: Add to pipeline config
-5. Test thoroughly: Unit and integration tests
+1. Pick the plugin type.
+2. Define a params model with `BasePluginParams`.
+3. Define a config model that wraps `plugin` and `params`.
+4. Register the class with `@register("name", PluginType.X)`.
+5. Wire it into `transform.yml`, `export.yml`, or `deploy.yml`.
+6. Add tests under the matching tree in `tests/core/plugins/`.
 
-## 📖 Examples
+## Test Locations
 
-- Simple transformer: [Creating Transformers](creating-transformers.md)
-- Chart widget: [Building Widgets](building-widgets.md)
-- CSV exporter: [Custom Exporters](custom-exporters.md)
-- Complex example: [Database Aggregator](database-aggregator.md)
+- Transformers: `tests/core/plugins/transformers/`
+- Widgets: `tests/core/plugins/widgets/`
+- Exporters: `tests/core/plugins/exporters/`
+- Loaders: `tests/core/plugins/loaders/`
+- Deployers: `tests/core/plugins/deployers/`
 
-## 🔗 Related Documentation
+## Related
 
-- [Data Pipeline](../02-data-pipeline/README.md) - Using plugins in pipelines
-- [API Reference](../05-api-reference/plugin-api.md) - Plugin API documentation
-- [Configuration](../08-configuration/README.md) - Plugin configuration
+- [../06-reference/README.md](../06-reference/README.md)
+- [../05-ml-detection/README.md](../05-ml-detection/README.md)
+- [../07-architecture/README.md](../07-architecture/README.md)
 
----
-*For real examples, see [Tutorials](../07-tutorials/README.md)*
+```{toctree}
+:hidden:
+
+architecture
+creating-transformers
+building-widgets
+custom-exporters
+database-aggregator
+database-aggregator-guide
+examples/darwin-core-export
+examples/taxonomy-enricher
+```

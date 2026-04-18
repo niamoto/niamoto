@@ -1,0 +1,239 @@
+{
+  "slug": "05-ml-detection/research/ai-possibilities-cartography",
+  "path": "/help/05-ml-detection/research/ai-possibilities-cartography",
+  "title": "AI Possibilities Cartography for Niamoto",
+  "description": "March 2026 — exploratory note",
+  "page_type": "markdown",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "English summary",
+      "level": 2,
+      "id": "english-summary"
+    },
+    {
+      "title": "Contexte",
+      "level": 2,
+      "id": "contexte"
+    },
+    {
+      "title": "Vue d'ensemble",
+      "level": 2,
+      "id": "vue-densemble"
+    },
+    {
+      "title": "1. Comprendre les colonnes (ce qu'on fait déjà)",
+      "level": 2,
+      "id": "1-comprendre-les-colonnes-ce-quon-fait-deja"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a"
+    },
+    {
+      "title": "Ce qui existe de mieux",
+      "level": 3,
+      "id": "ce-qui-existe-de-mieux"
+    },
+    {
+      "title": "Embeddings multilingues (sentence transformers)",
+      "level": 4,
+      "id": "embeddings-multilingues-sentence-transformers"
+    },
+    {
+      "title": "Small Language Models (SLM) en zero shot",
+      "level": 4,
+      "id": "small-language-models-slm-en-zero-shot"
+    },
+    {
+      "title": "Modèles tabulaires spécialisés (Sherlock, Sato, DoDuo)",
+      "level": 4,
+      "id": "modeles-tabulaires-specialises-sherlock-sato-doduo"
+    },
+    {
+      "title": "ColBERT / ModernColBERT / Reason ModernColBERT",
+      "level": 4,
+      "id": "colbert-moderncolbert-reason-moderncolbert"
+    },
+    {
+      "title": "2. Comprendre le dataset (relations inter colonnes)",
+      "level": 2,
+      "id": "2-comprendre-le-dataset-relations-inter-colonnes"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_1"
+    },
+    {
+      "title": "Ce qui pourrait exister",
+      "level": 3,
+      "id": "ce-qui-pourrait-exister"
+    },
+    {
+      "title": "Suggestions cross colonnes par SLM",
+      "level": 4,
+      "id": "suggestions-cross-colonnes-par-slm"
+    },
+    {
+      "title": "3. Vérifier la qualité",
+      "level": 2,
+      "id": "3-verifier-la-qualite"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_2"
+    },
+    {
+      "title": "Ce qui existe",
+      "level": 3,
+      "id": "ce-qui-existe"
+    },
+    {
+      "title": "Profilage automatique",
+      "level": 4,
+      "id": "profilage-automatique"
+    },
+    {
+      "title": "Détection d'anomalies par ML",
+      "level": 4,
+      "id": "detection-danomalies-par-ml"
+    },
+    {
+      "title": "4. Transformer et agréger (suggestions intelligentes)",
+      "level": 2,
+      "id": "4-transformer-et-agreger-suggestions-intelligentes"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_3"
+    },
+    {
+      "title": "Ce qui pourrait exister",
+      "level": 3,
+      "id": "ce-qui-pourrait-exister_1"
+    },
+    {
+      "title": "Templates de transformations paramétrés",
+      "level": 4,
+      "id": "templates-de-transformations-parametres"
+    },
+    {
+      "title": "5. Visualiser (suggestion et génération de charts)",
+      "level": 2,
+      "id": "5-visualiser-suggestion-et-generation-de-charts"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_4"
+    },
+    {
+      "title": "Ce qui existe",
+      "level": 3,
+      "id": "ce-qui-existe_1"
+    },
+    {
+      "title": "LIDA (Microsoft Research, 2023)",
+      "level": 4,
+      "id": "lida-microsoft-research-2023"
+    },
+    {
+      "title": "Data Formulator (Microsoft Research, 2024)",
+      "level": 4,
+      "id": "data-formulator-microsoft-research-2024"
+    },
+    {
+      "title": "Approche pragmatique : templates de widgets",
+      "level": 4,
+      "id": "approche-pragmatique-templates-de-widgets"
+    },
+    {
+      "title": "Génération de specs Plotly par SLM",
+      "level": 4,
+      "id": "generation-de-specs-plotly-par-slm"
+    },
+    {
+      "title": "6. Raconter (résumés narratifs)",
+      "level": 2,
+      "id": "6-raconter-resumes-narratifs"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_5"
+    },
+    {
+      "title": "Ce qui pourrait exister",
+      "level": 3,
+      "id": "ce-qui-pourrait-exister_2"
+    },
+    {
+      "title": "Descriptions auto générées de widgets",
+      "level": 4,
+      "id": "descriptions-auto-generees-de-widgets"
+    },
+    {
+      "title": "7. Interroger (langage naturel → SQL)",
+      "level": 2,
+      "id": "7-interroger-langage-naturel-sql"
+    },
+    {
+      "title": "Ce qu'on a",
+      "level": 3,
+      "id": "ce-quon-a_6"
+    },
+    {
+      "title": "Ce qui existe",
+      "level": 3,
+      "id": "ce-qui-existe_2"
+    },
+    {
+      "title": "Text to SQL",
+      "level": 4,
+      "id": "text-to-sql"
+    },
+    {
+      "title": "Matrice de décision",
+      "level": 2,
+      "id": "matrice-de-decision"
+    },
+    {
+      "title": "Ce qui ne vaut PAS le coup (et pourquoi)",
+      "level": 2,
+      "id": "ce-qui-ne-vaut-pas-le-coup-et-pourquoi"
+    },
+    {
+      "title": "La vraie priorité",
+      "level": 2,
+      "id": "la-vraie-priorite"
+    },
+    {
+      "title": "Vision cible",
+      "level": 2,
+      "id": "vision-cible"
+    },
+    {
+      "title": "Références",
+      "level": 2,
+      "id": "references"
+    },
+    {
+      "title": "Modèles mentionnés",
+      "level": 3,
+      "id": "modeles-mentionnes"
+    },
+    {
+      "title": "Outils",
+      "level": 3,
+      "id": "outils"
+    }
+  ],
+  "html": "<h1 id=\"ai-possibilities-cartography-for-niamoto\">AI Possibilities Cartography for Niamoto</h1>\n<blockquote>\n<p>Status: Research\nAudience: Team, AI agents\nPurpose: Exploratory map of AI-enabled extensions beyond the current ML\nimplementation</p>\n</blockquote>\n<p><em>March 2026 — exploratory note</em></p>\n<h2 id=\"english-summary\">English summary</h2>\n<p>This note explores AI-enabled capabilities beyond the current column detection\nstack, from import-time understanding to chart generation and natural-language\nquerying.</p>\n<p>Its role is exploratory:</p>\n<ul>\n<li>it is <strong>not</strong> the source of truth for the current implementation</li>\n<li>it intentionally relaxes current constraints to map future options</li>\n<li>it mixes immediately feasible engineering ideas with longer-term LLM-enabled directions</li>\n</ul>\n<p>The detailed catalog below is preserved from the original exploratory note and\nstill contains French wording in several sections.</p>\n<h2 id=\"contexte\">Contexte</h2>\n<p>Niamoto est une plateforme de données écologiques qui ingère des CSV\n(inventaires forestiers, données GBIF, relevés de terrain), détecte les types\nde colonnes, transforme les données, et génère des pages de visualisation.</p>\n<p>Le pipeline ML actuel (TF-IDF + HistGBT + Fusion, NiamotoOfflineScore 78.84)\nfonctionne. Ce document explore ce que les développements récents en IA\npourraient apporter <strong>au-delà de la simple détection de colonnes</strong> — de\nl'import à la génération de pages.</p>\n<p><strong>Principe conservé</strong> : automatiser l'analyse de données écologiques et leur\nmise en valeur à travers des pages, en agrégeant les données par groupes.</p>\n<p><strong>Contrainte relâchée</strong> : on explore librement, sans se limiter aux\ncontraintes actuelles (offline strict, scikit-learn only, &lt; 100 MB).</p>\n<hr />\n<h2 id=\"vue-densemble\">Vue d'ensemble</h2>\n<pre><code>CSV brut\n  │\n  ▼\n┌─────────────────────────────────────────────────────┐\n│  1. COMPRENDRE LES COLONNES                         │\n│     Que contient ce fichier ?                        │\n│     → Détection de types, rôles, concepts            │\n├─────────────────────────────────────────────────────┤\n│  2. COMPRENDRE LE DATASET                            │\n│     De quel type d'étude s'agit-il ?                 │\n│     → Pattern detection, relations inter-colonnes    │\n├─────────────────────────────────────────────────────┤\n│  3. VÉRIFIER LA QUALITÉ                              │\n│     Les données sont-elles fiables ?                 │\n│     → Anomalies, outliers, cohérence                 │\n├─────────────────────────────────────────────────────┤\n│  4. TRANSFORMER ET AGRÉGER                           │\n│     Quelles statistiques calculer ?                  │\n│     → Agrégations par groupe, métriques écologiques  │\n├─────────────────────────────────────────────────────┤\n│  5. VISUALISER                                       │\n│     Quel graphique pour ces données ?                │\n│     → Suggestion de charts, mise en page             │\n├─────────────────────────────────────────────────────┤\n│  6. RACONTER                                         │\n│     Que disent ces données ?                         │\n│     → Résumés narratifs, descriptions auto-générées  │\n├─────────────────────────────────────────────────────┤\n│  7. INTERROGER                                       │\n│     &quot;Montre-moi le DBH moyen par famille&quot;            │\n│     → Langage naturel → SQL/DuckDB                   │\n└─────────────────────────────────────────────────────┘\n</code></pre>\n<hr />\n<h2 id=\"1-comprendre-les-colonnes-ce-quon-fait-deja\">1. Comprendre les colonnes (ce qu'on fait déjà)</h2>\n<h3 id=\"ce-quon-a\">Ce qu'on a</h3>\n<p>Pipeline 5 couches : alias → header (TF-IDF) → values (HistGBT) → fusion →\nprojection sémantique. NiamotoOfflineScore 78.84. Fonctionne offline, ~3 MB,\n&lt; 500ms par colonne.</p>\n<h3 id=\"ce-qui-existe-de-mieux\">Ce qui existe de mieux</h3>\n<h4 id=\"embeddings-multilingues-sentence-transformers\">Embeddings multilingues (sentence-transformers)</h4>\n<p><strong>Quoi</strong> : au lieu de découper les noms de colonnes en morceaux de lettres\n(n-grammes), on les transforme en vecteurs denses dans un espace où les mots\nsimilaires sont proches. <code>\"hauteur\"</code> et <code>\"height\"</code> seraient proches même sans\npartager de lettres.</p>\n<p><strong>Modèles</strong> :\n- <code>paraphrase-multilingual-MiniLM-L12-v2</code> — 118 MB, 50+ langues\n- <code>gte-multilingual-base</code> (Alibaba) — 305 MB, 70+ langues\n- <code>EmbeddingGemma-300M</code> (Google, via FastEmbed/ONNX) — 200 MB, 100+ langues,\n  pas besoin de PyTorch</p>\n<p><strong>Pour Niamoto</strong> : comblerait le trou principal — le matching multilingue\nau-delà des racines latines. <code>\"hauteur\"</code> (FR) et <code>\"height\"</code> (EN) ne\npartagent aucun n-gramme mais seraient proches en espace vectoriel.</p>\n<p><strong>Verdict</strong> : candidat Phase 4. Utilisable en complément du TF-IDF, pas en\nremplacement. ~200 MB, ONNX Runtime (léger), inference &lt; 15ms.</p>\n<h4 id=\"small-language-models-slm-en-zero-shot\">Small Language Models (SLM) en zero-shot</h4>\n<p><strong>Quoi</strong> : des petits modèles de langage capables de classifier sans\nentraînement spécifique. On leur dit \"cette colonne s'appelle dbh et contient\n[10, 15, 23, 45], qu'est-ce que c'est ?\" et ils répondent.</p>\n<p><strong>Modèles</strong> :\n- <code>Qwen3-0.6B</code> — 1.2 GB, tourne sur CPU via Ollama\n- <code>Phi-3-mini</code> (Microsoft) — 2.3 GB, bon en raisonnement\n- <code>Gemma-2-2B</code> (Google) — 2 GB, bien pour les tâches structurées\n- <code>SmolLM-1.7B</code> (HuggingFace) — 1.7 GB, ultra-compact</p>\n<p><strong>Pour Niamoto</strong> : détection zero-shot des cas difficiles (colonnes anonymes,\ncodes métier). Pas pour toutes les colonnes (trop lent), mais comme \"second\navis\" quand le classifieur est incertain.</p>\n<p><strong>Verdict</strong> : candidat Phase 4. Optionnel (dégradation gracieuse si Ollama\nn'est pas installé). Qwen3-0.6B est le meilleur rapport taille/qualité.</p>\n<h4 id=\"modeles-tabulaires-specialises-sherlock-sato-doduo\">Modèles tabulaires spécialisés (Sherlock, Sato, DoDuo)</h4>\n<p><strong>Quoi</strong> : des réseaux neuronaux profonds entraînés spécifiquement sur la\ndétection de types de colonnes, avec 100k-700k colonnes labélisées.</p>\n<p><strong>Pourquoi pas pour nous</strong> : ils nécessitent 10-100× plus de données que\nnotre gold set (2 231 colonnes). Avec plus de données, notre pipeline\nprogresserait aussi — <strong>plus de données bat un meilleur algorithme</strong> à notre\néchelle.</p>\n<h4 id=\"colbert-moderncolbert-reason-moderncolbert\">ColBERT / ModernColBERT / Reason-ModernColBERT</h4>\n<p><strong>Quoi</strong> : des modèles de <strong>recherche documentaire</strong> (trouver des passages\npertinents dans un corpus). ColBERT utilise une \"interaction tardive\" —\nchaque token du query interagit avec chaque token du document pour un matching\nfin.</p>\n<p><strong>Pourquoi pas pour nous</strong> :\n- C'est un <strong>retrieval model</strong>, pas un classifieur\n- Reason-ModernColBERT est <strong>anglais uniquement</strong> (entraîné sur 2T tokens EN)\n- 149M paramètres pour matcher des noms de colonnes de 1-3 mots = canon pour\n  tuer une mouche\n- Licence <strong>non commerciale</strong> (cc-by-nc-4.0)</p>\n<p><strong>En résumé</strong> : impressionnant techniquement, mais conçu pour un problème\ndifférent du nôtre.</p>\n<hr />\n<h2 id=\"2-comprendre-le-dataset-relations-inter-colonnes\">2. Comprendre le dataset (relations inter-colonnes)</h2>\n<h3 id=\"ce-quon-a_1\">Ce qu'on a</h3>\n<p><code>DatasetPatternDetector</code> : 6 patterns (occurrence, forest, spatial, checklist,\ntrait, temporal). Règles manuelles.</p>\n<h3 id=\"ce-qui-pourrait-exister\">Ce qui pourrait exister</h3>\n<h4 id=\"suggestions-cross-colonnes-par-slm\">Suggestions cross-colonnes par SLM</h4>\n<p><strong>Quoi</strong> : un petit modèle de langage qui, voyant l'ensemble des colonnes\ndétectées, fait des inférences de haut niveau :\n- \"Les colonnes <code>flower_month</code> et <code>fruit_month</code> forment un calendrier\n  phénologique\"\n- \"Les colonnes <code>lat</code> + <code>lon</code> + <code>date</code> + <code>species</code> = données d'occurrences\n  type GBIF\"\n- \"Ce dataset ressemble à un inventaire forestier tropical (diamètre, hauteur,\n  espèce, parcelle)\"</p>\n<p><strong>Pour Niamoto</strong> : enrichirait le <code>DatasetPatternDetector</code> actuel avec des\ninférences que les règles manuelles ne capturent pas.</p>\n<p><strong>Comment</strong> : Qwen3-0.6B via Ollama. On lui passe un résumé structuré du\ndataset (liste des colonnes détectées + stats) et on lui demande un JSON de\nsuggestions.</p>\n<p><strong>Verdict</strong> : intéressant mais pas critique. Les 6 patterns actuels couvrent\n80% des cas.</p>\n<hr />\n<h2 id=\"3-verifier-la-qualite\">3. Vérifier la qualité</h2>\n<h3 id=\"ce-quon-a_2\">Ce qu'on a</h3>\n<p>12 règles d'anomalie (domain-specific validators). Manuelles mais\nexplicables.</p>\n<h3 id=\"ce-qui-existe\">Ce qui existe</h3>\n<h4 id=\"profilage-automatique\">Profilage automatique</h4>\n<ul>\n<li><strong>ydata-profiling</strong> (ex-pandas-profiling) : génère des rapports HTML\n  complets (distributions, corrélations, valeurs manquantes, alertes). Open\n  source, mature.</li>\n<li><strong>Great Expectations</strong> : validation de données par assertions déclaratives.\n  \"La colonne dbh doit être entre 1 et 500 cm.\"</li>\n<li><strong>Deepchecks</strong> : détection de drift, intégrité des données, validation\n  train/test.</li>\n</ul>\n<p><strong>Pour Niamoto</strong> : ydata-profiling pourrait générer un rapport de qualité\nà l'import, avant même la transformation. Mais c'est du profilage descriptif,\npas de l'IA.</p>\n<h4 id=\"detection-danomalies-par-ml\">Détection d'anomalies par ML</h4>\n<p><strong>Quoi</strong> : au lieu de règles fixes (\"dbh &lt; 500 cm\"), un modèle apprend les\ndistributions attendues et signale les valeurs aberrantes.</p>\n<p><strong>Modèles</strong> :\n- Isolation Forest (scikit-learn, déjà disponible)\n- Autoencoders (PyTorch, plus lourd)\n- Modèles conditionnels : \"pour un Araucaria, un dbh de 150 cm est normal ;\n  pour un Metrosideros, c'est suspect\"</p>\n<p><strong>Pour Niamoto</strong> : utile si on a assez de données par espèce/site. Les règles\nmanuelles actuelles sont plus explicables et suffisantes pour la v1.</p>\n<p><strong>Verdict</strong> : post-v1. Les 12 règles actuelles sont le bon choix maintenant.\nIsolation Forest pourrait être ajouté comme option sans nouvelle dépendance.</p>\n<hr />\n<h2 id=\"4-transformer-et-agreger-suggestions-intelligentes\">4. Transformer et agréger (suggestions intelligentes)</h2>\n<h3 id=\"ce-quon-a_3\">Ce qu'on a</h3>\n<p>Affordance matching : <code>ColumnSemanticProfile</code> → suggestions de\ntransformers/widgets. Règles manuelles dans <code>affordance_matcher.py</code>.</p>\n<h3 id=\"ce-qui-pourrait-exister_1\">Ce qui pourrait exister</h3>\n<h4 id=\"templates-de-transformations-parametres\">Templates de transformations paramétrés</h4>\n<p><strong>Quoi</strong> : au lieu de hardcoder les affordances, un catalogue de\n\"recettes de transformation\" associées à des combinaisons de rôles/concepts :</p>\n<pre><code class=\"language-yaml\">- pattern: [measurement.diameter, taxonomy.species, identifier.plot]\n  transforms:\n    - name: dbh_by_species\n      type: group_stats\n      group_by: taxonomy.species\n      measure: measurement.diameter\n      stats: [mean, std, n, median]\n    - name: dbh_distribution\n      type: histogram\n      column: measurement.diameter\n      bins: 20\n</code></pre>\n<p><strong>Pour Niamoto</strong> : rendrait les transformations configurables via YAML au lieu\nde code Python. Extensible par la communauté.</p>\n<p><strong>Verdict</strong> : faisable immédiatement, sans IA. C'est de l'ingénierie, pas du\nML.</p>\n<hr />\n<h2 id=\"5-visualiser-suggestion-et-generation-de-charts\">5. Visualiser (suggestion et génération de charts)</h2>\n<h3 id=\"ce-quon-a_4\">Ce qu'on a</h3>\n<p>Widgets manuellement configurés dans <code>export.yml</code>. Le système propose des\naffordances (scatter, bar, etc.) mais ne génère pas de code.</p>\n<h3 id=\"ce-qui-existe_1\">Ce qui existe</h3>\n<h4 id=\"lida-microsoft-research-2023\">LIDA (Microsoft Research, 2023)</h4>\n<p><strong>Quoi</strong> : prend un dataset + un objectif en langage naturel, et génère du\ncode de visualisation (matplotlib/seaborn). Utilise un LLM pour chaque\ngénération.</p>\n<p><strong>Limites</strong> : nécessite un LLM à chaque appel (pas offline), génère\nmatplotlib (pas Plotly/notre stack), qualité variable.</p>\n<p><strong>URL</strong> : https://github.com/microsoft/lida</p>\n<h4 id=\"data-formulator-microsoft-research-2024\">Data Formulator (Microsoft Research, 2024)</h4>\n<p><strong>Quoi</strong> : successeur spirituel de LIDA. Interface conversationnelle pour\ncréer des visualisations. L'utilisateur décrit ce qu'il veut, le système\ngénère le code.</p>\n<p><strong>Limites</strong> : application standalone, pas une bibliothèque. Difficile à\nintégrer.</p>\n<p><strong>URL</strong> : https://github.com/microsoft/data-formulator</p>\n<h4 id=\"approche-pragmatique-templates-de-widgets\">Approche pragmatique : templates de widgets</h4>\n<p><strong>Quoi</strong> : au lieu de générer du code à la volée, un catalogue de templates\nde visualisation associés à des types de données :</p>\n<table>\n<thead>\n<tr>\n<th>Combinaison détectée</th>\n<th>Widget suggéré</th>\n<th>Pourquoi</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1 mesure continue</td>\n<td>Histogramme</td>\n<td>Distribution</td>\n</tr>\n<tr>\n<td>1 mesure + 1 catégorie</td>\n<td>Boxplot par groupe</td>\n<td>Comparaison</td>\n</tr>\n<tr>\n<td>2 mesures continues</td>\n<td>Scatter plot</td>\n<td>Corrélation</td>\n</tr>\n<tr>\n<td>1 mesure + coordonnées</td>\n<td>Carte choroplèthe</td>\n<td>Spatial</td>\n</tr>\n<tr>\n<td>1 catégorie</td>\n<td>Barplot / treemap</td>\n<td>Fréquences</td>\n</tr>\n<tr>\n<td>1 mesure + temps</td>\n<td>Line chart</td>\n<td>Tendance</td>\n</tr>\n<tr>\n<td>1 taxon hiérarchique</td>\n<td>Sunburst</td>\n<td>Taxonomie</td>\n</tr>\n</tbody>\n</table>\n<p><strong>Pour Niamoto</strong> : c'est déjà partiellement ce que fait l'affordance matcher.\nLe rendre plus explicite et configurable serait un gain immédiat.</p>\n<h4 id=\"generation-de-specs-plotly-par-slm\">Génération de specs Plotly par SLM</h4>\n<p><strong>Quoi</strong> : un petit modèle génère directement une spec Plotly JSON à partir\nd'une description du widget et des données.</p>\n<p><strong>Comment</strong> : Qwen3-4B via Ollama. On lui passe le schema (colonnes, types,\nstats) + le template choisi, et il génère la configuration Plotly complète.</p>\n<p><strong>Pour Niamoto</strong> : remplacerait le code Python qui construit les widgets.\nL'utilisateur pourrait dire \"fais-moi un scatter de dbh vs height coloré par\nfamille\" et obtenir le widget.</p>\n<p><strong>Verdict</strong> : ambitieux mais faisable post-v1. Nécessite Qwen3-4B (~8 GB\nRAM) ou un appel API (Claude/GPT).</p>\n<hr />\n<h2 id=\"6-raconter-resumes-narratifs\">6. Raconter (résumés narratifs)</h2>\n<h3 id=\"ce-quon-a_5\">Ce qu'on a</h3>\n<p>Rien. Les pages générées montrent des graphiques sans texte explicatif.</p>\n<h3 id=\"ce-qui-pourrait-exister_2\">Ce qui pourrait exister</h3>\n<h4 id=\"descriptions-auto-generees-de-widgets\">Descriptions auto-générées de widgets</h4>\n<p><strong>Quoi</strong> : chaque widget est accompagné d'un paragraphe descriptif :</p>\n<blockquote>\n<p>\"La distribution des diamètres à hauteur de poitrine (DBH) montre une courbe\nen J inversé typique des forêts tropicales matures, avec 65% des individus\nsous 20 cm et quelques émergents atteignant 120 cm. La famille des\nSapotaceae domine les grandes classes de diamètre.\"</p>\n</blockquote>\n<p><strong>Comment</strong> :\n- <strong>Option locale</strong> : Qwen3-4B via Ollama (~8 GB). On passe les stats\n  agrégées + le contexte écologique, il génère un paragraphe.\n- <strong>Option API</strong> : Claude Haiku. Plus cher mais meilleure qualité. ~$0.001\n  par widget.\n- <strong>Option template</strong> : des phrases à trous remplies par les statistiques.\n  \"La distribution de {mesure} montre une médiane de {median} avec un\n  coefficient de variation de {cv}%.\" Zero IA, 100% fiable.</p>\n<p><strong>Pour Niamoto</strong> : transformerait les pages de \"tableaux de bord silencieux\"\nen \"rapports narratifs\". Gros gain de valeur pour les botanistes.</p>\n<p><strong>Verdict</strong> : l'option template est implémentable immédiatement. L'option\nSLM/API serait un upgrade post-v1 spectaculaire.</p>\n<hr />\n<h2 id=\"7-interroger-langage-naturel-sql\">7. Interroger (langage naturel → SQL)</h2>\n<h3 id=\"ce-quon-a_6\">Ce qu'on a</h3>\n<p>Rien. L'utilisateur doit écrire des configurations YAML ou modifier du code\nPython.</p>\n<h3 id=\"ce-qui-existe_2\">Ce qui existe</h3>\n<h4 id=\"text-to-sql\">Text-to-SQL</h4>\n<p><strong>Quoi</strong> : l'utilisateur écrit une question en français, le système la\ntraduit en requête SQL exécutée sur DuckDB.</p>\n<blockquote>\n<p>\"Quel est le diamètre moyen par famille pour les arbres de plus de 10 cm ?\"\n→ <code>SELECT family, AVG(dbh) FROM occurrences WHERE dbh &gt; 10 GROUP BY family</code></p>\n</blockquote>\n<p><strong>Modèles</strong> :\n- <strong>SQLCoder-7B</strong> (Defog) — 7 GB, spécialisé SQL, bon sur CPU mais lent\n- <strong>DuckDB-NSQL-7B</strong> (MotherDuck/NumbersStation) — 4 GB, fine-tuné pour\n  DuckDB spécifiquement\n- <strong>Qwen3-4B</strong> — 4 GB, généraliste mais correct en SQL\n- <strong>Claude/GPT via API</strong> — meilleure qualité, ~$0.01/requête</p>\n<p><strong>Approche pragmatique</strong> : avant le text-to-SQL par LLM, <strong>10 templates SQL\nparamétrés</strong> couvrent 90% des questions qu'un botaniste poserait :</p>\n<pre><code class=\"language-python\">TEMPLATES = {\n    &quot;distribution&quot;: &quot;SELECT {col}, COUNT(*) FROM {table} GROUP BY {col}&quot;,\n    &quot;stats_by_group&quot;: &quot;SELECT {group}, AVG({measure}), STDDEV({measure}) FROM {table} GROUP BY {group}&quot;,\n    &quot;top_n&quot;: &quot;SELECT {group}, COUNT(*) as n FROM {table} GROUP BY {group} ORDER BY n DESC LIMIT {n}&quot;,\n    # ...\n}\n</code></pre>\n<p>L'utilisateur choisit un template + les colonnes détectées → requête\ninstantanée, zéro dépendance.</p>\n<p><strong>Verdict</strong> :\n- <strong>Court terme</strong> : templates SQL paramétrés (0 dépendance)\n- <strong>Moyen terme</strong> : Qwen3-4B via Ollama si l'utilisateur a 8 GB RAM\n- <strong>Long terme</strong> : interface conversationnelle avec un LLM</p>\n<hr />\n<h2 id=\"matrice-de-decision\">Matrice de décision</h2>\n<table>\n<thead>\n<tr>\n<th>Possibilité</th>\n<th>Impact</th>\n<th>Effort</th>\n<th>Dépendances</th>\n<th>Offline</th>\n<th>Phase</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Templates SQL paramétrés</strong></td>\n<td>Moyen</td>\n<td>2j</td>\n<td>Aucune</td>\n<td>Oui</td>\n<td>v1</td>\n</tr>\n<tr>\n<td><strong>Templates de widgets YAML</strong></td>\n<td>Moyen</td>\n<td>2j</td>\n<td>Aucune</td>\n<td>Oui</td>\n<td>v1</td>\n</tr>\n<tr>\n<td><strong>Descriptions templates (phrases à trous)</strong></td>\n<td>Moyen</td>\n<td>1j</td>\n<td>Aucune</td>\n<td>Oui</td>\n<td>v1</td>\n</tr>\n<tr>\n<td><strong>Embeddings multilingues (ONNX)</strong></td>\n<td>Moyen</td>\n<td>3j</td>\n<td>onnxruntime (~20 MB)</td>\n<td>Oui</td>\n<td>v1.1</td>\n</tr>\n<tr>\n<td><strong>Qwen3-0.6B cross-colonnes</strong></td>\n<td>Moyen</td>\n<td>3j</td>\n<td>Ollama (optionnel)</td>\n<td>Oui*</td>\n<td>v1.1</td>\n</tr>\n<tr>\n<td><strong>ydata-profiling à l'import</strong></td>\n<td>Faible</td>\n<td>1j</td>\n<td>ydata-profiling</td>\n<td>Oui</td>\n<td>v1.1</td>\n</tr>\n<tr>\n<td><strong>Qwen3-4B text-to-SQL</strong></td>\n<td>Élevé</td>\n<td>5j</td>\n<td>Ollama (8 GB RAM)</td>\n<td>Oui*</td>\n<td>v2</td>\n</tr>\n<tr>\n<td><strong>Descriptions par SLM</strong></td>\n<td>Élevé</td>\n<td>5j</td>\n<td>Ollama (8 GB RAM)</td>\n<td>Oui*</td>\n<td>v2</td>\n</tr>\n<tr>\n<td><strong>Génération Plotly par SLM</strong></td>\n<td>Élevé</td>\n<td>7j</td>\n<td>Ollama (8 GB RAM)</td>\n<td>Oui*</td>\n<td>v2+</td>\n</tr>\n<tr>\n<td><strong>Claude API pour narration</strong></td>\n<td>Élevé</td>\n<td>2j</td>\n<td>API key + réseau</td>\n<td>Non</td>\n<td>v2</td>\n</tr>\n<tr>\n<td><strong>Interface conversationnelle</strong></td>\n<td>Très élevé</td>\n<td>10j+</td>\n<td>LLM (local ou API)</td>\n<td>Partiel</td>\n<td>v3</td>\n</tr>\n</tbody>\n</table>\n<p><em>* Offline si Ollama installé localement. Dégradation gracieuse sinon.</em></p>\n<hr />\n<h2 id=\"ce-qui-ne-vaut-pas-le-coup-et-pourquoi\">Ce qui ne vaut PAS le coup (et pourquoi)</h2>\n<table>\n<thead>\n<tr>\n<th>Technologie</th>\n<th>Pourquoi non</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>ColBERT / Reason-ModernColBERT</strong></td>\n<td>Modèle de retrieval, pas de classification. Anglais uniquement. 149M params pour 25 concepts.</td>\n</tr>\n<tr>\n<td><strong>TAPAS / TaPEx / TableFormer</strong></td>\n<td>440-890 MB + GPU. Entraînés sur Wikipedia, pas l'écologie.</td>\n</tr>\n<tr>\n<td><strong>Sherlock / Sato / DoDuo complets</strong></td>\n<td>Nécessitent 100k+ colonnes. On en a 2 231.</td>\n</tr>\n<tr>\n<td><strong>LIDA intégration directe</strong></td>\n<td>LLM obligatoire à chaque génération. Matplotlib, pas Plotly.</td>\n</tr>\n<tr>\n<td><strong>RACOON</strong></td>\n<td>Knowledge Graph externe + LLM en ligne. Trop de dépendances.</td>\n</tr>\n<tr>\n<td><strong>BioCLIP</strong></td>\n<td>Modèle vision (images de plantes), pas tabular (CSV).</td>\n</tr>\n<tr>\n<td><strong>spaCy / NER</strong></td>\n<td>Overkill pour des noms de colonnes de 1-3 mots. Les n-grammes suffisent.</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"la-vraie-priorite\">La vraie priorité</h2>\n<p><strong>Plus de données bat un meilleur algorithme.</strong></p>\n<p>Avec 5 000+ colonnes gold, le pipeline actuel (TF-IDF + HistGBT + Fusion)\nprogresserait mécaniquement. Avec les mêmes 2 231 colonnes et un modèle plus\nsophistiqué, le gain serait marginal.</p>\n<p>L'enrichissement du gold set reste la stratégie la plus rentable pour\naméliorer la détection. Les technologies explorées ici apportent de la valeur\n<strong>au-delà</strong> de la détection — narration, visualisation, interrogation — pas\nen remplacement.</p>\n<hr />\n<h2 id=\"vision-cible\">Vision cible</h2>\n<pre><code>                    Botaniste\n                       │\n                 &quot;Importe ce CSV&quot;\n                       │\n                       ▼\n              ┌─────────────────┐\n              │  COMPRENDRE     │  ML actuel (amélioré)\n              │  colonnes +     │  + embeddings multilingues\n              │  dataset        │  + SLM cross-colonnes (optionnel)\n              └────────┬────────┘\n                       │\n                       ▼\n              ┌─────────────────┐\n              │  VÉRIFIER       │  Règles + Isolation Forest\n              │  qualité        │  + profiling auto\n              └────────┬────────┘\n                       │\n                       ▼\n              ┌─────────────────┐\n              │  TRANSFORMER    │  Templates YAML\n              │  agréger        │  + SQL paramétrés\n              └────────┬────────┘\n                       │\n                       ▼\n              ┌─────────────────┐\n              │  VISUALISER     │  Templates widgets\n              │  + RACONTER     │  + descriptions templates\n              │                 │  + SLM narration (optionnel)\n              └────────┬────────┘\n                       │\n                       ▼\n              ┌─────────────────┐\n              │  INTERROGER     │  Templates SQL → SLM text-to-SQL\n              │  (futur)        │  → interface conversationnelle\n              └─────────────────┘\n</code></pre>\n<p>Le fil conducteur : <strong>chaque étape a une version sans IA (templates, règles)\net une version enrichie par IA (SLM, embeddings, API)</strong>. L'utilisateur\nobtient toujours un résultat, même sans GPU ni connexion internet. L'IA\naméliore la qualité quand elle est disponible.</p>\n<hr />\n<h2 id=\"references\">Références</h2>\n<h3 id=\"modeles-mentionnes\">Modèles mentionnés</h3>\n<ul>\n<li>ModernBERT : https://huggingface.co/answerdotai/ModernBERT-base</li>\n<li>Reason-ModernColBERT : https://huggingface.co/lightonai/Reason-ModernColBERT</li>\n<li>paraphrase-multilingual-MiniLM : https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2</li>\n<li>EmbeddingGemma : via FastEmbed (ONNX)</li>\n<li>Qwen3 : https://huggingface.co/Qwen</li>\n<li>Phi-3-mini : https://huggingface.co/microsoft/Phi-3-mini-4k-instruct</li>\n<li>SQLCoder : https://huggingface.co/defog/sqlcoder-7b-2</li>\n<li>DuckDB-NSQL : https://huggingface.co/motherduck/DuckDB-NSQL-7B-v0.1</li>\n</ul>\n<h3 id=\"outils\">Outils</h3>\n<ul>\n<li>LIDA : https://github.com/microsoft/lida</li>\n<li>Data Formulator : https://github.com/microsoft/data-formulator</li>\n<li>ydata-profiling : https://github.com/ydataai/ydata-profiling</li>\n<li>Ollama : https://ollama.com</li>\n<li>FastEmbed : https://github.com/qdrant/fastembed</li>\n</ul>",
+  "asset_path": null,
+  "source_path": "05-ml-detection/research/ai-possibilities-cartography.md"
+}

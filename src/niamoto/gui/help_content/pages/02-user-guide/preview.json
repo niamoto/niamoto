@@ -1,0 +1,39 @@
+{
+  "slug": "02-user-guide/preview",
+  "path": "/help/02-user-guide/preview",
+  "title": "Preview Surfaces",
+  "description": "Preview is not one separate stage of the product. It appears inside three different parts of the desktop workflow.",
+  "page_type": "markdown",
+  "section_slug": "02-user-guide",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "1. Widget preview in Collections",
+      "level": 2,
+      "id": "1-widget-preview-in-collections"
+    },
+    {
+      "title": "2. Site preview in the Site Builder",
+      "level": 2,
+      "id": "2-site-preview-in-the-site-builder"
+    },
+    {
+      "title": "3. Generated site preview in Publish",
+      "level": 2,
+      "id": "3-generated-site-preview-in-publish"
+    },
+    {
+      "title": "One concept, three questions",
+      "level": 2,
+      "id": "one-concept-three-questions"
+    },
+    {
+      "title": "Related",
+      "level": 2,
+      "id": "related"
+    }
+  ],
+  "html": "<h1 id=\"preview-surfaces\">Preview Surfaces</h1>\n<p>Preview is not one separate stage of the product. It appears inside three\ndifferent parts of the desktop workflow.</p>\n<p>Use this page as a support reference when you want to understand what each\npreview is checking.</p>\n<h2 id=\"1-widget-preview-in-collections\">1. Widget preview in Collections</h2>\n<p>Collections can render a widget before you recompute the whole collection.</p>\n<p>Use that preview to answer:</p>\n<ul>\n<li>does this block show the right data?</li>\n<li>are the selected parameters sensible?</li>\n<li>should the widget stay in the collection before I save and recompute?</li>\n</ul>\n<p>This preview supports <a href=\"/help/02-user-guide/collections\">collections.md</a> and\n<a href=\"/help/02-user-guide/widget-catalogue\">widget-catalogue.md</a>.</p>\n<h2 id=\"2-site-preview-in-the-site-builder\">2. Site preview in the Site Builder</h2>\n<p>The Site area previews page composition while you edit navigation, content, and\npage structure.</p>\n<p>Use that preview to answer:</p>\n<ul>\n<li>does the page layout still make sense?</li>\n<li>do the navigation choices feel right?</li>\n<li>are collection pages and shared pages fitting together?</li>\n</ul>\n<p>This preview supports <a href=\"/help/02-user-guide/site\">site.md</a>.</p>\n<h2 id=\"3-generated-site-preview-in-publish\">3. Generated-site preview in Publish</h2>\n<p>Publish can display the built site in a device frame once Niamoto has generated\nthe output.</p>\n<p>Use that preview to answer:</p>\n<ul>\n<li>does the generated site still look correct after the build step?</li>\n<li>is this the version I want to deploy?</li>\n<li>do I need to go back to Site or Collections before publishing?</li>\n</ul>\n<p>This preview supports <a href=\"/help/02-user-guide/publish\">publish.md</a>.</p>\n<h2 id=\"one-concept-three-questions\">One concept, three questions</h2>\n<p>The three preview surfaces exist for different decisions:</p>\n<ul>\n<li>Collections preview checks a block</li>\n<li>Site preview checks a page</li>\n<li>Publish preview checks the generated portal</li>\n</ul>\n<h2 id=\"related\">Related</h2>\n<ul>\n<li><a href=\"/help/02-user-guide/collections\">collections.md</a></li>\n<li><a href=\"/help/02-user-guide/site\">site.md</a></li>\n<li><a href=\"/help/02-user-guide/publish\">publish.md</a></li>\n<li><a href=\"/help/06-reference/gui-preview-api\">../06-reference/gui-preview-api.md</a></li>\n</ul>",
+  "asset_path": null,
+  "source_path": "02-user-guide/preview.md"
+}
