@@ -33,12 +33,12 @@
 <table>
   <tr>
     <td width="68%" valign="top">
-      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/19.collection-computation.png" alt="Niamoto Collections view computing statistics and widgets in the desktop app" />
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/en/19.collection-computation.png" alt="Niamoto Collections view computing statistics and widgets in the desktop app" />
     </td>
     <td width="32%" valign="top">
-      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/11.import-config-detected.png" alt="Niamoto import screen with auto-detected sources and columns" />
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/en/11.import-config-detected.png" alt="Niamoto import screen with auto-detected sources and columns" />
       <br /><br />
-      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/25.publish-generation-preview.png" alt="Niamoto publish screen previewing generated site output" />
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/en/25.publish-generation-preview.png" alt="Niamoto publish screen previewing generated site output" />
     </td>
   </tr>
 </table>
