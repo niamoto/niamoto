@@ -166,7 +166,11 @@
     "error": {
       "name_required": "Le nom du projet est requis",
       "location_required": "L’emplacement est requis",
-      "invalid_name": "Le nom du projet ne peut contenir que des lettres, chiffres, tirets et underscores"
+      "invalid_name": "Le nom du projet est invalide",
+      "whitespace_edge": "Le nom du projet ne peut pas commencer ou finir par un espace",
+      "trailing_dot_or_space": "Le nom du projet ne peut pas finir par un point ou un espace",
+      "unsupported_characters": "Le nom du projet contient des caractères non pris en charge (< > : \" / \\ | ? *)",
+      "reserved_name": "Le nom du projet est réservé sous Windows et ne peut pas être utilisé"
     }
   },
   "actions": {

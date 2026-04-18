@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesktopTitlebar } from '@/components/layout/DesktopTitlebar';
+import { getProjectNameValidationError } from '@/features/welcome/lib/projectNameValidation';
 
 interface ProjectCreationWizardProps {
   onComplete: (name: string, location: string) => Promise<string>;
@@ -59,14 +60,10 @@ export default function ProjectCreationWizard({
       updateState({ error: t('wizard.error.location_required', 'Location is required') });
       return false;
     }
-    // Validate project name (no special characters except - and _)
-    const nameRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!nameRegex.test(state.projectName.trim())) {
+    const nameError = getProjectNameValidationError(state.projectName);
+    if (nameError) {
       updateState({
-        error: t(
-          'wizard.error.invalid_name',
-          'Project name can only contain letters, numbers, dashes and underscores'
-        ),
+        error: t(`wizard.error.${nameError}`, 'Project name contains unsupported characters'),
       });
       return false;
     }
@@ -136,6 +133,9 @@ export default function ProjectCreationWizard({
                   onChange={(e) =>
                     updateState({ projectName: e.target.value })
                   }
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   autoFocus
                   className="font-mono"
                 />
@@ -160,6 +160,9 @@ export default function ProjectCreationWizard({
                     onChange={(e) =>
                       updateState({ projectLocation: e.target.value })
                     }
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="flex-1 font-mono"
                   />
                   <Button
@@ -194,7 +197,10 @@ export default function ProjectCreationWizard({
 
             {/* Error Message */}
             {state.error && (
-              <div className="mt-4 rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+              <div
+                role="alert"
+                className="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+              >
                 {state.error}
               </div>
             )}

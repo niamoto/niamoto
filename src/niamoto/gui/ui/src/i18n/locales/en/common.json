@@ -166,7 +166,11 @@
     "error": {
       "name_required": "Project name is required",
       "location_required": "Location is required",
-      "invalid_name": "Project name can only contain letters, numbers, dashes and underscores"
+      "invalid_name": "Project name is invalid",
+      "whitespace_edge": "Project name cannot start or end with whitespace",
+      "trailing_dot_or_space": "Project name cannot end with a dot or space",
+      "unsupported_characters": "Project name contains unsupported characters (< > : \" / \\ | ? *)",
+      "reserved_name": "Project name is reserved on Windows and cannot be used"
     }
   },
   "actions": {
