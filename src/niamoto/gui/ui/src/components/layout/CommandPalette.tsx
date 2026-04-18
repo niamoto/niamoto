@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -33,6 +33,8 @@ import {
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
+import { useHelpSearchIndex } from '@/features/help/hooks/useDocumentationContent'
+import { rankHelpSearchEntries } from '@/features/help/routing'
 import {
   applyUiLanguagePreference,
   getAppSettings,
@@ -55,7 +57,17 @@ export function CommandPalette() {
   const feedback = useFeedback()
   const browserOnline = useBrowserOnline()
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
   const currentLanguage = i18n.resolvedLanguage?.startsWith('fr') ? 'fr' : 'en'
+  const helpSearchIndexQuery = useHelpSearchIndex(commandPaletteOpen)
+
+  const documentationResults = useMemo(() => {
+    if (!deferredSearch.trim() || !helpSearchIndexQuery.data) {
+      return []
+    }
+
+    return rankHelpSearchEntries(helpSearchIndexQuery.data.entries, deferredSearch, 8)
+  }, [deferredSearch, helpSearchIndexQuery.data])
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -190,12 +202,12 @@ export function CommandPalette() {
           </CommandItem>
           <CommandItem
             value="navigate:/tools/docs"
-            keywords={['docs', 'documentation', 'api', 'reference', 'endpoints']}
+            keywords={['api', 'reference', 'endpoints', 'swagger', 'openapi']}
             onSelect={handleSelect}
           >
             <BookOpen className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">
-              <span className="font-medium">Documentation API</span>
+              <span className="font-medium">{t('command.apiDocs', 'API Documentation')}</span>
               <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Endpoints reference')}</span>
             </div>
           </CommandItem>
@@ -211,6 +223,42 @@ export function CommandPalette() {
               <span className="text-xs text-muted-foreground">{t('feedback:type_bug', 'Bug')}, {t('feedback:type_suggestion', 'Suggestion')}, {t('feedback:type_question', 'Question')}</span>
             </div>
           </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading={t('command.documentation', 'Documentation')}>
+          <CommandItem
+            value="navigate:/help"
+            keywords={['documentation', 'guide', 'docs', 'manual', 'help']}
+            onSelect={handleSelect}
+          >
+            <BookOpen className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.documentationHome', 'Documentation')}</span>
+              <span className="text-xs text-muted-foreground">
+                {t('command.documentationDesc', 'Guides, workflows, reference, troubleshooting')}
+              </span>
+            </div>
+          </CommandItem>
+
+          {documentationResults.map((entry) => (
+            <CommandItem
+              key={entry.slug}
+              value={`navigate:${entry.path}`}
+              keywords={entry.keywords}
+              onSelect={handleSelect}
+            >
+              <BookOpen className="!size-[18px] text-foreground/70" />
+              <div className="flex flex-1 flex-col">
+                <span className="font-medium">{entry.title}</span>
+                <span className="text-xs text-muted-foreground">
+                  {entry.section_title}
+                  {entry.headings[0] ? ` · ${entry.headings[0]}` : ''}
+                </span>
+              </div>
+            </CommandItem>
+          ))}
         </CommandGroup>
 
         <CommandSeparator />

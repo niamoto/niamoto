@@ -1,0 +1,47 @@
+{
+  "slug": "07-architecture/adr/0002-retire-legacy-importers",
+  "path": "/help/07-architecture/adr/0002-retire-legacy-importers",
+  "title": "ADR 0002 — Retirement of Specialized Importers in Favor of Generic Import Registry",
+  "description": "Status: Adopted (2025 10 08)",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Context",
+      "level": 2,
+      "id": "context"
+    },
+    {
+      "title": "Decision",
+      "level": 2,
+      "id": "decision"
+    },
+    {
+      "title": "Consequences",
+      "level": 2,
+      "id": "consequences"
+    },
+    {
+      "title": "Positive",
+      "level": 3,
+      "id": "positive"
+    },
+    {
+      "title": "Negative / Points of Attention",
+      "level": 3,
+      "id": "negative-points-of-attention"
+    },
+    {
+      "title": "Actions",
+      "level": 3,
+      "id": "actions"
+    },
+    {
+      "title": "Follow up 2025 10 08",
+      "level": 2,
+      "id": "follow-up-2025-10-08"
+    }
+  ],
+  "html": "<h1 id=\"adr-0002-retirement-of-specialized-importers-in-favor-of-generic-import-registry\">ADR 0002 — Retirement of Specialized Importers in Favor of Generic Import Registry</h1>\n<p><em>Status: Adopted (2025-10-08)</em></p>\n<h2 id=\"context\">Context</h2>\n<ul>\n<li>Current importers (<code>TaxonomyImporter</code>, <code>PlotImporter</code>, <code>ShapeImporter</code>, <code>OccurrenceImporter</code>) directly manipulate SQLite, recalculate nested sets, and enforce three tables (<code>taxon_ref</code>, <code>plot_ref</code>, <code>shape_ref</code>).</li>\n<li>Transform/Export have been generalized (plugins + config) but remain coupled to these tables.</li>\n<li>The \"Generic Import System\" roadmap defines a declarative configuration (<code>entities.references/datasets</code>) and an Entity Registry to centralize schemas and metadata.</li>\n<li>We are still in alpha ⇒ no backward compatibility requirement.</li>\n</ul>\n<h2 id=\"decision\">Decision</h2>\n<p>We are progressively retiring specialized importers in favor of a generic engine driven by the new configuration:</p>\n<ul>\n<li>Creation of a persistent <strong>Entity Registry</strong> describing each entity (type, physical table, links, aliases).</li>\n<li>A new import engine will orchestrate connectors, validations, hierarchies, and enrichments relying on DuckDB.</li>\n<li>Transform/Export/GUI will consume the Registry instead of querying fixed tables.</li>\n<li>The <code>core/components/imports/*</code> modules will be removed once functional equivalence is achieved.</li>\n</ul>\n<h2 id=\"consequences\">Consequences</h2>\n<h3 id=\"positive\">Positive</h3>\n<ul>\n<li>Ability to describe/import any entity (third-party taxonomy, sites, habitats, etc.).</li>\n<li>Reduction of duplicated code (CSV/Geo validation, table creation, nested sets).</li>\n<li>Complete pipeline alignment (import → transform → export) on declarative configuration.</li>\n<li>Cleanup of plugin dependencies: they will no longer need to load <code>Config</code> or <code>Database</code> directly.</li>\n</ul>\n<h3 id=\"negative-points-of-attention\">Negative / Points of Attention</h3>\n<ul>\n<li>Migration of existing plugins (<code>hierarchical_nav_widget</code>, <code>geospatial_extractor</code>, <code>top_ranking</code>, HTML exporters) to handle adjacency list or compatibility views.</li>\n<li>Update tests (unit, integration, CLI) that assume <code>taxon_ref</code> existence.</li>\n<li>Significant documentation work (new <code>import.yml</code>, examples, GUI guides).</li>\n<li>Risk of regression during switchover; plan fixtures and end-to-end tests.</li>\n</ul>\n<h3 id=\"actions\">Actions</h3>\n<ol>\n<li>Finalize Pydantic models (<code>config_models</code>) ✅ (first draft in place).</li>\n<li>Design Entity Registry + metadata storage (<code>niamoto_metadata.*</code> tables).</li>\n<li>Implement generic import engine (DuckDB connectors, validations, execution plan).</li>\n<li>Adapt Transform/Export to use Registry (remove <code>Config()</code> coupling in plugins).</li>\n<li>Retire legacy importers and remove rigid SQLAlchemy models.</li>\n<li>Update documentation (<code>docs/08-roadmaps/generic-import-ultrathink.md</code>, GUI README) and provide migration guide.</li>\n</ol>\n<h2 id=\"follow-up-2025-10-08\">Follow-up 2025-10-08</h2>\n<ul>\n<li>✅ Operational DuckDB registry: <code>registry.py</code>/<code>legacy_registry.py</code> expose entities to Transform/Export services and GUI.</li>\n<li>✅ <code>direct_reference</code> loader and geospatial extractor migrated to registry; associated tests updated.</li>\n<li>🔄 CLI <code>stats</code> command and loaders still depending on <code>sqlite_master</code> to be migrated before historical importer removal.</li>\n<li>📌 Next step: remove <code>core/components/imports/*</code> and SQLAlchemy models once CLI is migrated and CLI tests are reinforced.</li>\n</ul>",
+  "source_path": "07-architecture/adr/0002-retire-legacy-importers.md"
+}

@@ -19,7 +19,7 @@ source data -> transformer -> structured output -> widget renderer -> preview / 
 
 ## In the editor
 
-Inside the group configuration flow, the user typically:
+Inside the collection configuration flow, the user typically:
 
 1. chooses a group
 2. adds or edits a widget
@@ -39,5 +39,5 @@ Widgets may operate on:
 
 ## Related docs
 
-- [Transform workflow (user guide)](../02-user-guide/transform.md)
+- [Collections (user guide)](../02-user-guide/collections.md)
 - [GUI preview system (architecture)](../07-architecture/gui-preview-system.md)

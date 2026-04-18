@@ -82,6 +82,13 @@ echo ""
 # Step 2: Build React frontend
 echo -e "${BLUE}⚛️  Step 2: Building React frontend...${NC}"
 
+echo "Syncing in-app documentation..."
+if command -v uv &> /dev/null; then
+    uv run python scripts/build/sync_app_docs.py
+else
+    python3 scripts/build/sync_app_docs.py
+fi
+
 cd src/niamoto/gui/ui
 
 # Install dependencies from lockfile

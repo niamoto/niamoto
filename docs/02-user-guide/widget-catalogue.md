@@ -1,47 +1,41 @@
-# Collections and Widget Catalogue
+# Widget Catalogue and Collection Extras
 
-Collections is where you configure transform-backed outputs and browse
-available widgets. In the code this lives under `features/collections`; in the
-GUI the route still appears as `/groups`.
+This page is a supporting reference for the Collections area. Use it when the
+main [collections.md](collections.md) page is not enough and you need to focus
+on widget selection, list pages, or API-oriented outputs.
 
-## Entry points
+## Use this page for
 
-- `src/niamoto/gui/ui/src/features/collections/components/CollectionsModule.tsx`
-- `src/niamoto/gui/ui/src/features/collections/components/CollectionsOverview.tsx`
-- `src/niamoto/gui/ui/src/features/collections/components/CollectionPanel.tsx`
-- `src/niamoto/gui/ui/src/components/widgets/WidgetGallery.tsx`
-- `src/niamoto/gui/ui/src/components/widgets/AddWidgetModal.tsx`
+- browsing available widgets for a collection
+- comparing suggested widget types
+- managing list or index-style outputs
+- understanding where API or machine-readable outputs attach to a collection
 
-## Use this area to
+## Widget selection
 
-- browse the reference collections created by import
-- inspect freshness and computation state
-- configure widget-backed content blocks
-- manage index/list configuration
-- manage API export configuration for a collection
+The widget picker helps you choose the right block for the current collection.
 
-## Typical workflow
+![Widget catalogue](../assets/screenshots/desktop/17.collections-widget-catalog.png)
 
-1. Open the collections overview.
-2. Pick a collection.
-3. Use the collection tabs to edit sources, content blocks, list pages, or API exports.
-4. Add widgets through the gallery.
-5. Preview the result.
-6. Recompute the collection when needed.
+Expect the catalogue to group suggestions around the available data and to
+surface parameter forms when a widget needs more detail.
 
-## Widget gallery
+## Collection extras beyond a single widget
 
-The widget gallery groups suggestions by field. It also supports:
+Collections can also own outputs that are not just one visual block, for
+example:
 
-- field-grouped suggestions
-- semantic multi-field suggestions
-- inline preview
-- combined widget proposals
-- plugin-backed parameter forms
+- index or list pages
+- collection-specific API outputs
+- reusable content structures that the Site stage can later place into pages
 
-## Related documents
+These features still belong to the same Collections stage even when the route
+name in the app remains `/groups`.
 
-- [transform.md](transform.md)
+## Related
+
+- [collections.md](collections.md)
 - [preview.md](preview.md)
+- [site.md](site.md)
 - [../06-reference/transform-plugins.md](../06-reference/transform-plugins.md)
 - [../06-reference/widgets-and-transform-workflow.md](../06-reference/widgets-and-transform-workflow.md)

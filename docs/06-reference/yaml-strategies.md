@@ -15,4 +15,4 @@ Keep YAML explicit. Reuse only the parts that are genuinely stable.
 
 - [configuration-guide.md](configuration-guide.md)
 - [configuration-analysis.md](configuration-analysis.md)
-- [Transform workflow](../02-user-guide/transform.md)
+- [Collections](../02-user-guide/collections.md)

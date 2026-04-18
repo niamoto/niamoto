@@ -1,0 +1,62 @@
+{
+  "slug": "04-plugin-development/architecture",
+  "path": "/help/04-plugin-development/architecture",
+  "title": "Plugin System Architecture",
+  "description": "Niamoto discovers plugins, validates config with Pydantic, then calls the matching runtime hook.",
+  "section_slug": "04-plugin-development",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Discovery And Override Rules",
+      "level": 2,
+      "id": "discovery-and-override-rules"
+    },
+    {
+      "title": "Registry",
+      "level": 2,
+      "id": "registry"
+    },
+    {
+      "title": "Plugin Types",
+      "level": 2,
+      "id": "plugin-types"
+    },
+    {
+      "title": "Config Models",
+      "level": 2,
+      "id": "config-models"
+    },
+    {
+      "title": "Transform Config Shape",
+      "level": 2,
+      "id": "transform-config-shape"
+    },
+    {
+      "title": "Export Config Shape",
+      "level": 2,
+      "id": "export-config-shape"
+    },
+    {
+      "title": "Widget Runtime",
+      "level": 2,
+      "id": "widget-runtime"
+    },
+    {
+      "title": "Exporter Runtime",
+      "level": 2,
+      "id": "exporter-runtime"
+    },
+    {
+      "title": "Deployers",
+      "level": 2,
+      "id": "deployers"
+    },
+    {
+      "title": "Project Layout",
+      "level": 2,
+      "id": "project-layout"
+    }
+  ],
+  "html": "<h1 id=\"plugin-system-architecture\">Plugin System Architecture</h1>\n<p>Niamoto discovers plugins, validates config with Pydantic, then calls the matching runtime hook.</p>\n<h2 id=\"discovery-and-override-rules\">Discovery And Override Rules</h2>\n<p><code>PluginLoader.load_plugins_with_cascade(project_path)</code> scans three locations in this order:</p>\n<ol>\n<li><code>project/plugins</code></li>\n<li><code>~/.niamoto/plugins</code></li>\n<li>bundled plugins under <code>src/niamoto/core/plugins</code></li>\n</ol>\n<p>The first plugin name wins. A project plugin can override a user or bundled plugin with the same registered name.</p>\n<pre><code class=\"language-python\">from pathlib import Path\n\nfrom niamoto.core.plugins.plugin_loader import PluginLoader\n\nloader = PluginLoader()\nloader.load_plugins_with_cascade(Path(&quot;/path/to/project&quot;))\n</code></pre>\n<h2 id=\"registry\">Registry</h2>\n<p>Each plugin registers itself with <code>@register(\"name\", PluginType.X)</code>. Niamoto stores that class in <code>PluginRegistry</code> and looks it up by name and type.</p>\n<pre><code class=\"language-python\">from niamoto.core.plugins.base import PluginType\nfrom niamoto.core.plugins.registry import PluginRegistry\n\nwidget_class = PluginRegistry.get_plugin(&quot;bar_plot&quot;, PluginType.WIDGET)\n</code></pre>\n<h2 id=\"plugin-types\">Plugin Types</h2>\n<table>\n<thead>\n<tr>\n<th>Type</th>\n<th>Base class</th>\n<th>Typical config surface</th>\n<th>Runtime hook</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Loader</td>\n<td><code>LoaderPlugin</code></td>\n<td><code>transform.yml</code> source relations</td>\n<td><code>load_data(...)</code></td>\n</tr>\n<tr>\n<td>Transformer</td>\n<td><code>TransformerPlugin</code></td>\n<td><code>transform.yml</code> <code>widgets_data</code> entries</td>\n<td><code>transform(data, config)</code></td>\n</tr>\n<tr>\n<td>Widget</td>\n<td><code>WidgetPlugin</code></td>\n<td><code>export.yml</code> widget entries</td>\n<td><code>render(data, params)</code></td>\n</tr>\n<tr>\n<td>Exporter</td>\n<td><code>ExporterPlugin</code></td>\n<td><code>export.yml</code> targets</td>\n<td><code>export(target_config, repository, group_filter=None)</code></td>\n</tr>\n<tr>\n<td>Deployer</td>\n<td><code>DeployerPlugin</code></td>\n<td><code>deploy.yml</code> and deploy commands</td>\n<td>async deploy / unpublish methods</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"config-models\">Config Models</h2>\n<p>Most plugins expose two pieces of validation:</p>\n<ul>\n<li><code>config_model</code> validates the full config entry, usually <code>plugin + params</code></li>\n<li><code>param_schema</code> exposes typed params for GUI forms and runtime validation</li>\n</ul>\n<p>Niamoto uses <code>BasePluginParams</code>, <code>PluginConfig</code>, <code>WidgetConfig</code>, and <code>TargetConfig</code> as the shared building blocks.</p>\n<h2 id=\"transform-config-shape\">Transform Config Shape</h2>\n<p>Transform groups live in a top-level list. Each widget entry points at one transformer plugin.</p>\n<pre><code class=\"language-yaml\">- group_by: plots\n  sources:\n    - name: occurrences\n      data: occurrences\n      grouping: plots\n      relation:\n        plugin: direct_reference\n        key: plot_id\n  widgets_data:\n    dbh_distribution:\n      plugin: binned_distribution\n      source: occurrences\n      params:\n        field: dbh\n        bins: [10, 20, 30, 40, 50]\n</code></pre>\n<h2 id=\"export-config-shape\">Export Config Shape</h2>\n<p>Export targets live under <code>exports:</code>. Widgets belong inside <code>groups[*].widgets</code>.</p>\n<pre><code class=\"language-yaml\">exports:\n  - name: web_pages\n    exporter: html_page_exporter\n    params:\n      template_dir: templates\n      output_dir: exports/web\n    groups:\n      - group_by: plots\n        widgets:\n          - plugin: info_grid\n            title: Plot summary\n            data_source: general_info\n            params:\n              items:\n                - label: Elevation\n                  source: elevation\n</code></pre>\n<h2 id=\"widget-runtime\">Widget Runtime</h2>\n<p>Niamoto validates each widget entry as a <code>WidgetConfig</code>, instantiates the plugin, validates <code>params</code> with that widget's <code>param_schema</code>, then calls <code>render(data, params)</code>.</p>\n<p>The widget config stores:</p>\n<ul>\n<li><code>plugin</code></li>\n<li><code>data_source</code></li>\n<li><code>title</code></li>\n<li><code>description</code></li>\n<li><code>params</code></li>\n<li><code>layout</code></li>\n</ul>\n<p><code>title</code> and <code>description</code> live at the widget level, not inside <code>params</code>.</p>\n<h2 id=\"exporter-runtime\">Exporter Runtime</h2>\n<p><code>ExporterService</code> validates <code>export.yml</code> as an <code>ExportConfig</code>, loads the exporter plugin, and calls:</p>\n<pre><code class=\"language-python\">exporter.export(target_config=target, repository=self.db, group_filter=group_filter)\n</code></pre>\n<p>A custom exporter therefore needs to accept <code>target_config</code>, <code>repository</code>, and the optional <code>group_filter</code>.</p>\n<h2 id=\"deployers\">Deployers</h2>\n<p>Deployers sit after export generation. The CLI and GUI register deployer plugins such as <code>github</code>, <code>netlify</code>, <code>cloudflare</code>, <code>vercel</code>, <code>render</code>, and <code>ssh</code>. You configure them in <code>deploy.yml</code> or with <code>niamoto deploy</code>.</p>\n<h2 id=\"project-layout\">Project Layout</h2>\n<pre><code class=\"language-text\">project/\n  plugins/\n    loaders/\n    transformers/\n    widgets/\n    exporters/\n    deployers/\n  config/\n    import.yml\n    transform.yml\n    export.yml\n    deploy.yml\n</code></pre>",
+  "source_path": "04-plugin-development/architecture.md"
+}

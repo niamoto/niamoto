@@ -34,6 +34,7 @@
     "no_results": "No results found.",
     "navigation": "Navigation",
     "tools": "Tools",
+    "documentation": "Documentation",
     "preferences": "Preferences",
     "light_theme": "Light Theme",
     "dark_theme": "Dark Theme",
@@ -42,6 +43,9 @@
     "explorerDesc": "SQL queries on your data",
     "configDesc": "Edit YAML files",
     "pluginsDesc": "Manage plugins",
+    "documentationHome": "Documentation",
+    "documentationDesc": "Guides, workflows, reference, troubleshooting",
+    "apiDocs": "API Documentation",
     "docsDesc": "Endpoints reference",
     "select_hint": "Select",
     "close_hint": "Close",
@@ -361,6 +365,12 @@
     "enrichment_unavailable": "API enrichment: unavailable",
     "deploy_unavailable": "Deployment: unavailable",
     "tiles_unavailable": "Map tiles: unavailable"
+  },
+  "help": {
+    "title": "Help",
+    "documentation": "Documentation",
+    "shortcuts": "Keyboard shortcuts",
+    "about": "About Niamoto"
   },
   "dashboard": {
     "title": "Data Dashboard",

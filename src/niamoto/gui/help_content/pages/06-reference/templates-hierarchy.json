@@ -1,0 +1,27 @@
+{
+  "slug": "06-reference/templates-hierarchy",
+  "path": "/help/06-reference/templates-hierarchy",
+  "title": "Templates and Hierarchy Patterns",
+  "description": "Reusable templates help when a block stays stable across several entities or widgets. Hierarchies stay easier to debug when identifiers and parent child relationships remain visible in configuration.",
+  "section_slug": "06-reference",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Templates",
+      "level": 2,
+      "id": "templates"
+    },
+    {
+      "title": "Hierarchies",
+      "level": 2,
+      "id": "hierarchies"
+    },
+    {
+      "title": "Related docs",
+      "level": 2,
+      "id": "related-docs"
+    }
+  ],
+  "html": "<h1 id=\"templates-and-hierarchy-patterns\">Templates and Hierarchy Patterns</h1>\n<p>Reusable templates help when a block stays stable across several entities or\nwidgets. Hierarchies stay easier to debug when identifiers and parent-child\nrelationships remain visible in configuration.</p>\n<h2 id=\"templates\">Templates</h2>\n<p>Use shared templates or presets only when they remove stable duplication. If a\nblock still changes substantially from one entity or widget to another, keep it\nexplicit in the project config.</p>\n<h2 id=\"hierarchies\">Hierarchies</h2>\n<p>Hierarchy handling should remain visible in the configuration:</p>\n<ul>\n<li>reference imports define the identifiers and parent-child structure</li>\n<li>transforms describe how grouped outputs are computed on top of that structure</li>\n<li>widgets and exports consume the resulting grouped data</li>\n</ul>\n<h2 id=\"related-docs\">Related docs</h2>\n<ul>\n<li><a href=\"/help/06-reference/configuration-guide\">configuration-guide.md</a></li>\n<li><a href=\"/help/02-user-guide/import\">Import workflow</a></li>\n<li><a href=\"/help/02-user-guide/collections\">Collections</a></li>\n</ul>",
+  "source_path": "06-reference/templates-hierarchy.md"
+}

@@ -24,6 +24,6 @@ explicitly instead of hiding it in one large config block.
 ## Related docs
 
 - [Import workflow](../02-user-guide/import.md)
-- [Transform workflow](../02-user-guide/transform.md)
-- [Export workflow](../02-user-guide/export.md)
+- [Collections](../02-user-guide/collections.md)
+- [Publish](../02-user-guide/publish.md)
 - [plugin-api.md](plugin-api.md)

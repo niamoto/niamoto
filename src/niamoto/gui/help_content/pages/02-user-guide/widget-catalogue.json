@@ -1,0 +1,32 @@
+{
+  "slug": "02-user-guide/widget-catalogue",
+  "path": "/help/02-user-guide/widget-catalogue",
+  "title": "Widget Catalogue and Collection Extras",
+  "description": "This page is a supporting reference for the Collections area. Use it when the main collections.md page is not enough and you need to focus on widget selection, list pages, or API oriented outputs.",
+  "section_slug": "02-user-guide",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Use this page for",
+      "level": 2,
+      "id": "use-this-page-for"
+    },
+    {
+      "title": "Widget selection",
+      "level": 2,
+      "id": "widget-selection"
+    },
+    {
+      "title": "Collection extras beyond a single widget",
+      "level": 2,
+      "id": "collection-extras-beyond-a-single-widget"
+    },
+    {
+      "title": "Related",
+      "level": 2,
+      "id": "related"
+    }
+  ],
+  "html": "<h1 id=\"widget-catalogue-and-collection-extras\">Widget Catalogue and Collection Extras</h1>\n<p>This page is a supporting reference for the Collections area. Use it when the\nmain <a href=\"/help/02-user-guide/collections\">collections.md</a> page is not enough and you need to focus\non widget selection, list pages, or API-oriented outputs.</p>\n<h2 id=\"use-this-page-for\">Use this page for</h2>\n<ul>\n<li>browsing available widgets for a collection</li>\n<li>comparing suggested widget types</li>\n<li>managing list or index-style outputs</li>\n<li>understanding where API or machine-readable outputs attach to a collection</li>\n</ul>\n<h2 id=\"widget-selection\">Widget selection</h2>\n<p>The widget picker helps you choose the right block for the current collection.</p>\n<p><img alt=\"Widget catalogue\" src=\"/api/help/assets/screenshots/desktop/17.collections-widget-catalog.png\" /></p>\n<p>Expect the catalogue to group suggestions around the available data and to\nsurface parameter forms when a widget needs more detail.</p>\n<h2 id=\"collection-extras-beyond-a-single-widget\">Collection extras beyond a single widget</h2>\n<p>Collections can also own outputs that are not just one visual block, for\nexample:</p>\n<ul>\n<li>index or list pages</li>\n<li>collection-specific API outputs</li>\n<li>reusable content structures that the Site stage can later place into pages</li>\n</ul>\n<p>These features still belong to the same Collections stage even when the route\nname in the app remains <code>/groups</code>.</p>\n<h2 id=\"related\">Related</h2>\n<ul>\n<li><a href=\"/help/02-user-guide/collections\">collections.md</a></li>\n<li><a href=\"/help/02-user-guide/preview\">preview.md</a></li>\n<li><a href=\"/help/02-user-guide/site\">site.md</a></li>\n<li><a href=\"/help/06-reference/transform-plugins\">../06-reference/transform-plugins.md</a></li>\n<li><a href=\"/help/06-reference/widgets-and-transform-workflow\">../06-reference/widgets-and-transform-workflow.md</a></li>\n</ul>",
+  "source_path": "02-user-guide/widget-catalogue.md"
+}

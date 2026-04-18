@@ -1,0 +1,47 @@
+{
+  "slug": "07-architecture/system-overview",
+  "path": "/help/07-architecture/system-overview",
+  "title": "System Overview",
+  "description": "Niamoto moves data through three pipeline stages:",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Product surfaces",
+      "level": 2,
+      "id": "product-surfaces"
+    },
+    {
+      "title": "Core layers",
+      "level": 2,
+      "id": "core-layers"
+    },
+    {
+      "title": "Configuration",
+      "level": 3,
+      "id": "configuration"
+    },
+    {
+      "title": "Services and plugins",
+      "level": 3,
+      "id": "services-and-plugins"
+    },
+    {
+      "title": "Persistence",
+      "level": 3,
+      "id": "persistence"
+    },
+    {
+      "title": "Runtime flow",
+      "level": 2,
+      "id": "runtime-flow"
+    },
+    {
+      "title": "Where to go next",
+      "level": 2,
+      "id": "where-to-go-next"
+    }
+  ],
+  "html": "<h1 id=\"system-overview\">System Overview</h1>\n<p>Niamoto moves data through three pipeline stages:</p>\n<ol>\n<li>import raw sources into project tables</li>\n<li>transform those tables into grouped outputs</li>\n<li>export or publish the result</li>\n</ol>\n<p>The same core services power the CLI, the desktop app, and the GUI API.</p>\n<h2 id=\"product-surfaces\">Product surfaces</h2>\n<ul>\n<li>CLI commands in <code>src/niamoto/cli/commands/</code></li>\n<li>desktop and web backend in <code>src/niamoto/gui/api/</code></li>\n<li>React frontend in <code>src/niamoto/gui/ui/src/</code></li>\n</ul>\n<p>The CLI runs pipeline stages directly. The desktop app and the browser UI call\nthe same backend services through FastAPI routes.</p>\n<h2 id=\"core-layers\">Core layers</h2>\n<h3 id=\"configuration\">Configuration</h3>\n<p>Niamoto keeps each pipeline stage in its own file:</p>\n<ul>\n<li><code>config.yml</code>: runtime settings and shared paths</li>\n<li><code>import.yml</code>: sources, identifiers, and import rules</li>\n<li><code>transform.yml</code>: grouped statistics and derived outputs</li>\n<li><code>export.yml</code>: website, API, and file exports</li>\n<li><code>deploy.yml</code>: deployment targets and platform settings</li>\n</ul>\n<h3 id=\"services-and-plugins\">Services and plugins</h3>\n<p>The service layer coordinates the pipeline. Plugins supply the domain-specific\nwork:</p>\n<ul>\n<li>loaders read or enrich data</li>\n<li>transformers compute grouped outputs</li>\n<li>widgets render HTML fragments for exports and previews</li>\n<li>exporters write sites or machine-readable files</li>\n<li>deployers publish build artifacts to remote platforms</li>\n</ul>\n<p>The main code lives under <code>src/niamoto/core/services/</code> and\n<code>src/niamoto/core/plugins/</code>.</p>\n<h3 id=\"persistence\">Persistence</h3>\n<p>DuckDB is the default project database. Niamoto stores stable metadata in\nregistry tables and creates project-shaped tables from <code>import.yml</code> and\n<code>transform.yml</code>.</p>\n<p>See <a href=\"/help/06-reference/database-schema\">../06-reference/database-schema.md</a> for\nthe persisted structure.</p>\n<h2 id=\"runtime-flow\">Runtime flow</h2>\n<p>In the common case, the flow looks like this:</p>\n<pre><code class=\"language-text\">sources -&gt; import services -&gt; DuckDB tables -&gt; transform services -&gt; grouped outputs -&gt; export or deploy\n</code></pre>\n<p>The GUI adds API routes, preview rendering, and job orchestration on top of the\nsame pipeline.</p>\n<h2 id=\"where-to-go-next\">Where to go next</h2>\n<ul>\n<li><a href=\"/help/07-architecture/plugin-system\">plugin-system.md</a>: plugin registry, loading, and override rules</li>\n<li><a href=\"/help/07-architecture/gui-overview\">gui-overview.md</a>: frontend and backend split in the GUI</li>\n<li><a href=\"/help/07-architecture/gui-runtime\">gui-runtime.md</a>: development, packaged, and desktop runtime modes</li>\n<li><a href=\"/help/07-architecture/gui-preview-system\">gui-preview-system.md</a>: preview rendering path</li>\n<li><a href=\"/help/06-reference/configuration-guide\">../06-reference/configuration-guide.md</a>: YAML boundaries</li>\n<li><a href=\"/help/06-reference/core-api\">../06-reference/core-api.md</a>: source-level entry points</li>\n</ul>",
+  "source_path": "07-architecture/system-overview.md"
+}

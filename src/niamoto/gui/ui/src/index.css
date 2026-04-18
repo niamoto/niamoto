@@ -369,6 +369,132 @@ a,
   -webkit-app-region: no-drag;
 }
 
+.documentation-prose {
+  color: var(--foreground);
+  line-height: 1.7;
+}
+
+.documentation-prose > :first-child {
+  margin-top: 0;
+}
+
+.documentation-prose > :last-child {
+  margin-bottom: 0;
+}
+
+.documentation-prose h1,
+.documentation-prose h2,
+.documentation-prose h3,
+.documentation-prose h4 {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--foreground);
+  scroll-margin-top: 1.5rem;
+}
+
+.documentation-prose h1 {
+  margin: 0 0 1rem;
+  font-size: 2rem;
+}
+
+.documentation-prose h2 {
+  margin: 2rem 0 0.85rem;
+  font-size: 1.375rem;
+}
+
+.documentation-prose h3 {
+  margin: 1.5rem 0 0.65rem;
+  font-size: 1.1rem;
+}
+
+.documentation-prose p,
+.documentation-prose ul,
+.documentation-prose ol,
+.documentation-prose pre,
+.documentation-prose table,
+.documentation-prose blockquote,
+.documentation-prose hr {
+  margin: 0 0 1rem;
+}
+
+.documentation-prose ul,
+.documentation-prose ol {
+  padding-left: 1.25rem;
+}
+
+.documentation-prose li + li {
+  margin-top: 0.35rem;
+}
+
+.documentation-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.documentation-prose code {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--muted) 86%, transparent);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.documentation-prose pre {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--muted) 82%, transparent);
+  padding: 1rem;
+}
+
+.documentation-prose pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.documentation-prose img {
+  display: block;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.9rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.documentation-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.9rem;
+}
+
+.documentation-prose th,
+.documentation-prose td {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.documentation-prose th {
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-weight: 600;
+}
+
+.documentation-prose hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.documentation-prose blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+}
+
 /* Platform-specific titlebar heights */
 [data-platform="macos"] {
   --titlebar-height: 28px;

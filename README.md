@@ -4,13 +4,13 @@
   <h1>Niamoto</h1>
 
   <p>
-    <strong>Turn ecological data into a biodiversity portal — from a native desktop app, or a Python CLI.</strong>
+    <strong>Turn ecological data into a biodiversity portal from a native desktop app or a Python CLI.</strong>
   </p>
 
   <p>
     <a href="https://pypi.org/project/niamoto"><img src="https://img.shields.io/pypi/v/niamoto?color=2563eb&style=flat-square" alt="PyPI version"></a>
     <a href="https://pypi.org/project/niamoto"><img src="https://img.shields.io/pypi/pyversions/niamoto?style=flat-square" alt="Python versions"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/niamoto/niamoto?style=flat-square" alt="License"></a>
+    <a href="https://github.com/niamoto/niamoto/blob/main/LICENSE"><img src="https://img.shields.io/github/license/niamoto/niamoto?style=flat-square" alt="License"></a>
     <a href="https://codecov.io/gh/niamoto/niamoto"><img src="https://img.shields.io/codecov/c/github/niamoto/niamoto/main?style=flat-square" alt="Coverage"></a>
     <a href="https://niamoto.readthedocs.io"><img src="https://img.shields.io/readthedocs/niamoto/latest?style=flat-square" alt="Documentation"></a>
   </p>
@@ -30,24 +30,22 @@
 
 ## What Niamoto does
 
-- Imports ecological data — CSVs, shapefiles, rasters — into a project.
-- Detects column roles (taxonomy, occurrences, plots) with a built-in
-  ML classifier, so you do not start from a blank YAML.
-- Computes statistics and maps through a plugin-driven transform
-  pipeline.
-- Generates a static biodiversity portal, ready to publish on GitHub
-  Pages, Cloudflare, Netlify, Vercel, Render, or your own server via SSH.
+- Import ecological tables, layers, and rasters into one project.
+- Suggest file and column roles, so you can start from a working configuration.
+- Build collections, widgets, statistics, and maps from that data.
+- Publish a static biodiversity portal to GitHub Pages, Cloudflare Workers,
+  Netlify, Vercel, Render, or your own server over SSH.
 
-The desktop app is the primary interface. The Python CLI covers
-automation, CI, and advanced pipelines.
+The desktop app is the main interface. The Python CLI handles automation, CI,
+and repeatable runs.
 
 ## Pick your path
 
-| You are…                      | Start here                                                            |
-| ----------------------------- | --------------------------------------------------------------------- |
-| A researcher or botanist      | [Desktop onboarding](docs/01-getting-started/README.md)               |
-| An institution or evaluator   | [User guide](docs/02-user-guide/README.md)                            |
-| A developer or plugin author  | [Plugin development guide](docs/04-plugin-development/README.md)      |
+| You are…         | Start here                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| A researcher      | [Desktop onboarding](https://niamoto.readthedocs.io/en/latest/01-getting-started/README.html)         |
+| A project lead    | [User guide](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html)                      |
+| A developer       | [Plugin development guide](https://niamoto.readthedocs.io/en/latest/04-plugin-development/README.html) |
 
 ## Install
 
@@ -64,21 +62,43 @@ niamoto --help
 ```
 
 Requires Python 3.12 or newer. See
-[docs/03-cli-automation/README.md](docs/03-cli-automation/README.md)
+[CLI & automation docs](https://niamoto.readthedocs.io/en/latest/03-cli-automation/README.html)
 for scripting recipes.
+
+## Quick start
+
+### Desktop path
+
+1. Download the latest desktop build from the
+   [releases page](https://github.com/niamoto/niamoto/releases/latest).
+2. Grab a sample dataset from
+   [niamoto-example-data](https://github.com/niamoto/niamoto-example-data) or
+   open your own CSVs, layers, and rasters.
+3. Continue with
+   [Desktop onboarding](https://niamoto.readthedocs.io/en/latest/01-getting-started/README.html)
+   and then the
+   [Desktop App Tour](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html).
+
+### CLI path
+
+1. Install the package with `pip install niamoto`.
+2. Run `niamoto --help`.
+3. Follow the
+   [CLI & automation docs](https://niamoto.readthedocs.io/en/latest/03-cli-automation/README.html)
+   for project init, scripted runs, and CI.
 
 ## A glance at the studio
 
-The desktop reads your raw files, suggests a configuration, previews
-each widget, and lets you publish when you are ready:
+The desktop app reads your raw files, suggests a configuration, previews each
+widget, and lets you publish the result:
 
-<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/plans/caps/11.import-config-detected.png" alt="Niamoto import screen with ML auto-detected column roles" />
+<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/11.import-config-detected.png" alt="Niamoto import screen with ML auto-detected column roles" />
 
-The full walk-through lives in
-[docs/02-user-guide/](docs/02-user-guide/). A video tour will land in
-this README shortly — in the meantime,
-[the live demo](https://niamoto.github.io/niamoto-static-site/) shows
-what the generated portal looks like.
+The full walk-through lives in the
+[Desktop App Tour](https://niamoto.readthedocs.io/en/latest/02-user-guide/README.html).
+If you want to see the generated result first,
+[the live demo](https://niamoto.github.io/niamoto-static-site/) shows what the
+published portal looks like.
 
 ## Resources
 
@@ -86,8 +106,8 @@ what the generated portal looks like.
 - **Live demo** — [New Caledonia forests portal](https://niamoto.github.io/niamoto-static-site/)
 - **Discussions** — [GitHub Discussions](https://github.com/niamoto/niamoto/discussions)
 - **Issues** — [GitHub Issues](https://github.com/niamoto/niamoto/issues)
-- **Changelog** — [CHANGELOG.md](CHANGELOG.md)
-- **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md)
+- **Changelog** — [CHANGELOG.md](https://github.com/niamoto/niamoto/blob/main/CHANGELOG.md)
+- **Contributing** — [CONTRIBUTING.md](https://github.com/niamoto/niamoto/blob/main/CONTRIBUTING.md) · [STYLE_GUIDE.md](https://github.com/niamoto/niamoto/blob/main/docs/STYLE_GUIDE.md)
 
 ## License
 

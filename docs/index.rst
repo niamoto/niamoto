@@ -22,8 +22,8 @@ Pick the path that matches your profile:
       :link: 02-user-guide/README
       :link-type: doc
 
-      Understand what Niamoto delivers: data pipeline, outputs,
-      deployment, governance.
+      Follow the detailed desktop path from import to collections,
+      site builder, and publish.
 
    .. grid-item-card:: Developer / plugin author
       :link: 04-plugin-development/README

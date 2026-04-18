@@ -22,4 +22,4 @@ Hierarchy handling should remain visible in the configuration:
 
 - [configuration-guide.md](configuration-guide.md)
 - [Import workflow](../02-user-guide/import.md)
-- [Transform workflow](../02-user-guide/transform.md)
+- [Collections](../02-user-guide/collections.md)

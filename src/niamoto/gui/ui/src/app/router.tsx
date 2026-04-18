@@ -100,6 +100,13 @@ const appRouter = createBrowserRouter([
         lazy: lazyNamed(() => import('@/features/tools/views/ApiDocs'), 'ApiDocs'),
       },
       {
+        path: 'help/*',
+        lazy: lazyNamed(
+          () => import('@/features/help/views/DocumentationCenter'),
+          'DocumentationCenter',
+        ),
+      },
+      {
         path: 'tools/config-editor',
         lazy: lazyNamed(
           () => import('@/features/tools/views/ConfigEditor'),

@@ -1,6 +1,6 @@
 # Common Issues
 
-Use this page for the most common CLI, import, transform, export, and desktop
+Use this page for the most common CLI, import, collections, publish, and desktop
 startup failures.
 
 ## CLI or environment problems
@@ -30,7 +30,7 @@ Typical causes:
 Start with [Import workflow](../02-user-guide/import.md), then recheck
 [configuration-guide.md](../06-reference/configuration-guide.md).
 
-## Transform failures
+## Collections or transform failures
 
 Typical causes:
 
@@ -38,10 +38,10 @@ Typical causes:
 - a required parameter is missing
 - a group references data that import never created
 
-Start with [Transform workflow](../02-user-guide/transform.md), then review
+Start with [Collections](../02-user-guide/collections.md), then review
 [plugin-api.md](../06-reference/plugin-api.md).
 
-## Export or publication failures
+## Publish or export failures
 
 Typical causes:
 
@@ -49,7 +49,7 @@ Typical causes:
 - widget or template configuration drifted
 - publish output paths are wrong
 
-Start with [Export workflow](../02-user-guide/export.md), then review
+Start with [Publish](../02-user-guide/publish.md), then review
 [api-export-guide.md](../06-reference/api-export-guide.md).
 
 ## Desktop startup issues

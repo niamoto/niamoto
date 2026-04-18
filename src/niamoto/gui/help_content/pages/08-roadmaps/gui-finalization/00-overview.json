@@ -1,0 +1,147 @@
+{
+  "slug": "08-roadmaps/gui-finalization/00-overview",
+  "path": "/help/08-roadmaps/gui-finalization/00-overview",
+  "title": "Niamoto GUI Etat des Lieux et Axes d'Amelioration",
+  "description": "Date : 2026 02 05 Branche : feature/enhanced user experience",
+  "section_slug": "08-roadmaps",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Resume executif",
+      "level": 2,
+      "id": "resume-executif"
+    },
+    {
+      "title": "1. Matrice de Fonctionnalites — Etat Actuel",
+      "level": 2,
+      "id": "1-matrice-de-fonctionnalites-etat-actuel"
+    },
+    {
+      "title": "1.1 Frontend ( 43k lignes, 60 pages .tsx)",
+      "level": 3,
+      "id": "11-frontend-43k-lignes-60-pages-tsx"
+    },
+    {
+      "title": "1.2 Backend (19 routers, tous fonctionnels)",
+      "level": 3,
+      "id": "12-backend-19-routers-tous-fonctionnels"
+    },
+    {
+      "title": "1.3 Services Core",
+      "level": 3,
+      "id": "13-services-core"
+    },
+    {
+      "title": "2. Ce qui Manque Reellement",
+      "level": 2,
+      "id": "2-ce-qui-manque-reellement"
+    },
+    {
+      "title": "2.1 Lacunes Techniques (Infrastructure)",
+      "level": 3,
+      "id": "21-lacunes-techniques-infrastructure"
+    },
+    {
+      "title": "2.2 Lacunes UX (Experience utilisateur)",
+      "level": 3,
+      "id": "22-lacunes-ux-experience-utilisateur"
+    },
+    {
+      "title": "2.3 Lacunes Config/Simplification",
+      "level": 3,
+      "id": "23-lacunes-configsimplification"
+    },
+    {
+      "title": "2.4 Lacunes Tests",
+      "level": 3,
+      "id": "24-lacunes-tests"
+    },
+    {
+      "title": "3. Routes Frontend — Cartographie Complete",
+      "level": 2,
+      "id": "3-routes-frontend-cartographie-complete"
+    },
+    {
+      "title": "4. Flux Utilisateur Principaux",
+      "level": 2,
+      "id": "4-flux-utilisateur-principaux"
+    },
+    {
+      "title": "A. Import",
+      "level": 3,
+      "id": "a-import"
+    },
+    {
+      "title": "B. Configuration Widgets",
+      "level": 3,
+      "id": "b-configuration-widgets"
+    },
+    {
+      "title": "C. Site Builder",
+      "level": 3,
+      "id": "c-site-builder"
+    },
+    {
+      "title": "D. Publish",
+      "level": 3,
+      "id": "d-publish"
+    },
+    {
+      "title": "5. Suggestions pour le Plan d'Implementation",
+      "level": 2,
+      "id": "5-suggestions-pour-le-plan-dimplementation"
+    },
+    {
+      "title": "Tier 1 — Quick Wins (effort faible, impact visible)",
+      "level": 3,
+      "id": "tier-1-quick-wins-effort-faible-impact-visible"
+    },
+    {
+      "title": "Tier 2 — Ameliorations Structurantes (effort moyen)",
+      "level": 3,
+      "id": "tier-2-ameliorations-structurantes-effort-moyen"
+    },
+    {
+      "title": "Tier 3 — Finitions (effort eleve, important pour la polish)",
+      "level": 3,
+      "id": "tier-3-finitions-effort-eleve-important-pour-la-polish"
+    },
+    {
+      "title": "Tier 4 — Vision Long Terme",
+      "level": 3,
+      "id": "tier-4-vision-long-terme"
+    },
+    {
+      "title": "6. Stack et Architecture",
+      "level": 2,
+      "id": "6-stack-et-architecture"
+    },
+    {
+      "title": "Frontend",
+      "level": 3,
+      "id": "frontend"
+    },
+    {
+      "title": "Backend",
+      "level": 3,
+      "id": "backend"
+    },
+    {
+      "title": "Decisions Architecturales Actees",
+      "level": 3,
+      "id": "decisions-architecturales-actees"
+    },
+    {
+      "title": "7. Fichiers de Reference",
+      "level": 2,
+      "id": "7-fichiers-de-reference"
+    },
+    {
+      "title": "8. Questions Ouvertes",
+      "level": 2,
+      "id": "8-questions-ouvertes"
+    }
+  ],
+  "html": "<h1 id=\"niamoto-gui-etat-des-lieux-et-axes-damelioration\">Niamoto GUI - Etat des Lieux et Axes d'Amelioration</h1>\n<p><strong>Date</strong> : 2026-02-05\n<strong>Branche</strong> : <code>feature/enhanced-user-experience</code></p>\n<h2 id=\"resume-executif\">Resume executif</h2>\n<p>Le GUI Niamoto est <strong>largement fonctionnel</strong>. Le pipeline complet Import → Transform → Export → Deploy est operationnel via l'interface. Ce document dresse un inventaire precis de l'existant et identifie les axes d'amelioration restants pour un nouveau plan d'implementation.</p>\n<hr />\n<h2 id=\"1-matrice-de-fonctionnalites-etat-actuel\">1. Matrice de Fonctionnalites — Etat Actuel</h2>\n<h3 id=\"11-frontend-43k-lignes-60-pages-tsx\">1.1 Frontend (~43k lignes, ~60 pages .tsx)</h3>\n<table>\n<thead>\n<tr>\n<th>Domaine</th>\n<th>Composants</th>\n<th>Etat</th>\n<th>Notes</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>Import</strong></td>\n<td>ImportWizard, FileUploadZone, ImportProgress</td>\n<td>✅ Complet</td>\n<td>Upload, auto-config, progression polling</td>\n</tr>\n<tr>\n<td><strong>Enrichissement</strong></td>\n<td>ApiEnrichmentConfig (~600 lignes)</td>\n<td>✅ Complet</td>\n<td>Presets GBIF/Endemia/WFO, custom, start/pause/resume</td>\n</tr>\n<tr>\n<td><strong>Sources</strong></td>\n<td>SourcesList, AddSourceDialog, DatasetConfigForm</td>\n<td>✅ Complet</td>\n<td>Config datasets et references</td>\n</tr>\n<tr>\n<td><strong>Groups/Transform</strong></td>\n<td>GroupPanel (3 tabs), ContentTab, WidgetGallery</td>\n<td>✅ Complet</td>\n<td>Suggestions, drag-drop, JsonSchemaForm</td>\n</tr>\n<tr>\n<td><strong>Widget Detail</strong></td>\n<td>WidgetDetailPanel (Preview/Params/YAML)</td>\n<td>✅ Complet</td>\n<td>Formulaires Pydantic, preview iframe</td>\n</tr>\n<tr>\n<td><strong>Site Builder</strong></td>\n<td>SiteBuilder (1453 lignes), tree view, editors</td>\n<td>✅ Complet</td>\n<td>Markdown, navigation, templates, multilingue</td>\n</tr>\n<tr>\n<td><strong>Publish</strong></td>\n<td>PublishOverview, PublishBuild, PublishDeploy, History</td>\n<td>✅ Complet</td>\n<td>Zustand store persistant, progression</td>\n</tr>\n<tr>\n<td><strong>Outils</strong></td>\n<td>DataExplorer, LivePreview, ConfigEditor, Plugins</td>\n<td>✅ Complet</td>\n<td>Exploration donnees, preview site, editeur YAML</td>\n</tr>\n<tr>\n<td><strong>Formulaires</strong></td>\n<td>JsonSchemaForm + 20 types de champs</td>\n<td>✅ Complet</td>\n<td>entity-select, layer-select, tags, key-value, etc.</td>\n</tr>\n<tr>\n<td><strong>Layout</strong></td>\n<td>MainLayout, TopBar, CommandPalette, BreadcrumbNav</td>\n<td>✅ Complet</td>\n<td>Sidebar, Cmd+K, theme clair/sombre</td>\n</tr>\n<tr>\n<td><strong>i18n</strong></td>\n<td>LanguageContext, TranslationKeys</td>\n<td>✅ Complet</td>\n<td>FR/EN via i18next</td>\n</tr>\n<tr>\n<td><strong>Desktop</strong></td>\n<td>WelcomeScreen, ProjectSwitcher, file pickers</td>\n<td>✅ Complet</td>\n<td>Integration Tauri</td>\n</tr>\n<tr>\n<td><strong>Dashboard post-import</strong></td>\n<td>ImportDashboard, DataCompletenessView, SpatialDistributionMap</td>\n<td>⚠️ Partiel</td>\n<td>Composants existent, integration a verifier</td>\n</tr>\n<tr>\n<td><strong>Index generator editor</strong></td>\n<td>IndexTab dans GroupPanel</td>\n<td>⚠️ Partiel</td>\n<td>Lecture OK, edition a verifier</td>\n</tr>\n<tr>\n<td><strong>Notifications</strong></td>\n<td>sonner (toasts ad-hoc)</td>\n<td>⚠️ Basique</td>\n<td>Pas de systeme centralise</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"12-backend-19-routers-tous-fonctionnels\">1.2 Backend (19 routers, tous fonctionnels)</h3>\n<table>\n<thead>\n<tr>\n<th>Router</th>\n<th>Endpoints</th>\n<th>Etat</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>imports.py</strong></td>\n<td>execute/all, execute/reference, jobs, status</td>\n<td>✅ Background jobs + polling</td>\n</tr>\n<tr>\n<td><strong>transform.py</strong></td>\n<td>execute, status, config, metrics, sources</td>\n<td>✅ Background jobs + polling</td>\n</tr>\n<tr>\n<td><strong>export.py</strong></td>\n<td>execute, status, config, metrics, execute-cli</td>\n<td>✅ Background jobs + polling</td>\n</tr>\n<tr>\n<td><strong>enrichment.py</strong></td>\n<td>start, pause, resume, cancel, preview, results</td>\n<td>✅ Complet (per-reference scope)</td>\n</tr>\n<tr>\n<td><strong>deploy.py</strong></td>\n<td>cloudflare/deploy (SSE), cloudflare/check</td>\n<td>⚠️ Cloudflare uniquement</td>\n</tr>\n<tr>\n<td><strong>config.py</strong></td>\n<td>project, references, datasets, validate, save</td>\n<td>✅ YAML read/write complet</td>\n</tr>\n<tr>\n<td><strong>recipes.py</strong></td>\n<td>sources, save, validate, transformer-schema</td>\n<td>✅ Config widgets</td>\n</tr>\n<tr>\n<td><strong>site.py</strong></td>\n<td>config, groups, templates, files</td>\n<td>✅ Site complet</td>\n</tr>\n<tr>\n<td><strong>layers.py</strong></td>\n<td>list, details (raster/vector metadata)</td>\n<td>✅ Recent (Phase 2.5)</td>\n</tr>\n<tr>\n<td><strong>plugins.py</strong></td>\n<td>list, details, categories, compatibility</td>\n<td>✅ Registry complet</td>\n</tr>\n<tr>\n<td><strong>database.py</strong></td>\n<td>schema, preview, stats, query</td>\n<td>✅ Introspection</td>\n</tr>\n<tr>\n<td><strong>data_explorer.py</strong></td>\n<td>tables, query, columns, enrichment/preview</td>\n<td>✅ Explorer</td>\n</tr>\n<tr>\n<td><strong>stats.py</strong></td>\n<td>summary, completeness, spatial, geo-coverage</td>\n<td>✅ Stats import</td>\n</tr>\n<tr>\n<td><strong>smart_config.py</strong></td>\n<td>upload-files, analyze-file, auto-configure</td>\n<td>✅ Auto-detection</td>\n</tr>\n<tr>\n<td><strong>files.py</strong></td>\n<td>analyze, browse, exports/list/read/structure</td>\n<td>✅ Fichiers</td>\n</tr>\n<tr>\n<td><strong>layout.py</strong></td>\n<td>get/put layout, preview</td>\n<td>✅ Persistance layout</td>\n</tr>\n<tr>\n<td><strong>templates.py</strong></td>\n<td>suggestions, generate-config, preview</td>\n<td>✅ Templates</td>\n</tr>\n<tr>\n<td><strong>transformer_suggestions.py</strong></td>\n<td>suggestions par entite</td>\n<td>✅ Suggestions intelligentes</td>\n</tr>\n<tr>\n<td><strong>health.py</strong></td>\n<td>health, runtime-mode, reload-project</td>\n<td>✅ Diagnostics</td>\n</tr>\n<tr>\n<td><strong>sources.py</strong></td>\n<td>upload, list, save par reference</td>\n<td>✅ Sources</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"13-services-core\">1.3 Services Core</h3>\n<table>\n<thead>\n<tr>\n<th>Service</th>\n<th>Etat</th>\n<th>Notes</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>importer.py</strong></td>\n<td>✅</td>\n<td>3 phases (datasets → derived refs → direct refs)</td>\n</tr>\n<tr>\n<td><strong>transformer.py</strong></td>\n<td>✅</td>\n<td>Plugin cascade, progress callback</td>\n</tr>\n<tr>\n<td><strong>exporter.py</strong></td>\n<td>✅</td>\n<td>Multi-target, stats collection</td>\n</tr>\n<tr>\n<td><strong>Job management</strong></td>\n<td>⚠️ In-memory</td>\n<td>Dicts locaux, perdus au redemarrage</td>\n</tr>\n<tr>\n<td><strong>SSE/Streaming</strong></td>\n<td>⚠️ Deploy seul</td>\n<td>Polling pour import/transform/export</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"2-ce-qui-manque-reellement\">2. Ce qui Manque Reellement</h2>\n<h3 id=\"21-lacunes-techniques-infrastructure\">2.1 Lacunes Techniques (Infrastructure)</h3>\n<table>\n<thead>\n<tr>\n<th>#</th>\n<th>Lacune</th>\n<th>Impact</th>\n<th>Effort</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>T1</td>\n<td><strong>Jobs non persistants</strong> : redemarrage = perte de l'etat</td>\n<td>Fiabilite</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>T2</td>\n<td><strong>Pas de SSE unifie</strong> : polling partout sauf deploy</td>\n<td>UX (delai feedback)</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>T3</td>\n<td><strong>Deploy limite a Cloudflare</strong> : GitHub Pages, Netlify, SSH non wires</td>\n<td>Flexibilite</td>\n<td>Moyen</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"22-lacunes-ux-experience-utilisateur\">2.2 Lacunes UX (Experience utilisateur)</h3>\n<table>\n<thead>\n<tr>\n<th>#</th>\n<th>Lacune</th>\n<th>Impact</th>\n<th>Effort</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>U1</td>\n<td><strong>Notifications ad-hoc</strong> : pas de centre de notifications</td>\n<td>UX coherence</td>\n<td>Faible</td>\n</tr>\n<tr>\n<td>U2</td>\n<td><strong>Dashboard post-import incomplet</strong> : composants existent mais integration partielle</td>\n<td>Qualite donnees</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>U3</td>\n<td><strong>Index generator</strong> : lecture OK, edition limitee (filtres, display_fields)</td>\n<td>Config site</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>U4</td>\n<td><strong>Pas de preview globale du site</strong> avant build</td>\n<td>Confiance utilisateur</td>\n<td>Moyen</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"23-lacunes-configsimplification\">2.3 Lacunes Config/Simplification</h3>\n<table>\n<thead>\n<tr>\n<th>#</th>\n<th>Lacune</th>\n<th>Impact</th>\n<th>Effort</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>C1</td>\n<td><strong>field_aggregator verbeux</strong> : 3 lignes par champ quand source=field=target</td>\n<td>DX config</td>\n<td>Faible</td>\n</tr>\n<tr>\n<td>C2</td>\n<td><strong>stats_loader</strong> : 8 lignes de config pour un pattern previsible</td>\n<td>DX config</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>C3</td>\n<td><strong>statistical_summary</strong> : 88 lignes pour 8 gauges quasi-identiques</td>\n<td>DX config</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>C4</td>\n<td><strong>Couleurs dupliquees</strong> dans export.yml (13 hex, 4 uniques)</td>\n<td>Maintenance</td>\n<td>Faible</td>\n</tr>\n</tbody>\n</table>\n<p><em>Detail dans <code>03-simplifications-config.md</code></em></p>\n<h3 id=\"24-lacunes-tests\">2.4 Lacunes Tests</h3>\n<table>\n<thead>\n<tr>\n<th>#</th>\n<th>Lacune</th>\n<th>Impact</th>\n<th>Effort</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>X1</td>\n<td><strong>Pas de tests e2e GUI</strong> : le frontend n'a pas de tests</td>\n<td>Regression</td>\n<td>Eleve</td>\n</tr>\n<tr>\n<td>X2</td>\n<td><strong>Datasets synthetiques</strong> : pas de fixtures edge cases</td>\n<td>Couverture</td>\n<td>Moyen</td>\n</tr>\n<tr>\n<td>X3</td>\n<td><strong>Garde-fous import</strong> : pas de limites sur nulls, taille, doublons</td>\n<td>Robustesse</td>\n<td>Faible</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"3-routes-frontend-cartographie-complete\">3. Routes Frontend — Cartographie Complete</h2>\n<pre><code class=\"language-text\">/                          → redirect /sources\n/sources                   → SourcesPage (liste entites importees)\n/sources/import            → ImportPage (wizard import)\n/sources/dataset/:name     → DatasetPage (detail dataset)\n/sources/reference/:name   → ReferencePage (detail reference)\n/groups                    → GroupsPage (liste groupes)\n/groups/:name              → GroupDetailPage → GroupPanel (Sources|Content|Index)\n/site                      → redirect /site/pages\n/site/pages                → SitePagesPage (SiteBuilder)\n/site/navigation           → SiteNavigationPage\n/site/general              → SiteGeneralPage\n/site/appearance           → SiteAppearancePage\n/tools/explorer            → DataExplorer\n/tools/preview             → LivePreview\n/tools/settings            → Settings\n/tools/plugins             → Plugins\n/tools/docs                → ApiDocs\n/tools/config-editor       → ConfigEditor\n/publish                   → PublishOverview\n/publish/build             → PublishBuild\n/publish/deploy            → PublishDeploy\n/publish/history           → PublishHistory\n/showcase                  → Showcase (demo composants)\n/labs/*                    → Prototypes UX (non production)\n</code></pre>\n<hr />\n<h2 id=\"4-flux-utilisateur-principaux\">4. Flux Utilisateur Principaux</h2>\n<h3 id=\"a-import\">A. Import</h3>\n<pre><code class=\"language-text\">SourcesPage → ImportWizard\n  ├─ FileUploadZone (drag &amp; drop)\n  ├─ Auto-configuration (smart_config)\n  ├─ Review config (tabs Config/YAML)\n  ├─ ImportProgress (polling job status)\n  └─ [Optionnel] Enrichissement API (start/pause/resume)\n</code></pre>\n<h3 id=\"b-configuration-widgets\">B. Configuration Widgets</h3>\n<pre><code class=\"language-text\">GroupsPage → GroupPanel\n  ├─ SourcesTab (config sources donnees)\n  ├─ ContentTab (layout hybride)\n  │   ├─ WidgetListPanel (gauche: liste + recherche)\n  │   ├─ WidgetDetailPanel (droite: Preview|Params|YAML)\n  │   ├─ AddWidgetModal (Suggestions|Combined|Custom)\n  │   └─ LayoutOverview (grille drag-drop si rien selectionne)\n  └─ IndexTab (config index_generator)\n</code></pre>\n<h3 id=\"c-site-builder\">C. Site Builder</h3>\n<pre><code class=\"language-text\">SitePanel → SiteBuilder (tree | editor | preview)\n  ├─ SiteTreeView (arborescence)\n  ├─ Editeur contextuel (Markdown, Theme, Navigation, etc.)\n  └─ Preview panel\n</code></pre>\n<h3 id=\"d-publish\">D. Publish</h3>\n<pre><code class=\"language-text\">PublishOverview → PublishBuild → PublishDeploy\n  ├─ Build: executeExportAndWait (progress callback)\n  ├─ Deploy: Cloudflare Pages (SSE streaming)\n  └─ History: liste builds/deploys (Zustand persistant)\n</code></pre>\n<hr />\n<h2 id=\"5-suggestions-pour-le-plan-dimplementation\">5. Suggestions pour le Plan d'Implementation</h2>\n<h3 id=\"tier-1-quick-wins-effort-faible-impact-visible\">Tier 1 — Quick Wins (effort faible, impact visible)</h3>\n<table>\n<thead>\n<tr>\n<th>Ref</th>\n<th>Action</th>\n<th>Justification</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>U1</td>\n<td><strong>Notifications centralisees</strong> : NotificationContext + NotificationCenter</td>\n<td>Prerequis UX pour toutes les operations</td>\n</tr>\n<tr>\n<td>C1</td>\n<td><strong>Raccourci field_aggregator</strong> : accepter string quand field=target</td>\n<td>-45 lignes YAML, retrocompatible</td>\n</tr>\n<tr>\n<td>X3</td>\n<td><strong>Garde-fous import</strong> : limites nulls, taille fichier, unicite ID</td>\n<td>Erreurs silencieuses actuellement</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"tier-2-ameliorations-structurantes-effort-moyen\">Tier 2 — Ameliorations Structurantes (effort moyen)</h3>\n<table>\n<thead>\n<tr>\n<th>Ref</th>\n<th>Action</th>\n<th>Justification</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>T1</td>\n<td><strong>Jobs persistants</strong> : table SQLite <code>jobs</code> + API <code>/jobs</code></td>\n<td>Fiabilite, prerequis pour reprise</td>\n</tr>\n<tr>\n<td>T3</td>\n<td><strong>Deploy multi-plateforme</strong> : wirer GitHub Pages + SSH</td>\n<td>Les pages Publish existent deja</td>\n</tr>\n<tr>\n<td>U2</td>\n<td><strong>Dashboard post-import</strong> : integrer les composants existants</td>\n<td>Composants la, juste a assembler</td>\n</tr>\n<tr>\n<td>C2+C3</td>\n<td><strong>stats_loader convention + batch statistical_summary</strong></td>\n<td>-82 lignes config, GUI seul pour C3</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"tier-3-finitions-effort-eleve-important-pour-la-polish\">Tier 3 — Finitions (effort eleve, important pour la polish)</h3>\n<table>\n<thead>\n<tr>\n<th>Ref</th>\n<th>Action</th>\n<th>Justification</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>T2</td>\n<td><strong>SSE unifie</strong> : remplacer polling par streaming sur import/transform/export</td>\n<td>UX temps reel</td>\n</tr>\n<tr>\n<td>U3</td>\n<td><strong>Index generator editor</strong> : formulaire edition filtres et display_fields</td>\n<td>Config site complete</td>\n</tr>\n<tr>\n<td>U4</td>\n<td><strong>Preview site globale</strong> : iframe ou build partiel</td>\n<td>Confiance avant deploy</td>\n</tr>\n<tr>\n<td>X1</td>\n<td><strong>Tests e2e frontend</strong> : Playwright ou Cypress sur les flux principaux</td>\n<td>Non-regression</td>\n</tr>\n<tr>\n<td>X2</td>\n<td><strong>Datasets synthetiques</strong> : fixtures edge cases avec correlations ecologiques</td>\n<td>Robustesse</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"tier-4-vision-long-terme\">Tier 4 — Vision Long Terme</h3>\n<table>\n<thead>\n<tr>\n<th>Action</th>\n<th>Justification</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Import/export de configurations entre projets</td>\n<td>Reutilisabilite</td>\n</tr>\n<tr>\n<td>Reprise des traitements interrompus (checkpoints)</td>\n<td>Robustesse gros datasets</td>\n</tr>\n<tr>\n<td>Generalisation enrichissement aux plots/shapes</td>\n<td>Completude</td>\n</tr>\n<tr>\n<td>Templates Jinja editables via GUI</td>\n<td>Personnalisation avancee</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"6-stack-et-architecture\">6. Stack et Architecture</h2>\n<h3 id=\"frontend\">Frontend</h3>\n<ul>\n<li><strong>React 18</strong> + TypeScript</li>\n<li><strong>Tailwind CSS</strong> + shadcn/ui</li>\n<li><strong>Zustand</strong> (3 stores: publish, navigation, theme)</li>\n<li><strong>React Query</strong> (TanStack) pour le fetching</li>\n<li><strong>i18next</strong> pour l'internationalisation</li>\n<li><strong>@dnd-kit</strong> pour le drag &amp; drop</li>\n<li><strong>Tauri 2</strong> pour le desktop</li>\n</ul>\n<h3 id=\"backend\">Backend</h3>\n<ul>\n<li><strong>FastAPI</strong> (19 routers)</li>\n<li><strong>BackgroundTasks</strong> pour les jobs</li>\n<li><strong>Pydantic v2</strong> pour la validation</li>\n<li><strong>DuckDB</strong> pour les donnees</li>\n<li><strong>Polling HTTP</strong> pour le suivi (SSE sur deploy uniquement)</li>\n</ul>\n<h3 id=\"decisions-architecturales-actees\">Decisions Architecturales Actees</h3>\n<table>\n<thead>\n<tr>\n<th>Decision</th>\n<th>Choix</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>State management</td>\n<td>Zustand (persist localStorage)</td>\n</tr>\n<tr>\n<td>Formulaires plugins</td>\n<td>JsonSchemaForm depuis Pydantic <code>param_schema</code></td>\n</tr>\n<tr>\n<td>Job tracking</td>\n<td>In-memory dicts (a migrer vers SQLite)</td>\n</tr>\n<tr>\n<td>Streaming</td>\n<td>SSE sur deploy, polling ailleurs</td>\n</tr>\n<tr>\n<td>Config persistence</td>\n<td>YAML read/write via API</td>\n</tr>\n<tr>\n<td>Plugin discovery</td>\n<td>Registry + Loader avec cascade (system → user → project)</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"7-fichiers-de-reference\">7. Fichiers de Reference</h2>\n<table>\n<thead>\n<tr>\n<th>Document</th>\n<th>Contenu</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>01-phase-import.md</code></td>\n<td>Specs formulaires import, enrichissement, dashboard validation</td>\n</tr>\n<tr>\n<td><code>02-phase-transform-export.md</code></td>\n<td>Architecture widgets, suggestions, formulaires dynamiques</td>\n</tr>\n<tr>\n<td><code>03-simplifications-config.md</code></td>\n<td>6 axes de simplification config (-127 lignes YAML)</td>\n</tr>\n<tr>\n<td><code>docs/06-gui/guide-transform-widgets.md</code></td>\n<td>Guide utilisateur widgets transform</td>\n</tr>\n<tr>\n<td><code>docs/06-gui/reference-plugins-transform.md</code></td>\n<td>Reference plugins avec params et YAML</td>\n</tr>\n<tr>\n<td><code>docs/04-plugin-development/creating-transformers.md</code></td>\n<td>Guide dev : creer un plugin avec config_model</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"8-questions-ouvertes\">8. Questions Ouvertes</h2>\n<ol>\n<li><strong>Priorite deploy</strong> : Faut-il wirer les 4 plateformes ou se concentrer sur Cloudflare + SSH ?</li>\n<li><strong>Tests frontend</strong> : Playwright (e2e navigateur) ou Vitest (composants unitaires) en priorite ?</li>\n<li><strong>Dashboard post-import</strong> : Les composants existants sont-ils suffisants ou faut-il revoir ?</li>\n<li><strong>Offline</strong> : Le desktop app doit-il fonctionner sans connexion internet ?</li>\n</ol>",
+  "source_path": "08-roadmaps/gui-finalization/00-overview.md"
+}

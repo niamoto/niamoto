@@ -733,6 +733,6 @@ dwca-validator validate-json taxon/1_occurrences_dwc.json
 - [Reference overview](../../06-reference/README.md) - General JSON API exports
 - [Plugin Reference](../README.md) - Transformer plugin development
 - [Reference overview](../../06-reference/README.md) - YAML configuration syntax
-- [Export workflow](../../02-user-guide/export.md) - Using exported data
+- [Publish](../../02-user-guide/publish.md) - Using exported data
 
 For GBIF-specific publishing guidance, see the [GBIF IPT User Manual](https://ipt.gbif.org/).

@@ -1,0 +1,232 @@
+{
+  "slug": "08-roadmaps/target-architecture-2026-execution-plan",
+  "path": "/help/08-roadmaps/target-architecture-2026-execution-plan",
+  "title": "Niamoto Plan d'Execution Architecture (2026 2027)",
+  "description": "Date : 2026 02 11 Perimetre : GUI, API, Core, operations techniques Horizon : T1 2026 T1 2027 But : executer la cible architecture sans ralentir la roadmap produit",
+  "section_slug": "08-roadmaps",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "1. Cadre d'execution",
+      "level": 2,
+      "id": "1-cadre-dexecution"
+    },
+    {
+      "title": "1.1 Principe",
+      "level": 3,
+      "id": "11-principe"
+    },
+    {
+      "title": "1.2 Gouvernance",
+      "level": 3,
+      "id": "12-gouvernance"
+    },
+    {
+      "title": "1.3 Owners proposes (roles)",
+      "level": 3,
+      "id": "13-owners-proposes-roles"
+    },
+    {
+      "title": "2. Backlog structurant (epics)",
+      "level": 2,
+      "id": "2-backlog-structurant-epics"
+    },
+    {
+      "title": "EPIC 1 Frontieres Domain/Application/Adapters",
+      "level": 3,
+      "id": "epic-1-frontieres-domainapplicationadapters"
+    },
+    {
+      "title": "EPIC 2 Jobs resilients",
+      "level": 3,
+      "id": "epic-2-jobs-resilients"
+    },
+    {
+      "title": "EPIC 3 Securite structurelle",
+      "level": 3,
+      "id": "epic-3-securite-structurelle"
+    },
+    {
+      "title": "EPIC 4 Contrats et versioning",
+      "level": 3,
+      "id": "epic-4-contrats-et-versioning"
+    },
+    {
+      "title": "EPIC 5 Observabilite et fiabilite",
+      "level": 3,
+      "id": "epic-5-observabilite-et-fiabilite"
+    },
+    {
+      "title": "EPIC 6 Qualite et tests",
+      "level": 3,
+      "id": "epic-6-qualite-et-tests"
+    },
+    {
+      "title": "3. Planning trimestriel",
+      "level": 2,
+      "id": "3-planning-trimestriel"
+    },
+    {
+      "title": "T1 2026 (fev mar 2026) Fondations",
+      "level": 3,
+      "id": "t1-2026-fev-mar-2026-fondations"
+    },
+    {
+      "title": "Objectif",
+      "level": 3,
+      "id": "objectif"
+    },
+    {
+      "title": "Milestones",
+      "level": 3,
+      "id": "milestones"
+    },
+    {
+      "title": "Owners",
+      "level": 3,
+      "id": "owners"
+    },
+    {
+      "title": "Definition of Done (trimestre)",
+      "level": 3,
+      "id": "definition-of-done-trimestre"
+    },
+    {
+      "title": "T2 2026 (avr juin 2026) Migration des flux critiques",
+      "level": 3,
+      "id": "t2-2026-avr-juin-2026-migration-des-flux-critiques"
+    },
+    {
+      "title": "Objectif",
+      "level": 3,
+      "id": "objectif_1"
+    },
+    {
+      "title": "Milestones",
+      "level": 3,
+      "id": "milestones_1"
+    },
+    {
+      "title": "Owners",
+      "level": 3,
+      "id": "owners_1"
+    },
+    {
+      "title": "Definition of Done (trimestre)",
+      "level": 3,
+      "id": "definition-of-done-trimestre_1"
+    },
+    {
+      "title": "T3 2026 (juil sept 2026) Versioning et industrialisation",
+      "level": 3,
+      "id": "t3-2026-juil-sept-2026-versioning-et-industrialisation"
+    },
+    {
+      "title": "Objectif",
+      "level": 3,
+      "id": "objectif_2"
+    },
+    {
+      "title": "Milestones",
+      "level": 3,
+      "id": "milestones_2"
+    },
+    {
+      "title": "Owners",
+      "level": 3,
+      "id": "owners_2"
+    },
+    {
+      "title": "Definition of Done (trimestre)",
+      "level": 3,
+      "id": "definition-of-done-trimestre_2"
+    },
+    {
+      "title": "T4 2026 (oct dec 2026) Consolidation plateforme",
+      "level": 3,
+      "id": "t4-2026-oct-dec-2026-consolidation-plateforme"
+    },
+    {
+      "title": "Objectif",
+      "level": 3,
+      "id": "objectif_3"
+    },
+    {
+      "title": "Milestones",
+      "level": 3,
+      "id": "milestones_3"
+    },
+    {
+      "title": "Owners",
+      "level": 3,
+      "id": "owners_3"
+    },
+    {
+      "title": "Definition of Done (trimestre)",
+      "level": 3,
+      "id": "definition-of-done-trimestre_3"
+    },
+    {
+      "title": "T1 2027 (jan mar 2027) Extension controlee",
+      "level": 3,
+      "id": "t1-2027-jan-mar-2027-extension-controlee"
+    },
+    {
+      "title": "Objectif",
+      "level": 3,
+      "id": "objectif_4"
+    },
+    {
+      "title": "Milestones",
+      "level": 3,
+      "id": "milestones_4"
+    },
+    {
+      "title": "Owners",
+      "level": 3,
+      "id": "owners_4"
+    },
+    {
+      "title": "4. KPIs trimestriels (pilotage)",
+      "level": 2,
+      "id": "4-kpis-trimestriels-pilotage"
+    },
+    {
+      "title": "4.1 Delivery &amp; Quality",
+      "level": 3,
+      "id": "41-delivery-quality"
+    },
+    {
+      "title": "4.2 Fiabilite operationnelle",
+      "level": 3,
+      "id": "42-fiabilite-operationnelle"
+    },
+    {
+      "title": "4.3 Gouvernance architecture",
+      "level": 3,
+      "id": "43-gouvernance-architecture"
+    },
+    {
+      "title": "4.4 Securite technique",
+      "level": 3,
+      "id": "44-securite-technique"
+    },
+    {
+      "title": "5. RACI simplifie",
+      "level": 2,
+      "id": "5-raci-simplifie"
+    },
+    {
+      "title": "6. Risques et mitigations",
+      "level": 2,
+      "id": "6-risques-et-mitigations"
+    },
+    {
+      "title": "7. Prochaines actions (30 jours)",
+      "level": 2,
+      "id": "7-prochaines-actions-30-jours"
+    }
+  ],
+  "html": "<h1 id=\"niamoto-plan-dexecution-architecture-2026-2027\">Niamoto - Plan d'Execution Architecture (2026-2027)</h1>\n<p><strong>Date</strong>: 2026-02-11\n<strong>Perimetre</strong>: GUI, API, Core, operations techniques\n<strong>Horizon</strong>: T1 2026 -&gt; T1 2027\n<strong>But</strong>: executer la cible architecture sans ralentir la roadmap produit</p>\n<hr />\n<h2 id=\"1-cadre-dexecution\">1. Cadre d'execution</h2>\n<h3 id=\"11-principe\">1.1 Principe</h3>\n<p>Execution incrementale par trimestres, avec des lots deployables:</p>\n<ul>\n<li>pas de big-bang,</li>\n<li>pas de gel produit,</li>\n<li>chaque lot livre une valeur operationnelle mesurable.</li>\n</ul>\n<h3 id=\"12-gouvernance\">1.2 Gouvernance</h3>\n<ul>\n<li><strong>SteerCo technique (mensuel)</strong>: CTO, Head of Product, Lead Engineer.</li>\n<li><strong>Architecture sync (hebdo)</strong>: Tech Lead Core, Tech Lead API, Tech Lead UI, QA Lead, DevOps.</li>\n<li><strong>Rituel ADR (bi-hebdo)</strong>: decisions structurelles arbitrees rapidement.</li>\n</ul>\n<h3 id=\"13-owners-proposes-roles\">1.3 Owners proposes (roles)</h3>\n<ul>\n<li><strong>Owner A - Tech Lead Core</strong>: Domain + plugins + contrats metier.</li>\n<li><strong>Owner B - Tech Lead API</strong>: couche application/use-cases + routers + contrats API.</li>\n<li><strong>Owner C - Tech Lead UI</strong>: adaptation schema UI + parcours critiques front.</li>\n<li><strong>Owner D - DevOps/SRE</strong>: observabilite, run, resilience jobs.</li>\n<li><strong>Owner E - QA Lead</strong>: strategie de tests, non-regression, qualite release.</li>\n<li><strong>Owner F - Product Manager</strong>: priorisation et alignement roadmap produit.</li>\n</ul>\n<p>Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.</p>\n<hr />\n<h2 id=\"2-backlog-structurant-epics\">2. Backlog structurant (epics)</h2>\n<h3 id=\"epic-1-frontieres-domainapplicationadapters\">EPIC 1 - Frontieres Domain/Application/Adapters</h3>\n<ul>\n<li>Extraire les use-cases critiques hors routers.</li>\n<li>Definir conventions de dependances.</li>\n<li>Mettre en place revues d'architecture sur nouveaux modules.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner B\n<strong>Co-owners</strong>: Owner A, Owner C</p>\n<h3 id=\"epic-2-jobs-resilients\">EPIC 2 - Jobs resilients</h3>\n<ul>\n<li>Standardiser le modele de job.</li>\n<li>Persister etat/progression/erreurs.</li>\n<li>Uniformiser start/pause/resume/cancel/retry.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner B\n<strong>Co-owner</strong>: Owner D</p>\n<h3 id=\"epic-3-securite-structurelle\">EPIC 3 - Securite structurelle</h3>\n<ul>\n<li>Centraliser policies de chemins fichiers.</li>\n<li>Durcir validation des acces reseau/externes.</li>\n<li>Ajouter tests de securite automatises.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner B\n<strong>Co-owners</strong>: Owner D, Owner E</p>\n<h3 id=\"epic-4-contrats-et-versioning\">EPIC 4 - Contrats et versioning</h3>\n<ul>\n<li>Versionner API/schema/config sensibles.</li>\n<li>Introduire politique de compatibilite et de deprecation.</li>\n<li>Publier changelog de contrat.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner A\n<strong>Co-owners</strong>: Owner B, Owner C</p>\n<h3 id=\"epic-5-observabilite-et-fiabilite\">EPIC 5 - Observabilite et fiabilite</h3>\n<ul>\n<li>Correlation ID, logs structures, metriques jobs/endpoints.</li>\n<li>Dashboard technique et alertes minimales.</li>\n<li>Postmortem standardises sur incidents.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner D\n<strong>Co-owner</strong>: Owner E</p>\n<h3 id=\"epic-6-qualite-et-tests\">EPIC 6 - Qualite et tests</h3>\n<ul>\n<li>Renforcer tests use-cases et integration adapters.</li>\n<li>Ajouter e2e front sur parcours critiques.</li>\n<li>Definir gates CI sur risques architecturels.</li>\n</ul>\n<p><strong>Owner principal</strong>: Owner E\n<strong>Co-owners</strong>: Owner B, Owner C</p>\n<hr />\n<h2 id=\"3-planning-trimestriel\">3. Planning trimestriel</h2>\n<h3 id=\"t1-2026-fev-mar-2026-fondations\">T1 2026 (fev-mar 2026) - Fondations</h3>\n<h3 id=\"objectif\">Objectif</h3>\n<p>Mettre en place les fondations d'architecture et de gouvernance sans perturber la livraison feature.</p>\n<h3 id=\"milestones\">Milestones</h3>\n<ol>\n<li>\n<p><strong>M1.1 - Architecture guardrails</strong>\n- Conventions de modules et dependances formalisees.\n- 2 ADR minimales: frontieres couches + politique jobs.</p>\n</li>\n<li>\n<p><strong>M1.2 - Job contract v1</strong>\n- Modele unifie de job (etat/progression/erreurs).\n- API de controle normalisee pour au moins 1 workflow critique.</p>\n</li>\n<li>\n<p><strong>M1.3 - Security baseline</strong>\n- Librairie interne de path policies (allowlist roots + normalization).\n- Adoption sur endpoints fichiers les plus critiques.</p>\n</li>\n<li>\n<p><strong>M1.4 - Observability baseline</strong>\n- Correlation id et logs structures sur workflows critiques.\n- Dashboard minimal \"sante jobs + erreurs\".</p>\n</li>\n</ol>\n<h3 id=\"owners\">Owners</h3>\n<ul>\n<li>M1.1: Owner B (A/C)</li>\n<li>M1.2: Owner B (D)</li>\n<li>M1.3: Owner B (D/E)</li>\n<li>M1.4: Owner D (B/E)</li>\n</ul>\n<h3 id=\"definition-of-done-trimestre\">Definition of Done (trimestre)</h3>\n<ul>\n<li>conventions approuvees et appliquees sur nouveaux changements,</li>\n<li>au moins 1 flux critique porte par use-case + job contract v1,</li>\n<li>policies securite actives sur perimetre prioritaire,</li>\n<li>dashboard technique disponible.</li>\n</ul>\n<hr />\n<h3 id=\"t2-2026-avr-juin-2026-migration-des-flux-critiques\">T2 2026 (avr-juin 2026) - Migration des flux critiques</h3>\n<h3 id=\"objectif_1\">Objectif</h3>\n<p>Basculer progressivement les workflows coeur vers la couche application/use-cases.</p>\n<h3 id=\"milestones_1\">Milestones</h3>\n<ol>\n<li>\n<p><strong>M2.1 - Use-cases import/transform/export</strong>\n- migration progressive de la logique applicative hors routers.\n- tests de non-regression associes.</p>\n</li>\n<li>\n<p><strong>M2.2 - Job persistence v2</strong>\n- persistence fiable pour jobs critiques.\n- reprise basique apres restart.</p>\n</li>\n<li>\n<p><strong>M2.3 - UI contract boundary</strong>\n- adaptateur schema metier -&gt; schema UI explicite.\n- reduction du couplage direct core &lt;-&gt; composants UI.</p>\n</li>\n<li>\n<p><strong>M2.4 - Securite et tests</strong>\n- extension des policies securite a tous endpoints fichiers/reseau critiques.\n- test suite securite de base en CI.</p>\n</li>\n</ol>\n<h3 id=\"owners_1\">Owners</h3>\n<ul>\n<li>M2.1: Owner B (A/E)</li>\n<li>M2.2: Owner B (D)</li>\n<li>M2.3: Owner C (A/B)</li>\n<li>M2.4: Owner E (B/D)</li>\n</ul>\n<h3 id=\"definition-of-done-trimestre_1\">Definition of Done (trimestre)</h3>\n<ul>\n<li>import/transform/export pilotes par use-cases sur le chemin principal,</li>\n<li>jobs critiques persistants et recuperables au redemarrage,</li>\n<li>frontiere UI contract documentee et appliquee,</li>\n<li>tests securite critiques en CI.</li>\n</ul>\n<hr />\n<h3 id=\"t3-2026-juil-sept-2026-versioning-et-industrialisation\">T3 2026 (juil-sept 2026) - Versioning et industrialisation</h3>\n<h3 id=\"objectif_2\">Objectif</h3>\n<p>Stabiliser les interfaces et renforcer la gouvernance plugin/contrats.</p>\n<h3 id=\"milestones_2\">Milestones</h3>\n<ol>\n<li>\n<p><strong>M3.1 - Contract versioning v1</strong>\n- versioning explicite API/schema/config sensibles.\n- politique de deprecation publiee.</p>\n</li>\n<li>\n<p><strong>M3.2 - Plugin governance</strong>\n- catalogue de capabilities plugins.\n- checks de compatibilite minimaux.</p>\n</li>\n<li>\n<p><strong>M3.3 - Reliability hardening</strong>\n- alerting prioritaire sur jobs critiques.\n- playbooks incidents standardises.</p>\n</li>\n<li>\n<p><strong>M3.4 - E2E coverage</strong>\n- e2e UI/API sur parcours critiques (dont operations longues).</p>\n</li>\n</ol>\n<h3 id=\"owners_2\">Owners</h3>\n<ul>\n<li>M3.1: Owner A (B/C)</li>\n<li>M3.2: Owner A (B)</li>\n<li>M3.3: Owner D (E/B)</li>\n<li>M3.4: Owner E (C/B)</li>\n</ul>\n<h3 id=\"definition-of-done-trimestre_2\">Definition of Done (trimestre)</h3>\n<ul>\n<li>contrats sensibles versionnes,</li>\n<li>politique de deprecation active,</li>\n<li>monitoring/alerting utile en operation,</li>\n<li>couverture e2e significative sur flux critiques.</li>\n</ul>\n<hr />\n<h3 id=\"t4-2026-oct-dec-2026-consolidation-plateforme\">T4 2026 (oct-dec 2026) - Consolidation plateforme</h3>\n<h3 id=\"objectif_3\">Objectif</h3>\n<p>Consolider la plateforme et preparer 2027 (scale produit + integrabilite).</p>\n<h3 id=\"milestones_3\">Milestones</h3>\n<ol>\n<li>\n<p><strong>M4.1 - Headless readiness</strong>\n- workflows majeurs utilisables proprement via API/CLI/automation.</p>\n</li>\n<li>\n<p><strong>M4.2 - Performance and cost hygiene</strong>\n- revue perf jobs/endpoints critiques.\n- optimisation priorisee par impact.</p>\n</li>\n<li>\n<p><strong>M4.3 - Architecture review 2027</strong>\n- bilan de la transformation.\n- decisions de next step (continuer monolithe modulaire ou extractions ciblees).</p>\n</li>\n</ol>\n<h3 id=\"owners_3\">Owners</h3>\n<ul>\n<li>M4.1: Owner B (A/C)</li>\n<li>M4.2: Owner D (B)</li>\n<li>M4.3: Owner A (CTO + F)</li>\n</ul>\n<h3 id=\"definition-of-done-trimestre_3\">Definition of Done (trimestre)</h3>\n<ul>\n<li>headless mode stable pour cas prioritaires,</li>\n<li>gains mesurables sur latence/fiabilite,</li>\n<li>feuille de route architecture 2027 validee.</li>\n</ul>\n<hr />\n<h3 id=\"t1-2027-jan-mar-2027-extension-controlee\">T1 2027 (jan-mar 2027) - Extension controlee</h3>\n<h3 id=\"objectif_4\">Objectif</h3>\n<p>Capitaliser sur la base assainie pour accelerer les evolutions metier.</p>\n<h3 id=\"milestones_4\">Milestones</h3>\n<ol>\n<li>\n<p><strong>M5.1 - Product acceleration pack</strong>\n- templates/plugins livrables plus rapidement via nouveaux garde-fous.</p>\n</li>\n<li>\n<p><strong>M5.2 - Selective extraction decision</strong>\n- evaluation factuelle d'extractions techniques ciblees (si necessaire).</p>\n</li>\n</ol>\n<h3 id=\"owners_4\">Owners</h3>\n<ul>\n<li>M5.1: Owner F (A/B/C/E)</li>\n<li>M5.2: Owner A (CTO/D)</li>\n</ul>\n<hr />\n<h2 id=\"4-kpis-trimestriels-pilotage\">4. KPIs trimestriels (pilotage)</h2>\n<h3 id=\"41-delivery-quality\">4.1 Delivery &amp; Quality</h3>\n<ul>\n<li>lead time median des changements sur flux critiques,</li>\n<li>taux de rollback/rework sur incidents de regression,</li>\n<li>taux de succes des runs CI sur suites critiques.</li>\n</ul>\n<h3 id=\"42-fiabilite-operationnelle\">4.2 Fiabilite operationnelle</h3>\n<ul>\n<li>taux d'echec jobs critiques,</li>\n<li>MTTR incident workflows longs,</li>\n<li>taux de jobs recuperes apres restart.</li>\n</ul>\n<h3 id=\"43-gouvernance-architecture\">4.3 Gouvernance architecture</h3>\n<ul>\n<li>pourcentage de workflows passes en use-cases,</li>\n<li>nombre de contrats sensibles versionnes,</li>\n<li>avancement backlog ADR (ouvert -&gt; decide -&gt; applique).</li>\n</ul>\n<h3 id=\"44-securite-technique\">4.4 Securite technique</h3>\n<ul>\n<li>couverture tests securite endpoints critiques,</li>\n<li>nombre de non-conformites path/reseau detectees en CI.</li>\n</ul>\n<hr />\n<h2 id=\"5-raci-simplifie\">5. RACI simplifie</h2>\n<table>\n<thead>\n<tr>\n<th>Domaine</th>\n<th>R (Responsible)</th>\n<th>A (Accountable)</th>\n<th>C (Consulted)</th>\n<th>I (Informed)</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Domain &amp; plugins</td>\n<td>Owner A</td>\n<td>CTO</td>\n<td>B, C, E</td>\n<td>F</td>\n</tr>\n<tr>\n<td>Application/use-cases</td>\n<td>Owner B</td>\n<td>CTO</td>\n<td>A, C, E</td>\n<td>F</td>\n</tr>\n<tr>\n<td>UI contract &amp; parcours</td>\n<td>Owner C</td>\n<td>Head of Product</td>\n<td>A, B, E</td>\n<td>CTO</td>\n</tr>\n<tr>\n<td>Jobs/Observability/Run</td>\n<td>Owner D</td>\n<td>CTO</td>\n<td>B, E</td>\n<td>F</td>\n</tr>\n<tr>\n<td>Test strategy &amp; gates</td>\n<td>Owner E</td>\n<td>CTO</td>\n<td>B, C, D</td>\n<td>F</td>\n</tr>\n<tr>\n<td>Priorisation roadmap</td>\n<td>Owner F</td>\n<td>Head of Product</td>\n<td>A, B, C</td>\n<td>CTO</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"6-risques-et-mitigations\">6. Risques et mitigations</h2>\n<ol>\n<li>\n<p><strong>Risque: surcharge equipe / dispersion</strong>\n- Mitigation: limiter a 2 epics architecture actives en parallele.</p>\n</li>\n<li>\n<p><strong>Risque: ralentissement feature delivery</strong>\n- Mitigation: lots petits, objectifs trimestriels explicites, feature flags.</p>\n</li>\n<li>\n<p><strong>Risque: refactor sans gains visibles</strong>\n- Mitigation: KPIs obligatoires par milestone + revues mensuelles.</p>\n</li>\n<li>\n<p><strong>Risque: dette de migration inachevee</strong>\n- Mitigation: Definition of Done stricte par trimestre et fermeture obligatoire des migrations partiellement engagees.</p>\n</li>\n</ol>\n<hr />\n<h2 id=\"7-prochaines-actions-30-jours\">7. Prochaines actions (30 jours)</h2>\n<ol>\n<li>Nommer les owners (noms reels) pour A/B/C/D/E/F.</li>\n<li>Prioriser 5 use-cases cibles pour la vague T1 2026.</li>\n<li>Ouvrir et arbitrer les 2 premieres ADR (frontieres couches, modele de jobs).</li>\n<li>Definir les KPIs baseline (valeurs initiales) pour mesure d'impact.</li>\n</ol>",
+  "source_path": "08-roadmaps/target-architecture-2026-execution-plan.md"
+}

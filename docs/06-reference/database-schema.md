@@ -88,4 +88,4 @@ depends on the widget keys present in `transform.yml`.
 
 - [configuration-guide.md](configuration-guide.md): file-by-file YAML boundaries
 - [Import workflow](../02-user-guide/import.md)
-- [Transform workflow](../02-user-guide/transform.md)
+- [Collections](../02-user-guide/collections.md)

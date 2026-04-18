@@ -14,7 +14,7 @@ the same portal inside the repository.
   the desktop app, open your first project, understand the core
   concepts.
 - [02-user-guide/README.md](02-user-guide/README.md) — the day-to-day
-  desktop workflow: import, transform, preview, export.
+  desktop workflow: import, collections, site, publish.
 - [03-cli-automation/README.md](03-cli-automation/README.md) — drive
   the pipeline from the shell, GitHub Actions, or your own scripts.
 

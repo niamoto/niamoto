@@ -1,50 +1,61 @@
-# Preview Workflow
+# Preview Surfaces
 
-Niamoto shows preview in three parts of the desktop workflow.
+Preview is not one separate stage of the product. It appears inside three
+different parts of the desktop workflow.
 
-## Preview surfaces
+Use this page as a support reference when you want to understand what each
+preview is checking.
 
-### 1. Widget preview inside collections
+## 1. Widget preview in Collections
 
-The widget editor can render the current widget configuration before you save or
-recompute everything.
+Collections can render a widget before you recompute the whole collection.
 
-Main code paths:
+Use that preview to answer:
 
-- `src/niamoto/gui/ui/src/components/widgets/WidgetPreviewPanel.tsx`
-- `src/niamoto/gui/ui/src/components/widgets/AddWidgetModal.tsx`
-- `src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts`
-- `src/niamoto/gui/api/routers/preview.py`
+- does this block show the right data?
+- are the selected parameters sensible?
+- should the widget stay in the collection before I save and recompute?
 
-### 2. Site preview while editing pages
+This preview supports [collections.md](collections.md) and
+[widget-catalogue.md](widget-catalogue.md).
 
-The site area previews templates and page configuration while you edit the site.
+## 2. Site preview in the Site Builder
 
-Main code paths:
+The Site area previews page composition while you edit navigation, content, and
+page structure.
 
-- `src/niamoto/gui/ui/src/features/site/components/SiteBuilderPreview.tsx`
-- `src/niamoto/gui/ui/src/features/site/views/SitePagesPage.tsx`
+Use that preview to answer:
 
-### 3. Generated-site preview in publish
+- does the page layout still make sense?
+- do the navigation choices feel right?
+- are collection pages and shared pages fitting together?
 
-The publish area can display the generated site in a device frame after a build.
+This preview supports [site.md](site.md).
 
-Main code paths:
+## 3. Generated-site preview in Publish
 
-- `src/niamoto/gui/ui/src/features/publish/views/index.tsx`
-- `src/niamoto/gui/ui/src/components/ui/preview-frame`
+Publish can display the built site in a device frame once Niamoto has generated
+the output.
 
-## What each preview is for
+Use that preview to answer:
 
-Each preview answers a different question:
+- does the generated site still look correct after the build step?
+- is this the version I want to deploy?
+- do I need to go back to Site or Collections before publishing?
 
-- widget preview checks a block before you save or recompute it
-- site preview checks layout, navigation, and page composition
-- generated-site preview checks the built portal before or after deployment
+This preview supports [publish.md](publish.md).
 
-## Related documents
+## One concept, three questions
 
-- [transform.md](transform.md)
-- [widget-catalogue.md](widget-catalogue.md)
-- [export.md](export.md)
+The three preview surfaces exist for different decisions:
+
+- Collections preview checks a block
+- Site preview checks a page
+- Publish preview checks the generated portal
+
+## Related
+
+- [collections.md](collections.md)
+- [site.md](site.md)
+- [publish.md](publish.md)
 - [../06-reference/gui-preview-api.md](../06-reference/gui-preview-api.md)

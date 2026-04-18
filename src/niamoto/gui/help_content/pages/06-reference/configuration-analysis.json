@@ -1,0 +1,22 @@
+{
+  "slug": "06-reference/configuration-analysis",
+  "path": "/help/06-reference/configuration-analysis",
+  "title": "Configuration Analysis",
+  "description": "Use this checklist when reviewing a complex configuration change.",
+  "section_slug": "06-reference",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Checklist",
+      "level": 2,
+      "id": "checklist"
+    },
+    {
+      "title": "Related docs",
+      "level": 2,
+      "id": "related-docs"
+    }
+  ],
+  "html": "<h1 id=\"configuration-analysis\">Configuration Analysis</h1>\n<p>Use this checklist when reviewing a complex configuration change.</p>\n<h2 id=\"checklist\">Checklist</h2>\n<ol>\n<li>Keep import, transform, and export responsibilities separate.</li>\n<li>Prefer explicit identifiers and group names over inferred behavior.</li>\n<li>Confirm that plugin parameters match the plugin family that consumes them.</li>\n<li>Check whether repeated blocks should stay explicit or become a shared preset.</li>\n<li>Verify that the same concept is not defined twice across YAML files.</li>\n</ol>\n<h2 id=\"related-docs\">Related docs</h2>\n<ul>\n<li><a href=\"/help/06-reference/configuration-guide\">configuration-guide.md</a></li>\n<li><a href=\"/help/06-reference/yaml-strategies\">yaml-strategies.md</a></li>\n<li><a href=\"/help/06-reference/templates-hierarchy\">templates-hierarchy.md</a></li>\n</ul>",
+  "source_path": "06-reference/configuration-analysis.md"
+}

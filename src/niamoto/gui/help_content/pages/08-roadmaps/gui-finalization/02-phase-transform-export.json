@@ -1,0 +1,177 @@
+{
+  "slug": "08-roadmaps/gui-finalization/02-phase-transform-export",
+  "path": "/help/08-roadmaps/gui-finalization/02-phase-transform-export",
+  "title": "Phase 2 Transform/Export : Configuration des Widgets",
+  "description": "La phase Transform/Export permet de configurer les widgets de visualisation pour chaque groupe d'entités (taxons, plots, shapes). Cette phase est majoritairement implémentée, avec une architecture hybride offrant une exp",
+  "section_slug": "08-roadmaps",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Vue d'ensemble",
+      "level": 2,
+      "id": "vue-densemble"
+    },
+    {
+      "title": "Fonctionnalités implémentées",
+      "level": 3,
+      "id": "fonctionnalites-implementees"
+    },
+    {
+      "title": "1. Architecture des Composants",
+      "level": 2,
+      "id": "1-architecture-des-composants"
+    },
+    {
+      "title": "1.1 Vue d'ensemble",
+      "level": 3,
+      "id": "11-vue-densemble"
+    },
+    {
+      "title": "1.2 ContentTab.tsx",
+      "level": 3,
+      "id": "12-contenttabtsx"
+    },
+    {
+      "title": "1.3 WidgetDetailPanel.tsx",
+      "level": 3,
+      "id": "13-widgetdetailpaneltsx"
+    },
+    {
+      "title": "1.4 LayoutOverview.tsx",
+      "level": 3,
+      "id": "14-layoutoverviewtsx"
+    },
+    {
+      "title": "2. Système de Suggestions",
+      "level": 2,
+      "id": "2-systeme-de-suggestions"
+    },
+    {
+      "title": "2.1 AddWidgetModal",
+      "level": 3,
+      "id": "21-addwidgetmodal"
+    },
+    {
+      "title": "2.2 Pattern Detection",
+      "level": 3,
+      "id": "22-pattern-detection"
+    },
+    {
+      "title": "2.3 Class Objects et Scoring",
+      "level": 3,
+      "id": "23-class-objects-et-scoring"
+    },
+    {
+      "title": "3. Widgets Multi Champs et Layers",
+      "level": 2,
+      "id": "3-widgets-multi-champs-et-layers"
+    },
+    {
+      "title": "3.1 Scatter Plot (Multi dimensions)",
+      "level": 3,
+      "id": "31-scatter-plot-multi-dimensions"
+    },
+    {
+      "title": "3.2 Raster Stats (Layers géographiques)",
+      "level": 3,
+      "id": "32-raster-stats-layers-geographiques"
+    },
+    {
+      "title": "3.3 Forest Elevation (Combiné)",
+      "level": 3,
+      "id": "33-forest-elevation-combine"
+    },
+    {
+      "title": "3.4 Land Use Analysis",
+      "level": 3,
+      "id": "34-land-use-analysis"
+    },
+    {
+      "title": "4. Formulaires Dynamiques (JsonSchemaForm)",
+      "level": 2,
+      "id": "4-formulaires-dynamiques-jsonschemaform"
+    },
+    {
+      "title": "4.1 Génération depuis Pydantic",
+      "level": 3,
+      "id": "41-generation-depuis-pydantic"
+    },
+    {
+      "title": "4.2 Widgets UI supportés",
+      "level": 3,
+      "id": "42-widgets-ui-supportes"
+    },
+    {
+      "title": "4.3 Dépendances conditionnelles",
+      "level": 3,
+      "id": "43-dependances-conditionnelles"
+    },
+    {
+      "title": "5. API Backend",
+      "level": 2,
+      "id": "5-api-backend"
+    },
+    {
+      "title": "5.1 Endpoints Templates",
+      "level": 3,
+      "id": "51-endpoints-templates"
+    },
+    {
+      "title": "5.2 Endpoints Config",
+      "level": 3,
+      "id": "52-endpoints-config"
+    },
+    {
+      "title": "6. Hooks Frontend",
+      "level": 2,
+      "id": "6-hooks-frontend"
+    },
+    {
+      "title": "6.1 useWidgetConfig",
+      "level": 3,
+      "id": "61-usewidgetconfig"
+    },
+    {
+      "title": "6.2 useSemanticGroups",
+      "level": 3,
+      "id": "62-usesemanticgroups"
+    },
+    {
+      "title": "7. Fichiers Concernés",
+      "level": 2,
+      "id": "7-fichiers-concernes"
+    },
+    {
+      "title": "Frontend",
+      "level": 3,
+      "id": "frontend"
+    },
+    {
+      "title": "Backend",
+      "level": 3,
+      "id": "backend"
+    },
+    {
+      "title": "8. Actions Restantes",
+      "level": 2,
+      "id": "8-actions-restantes"
+    },
+    {
+      "title": "8.1 À Tester",
+      "level": 3,
+      "id": "81-a-tester"
+    },
+    {
+      "title": "8.2 Améliorations Futures",
+      "level": 3,
+      "id": "82-ameliorations-futures"
+    },
+    {
+      "title": "9. Dépendances",
+      "level": 2,
+      "id": "9-dependances"
+    }
+  ],
+  "html": "<h1 id=\"phase-2-transformexport-configuration-des-widgets\">Phase 2 - Transform/Export : Configuration des Widgets</h1>\n<h2 id=\"vue-densemble\">Vue d'ensemble</h2>\n<p>La phase Transform/Export permet de configurer les widgets de visualisation pour chaque groupe d'entités (taxons, plots, shapes). Cette phase est majoritairement implémentée, avec une architecture hybride offrant une expérience utilisateur fluide.</p>\n<blockquote>\n<p><strong>Note :</strong> Des tests et validations restent à effectuer — voir la Section 8 (Actions Restantes) pour le détail des points en suspens.</p>\n</blockquote>\n<h3 id=\"fonctionnalites-implementees\">Fonctionnalités implémentées</h3>\n<table>\n<thead>\n<tr>\n<th>Fonctionnalité</th>\n<th>Status</th>\n<th>Description</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Widget Gallery</td>\n<td>✅</td>\n<td>Suggestions intelligentes basées sur les données</td>\n</tr>\n<tr>\n<td>ContentTab hybride</td>\n<td>✅</td>\n<td>Layout list + panel contextuel</td>\n</tr>\n<tr>\n<td>WidgetDetailPanel</td>\n<td>✅</td>\n<td>3 tabs (Preview/Params/YAML)</td>\n</tr>\n<tr>\n<td>Drag-drop reordering</td>\n<td>✅</td>\n<td>Réorganisation avec persistance layout.order</td>\n</tr>\n<tr>\n<td>JsonSchemaForm</td>\n<td>✅</td>\n<td>Formulaires dynamiques depuis Pydantic</td>\n</tr>\n<tr>\n<td>Multi-field patterns</td>\n<td>✅</td>\n<td>7 types de détection sémantique</td>\n</tr>\n<tr>\n<td>Quick edit fields</td>\n<td>✅</td>\n<td>x_label, y_label pour axes</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"1-architecture-des-composants\">1. Architecture des Composants</h2>\n<h3 id=\"11-vue-densemble\">1.1 Vue d'ensemble</h3>\n<pre><code class=\"language-text\">GroupPanel.tsx (conteneur principal)\n├── Tabs\n│   ├── Sources (DataSourceConfig)\n│   ├── Content (ContentTab) ← Principal\n│   └── Index (IndexGeneratorConfig)\n└── Header avec infos référentiel\n\nContentTab.tsx (layout hybride)\n├── Left Panel (resizable)\n│   ├── Search bar\n│   ├── Add dropdown (Suggestions/Combined/Custom)\n│   └── WidgetListPanel (liste des widgets)\n└── Right Panel (contextuel)\n    ├── LayoutOverview (si rien sélectionné)\n    └── WidgetDetailPanel (si widget sélectionné)\n</code></pre>\n<h3 id=\"12-contenttabtsx\">1.2 ContentTab.tsx</h3>\n<p>Le composant principal pour la gestion des widgets utilise un layout hybride :</p>\n<pre><code class=\"language-typescript\">// État de sélection\nconst [selectedWidgetId, setSelectedWidgetId] = useState&lt;string | null&gt;(null)\n\n// Layout\n&lt;ResizablePanelGroup direction=&quot;horizontal&quot;&gt;\n  &lt;ResizablePanel defaultSize={35} minSize={25}&gt;\n    {/* Liste des widgets avec recherche */}\n    &lt;WidgetListPanel\n      widgets={widgets}\n      selectedId={selectedWidgetId}\n      onSelect={setSelectedWidgetId}\n    /&gt;\n  &lt;/ResizablePanel&gt;\n\n  &lt;ResizableHandle /&gt;\n\n  &lt;ResizablePanel defaultSize={65}&gt;\n    {/* Affichage contextuel */}\n    {selectedWidgetId ? (\n      &lt;WidgetDetailPanel widget={selectedWidget} /&gt;\n    ) : (\n      &lt;LayoutOverview widgets={widgets} onReorder={handleReorder} /&gt;\n    )}\n  &lt;/ResizablePanel&gt;\n&lt;/ResizablePanelGroup&gt;\n</code></pre>\n<p><strong>Fonctionnalités clés :</strong>\n- Panel gauche redimensionnable (25-50%)\n- Recherche/filtre des widgets\n- Dropdown d'ajout avec 3 modes\n- Panel droit contextuel</p>\n<h3 id=\"13-widgetdetailpaneltsx\">1.3 WidgetDetailPanel.tsx</h3>\n<p>Affiche les détails d'un widget sélectionné avec 3 tabs :</p>\n<pre><code class=\"language-text\">WidgetDetailPanel\n├── Preview Tab\n│   └── iframe avec widget rendu\n├── Parameters Tab\n│   ├── Accordion: Transformation\n│   │   └── JsonSchemaForm (plugin transformer)\n│   └── Accordion: Visualisation\n│       └── JsonSchemaForm (plugin widget)\n└── YAML Tab\n    ├── transform.yml section\n    └── export.yml section\n</code></pre>\n<p><strong>Fonctionnalités :</strong>\n- Preview temps réel avec iframe\n- Formulaires générés depuis schémas Pydantic\n- Export YAML pour copier/coller\n- Bouton suppression avec confirmation</p>\n<h3 id=\"14-layoutoverviewtsx\">1.4 LayoutOverview.tsx</h3>\n<p>Vue grille pour la prévisualisation et le réordonnancement :</p>\n<pre><code class=\"language-typescript\">// Drag and drop avec @dnd-kit\n&lt;DndContext onDragEnd={handleDragEnd}&gt;\n  &lt;SortableContext items={widgets.map(w =&gt; w.id)}&gt;\n    &lt;div className=&quot;grid grid-cols-2 gap-4&quot;&gt;\n      {widgets.map((widget, index) =&gt; (\n        &lt;SortableWidget\n          key={widget.id}\n          widget={widget}\n          colspan={widget.layout?.colspan || 1}\n          onColspanToggle={handleColspanToggle}\n        /&gt;\n      ))}\n    &lt;/div&gt;\n  &lt;/SortableContext&gt;\n&lt;/DndContext&gt;\n</code></pre>\n<p><strong>Fonctionnalités :</strong>\n- Grille 2 colonnes\n- Drag-drop pour réordonner\n- Toggle colspan (1 ou 2)\n- Sélecteur d'entité pour preview\n- Bouton save pour persister l'ordre</p>\n<hr />\n<h2 id=\"2-systeme-de-suggestions\">2. Système de Suggestions</h2>\n<h3 id=\"21-addwidgetmodal\">2.1 AddWidgetModal</h3>\n<p>Modal d'ajout de widgets avec 3 modes :</p>\n<pre><code class=\"language-text\">AddWidgetModal (90vw × 85vh)\n├── Suggestions Tab\n│   ├── Filtres (catégorie, source)\n│   ├── Grid de widgets suggérés\n│   └── Panel de personnalisation\n├── Combined Tab\n│   ├── Semantic groups (patterns détectés)\n│   └── Sélection manuelle de champs\n└── Custom Tab\n    └── Wizard 4 étapes avec YAML preview\n</code></pre>\n<h3 id=\"22-pattern-detection\">2.2 Pattern Detection</h3>\n<p>Le système détecte <strong>7 types de patterns</strong> pour suggérer des widgets combinés :</p>\n<pre><code class=\"language-python\"># multi_field_detector.py\n\nclass PatternType(Enum):\n    PHENOLOGY = &quot;phenology&quot;           # month + flower/fruit\n    ALLOMETRY = &quot;allometry&quot;           # dbh + height\n    TRAIT_COMPARISON = &quot;trait&quot;        # leaf_sla + leaf_area + ...\n    TEMPORAL_SERIES = &quot;temporal&quot;      # date + mesures\n    BOOLEAN_COMPARISON = &quot;boolean&quot;    # endemic + protected + ...\n    NUMERIC_CORRELATION = &quot;correlation&quot;  # elevation + rainfall\n    CATEGORICAL_COMPARISON = &quot;categorical&quot;\n</code></pre>\n<p><strong>Mots-clés utilisés :</strong>\n- Phénologie : <code>month</code>, <code>mois</code>, <code>date</code>, <code>flower</code>, <code>fruit</code>, <code>fertile</code>\n- Dimensions : <code>dbh</code>, <code>height</code>, <code>diameter</code>, <code>hauteur</code>\n- Traits : <code>leaf_area</code>, <code>leaf_sla</code>, <code>wood_density</code>, <code>bark_thickness</code></p>\n<h3 id=\"23-class-objects-et-scoring\">2.3 Class Objects et Scoring</h3>\n<p>Le système analyse les données pour scorer les suggestions :</p>\n<pre><code class=\"language-python\"># suggestion_service.py\n\nclass ClassObjectSuggestion:\n    field: str\n    class_type: str  # scalar, binary, ternary, multi_category, numeric_bins\n    confidence: float  # 0.0 - 1.0\n    suggested_widgets: List[WidgetSuggestion]\n</code></pre>\n<p><strong>Types de class objects :</strong>\n| Type | Condition | Widgets suggérés |\n|------|-----------|------------------|\n| <code>scalar</code> | Valeur unique | info_grid |\n| <code>binary</code> | 2 catégories | donut_chart, bar_plot |\n| <code>ternary</code> | 3 catégories | donut_chart, bar_plot |\n| <code>multi_category</code> | 4-12 catégories | bar_plot |\n| <code>numeric_bins</code> | Bins numériques | bar_plot avec gradient |\n| <code>large_category</code> | &gt;12 catégories | top_ranking |</p>\n<hr />\n<h2 id=\"3-widgets-multi-champs-et-layers\">3. Widgets Multi-Champs et Layers</h2>\n<h3 id=\"31-scatter-plot-multi-dimensions\">3.1 Scatter Plot (Multi-dimensions)</h3>\n<p>Le widget scatter_plot supporte jusqu'à 5 dimensions :</p>\n<pre><code class=\"language-yaml\"># export.yml\n- plugin: scatter_plot\n  data_source: dbh_height_correlation\n  params:\n    x_axis: dbh           # Dimension 1\n    y_axis: height        # Dimension 2\n    color_field: species  # Dimension 3 (optionnel)\n    size_field: age       # Dimension 4 (optionnel)\n    symbol_field: site    # Dimension 5 (optionnel)\n    trendline: ols        # Régression linéaire\n</code></pre>\n<h3 id=\"32-raster-stats-layers-geographiques\">3.2 Raster Stats (Layers géographiques)</h3>\n<p>Extraction de statistiques depuis des rasters (MNT, pluviométrie) :</p>\n<pre><code class=\"language-yaml\"># transform.yml\nelevation_stats:\n  plugin: raster_stats\n  params:\n    raster_path: imports/mnt100_epsg3163.tif\n    shape_field: geometry\n    stats: [min, max, mean, median, histogram]\n    band: 1\n</code></pre>\n<p><strong>Statistiques disponibles :</strong>\n- min, max, mean, median, std\n- Percentiles (P5, P25, P75, P95)\n- Histogram avec classes</p>\n<h3 id=\"33-forest-elevation-combine\">3.3 Forest Elevation (Combiné)</h3>\n<p>Combine couches vectorielles (forêt) et raster (altitude) :</p>\n<pre><code class=\"language-yaml\">forest_elevation_analysis:\n  plugin: forest_elevation\n  params:\n    forest_types_path: imports/forest_cover.gpkg\n    dem_path: imports/mnt100_epsg3163.tif\n    forest_type_field: type_foret\n    elevation_bins: [0, 200, 400, 600, 800, 1000]\n    forest_types: [&quot;Core forest&quot;, &quot;Mature forest&quot;, &quot;Secondary&quot;]\n</code></pre>\n<h3 id=\"34-land-use-analysis\">3.4 Land Use Analysis</h3>\n<p>Analyse multi-couches vectorielles :</p>\n<blockquote>\n<p><strong>Note :</strong> Les chemins de fichiers dans les exemples ci-dessous (et dans les sections précédentes) sont résolus relativement à la racine du projet Niamoto.</p>\n</blockquote>\n<pre><code class=\"language-yaml\">land_use_summary:\n  plugin: land_use\n  params:\n    layers:\n      - path: forest_cover.gpkg\n        field: forest_type\n        categories: [foret_dense, foret_secondaire]\n      - path: protected_areas.gpkg\n        field: status\n        categories: [reserve_integrale, parc_provincial]\n    area_unit: ha\n</code></pre>\n<hr />\n<h2 id=\"4-formulaires-dynamiques-jsonschemaform\">4. Formulaires Dynamiques (JsonSchemaForm)</h2>\n<h3 id=\"41-generation-depuis-pydantic\">4.1 Génération depuis Pydantic</h3>\n<p>Les plugins définissent un <code>config_model</code> Pydantic qui génère automatiquement le formulaire :</p>\n<pre><code class=\"language-python\"># Plugin transformer\nclass BinnedDistributionParams(BaseModel):\n    field: str = Field(..., json_schema_extra={&quot;ui:widget&quot;: &quot;field_select&quot;})\n    bins: int = Field(10, ge=2, le=100)\n    method: Literal[&quot;equal_width&quot;, &quot;quantile&quot;] = &quot;equal_width&quot;\n</code></pre>\n<h3 id=\"42-widgets-ui-supportes\">4.2 Widgets UI supportés</h3>\n<table>\n<thead>\n<tr>\n<th>ui:widget</th>\n<th>Description</th>\n<th>Composant</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>field_select</code></td>\n<td>Sélecteur de colonne</td>\n<td>FieldSelectField</td>\n</tr>\n<tr>\n<td><code>entity_select</code></td>\n<td>Sélecteur d'entité</td>\n<td>EntitySelectField</td>\n</tr>\n<tr>\n<td><code>color</code></td>\n<td>Sélecteur couleur</td>\n<td>ColorField</td>\n</tr>\n<tr>\n<td><code>textarea</code></td>\n<td>Zone de texte</td>\n<td>TextAreaField</td>\n</tr>\n<tr>\n<td><code>json</code></td>\n<td>Éditeur JSON</td>\n<td>JsonField</td>\n</tr>\n<tr>\n<td><code>directory</code></td>\n<td>Sélecteur dossier</td>\n<td>DirectorySelectField</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"43-dependances-conditionnelles\">4.3 Dépendances conditionnelles</h3>\n<pre><code class=\"language-python\">class ChartParams(BaseModel):\n    show_legend: bool = True\n    legend_position: str = Field(\n        &quot;right&quot;,\n        json_schema_extra={\n            &quot;ui:depends&quot;: {&quot;show_legend&quot;: True}  # Affiché seulement si show_legend=true\n        }\n    )\n</code></pre>\n<hr />\n<h2 id=\"5-api-backend\">5. API Backend</h2>\n<h3 id=\"51-endpoints-templates\">5.1 Endpoints Templates</h3>\n<pre><code class=\"language-python\"># routers/templates.py\n\nGET /api/templates/suggestions/{group_name}\n# Retourne les suggestions de widgets pour un groupe\n\nGET /api/templates/{entity_type}\n# Liste les templates disponibles par type d'entité\n\nPOST /api/templates/generate-config\n# Génère la configuration depuis des templates sélectionnés\n\n# Endpoints preview unifiés (PreviewEngine) :\nGET /api/preview/{template_id}\n# Preview avec support ETag/304 conditionnel\n\nPOST /api/preview\n# Preview inline (toujours rendu complet, pas de cache 304)\n\nGET /api/templates/preview/{widget_id}   # DEPRECATED — alias legacy\n# Redirige vers GET /api/preview/{widget_id}\n</code></pre>\n<h3 id=\"52-endpoints-config\">5.2 Endpoints Config</h3>\n<pre><code class=\"language-python\"># routers/config.py\n\nGET /api/config/widgets/{group_name}\n# Retourne les widgets configurés pour un groupe\n\nPUT /api/config/widgets/{group_name}\n# Met à jour les widgets d'un groupe\n\nPUT /api/config/widgets/{group_name}/reorder\n# Réordonne les widgets (layout.order)\n</code></pre>\n<hr />\n<h2 id=\"6-hooks-frontend\">6. Hooks Frontend</h2>\n<h3 id=\"61-usewidgetconfig\">6.1 useWidgetConfig</h3>\n<p>Hook principal pour la gestion des widgets :</p>\n<pre><code class=\"language-typescript\">export function useWidgetConfig(groupName: string) {\n  const { data, isLoading } = useQuery({\n    queryKey: ['widgets', groupName],\n    queryFn: () =&gt; fetchWidgets(groupName)\n  })\n\n  const updateWidget = useMutation({...})\n  const deleteWidget = useMutation({...})\n  const reorderWidgets = useMutation({...})\n  const duplicateWidget = useMutation({...})\n\n  return { widgets: data, isLoading, updateWidget, deleteWidget, ... }\n}\n</code></pre>\n<h3 id=\"62-usesemanticgroups\">6.2 useSemanticGroups</h3>\n<p>Hook pour les suggestions de patterns :</p>\n<pre><code class=\"language-typescript\">export function useSemanticGroups(groupName: string) {\n  return useQuery({\n    queryKey: ['semantic-groups', groupName],\n    queryFn: () =&gt; fetchSemanticGroups(groupName)\n  })\n}\n</code></pre>\n<hr />\n<h2 id=\"7-fichiers-concernes\">7. Fichiers Concernés</h2>\n<h3 id=\"frontend\">Frontend</h3>\n<pre><code class=\"language-text\">src/niamoto/gui/ui/src/\n├── components/\n│   ├── content/\n│   │   ├── ContentTab.tsx           # Layout principal\n│   │   ├── WidgetListPanel.tsx      # Liste des widgets\n│   │   ├── WidgetDetailPanel.tsx    # Détails widget\n│   │   ├── LayoutOverview.tsx       # Vue grille\n│   │   └── AddWidgetModal.tsx       # Modal d'ajout\n│   ├── forms/\n│   │   ├── JsonSchemaForm.tsx       # Générateur de formulaires\n│   │   └── WidgetConfigForm.tsx     # Formulaire widget\n│   └── gallery/\n│       └── WidgetGallery.tsx        # Galerie de suggestions\n├── hooks/\n│   ├── useWidgetConfig.ts           # CRUD widgets\n│   ├── useTemplates.ts              # Templates API\n│   └── useSemanticGroups.ts         # Patterns API\n└── pages/\n    └── flow/\n        └── GroupPanel.tsx           # Panel de groupe\n</code></pre>\n<h3 id=\"backend\">Backend</h3>\n<pre><code class=\"language-text\">src/niamoto/gui/api/\n├── routers/\n│   ├── templates.py                 # Suggestions API\n│   ├── config.py                    # Configuration API\n│   ├── transform.py                 # Exécution transform\n│   └── export.py                    # Exécution export\n└── services/\n    └── templates/\n        └── suggestion_service.py    # Logique de suggestions\n\nsrc/niamoto/core/\n├── plugins/\n│   ├── transformers/\n│   │   ├── binned_distribution.py\n│   │   ├── statistical_summary.py\n│   │   ├── raster_stats.py\n│   │   └── forest_elevation.py\n│   └── exporters/\n│       ├── bar_plot.py\n│       ├── scatter_plot.py\n│       └── donut_chart.py\n└── imports/\n    └── multi_field_detector.py      # Pattern detection\n</code></pre>\n<hr />\n<h2 id=\"8-actions-restantes\">8. Actions Restantes</h2>\n<h3 id=\"81-a-tester\">8.1 À Tester</h3>\n<table>\n<thead>\n<tr>\n<th>Action</th>\n<th>Priorité</th>\n<th>Description</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Intégration shapes</td>\n<td>P1</td>\n<td>Vérifier que les 3 groupes (taxons, plots, shapes) fonctionnent</td>\n</tr>\n<tr>\n<td>Widgets raster</td>\n<td>P2</td>\n<td>Tester raster_stats avec données réelles</td>\n</tr>\n<tr>\n<td>Preview performance</td>\n<td>P2</td>\n<td>Optimiser le rendu des previews iframe</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"82-ameliorations-futures\">8.2 Améliorations Futures</h3>\n<table>\n<thead>\n<tr>\n<th>Action</th>\n<th>Priorité</th>\n<th>Description</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Édition avancée</td>\n<td>P3</td>\n<td>Formulaires plus riches pour plugins complexes</td>\n</tr>\n<tr>\n<td>Import/Export config</td>\n<td>P3</td>\n<td>Partage de configurations entre projets</td>\n</tr>\n<tr>\n<td>Undo/Redo</td>\n<td>P3</td>\n<td>Historique des modifications</td>\n</tr>\n</tbody>\n</table>\n<hr />\n<h2 id=\"9-dependances\">9. Dépendances</h2>\n<pre><code class=\"language-text\">Données importées (import.yml)\n        │\n        ▼\nPattern Detection ──► Suggestions intelligentes\n        │\n        ▼\nWidget Configuration (transform.yml + export.yml)\n        │\n        ▼\nTransform Execution ──► JSON Data\n        │\n        ▼\nExport Execution ──► HTML Pages\n</code></pre>\n<p>La phase Transform/Export dépend de l'import réussi des données. Les widgets sont configurés puis exécutés séquentiellement (transform avant export).</p>",
+  "source_path": "08-roadmaps/gui-finalization/02-phase-transform-export.md"
+}

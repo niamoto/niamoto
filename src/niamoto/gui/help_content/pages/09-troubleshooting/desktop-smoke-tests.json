@@ -1,0 +1,52 @@
+{
+  "slug": "09-troubleshooting/desktop-smoke-tests",
+  "path": "/help/09-troubleshooting/desktop-smoke-tests",
+  "title": "Desktop Smoke Tests",
+  "description": "Use this checklist before calling a desktop build healthy on macOS, Linux, or Windows.",
+  "section_slug": "09-troubleshooting",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Current build matrix",
+      "level": 2,
+      "id": "current-build-matrix"
+    },
+    {
+      "title": "Startup",
+      "level": 2,
+      "id": "startup"
+    },
+    {
+      "title": "Project selection",
+      "level": 2,
+      "id": "project-selection"
+    },
+    {
+      "title": "Core workflows",
+      "level": 2,
+      "id": "core-workflows"
+    },
+    {
+      "title": "Platform specific checks",
+      "level": 2,
+      "id": "platform-specific-checks"
+    },
+    {
+      "title": "Windows",
+      "level": 3,
+      "id": "windows"
+    },
+    {
+      "title": "Linux",
+      "level": 3,
+      "id": "linux"
+    },
+    {
+      "title": "macOS",
+      "level": 3,
+      "id": "macos"
+    }
+  ],
+  "html": "<h1 id=\"desktop-smoke-tests\">Desktop Smoke Tests</h1>\n<p>Use this checklist before calling a desktop build healthy on macOS, Linux, or Windows.</p>\n<h2 id=\"current-build-matrix\">Current build matrix</h2>\n<p>The current CI workflow in <code>.github/workflows/build-tauri.yml</code> produces:</p>\n<ul>\n<li>macOS arm64</li>\n<li>Linux x86_64</li>\n<li>Linux arm64</li>\n<li>Windows x86_64</li>\n</ul>\n<p>Windows ARM64 is only partially supported in code today:</p>\n<ul>\n<li>the Tauri runtime resolves the ARM64 sidecar target</li>\n<li>the CI workflow does not build or publish a Windows ARM64 artifact yet</li>\n<li>local ARM64 testing still depends on a native sidecar environment</li>\n</ul>\n<h2 id=\"startup\">Startup</h2>\n<p>Check:</p>\n<ul>\n<li>the desktop app launches without a console window on Windows</li>\n<li>only one title bar is visible on Windows and Linux</li>\n<li>the startup screen progresses, then the main UI loads</li>\n<li>a startup failure shows the inline error screen instead of a blank window</li>\n<li>startup logs are written to the native desktop log directory</li>\n</ul>\n<h2 id=\"project-selection\">Project selection</h2>\n<p>Check:</p>\n<ul>\n<li>opening an existing project works</li>\n<li>invalid recent projects are detected and can be removed</li>\n<li>creating a project rejects invalid names such as <code>CON</code>, <code>bad/name</code>, trailing dots, or trailing spaces</li>\n<li>switching projects updates the backend context without restarting the whole desktop app</li>\n</ul>\n<h2 id=\"core-workflows\">Core workflows</h2>\n<p>Check:</p>\n<ul>\n<li>import starts and reaches progress updates</li>\n<li>transform starts and reaches progress updates</li>\n<li>site export starts and reaches progress updates</li>\n<li>feedback submission either succeeds or fails with a useful local diagnostic</li>\n<li>updater can check, download, and install an update</li>\n</ul>\n<h2 id=\"platform-specific-checks\">Platform-specific checks</h2>\n<h3 id=\"windows\">Windows</h3>\n<ul>\n<li>no extra terminal window opens</li>\n<li>installer and updater both complete without leaving the UI stuck at <code>0%</code></li>\n<li>project creation rejects Windows-reserved names</li>\n<li>opening external links works for <code>http</code>, <code>https</code>, and <code>mailto</code>, and rejects other schemes</li>\n</ul>\n<h3 id=\"linux\">Linux</h3>\n<ul>\n<li>updater handles the privileged install step cleanly</li>\n<li>PyInstaller bundle contains required native GIS dependencies</li>\n<li>native window decorations remain intact</li>\n</ul>\n<h3 id=\"macos\">macOS</h3>\n<ul>\n<li>overlay title bar still leaves enough drag area</li>\n<li>traffic lights remain accessible</li>\n<li>startup, project switching, and updater still work after the Tauri hardening passes</li>\n</ul>",
+  "source_path": "09-troubleshooting/desktop-smoke-tests.md"
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "06-reference/gui-preview-api",
+  "path": "/help/06-reference/gui-preview-api",
+  "title": "Preview API Reference",
+  "description": "The desktop backend renders HTML previews for widgets and related preview surfaces in the GUI.",
+  "section_slug": "06-reference",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Endpoints",
+      "level": 2,
+      "id": "endpoints"
+    },
+    {
+      "title": "GET /api/preview/{template id}",
+      "level": 3,
+      "id": "get-apipreviewtemplate_id"
+    },
+    {
+      "title": "POST /api/preview",
+      "level": 3,
+      "id": "post-apipreview"
+    },
+    {
+      "title": "GET /api/templates/preview/{template id}",
+      "level": 3,
+      "id": "get-apitemplatespreviewtemplate_id"
+    },
+    {
+      "title": "Response model",
+      "level": 2,
+      "id": "response-model"
+    },
+    {
+      "title": "Preview modes",
+      "level": 2,
+      "id": "preview-modes"
+    },
+    {
+      "title": "Cache model",
+      "level": 2,
+      "id": "cache-model"
+    },
+    {
+      "title": "HTTP cache",
+      "level": 3,
+      "id": "http-cache"
+    },
+    {
+      "title": "Frontend cache",
+      "level": 3,
+      "id": "frontend-cache"
+    },
+    {
+      "title": "Frontend usage",
+      "level": 2,
+      "id": "frontend-usage"
+    },
+    {
+      "title": "Related docs",
+      "level": 2,
+      "id": "related-docs"
+    }
+  ],
+  "html": "<h1 id=\"preview-api-reference\">Preview API Reference</h1>\n<p>The desktop backend renders HTML previews for widgets and related preview\nsurfaces in the GUI.</p>\n<h2 id=\"endpoints\">Endpoints</h2>\n<h3 id=\"get-apipreviewtemplate_id\"><code>GET /api/preview/{template_id}</code></h3>\n<p>Render the stored preview HTML for a widget identified by <code>template_id</code>.</p>\n<p>Query parameters:</p>\n<table>\n<thead>\n<tr>\n<th>Parameter</th>\n<th>Type</th>\n<th>Default</th>\n<th>Description</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>group_by</code></td>\n<td><code>string</code></td>\n<td>auto-resolved</td>\n<td>Aggregation reference such as <code>taxons</code> or <code>plots</code></td>\n</tr>\n<tr>\n<td><code>source</code></td>\n<td><code>string</code></td>\n<td><code>null</code></td>\n<td>Explicit data source</td>\n</tr>\n<tr>\n<td><code>entity_id</code></td>\n<td><code>string</code></td>\n<td><code>null</code></td>\n<td>Specific entity identifier</td>\n</tr>\n<tr>\n<td><code>mode</code></td>\n<td><code>\"thumbnail\" \\| \"full\"</code></td>\n<td><code>\"full\"</code></td>\n<td>Preview rendering mode</td>\n</tr>\n</tbody>\n</table>\n<p>Responses:</p>\n<ul>\n<li><code>200 OK</code>: full HTML document</li>\n<li><code>304 Not Modified</code>: when the ETag still matches</li>\n<li><code>500</code>: wrapped preview error HTML</li>\n</ul>\n<p>Important headers:</p>\n<ul>\n<li><code>ETag</code></li>\n<li><code>Cache-Control: no-cache</code></li>\n</ul>\n<p>Example:</p>\n<pre><code class=\"language-text\">GET /api/preview/plots_dbh_distribution_bar_plot?group_by=plots&amp;entity_id=2&amp;mode=full\n</code></pre>\n<h3 id=\"post-apipreview\"><code>POST /api/preview</code></h3>\n<p>Render a preview from an inline transformer/widget configuration.</p>\n<p>Example body:</p>\n<pre><code class=\"language-json\">{\n  &quot;template_id&quot;: null,\n  &quot;group_by&quot;: &quot;taxons&quot;,\n  &quot;source&quot;: &quot;plots&quot;,\n  &quot;entity_id&quot;: &quot;5&quot;,\n  &quot;mode&quot;: &quot;full&quot;,\n  &quot;inline&quot;: {\n    &quot;transformer_plugin&quot;: &quot;categorical_distribution&quot;,\n    &quot;transformer_params&quot;: {\n      &quot;field&quot;: &quot;strata&quot;,\n      &quot;categories&quot;: [&quot;1&quot;, &quot;2&quot;, &quot;3&quot;]\n    },\n    &quot;widget_plugin&quot;: &quot;bar_plot&quot;,\n    &quot;widget_params&quot;: {\n      &quot;x_axis&quot;: &quot;categories&quot;,\n      &quot;y_axis&quot;: &quot;counts&quot;\n    },\n    &quot;widget_title&quot;: &quot;Strata distribution&quot;\n  }\n}\n</code></pre>\n<p>If <code>inline</code> is omitted, <code>template_id</code> resolution is used instead.</p>\n<h3 id=\"get-apitemplatespreviewtemplate_id\"><code>GET /api/templates/preview/{template_id}</code></h3>\n<p>Legacy compatibility alias for <code>GET /api/preview/{template_id}</code>.</p>\n<h2 id=\"response-model\">Response model</h2>\n<p>The response is a full HTML document suitable for <code>iframe srcDoc</code>.</p>\n<p>The backend may inject:</p>\n<ul>\n<li>base styles</li>\n<li>preview metadata</li>\n<li>the appropriate Plotly bundle when needed</li>\n</ul>\n<h2 id=\"preview-modes\">Preview modes</h2>\n<table>\n<thead>\n<tr>\n<th>Aspect</th>\n<th><code>thumbnail</code></th>\n<th><code>full</code></th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Plotly <code>staticPlot</code></td>\n<td><code>true</code></td>\n<td><code>false</code></td>\n</tr>\n<tr>\n<td>Mode bar</td>\n<td>hidden</td>\n<td>visible</td>\n</tr>\n<tr>\n<td>Interactivity</td>\n<td>reduced</td>\n<td>full</td>\n</tr>\n<tr>\n<td>Intended use</td>\n<td>tiles and lists</td>\n<td>detailed preview</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"cache-model\">Cache model</h2>\n<p>There are two layers:</p>\n<h3 id=\"http-cache\">HTTP cache</h3>\n<p>The backend returns an ETag derived from preview identity and data/config fingerprinting.</p>\n<h3 id=\"frontend-cache\">Frontend cache</h3>\n<p>The frontend preview hook uses TanStack Query for:</p>\n<ul>\n<li>deduplication</li>\n<li>memory caching</li>\n<li>explicit invalidation after import or config updates</li>\n</ul>\n<h2 id=\"frontend-usage\">Frontend usage</h2>\n<p>Main frontend files:</p>\n<ul>\n<li><code>src/niamoto/gui/ui/src/lib/preview/types.ts</code></li>\n<li><code>src/niamoto/gui/ui/src/lib/preview/usePreviewFrame.ts</code></li>\n</ul>\n<h2 id=\"related-docs\">Related docs</h2>\n<ul>\n<li><a href=\"/help/07-architecture/gui-preview-system\">GUI preview system</a></li>\n</ul>",
+  "source_path": "06-reference/gui-preview-api.md"
+}

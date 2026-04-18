@@ -1,0 +1,97 @@
+{
+  "slug": "05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain",
+  "path": "/help/05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain",
+  "title": "Acquisition Wave Retrain and Evaluation (2026 03 21)",
+  "description": "This run measures the effect of the acquisition wave on the ML detection stack after:",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Context",
+      "level": 2,
+      "id": "context"
+    },
+    {
+      "title": "Data integrated before retrain",
+      "level": 2,
+      "id": "data-integrated-before-retrain"
+    },
+    {
+      "title": "Added to the gold set",
+      "level": 3,
+      "id": "added-to-the-gold-set"
+    },
+    {
+      "title": "Added at runtime only",
+      "level": 3,
+      "id": "added-at-runtime-only"
+    },
+    {
+      "title": "Explicitly left out",
+      "level": 3,
+      "id": "explicitly-left-out"
+    },
+    {
+      "title": "Resulting gold set",
+      "level": 2,
+      "id": "resulting-gold-set"
+    },
+    {
+      "title": "Commands run",
+      "level": 2,
+      "id": "commands-run"
+    },
+    {
+      "title": "Training results",
+      "level": 2,
+      "id": "training-results"
+    },
+    {
+      "title": "Warnings",
+      "level": 3,
+      "id": "warnings"
+    },
+    {
+      "title": "Evaluation results",
+      "level": 2,
+      "id": "evaluation-results"
+    },
+    {
+      "title": "Internal benchmarks after retrain",
+      "level": 3,
+      "id": "internal-benchmarks-after-retrain"
+    },
+    {
+      "title": "Full eval suite (9 datasets, 478 columns)",
+      "level": 3,
+      "id": "full-eval-suite-9-datasets-478-columns"
+    },
+    {
+      "title": "Product oriented aggregate view (7 datasets, 418 columns)",
+      "level": 3,
+      "id": "product-oriented-aggregate-view-7-datasets-418-columns"
+    },
+    {
+      "title": "Interpretation",
+      "level": 2,
+      "id": "interpretation"
+    },
+    {
+      "title": "What worked well",
+      "level": 3,
+      "id": "what-worked-well"
+    },
+    {
+      "title": "What remains weak",
+      "level": 3,
+      "id": "what-remains-weak"
+    },
+    {
+      "title": "Conclusion",
+      "level": 2,
+      "id": "conclusion"
+    }
+  ],
+  "html": "<h1 id=\"acquisition-wave-retrain-and-evaluation-2026-03-21\">Acquisition Wave Retrain and Evaluation (2026-03-21)</h1>\n<blockquote>\n<p>Status: Experiment\nAudience: Team, AI agents\nPurpose: Measure the impact of the <code>SINP 1A + ETS + sPlotOpen</code> acquisition\nwave after a full rebuild and retrain</p>\n</blockquote>\n<h2 id=\"context\">Context</h2>\n<p>This run measures the effect of the acquisition wave on the ML detection stack\nafter:</p>\n<ol>\n<li>rebuilding the gold set</li>\n<li>retraining the <code>header</code>, <code>values</code>, and <code>fusion</code> branches</li>\n<li>rerunning both the internal benchmark and the real-dataset suite</li>\n</ol>\n<h2 id=\"data-integrated-before-retrain\">Data integrated before retrain</h2>\n<h3 id=\"added-to-the-gold-set\">Added to the gold set</h3>\n<ul>\n<li><code>TAXREF v18</code> (<code>ml/data/silver/taxref/TAXREFv18.txt</code>)</li>\n<li><code>ETS Occurrence_ext.csv</code></li>\n<li><code>ETS Taxon_ext.csv</code></li>\n<li><code>ETS Measurement_or_Fact_ext.csv</code></li>\n<li><code>sPlotOpen_header(3).txt</code></li>\n<li><code>sPlotOpen_DT(2).txt</code></li>\n<li><code>sPlotOpen_CWM_CWV(2).txt</code></li>\n<li><code>sPlotOpen_metadata(2).txt</code></li>\n</ul>\n<h3 id=\"added-at-runtime-only\">Added at runtime only</h3>\n<ul>\n<li><code>sinp:</code> alias block in <code>column_aliases.yaml</code></li>\n<li><code>ets:</code> alias block in <code>column_aliases.yaml</code></li>\n<li><code>splot:</code> alias block in <code>column_aliases.yaml</code></li>\n</ul>\n<h3 id=\"explicitly-left-out\">Explicitly left out</h3>\n<ul>\n<li><code>OpenObs / SINP</code>: source unavailable</li>\n<li><code>species_trait_data.csv</code>: too specialized / semantically fragile</li>\n<li><code>PREDICTS</code>: kept outside the critical path</li>\n</ul>\n<h2 id=\"resulting-gold-set\">Resulting gold set</h2>\n<table>\n<thead>\n<tr>\n<th>Metric</th>\n<th style=\"text-align: center;\">Value</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Labelled columns</td>\n<td style=\"text-align: center;\"><strong>2540</strong></td>\n</tr>\n<tr>\n<td>Coarse concepts</td>\n<td style=\"text-align: center;\"><strong>61</strong></td>\n</tr>\n<tr>\n<td>Added sources</td>\n<td style=\"text-align: center;\"><code>taxref_v18</code>, <code>ets_*</code>, <code>splot_*</code></td>\n</tr>\n</tbody>\n</table>\n<p>Visible contribution by source:</p>\n<table>\n<thead>\n<tr>\n<th>Source</th>\n<th style=\"text-align: center;\">Columns</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>taxref_v18</code></td>\n<td style=\"text-align: center;\">17</td>\n</tr>\n<tr>\n<td><code>ets_occurrence_ext</code></td>\n<td style=\"text-align: center;\">9</td>\n</tr>\n<tr>\n<td><code>ets_taxon_ext</code></td>\n<td style=\"text-align: center;\">17</td>\n</tr>\n<tr>\n<td><code>ets_measurement_ext</code></td>\n<td style=\"text-align: center;\">4</td>\n</tr>\n<tr>\n<td><code>splot_header</code></td>\n<td style=\"text-align: center;\">33</td>\n</tr>\n<tr>\n<td><code>splot_dt</code></td>\n<td style=\"text-align: center;\">6</td>\n</tr>\n<tr>\n<td><code>splot_cwm</code></td>\n<td style=\"text-align: center;\">40</td>\n</tr>\n<tr>\n<td><code>splot_metadata</code></td>\n<td style=\"text-align: center;\">15</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"commands-run\">Commands run</h2>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.data.build_gold_set\nuv run python -m ml.scripts.train.train_header_model\nuv run python -m ml.scripts.train.train_value_model\nuv run python -m ml.scripts.train.train_fusion\nuv run python -m ml.scripts.eval.run_eval_suite\n</code></pre>\n<h2 id=\"training-results\">Training results</h2>\n<table>\n<thead>\n<tr>\n<th>Model</th>\n<th style=\"text-align: center;\">Cross-val macro-F1</th>\n<th>Note</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Header</td>\n<td style=\"text-align: center;\"><strong>0.753</strong></td>\n<td>strongest branch</td>\n</tr>\n<tr>\n<td>Values</td>\n<td style=\"text-align: center;\"><strong>0.378</strong></td>\n<td>useful signal, still weak on generalization</td>\n</tr>\n<tr>\n<td>Fusion</td>\n<td style=\"text-align: center;\"><strong>0.639</strong></td>\n<td>stronger than <code>values</code>, still below <code>header</code> alone</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"warnings\">Warnings</h3>\n<p><code>header</code> and <code>fusion</code> triggered <code>ConvergenceWarning</code> messages during retraining.\nThe models still trained and were saved successfully, but <code>max_iter</code> and/or the\nsolver deserved a later adjustment.</p>\n<h2 id=\"evaluation-results\">Evaluation results</h2>\n<p>Output file:</p>\n<ul>\n<li><code>ml/data/eval/results/20260321_194036.json</code></li>\n</ul>\n<h3 id=\"internal-benchmarks-after-retrain\">Internal benchmarks after retrain</h3>\n<table>\n<thead>\n<tr>\n<th>Benchmark</th>\n<th style=\"text-align: center;\">Value</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>ProductScore</strong></td>\n<td style=\"text-align: center;\"><strong>80.8392</strong></td>\n</tr>\n<tr>\n<td><strong>GlobalScore / NiamotoOfflineScore</strong></td>\n<td style=\"text-align: center;\"><strong>82.764</strong></td>\n</tr>\n</tbody>\n</table>\n<p>Detailed <code>ProductScore</code>:</p>\n<table>\n<thead>\n<tr>\n<th>Bucket</th>\n<th style=\"text-align: center;\">Score</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>gbif_core_standard</code></td>\n<td style=\"text-align: center;\">98.511</td>\n</tr>\n<tr>\n<td><code>gbif_extended</code></td>\n<td style=\"text-align: center;\">91.018</td>\n</tr>\n<tr>\n<td><code>en_field</code></td>\n<td style=\"text-align: center;\">82.672</td>\n</tr>\n<tr>\n<td><code>tropical_field</code></td>\n<td style=\"text-align: center;\">75.093</td>\n</tr>\n<tr>\n<td><code>research_traits</code></td>\n<td style=\"text-align: center;\">71.621</td>\n</tr>\n<tr>\n<td><code>anonymous</code></td>\n<td style=\"text-align: center;\">63.634</td>\n</tr>\n</tbody>\n</table>\n<p>Interpretation:</p>\n<ul>\n<li>the historical holdout metrics remain broadly solid</li>\n<li>they are consistent with the annotated dataset suite</li>\n<li><code>anonymous</code> is now the clearest penalizing bucket</li>\n<li>coded headers and inventory-style exports remain the main generalization ceiling</li>\n</ul>\n<h3 id=\"full-eval-suite-9-datasets-478-columns\">Full eval suite (9 datasets, 478 columns)</h3>\n<table>\n<thead>\n<tr>\n<th>Dataset</th>\n<th style=\"text-align: center;\">Cols</th>\n<th style=\"text-align: center;\">Role %</th>\n<th style=\"text-align: center;\">Concept %</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>niamoto-nc</code></td>\n<td style=\"text-align: center;\">57</td>\n<td style=\"text-align: center;\">96.5</td>\n<td style=\"text-align: center;\"><strong>91.2</strong></td>\n</tr>\n<tr>\n<td><code>niamoto-gb</code></td>\n<td style=\"text-align: center;\">27</td>\n<td style=\"text-align: center;\">100.0</td>\n<td style=\"text-align: center;\"><strong>100.0</strong></td>\n</tr>\n<tr>\n<td><code>guyadiv</code></td>\n<td style=\"text-align: center;\">61</td>\n<td style=\"text-align: center;\">83.6</td>\n<td style=\"text-align: center;\"><strong>83.6</strong></td>\n</tr>\n<tr>\n<td><code>gbif-nc</code></td>\n<td style=\"text-align: center;\">51</td>\n<td style=\"text-align: center;\">94.1</td>\n<td style=\"text-align: center;\"><strong>90.2</strong></td>\n</tr>\n<tr>\n<td><code>gbif-gabon</code></td>\n<td style=\"text-align: center;\">45</td>\n<td style=\"text-align: center;\">91.1</td>\n<td style=\"text-align: center;\"><strong>88.9</strong></td>\n</tr>\n<tr>\n<td><code>gbif-inst-gabon</code></td>\n<td style=\"text-align: center;\">41</td>\n<td style=\"text-align: center;\">90.2</td>\n<td style=\"text-align: center;\"><strong>87.8</strong></td>\n</tr>\n<tr>\n<td><code>silver</code></td>\n<td style=\"text-align: center;\">136</td>\n<td style=\"text-align: center;\">89.0</td>\n<td style=\"text-align: center;\"><strong>77.2</strong></td>\n</tr>\n<tr>\n<td><code>acceptance-niamoto-gb</code></td>\n<td style=\"text-align: center;\">27</td>\n<td style=\"text-align: center;\">100.0</td>\n<td style=\"text-align: center;\"><strong>100.0</strong></td>\n</tr>\n<tr>\n<td><code>acceptance-fia-or</code></td>\n<td style=\"text-align: center;\">33</td>\n<td style=\"text-align: center;\">75.8</td>\n<td style=\"text-align: center;\"><strong>63.6</strong></td>\n</tr>\n<tr>\n<td><strong>TOTAL</strong></td>\n<td style=\"text-align: center;\"><strong>478</strong></td>\n<td style=\"text-align: center;\"><strong>90.4</strong></td>\n<td style=\"text-align: center;\"><strong>84.7</strong></td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"product-oriented-aggregate-view-7-datasets-418-columns\">Product-oriented aggregate view (7 datasets, 418 columns)</h3>\n<table>\n<thead>\n<tr>\n<th>Aggregate</th>\n<th style=\"text-align: center;\">Role %</th>\n<th style=\"text-align: center;\">Concept %</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Tier 1 + Tier 1b + Silver</td>\n<td style=\"text-align: center;\"><strong>90.9</strong></td>\n<td style=\"text-align: center;\"><strong>85.4</strong></td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"interpretation\">Interpretation</h2>\n<h3 id=\"what-worked-well\">What worked well</h3>\n<ul>\n<li><code>niamoto-gb</code> stayed at <strong>100%</strong></li>\n<li><code>niamoto-nc</code> rose to <strong>91.2%</strong></li>\n<li><code>guyadiv</code> rose to <strong>83.6%</strong></li>\n<li>the three GBIF datasets closest to the product all landed between <strong>87.8%</strong> and <strong>90.2%</strong></li>\n</ul>\n<p>The acquisition wave clearly improved the core product datasets and nearby\nstandardized cases.</p>\n<h3 id=\"what-remains-weak\">What remains weak</h3>\n<p>The frozen out-of-train benchmark remains dominated by <code>acceptance-fia-or</code>:</p>\n<table>\n<thead>\n<tr>\n<th>Dataset</th>\n<th style=\"text-align: center;\">Concept %</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>acceptance-niamoto-gb</code></td>\n<td style=\"text-align: center;\">100.0</td>\n</tr>\n<tr>\n<td><code>acceptance-fia-or</code></td>\n<td style=\"text-align: center;\"><strong>63.6</strong></td>\n</tr>\n</tbody>\n</table>\n<p>Main remaining errors:</p>\n<ul>\n<li><code>measurement.biomass -&gt; measurement.volume</code></li>\n<li><code>identifier.taxon -&gt; taxonomy.species</code></li>\n<li><code>category.habitat -&gt; (not found)</code></li>\n<li>FIA-coded headers such as <code>SPCD</code>, <code>CR</code>, <code>VOLCFNET</code>, <code>VOLBFNET</code></li>\n<li>GBIF taxonomic keys such as <code>acceptedTaxonKey</code>, <code>speciesKey</code>,\n  <code>genericName</code>, <code>infraspecificEpithet</code>, <code>scientificNameAuthorship</code></li>\n</ul>\n<h2 id=\"conclusion\">Conclusion</h2>\n<p>This acquisition wave was worth it.</p>\n<ul>\n<li>Yes, it improved the Niamoto core datasets</li>\n<li>Yes, it stabilized real GBIF-like cases</li>\n<li>No, it did not solve coded inventory generalization yet</li>\n</ul>\n<p>The next logical step was not another acquisition wave, but a targeted\ncorrection pass on:</p>\n<ol>\n<li>the remaining GBIF taxonomic key columns</li>\n<li>the FIA-coded columns</li>\n<li><code>measurement.biomass</code>, <code>identifier.taxon</code>, <code>category.habitat</code>,\n   <code>text.metadata</code></li>\n</ol>",
+  "source_path": "05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain.md"
+}

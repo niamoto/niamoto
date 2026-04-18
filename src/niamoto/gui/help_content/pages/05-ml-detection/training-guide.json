@@ -1,0 +1,142 @@
+{
+  "slug": "05-ml-detection/training-guide",
+  "path": "/help/05-ml-detection/training-guide",
+  "title": "ML Detection — Training & Evaluation Guide",
+  "description": "This guide explains how to build the gold set, train the three ML branches, evaluate the stack, and decide what kind of improvement is needed next.",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Pipeline overview",
+      "level": 2,
+      "id": "pipeline-overview"
+    },
+    {
+      "title": "1. Source data",
+      "level": 2,
+      "id": "1-source-data"
+    },
+    {
+      "title": "Silver data",
+      "level": 3,
+      "id": "silver-data"
+    },
+    {
+      "title": "Niamoto instance datasets",
+      "level": 3,
+      "id": "niamoto-instance-datasets"
+    },
+    {
+      "title": "Evaluation annotations",
+      "level": 3,
+      "id": "evaluation-annotations"
+    },
+    {
+      "title": "2. Gold set",
+      "level": 2,
+      "id": "2-gold-set"
+    },
+    {
+      "title": "Build the gold set",
+      "level": 3,
+      "id": "build-the-gold-set"
+    },
+    {
+      "title": "Add a new source",
+      "level": 3,
+      "id": "add-a-new-source"
+    },
+    {
+      "title": "Concept taxonomy",
+      "level": 3,
+      "id": "concept-taxonomy"
+    },
+    {
+      "title": "3. Training",
+      "level": 2,
+      "id": "3-training"
+    },
+    {
+      "title": "Header model",
+      "level": 3,
+      "id": "header-model"
+    },
+    {
+      "title": "Value model",
+      "level": 3,
+      "id": "value-model"
+    },
+    {
+      "title": "Fusion model",
+      "level": 3,
+      "id": "fusion-model"
+    },
+    {
+      "title": "Full retrain",
+      "level": 3,
+      "id": "full-retrain"
+    },
+    {
+      "title": "4. Alias registry",
+      "level": 2,
+      "id": "4-alias-registry"
+    },
+    {
+      "title": "5. Evaluation",
+      "level": 2,
+      "id": "5-evaluation"
+    },
+    {
+      "title": "Annotated datasets",
+      "level": 3,
+      "id": "annotated-datasets"
+    },
+    {
+      "title": "Full real dataset suite",
+      "level": 3,
+      "id": "full-real-dataset-suite"
+    },
+    {
+      "title": "Single dataset evaluation",
+      "level": 3,
+      "id": "single-dataset-evaluation"
+    },
+    {
+      "title": "Tier only evaluation",
+      "level": 3,
+      "id": "tier-only-evaluation"
+    },
+    {
+      "title": "Gold set / holdout evaluation",
+      "level": 3,
+      "id": "gold-set-holdout-evaluation"
+    },
+    {
+      "title": "6. Improvement cycle",
+      "level": 2,
+      "id": "6-improvement-cycle"
+    },
+    {
+      "title": "Choose the action",
+      "level": 3,
+      "id": "choose-the-action"
+    },
+    {
+      "title": "Verify annotations against real values",
+      "level": 3,
+      "id": "verify-annotations-against-real-values"
+    },
+    {
+      "title": "Protect benchmark integrity",
+      "level": 3,
+      "id": "protect-benchmark-integrity"
+    },
+    {
+      "title": "Quick reference",
+      "level": 2,
+      "id": "quick-reference"
+    }
+  ],
+  "html": "<h1 id=\"ml-detection-training-evaluation-guide\">ML Detection — Training &amp; Evaluation Guide</h1>\n<blockquote>\n<p>Status: Active\nAudience: Team, AI agents\nPurpose: Operational reference for data, training, evaluation, and\nimprovement cycles</p>\n</blockquote>\n<p>This guide explains how to build the gold set, train the three ML branches,\nevaluate the stack, and decide what kind of improvement is needed next.</p>\n<h2 id=\"pipeline-overview\">Pipeline overview</h2>\n<pre><code class=\"language-text\">ml/data/silver/          -&gt;  build_gold_set.py  -&gt;  ml/data/gold_set.json\n                                                     |\n                                              +------+------+\n                                              |             |\n                                              v             v\n                                     train_header_model   train_value_model\n                                              |             |\n                                              +------+------+\n                                                     |\n                                                     v\n                                              train_fusion\n                                                     |\n                                                     v\n                                          ml/models/*.joblib\n                                                     |\n                             column_aliases.yaml ---&gt;|\n                                                     v\n                               evaluate.py / run_eval_suite.py\n                                                     |\n                                                     v\n                                  ml/data/eval/results/*.json\n</code></pre>\n<h2 id=\"1-source-data\">1. Source data</h2>\n<h3 id=\"silver-data\">Silver data</h3>\n<p><code>ml/data/silver/</code> contains real ecological tabular sources used to enrich the\ngold set:</p>\n<ul>\n<li>forest inventories</li>\n<li>GBIF exports</li>\n<li>trait datasets</li>\n<li>tropical field datasets</li>\n<li>standards-based tabular sources such as TAXREF, ETS, and sPlotOpen</li>\n</ul>\n<p>These files are the raw material for training data construction.</p>\n<h3 id=\"niamoto-instance-datasets\">Niamoto instance datasets</h3>\n<p>The tested instance datasets remain important because they represent the actual\nproduct target:</p>\n<ul>\n<li><code>test-instance/niamoto-nc/imports/</code></li>\n<li><code>test-instance/niamoto-gb/imports/</code></li>\n</ul>\n<h3 id=\"evaluation-annotations\">Evaluation annotations</h3>\n<p>Independent ground truth lives in <code>ml/data/eval/annotations/</code>.</p>\n<p>This is distinct from the gold set:</p>\n<ul>\n<li><strong>gold set</strong> = training data</li>\n<li><strong>eval annotations</strong> = benchmark data</li>\n</ul>\n<p>Do not treat them as interchangeable, even when some columns overlap.</p>\n<h2 id=\"2-gold-set\">2. Gold set</h2>\n<p>The gold set is the training dataset. Each entry represents one labelled\ncolumn, with:</p>\n<ul>\n<li><code>column_name</code></li>\n<li><code>concept_coarse</code></li>\n<li><code>role</code></li>\n<li>sampled values</li>\n<li>dataset metadata</li>\n</ul>\n<h3 id=\"build-the-gold-set\">Build the gold set</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.data.build_gold_set\n</code></pre>\n<p>Output:</p>\n<ul>\n<li><code>ml/data/gold_set.json</code></li>\n</ul>\n<h3 id=\"add-a-new-source\">Add a new source</h3>\n<p>In <code>ml/scripts/data/build_gold_set.py</code>:</p>\n<ol>\n<li>Define a label dictionary:</li>\n</ol>\n<pre><code class=\"language-python\">MY_LABELS = {\n    &quot;dbh&quot;: (&quot;measurement.diameter&quot;, &quot;measurement&quot;),\n    &quot;species&quot;: (&quot;taxonomy.species&quot;, &quot;taxonomy&quot;),\n    &quot;plot_id&quot;: (&quot;identifier.plot&quot;, &quot;identifier&quot;),\n}\n</code></pre>\n<ol start=\"2\">\n<li>Register the source in <code>SOURCES</code>:</li>\n</ol>\n<pre><code class=\"language-python\">{\n    &quot;name&quot;: &quot;my_dataset&quot;,\n    &quot;path&quot;: ML_ROOT / &quot;data/silver/my_file.csv&quot;,\n    &quot;labels&quot;: MY_LABELS,\n    &quot;language&quot;: &quot;en&quot;,\n    &quot;sample_rows&quot;: 1000,\n}\n</code></pre>\n<ol start=\"3\">\n<li>Rebuild the gold set.</li>\n</ol>\n<h3 id=\"concept-taxonomy\">Concept taxonomy</h3>\n<p>Fine-grained concepts are merged into a coarser training taxonomy through\n<code>ml/scripts/data/concept_taxonomy.py</code>.</p>\n<p>Example:</p>\n<ul>\n<li><code>category.phenology</code> -&gt; <code>category.ecology</code></li>\n<li><code>measurement.basal_area</code> -&gt; <code>measurement.biomass</code></li>\n</ul>\n<p>Always verify the merge logic before adding new fine concepts, because an\nincorrect merge can bias the whole stack.</p>\n<h2 id=\"3-training\">3. Training</h2>\n<p>All three models train from <code>ml/data/gold_set.json</code>.</p>\n<h3 id=\"header-model\">Header model</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.train.train_header_model\n</code></pre>\n<ul>\n<li>TF-IDF character n-grams + Logistic Regression</li>\n<li>strongest branch when headers are informative</li>\n<li>outputs <code>ml/models/header_model.joblib</code></li>\n<li>local metric: macro-F1 on column names</li>\n</ul>\n<h3 id=\"value-model\">Value model</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.train.train_value_model\n</code></pre>\n<ul>\n<li>statistical and pattern features + HistGradientBoosting</li>\n<li>useful for anonymous or ambiguous headers</li>\n<li>outputs <code>ml/models/value_model.joblib</code></li>\n<li>local metric: macro-F1 on value-derived features</li>\n</ul>\n<h3 id=\"fusion-model\">Fusion model</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.train.train_fusion\n</code></pre>\n<ul>\n<li>combines header/value probabilities and meta-features</li>\n<li>outputs <code>ml/models/fusion_model.joblib</code></li>\n<li>evaluated with leak-aware GroupKFold by dataset</li>\n</ul>\n<h3 id=\"full-retrain\">Full retrain</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.data.build_gold_set\nuv run python -m ml.scripts.train.train_header_model\nuv run python -m ml.scripts.train.train_value_model\nuv run python -m ml.scripts.train.train_fusion\n</code></pre>\n<h2 id=\"4-alias-registry\">4. Alias registry</h2>\n<p>The alias registry is the high-precision fast path checked before ML.</p>\n<p>File:</p>\n<ul>\n<li><code>src/niamoto/core/imports/ml/column_aliases.yaml</code></li>\n</ul>\n<p>Format:</p>\n<pre><code class=\"language-yaml\">concept.subconcept:\n  en: [alias1, alias2]\n  fr: [alias_fr1, alias_fr2]\n  dwc: [darwin_core_name]\n</code></pre>\n<p>Add an alias when:</p>\n<ul>\n<li>the header is genuinely unambiguous</li>\n<li>there is no cross-concept ambiguity</li>\n<li>the ML stack repeatedly misses a stable real-world header</li>\n</ul>\n<p>Quick check:</p>\n<pre><code class=\"language-bash\">uv run python -c &quot;\nfrom niamoto.core.imports.ml.alias_registry import AliasRegistry\nreg = AliasRegistry()\nprint(reg.match('my_column_name'))\n&quot;\n</code></pre>\n<p>Tests:</p>\n<pre><code class=\"language-bash\">uv run pytest tests/core/imports/test_alias_registry.py -v\n</code></pre>\n<h2 id=\"5-evaluation\">5. Evaluation</h2>\n<h3 id=\"annotated-datasets\">Annotated datasets</h3>\n<p>Current benchmark annotations live in <code>ml/data/eval/annotations/</code>.</p>\n<p>Typical files:</p>\n<ul>\n<li><code>niamoto-nc.yml</code></li>\n<li><code>niamoto-gb.yml</code></li>\n<li><code>guyadiv.yml</code></li>\n<li><code>gbif_darwin_core.yml</code></li>\n<li><code>silver.yml</code></li>\n</ul>\n<p>The YAML format is <code>column_name: role.concept</code>.</p>\n<h3 id=\"full-real-dataset-suite\">Full real-dataset suite</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.eval.run_eval_suite\n</code></pre>\n<p>This runs the annotated dataset benchmark and writes timestamped JSON files to:</p>\n<ul>\n<li><code>ml/data/eval/results/</code></li>\n</ul>\n<h3 id=\"single-dataset-evaluation\">Single dataset evaluation</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.eval.evaluate_instance \\\n    --annotations ml/data/eval/annotations/niamoto-nc.yml \\\n    --data-dir test-instance/niamoto-nc/imports --compare\n</code></pre>\n<p>Other common variants:</p>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.eval.evaluate_instance \\\n    --annotations ml/data/eval/annotations/gbif_darwin_core.yml \\\n    --csv ml/data/silver/gbif_targeted/new_caledonia/occurrences.csv\n\nuv run python -m ml.scripts.eval.evaluate_instance \\\n    --annotations ml/data/eval/annotations/silver.yml \\\n    --data-dir ml/data/silver\n</code></pre>\n<h3 id=\"tier-only-evaluation\">Tier-only evaluation</h3>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.eval.run_eval_suite --tier 1\nuv run python -m ml.scripts.eval.run_eval_suite --tier gbif\nuv run python -m ml.scripts.eval.run_eval_suite --tier acceptance\n</code></pre>\n<h3 id=\"gold-set-holdout-evaluation\">Gold-set / holdout evaluation</h3>\n<p>Use <code>evaluate.py</code> for the internal benchmark built from the gold set and\nholdout protocol:</p>\n<pre><code class=\"language-bash\">uv run python -m ml.scripts.eval.evaluate --model values --metric macro-f1 --splits 5\nuv run python -m ml.scripts.eval.evaluate --model fusion --metric macro-f1 --splits 5\nuv run python -m ml.scripts.eval.evaluate --model all --metric product-score --splits 3\nuv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3\n</code></pre>\n<h2 id=\"6-improvement-cycle\">6. Improvement cycle</h2>\n<p>After an evaluation pass, identify:</p>\n<ol>\n<li><strong>Weak concepts</strong>: low accuracy, possibly absent or underrepresented in the gold set</li>\n<li><strong>Systematically wrong headers</strong>: likely alias candidates</li>\n<li><strong>Top confusions</strong>: concept A repeatedly predicted as B</li>\n</ol>\n<h3 id=\"choose-the-action\">Choose the action</h3>\n<table>\n<thead>\n<tr>\n<th>Diagnosis</th>\n<th>Action</th>\n<th>Typical impact</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Concept missing from gold set</td>\n<td>Add labels in <code>build_gold_set.py</code></td>\n<td>Requires rebuild + retrain</td>\n</tr>\n<tr>\n<td>Stable unambiguous header missed</td>\n<td>Add alias in <code>column_aliases.yaml</code></td>\n<td>Immediate, no retrain</td>\n</tr>\n<tr>\n<td>Concept present but confused</td>\n<td>Inspect <code>concept_taxonomy.py</code> or feature space</td>\n<td>Rebuild + retrain</td>\n</tr>\n<tr>\n<td>Evaluation annotation is wrong</td>\n<td>Fix <code>ml/data/eval/annotations/</code></td>\n<td>Re-run eval only</td>\n</tr>\n<tr>\n<td>Gold set overrepresentation bias</td>\n<td>Rebalance or enrich the data</td>\n<td>Retrain</td>\n</tr>\n</tbody>\n</table>\n<h3 id=\"verify-annotations-against-real-values\">Verify annotations against real values</h3>\n<p>Before assuming the model is wrong, inspect the actual column values:</p>\n<pre><code class=\"language-bash\">uv run python -c &quot;\nimport pandas as pd\ndf = pd.read_csv('path/to/file.csv', nrows=10)\nprint(df['column_name'].head())\n&quot;\n</code></pre>\n<p>Header-based assumptions can be misleading if the values tell another story.</p>\n<h3 id=\"protect-benchmark-integrity\">Protect benchmark integrity</h3>\n<p>Keep the separation clear:</p>\n<ul>\n<li><strong>Gold set</strong>: training material</li>\n<li><strong>Eval annotations</strong>: independent benchmark</li>\n</ul>\n<p>If the same columns appear in both, interpret the scores carefully and keep the\nlabels aligned.</p>\n<h2 id=\"quick-reference\">Quick reference</h2>\n<pre><code class=\"language-bash\"># Full build -&gt; train -&gt; evaluate\nuv run python -m ml.scripts.data.build_gold_set\nuv run python -m ml.scripts.train.train_header_model\nuv run python -m ml.scripts.train.train_value_model\nuv run python -m ml.scripts.train.train_fusion\nuv run python -m ml.scripts.eval.run_eval_suite\n\n# Alias-only improvement path\nuv run pytest tests/core/imports/test_alias_registry.py -v\nuv run python -m ml.scripts.eval.run_eval_suite\n\n# Internal benchmark only\nuv run python -m ml.scripts.eval.evaluate --model all --metric niamoto-score --splits 3\n</code></pre>",
+  "source_path": "05-ml-detection/training-guide.md"
+}

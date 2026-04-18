@@ -18,6 +18,7 @@ from .routers import (
     database,
     files,
     health,
+    help,
     imports,
     layers,
     plugins,
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
 
     # Include API routers FIRST (before static files)
     app.include_router(health.router)  # Health check endpoint for Tauri
+    app.include_router(help.router, prefix="/api", tags=["help"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])

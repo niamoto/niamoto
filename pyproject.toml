@@ -210,6 +210,7 @@ packages = ["src/niamoto"]
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
 "ml/models" = "niamoto/models"
+"src/niamoto/gui/help_content" = "niamoto/gui/help_content"
 # GUI dist files - only included when building for PyPI with publish.sh
 # Commented out for CI/CD compatibility
 # "src/niamoto/gui/ui/dist" = "niamoto/gui/ui/dist"

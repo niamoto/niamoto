@@ -1,0 +1,62 @@
+{
+  "slug": "05-ml-detection/archive/acquisition-history-and-source-strategy",
+  "path": "/help/05-ml-detection/archive/acquisition-history-and-source-strategy",
+  "title": "Acquisition History and Source Strategy",
+  "description": "This document merges two earlier files:",
+  "section_slug": "05-ml-detection",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Why this document is archived",
+      "level": 2,
+      "id": "why-this-document-is-archived"
+    },
+    {
+      "title": "Historical acquisition principles",
+      "level": 2,
+      "id": "historical-acquisition-principles"
+    },
+    {
+      "title": "Historical target profile",
+      "level": 2,
+      "id": "historical-target-profile"
+    },
+    {
+      "title": "Historical storage direction",
+      "level": 2,
+      "id": "historical-storage-direction"
+    },
+    {
+      "title": "Historical source prioritization",
+      "level": 2,
+      "id": "historical-source-prioritization"
+    },
+    {
+      "title": "Priority A — very close to the product",
+      "level": 3,
+      "id": "priority-a-very-close-to-the-product"
+    },
+    {
+      "title": "Priority B — useful neighboring datasets",
+      "level": 3,
+      "id": "priority-b-useful-neighboring-datasets"
+    },
+    {
+      "title": "Priority C — controlled expansion",
+      "level": 3,
+      "id": "priority-c-controlled-expansion"
+    },
+    {
+      "title": "Examples from the original shortlist",
+      "level": 2,
+      "id": "examples-from-the-original-shortlist"
+    },
+    {
+      "title": "What this archive is still useful for",
+      "level": 2,
+      "id": "what-this-archive-is-still-useful-for"
+    }
+  ],
+  "html": "<h1 id=\"acquisition-history-and-source-strategy\">Acquisition History and Source Strategy</h1>\n<blockquote>\n<p>Status: Archive\nAudience: Team, AI agents\nPurpose: Preserve the earlier acquisition strategy and candidate-source\nreasoning that informed the current ML dataset expansion work\nCanonical current plans: <code>docs/plans/</code></p>\n</blockquote>\n<h2 id=\"why-this-document-is-archived\">Why this document is archived</h2>\n<p>This document merges two earlier files:</p>\n<ul>\n<li>the historical acquisition plan</li>\n<li>the earlier candidate-source shortlist</li>\n</ul>\n<p>It is kept for context because it explains the original reasoning behind:</p>\n<ul>\n<li>targeted regional GBIF batches</li>\n<li>tropical field priorities</li>\n<li>the distinction between product-close data and broader robustness data</li>\n<li>the desired long-term shape of <code>ml/data/silver/</code></li>\n</ul>\n<p>For current planning decisions, use <code>docs/plans/</code>. For the source list actually\nused by the code today, use <a href=\"/help/05-ml-detection/current-training-sources\">../current-training-sources.md</a>.</p>\n<h2 id=\"historical-acquisition-principles\">Historical acquisition principles</h2>\n<p>The original acquisition logic was:</p>\n<ul>\n<li>do <strong>not</strong> optimize for raw volume</li>\n<li>optimize for <strong>benchmark ROI</strong></li>\n<li>prioritize data that resembles Niamoto’s real product targets</li>\n</ul>\n<p>At that stage, the preferred order was:</p>\n<ol>\n<li>real tested instance data</li>\n<li>tropical field datasets</li>\n<li>targeted regional GBIF</li>\n<li>broader neighboring datasets for robustness</li>\n</ol>\n<h2 id=\"historical-target-profile\">Historical target profile</h2>\n<p>The main target families were:</p>\n<ul>\n<li>New Caledonia</li>\n<li>Gabon / Cameroon</li>\n<li>French Guiana / tropical field datasets</li>\n<li>datasets from actually tested instances</li>\n<li>useful GBIF corpora, but not GBIF volume for its own sake</li>\n</ul>\n<p>Consequence:</p>\n<ul>\n<li><code>forest_inventory</code> should remain a guardrail</li>\n<li>but it should not drive the acquisition roadmap by itself</li>\n</ul>\n<h2 id=\"historical-storage-direction\">Historical storage direction</h2>\n<p>The desired direction for <code>ml/data/silver/</code> was to move away from a flat\ndirectory and toward provenance-oriented grouping such as:</p>\n<pre><code class=\"language-text\">ml/data/silver/\n  instances/\n  guyane/\n  africa_tropical/\n  gbif_targeted/\n</code></pre>\n<p>That principle still makes sense conceptually, even if the actual storage\nevolved incrementally.</p>\n<h2 id=\"historical-source-prioritization\">Historical source prioritization</h2>\n<h3 id=\"priority-a-very-close-to-the-product\">Priority A — very close to the product</h3>\n<ul>\n<li>real datasets from tested instances</li>\n<li>tropical forest datasets from Guyane, Gabon, Cameroon, New Caledonia</li>\n<li>targeted GBIF exports by region and style</li>\n</ul>\n<h3 id=\"priority-b-useful-neighboring-datasets\">Priority B — useful neighboring datasets</h3>\n<ul>\n<li>large tropical forest networks</li>\n<li>vegetation plot networks</li>\n<li>African and pan-tropical occurrence or plot databases</li>\n</ul>\n<h3 id=\"priority-c-controlled-expansion\">Priority C — controlled expansion</h3>\n<ul>\n<li>plant trait datasets</li>\n<li>ecologically more distant but still compatible datasets</li>\n<li>broader robustness sources</li>\n</ul>\n<h2 id=\"examples-from-the-original-shortlist\">Examples from the original shortlist</h2>\n<p>The original shortlist explicitly highlighted:</p>\n<ul>\n<li>tested instance datasets</li>\n<li>Paracou / ForestScan</li>\n<li>Guyafor network datasets such as Trinité and Trésor</li>\n<li>ForestPlots.net / Lopé</li>\n<li>RAINBIO</li>\n<li>targeted GBIF regional downloads</li>\n<li>targeted institutional GBIF subsets</li>\n</ul>\n<p>Some of these became concrete acquisition work; others remained strategic\noptions.</p>\n<h2 id=\"what-this-archive-is-still-useful-for\">What this archive is still useful for</h2>\n<p>Keep this document when you need:</p>\n<ul>\n<li>the historical why behind acquisition choices</li>\n<li>the original source-selection logic</li>\n<li>the reasoning that separated product-close datasets from broader robustness data</li>\n</ul>\n<p>Do not use this document as the source of truth for:</p>\n<ul>\n<li>current plans</li>\n<li>the exact source list used by training</li>\n<li>the exact current benchmark setup</li>\n</ul>",
+  "source_path": "05-ml-detection/archive/acquisition-history-and-source-strategy.md"
+}

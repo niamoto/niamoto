@@ -1,0 +1,22 @@
+{
+  "slug": "05-ml-detection/experiments",
+  "path": "/help/05-ml-detection/experiments",
+  "title": "Experiments Index",
+  "description": "Use this folder for dated, narrative experiment notes:",
+  "section_slug": "05-ml-detection",
+  "is_section_index": true,
+  "headings": [
+    {
+      "title": "Current logs",
+      "level": 2,
+      "id": "current-logs"
+    },
+    {
+      "title": "Recommended log shape",
+      "level": 2,
+      "id": "recommended-log-shape"
+    }
+  ],
+  "html": "<h1 id=\"experiments-index\">Experiments Index</h1>\n<blockquote>\n<p>Status: Experiment index\nAudience: Team, AI agents\nPurpose: Entry point into dated experiment logs, evaluations, retrains, and\nbenchmark changes</p>\n</blockquote>\n<p>Use this folder for dated, narrative experiment notes:</p>\n<ul>\n<li>benchmark changes</li>\n<li>evaluation rounds</li>\n<li>retraining results</li>\n<li>acquisition-wave measurements</li>\n<li>autoresearch observations and decisions</li>\n</ul>\n<h2 id=\"current-logs\">Current logs</h2>\n<ul>\n<li><a href=\"/help/05-ml-detection/experiments/2026-03-17-ml-detection-iteration-log\">2026-03-17 — ML detection iteration log</a></li>\n<li><a href=\"/help/05-ml-detection/experiments/2026-03-20-multi-instance-eval-and-improvement\">2026-03-20 — Multi-instance evaluation and improvement</a></li>\n<li><a href=\"/help/05-ml-detection/experiments/2026-03-21-anonymous-holdout-rework\">2026-03-21 — Anonymous holdout rework</a></li>\n<li><a href=\"/help/05-ml-detection/experiments/2026-03-21-acquisition-wave-retrain\">2026-03-21 — Acquisition wave retrain and evaluation</a></li>\n</ul>\n<h2 id=\"recommended-log-shape\">Recommended log shape</h2>\n<p>Each experiment note should stay compact and follow the same structure:</p>\n<ol>\n<li>Context</li>\n<li>Problem or goal</li>\n<li>Commands run</li>\n<li>Results</li>\n<li>Interpretation</li>\n<li>Decision or next step</li>\n</ol>\n<pre><code toctree=\"toctree\">:hidden:\n\n2026-03-17-ml-detection-iteration-log\n2026-03-20-multi-instance-eval-and-improvement\n2026-03-21-anonymous-holdout-rework\n2026-03-21-acquisition-wave-retrain\n</code></pre>",
+  "source_path": "05-ml-detection/experiments/README.md"
+}

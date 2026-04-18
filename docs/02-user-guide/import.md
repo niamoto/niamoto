@@ -1,105 +1,94 @@
-# Import Workflow
+# Import
 
-Use import to add source files, review detected roles, and launch the import
-from the same workspace.
+Import is where a project becomes usable. Add the source files, let Niamoto
+detect their roles, review the generated configuration, then load the data into
+the project workspace.
 
-The import flow combines:
+## What this stage controls
 
-- file upload
-- live analysis
-- auto-configuration review
-- in-context import execution
-- post-import exploration and enrichment
+Use Import to:
 
-## Entry points
+- add CSV tables, spatial layers, and rasters
+- review detected identifiers and source roles
+- edit the generated configuration before import
+- run the import and confirm the project is ready for Collections
 
-Frontend:
+If you are still at the very beginning, pair this page with
+[../01-getting-started/first-project.md](../01-getting-started/first-project.md).
 
-- `src/niamoto/gui/ui/src/features/import/module/DataModule.tsx`
-- `src/niamoto/gui/ui/src/features/import/components/ImportWizard.tsx`
-- `src/niamoto/gui/ui/src/features/import/components/review/AutoConfigDisplay.tsx`
-- `src/niamoto/gui/ui/src/features/import/components/dashboard/SourcesOverview.tsx`
+## 1. Add the source files
 
-Frontend job hooks:
+Start from the dashboard or the Import area and select the files that belong to
+the project.
 
-- `src/niamoto/gui/ui/src/features/import/hooks/useAutoConfigureJob.ts`
-- `src/niamoto/gui/ui/src/features/import/hooks/useImportJob.ts`
+![Import source review](../assets/screenshots/desktop/08.import-sources-review.png)
 
-Backend:
+The desktop app keeps the source list visible while you work, so you can check
+which files are in scope before analysis starts.
 
-- `src/niamoto/gui/api/routers/imports.py`
-- `src/niamoto/gui/api/routers/smart_config.py`
-- `src/niamoto/core/imports/auto_config_service.py`
-
-## Workflow
-
-### 1. File selection
-
-Add files through the upload surface.
-
-Supported project inputs typically include:
+Typical inputs include:
 
 - CSV tables
-- GeoPackage / GeoJSON layers
+- GeoPackage or GeoJSON layers
+- shapefiles
 - TIFF rasters
 
-The file list stays visible during analysis, with live status for each file.
+## 2. Let Niamoto analyse the files
 
-### 2. Review live analysis
+After selection, Niamoto runs live analysis and shows progress in place.
 
-Niamoto starts an auto-configuration job and streams analysis events.
+![Import analysis progress](../assets/screenshots/desktop/10.import-analysis-progress.png)
 
-The GUI shows that state in place:
+This stage is where the app tries to recognise:
 
-- file queued
-- file under analysis
-- detected as dataset / reference / auxiliary source / layer
-- review or notice status when needed
-
-### 3. Auto-configuration review
-
-When analysis finishes, the GUI shows a review focused on:
-
-- aggregation candidates
+- main datasets
+- reference entities
 - supporting sources
-- notices and review-required cases
-- inline editing of the generated configuration
+- layers or auxiliary files that should stay attached to a collection
 
-The YAML view stays available if you want to edit the generated config directly.
+You do not need to understand the ML pipeline to use this step, but if you want
+the deeper explanation, see [../05-ml-detection/README.md](../05-ml-detection/README.md).
 
-### 4. Import execution
+## 3. Review the generated configuration
 
-Niamoto keeps import state attached to the reviewed entities and references:
+When analysis finishes, the review surface shows what Niamoto inferred and what
+still needs confirmation.
 
-- queued
-- importing
-- done
-- failed
+![Detected import configuration](../assets/screenshots/desktop/11.import-config-detected.png)
 
-### 5. Continue from the workspace
+At this point you can:
 
-After import, the workspace shifts to exploration:
+- confirm entity names
+- review identifiers and file roles
+- decide which sources become primary entities or supporting inputs
+- edit the generated YAML when you need more control
 
-- collections and references
-- supporting datasets and layers
-- next actions such as enrichment
+Behind the UI, this stage is mostly shaping `config/import.yml`. The goal is
+not to hand-edit YAML by default, but to understand that the review screen is
+saving the same import structure the CLI can also use.
 
-## Auto-configuration
+## 4. Run the import
 
-The current auto-config distinguishes between:
+Once the configuration looks right, start the import and follow the progress in
+the same workspace.
 
-- datasets
-- references
-- auxiliary sources
-- metadata layers
+![Imported project dashboard](../assets/screenshots/desktop/13.data-dashboard-summary.png)
 
-Some files become primary entities. Others stay attached to a reference group as
-supporting sources.
+After a successful import, the project dashboard becomes the handoff point to
+the next stages:
 
-## Enrichment
+- inspect the imported entities
+- continue into [collections.md](collections.md)
+- move later into [site.md](site.md) and [publish.md](publish.md)
 
-If a reference supports API enrichment, the workspace exposes `Enrich now` as a
-next step.
+## Optional follow-up: enrichment
 
-The reference detail flow owns enrichment setup and execution, not the import
-wizard.
+Some imported references can expose enrichment as a later step. Keep that as a
+follow-up once the main import is stable; it is not required for the first pass
+through the desktop workflow.
+
+## Related
+
+- [collections.md](collections.md)
+- [../06-reference/configuration-guide.md](../06-reference/configuration-guide.md)
+- [../06-reference/database-schema.md](../06-reference/database-schema.md)

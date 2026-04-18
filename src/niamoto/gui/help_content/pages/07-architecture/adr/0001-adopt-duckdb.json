@@ -1,0 +1,47 @@
+{
+  "slug": "07-architecture/adr/0001-adopt-duckdb",
+  "path": "/help/07-architecture/adr/0001-adopt-duckdb",
+  "title": "ADR 0001 — DuckDB Adoption as Primary Analytics Engine",
+  "description": "Status: Adopted (2025 10 08)",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Context",
+      "level": 2,
+      "id": "context"
+    },
+    {
+      "title": "Decision",
+      "level": 2,
+      "id": "decision"
+    },
+    {
+      "title": "Consequences",
+      "level": 2,
+      "id": "consequences"
+    },
+    {
+      "title": "Positive",
+      "level": 3,
+      "id": "positive"
+    },
+    {
+      "title": "Negative / Points of Attention",
+      "level": 3,
+      "id": "negative-points-of-attention"
+    },
+    {
+      "title": "Actions",
+      "level": 3,
+      "id": "actions"
+    },
+    {
+      "title": "Follow up 2025 10 08",
+      "level": 2,
+      "id": "follow-up-2025-10-08"
+    }
+  ],
+  "html": "<h1 id=\"adr-0001-duckdb-adoption-as-primary-analytics-engine\">ADR 0001 — DuckDB Adoption as Primary Analytics Engine</h1>\n<p><em>Status: Adopted (2025-10-08)</em></p>\n<h2 id=\"context\">Context</h2>\n<ul>\n<li>The current pipeline relies on SQLite for imports, with extensive Python logic (pandas <code>to_sql</code>, index recalculation, manual validations) and significant limitations (limited DDL, degraded performance on large files, lack of analytical features).</li>\n<li>The \"Generic Import\" refactoring aims for a more flexible engine to create dynamic tables, read massive files, manipulate geometries, and execute recursive CTEs.</li>\n<li>DuckDB natively provides <code>read_csv_auto</code>, <code>read_parquet</code>, a spatial extension, and <code>CREATE OR REPLACE TABLE</code> statements that simplify the pipeline.</li>\n</ul>\n<h2 id=\"decision\">Decision</h2>\n<p>We are migrating Niamoto's analytical infrastructure to DuckDB:</p>\n<ul>\n<li>New import tables will be created in a DuckDB file (<code>.duckdb</code>) defined by the configuration (<code>config.yml</code>).</li>\n<li>The <code>niamoto.common.database</code> module will be extended/adapted to encapsulate DuckDB (SQL execution, introspection, transactions).</li>\n<li>Scripts and tests will use DuckDB by default; SQLite will remain only for temporary compatibility (targeted tests) but will no longer be the primary engine.</li>\n<li>The CLI and GUI will automatically load the spatial extension when necessary (plots/shapes).</li>\n</ul>\n<h2 id=\"consequences\">Consequences</h2>\n<h3 id=\"positive\">Positive</h3>\n<ul>\n<li>\"Direct\" import with <code>read_csv_auto</code> / <code>CREATE TABLE AS SELECT</code>, reducing code and execution time.</li>\n<li>Native support for recursive CTEs ⇒ simple adjacency list hierarchies.</li>\n<li>Handling of modern formats (Parquet, GeoParquet) without additional conversions.</li>\n<li>Simplified statistics/profiling generation via SQL.</li>\n</ul>\n<h3 id=\"negative-points-of-attention\">Negative / Points of Attention</h3>\n<ul>\n<li>DuckDB learning curve for the team (DDL syntax, limitations). Snippets will be added to documentation.</li>\n<li>Spatial extension must be explicitly loaded (initialization scripts ➜ check presence and document).</li>\n<li>Migration of existing environments: provide an <code>ATTACH …</code> script to copy old SQLite tables if necessary.</li>\n<li>Adjust CI (DuckDB installation, extension) and packaging (<code>pyproject.toml</code>).</li>\n</ul>\n<h3 id=\"actions\">Actions</h3>\n<ol>\n<li>Adapt <code>Database</code> + unit tests for DuckDB.</li>\n<li>Document configuration (<code>docs/07-architecture/README.md</code>, installation guides).</li>\n<li>Update scripts (bootstrap, tests) to create/initialize the DuckDB file.</li>\n<li>Prepare a migration guide (<code>docs/08-roadmaps/generic-import-ultrathink.md</code> ➜ migration appendix) with <code>ATTACH</code> examples.</li>\n</ol>\n<h2 id=\"follow-up-2025-10-08\">Follow-up 2025-10-08</h2>\n<ul>\n<li>✅ DuckDB helpers (SQL execution, introspection) integrated via registry and refactored loaders (<code>core/common/database.py</code>, <code>core/imports/registry.py</code>).</li>\n<li>✅ Spatial extension loaded via export/transform services after geospatial extractor migration.</li>\n<li>🔄 CLI stats and remaining loaders still aligned with <code>sqlite_master</code>: migration to DuckDB adapter in progress, <code>tests/cli/test_stats.py</code> tests to be finalized.</li>\n</ul>",
+  "source_path": "07-architecture/adr/0001-adopt-duckdb.md"
+}

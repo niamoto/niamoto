@@ -69,14 +69,17 @@ exclude_patterns = [
 # Public redirects only target pages that exist in the live site.
 # Never redirect to _archive/** (archive is not a navigation destination).
 redirects = {
+    # 02-user-guide renamed pages
+    "02-user-guide/transform": "collections.html",
+    "02-user-guide/export": "publish.html",
     # 02-data-pipeline -> 02-user-guide
     "02-data-pipeline/index": "../02-user-guide/README.html",
     "02-data-pipeline/README": "../02-user-guide/README.html",
     "02-data-pipeline/import-configuration": "../02-user-guide/import.html",
-    "02-data-pipeline/transform-pipeline": "../02-user-guide/transform.html",
-    "02-data-pipeline/export-process": "../02-user-guide/export.html",
+    "02-data-pipeline/transform-pipeline": "../02-user-guide/collections.html",
+    "02-data-pipeline/export-process": "../02-user-guide/publish.html",
     "02-data-pipeline/data-preparation": "../02-user-guide/import.html",
-    "02-data-pipeline/widget-system": "../02-user-guide/transform.html",
+    "02-data-pipeline/widget-system": "../02-user-guide/widget-catalogue.html",
     # 05-api-reference -> 06-reference.
     "05-api-reference/index": "../06-reference/README.html",
     "05-api-reference/README": "../06-reference/README.html",
@@ -127,9 +130,9 @@ redirects = {
     "10-roadmaps/gui/DESKTOP_APP": "../../08-roadmaps/gui/DESKTOP_APP.html",
     "10-roadmaps/gui/PLUGINS_WITH_BINARY": "../../08-roadmaps/gui/PLUGINS_WITH_BINARY.html",
     "10-roadmaps/gui/fastapi-dual-purpose-architecture": "../../07-architecture/gui-runtime.html",
-    "10-roadmaps/gui/operations/export": "../../../02-user-guide/export.html",
+    "10-roadmaps/gui/operations/export": "../../../02-user-guide/publish.html",
     "10-roadmaps/gui/operations/import": "../../../02-user-guide/import.html",
-    "10-roadmaps/gui/operations/transform": "../../../02-user-guide/transform.html",
+    "10-roadmaps/gui/operations/transform": "../../../02-user-guide/collections.html",
     # retired 08-roadmaps pages now redirect to section landing pages or current docs
     "08-roadmaps/pattern-matching-implementation-summary": "../08-roadmaps/README.html",
     "08-roadmaps/pipeline-unified": "../08-roadmaps/README.html",
@@ -138,8 +141,8 @@ redirects = {
     "08-roadmaps/technical-analysis": "../08-roadmaps/README.html",
     "08-roadmaps/gui/fastapi-dual-purpose-architecture": "../../07-architecture/gui-runtime.html",
     "08-roadmaps/gui/operations/import": "../../02-user-guide/import.html",
-    "08-roadmaps/gui/operations/transform": "../../02-user-guide/transform.html",
-    "08-roadmaps/gui/operations/export": "../../02-user-guide/export.html",
+    "08-roadmaps/gui/operations/transform": "../../02-user-guide/collections.html",
+    "08-roadmaps/gui/operations/export": "../../02-user-guide/publish.html",
     # 99-troubleshooting -> 09-troubleshooting
     "99-troubleshooting/index": "../09-troubleshooting/README.html",
     "99-troubleshooting/README": "../09-troubleshooting/README.html",
@@ -150,8 +153,8 @@ redirects = {
     "06-gui/index": "../02-user-guide/README.html",
     "06-gui/README": "../02-user-guide/README.html",
     "06-gui/operations/import": "../../02-user-guide/import.html",
-    "06-gui/operations/transform": "../../02-user-guide/transform.html",
-    "06-gui/operations/export": "../../02-user-guide/export.html",
+    "06-gui/operations/transform": "../../02-user-guide/collections.html",
+    "06-gui/operations/export": "../../02-user-guide/publish.html",
     "06-gui/operations/desktop-smoke-tests": "../../09-troubleshooting/desktop-smoke-tests.html",
     "06-gui/architecture/overview": "../../07-architecture/gui-overview.html",
     "06-gui/architecture/backend-frontend-runtime": "../../07-architecture/gui-runtime.html",

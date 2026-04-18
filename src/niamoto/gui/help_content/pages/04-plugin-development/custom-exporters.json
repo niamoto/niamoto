@@ -1,0 +1,52 @@
+{
+  "slug": "04-plugin-development/custom-exporters",
+  "path": "/help/04-plugin-development/custom-exporters",
+  "title": "Custom Exporters",
+  "description": "Exporters turn validated export.yml targets into files, folders, or API payloads. ExporterService passes the whole target config to the plugin, not a loose data/config/output path triple.",
+  "section_slug": "04-plugin-development",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Runtime Contract",
+      "level": 2,
+      "id": "runtime-contract"
+    },
+    {
+      "title": "What Niamoto Passes To The Exporter",
+      "level": 2,
+      "id": "what-niamoto-passes-to-the-exporter"
+    },
+    {
+      "title": "export.yml Shape",
+      "level": 2,
+      "id": "exportyml-shape"
+    },
+    {
+      "title": "Where To Read Data",
+      "level": 2,
+      "id": "where-to-read-data"
+    },
+    {
+      "title": "Validation",
+      "level": 2,
+      "id": "validation"
+    },
+    {
+      "title": "Static Pages And Widgets",
+      "level": 2,
+      "id": "static-pages-and-widgets"
+    },
+    {
+      "title": "Tests",
+      "level": 2,
+      "id": "tests"
+    },
+    {
+      "title": "Practical Rules",
+      "level": 2,
+      "id": "practical-rules"
+    }
+  ],
+  "html": "<h1 id=\"custom-exporters\">Custom Exporters</h1>\n<p>Exporters turn validated <code>export.yml</code> targets into files, folders, or API payloads. <code>ExporterService</code> passes the whole target config to the plugin, not a loose <code>data/config/output_path</code> triple.</p>\n<h2 id=\"runtime-contract\">Runtime Contract</h2>\n<p>Write exporters against <code>TargetConfig</code>.</p>\n<pre><code class=\"language-python\">import json\nfrom pathlib import Path\nfrom typing import Optional\n\nfrom pydantic import Field\n\nfrom niamoto.core.plugins.base import ExporterPlugin, PluginType, register\nfrom niamoto.core.plugins.models import BasePluginParams, TargetConfig\n\n\nclass ManifestExporterParams(BasePluginParams):\n    output_dir: str = Field(default=&quot;exports/manifest&quot;)\n    filename: str = Field(default=&quot;manifest.json&quot;)\n\n\n@register(&quot;manifest_exporter&quot;, PluginType.EXPORTER)\nclass ManifestExporter(ExporterPlugin):\n    param_schema = ManifestExporterParams\n\n    def export(\n        self,\n        target_config: TargetConfig,\n        repository,\n        group_filter: Optional[str] = None,\n    ) -&gt; None:\n        params = ManifestExporterParams.model_validate(target_config.params)\n        output_dir = Path(params.output_dir)\n        output_dir.mkdir(parents=True, exist_ok=True)\n\n        groups = target_config.groups or []\n        if group_filter:\n            groups = [group for group in groups if group.group_by == group_filter]\n\n        payload = {\n            &quot;target&quot;: target_config.name,\n            &quot;exporter&quot;: target_config.exporter,\n            &quot;groups&quot;: [group.group_by for group in groups],\n        }\n\n        output_file = output_dir / params.filename\n        output_file.write_text(json.dumps(payload, indent=2), encoding=&quot;utf-8&quot;)\n</code></pre>\n<h2 id=\"what-niamoto-passes-to-the-exporter\">What Niamoto Passes To The Exporter</h2>\n<p><code>ExporterService</code> calls:</p>\n<pre><code class=\"language-python\">exporter.export(target_config=target, repository=self.db, group_filter=group_filter)\n</code></pre>\n<p>That means a custom exporter should accept:</p>\n<ul>\n<li><code>target_config</code></li>\n<li><code>repository</code></li>\n<li><code>group_filter=None</code></li>\n</ul>\n<p>If your method only accepts <code>data, config, output_path</code>, the current runtime will not call it correctly.</p>\n<h2 id=\"exportyml-shape\"><code>export.yml</code> Shape</h2>\n<p>Export targets live under <code>exports:</code>. Each target declares one exporter and zero or more groups.</p>\n<pre><code class=\"language-yaml\">exports:\n  - name: analytics_api\n    exporter: json_api_exporter\n    params:\n      output_dir: exports/api\n      detail_output_pattern: &quot;{group}/{id}.json&quot;\n    groups:\n      - group_by: plots\n        index:\n          fields:\n            - id\n            - name\n</code></pre>\n<p>The canonical target shape is:</p>\n<ul>\n<li><code>name</code></li>\n<li><code>enabled</code></li>\n<li><code>exporter</code></li>\n<li><code>params</code></li>\n<li><code>static_pages</code></li>\n<li><code>groups</code></li>\n</ul>\n<p>The old <code>export.exporters[*].type/config</code> shape is no longer the runtime contract.</p>\n<h2 id=\"where-to-read-data\">Where To Read Data</h2>\n<p>Most exporters do one or both of these:</p>\n<ul>\n<li>iterate over <code>target_config.groups</code></li>\n<li>read transformed tables or source tables through <code>repository</code></li>\n</ul>\n<p>For working examples, inspect:</p>\n<ul>\n<li><code>src/niamoto/core/plugins/exporters/html_page_exporter.py</code></li>\n<li><code>src/niamoto/core/plugins/exporters/json_api_exporter.py</code></li>\n<li><code>src/niamoto/core/plugins/exporters/dwc_archive_exporter.py</code></li>\n</ul>\n<h2 id=\"validation\">Validation</h2>\n<p>Use a params model for <code>target_config.params</code>. Let Niamoto validate the target structure, then validate exporter-specific params inside the plugin.</p>\n<pre><code class=\"language-python\">params = ManifestExporterParams.model_validate(target_config.params)\n</code></pre>\n<h2 id=\"static-pages-and-widgets\">Static Pages And Widgets</h2>\n<p>If your exporter behaves like <code>html_page_exporter</code>, it will also need to interpret:</p>\n<ul>\n<li><code>target_config.static_pages</code></li>\n<li><code>target_config.groups[*].widgets</code></li>\n</ul>\n<p>If your exporter does not use them, ignore them. Do not invent a second config schema.</p>\n<h2 id=\"tests\">Tests</h2>\n<p>Put exporter tests under <code>tests/core/plugins/exporters/</code>. The built-in exporter tests show the current pattern:</p>\n<ul>\n<li>build a <code>TargetConfig</code></li>\n<li>instantiate the exporter</li>\n<li>call <code>export(target_config, repository, group_filter=None)</code></li>\n<li>assert on generated files or stats</li>\n</ul>\n<h2 id=\"practical-rules\">Practical Rules</h2>\n<ul>\n<li>Accept <code>group_filter</code> even if your exporter does not use it yet.</li>\n<li>Parse <code>target_config.params</code> with a Pydantic model.</li>\n<li>Create output directories with <code>Path(...).mkdir(parents=True, exist_ok=True)</code>.</li>\n<li>Keep one exporter focused on one output family.</li>\n<li>Reuse existing target and group models instead of inventing parallel YAML shapes.</li>\n</ul>",
+  "source_path": "04-plugin-development/custom-exporters.md"
+}
