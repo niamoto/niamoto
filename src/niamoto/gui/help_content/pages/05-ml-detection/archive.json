@@ -3,6 +3,7 @@
   "path": "/help/05-ml-detection/archive",
   "title": "Archive",
   "description": "These files are preserved because they still explain past decisions or contain useful context, but they are no longer the canonical source of truth.",
+  "page_type": "markdown",
   "section_slug": "05-ml-detection",
   "is_section_index": true,
   "headings": [
@@ -17,6 +18,7 @@
       "id": "canonical-sources-now"
     }
   ],
-  "html": "<h1 id=\"archive\">Archive</h1>\n<blockquote>\n<p>Status: Archive\nAudience: Team, AI agents\nPurpose: Older or superseded documents kept for context</p>\n</blockquote>\n<p>These files are preserved because they still explain past decisions or contain\nuseful context, but they are no longer the canonical source of truth.</p>\n<h2 id=\"archived-documents\">Archived documents</h2>\n<ul>\n<li><a href=\"/help/05-ml-detection/archive/acquisition-history-and-source-strategy\">Acquisition history and source strategy</a></li>\n</ul>\n<h2 id=\"canonical-sources-now\">Canonical sources now</h2>\n<ul>\n<li>Dated planning docs: <code>docs/plans/</code></li>\n<li>Active ML reference docs: <a href=\"/help/05-ml-detection\">../README.md</a></li>\n<li>Current training sources actually used by the code: <a href=\"/help/05-ml-detection/current-training-sources\">../current-training-sources.md</a></li>\n</ul>\n<pre><code toctree=\"toctree\">:hidden:\n\nacquisition-history-and-source-strategy\n</code></pre>",
+  "html": "<h1 id=\"archive\">Archive</h1>\n<blockquote>\n<p>Status: Archive\nAudience: Team, AI agents\nPurpose: Older or superseded documents kept for context</p>\n</blockquote>\n<p>These files are preserved because they still explain past decisions or contain\nuseful context, but they are no longer the canonical source of truth.</p>\n<h2 id=\"archived-documents\">Archived documents</h2>\n<ul>\n<li><a href=\"/help/05-ml-detection/archive/acquisition-history-and-source-strategy\">Acquisition history and source strategy</a></li>\n</ul>\n<h2 id=\"canonical-sources-now\">Canonical sources now</h2>\n<ul>\n<li>Dated planning docs: <code>docs/plans/</code></li>\n<li>Active ML reference docs: <a href=\"/help/05-ml-detection\">../README.md</a></li>\n<li>Current training sources actually used by the code: <a href=\"/help/05-ml-detection/current-training-sources\">../current-training-sources.md</a></li>\n</ul>",
+  "asset_path": null,
   "source_path": "05-ml-detection/archive/README.md"
 }

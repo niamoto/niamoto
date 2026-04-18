@@ -15,7 +15,7 @@ from urllib.parse import quote, unquote
 import markdown
 import yaml
 
-PAGE_SUFFIXES = {".md", ".rst"}
+PAGE_SUFFIXES = {".md", ".rst", ".html"}
 HELP_OPT_OUT_KEY = "in_app_docs"
 INTERNAL_TOP_LEVEL_DIRS = {
     "_archive",
@@ -34,9 +34,25 @@ FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 MARKDOWN_LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
 MARKDOWN_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
+MYST_TOCTREE_RE = re.compile(r"(?ms)^```{toctree}\s*\n.*?^```\s*$\n?")
 RST_HEADING_RE = re.compile(
     r"^(?P<title>[^\n]+)\n(?P<underline>[=\-~^`:#\"']{3,})\s*$",
     re.MULTILINE,
+)
+HTML_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+HTML_META_DESCRIPTION_RE = re.compile(
+    r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']',
+    re.IGNORECASE | re.DOTALL,
+)
+HTML_HEADING_RE = re.compile(
+    r"<h(?P<level>[1-3])(?:\s+[^>]*)?(?:\s+id=[\"'](?P<id>[^\"']+)[\"'])?[^>]*>"
+    r"(?P<title>.*?)</h[1-3]>",
+    re.IGNORECASE | re.DOTALL,
+)
+HTML_PARAGRAPH_RE = re.compile(r"<p(?:\s+[^>]*)?>(.*?)</p>", re.IGNORECASE | re.DOTALL)
+HTML_LOCAL_REF_RE = re.compile(
+    r"""(?:src|href)=["'](?P<quoted>[^"']+)["']|url\((?P<css>[^)]+)\)""",
+    re.IGNORECASE,
 )
 
 
@@ -150,6 +166,7 @@ def build_help_content(
                     "path": page.route_path,
                     "title": rendered["title"],
                     "description": rendered["description"],
+                    "page_type": rendered["page_type"],
                     "is_section_index": page.is_section_index,
                     "headings": rendered["headings"],
                 }
@@ -162,6 +179,7 @@ def build_help_content(
                     "section_title": section_index.title,
                     "title": rendered["title"],
                     "description": rendered["description"],
+                    "page_type": rendered["page_type"],
                     "is_section_index": page.is_section_index,
                     "headings": [heading["title"] for heading in rendered["headings"]],
                     "keywords": _unique_strings(
@@ -324,6 +342,11 @@ def _slug_for_relative_path(relative_path: Path) -> str:
 
 
 def _extract_title(body: str, relative_path: Path) -> str:
+    if relative_path.suffix.lower() == ".html":
+        html_title = _extract_html_title(body)
+        if html_title:
+            return html_title
+
     markdown_match = MARKDOWN_HEADING_RE.search(body)
     if markdown_match:
         return _strip_markdown(markdown_match.group(2)).strip()
@@ -338,6 +361,10 @@ def _extract_title(body: str, relative_path: Path) -> str:
 
 
 def _extract_description(body: str) -> str:
+    html_description = _extract_html_description(body)
+    if html_description:
+        return html_description[:220]
+
     body_without_headings = MARKDOWN_HEADING_RE.sub("", body)
     paragraphs = [
         paragraph.strip() for paragraph in re.split(r"\n\s*\n", body_without_headings)
@@ -417,18 +444,31 @@ def _render_page(
             slug_lookup=slug_lookup,
             asset_sources=asset_sources,
         )
-    else:
+        page_type = "markdown"
+        asset_path = None
+    elif page.suffix == ".rst":
         rendered_body, headings = _render_plain_rst_page(page)
+        page_type = "rst"
+        asset_path = None
+    else:
+        rendered_body, headings, asset_path = _render_html_page(
+            page=page,
+            docs_root=docs_root,
+            asset_sources=asset_sources,
+        )
+        page_type = "html"
 
     return {
         "slug": page.slug,
         "path": page.route_path,
         "title": page.title,
         "description": page.description,
+        "page_type": page_type,
         "section_slug": page.section_slug,
         "is_section_index": page.is_section_index,
         "headings": headings,
         "html": rendered_body,
+        "asset_path": asset_path,
         "source_path": page.relative_path.as_posix(),
     }
 
@@ -439,7 +479,7 @@ def _render_markdown_page(
     slug_lookup: dict[Path, str],
     asset_sources: dict[Path, str],
 ) -> tuple[str, list[dict[str, Any]]]:
-    source = page.body
+    source = _strip_embedded_myst_blocks(page.body)
     source = MARKDOWN_IMAGE_RE.sub(
         lambda match: _rewrite_markdown_image(
             alt_text=match.group(1),
@@ -491,6 +531,22 @@ def _render_plain_rst_page(page: SourcePage) -> tuple[str, list[dict[str, Any]]]
 
     escaped = html.escape(page.body)
     return f"<pre>{escaped}</pre>", headings[1:] if len(headings) > 1 else []
+
+
+def _render_html_page(
+    page: SourcePage,
+    docs_root: Path,
+    asset_sources: dict[Path, str],
+) -> tuple[str, list[dict[str, Any]], str]:
+    asset_path = _asset_relative_path(page.source_path, docs_root)
+    asset_sources[page.source_path] = asset_path
+    _collect_html_asset_dependencies(
+        body=page.body,
+        source_path=page.source_path,
+        docs_root=docs_root,
+        asset_sources=asset_sources,
+    )
+    return "", [], asset_path
 
 
 def _rewrite_markdown_image(
@@ -556,12 +612,44 @@ def _rewrite_target(
         if slug is not None:
             return f"/help/{slug}{anchor}"
 
+    if _is_excluded_resolved_path(resolved_path, docs_root):
+        return f"/tools/docs{anchor}"
+
     if resolved_path.is_file():
         asset_rel = _asset_relative_path(resolved_path, docs_root)
         asset_sources[resolved_path] = asset_rel
         return f"/api/help/assets/{quote(asset_rel)}"
 
     return target
+
+
+def _collect_html_asset_dependencies(
+    body: str,
+    source_path: Path,
+    docs_root: Path,
+    asset_sources: dict[Path, str],
+) -> None:
+    for match in HTML_LOCAL_REF_RE.finditer(body):
+        raw_target = match.group("quoted") or match.group("css") or ""
+        target = raw_target.strip().strip("'\"")
+        if not target:
+            continue
+        if target.startswith(("#", "data:", "mailto:", "javascript:")):
+            continue
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target):
+            continue
+
+        target_path, _anchor = _split_target_anchor(target)
+        if not target_path:
+            continue
+
+        resolved_path = _resolve_relative_target(source_path, target_path, docs_root)
+        if resolved_path is None or not resolved_path.is_file():
+            continue
+        if _is_excluded_resolved_path(resolved_path, docs_root):
+            continue
+
+        asset_sources[resolved_path] = _asset_relative_path(resolved_path, docs_root)
 
 
 def _split_target_anchor(target: str) -> tuple[str, str]:
@@ -615,6 +703,14 @@ def _is_within_docs(path: Path, docs_root: Path) -> bool:
         return False
 
 
+def _is_excluded_resolved_path(path: Path, docs_root: Path) -> bool:
+    try:
+        relative_path = path.relative_to(docs_root)
+    except ValueError:
+        return False
+    return _is_excluded_doc_path(relative_path)
+
+
 def _asset_relative_path(asset_path: Path, docs_root: Path) -> str:
     docs_assets_root = docs_root / "assets"
     if asset_path.is_relative_to(docs_assets_root):
@@ -661,12 +757,55 @@ def _flatten_markdown_toc(tokens: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return flattened
 
 
+def _strip_embedded_myst_blocks(source: str) -> str:
+    return MYST_TOCTREE_RE.sub("", source)
+
+
 def _strip_markdown(value: str) -> str:
     value = re.sub(r"`([^`]*)`", r"\1", value)
     value = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", value)
     value = re.sub(r"[*_~#>!-]", " ", value)
     value = re.sub(r"\s+", " ", value)
     return value.strip()
+
+
+def _strip_html(value: str) -> str:
+    unescaped = html.unescape(value)
+    no_tags = re.sub(r"<[^>]+>", " ", unescaped)
+    no_tags = re.sub(r"\s+", " ", no_tags)
+    return no_tags.strip()
+
+
+def _extract_html_title(body: str) -> str:
+    title_match = HTML_TITLE_RE.search(body)
+    if title_match:
+        title = _strip_html(title_match.group(1))
+        if title:
+            return title
+
+    heading_match = HTML_HEADING_RE.search(body)
+    if heading_match:
+        title = _strip_html(heading_match.group("title"))
+        if title:
+            return title
+
+    return ""
+
+
+def _extract_html_description(body: str) -> str:
+    meta_match = HTML_META_DESCRIPTION_RE.search(body)
+    if meta_match:
+        description = _strip_html(meta_match.group(1))
+        if description:
+            return description
+
+    paragraph_match = HTML_PARAGRAPH_RE.search(body)
+    if paragraph_match:
+        description = _strip_html(paragraph_match.group(1))
+        if description:
+            return description
+
+    return ""
 
 
 def _humanize_slug(value: str) -> str:

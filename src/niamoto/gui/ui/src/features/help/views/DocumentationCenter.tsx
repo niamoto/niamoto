@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, BookOpenText } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -38,10 +38,13 @@ function DocumentationSkeleton() {
   )
 }
 
+let documentationSidebarScrollTop = 0
+
 export function DocumentationCenter() {
   const location = useLocation()
   const navigate = useNavigate()
   const manifestQuery = useHelpManifest()
+  const sidebarScrollRef = useRef<HTMLDivElement | null>(null)
 
   const normalizedPath = normalizeHelpPathname(location.pathname)
   const requestedSlug = helpSlugFromPathname(normalizedPath)
@@ -52,10 +55,34 @@ export function DocumentationCenter() {
   )
 
   const pageQuery = useHelpPage(selection.page?.slug)
+  const manifestReady = !manifestQuery.isLoading && !manifestQuery.isError && Boolean(manifestQuery.data)
 
   const handleNavigate = (slug: string) => {
     navigate(buildHelpPath(slug))
   }
+
+  useLayoutEffect(() => {
+    if (!manifestReady) {
+      return
+    }
+
+    const container = sidebarScrollRef.current
+    if (!container) {
+      return
+    }
+
+    const restoreScroll = () => {
+      container.scrollTop = documentationSidebarScrollTop
+    }
+
+    restoreScroll()
+    const frame = window.requestAnimationFrame(restoreScroll)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      documentationSidebarScrollTop = container.scrollTop
+    }
+  }, [manifestReady, normalizedPath])
 
   if (manifestQuery.isLoading) {
     return (
@@ -86,7 +113,13 @@ export function DocumentationCenter() {
   return (
     <div className="flex h-full overflow-hidden">
       <aside className="hidden w-[320px] shrink-0 border-r bg-muted/20 xl:block">
-        <ScrollArea className="h-full">
+        <div
+          ref={sidebarScrollRef}
+          className="h-full overflow-y-auto"
+          onScroll={(event) => {
+            documentationSidebarScrollTop = event.currentTarget.scrollTop
+          }}
+        >
           <div className="space-y-4 p-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -104,7 +137,7 @@ export function DocumentationCenter() {
               onNavigate={handleNavigate}
             />
           </div>
-        </ScrollArea>
+        </div>
       </aside>
 
       <div className="min-w-0 flex-1 overflow-hidden">

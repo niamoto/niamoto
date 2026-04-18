@@ -39,6 +39,10 @@ function syncSidebarModeToViewport() {
 export function MainLayout() {
   const location = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
+  const routeSurfaceKey = location.pathname.startsWith('/help/')
+    || location.pathname === '/help'
+    ? '/help'
+    : location.pathname
 
   useJobPolling()
 
@@ -88,8 +92,8 @@ export function MainLayout() {
                 'transition-all duration-200'
               )}
             >
-              <FeedbackErrorBoundary key={location.pathname}>
-                <PageTransition>
+              <FeedbackErrorBoundary key={routeSurfaceKey}>
+                <PageTransition transitionKey={routeSurfaceKey}>
                   <Outlet />
                 </PageTransition>
               </FeedbackErrorBoundary>

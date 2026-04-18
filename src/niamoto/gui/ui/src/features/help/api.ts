@@ -6,11 +6,14 @@ export interface HelpHeading {
   id: string
 }
 
+export type HelpPageType = 'markdown' | 'rst' | 'html'
+
 export interface HelpPageSummary {
   slug: string
   path: string
   title: string
   description: string
+  page_type: HelpPageType
   is_section_index: boolean
   headings: HelpHeading[]
 }
@@ -31,6 +34,7 @@ export interface HelpManifest {
 
 export interface HelpPage extends HelpPageSummary {
   html: string
+  asset_path: string | null
   section_slug: string
   source_path: string
 }
@@ -42,6 +46,7 @@ export interface HelpSearchEntry {
   section_title: string
   title: string
   description: string
+  page_type: HelpPageType
   is_section_index: boolean
   headings: string[]
   keywords: string[]

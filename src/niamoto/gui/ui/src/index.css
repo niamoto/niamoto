@@ -427,9 +427,17 @@ a,
 }
 
 .documentation-prose a {
-  color: var(--primary);
+  color: color-mix(in srgb, var(--foreground) 78%, var(--muted-foreground) 22%);
   text-decoration: underline;
   text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+  transition: color var(--transition-fast) var(--transition-easing),
+    text-decoration-color var(--transition-fast) var(--transition-easing);
+}
+
+.documentation-prose a:hover {
+  color: var(--foreground);
+  text-decoration-color: color-mix(in srgb, var(--foreground) 48%, transparent);
 }
 
 .documentation-prose code {

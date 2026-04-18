@@ -2,41 +2,23 @@
   "slug": "08-roadmaps",
   "path": "/help/08-roadmaps",
   "title": "Roadmaps",
-  "description": "This section groups the longer lived plans, target architecture documents, and background analyses that shape upcoming work.",
+  "description": "This section is now intentionally thin.",
+  "page_type": "markdown",
   "section_slug": "08-roadmaps",
   "is_section_index": true,
   "headings": [
     {
-      "title": "Start here",
+      "title": "What still lives here",
       "level": 2,
-      "id": "start-here"
+      "id": "what-still-lives-here"
     },
     {
-      "title": "Structure",
+      "title": "Why this section changed",
       "level": 2,
-      "id": "structure"
-    },
-    {
-      "title": "Active roadmaps",
-      "level": 3,
-      "id": "active-roadmaps"
-    },
-    {
-      "title": "Architecture and platform track",
-      "level": 3,
-      "id": "architecture-and-platform-track"
-    },
-    {
-      "title": "Sub tracks",
-      "level": 3,
-      "id": "sub-tracks"
-    },
-    {
-      "title": "Related dated material",
-      "level": 3,
-      "id": "related-dated-material"
+      "id": "why-this-section-changed"
     }
   ],
-  "html": "<h1 id=\"roadmaps\">Roadmaps</h1>\n<p>This section groups the longer-lived plans, target architecture documents, and\nbackground analyses that shape upcoming work.</p>\n<h2 id=\"start-here\">Start here</h2>\n<ul>\n<li><a href=\"/help/08-roadmaps/target-architecture-2026\">target-architecture-2026.md</a>: target architecture for the next 6 to 12 months</li>\n<li><a href=\"/help/08-roadmaps/target-architecture-2026-execution-plan\">target-architecture-2026-execution-plan.md</a>: execution plan for that target</li>\n<li><a href=\"/help/08-roadmaps/gui-finalization/00-overview\">gui-finalization/00-overview.md</a>: desktop app finalization track</li>\n<li><a href=\"/help/08-roadmaps/auto-detection-mvp\">auto-detection-mvp.md</a>: ML auto-detection delivery plan</li>\n</ul>\n<h2 id=\"structure\">Structure</h2>\n<h3 id=\"active-roadmaps\">Active roadmaps</h3>\n<ul>\n<li><a href=\"/help/08-roadmaps/auto-detection-mvp\">auto-detection-mvp.md</a></li>\n<li><a href=\"/help/08-roadmaps/error-handling\">error-handling.md</a></li>\n</ul>\n<h3 id=\"architecture-and-platform-track\">Architecture and platform track</h3>\n<ul>\n<li><a href=\"/help/08-roadmaps/target-architecture-2026\">target-architecture-2026.md</a></li>\n<li><a href=\"/help/08-roadmaps/target-architecture-2026-comex-cto\">target-architecture-2026-comex-cto.md</a></li>\n<li><a href=\"/help/08-roadmaps/target-architecture-2026-execution-plan\">target-architecture-2026-execution-plan.md</a></li>\n</ul>\n<h3 id=\"sub-tracks\">Sub-tracks</h3>\n<ul>\n<li><a href=\"/help/08-roadmaps/gui/DESKTOP_APP\">gui/DESKTOP_APP.md</a>: GUI phase rollouts</li>\n<li><a href=\"/help/08-roadmaps/gui-finalization/00-overview\">gui-finalization/00-overview.md</a>: desktop app, binary distribution, plugins</li>\n<li><a href=\"/help/08-roadmaps/gui/ARCHITECTURE_MULTI_PROJETS\">gui/ARCHITECTURE_MULTI_PROJETS.md</a>: shared resources and multi-project model</li>\n<li><a href=\"/help/08-roadmaps/gui/BINARY_DISTRIBUTION\">gui/BINARY_DISTRIBUTION.md</a>: binary packaging and release constraints</li>\n<li><a href=\"/help/08-roadmaps/gui/PLUGINS_WITH_BINARY\">gui/PLUGINS_WITH_BINARY.md</a>: plugin constraints in binary distributions</li>\n</ul>\n<h3 id=\"related-dated-material\">Related dated material</h3>\n<ul>\n<li><code>docs/plans/</code>: individual feature plans</li>\n<li><code>docs/brainstorms/</code>: exploratory sessions preceding plans</li>\n<li><code>docs/ideation/</code>: open ideation notes</li>\n<li><code>docs/_archive/08-roadmaps/</code>: retired roadmaps and superseded design documents</li>\n</ul>\n<pre><code toctree=\"toctree\">:hidden:\n\nauto-detection-mvp\nerror-handling\ntarget-architecture-2026\ntarget-architecture-2026-comex-cto\ntarget-architecture-2026-execution-plan\ngui/ARCHITECTURE_MULTI_PROJETS\ngui/BINARY_DISTRIBUTION\ngui/DESKTOP_APP\ngui/PLUGINS_WITH_BINARY\ngui-finalization/00-overview\ngui-finalization/01-phase-import\ngui-finalization/02-phase-transform-export\n</code></pre>",
+  "html": "<h1 id=\"roadmaps\">Roadmaps</h1>\n<p>This section is now intentionally thin.</p>\n<p>Most of the old roadmap material has been removed from the public docs tree.\nWhat remains here is only a minimal landing page and a small number of\nrepository artifacts that are not part of the rendered documentation site.</p>\n<h2 id=\"what-still-lives-here\">What still lives here</h2>\n<ul>\n<li><code>docs/08-roadmaps/README.md</code>: this landing page</li>\n<li><code>docs/08-roadmaps/gbif-challenge-2026.html</code>: standalone presentation kept in\n  the repository, but not published in the rendered docs site</li>\n</ul>\n<h2 id=\"why-this-section-changed\">Why this section changed</h2>\n<p>The old roadmap folder had become a mix of target architecture, execution\nplans, GUI rollout notes, and temporary analysis documents. Keeping all of that\nas a public top-level section made the docs harder to trust and harder to\nnavigate, so the surviving public docs now point readers back to current\narchitecture in <a href=\"/help/07-architecture\">../07-architecture/README.md</a>\ninstead of treating old planning material as active reference content.</p>",
+  "asset_path": null,
   "source_path": "08-roadmaps/README.md"
 }

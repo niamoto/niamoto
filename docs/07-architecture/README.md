@@ -1,15 +1,18 @@
 # Architecture
 
-This section groups the current architecture notes and the ADRs that explain
-key structural decisions.
+This section describes the current Niamoto architecture.
+
+The main entry point is the runtime and system notes below. ADRs remain in the
+folder as background material for a few older decisions, but they are no longer
+the primary way to understand the codebase.
 
 ## Start here
 
 - [system-overview.md](system-overview.md): current platform layers and runtime flow
 - [plugin-system.md](plugin-system.md): plugin types, registry, and loading cascade
 - [gui-overview.md](gui-overview.md): GUI backend and frontend split
-- [gui-preview-system.md](gui-preview-system.md): widget preview rendering
-- [adr/0001-adopt-duckdb.md](adr/0001-adopt-duckdb.md): first ADR in the active series
+- [gui-runtime.md](gui-runtime.md): development, packaged, and desktop runtime modes
+- [gui-preview-system.md](gui-preview-system.md): widget preview rendering path
 
 ## Current architecture
 
@@ -19,12 +22,12 @@ key structural decisions.
 - [gui-runtime.md](gui-runtime.md)
 - [gui-preview-system.md](gui-preview-system.md)
 
-## ADRs
+## Historical decision notes
 
-- [adr/0001-adopt-duckdb.md](adr/0001-adopt-duckdb.md)
-- [adr/0002-retire-legacy-importers.md](adr/0002-retire-legacy-importers.md)
-- [adr/0003-derived-references-with-duckdb.md](adr/0003-derived-references-with-duckdb.md)
-- [adr/0004-generic-import-system.md](adr/0004-generic-import-system.md)
+The `adr/` directory is still kept for a small set of decisions that explain
+why some parts of the runtime look the way they do, especially the move to
+DuckDB and the generic import transition. They are optional background reading,
+not the recommended entry point for new readers.
 
 ## Core principles
 
@@ -55,6 +58,7 @@ key structural decisions.
 
 - [../04-plugin-development/README.md](../04-plugin-development/README.md): plugin authoring guides
 - [../08-roadmaps/README.md](../08-roadmaps/README.md): roadmaps, target architecture, and longer design proposals
+- `docs/plans/`: dated implementation plans and research notes
 
 ```{toctree}
 :hidden:

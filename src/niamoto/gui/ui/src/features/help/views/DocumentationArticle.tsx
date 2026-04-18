@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { AlertCircle, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,22 @@ function isExternalLink(href: string) {
   return /^https?:\/\//.test(href)
 }
 
+function findScrollViewport(element: HTMLElement | null): HTMLElement | null {
+  if (!element) {
+    return null
+  }
+
+  return element.closest('[data-slot="scroll-area-viewport"]')
+}
+
+function buildHelpAssetUrl(assetPath: string) {
+  const encodedPath = assetPath
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+  return `/api/help/assets/${encodedPath}`
+}
+
 export function DocumentationArticle({
   page,
   section,
@@ -28,16 +45,27 @@ export function DocumentationArticle({
     () => page.headings.filter((heading) => heading.level <= 3),
     [page.headings],
   )
+  const embeddedHtmlSrc = useMemo(
+    () => (page.page_type === 'html' && page.asset_path ? buildHelpAssetUrl(page.asset_path) : null),
+    [page.asset_path, page.page_type],
+  )
 
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, '')
     if (!hash) {
-      articleRef.current?.scrollIntoView({ block: 'start' })
+      const viewport = findScrollViewport(articleRef.current)
+      viewport?.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
 
-    const target = document.getElementById(hash)
-    target?.scrollIntoView({ block: 'start' })
+    if (page.page_type === 'html') {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      const target = document.getElementById(hash)
+      target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
   }, [page.slug])
 
   useEffect(() => {
@@ -85,129 +113,165 @@ export function DocumentationArticle({
   }
 
   return (
-    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="min-w-0 space-y-6">
-        <Card>
-          <CardHeader className="gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{section.title}</Badge>
-              {page.is_section_index ? (
-                <Badge variant="outline">Section overview</Badge>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <CardTitle className="text-2xl">{page.title}</CardTitle>
-              <CardDescription className="max-w-3xl text-sm leading-relaxed">
-                {page.description}
-              </CardDescription>
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardContent className="px-6 py-6">
-            <div
-              ref={articleRef}
-              onClick={handleContentClick}
-              className="documentation-prose max-w-none"
-              dangerouslySetInnerHTML={{ __html: page.html }}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-4 2xl:sticky 2xl:top-6 2xl:self-start">
-        <Card>
-          <CardHeader className="gap-2">
-            <CardTitle className="text-base">On this page</CardTitle>
-            <CardDescription>
-              Jump to the main sections of this article.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {visibleHeadings.length > 0 ? (
-              visibleHeadings.map((heading) => (
-                <Button
-                  key={heading.id}
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full justify-start px-2 py-2 text-left"
-                  onClick={() => {
-                    const path = `${buildHelpPath(page.slug)}#${heading.id}`
-                    navigate(path)
-                    requestAnimationFrame(() => {
-                      document.getElementById(heading.id)?.scrollIntoView({
-                        block: 'start',
-                      })
-                    })
-                  }}
-                >
-                  <span className="truncate text-sm">{heading.title}</span>
-                </Button>
-              ))
-            ) : (
-              <div className="flex items-start gap-2 rounded-theme-md border px-3 py-2 text-sm text-muted-foreground">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>No indexed headings for this page.</span>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={page.slug}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_220px]"
+      >
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader className="gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{section.title}</Badge>
+                {page.is_section_index ? (
+                  <Badge variant="outline">Section overview</Badge>
+                ) : null}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="space-y-2">
+                <CardTitle className="text-2xl">{page.title}</CardTitle>
+                <CardDescription className="max-w-3xl text-sm leading-relaxed">
+                  {page.description}
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
 
-        <Card>
-          <CardHeader className="gap-2">
-            <CardTitle className="text-base">Section</CardTitle>
-            <CardDescription>{section.title}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => navigate(buildHelpPath(section.slug))}
-            >
-              Open section overview
-            </Button>
-            <Separator />
-            <div className="space-y-1">
-              {section.pages
-                .filter((candidate) => candidate.slug !== page.slug)
-                .slice(0, 6)
-                .map((candidate) => (
+          <Card>
+            <CardContent className="px-6 py-6">
+              {page.page_type === 'html' ? (
+                embeddedHtmlSrc ? (
+                  <div ref={articleRef} className="space-y-4">
+                    <div className="rounded-theme-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                      This page is an embedded HTML document kept in the repository.
+                    </div>
+                    <iframe
+                      title={page.title}
+                      src={embeddedHtmlSrc}
+                      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                      loading="lazy"
+                      className="h-[80vh] w-full rounded-theme-md border bg-background"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 rounded-theme-md border px-3 py-3 text-sm text-muted-foreground">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>The embedded HTML asset for this page is missing.</span>
+                  </div>
+                )
+              ) : (
+                <div
+                  ref={articleRef}
+                  onClick={handleContentClick}
+                  className="documentation-prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: page.html }}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4 2xl:sticky 2xl:top-6 2xl:self-start">
+          <Card>
+            <CardHeader className="gap-2">
+              <CardTitle className="text-base">On this page</CardTitle>
+              <CardDescription>
+                Jump to the main sections of this article.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {page.page_type !== 'html' && visibleHeadings.length > 0 ? (
+                visibleHeadings.map((heading) => (
                   <Button
-                    key={candidate.slug}
+                    key={heading.id}
                     type="button"
                     variant="ghost"
                     className="h-auto w-full justify-start px-2 py-2 text-left"
-                    onClick={() => navigate(buildHelpPath(candidate.slug))}
+                    onClick={() => {
+                      const path = `${buildHelpPath(page.slug)}#${heading.id}`
+                      navigate(path)
+                      requestAnimationFrame(() => {
+                        document.getElementById(heading.id)?.scrollIntoView({
+                          block: 'start',
+                          behavior: 'smooth',
+                        })
+                      })
+                    }}
                   >
-                    <span className="truncate text-sm">{candidate.title}</span>
+                    <span className="truncate text-sm">{heading.title}</span>
                   </Button>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))
+              ) : (
+                <div className="flex items-start gap-2 rounded-theme-md border px-3 py-2 text-sm text-muted-foreground">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    {page.page_type === 'html'
+                      ? 'Embedded HTML pages do not expose in-app heading jumps yet.'
+                      : 'No indexed headings for this page.'}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="gap-2">
-            <CardTitle className="text-base">Need the API?</CardTitle>
-            <CardDescription>
-              The generated API reference stays on its own screen for now.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-between"
-              onClick={() => navigate('/tools/docs')}
-            >
-              API documentation
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          <Card>
+            <CardHeader className="gap-2">
+              <CardTitle className="text-base">Section</CardTitle>
+              <CardDescription>{section.title}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate(buildHelpPath(section.slug))}
+              >
+                Open section overview
+              </Button>
+              <Separator />
+              <div className="space-y-1">
+                {section.pages
+                  .filter((candidate) => candidate.slug !== page.slug)
+                  .slice(0, 6)
+                  .map((candidate) => (
+                    <Button
+                      key={candidate.slug}
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-start px-2 py-2 text-left"
+                      onClick={() => navigate(buildHelpPath(candidate.slug))}
+                    >
+                      <span className="truncate text-sm">{candidate.title}</span>
+                    </Button>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="gap-2">
+              <CardTitle className="text-base">Need the API?</CardTitle>
+              <CardDescription>
+                The generated API reference stays on its own screen for now.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => navigate('/tools/docs')}
+              >
+                API documentation
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </motion.div>
+    </AnimatePresence>
   )
 }

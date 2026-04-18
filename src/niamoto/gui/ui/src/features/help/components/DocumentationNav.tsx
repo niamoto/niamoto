@@ -28,16 +28,16 @@ export function DocumentationNav({
             key={section.slug}
             className={cn(
               'rounded-theme-lg border bg-card p-3 shadow-theme-sm',
-              isActiveSection && 'border-primary/35 bg-primary/3',
+              isActiveSection && 'border-border bg-muted/40',
             )}
           >
             <button
               type="button"
               onClick={() => onNavigate(section.slug)}
-              className="flex w-full items-start justify-between gap-3 text-left"
+              className="flex w-full min-w-0 items-start justify-between gap-3 text-left"
             >
               <div className="min-w-0 space-y-1">
-                <div className="font-display text-sm font-semibold leading-tight">
+                <div className="line-clamp-2 font-display text-sm font-semibold leading-tight">
                   {section.title}
                 </div>
                 <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
@@ -60,16 +60,16 @@ export function DocumentationNav({
                     variant="ghost"
                     onClick={() => onNavigate(page.slug)}
                     className={cn(
-                      'h-auto w-full justify-start px-2 py-2 text-left',
-                      isActivePage && 'bg-muted text-foreground',
+                      'h-auto w-full items-start justify-start px-2 py-2 text-left whitespace-normal hover:bg-secondary hover:text-secondary-foreground',
+                      isActivePage && 'bg-secondary text-secondary-foreground',
                     )}
                   >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="line-clamp-2 text-sm font-medium leading-snug break-words">
                         {page.title}
                       </div>
                       {!page.is_section_index ? (
-                        <div className="truncate text-xs text-muted-foreground">
+                        <div className="line-clamp-2 text-xs leading-snug text-muted-foreground break-words">
                           {page.headings[0]?.title ?? page.description}
                         </div>
                       ) : null}

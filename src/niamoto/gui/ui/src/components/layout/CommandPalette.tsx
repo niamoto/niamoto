@@ -201,17 +201,6 @@ export function CommandPalette() {
             </div>
           </CommandItem>
           <CommandItem
-            value="navigate:/tools/docs"
-            keywords={['api', 'reference', 'endpoints', 'swagger', 'openapi']}
-            onSelect={handleSelect}
-          >
-            <BookOpen className="!size-[18px] text-foreground/70" />
-            <div className="flex flex-1 flex-col">
-              <span className="font-medium">{t('command.apiDocs', 'API Documentation')}</span>
-              <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Endpoints reference')}</span>
-            </div>
-          </CommandItem>
-          <CommandItem
             value="feedback:open"
             keywords={['feedback', 'bug', 'report', 'suggestion', 'question', 'signaler', 'problème']}
             onSelect={handleSelect}
@@ -239,6 +228,17 @@ export function CommandPalette() {
               <span className="text-xs text-muted-foreground">
                 {t('command.documentationDesc', 'Guides, workflows, reference, troubleshooting')}
               </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/tools/docs"
+            keywords={['api', 'reference', 'endpoints', 'swagger', 'openapi']}
+            onSelect={handleSelect}
+          >
+            <BookOpen className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.apiDocs', 'API')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Endpoints reference')}</span>
             </div>
           </CommandItem>
 
