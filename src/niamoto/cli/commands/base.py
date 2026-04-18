@@ -277,7 +277,7 @@ def display_next_steps() -> None:
     # Learn More section
     console.print(f"\n[bold yellow]{emoji('💡', '[*]')} Learn More:[/bold yellow]")
     console.print(
-        f"  {emoji('📖', '?')} Documentation: [link]https://niamoto.readthedocs.io/[/link]"
+        f"  {emoji('📖', '?')} Documentation: [link]https://niamoto.github.io/niamoto/[/link]"
     )
     console.print(f"  {emoji('❓', '?')} Help: niamoto <command> --help")
     console.print(
