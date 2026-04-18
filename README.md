@@ -26,7 +26,22 @@
 
 <br/>
 
-<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/hero-split.png" alt="Niamoto desktop studio and generated portal" />
+<p align="center">
+  <strong>Build collections and publish a biodiversity portal from one desktop app.</strong>
+</p>
+
+<table>
+  <tr>
+    <td width="68%" valign="top">
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/19.collection-computation.png" alt="Niamoto Collections view computing statistics and widgets in the desktop app" />
+    </td>
+    <td width="32%" valign="top">
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/11.import-config-detected.png" alt="Niamoto import screen with auto-detected sources and columns" />
+      <br /><br />
+      <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/25.publish-generation-preview.png" alt="Niamoto publish screen previewing generated site output" />
+    </td>
+  </tr>
+</table>
 
 ## What Niamoto does
 
@@ -87,14 +102,10 @@ for scripting recipes.
    [CLI & automation docs](https://niamoto.github.io/niamoto/03-cli-automation/README.html)
    for project init, scripted runs, and CI.
 
-## A glance at the studio
+## Inside the desktop studio
 
-The desktop app reads your raw files, suggests a configuration, previews each
-widget, and lets you publish the result:
-
-<img src="https://raw.githubusercontent.com/niamoto/niamoto/main/docs/assets/screenshots/desktop/11.import-config-detected.png" alt="Niamoto import screen with ML auto-detected column roles" />
-
-The full walk-through lives in the
+The desktop app takes you from source review to collections, widgets, and
+publication in one place. The full walk-through lives in the
 [Desktop App Tour](https://niamoto.github.io/niamoto/02-user-guide/README.html).
 If you want to see the generated result first,
 [the live demo](https://niamoto.github.io/niamoto-static-site/) shows what the
