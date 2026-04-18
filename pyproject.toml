@@ -148,7 +148,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/niamoto/niamoto"
 Repository = "https://github.com/niamoto/niamoto"
-Documentation = "https://niamoto.readthedocs.io"
+Documentation = "https://niamoto.github.io/niamoto/"
 Changelog = "https://github.com/niamoto/niamoto/blob/main/CHANGELOG.md"
 Issues = "https://github.com/niamoto/niamoto/issues"
 Discussions = "https://github.com/niamoto/niamoto/discussions"
