@@ -66,7 +66,7 @@ export function StageCard({
   return (
     <Card
       className={cn(
-        "h-full cursor-pointer border-l-[3px] transition-colors hover:bg-accent/50 bg-dot-grid",
+        "h-full cursor-pointer border-l-[3px] bg-dot-grid transition-[background-color,border-color,box-shadow] hover:border-border/80 hover:bg-muted/40 hover:shadow-sm",
         borderColor,
         status === "stale" &&
           "border-t-amber-300 border-r-amber-300 border-b-amber-300 dark:border-t-amber-800 dark:border-r-amber-800 dark:border-b-amber-800",
