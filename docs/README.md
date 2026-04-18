@@ -1,11 +1,11 @@
 # Niamoto Documentation
 
 > Status: Active
-> Audience: Anyone reading the Niamoto docs in-repo or on ReadTheDocs.
+> Audience: Anyone reading the Niamoto docs in-repo or on GitHub Pages.
 > Purpose: Portal to the full documentation tree.
 
 The rendered version lives at
-[niamoto.readthedocs.io](https://niamoto.readthedocs.io). This page is
+[niamoto.github.io/niamoto](https://niamoto.github.io/niamoto/). This page is
 the same portal inside the repository.
 
 ## Start here
