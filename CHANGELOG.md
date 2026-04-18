@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.2] - 2026-04-18
+
+### Features
+
+- Embed public documentation inside the desktop app
+- Refresh app about content with the new docs structure
+
+### Bug Fixes
+
+- Harden config suggestions and uv dev workflow
+- Avoid duplicate help_content entries in wheel (fixes PyPI 400 upload)
+
+### Documentation
+
+- Reorganize and refresh project docs with a desktop-first layout
+- Reboot structure for desktop-first refonte
+- Add brainstorm and plan for documentation refonte
+
+### Refactoring
+
+- Apply code review findings before shipping docs refonte
+- Exclude superpowers/ from Sphinx and strip stale absolute paths
+- Migrate section content to the desktop-first layout
+- Refresh desktop-first README, style guide, and hero assets
+
+### Other
+
+- Refresh lockfiles for docs toolchain
+
 ## [v0.15.1] - 2026-04-16
 
 ### Bug Fixes
