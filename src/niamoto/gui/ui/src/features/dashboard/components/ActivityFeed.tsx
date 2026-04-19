@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, fr } from "date-fns/locale"
 import { AlertTriangle, CheckCircle2, Database, Layers, Send } from "lucide-react"
@@ -58,46 +59,53 @@ function buildActivity(entries: JobHistoryEntry[] | undefined): ActivityItem[] {
     )
 }
 
-const TYPE_CONFIG = {
-  import: {
-    icon: <Database className="h-3.5 w-3.5" />,
-    label: "Import",
-    bg: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
-  },
-  transform: {
-    icon: <Layers className="h-3.5 w-3.5" />,
-    label: "Recalcul",
-    bg: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
-  },
-  export: {
-    icon: <Send className="h-3.5 w-3.5" />,
-    label: "Export",
-    bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
-  },
-} as const
+type ActivityType = "import" | "transform" | "export"
+
+function typeConfig(type: ActivityType, t: TFunction) {
+  switch (type) {
+    case "import":
+      return {
+        icon: <Database className="h-3.5 w-3.5" />,
+        label: t("pipeline.activity.type_import", "Import"),
+        bg: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+      }
+    case "transform":
+      return {
+        icon: <Layers className="h-3.5 w-3.5" />,
+        label: t("pipeline.activity.type_transform", "Recalcul"),
+        bg: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+      }
+    case "export":
+      return {
+        icon: <Send className="h-3.5 w-3.5" />,
+        label: t("pipeline.activity.type_export", "Export"),
+        bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+      }
+  }
+}
 
 interface ActivityFeedProps {
   limit?: number
 }
 
-function statusMeta(status: string) {
+function statusMeta(status: string, t: TFunction) {
   if (status === "completed") {
     return {
       icon: <CheckCircle2 className="h-3 w-3 text-green-500" />,
-      label: "Terminé",
+      label: t("pipeline.activity.status_completed", "Terminé"),
     }
   }
 
   if (status === "failed") {
     return {
       icon: <AlertTriangle className="h-3 w-3 text-red-500" />,
-      label: "Échec",
+      label: t("pipeline.activity.status_failed", "Échec"),
     }
   }
 
   return {
     icon: <AlertTriangle className="h-3 w-3 text-amber-500" />,
-    label: "Interrompu",
+    label: t("pipeline.activity.status_interrupted", "Interrompu"),
   }
 }
 
@@ -119,8 +127,8 @@ export function ActivityFeed({ limit = 10 }: ActivityFeedProps) {
   return (
     <div className="divide-y divide-border/50">
       {items.map((item) => {
-        const cfg = TYPE_CONFIG[item.type]
-        const status = statusMeta(item.status)
+        const cfg = typeConfig(item.type, t)
+        const status = statusMeta(item.status, t)
         const timeAgo = formatDistanceToNow(new Date(item.last_run_at), {
           addSuffix: true,
           locale: dateLocale,

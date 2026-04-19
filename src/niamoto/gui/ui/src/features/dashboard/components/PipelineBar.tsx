@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, fr } from "date-fns/locale"
 import {
@@ -98,62 +99,87 @@ interface PipelineBarProps {
   publication: StageStatus | undefined
 }
 
-function entitySummaryLine(stage: StageStatus | undefined): string | null {
+function entitySummaryLine(
+  stage: StageStatus | undefined,
+  t: TFunction,
+  language: string,
+): string | null {
   if (!stage?.summary) return null
   const s = stage.summary
+  const locale = language === "fr" ? "fr-FR" : "en-US"
 
-  // Data stage
+  // Data stage : total rows across all entities
   if (s.entities) {
     const total = s.entities.reduce((acc, e) => acc + e.row_count, 0)
     if (total === 0) return null
-    return total.toLocaleString() + " lignes"
+    const formatted = total.toLocaleString(locale)
+    return t("pipeline.summary.rows", "{{count}} lignes", {
+      count: total,
+      formattedCount: formatted,
+      defaultValue_one: "{{formattedCount}} ligne",
+      defaultValue_other: "{{formattedCount}} lignes",
+    })
   }
 
-  // Groups stage
+  // Groups stage : number of configured groups
   if (s.groups) {
     const count = s.groups.length
     if (count === 0) return null
-    return count + " groupe" + (count > 1 ? "s" : "")
+    return t("pipeline.summary.groups", {
+      count,
+      defaultValue_one: "{{count}} groupe",
+      defaultValue_other: "{{count}} groupes",
+    })
   }
 
+  // Site configured pages
   if (s.page_count != null) {
-    return s.page_count + " page" + (s.page_count > 1 ? "s" : "")
+    return t("pipeline.summary.pages", {
+      count: s.page_count,
+      defaultValue_one: "{{count}} page",
+      defaultValue_other: "{{count}} pages",
+    })
   }
 
+  // Published HTML pages
   if (s.html_page_count != null) {
-    return s.html_page_count + " page" + (s.html_page_count > 1 ? "s" : "")
+    return t("pipeline.summary.pages", {
+      count: s.html_page_count,
+      defaultValue_one: "{{count}} page",
+      defaultValue_other: "{{count}} pages",
+    })
   }
 
   return null
 }
 
 export function PipelineBar({ data, groups, site, publication }: PipelineBarProps) {
-  const { t } = useTranslation("common")
+  const { t, i18n } = useTranslation("common")
 
   return (
     <div className="flex items-center gap-2">
       <PipelineStage
         label={t("sidebar.nav.data", "Import")}
         stage={data}
-        entityLine={entitySummaryLine(data)}
+        entityLine={entitySummaryLine(data, t, i18n.language)}
       />
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       <PipelineStage
         label={t("sidebar.nav.collections", "Transform")}
         stage={groups}
-        entityLine={entitySummaryLine(groups)}
+        entityLine={entitySummaryLine(groups, t, i18n.language)}
       />
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       <PipelineStage
         label={t("sidebar.nav.site", "Site")}
         stage={site}
-        entityLine={entitySummaryLine(site)}
+        entityLine={entitySummaryLine(site, t, i18n.language)}
       />
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       <PipelineStage
         label={t("sidebar.nav.publish", "Export")}
         stage={publication}
-        entityLine={entitySummaryLine(publication)}
+        entityLine={entitySummaryLine(publication, t, i18n.language)}
       />
     </div>
   )

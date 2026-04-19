@@ -111,8 +111,10 @@ export function KeyStats({
           value={htmlPageCount}
           sub={
             totalSizeMb != null
-              ? `pages HTML · ${totalSizeMb} Mo`
-              : "pages HTML"
+              ? t("pipeline.stats.pages_html_size", "pages HTML · {{size}} Mo", {
+                  size: totalSizeMb,
+                })
+              : t("pipeline.stats.pages_html", "pages HTML")
           }
         />
       )}

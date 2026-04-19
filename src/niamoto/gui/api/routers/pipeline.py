@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ValidationError
 
 from niamoto.core.plugins.models import HtmlExporterParams
@@ -323,8 +323,15 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
 
 
 @router.get("/history")
-async def get_pipeline_history(http_request: Request, limit: int = 10) -> list[dict]:
-    """Return the N most recent completed jobs (newest first)."""
+async def get_pipeline_history(
+    http_request: Request,
+    limit: int = Query(default=10, ge=1, le=100),
+) -> list[dict]:
+    """Return the N most recent completed jobs (newest first).
+
+    ``limit`` is clamped to [1, 100] to prevent unbounded slices or
+    surprising responses when ``limit=0`` or negative values are passed.
+    """
     try:
         job_store: Optional[JobFileStore] = resolve_job_store(http_request.app)
     except Exception:
