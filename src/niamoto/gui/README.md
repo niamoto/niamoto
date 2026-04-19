@@ -194,5 +194,7 @@ exports/
 
 - `NIAMOTO_HOME`: path to the active instance
 - `VITE_API_BASE_URL`: override frontend API base URL when needed
-- `NIAMOTO_DESKTOP_CONFIG`: override the desktop config path used by the Tauri shell and FastAPI sidecar
+- `NIAMOTO_DESKTOP_CONFIG`: override the shared project-selection config path used by the Tauri or Electron shell and the FastAPI sidecar
 - `NIAMOTO_DESKTOP_LOG_DIR`: override the native desktop startup log directory
+- `NIAMOTO_DESKTOP_API_PORT`: fix the FastAPI loopback port used by desktop hot-reload shells
+- `NIAMOTO_ELECTRON_RENDERER_URL`: override the Electron dev renderer URL when the experimental shell runs against a non-default Vite host

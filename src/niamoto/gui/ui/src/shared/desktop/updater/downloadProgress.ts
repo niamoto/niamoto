@@ -1,4 +1,20 @@
-import type { DownloadEvent } from '@tauri-apps/plugin-updater'
+export type DownloadEvent =
+  | {
+      event: 'Started'
+      data: {
+        contentLength?: number | null
+      }
+    }
+  | {
+      event: 'Progress'
+      data: {
+        chunkLength: number
+      }
+    }
+  | {
+      event: 'Finished'
+      data?: Record<string, never>
+    }
 
 export interface DownloadProgressState {
   downloadedBytes: number

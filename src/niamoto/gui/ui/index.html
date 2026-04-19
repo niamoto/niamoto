@@ -182,6 +182,21 @@
           return 'web'
         }
 
+        function detectDesktopShell() {
+          if (typeof window.__NIAMOTO_ELECTRON__?.invoke === 'function') {
+            return 'electron'
+          }
+
+          if (
+            typeof window.__TAURI_INTERNALS__ === 'object' ||
+            typeof window.__TAURI__ === 'object'
+          ) {
+            return 'tauri'
+          }
+
+          return null
+        }
+
         function readPersistedTheme() {
           try {
             const raw = window.localStorage.getItem(THEME_STORAGE_KEY)
@@ -218,7 +233,15 @@
         const theme = THEME_BOOTSTRAP[themeId] || THEME_BOOTSTRAP[DEFAULT_THEME_ID]
         const tokens = theme[resolvedMode]
 
+        const desktopShell = detectDesktopShell()
+
         root.dataset.platform = detectPlatform()
+        root.dataset.runtimeMode = desktopShell ? 'desktop' : 'web'
+        if (desktopShell) {
+          root.dataset.shell = desktopShell
+        } else {
+          delete root.dataset.shell
+        }
         root.setAttribute('data-theme-style', theme.style)
         root.classList.remove('light', 'dark')
         root.classList.add(resolvedMode)
