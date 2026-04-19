@@ -32,16 +32,16 @@ function statusConfig(status: FreshnessStatus) {
         icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
         dot: "bg-amber-500",
         text: "text-amber-600 dark:text-amber-400",
-        ring: "ring-amber-500/30",
-        bg: "bg-amber-50 dark:bg-amber-950/30",
+        ring: "ring-border/60",
+        bg: "bg-muted/30",
       }
     case "running":
       return {
         icon: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
         dot: "bg-blue-500 animate-pulse",
         text: "text-blue-600 dark:text-blue-400",
-        ring: "ring-blue-500/30",
-        bg: "bg-blue-50 dark:bg-blue-950/30",
+        ring: "ring-border/60",
+        bg: "bg-muted/30",
       }
     default:
       return {
