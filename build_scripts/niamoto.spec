@@ -76,15 +76,26 @@ if help_content_dir.exists():
             relative_path = file.parent.relative_to(SRC_DIR)
             add_data_file(file, relative_path)
 
-# CRITICAL: Also include models directory if it exists
-models_dir = ROOT_DIR / 'models'
-if models_dir.exists():
-    print(f"[OK] Including ML models from {models_dir}")
-    for file in models_dir.rglob('*'):
-        if file.is_file():
-            datas.append((str(file), 'models'))
-else:
-    print(f"[WARN] No models directory found at {models_dir}")
+# CRITICAL: Also include trained ML models if they exist.
+# The runtime classifier first looks under ml/models/ and then under models/.
+# The current training pipeline writes artifacts into ml/models/.
+model_sources = [
+    (ROOT_DIR / 'ml' / 'models', Path('ml/models')),
+    (ROOT_DIR / 'models', Path('models')),
+]
+included_model_sources = []
+for models_dir, dest_root in model_sources:
+    if models_dir.exists():
+        print(f"[OK] Including ML models from {models_dir} -> {dest_root}")
+        included_model_sources.append(models_dir)
+        for file in models_dir.rglob('*'):
+            if file.is_file():
+                add_data_file(file, dest_root / file.relative_to(models_dir).parent)
+
+if not included_model_sources:
+    print(
+        f"[WARN] No ML models directory found in {[str(source) for source, _ in model_sources]}"
+    )
 
 # Include wheel metadata required at runtime by some geo/scientific packages.
 # PyInstaller does not always collect these dist-info directories automatically.
