@@ -107,43 +107,41 @@ jobs:
           cp -R dist/niamoto src-tauri/resources/sidecar/${{ matrix.target }}/niamoto
           chmod +x src-tauri/resources/sidecar/${{ matrix.target }}/niamoto/niamoto
 
-      - name: Materialize macOS Python entrypoints
+      - name: Repair macOS Python framework layout in source sidecar
         if: matrix.os == 'macos-14'
         shell: bash
         run: |
           set -euo pipefail
 
           sidecar_dir="src-tauri/resources/sidecar/${{ matrix.target }}/niamoto"
+          framework_path="$sidecar_dir/_internal/Python.framework"
+          versioned_python_path="$(find "$framework_path/Versions" -type f -name Python | head -n 1)"
 
-          materialize_file_symlink() {
-            local path="$1"
-            if [ ! -L "$path" ]; then
-              return 0
-            fi
-
-            local dir
-            dir="$(dirname "$path")"
-            local target
-            target="$(readlink "$path")"
-            local resolved
-            resolved="$(cd "$dir" && cd "$(dirname "$target")" && pwd -P)/$(basename "$target")"
-
-            rm "$path"
-            cp -p "$resolved" "$path"
-          }
-
-          materialize_file_symlink "$sidecar_dir/_internal/Python"
-          materialize_file_symlink "$sidecar_dir/_internal/Python.framework/Python"
-
-          versioned_python_path="$(find "$sidecar_dir/_internal/Python.framework/Versions" -type f -name Python | head -n 1)"
           if [ -z "$versioned_python_path" ]; then
             echo "Could not locate versioned Python binary inside Python.framework" >&2
             exit 1
           fi
 
+          python_framework_version="$(basename "$(dirname "$versioned_python_path")")"
+
+          rm -f "$framework_path/Versions/Current"
+          ln -s "$python_framework_version" "$framework_path/Versions/Current"
+
+          rm -f "$framework_path/Python"
+          ln -s "Versions/Current/Python" "$framework_path/Python"
+
+          if [ -d "$framework_path/Versions/$python_framework_version/Resources" ]; then
+            rm -rf "$framework_path/Resources"
+            ln -s "Versions/Current/Resources" "$framework_path/Resources"
+          fi
+
+          rm -f "$sidecar_dir/_internal/Python"
+          ln -s "Python.framework/Versions/$python_framework_version/Python" "$sidecar_dir/_internal/Python"
+
           ls -l \
             "$sidecar_dir/_internal/Python" \
-            "$sidecar_dir/_internal/Python.framework/Python" \
+            "$framework_path/Python" \
+            "$framework_path/Versions/Current" \
             "$versioned_python_path"
 
       - name: Place sidecar resources (Windows)
@@ -333,9 +331,9 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      # Manual trigger: build only (no release)
-      - name: Build Tauri (manual)
-        if: github.event_name == 'workflow_dispatch'
+      # Manual trigger: build only (no release), let the post-step repair/re-sign/notarize macOS.
+      - name: Build Tauri (manual, macOS pre-notary)
+        if: github.event_name == 'workflow_dispatch' && matrix.os == 'macos-14'
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: src-tauri
@@ -344,18 +342,53 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      - name: Repair, re-sign and notarize macOS app (manual)
+        if: github.event_name == 'workflow_dispatch' && matrix.os == 'macos-14'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          scripts/dev/verify_macos_distribution.sh \
+            --app src-tauri/target/release/bundle/macos/Niamoto.app \
+            --identity "$APPLE_SIGNING_IDENTITY" \
+            --keychain "$NIAMOTO_SIGNING_KEYCHAIN" \
+            --skip-spctl \
+            --notarize
+
+      - name: Build Tauri (manual, non-macOS)
+        if: github.event_name == 'workflow_dispatch' && matrix.os != 'macos-14'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       # Manual trigger: upload as workflow artifact
-      - name: Upload Tauri bundle
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload Tauri bundle (manual macOS)
+        if: github.event_name == 'workflow_dispatch' && matrix.os == 'macos-14'
         uses: actions/upload-artifact@v7
         with:
           name: tauri-${{ matrix.name }}
           path: |
-            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*.app.tar.gz
+            src-tauri/target/release/bundle/**/*.app.tar.gz.sig
+          retention-days: 7
+
+      - name: Upload Tauri bundle (manual non-macOS)
+        if: github.event_name == 'workflow_dispatch' && matrix.os != 'macos-14'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tauri-${{ matrix.name }}
+          path: |
             src-tauri/target/release/bundle/**/*.app
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.msi

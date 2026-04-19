@@ -93,6 +93,13 @@ Selon votre OS :
 xcode-select --install
 ```
 
+Vérification locale de signature / notarisation :
+```bash
+scripts/dev/verify_macos_distribution.sh --ad-hoc --skip-spctl
+scripts/dev/verify_macos_distribution.sh
+scripts/dev/verify_macos_distribution.sh --notarize
+```
+
 **Linux (Ubuntu/Debian)** :
 ```bash
 sudo apt update
@@ -162,6 +169,23 @@ cd src-tauri
 cargo clean
 cargo tauri build
 ```
+
+### La notarisation macOS échoue en CI
+
+Reproduisez d'abord le problème sur votre machine avec le même bundle :
+
+```bash
+scripts/dev/verify_macos_distribution.sh --ad-hoc --skip-spctl
+scripts/dev/verify_macos_distribution.sh
+```
+
+Le script :
+1. répare le layout du `Python.framework` si Tauri a aplati les symlinks
+2. signe le sidecar et le bundle `.app`
+3. vérifie `codesign` et `spctl`
+4. peut soumettre à Apple avec `--notarize`
+
+Utilisez `--ad-hoc --skip-spctl` pour valider rapidement la structure locale sans dépendre du certificat Apple ni de Gatekeeper.
 
 ### L'application ne charge pas l'UI
 
