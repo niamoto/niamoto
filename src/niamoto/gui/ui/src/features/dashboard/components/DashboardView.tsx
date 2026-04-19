@@ -26,11 +26,11 @@ export function DashboardView() {
 
   const { data, groups, site, publication, running_job } = pipeline
 
-  // Statut global résumé en une ligne
   const allFresh =
     data.status === "fresh" &&
     (groups.status === "fresh" || groups.status === "unconfigured") &&
-    publication.status !== "stale"
+    site.status === "fresh" &&
+    publication.status === "fresh"
 
   const hasStale =
     data.status === "stale" ||
@@ -103,6 +103,7 @@ export function DashboardView() {
       <PipelineBar
         data={data}
         groups={groups}
+        site={site}
         publication={publication}
       />
 
@@ -146,11 +147,7 @@ export function DashboardView() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 pt-0">
-            <ActivityFeed
-              data={data}
-              groups={groups}
-              publication={publication}
-            />
+            <ActivityFeed />
           </CardContent>
         </Card>
       </div>

@@ -94,6 +94,7 @@ function PipelineStage({ label, stage, entityLine }: PipelineStageProps) {
 interface PipelineBarProps {
   data: StageStatus | undefined
   groups: StageStatus | undefined
+  site: StageStatus | undefined
   publication: StageStatus | undefined
 }
 
@@ -115,7 +116,10 @@ function entitySummaryLine(stage: StageStatus | undefined): string | null {
     return count + " groupe" + (count > 1 ? "s" : "")
   }
 
-  // Publication stage
+  if (s.page_count != null) {
+    return s.page_count + " page" + (s.page_count > 1 ? "s" : "")
+  }
+
   if (s.html_page_count != null) {
     return s.html_page_count + " page" + (s.html_page_count > 1 ? "s" : "")
   }
@@ -123,7 +127,7 @@ function entitySummaryLine(stage: StageStatus | undefined): string | null {
   return null
 }
 
-export function PipelineBar({ data, groups, publication }: PipelineBarProps) {
+export function PipelineBar({ data, groups, site, publication }: PipelineBarProps) {
   const { t } = useTranslation("common")
 
   return (
@@ -138,6 +142,12 @@ export function PipelineBar({ data, groups, publication }: PipelineBarProps) {
         label={t("sidebar.nav.collections", "Transform")}
         stage={groups}
         entityLine={entitySummaryLine(groups)}
+      />
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+      <PipelineStage
+        label={t("sidebar.nav.site", "Site")}
+        stage={site}
+        entityLine={entitySummaryLine(site)}
       />
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       <PipelineStage

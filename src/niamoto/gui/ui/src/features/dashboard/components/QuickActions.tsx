@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Database, Eye, Layers, RefreshCw, Send } from "lucide-react"
+import { Database, Eye, Layers, Map, RefreshCw, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { FreshnessStatus } from "@/hooks/usePipelineStatus"
@@ -81,21 +81,16 @@ export function QuickActions({
 
   const canTransform = hasData && !isRunning
   const canRebuild = groupsReady && siteConfigured && !isRunning
-  const canPublish =
-    groupsReady &&
-    (publicationStatus === "stale" || publicationStatus === "never_run") &&
-    !isRunning
+  const canPublish = siteConfigured && publicationStatus === "fresh" && !isRunning
 
-  // Import : jamais primary (action de maintenance, pas un CTA principal)
-  // Recalculate : primary si groupes stale/never_run ET données présentes
   const recalcPrimary =
     hasData &&
     !isRunning &&
     (groupsStatus === "stale" || groupsStatus === "never_run")
 
-  // Rebuild : primary si publication stale
   const rebuildPrimary =
-    canRebuild && publicationStatus === "stale"
+    canRebuild &&
+    (publicationStatus === "stale" || publicationStatus === "never_run")
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -113,6 +108,13 @@ export function QuickActions({
         onClick={() => navigate("/groups")}
         disabled={!canTransform}
         primary={recalcPrimary}
+      />
+      <QuickAction
+        icon={<Map className="h-3.5 w-3.5" />}
+        label={t("pipeline.action_configure", "Configurer")}
+        description={t("pipeline.action_configure_desc", "Définir les pages du site")}
+        onClick={() => navigate("/site/pages")}
+        disabled={isRunning}
       />
       <QuickAction
         icon={<RefreshCw className="h-3.5 w-3.5" />}

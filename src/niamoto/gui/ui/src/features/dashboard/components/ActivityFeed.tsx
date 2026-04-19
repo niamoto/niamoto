@@ -1,48 +1,61 @@
 import { useTranslation } from "react-i18next"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, fr } from "date-fns/locale"
-import { CheckCircle2, Database, Layers, Send } from "lucide-react"
-import type { StageStatus } from "@/hooks/usePipelineStatus"
+import { AlertTriangle, CheckCircle2, Database, Layers, Send } from "lucide-react"
+import { usePipelineHistory, type JobHistoryEntry } from "@/hooks/usePipelineHistory"
 
 interface ActivityItem {
+  id: string
   type: "import" | "transform" | "export"
   last_run_at: string
+  status: string
+  message: string | null
   duration_s: number | null
 }
 
-function buildActivity(
-  data: StageStatus | undefined,
-  groups: StageStatus | undefined,
-  publication: StageStatus | undefined,
-): ActivityItem[] {
-  const items: ActivityItem[] = []
+function isTrackedHistoryEntry(
+  entry: JobHistoryEntry,
+): entry is JobHistoryEntry & {
+  type: ActivityItem["type"]
+  completed_at: string
+} {
+  return (
+    !!entry.completed_at &&
+    (entry.type === "import" ||
+      entry.type === "transform" ||
+      entry.type === "export")
+  )
+}
 
-  const add = (
-    type: ActivityItem["type"],
-    stage: StageStatus | undefined,
-  ) => {
-    if (
-      stage?.last_run_at &&
-      stage.status !== "never_run" &&
-      stage.status !== "unconfigured"
-    ) {
-      items.push({
-        type,
-        last_run_at: stage.last_run_at,
-        duration_s: stage.last_job_duration_s ?? null,
-      })
-    }
+function buildActivity(entries: JobHistoryEntry[] | undefined): ActivityItem[] {
+  if (!entries) {
+    return []
   }
 
-  add("import", data)
-  add("transform", groups)
-  add("export", publication)
-
-  // Tri anti-chronologique
-  return items.sort(
-    (a, b) =>
-      new Date(b.last_run_at).getTime() - new Date(a.last_run_at).getTime(),
-  )
+  return entries
+    .filter(isTrackedHistoryEntry)
+    .map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      last_run_at: entry.completed_at,
+      status: entry.status,
+      message: entry.message ?? null,
+      duration_s:
+        entry.started_at && entry.completed_at
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(entry.completed_at).getTime() -
+                  new Date(entry.started_at).getTime()) /
+                  1000,
+              ),
+            )
+          : null,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.last_run_at).getTime() - new Date(a.last_run_at).getTime(),
+    )
 }
 
 const TYPE_CONFIG = {
@@ -64,16 +77,36 @@ const TYPE_CONFIG = {
 } as const
 
 interface ActivityFeedProps {
-  data: StageStatus | undefined
-  groups: StageStatus | undefined
-  publication: StageStatus | undefined
+  limit?: number
 }
 
-export function ActivityFeed({ data, groups, publication }: ActivityFeedProps) {
+function statusMeta(status: string) {
+  if (status === "completed") {
+    return {
+      icon: <CheckCircle2 className="h-3 w-3 text-green-500" />,
+      label: "Terminé",
+    }
+  }
+
+  if (status === "failed") {
+    return {
+      icon: <AlertTriangle className="h-3 w-3 text-red-500" />,
+      label: "Échec",
+    }
+  }
+
+  return {
+    icon: <AlertTriangle className="h-3 w-3 text-amber-500" />,
+    label: "Interrompu",
+  }
+}
+
+export function ActivityFeed({ limit = 10 }: ActivityFeedProps) {
   const { t, i18n } = useTranslation("common")
   const dateLocale = i18n.language === "fr" ? fr : enUS
+  const { data: history } = usePipelineHistory(limit)
 
-  const items = buildActivity(data, groups, publication)
+  const items = buildActivity(history)
 
   if (items.length === 0) {
     return (
@@ -87,13 +120,14 @@ export function ActivityFeed({ data, groups, publication }: ActivityFeedProps) {
     <div className="divide-y divide-border/50">
       {items.map((item) => {
         const cfg = TYPE_CONFIG[item.type]
+        const status = statusMeta(item.status)
         const timeAgo = formatDistanceToNow(new Date(item.last_run_at), {
           addSuffix: true,
           locale: dateLocale,
         })
 
         return (
-          <div key={item.type} className="flex items-start gap-2.5 py-2">
+          <div key={item.id} className="flex items-start gap-2.5 py-2">
             <div
               className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${cfg.bg}`}
             >
@@ -102,7 +136,8 @@ export function ActivityFeed({ data, groups, publication }: ActivityFeedProps) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-medium">{cfg.label}</span>
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                {status.icon}
+                <span className="text-[11px] text-muted-foreground">{status.label}</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 {timeAgo}
@@ -110,6 +145,11 @@ export function ActivityFeed({ data, groups, publication }: ActivityFeedProps) {
                   <span className="ml-1.5 opacity-70">· {item.duration_s}s</span>
                 )}
               </p>
+              {item.message && (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {item.message}
+                </p>
+              )}
             </div>
           </div>
         )
