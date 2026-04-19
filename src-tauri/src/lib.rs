@@ -308,6 +308,7 @@ fn launch_fastapi_server(
 
     // Set NIAMOTO_RUNTIME_MODE to indicate we're in desktop mode
     command.env("NIAMOTO_RUNTIME_MODE", "desktop");
+    command.env("NIAMOTO_DESKTOP_SHELL", "tauri");
     command.env("NIAMOTO_DESKTOP_AUTH_TOKEN", desktop_auth_token);
     command.env("NIAMOTO_STARTUP_SESSION", startup_session);
     command.env("NIAMOTO_STARTUP_LOG", startup_log_path);

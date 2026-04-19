@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense, useState } from 'react'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
+import { hasDesktopBridge } from '@/shared/desktop/bridge'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import {
   applyUiLanguagePreference,
@@ -11,7 +12,6 @@ import {
   clearManualProjectOpenTarget,
   getManualProjectOpenTarget,
 } from '@/shared/desktop/projectLaunchIntent'
-import { isDesktopTauri } from '@/shared/desktop/tauri'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
@@ -22,13 +22,10 @@ import { AppRouterProvider } from './router'
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/features/welcome/views/WelcomeScreen'))
 
-// Check if running in Tauri
-const isTauri = isDesktopTauri()
-
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
   const [languageReady, setLanguageReady] = useState(false)
-  const [initialized, setInitialized] = useState(!isTauri)
+  const [initialized, setInitialized] = useState(() => !hasDesktopBridge())
   const [bootFallbackToWelcome, setBootFallbackToWelcome] = useState(false)
   const [bootError, setBootError] = useState<string | null>(null)
   const projectCreationOpen = useProjectCreationStore((state) => state.isOpen)
@@ -41,7 +38,7 @@ function App() {
     settings,
     recentProjects,
     invalidProjects,
-    isTauri: isTauriMode,
+    isDesktop: isDesktopMode,
     createProject,
     openProject,
     browseAndOpen,
@@ -75,7 +72,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isTauriMode || initialized || welcomeLoading) return
+    if (!isDesktopMode || initialized || welcomeLoading) return
     const manualProjectTarget = getManualProjectOpenTarget()
 
     if (showWelcome && !manualProjectTarget) {
@@ -117,7 +114,7 @@ function App() {
     }
 
     initializeProject()
-  }, [initialized, isTauriMode, refetchProjectInfo, showWelcome, welcomeLoading])
+  }, [initialized, isDesktopMode, refetchProjectInfo, showWelcome, welcomeLoading])
 
   useEffect(() => {
     if (projectInfo?.name) {
@@ -128,7 +125,7 @@ function App() {
   }, [projectInfo?.name])
 
   useEffect(() => {
-    if (!isTauriMode) {
+    if (!isDesktopMode) {
       return
     }
 
@@ -161,7 +158,7 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleDesktopDebugShortcut)
     }
-  }, [isTauriMode])
+  }, [isDesktopMode])
 
   const handleCreateProject = async (name: string, location: string) => {
     closeProjectCreation()
@@ -176,11 +173,11 @@ function App() {
     </ThemeProvider>
   )
 
-  if (!languageReady || (isTauriMode && welcomeLoading)) {
+  if (!languageReady || (isDesktopMode && welcomeLoading)) {
     return fullScreenLoader
   }
 
-  if (isTauriMode && (showWelcome || bootFallbackToWelcome)) {
+  if (isDesktopMode && (showWelcome || bootFallbackToWelcome)) {
     return (
       <ThemeProvider>
         <Suspense
@@ -210,7 +207,7 @@ function App() {
   return (
     <ThemeProvider>
       <Toaster position="bottom-right" richColors />
-      {isTauriMode && projectCreationOpen && (
+      {isDesktopMode && projectCreationOpen && (
         <div className="fixed inset-0 z-50 bg-background">
           <ProjectCreationWizard
             onComplete={handleCreateProject}

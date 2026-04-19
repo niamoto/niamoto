@@ -3,7 +3,7 @@ import i18n, {
   type UiLanguage,
   type UiLanguagePreference,
 } from '@/i18n'
-import { invokeDesktop, isDesktopTauri } from '@/shared/desktop/tauri'
+import { hasDesktopBridge, invokeDesktop } from '@/shared/desktop/bridge'
 
 export interface AppSettings {
   auto_load_last_project: boolean
@@ -19,8 +19,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
 const UI_LANGUAGE_PREFERENCE_STORAGE_KEY = 'niamoto.uiLanguagePreference'
 
-export function isTauriApp() {
-  return isDesktopTauri()
+export function isDesktopApp() {
+  return hasDesktopBridge()
 }
 
 export function normalizeUiLanguagePreference(
@@ -59,7 +59,7 @@ function writeStoredUiLanguagePreference(
 }
 
 export async function getAppSettings(): Promise<AppSettings> {
-  if (!isTauriApp()) {
+  if (!isDesktopApp()) {
     return {
       ...DEFAULT_APP_SETTINGS,
       ui_language: readStoredUiLanguagePreference(),
@@ -82,7 +82,7 @@ export async function setAppSettings(settings: AppSettings): Promise<void> {
     ui_language: normalizeUiLanguagePreference(settings.ui_language),
   }
 
-  if (isTauriApp()) {
+  if (isDesktopApp()) {
     await invokeDesktop('set_app_settings', {
       settings: nextSettings,
     })
@@ -92,7 +92,7 @@ export async function setAppSettings(settings: AppSettings): Promise<void> {
 }
 
 export async function openDesktopDevtools(): Promise<void> {
-  if (!isTauriApp()) {
+  if (!isDesktopApp()) {
     return
   }
 
