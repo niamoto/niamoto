@@ -258,8 +258,12 @@ jobs:
 
           while IFS= read -r -d '' path; do
             case "$path" in
+              */_internal/Python.framework/Python)
+                echo "Skipping top-level framework Python entrypoint in favor of bundle signing: $path"
+                continue
+                ;;
               */_internal/Python.framework/Versions/*/Python)
-                echo "Skipping framework-version Python binary in favor of materialized entrypoint copies: $path"
+                echo "Skipping framework-version Python binary in favor of bundle signing: $path"
                 continue
                 ;;
             esac
@@ -284,13 +288,6 @@ jobs:
           done < <(find "$sidecar_dir" -type f -print0)
 
           while IFS= read -r -d '' framework_path; do
-            case "$framework_path" in
-              */_internal/Python.framework)
-                echo "Skipping bundle signing for flattened Python.framework: $framework_path"
-                continue
-                ;;
-            esac
-
             codesign \
               --force \
               --sign "$APPLE_SIGNING_IDENTITY" \
@@ -299,12 +296,12 @@ jobs:
               "$framework_path"
           done < <(find "$sidecar_dir" -type d -name '*.framework' -print0)
 
-          for path in \
-            "$sidecar_dir/_internal/Python" \
-            "$sidecar_dir/_internal/Python.framework/Python"; do
+          for path in "$sidecar_dir/_internal/Python"; do
             codesign --verify --verbose=4 "$path"
             codesign -dvvv "$path" 2>&1 | grep -E '^(Executable|Identifier|Format|Authority|TeamIdentifier|Timestamp)=' || true
           done
+
+          codesign --verify --deep --strict --verbose=2 "$sidecar_dir/_internal/Python.framework"
 
       # Release event: build + attach bundles to existing GitHub Release
       - name: Build Tauri (release)
