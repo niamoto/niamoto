@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.4] - 2026-04-19
+
+### Features
+
+- Redesign the desktop dashboard: horizontal pipeline bar, contextual quick actions, entity stats and recent activity feed
+
+### Bug Fixes
+
+- Localize dashboard summary strings and activity type/status labels for non-French locales
+- Tone down saturated backgrounds on the pipeline bar and make button subtitles legible on dark variants
+- Drop the spurious "primary" highlight on the Import quick action
+
+### Other
+
+- Validate `/api/pipeline/history` limit parameter (clamped to 1–100) and cover the endpoint with regression tests
+
 ## [v0.15.3] - 2026-04-18
 
 ### Bug Fixes
