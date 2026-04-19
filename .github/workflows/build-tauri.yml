@@ -288,12 +288,25 @@ jobs:
           done < <(find "$sidecar_dir" -type f -print0)
 
           while IFS= read -r -d '' framework_path; do
-            codesign \
-              --force \
-              --sign "$APPLE_SIGNING_IDENTITY" \
-              --keychain "$NIAMOTO_SIGNING_KEYCHAIN" \
-              --timestamp \
-              "$framework_path"
+            codesign_args=(
+              --force
+              --sign "$APPLE_SIGNING_IDENTITY"
+              --keychain "$NIAMOTO_SIGNING_KEYCHAIN"
+              --timestamp
+            )
+
+            case "$framework_path" in
+              */_internal/Python.framework)
+                python_framework_version="$(readlink "$framework_path/Versions/Current")"
+                if [ -z "$python_framework_version" ]; then
+                  echo "Could not determine active Python.framework version" >&2
+                  exit 1
+                fi
+                codesign_args+=(--bundle-version "$python_framework_version")
+                ;;
+            esac
+
+            codesign "${codesign_args[@]}" "$framework_path"
           done < <(find "$sidecar_dir" -type d -name '*.framework' -print0)
 
           for path in "$sidecar_dir/_internal/Python"; do
@@ -301,7 +314,8 @@ jobs:
             codesign -dvvv "$path" 2>&1 | grep -E '^(Executable|Identifier|Format|Authority|TeamIdentifier|Timestamp)=' || true
           done
 
-          codesign --verify --deep --strict --verbose=2 "$sidecar_dir/_internal/Python.framework"
+          python_framework_version="$(readlink "$sidecar_dir/_internal/Python.framework/Versions/Current")"
+          codesign --verify --deep --strict --verbose=2 --bundle-version "$python_framework_version" "$sidecar_dir/_internal/Python.framework"
 
       # Release event: build + attach bundles to existing GitHub Release
       - name: Build Tauri (release)
