@@ -27,6 +27,7 @@ function QuickAction({
       variant={variant === "primary" ? "default" : "outline"}
       className={cn(
         "flex h-auto flex-col items-start gap-0.5 px-3 py-2.5 text-left",
+        variant !== "primary" && "hover:bg-muted hover:text-foreground",
         disabled && "pointer-events-none opacity-40",
       )}
       onClick={onClick}

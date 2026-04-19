@@ -23,9 +23,9 @@ function statusConfig(status: FreshnessStatus) {
       return {
         icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
         dot: "bg-green-500",
-        text: "text-green-600 dark:text-green-400",
-        ring: "ring-green-500/30",
-        bg: "bg-green-50 dark:bg-green-950/30",
+        text: "text-green-700 dark:text-green-400",
+        ring: "ring-border/60",
+        bg: "bg-muted/30",
       }
     case "stale":
       return {
