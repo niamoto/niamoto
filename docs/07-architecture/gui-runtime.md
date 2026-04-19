@@ -43,14 +43,39 @@ The build output used for this mode is:
 
 ## Desktop runtime
 
-When running through Tauri:
+When running through a desktop shell:
 
-- the same frontend is embedded inside the desktop application
+- the same frontend is embedded inside the native application window
 - packaged desktop mode loads the UI from the loopback FastAPI server on `127.0.0.1`
-- Tauri waits for an authenticated `/api/health` probe before navigating to that loopback origin
-- some behavior changes based on runtime detection
+- the shell waits for an authenticated `/api/health` probe before navigating to that loopback origin
+- runtime metadata exposes both `mode` (`web` or `desktop`) and `shell` (`tauri`, `electron`, or `null`)
 - local fonts are loaded from `public/fonts` instead of Google Fonts
 - the welcome screen and project selection flow are especially relevant
+
+Current shells:
+
+- Tauri remains the production desktop shell
+- Electron exists as a parallel experimental shell under `electron/`
+
+The shell-neutral desktop contract now includes:
+
+- a shared renderer bridge for project selection, settings, external URLs, and desktop-only helpers
+- a shared project-selection config path through `NIAMOTO_DESKTOP_CONFIG`
+- shell-specific settings, logs, and application identifiers kept separate
+
+Development entry points:
+
+```bash
+./scripts/dev/dev_desktop.sh test-instance/niamoto-nc
+./scripts/dev/dev_electron.sh test-instance/niamoto-nc
+```
+
+Both shells follow the same high-level startup model:
+
+1. show a lightweight native loading state
+2. launch the Python sidecar on loopback
+3. wait for the authenticated health probe to return the expected desktop token
+4. navigate the window to Vite in hot-reload mode, or to the packaged FastAPI loopback origin otherwise
 
 ## What to separate when you document or change the GUI
 

@@ -114,6 +114,25 @@ class TestReloadProjectEndpoint:
         assert reset_calls == [True]
 
 
+def test_runtime_mode_reports_shell_metadata(monkeypatch: pytest.MonkeyPatch):
+    client = create_test_client()
+    monkeypatch.setenv("NIAMOTO_RUNTIME_MODE", "desktop")
+    monkeypatch.setenv("NIAMOTO_DESKTOP_SHELL", "tauri")
+    monkeypatch.setenv("NIAMOTO_HOME", "/tmp/demo-project")
+
+    response = client.get("/api/health/runtime-mode")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "mode": "desktop",
+        "shell": "tauri",
+        "project": "/tmp/demo-project",
+        "features": {
+            "project_switching": True,
+        },
+    }
+
+
 def test_debug_test_500_endpoint_returns_intentional_server_error():
     client = create_test_client()
 

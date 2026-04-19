@@ -35,9 +35,14 @@ pnpm preview
 The frontend runs in two contexts:
 
 - Web mode: standard Vite app in the browser
-- Desktop mode: embedded in the Niamoto Tauri application
+- Desktop mode: embedded in a native shell, currently Tauri in production and Electron as an experimental parallel shell
 
 Some behavior differs by runtime. Example: theme fonts are loaded from Google Fonts in web mode, but from local files in desktop mode for offline support.
+
+The renderer now detects both the desktop mode and the active shell through the
+shared runtime contract exposed by `/api/health/runtime-mode` and the bootstrap
+attributes injected at startup. Shell-specific native capabilities flow through
+`src/shared/desktop/bridge.ts` rather than through direct Tauri imports.
 
 ## Architecture
 

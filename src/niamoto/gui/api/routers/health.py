@@ -1,4 +1,4 @@
-"""Health check endpoint for Tauri desktop app."""
+"""Health and desktop runtime endpoints."""
 
 import os
 import time
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/health", tags=["health"])
 _first_health_logged = False
 DESKTOP_PROBE_HEADER = "x-niamoto-desktop-probe"
 DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
+DESKTOP_SHELL_ENV = "NIAMOTO_DESKTOP_SHELL"
 
 
 @router.get("")
@@ -25,7 +26,7 @@ async def health_check(request: Request):
     """
     Simple health check endpoint.
 
-    Used by the Tauri desktop app to verify the FastAPI server is ready.
+    Used by desktop shells to verify the FastAPI server is ready.
     """
     global _first_health_logged
     if not _first_health_logged:
@@ -47,19 +48,22 @@ async def health_check(request: Request):
 @router.get("/runtime-mode")
 async def get_runtime_mode():
     """
-    Detect the runtime mode (desktop vs web).
+    Detect the runtime mode and active desktop shell.
 
     Returns:
-        - mode: "desktop" if running in Tauri app, "web" otherwise
+        - mode: "desktop" when running behind a native desktop shell, "web" otherwise
+        - shell: "tauri", "electron", or null
         - project: Current NIAMOTO_HOME if set, None otherwise
 
-    The Tauri application sets NIAMOTO_RUNTIME_MODE=desktop when launching the server.
+    Desktop shells set NIAMOTO_RUNTIME_MODE=desktop when launching the server.
     """
     runtime_mode = os.environ.get("NIAMOTO_RUNTIME_MODE", "web")
+    shell_name = os.environ.get(DESKTOP_SHELL_ENV)
     niamoto_home = os.environ.get("NIAMOTO_HOME")
 
     return {
         "mode": runtime_mode,
+        "shell": shell_name if shell_name in {"tauri", "electron"} else None,
         "project": niamoto_home,
         "features": {
             "project_switching": runtime_mode == "desktop",
@@ -70,10 +74,10 @@ async def get_runtime_mode():
 @router.post("/reload-project")
 async def reload_project(request: Request):
     """
-    Reload the current project from Tauri desktop config.
+    Reload the current project from the shared desktop config.
 
-    This endpoint is called after switching projects in the Tauri app.
-    It reads the native desktop config file written by the Tauri shell and updates the FastAPI server's
+    This endpoint is called after switching projects in a native shell.
+    It reads the shared desktop config file written by the active shell and updates the FastAPI server's
     working directory without restarting the entire application.
 
     Returns:
