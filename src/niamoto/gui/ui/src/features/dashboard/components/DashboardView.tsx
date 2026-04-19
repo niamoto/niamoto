@@ -146,7 +146,11 @@ export function DashboardView() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 pt-0">
-            <ActivityFeed />
+            <ActivityFeed
+              data={data}
+              groups={groups}
+              publication={publication}
+            />
           </CardContent>
         </Card>
       </div>

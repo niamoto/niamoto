@@ -1,114 +1,81 @@
 import { useTranslation } from "react-i18next"
 import { formatDistanceToNow } from "date-fns"
 import { enUS, fr } from "date-fns/locale"
-import {
-  AlertCircle,
-  CheckCircle2,
-  Database,
-  Layers,
-  Loader2,
-  Send,
-  XCircle,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
-import type { JobHistoryEntry } from "@/hooks/usePipelineHistory"
-import { usePipelineHistory } from "@/hooks/usePipelineHistory"
+import { CheckCircle2, Database, Layers, Send } from "lucide-react"
+import type { StageStatus } from "@/hooks/usePipelineStatus"
 
-function jobIcon(type: string) {
-  switch (type) {
-    case "import":
-      return <Database className="h-3.5 w-3.5" />
-    case "transform":
-      return <Layers className="h-3.5 w-3.5" />
-    case "export":
-      return <Send className="h-3.5 w-3.5" />
-    default:
-      return <AlertCircle className="h-3.5 w-3.5" />
-  }
+interface ActivityItem {
+  type: "import" | "transform" | "export"
+  last_run_at: string
+  duration_s: number | null
 }
 
-function statusIcon(status: string) {
-  switch (status) {
-    case "completed":
-      return <CheckCircle2 className="h-3 w-3 text-green-500" />
-    case "failed":
-      return <XCircle className="h-3 w-3 text-red-500" />
-    case "running":
-      return <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-    default:
-      return <AlertCircle className="h-3 w-3 text-muted-foreground" />
-  }
-}
+function buildActivity(
+  data: StageStatus | undefined,
+  groups: StageStatus | undefined,
+  publication: StageStatus | undefined,
+): ActivityItem[] {
+  const items: ActivityItem[] = []
 
-const JOB_TYPE_LABELS: Record<string, string> = {
-  import: "Import",
-  transform: "Recalculer",
-  export: "Export",
-}
-
-function ActivityEntry({ entry }: { entry: JobHistoryEntry }) {
-  const { i18n } = useTranslation()
-  const dateLocale = i18n.language === "fr" ? fr : enUS
-
-  const refDate = entry.completed_at ?? entry.started_at
-  const timeAgo = refDate
-    ? formatDistanceToNow(new Date(refDate), {
-        addSuffix: true,
-        locale: dateLocale,
+  const add = (
+    type: ActivityItem["type"],
+    stage: StageStatus | undefined,
+  ) => {
+    if (
+      stage?.last_run_at &&
+      stage.status !== "never_run" &&
+      stage.status !== "unconfigured"
+    ) {
+      items.push({
+        type,
+        last_run_at: stage.last_run_at,
+        duration_s: stage.last_job_duration_s ?? null,
       })
-    : null
+    }
+  }
 
-  const isCompleted = entry.status === "completed"
-  const isFailed = entry.status === "failed"
+  add("import", data)
+  add("transform", groups)
+  add("export", publication)
 
-  return (
-    <div className="flex items-start gap-2.5 py-2">
-      <div
-        className={cn(
-          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-          isCompleted && "bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-400",
-          isFailed && "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
-          !isCompleted &&
-            !isFailed &&
-            "bg-muted text-muted-foreground",
-        )}
-      >
-        {jobIcon(entry.type)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium">
-            {JOB_TYPE_LABELS[entry.type] ?? entry.type}
-          </span>
-          {entry.group_by && (
-            <span className="max-w-[100px] truncate text-[11px] text-muted-foreground">
-              · {entry.group_by}
-            </span>
-          )}
-          {statusIcon(entry.status)}
-        </div>
-        {timeAgo && (
-          <p className="text-[11px] text-muted-foreground">{timeAgo}</p>
-        )}
-      </div>
-    </div>
+  // Tri anti-chronologique
+  return items.sort(
+    (a, b) =>
+      new Date(b.last_run_at).getTime() - new Date(a.last_run_at).getTime(),
   )
 }
 
-export function ActivityFeed() {
-  const { t } = useTranslation("common")
-  const { data: history, isLoading } = usePipelineHistory(8)
+const TYPE_CONFIG = {
+  import: {
+    icon: <Database className="h-3.5 w-3.5" />,
+    label: "Import",
+    bg: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+  },
+  transform: {
+    icon: <Layers className="h-3.5 w-3.5" />,
+    label: "Recalcul",
+    bg: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+  },
+  export: {
+    icon: <Send className="h-3.5 w-3.5" />,
+    label: "Export",
+    bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+  },
+} as const
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        <span>{t("common.loading", "Chargement...")}</span>
-      </div>
-    )
-  }
+interface ActivityFeedProps {
+  data: StageStatus | undefined
+  groups: StageStatus | undefined
+  publication: StageStatus | undefined
+}
 
-  if (!history || history.length === 0) {
+export function ActivityFeed({ data, groups, publication }: ActivityFeedProps) {
+  const { t, i18n } = useTranslation("common")
+  const dateLocale = i18n.language === "fr" ? fr : enUS
+
+  const items = buildActivity(data, groups, publication)
+
+  if (items.length === 0) {
     return (
       <p className="py-4 text-center text-sm text-muted-foreground">
         {t("pipeline.no_activity", "Aucune activité récente")}
@@ -118,9 +85,35 @@ export function ActivityFeed() {
 
   return (
     <div className="divide-y divide-border/50">
-      {history.map((entry) => (
-        <ActivityEntry key={entry.id} entry={entry} />
-      ))}
+      {items.map((item) => {
+        const cfg = TYPE_CONFIG[item.type]
+        const timeAgo = formatDistanceToNow(new Date(item.last_run_at), {
+          addSuffix: true,
+          locale: dateLocale,
+        })
+
+        return (
+          <div key={item.type} className="flex items-start gap-2.5 py-2">
+            <div
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${cfg.bg}`}
+            >
+              {cfg.icon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium">{cfg.label}</span>
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {timeAgo}
+                {item.duration_s != null && (
+                  <span className="ml-1.5 opacity-70">· {item.duration_s}s</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
