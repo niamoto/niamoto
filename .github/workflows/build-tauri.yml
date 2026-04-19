@@ -193,11 +193,49 @@ jobs:
 
           security list-keychain -d user -s "${keychains[@]}" "$keychain_path"
 
+          {
+            echo "NIAMOTO_SIGNING_KEYCHAIN=$keychain_path"
+          } >> "$GITHUB_ENV"
+
           if ! security find-identity -v -p codesigning "$keychain_path" | grep -F "$APPLE_SIGNING_IDENTITY" >/dev/null; then
             echo "Imported keychain does not contain expected signing identity: $APPLE_SIGNING_IDENTITY" >&2
             security find-identity -v -p codesigning "$keychain_path" || true
             exit 1
           fi
+
+      - name: Codesign sidecar Mach-O binaries
+        if: matrix.os == 'macos-14'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          sidecar_dir="src-tauri/resources/sidecar/${{ matrix.target }}/niamoto"
+          if [ ! -d "$sidecar_dir" ]; then
+            echo "Expected sidecar directory not found: $sidecar_dir" >&2
+            exit 1
+          fi
+
+          while IFS= read -r -d '' path; do
+            file_description="$(file -b "$path")"
+            if [[ "$file_description" != *"Mach-O"* ]]; then
+              continue
+            fi
+
+            codesign_args=(
+              --force
+              --sign "$APPLE_SIGNING_IDENTITY"
+              --keychain "$NIAMOTO_SIGNING_KEYCHAIN"
+              --timestamp
+            )
+
+            if [[ "$file_description" == *"executable"* ]]; then
+              codesign_args+=(--options runtime)
+            fi
+
+            codesign "${codesign_args[@]}" "$path"
+          done < <(find "$sidecar_dir" -type f -print0)
 
       # Release event: build + attach bundles to existing GitHub Release
       - name: Build Tauri (release)
