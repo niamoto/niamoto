@@ -1,4 +1,4 @@
-import { invokeDesktop, isDesktopTauri } from './tauri'
+import { hasDesktopBridge, invokeDesktop } from './bridge'
 
 function isAllowedExternalUrl(url: string): boolean {
   try {
@@ -17,7 +17,7 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
 
   try {
-    if (isDesktopTauri()) {
+    if (hasDesktopBridge()) {
       await invokeDesktop('open_external_url', {
         url: trimmedUrl,
       })

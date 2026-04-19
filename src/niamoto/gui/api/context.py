@@ -178,9 +178,9 @@ def _resolve_desktop_config_path() -> Path:
 
 
 def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
-    """Reload the current project from Tauri desktop config.
+    """Reload the current project from the desktop shell config.
 
-    This reads the desktop config file written by the Tauri shell to get the current project
+    This reads the shared desktop config file written by the active shell to get the current project
     and updates the global working directory.
 
     Returns:
