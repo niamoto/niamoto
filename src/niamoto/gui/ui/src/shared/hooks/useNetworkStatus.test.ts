@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyConnectivityResult,
   getIsOffline,
+  shouldCheckConnectivityOnMount,
   type NetworkStatus,
 } from './useNetworkStatus'
 
@@ -52,5 +53,27 @@ describe('useNetworkStatus helpers', () => {
     expect(next.isOnline).toBe(true)
     expect(next.isInternetAvailable).toBe(true)
     expect(next.isChecking).toBe(false)
+  })
+
+  it('rechecks connectivity on mount when the browser starts in a stale offline state', () => {
+    expect(
+      shouldCheckConnectivityOnMount(
+        makeStatus({
+          isOnline: false,
+          isInternetAvailable: null,
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('skips the mount recheck when the browser already reports online', () => {
+    expect(
+      shouldCheckConnectivityOnMount(
+        makeStatus({
+          isOnline: true,
+          isInternetAvailable: null,
+        })
+      )
+    ).toBe(false)
   })
 })
