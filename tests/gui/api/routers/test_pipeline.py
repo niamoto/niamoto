@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 import niamoto.gui.api.routers.pipeline as pipeline_router
@@ -196,3 +197,108 @@ def test_pipeline_marks_batch_transform_groups_as_fresh(tmp_path: Path, monkeypa
 
     assert plots_status.status == "fresh"
     assert taxons_status.status == "fresh"
+
+
+# ---------------------------------------------------------------------------
+# /api/pipeline/history endpoint
+# ---------------------------------------------------------------------------
+
+
+def _build_history_app(history_entries: list[dict], monkeypatch) -> FastAPI:
+    """Build a minimal FastAPI app with a stub job_store for history tests."""
+
+    class DummyStore:
+        def __init__(self, entries: list[dict]):
+            self._entries = entries
+            self.last_limit: int | None = None
+
+        def get_history(self, limit: int = 20) -> list[dict]:
+            self.last_limit = limit
+            return self._entries[:limit]
+
+    store = DummyStore(history_entries)
+    app = FastAPI()
+    app.state.job_store = store
+    app.include_router(pipeline_router.router, prefix="/api/pipeline")
+    monkeypatch.setattr(
+        pipeline_router, "resolve_job_store", lambda app: app.state.job_store
+    )
+    return app
+
+
+def test_pipeline_history_returns_entries(monkeypatch):
+    entries = [
+        {"id": "a", "type": "import", "status": "completed"},
+        {"id": "b", "type": "transform", "status": "completed"},
+    ]
+    app = _build_history_app(entries, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=5")
+
+    assert response.status_code == 200
+    assert response.json() == entries
+    assert app.state.job_store.last_limit == 5
+
+
+def test_pipeline_history_default_limit(monkeypatch):
+    app = _build_history_app([], monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history")
+
+    assert response.status_code == 200
+    assert app.state.job_store.last_limit == 10
+
+
+def test_pipeline_history_rejects_zero_limit(monkeypatch):
+    app = _build_history_app([{"id": "a"}], monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_pipeline_history_rejects_negative_limit(monkeypatch):
+    app = _build_history_app([{"id": "a"}], monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=-1")
+
+    assert response.status_code == 422
+
+
+def test_pipeline_history_rejects_limit_above_max(monkeypatch):
+    app = _build_history_app([{"id": "a"}], monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=101")
+
+    assert response.status_code == 422
+
+
+def test_pipeline_history_accepts_boundary_values(monkeypatch):
+    app = _build_history_app([], monkeypatch)
+    client = TestClient(app)
+
+    for boundary in (1, 100):
+        response = client.get(f"/api/pipeline/history?limit={boundary}")
+        assert response.status_code == 200
+        assert app.state.job_store.last_limit == boundary
+
+
+def test_pipeline_history_returns_empty_when_store_resolution_fails(monkeypatch):
+    app = FastAPI()
+    app.include_router(pipeline_router.router, prefix="/api/pipeline")
+
+    def failing_resolve(_app):
+        raise RuntimeError("no project loaded")
+
+    monkeypatch.setattr(pipeline_router, "resolve_job_store", failing_resolve)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history")
+
+    assert response.status_code == 200
+    assert response.json() == []
