@@ -237,6 +237,15 @@ jobs:
             codesign "${codesign_args[@]}" "$path"
           done < <(find "$sidecar_dir" -type f -print0)
 
+          while IFS= read -r -d '' framework_path; do
+            codesign \
+              --force \
+              --sign "$APPLE_SIGNING_IDENTITY" \
+              --keychain "$NIAMOTO_SIGNING_KEYCHAIN" \
+              --timestamp \
+              "$framework_path"
+          done < <(find "$sidecar_dir" -type d -name '*.framework' -print0)
+
       # Release event: build + attach bundles to existing GitHub Release
       - name: Build Tauri (release)
         if: github.event_name == 'release'
