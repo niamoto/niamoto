@@ -117,6 +117,7 @@ export function DashboardView() {
           siteStatus={site.status}
           publicationStatus={publication.status}
           isRunning={!!running_job}
+          hasEntities={(data.summary?.entities?.length ?? 0) > 0}
         />
       </div>
 

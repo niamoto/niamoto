@@ -11,7 +11,7 @@ interface QuickActionProps {
   description: string
   onClick: () => void
   disabled?: boolean
-  variant?: "default" | "outline" | "primary"
+  primary?: boolean
 }
 
 function QuickAction({
@@ -20,14 +20,14 @@ function QuickAction({
   description,
   onClick,
   disabled = false,
-  variant = "outline",
+  primary = false,
 }: QuickActionProps) {
   return (
     <Button
-      variant={variant === "primary" ? "default" : "outline"}
+      variant={primary ? "default" : "outline"}
       className={cn(
         "flex h-auto flex-col items-start gap-0.5 px-3 py-2.5 text-left",
-        variant !== "primary" && "hover:bg-muted hover:text-foreground",
+        !primary && "hover:bg-muted hover:text-foreground",
         disabled && "pointer-events-none opacity-40",
       )}
       onClick={onClick}
@@ -37,7 +37,12 @@ function QuickAction({
         {icon}
         {label}
       </span>
-      <span className="text-[11px] font-normal text-muted-foreground">
+      <span
+        className={cn(
+          "text-[11px] font-normal",
+          primary ? "text-primary-foreground/60" : "text-muted-foreground",
+        )}
+      >
         {description}
       </span>
     </Button>
@@ -50,6 +55,8 @@ interface QuickActionsProps {
   siteStatus: FreshnessStatus
   publicationStatus: FreshnessStatus
   isRunning: boolean
+  /** True si la DB contient des entités (indépendamment du job store GUI). */
+  hasEntities: boolean
 }
 
 export function QuickActions({
@@ -58,23 +65,37 @@ export function QuickActions({
   siteStatus,
   publicationStatus,
   isRunning,
+  hasEntities,
 }: QuickActionsProps) {
   const { t } = useTranslation("common")
   const navigate = useNavigate()
 
-  const hasData = dataStatus === "fresh" || dataStatus === "stale"
+  // hasData : données présentes, qu'elles viennent du GUI ou du CLI
+  const hasData =
+    hasEntities ||
+    dataStatus === "fresh" ||
+    dataStatus === "stale"
+
   const groupsReady = groupsStatus === "fresh"
   const siteConfigured = siteStatus === "fresh"
 
-  // Transform : dispo si on a des données et que les groupes ne sont pas en train de tourner
   const canTransform = hasData && !isRunning
-  // Rebuild : dispo si groupes à jour et site configuré
   const canRebuild = groupsReady && siteConfigured && !isRunning
-  // Publish : dispo si export stale ou jamais publié
   const canPublish =
     groupsReady &&
     (publicationStatus === "stale" || publicationStatus === "never_run") &&
     !isRunning
+
+  // Import : jamais primary (action de maintenance, pas un CTA principal)
+  // Recalculate : primary si groupes stale/never_run ET données présentes
+  const recalcPrimary =
+    hasData &&
+    !isRunning &&
+    (groupsStatus === "stale" || groupsStatus === "never_run")
+
+  // Rebuild : primary si publication stale
+  const rebuildPrimary =
+    canRebuild && publicationStatus === "stale"
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -84,22 +105,14 @@ export function QuickActions({
         description={t("pipeline.action_import_desc", "Charger les données sources")}
         onClick={() => navigate("/sources/import")}
         disabled={isRunning}
-        variant={dataStatus === "never_run" ? "primary" : "outline"}
       />
       <QuickAction
         icon={<Layers className="h-3.5 w-3.5" />}
         label={t("pipeline.action_recalculate", "Recalculer")}
-        description={t(
-          "pipeline.action_recalculate_desc",
-          "Calculer les statistiques",
-        )}
+        description={t("pipeline.action_recalculate_desc", "Calculer les statistiques")}
         onClick={() => navigate("/groups")}
         disabled={!canTransform}
-        variant={
-          groupsStatus === "stale" || groupsStatus === "never_run"
-            ? "primary"
-            : "outline"
-        }
+        primary={recalcPrimary}
       />
       <QuickAction
         icon={<RefreshCw className="h-3.5 w-3.5" />}
@@ -107,7 +120,7 @@ export function QuickActions({
         description={t("pipeline.action_rebuild_desc", "Générer le site HTML")}
         onClick={() => navigate("/publish")}
         disabled={!canRebuild}
-        variant={publicationStatus === "stale" ? "primary" : "outline"}
+        primary={rebuildPrimary}
       />
       <QuickAction
         icon={<Eye className="h-3.5 w-3.5" />}
