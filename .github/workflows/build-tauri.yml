@@ -135,10 +135,16 @@ jobs:
           materialize_file_symlink "$sidecar_dir/_internal/Python"
           materialize_file_symlink "$sidecar_dir/_internal/Python.framework/Python"
 
+          versioned_python_path="$(find "$sidecar_dir/_internal/Python.framework/Versions" -type f -name Python | head -n 1)"
+          if [ -z "$versioned_python_path" ]; then
+            echo "Could not locate versioned Python binary inside Python.framework" >&2
+            exit 1
+          fi
+
           ls -l \
             "$sidecar_dir/_internal/Python" \
             "$sidecar_dir/_internal/Python.framework/Python" \
-            "$sidecar_dir/_internal/Python.framework/Versions/3.14/Python"
+            "$versioned_python_path"
 
       - name: Place sidecar resources (Windows)
         if: matrix.os == 'windows-latest'
