@@ -1,0 +1,34 @@
+{
+  "name": "niamoto-electron-shell",
+  "private": true,
+  "version": "0.15.4",
+  "description": "Experimental Electron shell for Niamoto desktop parity validation",
+  "author": "Niamoto contributors",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "test": "node --test \"__tests__/**/*.test.mjs\"",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.niamoto.desktop.electron",
+    "productName": "Niamoto Electron",
+    "files": [
+      "main.mjs",
+      "preload.mjs",
+      "shell/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../src-tauri/resources/sidecar",
+        "to": "sidecar"
+      }
+    ]
+  }
+}
