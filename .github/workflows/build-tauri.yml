@@ -107,6 +107,39 @@ jobs:
           cp -R dist/niamoto src-tauri/resources/sidecar/${{ matrix.target }}/niamoto
           chmod +x src-tauri/resources/sidecar/${{ matrix.target }}/niamoto/niamoto
 
+      - name: Materialize macOS Python entrypoints
+        if: matrix.os == 'macos-14'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sidecar_dir="src-tauri/resources/sidecar/${{ matrix.target }}/niamoto"
+
+          materialize_file_symlink() {
+            local path="$1"
+            if [ ! -L "$path" ]; then
+              return 0
+            fi
+
+            local dir
+            dir="$(dirname "$path")"
+            local target
+            target="$(readlink "$path")"
+            local resolved
+            resolved="$(cd "$dir" && cd "$(dirname "$target")" && pwd -P)/$(basename "$target")"
+
+            rm "$path"
+            cp -p "$resolved" "$path"
+          }
+
+          materialize_file_symlink "$sidecar_dir/_internal/Python"
+          materialize_file_symlink "$sidecar_dir/_internal/Python.framework/Python"
+
+          ls -l \
+            "$sidecar_dir/_internal/Python" \
+            "$sidecar_dir/_internal/Python.framework/Python" \
+            "$sidecar_dir/_internal/Python.framework/Versions/3.14/Python"
+
       - name: Place sidecar resources (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -218,6 +251,13 @@ jobs:
           fi
 
           while IFS= read -r -d '' path; do
+            case "$path" in
+              */_internal/Python.framework/Versions/*/Python)
+                echo "Skipping framework-version Python binary in favor of materialized entrypoint copies: $path"
+                continue
+                ;;
+            esac
+
             file_description="$(file -b "$path")"
             if [[ "$file_description" != *"Mach-O"* ]]; then
               continue
@@ -238,6 +278,13 @@ jobs:
           done < <(find "$sidecar_dir" -type f -print0)
 
           while IFS= read -r -d '' framework_path; do
+            case "$framework_path" in
+              */_internal/Python.framework)
+                echo "Skipping bundle signing for flattened Python.framework: $framework_path"
+                continue
+                ;;
+            esac
+
             codesign \
               --force \
               --sign "$APPLE_SIGNING_IDENTITY" \
@@ -245,6 +292,13 @@ jobs:
               --timestamp \
               "$framework_path"
           done < <(find "$sidecar_dir" -type d -name '*.framework' -print0)
+
+          for path in \
+            "$sidecar_dir/_internal/Python" \
+            "$sidecar_dir/_internal/Python.framework/Python"; do
+            codesign --verify --verbose=4 "$path"
+            codesign -dvvv "$path" 2>&1 | grep -E '^(Executable|Identifier|Format|Authority|TeamIdentifier|Timestamp)=' || true
+          done
 
       # Release event: build + attach bundles to existing GitHub Release
       - name: Build Tauri (release)
