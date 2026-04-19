@@ -318,8 +318,18 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Endpoint
+# Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.get("/history")
+async def get_pipeline_history(http_request: Request, limit: int = 10) -> list[dict]:
+    """Return the N most recent completed jobs (newest first)."""
+    try:
+        job_store: Optional[JobFileStore] = resolve_job_store(http_request.app)
+    except Exception:
+        return []
+    return job_store.get_history(limit=limit)
 
 
 @router.get("/status", response_model=PipelineStatusResponse)
