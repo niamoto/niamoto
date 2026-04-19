@@ -46,6 +46,12 @@ export function getIsOffline(
   return !status.isOnline
 }
 
+export function shouldCheckConnectivityOnMount(
+  status: Pick<NetworkStatus, 'isOnline' | 'isInternetAvailable'>
+): boolean {
+  return status.isOnline === false && status.isInternetAvailable !== true
+}
+
 async function probeConnectivity(): Promise<boolean> {
   if (inFlightConnectivityProbe) {
     return inFlightConnectivityProbe
@@ -84,9 +90,12 @@ async function probeConnectivity(): Promise<boolean> {
  * that require internet (enrichment, deploy).
  */
 export function useNetworkStatus() {
-  const [status, setStatus] = useState<NetworkStatus>({
+  const initialStatusRef = useRef<Pick<NetworkStatus, 'isOnline' | 'isInternetAvailable'>>({
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     isInternetAvailable: null,
+  })
+  const [status, setStatus] = useState<NetworkStatus>({
+    ...initialStatusRef.current,
     isChecking: false,
     lastChecked: null,
   })
@@ -144,6 +153,11 @@ export function useNetworkStatus() {
     window.addEventListener('offline', handleOffline)
     window.addEventListener('focus', handleForegroundResume)
     document.addEventListener('visibilitychange', handleForegroundResume)
+
+    // Heal stale desktop/browser offline flags as soon as the hook mounts.
+    if (shouldCheckConnectivityOnMount(initialStatusRef.current)) {
+      void checkConnectivity()
+    }
 
     return () => {
       isMountedRef.current = false
