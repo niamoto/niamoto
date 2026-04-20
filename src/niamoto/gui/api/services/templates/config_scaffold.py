@@ -287,13 +287,7 @@ def _add_export_group(export_config: Dict[str, Any], ref_name: str) -> None:
                 "template_dir": "templates/",
                 "output_dir": "exports/web",
             },
-            "static_pages": [
-                {
-                    "name": "home",
-                    "template": "index.html",
-                    "output_file": "index.html",
-                }
-            ],
+            "static_pages": [],
             "groups": [],
         }
         exports.append(web_export)
