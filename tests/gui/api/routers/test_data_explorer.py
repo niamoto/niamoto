@@ -1,11 +1,20 @@
 """Unit tests for data explorer query helpers."""
 
+from pathlib import Path
+from unittest.mock import patch
+
+import duckdb
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 import pytest
 from sqlalchemy import create_engine
 
-from niamoto.gui.api.routers.data_explorer import _build_where_clause
+from niamoto.gui.api import context
+from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers.data_explorer import (
+    _build_where_clause,
+    _get_default_order_column,
+)
 
 
 class _DummyDB:
@@ -105,6 +114,31 @@ def test_build_where_clause_supports_between_and_not_between(dummy_db: _DummyDB)
     assert params == {"w_0": 10, "w_1": 20, "w_2": 18, "w_3": 65}
 
 
+def test_get_default_order_column_prefers_nested_set_left_boundary():
+    column = _get_default_order_column(
+        "taxons",
+        [
+            {"name": "taxons_id", "type": "BIGINT"},
+            {"name": "lft", "type": "INTEGER"},
+            {"name": "extra_data", "type": "JSON"},
+        ],
+    )
+
+    assert column == "lft"
+
+
+def test_get_default_order_column_falls_back_to_entity_identifier():
+    column = _get_default_order_column(
+        "taxons",
+        [
+            {"name": "general_info", "type": "JSON"},
+            {"name": "taxons_id", "type": "BIGINT"},
+        ],
+    )
+
+    assert column == "taxons_id"
+
+
 def test_list_tables_uses_duckdb_fixture_without_reflection_errors(
     gui_duckdb_client: TestClient,
 ):
@@ -138,3 +172,33 @@ def test_get_table_columns_uses_duckdb_fixture_without_reflection_errors(
         "count",
         "locality",
     ]
+
+
+def test_query_table_applies_default_order_by_when_none_provided(
+    gui_duckdb_project: Path,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DELETE FROM entity_taxons")
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (202, 'Niaouli test', 101),
+                (101, 'Araucaria columnaris', NULL)
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch.object(context, "_working_directory", gui_duckdb_project):
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/data/query",
+            json={"table": "entity_taxons", "limit": 10, "offset": 0},
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [row["id"] for row in payload["rows"]] == [101, 202]

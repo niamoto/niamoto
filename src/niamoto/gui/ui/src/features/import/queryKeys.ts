@@ -6,8 +6,23 @@ export const importQueryKeys = {
   },
   dataPreview: {
     tables: () => ['import', 'data-preview', 'tables'] as const,
-    tablePage: (tableName: string, page: number, pageSize: number) =>
-      ['import', 'data-preview', 'table', tableName, page, pageSize] as const,
+    tableColumns: (tableName: string) =>
+      ['import', 'data-preview', 'table-columns', tableName] as const,
+    tablePage: (
+      tableName: string,
+      page: number,
+      pageSize: number,
+      columns?: readonly string[]
+    ) =>
+      [
+        'import',
+        'data-preview',
+        'table',
+        tableName,
+        page,
+        pageSize,
+        columns ?? 'all',
+      ] as const,
   },
   entities: {
     all: () => ['import', 'entities'] as const,
