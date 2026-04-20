@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.7] - 2026-04-20
+
+### Bug Fixes
+
+- Accept flattened macos release app artifacts
+
+### Other
+
+- Refresh release metadata
+- Fail loudly instead of auto-committing blocked by branch rules (#130)
+
 ## [v0.15.6] - 2026-04-20
 
 ### Features
