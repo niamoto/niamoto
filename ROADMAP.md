@@ -4,7 +4,7 @@ _Last updated: 2026-04-20 — reviewed at each minor release._
 
 ## Vision
 
-Niamoto is a generic ecological data platform. It turns heterogeneous datasets into publishable web portals through a configurable **Import → Transform → Export** pipeline, running locally with no cloud dependency. The desktop app (Tauri) and the CLI share the same engine and the same plugins.
+Niamoto is a generic ecological data platform. It turns heterogeneous datasets into publishable web portals through a configurable **Import → Transform → Export** pipeline, running locally with no cloud dependency. The desktop app (currently Tauri, under evaluation) and the CLI share the same engine and the same plugins.
 
 ## Recently shipped
 
@@ -49,6 +49,7 @@ In flight or imminent. Excludes GBIF-specific deliverables listed above.
 
 - Desktop update harness & auto-updater ([spec](docs/superpowers/specs/2026-04-08-desktop-update-harness-design.md))
 - Binary-size audit & reduction ([plan](docs/plans/2026-04-19-001-refactor-desktop-size-audit-strategy-plan.md))
+- **Desktop shell evaluation — Tauri vs Electron** — decision-grade analysis driven by Linux stability issues, cross-platform rendering consistency, and packaging size. Informs whether the shell stays on Tauri or migrates to Electron. ([brainstorm](docs/brainstorms/2026-04-19-desktop-distribution-size-reduction-requirements.md))
 
 **Documentation**
 
