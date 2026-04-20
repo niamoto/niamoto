@@ -196,7 +196,7 @@ jobs:
             artifacts/niamoto-macos-arm64/*.tar.gz \
             artifacts/niamoto-linux-x86_64/*.tar.gz \
             artifacts/niamoto-linux-arm64/*.tar.gz \
-            artifacts/niamoto-windows-x86_64/*.zip \
+            artifacts/niamoto-windows-x86_64.exe/*.zip \
             --clobber
 
   build-summary:

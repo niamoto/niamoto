@@ -50,12 +50,17 @@ VERSION_FILES = [
     "CHANGELOG.md",
 ]
 
+HELP_CONTENT_FILES = [
+    "src/niamoto/gui/help_content/manifest.json",
+    "src/niamoto/gui/help_content/search-index.json",
+]
+
 LOCKFILES = [
     "uv.lock",
     "src-tauri/Cargo.lock",
 ]
 
-RELEASE_COMMIT_FILES = [*VERSION_FILES, *LOCKFILES]
+RELEASE_COMMIT_FILES = [*VERSION_FILES, *HELP_CONTENT_FILES, *LOCKFILES]
 
 WORKFLOW_SPECS = [
     ("build-binaries.yml", "push"),
