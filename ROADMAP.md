@@ -43,9 +43,44 @@ Highlights from the last ~3 months:
 
 ## Now (April – June 2026)
 
+In flight or imminent. Excludes GBIF-specific deliverables listed above.
+
+**Desktop & distribution**
+
+- Desktop update harness & auto-updater ([spec](docs/superpowers/specs/2026-04-08-desktop-update-harness-design.md))
+- Binary-size audit & reduction ([plan](docs/plans/2026-04-19-001-refactor-desktop-size-audit-strategy-plan.md))
+
+**Documentation**
+
+- Desktop-first documentation overhaul — user guide, in-app docs, public docs, team/partners page ([plan 1](docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md), [plan 2](docs/plans/2026-04-18-001-refactor-desktop-user-guide-plan.md), [plan 3](docs/plans/2026-04-18-002-feat-in-app-user-docs-plan.md), [plan 4](docs/plans/2026-04-18-003-feat-in-app-public-documentation-plan.md), [plan 5](docs/plans/2026-04-18-004-feat-about-team-partners-plan.md))
+
+**Marketing site**
+
+- Landing page refresh + hybrid teaser video ([landing refonte](docs/plans/2026-04-14-feat-landing-teaser-refonte-plan.md), [hybrid teaser](docs/plans/2026-04-14-feat-landing-teaser-hybride-plan.md), [teaser video](docs/plans/2026-04-14-feat-landing-teaser-video-plan.md), [marketing site](docs/plans/2026-04-14-feat-niamoto-marketing-site-plan.md))
+
+**UI polish**
+
+- Enrichment tab UX redesign ([plan](docs/plans/2026-04-10-refactor-enrichment-tab-ux-redesign-plan.md))
+- UI density compaction & rendering smoothness ([density](docs/plans/2026-04-12-refactor-ui-density-compaction-plan.md), [smoothness](docs/plans/2026-04-12-refactor-ui-rendering-smoothness-plan.md))
+
 ## Soon (Summer 2026)
 
+Planned but not yet started.
+
+- **Niamoto Doctor** — unified diagnostics (CLI + GUI) ([ideation](docs/ideation/2026-04-12-open-ideation.md))
+- **Starter project templates** — `niamoto init --template` with real starter kits ([ideation](docs/ideation/2026-04-12-open-ideation.md))
+- **Export contract pack** — JSON schema on the export side
+- **ML model regeneration pipeline** ([spec](docs/superpowers/specs/2026-03-27-ml-model-regeneration-design.md))
+- Transform parallelization phase 2
+
 ## Later (H2 2026 and beyond)
+
+Identified in ideation, not yet planned.
+
+- **Example & fixture certification pipeline** — docs and fixtures as executable contracts
+- **Suggestion explainability layer** — attached evidence for every auto-suggestion (matched fields, confidence band, override paths)
+- **Transform provenance explorer** — dependency graph across import → transform → export
+- **Desktop v1.0** — iteration round after the GBIF submission
 
 ## Not planned
 
