@@ -30,6 +30,7 @@ PLATFORM_KEY=""
 PLATFORM_APP_KEY=""
 VERSION=""
 WORK_DIR=""
+UPDATER_PRIVATE_KEY_FILE=""
 
 usage() {
   cat <<'EOF'
@@ -168,23 +169,43 @@ ensure_updater_signer() {
   fail "Aucun signataire updater Tauri disponible (cargo tauri signer ou pnpm)"
 }
 
+resolve_updater_private_key_path() {
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" ]; then
+    printf '%s\n' "$TAURI_SIGNING_PRIVATE_KEY_PATH"
+    return 0
+  fi
+
+  if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    fail "TAURI_SIGNING_PRIVATE_KEY ou TAURI_SIGNING_PRIVATE_KEY_PATH requis pour signer l'archive updater"
+  fi
+
+  if [ -z "$WORK_DIR" ]; then
+    fail "WORK_DIR non initialisé pour matérialiser la clé updater"
+  fi
+
+  UPDATER_PRIVATE_KEY_FILE="$WORK_DIR/tauri-updater.key"
+  printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$UPDATER_PRIVATE_KEY_FILE"
+  chmod 600 "$UPDATER_PRIVATE_KEY_FILE"
+  printf '%s\n' "$UPDATER_PRIVATE_KEY_FILE"
+}
+
 sign_updater_archive() {
   local archive_path="$1"
   local signer_backend
+  local private_key_path
   signer_backend="$(ensure_updater_signer)"
-
-  [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" ] || fail "TAURI_SIGNING_PRIVATE_KEY ou TAURI_SIGNING_PRIVATE_KEY_PATH requis pour signer l'archive updater"
+  private_key_path="$(resolve_updater_private_key_path)"
 
   log "Signature updater de $archive_path"
 
   case "$signer_backend" in
     cargo)
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
-        cargo tauri signer sign "$archive_path"
+        cargo tauri signer sign "$archive_path" --private-key-path "$private_key_path"
       ;;
     pnpm)
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
-        pnpm dlx "@tauri-apps/cli@${TAURI_CLI_NPM_VERSION}" signer sign "$archive_path"
+        pnpm dlx "@tauri-apps/cli@${TAURI_CLI_NPM_VERSION}" signer sign "$archive_path" --private-key-path "$private_key_path"
       ;;
   esac
 }
