@@ -35,6 +35,7 @@ Highlights from the last ~3 months:
 - BDQ validation (12 Tier-1 tests — covers ~60% of real data-quality issues)
 - Local schema detection for Darwin Core imports
 - Optional local SLM (Liquid AI LFM2 or Qwen3 via Ollama)
+- GBIF portal auto-configuration, powered by the generic transform/export auto-config described in [Now → Configuration intelligence](#now-april--june-2026)
 
 **References:**
 
@@ -63,6 +64,10 @@ In flight or imminent. Excludes GBIF-specific deliverables listed above.
 
 - Enrichment tab UX redesign ([plan](docs/plans/2026-04-10-refactor-enrichment-tab-ux-redesign-plan.md))
 - UI density compaction & rendering smoothness ([density](docs/plans/2026-04-12-refactor-ui-density-compaction-plan.md), [smoothness](docs/plans/2026-04-12-refactor-ui-rendering-smoothness-plan.md))
+
+**Configuration intelligence**
+
+- **Auto-config for collection transform/export pairs** — extend the auto-configuration approach already available for imports and for index pages to the transform/export pairs inside each collection. Fully generic across datasets, taxonomies, and domain values. Feeds directly into the GBIF portal auto-configuration used for the challenge demo, but remains a general capability for any data source.
 
 ## Soon (Summer 2026)
 
