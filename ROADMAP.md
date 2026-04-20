@@ -84,4 +84,15 @@ Identified in ideation, not yet planned.
 
 ## Not planned
 
+These directions are not on the roadmap. Not hard "nevers", but not actively planned:
+
+- **Multi-tenant cloud hosting** — Niamoto stays local-first; the desktop app is the primary distribution channel.
+- **Native mobile app** — generated portals are responsive; no iOS/Android client planned.
+- **Real-time multi-user collaboration** — outside the "one analyst, one instance" model.
+- **Replacing DuckDB** — DuckDB remains the core engine.
+
 ## How to contribute
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md).
+- Browse ongoing design work in [docs/brainstorms/](docs/brainstorms/), [docs/plans/](docs/plans/), [docs/superpowers/specs/](docs/superpowers/specs/), and open ideation in [docs/ideation/](docs/ideation/).
+- Open an issue or a discussion before large changes.
