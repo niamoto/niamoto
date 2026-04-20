@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.6] - 2026-04-20
+
+### Features
+
+- Add AST-based plugin manifest extractor
+
+### Bug Fixes
+
+- Resolve frontend lint warnings
+- Surface pipeline status failures in publish
+- Restrict publish gate to fresh sites
+- Fail closed while publish gate resolves
+- Gate publish on site configuration
+- Restore site setup for unconfigured sites
+- Tighten site root detection
+- Base site readiness on a real root page
+- Keep default web exports empty
+- Stop scaffolding a synthetic home page
+- Remove default home injection from site config
+- Consolidate release automation flow
+- Pass updater signing password explicitly
+- Pass updater signing key path to macos finalizer
+- Resolve downloaded macos app bundle in release finalizer
+
+### Documentation
+
+- Add site builder empty-state implementation plan
+- Add collection transform/export auto-config to ROADMAP
+- Connect MCP server to local SLM fine-tuning and eval harness in ROADMAP
+- Add Niamoto MCP server for AI-agent-driven instance setup to ROADMAP
+- Add plugin platform overhaul (marketplace, R support, in-app creator) to ROADMAP
+- Add desktop shell evaluation (Tauri vs Electron) to ROADMAP
+- Move hosted Niamoto from not-planned to later in ROADMAP
+- Add site builder empty-state design
+- Link ROADMAP.md from README
+- Add not-planned and contribute sections to ROADMAP.md
+- Add Now/Soon/Later horizons to ROADMAP.md
+- Add GBIF Challenge 2026 milestone to ROADMAP.md
+- Add vision and recently shipped to ROADMAP.md
+- Scaffold root ROADMAP.md
+- Add ROADMAP.md implementation plan
+- Add ROADMAP.md design spec
+
+### Other
+
+- Sync tauri cargo lock version
+- Cover site builder readiness regressions
+- Refine site readiness regressions
+- Use Tailscale GitHub Action to reach Coolify on tailnet (#129)
+- Add marketing-sync workflow (triggers niamoto-site redeploy)
+- Initial .marketing/plugins.json
+
 ## [v0.15.5] - 2026-04-20
 
 ### Bug Fixes
