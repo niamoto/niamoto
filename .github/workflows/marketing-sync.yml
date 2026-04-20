@@ -44,9 +44,17 @@ jobs:
             echo "Plugin manifest unchanged — skipping commit."
           fi
 
-      - name: Trigger niamoto-site rebuild
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-github
+          version: latest
+
+      - name: Trigger niamoto-site rebuild via Coolify
         run: |
-          curl --fail -X GET "$COOLIFY_WEBHOOK" \
+          curl --fail --silent --show-error -X GET "$COOLIFY_WEBHOOK" \
             -H "Authorization: Bearer $COOLIFY_TOKEN"
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
