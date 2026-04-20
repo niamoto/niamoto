@@ -117,6 +117,7 @@ published portal looks like.
 - **Live demo** — [New Caledonia forests portal](https://niamoto.github.io/niamoto-static-site/)
 - **Discussions** — [GitHub Discussions](https://github.com/niamoto/niamoto/discussions)
 - **Issues** — [GitHub Issues](https://github.com/niamoto/niamoto/issues)
+- **Roadmap** — [ROADMAP.md](https://github.com/niamoto/niamoto/blob/main/ROADMAP.md) · vision, current priorities, and the GBIF Challenge 2026 milestone
 - **Changelog** — [CHANGELOG.md](https://github.com/niamoto/niamoto/blob/main/CHANGELOG.md)
 - **Contributing** — [CONTRIBUTING.md](https://github.com/niamoto/niamoto/blob/main/CONTRIBUTING.md) · [STYLE_GUIDE.md](https://github.com/niamoto/niamoto/blob/main/docs/STYLE_GUIDE.md)
 
