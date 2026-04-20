@@ -33,4 +33,36 @@ describe('getBuildGate', () => {
       siteBuilderPath: null,
     })
   })
+
+  it('keeps null blocked without the site-builder CTA', () => {
+    expect(getBuildGate(null)).toEqual({
+      canGenerate: false,
+      showConfigurationRequired: false,
+      siteBuilderPath: null,
+    })
+  })
+
+  it('keeps stale blocked without the site-builder CTA', () => {
+    expect(getBuildGate('stale')).toEqual({
+      canGenerate: false,
+      showConfigurationRequired: false,
+      siteBuilderPath: null,
+    })
+  })
+
+  it('keeps running blocked without the site-builder CTA', () => {
+    expect(getBuildGate('running')).toEqual({
+      canGenerate: false,
+      showConfigurationRequired: false,
+      siteBuilderPath: null,
+    })
+  })
+
+  it('keeps error blocked without the site-builder CTA', () => {
+    expect(getBuildGate('error')).toEqual({
+      canGenerate: false,
+      showConfigurationRequired: false,
+      siteBuilderPath: null,
+    })
+  })
 })

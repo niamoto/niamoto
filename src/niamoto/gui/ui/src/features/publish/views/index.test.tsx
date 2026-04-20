@@ -233,6 +233,12 @@ describe('PublishOverview', () => {
   })
 
   it('renders the site-builder blocking alert for a real unconfigured site and navigates on click', async () => {
+    pipelineState.value = {
+      publication: { status: 'never_run' },
+      site: { status: 'unconfigured' },
+      groups: { status: 'fresh' },
+    }
+
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -256,5 +262,26 @@ describe('PublishOverview', () => {
     })
 
     expect(navigateSpy).toHaveBeenCalledWith('/site/pages')
+  })
+
+  it('does not render the site-builder CTA while the site status is unresolved', async () => {
+    pipelineState.value = {
+      publication: { status: 'never_run' },
+      site: { status: undefined },
+      groups: { status: 'fresh' },
+    }
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root.render(<PublishOverview />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).not.toContain('Configure the site in Site Builder before launching a generation.')
+    expect(container.textContent).not.toContain('Open Site Builder')
   })
 })
