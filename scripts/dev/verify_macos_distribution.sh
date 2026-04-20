@@ -244,6 +244,46 @@ app_executable_path() {
   printf '%s\n' "$app_path/Contents/MacOS/$executable"
 }
 
+restore_executable_permissions() {
+  local app_path="$1"
+  local sidecar_dir="$2"
+  local path
+  local file_description
+
+  log "Restauration des permissions exécutables"
+
+  while IFS= read -r -d '' path; do
+    file_description="$(file -b "$path")"
+    if [[ "$file_description" == *"Mach-O"* ]]; then
+      chmod 755 "$path"
+    fi
+  done < <(find "$app_path/Contents/MacOS" "$sidecar_dir" -type f -print0)
+}
+
+assert_executable_file() {
+  local path="$1"
+  [ -f "$path" ] || fail "Fichier exécutable introuvable: $path"
+  [ -x "$path" ] || fail "Permission exécutable absente: $path"
+}
+
+verify_executable_permissions() {
+  local app_path="$1"
+  local sidecar_dir="$2"
+  local app_binary
+  local sidecar_binary
+  local python_binary
+
+  app_binary="$(app_executable_path "$app_path")"
+  sidecar_binary="$sidecar_dir/niamoto"
+  python_binary="$(find_versioned_python_path "$sidecar_dir")"
+
+  assert_executable_file "$app_binary"
+  assert_executable_file "$sidecar_binary"
+  assert_executable_file "$python_binary"
+
+  ls -l "$app_binary" "$sidecar_binary" "$python_binary"
+}
+
 resign_app_bundle() {
   local app_path="$1"
   local executable_path
@@ -375,6 +415,8 @@ fi
 [ -d "$SIDECAR_DIR" ] || fail "Sidecar introuvable: $SIDECAR_DIR"
 
 rebuild_python_framework_layout "$SIDECAR_DIR"
+restore_executable_permissions "$APP_PATH" "$SIDECAR_DIR"
+verify_executable_permissions "$APP_PATH" "$SIDECAR_DIR"
 sign_sidecar "$SIDECAR_DIR"
 verify_sidecar "$SIDECAR_DIR"
 resign_app_bundle "$APP_PATH"
