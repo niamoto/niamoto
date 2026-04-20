@@ -156,8 +156,8 @@ jobs:
           path: dist/${{ matrix.binary_name }}
           retention-days: 7
 
-  create-release:
-    name: Create GitHub Release
+  upload-release-assets:
+    name: Upload CLI archives to release
     needs: build-binaries
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -166,71 +166,37 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
-
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts/
 
-      - name: Display structure
-        run: ls -R artifacts/
-
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create Release Notes
-        id: release_notes
-        run: |
-          cat > release_notes.md << 'EOF'
-          # Niamoto v${{ steps.get_version.outputs.VERSION }}
-
-          ## Desktop App
-
-          Native desktop application with built-in auto-updater (DMG, MSI, DEB).
-          Desktop bundles are built automatically and will appear here shortly after this release.
-
-          ## CLI Binaries
-
-          Standalone command-line binaries — no Python required:
-
-          | Platform | Download |
-          |----------|----------|
-          | macOS (Apple Silicon, Intel via Rosetta 2) | `niamoto-macos-arm64.tar.gz` |
-          | Linux x86_64 | `niamoto-linux-x86_64.tar.gz` |
-          | Linux arm64 | `niamoto-linux-arm64.tar.gz` |
-          | Windows x86_64 | `niamoto-windows-x86_64.zip` |
-
-          ```bash
-          # macOS / Linux
-          tar -xzf niamoto-<platform>.tar.gz && chmod +x niamoto
-          ./niamoto gui --instance my-project/
-
-          # Windows
-          Expand-Archive niamoto-windows-x86_64.zip
-          .\niamoto.exe gui --instance my-project\
-          ```
-
-          ## Documentation
-
-          Full documentation at https://github.com/niamoto/niamoto
-          EOF
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Niamoto v${{ steps.get_version.outputs.VERSION }}
-          body_path: release_notes.md
-          files: |
-            artifacts/niamoto-macos-arm64/*.tar.gz
-            artifacts/niamoto-linux-x86_64/*.tar.gz
-            artifacts/niamoto-linux-arm64/*.tar.gz
-            artifacts/niamoto-windows-x86_64/*.zip
-          draft: false
-          prerelease: false
+      - name: Wait for GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          for _ in {1..30}; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Release $TAG was not created in time" >&2
+          exit 1
+
+      - name: Upload CLI archives
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release upload "$TAG" \
+            artifacts/niamoto-macos-arm64/*.tar.gz \
+            artifacts/niamoto-linux-x86_64/*.tar.gz \
+            artifacts/niamoto-linux-arm64/*.tar.gz \
+            artifacts/niamoto-windows-x86_64/*.zip \
+            --clobber
 
   build-summary:
     name: Build Summary
