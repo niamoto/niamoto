@@ -193,19 +193,23 @@ sign_updater_archive() {
   local archive_path="$1"
   local signer_backend
   local private_key_path
+  local -a password_args
   signer_backend="$(ensure_updater_signer)"
   private_key_path="$(resolve_updater_private_key_path)"
+  password_args=()
+
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]; then
+    password_args=(--password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
+  fi
 
   log "Signature updater de $archive_path"
 
   case "$signer_backend" in
     cargo)
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
-        cargo tauri signer sign "$archive_path" --private-key-path "$private_key_path"
+      cargo tauri signer sign "$archive_path" --private-key-path "$private_key_path" "${password_args[@]}"
       ;;
     pnpm)
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
-        pnpm dlx "@tauri-apps/cli@${TAURI_CLI_NPM_VERSION}" signer sign "$archive_path" --private-key-path "$private_key_path"
+      pnpm dlx "@tauri-apps/cli@${TAURI_CLI_NPM_VERSION}" signer sign "$archive_path" --private-key-path "$private_key_path" "${password_args[@]}"
       ;;
   esac
 }
