@@ -100,6 +100,12 @@ scripts/dev/verify_macos_distribution.sh
 scripts/dev/verify_macos_distribution.sh --notarize
 ```
 
+Refabrication locale des artefacts finaux macOS à partir d'un `.app` déjà buildé :
+```bash
+scripts/build/finalize_macos_release.sh --ad-hoc --skip-notarize --skip-upload
+scripts/build/finalize_macos_release.sh --skip-upload
+```
+
 **Linux (Ubuntu/Debian)** :
 ```bash
 sudo apt update
