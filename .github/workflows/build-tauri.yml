@@ -524,7 +524,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: tauri-release-macos-app
-          path: src-tauri/target/release/bundle/macos
+          path: artifacts/tauri-release-macos-app
 
       - name: Finalize and publish macOS release artifacts
         shell: bash
@@ -540,8 +540,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          APP_PATH="$(find artifacts/tauri-release-macos-app -type d -name 'Niamoto.app' -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Downloaded macOS app bundle not found under artifacts/tauri-release-macos-app" >&2
+            find artifacts/tauri-release-macos-app -maxdepth 4 -print >&2 || true
+            exit 1
+          fi
+
           scripts/build/finalize_macos_release.sh \
-            --app src-tauri/target/release/bundle/macos/Niamoto.app \
+            --app "$APP_PATH" \
             --release-tag "${{ github.event.release.tag_name }}" \
             --release-repo "${{ github.repository }}" \
             --output-dir src-tauri/target/release/finalized \
