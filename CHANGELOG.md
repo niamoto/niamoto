@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.5] - 2026-04-20
+
+### Bug Fixes
+
+- Repair the macOS desktop signing and notarization pipeline, including post-build bundle finalization
+- Include trained ML models in desktop bundles
+- Recheck desktop connectivity on startup before surfacing offline failures
+
+### Refactoring
+
+- Add a shell-neutral desktop bridge for desktop renderer integrations
+
+### Other
+
+- Wire Apple signing secrets into Tauri builds
+- Sync release lockfiles and release helper tooling
+- Ignore local worktree and pnpm cache artefacts
+- Refresh the local `niamoto-release` skill to match the tag-driven GitHub release flow
+
 ## [v0.15.4] - 2026-04-19
 
 ### Features
