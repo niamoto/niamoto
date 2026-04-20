@@ -81,6 +81,7 @@ Pick the path that matches your profile:
    README
    STYLE_GUIDE
    DESIGN_SYSTEM
+   analysis/2026-04-20-release-automation-retrospective
 
 Indices
 =======
