@@ -7,7 +7,11 @@ import type {
   ReferenceInfo,
   ReferencesResponse,
 } from '@/features/import/api/entities'
-import { listTables, queryTable } from '@/features/import/api/data-explorer'
+import {
+  getTableColumns,
+  listTables,
+  queryTable,
+} from '@/features/import/api/data-explorer'
 import type { ImportSummaryDetailed } from '@/features/import/api/summary'
 import { importQueryKeys } from '@/features/import/queryKeys'
 
@@ -17,6 +21,11 @@ export interface EntityConfigResponse<TConfig = unknown> {
 }
 
 export const IMPORT_DETAIL_PAGE_SIZE = 20
+export const IMPORT_DETAIL_PREVIEW_MAX_COLUMNS = 6
+
+export function getPreviewColumnNames(columnNames: string[], maxColumns: number): string[] {
+  return columnNames.slice(0, Math.max(1, maxColumns))
+}
 
 export function fetchDatasetConfig(name: string): Promise<EntityConfigResponse> {
   return apiClient
@@ -54,16 +63,33 @@ export function tablesQueryOptions() {
   }
 }
 
+export function tableColumnsQueryOptions(tableName: string) {
+  return {
+    queryKey: importQueryKeys.dataPreview.tableColumns(tableName),
+    queryFn: () => getTableColumns(tableName),
+    staleTime: 60_000,
+  }
+}
+
 export function tablePreviewQueryOptions(
   tableName: string,
   page: number = 0,
-  pageSize: number = IMPORT_DETAIL_PAGE_SIZE
+  pageSize: number = IMPORT_DETAIL_PAGE_SIZE,
+  columns?: string[]
 ) {
+  const selectedColumns = columns?.length ? columns : undefined
+
   return {
-    queryKey: importQueryKeys.dataPreview.tablePage(tableName, page, pageSize),
+    queryKey: importQueryKeys.dataPreview.tablePage(
+      tableName,
+      page,
+      pageSize,
+      selectedColumns
+    ),
     queryFn: () =>
       queryTable({
         table: tableName,
+        columns: selectedColumns,
         limit: pageSize,
         offset: page * pageSize,
       }),
@@ -87,6 +113,7 @@ export async function prefetchImportEntityDetail(
   await Promise.all([
     configPrefetch,
     queryClient.prefetchQuery(tablesQueryOptions()),
+    queryClient.prefetchQuery(tableColumnsQueryOptions(entity.table_name)),
     queryClient.prefetchQuery(tablePreviewQueryOptions(entity.table_name)),
   ])
 }

@@ -45,6 +45,18 @@ class QueryResponse(BaseModel):
     page_count: int
 
 
+NON_ORDERABLE_TYPE_TOKENS = (
+    "JSON",
+    "STRUCT",
+    "LIST",
+    "MAP",
+    "BLOB",
+    "BYTEA",
+    "BINARY",
+    "VARBINARY",
+)
+
+
 def _build_where_clause(
     where: Optional[str], allowed_columns: set[str], db: Database
 ) -> tuple[str, Dict[str, Any]]:
@@ -308,6 +320,45 @@ def _build_order_by_clause(
     return " ORDER BY " + ", ".join(clauses)
 
 
+def _is_orderable_column(column: Dict[str, Any]) -> bool:
+    """Return whether a column type is safe for implicit deterministic ordering."""
+
+    column_type = str(column.get("type", "")).upper()
+    if not column_type:
+        return True
+
+    return not any(token in column_type for token in NON_ORDERABLE_TYPE_TOKENS)
+
+
+def _get_default_order_column(
+    table_name: str, columns: List[Dict[str, Any]]
+) -> Optional[str]:
+    """Pick a deterministic default sort column when callers omit ORDER BY."""
+
+    orderable_columns = [
+        column["name"] for column in columns if _is_orderable_column(column)
+    ]
+    if not orderable_columns:
+        return None
+
+    if "lft" in orderable_columns:
+        return "lft"
+
+    if "id" in orderable_columns:
+        return "id"
+
+    singular_name = table_name[:-1] if table_name.endswith("s") else table_name
+    for candidate in (f"{table_name}_id", f"{singular_name}_id"):
+        if candidate in orderable_columns:
+            return candidate
+
+    id_like_columns = [name for name in orderable_columns if name.endswith("_id")]
+    if id_like_columns:
+        return id_like_columns[0]
+
+    return orderable_columns[0]
+
+
 def get_table_description(table_name: str) -> str:
     """
     Generate a dynamic description for a table.
@@ -437,7 +488,8 @@ async def query_table(request: QueryRequest):
                     status_code=404, detail=f"Table '{request.table}' not found"
                 )
 
-            table_columns = [col["name"] for col in db.get_columns(request.table)]
+            table_column_info = db.get_columns(request.table)
+            table_columns = [col["name"] for col in table_column_info]
             allowed_columns = set(table_columns)
             quoted_table = quote_identifier(db, request.table)
 
@@ -458,7 +510,17 @@ async def query_table(request: QueryRequest):
             where_clause, where_params = _build_where_clause(
                 request.where, allowed_columns, db
             )
-            order_clause = _build_order_by_clause(request.order_by, allowed_columns, db)
+            effective_order_by = request.order_by
+            if not effective_order_by:
+                default_order_column = _get_default_order_column(
+                    request.table, table_column_info
+                )
+                if default_order_column:
+                    effective_order_by = f"{default_order_column} ASC"
+
+            order_clause = _build_order_by_clause(
+                effective_order_by, allowed_columns, db
+            )
 
             count_query = text(f"SELECT COUNT(*) FROM {quoted_table}{where_clause}")
             data_query = text(
