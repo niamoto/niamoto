@@ -28,7 +28,7 @@ describe('getBuildGate', () => {
 
   it('keeps the view usable while the pipeline status is still loading', () => {
     expect(getBuildGate(undefined)).toEqual({
-      canGenerate: true,
+      canGenerate: false,
       showConfigurationRequired: false,
       siteBuilderPath: null,
     })

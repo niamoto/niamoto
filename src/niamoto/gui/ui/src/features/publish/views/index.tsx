@@ -165,14 +165,14 @@ function getPublishStatus({
   currentDeploy,
   hasSuccessfulBuild,
   isStale,
-  siteBuildBlocked,
+  showConfigurationRequired,
   t,
 }: {
   currentBuild: BuildJob | null
   currentDeploy: { status: string } | null
   hasSuccessfulBuild: boolean
   isStale: boolean
-  siteBuildBlocked: boolean
+  showConfigurationRequired: boolean
   t: (key: string, defaultValue?: string) => string
 }) {
   if (currentDeploy?.status === 'running') {
@@ -181,7 +181,7 @@ function getPublishStatus({
   if (currentBuild?.status === 'running') {
     return { label: t('build.building', 'Generating...'), variant: 'secondary' as const }
   }
-  if (siteBuildBlocked) {
+  if (showConfigurationRequired) {
     return { label: t('publishStatus.configurationRequired', 'Configuration required'), variant: 'outline' as const }
   }
   if (!hasSuccessfulBuild) {
@@ -405,7 +405,7 @@ export default function PublishOverview() {
     currentDeploy,
     hasSuccessfulBuild,
     isStale,
-    siteBuildBlocked,
+    showConfigurationRequired: buildGate.showConfigurationRequired,
     t: (key, defaultValue) => (defaultValue ? t(key, defaultValue) : t(key)),
   })
 
@@ -450,6 +450,8 @@ export default function PublishOverview() {
 
   const runBuild = async () => {
     if (siteBuildBlocked) {
+      if (!buildGate.showConfigurationRequired) return
+
       toast.error(buildBlockedTitle, {
         description: buildBlockedDescription,
       })
@@ -766,7 +768,7 @@ export default function PublishOverview() {
           }}
       onLinkClick={siteBuildBlocked ? undefined : handlePreviewLinkClick}
       title={t('overview.previewDynamic', 'Dynamic preview')}
-      emptyMessage={siteBuildBlocked
+      emptyMessage={buildGate.showConfigurationRequired
         ? buildBlockedDescription
         : t('overview.noPreview', 'Generate the site to preview the final output')}
       className="h-full"
