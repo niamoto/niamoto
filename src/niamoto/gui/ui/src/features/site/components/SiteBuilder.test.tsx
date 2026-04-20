@@ -129,4 +129,24 @@ describe('SiteBuilder empty-state regressions', () => {
     const html = renderToStaticMarkup(<SiteBuilder />)
     expect(html).toContain('Site setup')
   })
+
+  it('renders the overview path for a genuinely configured root page', () => {
+    stateRef.value = buildState({
+      siteConfig: {
+        site: { title: 'Niamoto', lang: 'fr', languages: ['fr'], primary_color: '#228b22', nav_color: '#ffffff' },
+        navigation: [{ text: 'Home', url: '/index.html' }],
+        footer_navigation: [],
+        static_pages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
+        template_dir: 'templates/',
+        output_dir: 'exports/web',
+        copy_assets_from: [],
+      },
+      editedNavigation: [{ text: 'Home', url: '/index.html' }],
+      editedPages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
+    })
+
+    const html = renderToStaticMarkup(<SiteBuilder />)
+    expect(html).not.toContain('<div>Site setup</div>')
+    expect(html).toContain('Pages overview')
+  })
 })
