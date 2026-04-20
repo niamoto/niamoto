@@ -83,6 +83,7 @@ Identified in ideation, not yet planned.
 - **Transform provenance explorer** — dependency graph across import → transform → export
 - **Desktop v1.0** — iteration round after the GBIF submission
 - **Plugin platform overhaul** — three related workstreams: (a) a real plugin **marketplace** for discovering, installing, and updating community plugins, (b) **R-language plugin support** alongside the current Python plugins, and (c) an **in-app plugin creator** that walks users through scaffolding a new plugin without leaving the desktop app.
+- **Niamoto MCP server** — expose Niamoto's capabilities (data analysis, entity registry, import/transform/export configuration, plugin scaffolding) through a Model Context Protocol server so an AI agent can configure a complete instance end-to-end: inspect the user's raw data, propose a project structure, wire imports and transforms, generate portals, and — when needed — create a dedicated plugin for that instance. Builds on the plugin platform overhaul above.
 - **Hosted Niamoto (exploratory)** — optional dynamic deployment to serve the Niamoto API (and, if needed, the generated pages) online. Scenarios being considered: self-hosted multi-instance portals, optional hosting on `niamoto.org` for users who want it, publication of static sites to `niamoto.org` with sync back to the local instance, and a reproducible self-host setup for teams that prefer their own infrastructure. Large scope, exploratory — the desktop app and static publication remain the primary path.
 
 ## Not planned
