@@ -680,6 +680,34 @@ class TestConfigScaffoldSpatialReferences:
             for export in export_config.get("exports", [])
             if export.get("name") == "web_pages"
         )
+        assert web_export["name"] == "web_pages"
+        assert web_export["exporter"] == "html_page_exporter"
+        assert web_export["params"]["template_dir"] == "templates/"
+        assert web_export["params"]["output_dir"] == "exports/web"
+        assert web_export["static_pages"] == []
+
+    def test_default_exporter_generation_keeps_empty_web_export_without_home_page(
+        self, test_work_dir
+    ):
+        from niamoto.gui.api.routers.templates import _generate_export_config
+
+        _generate_export_config(Path(test_work_dir), "plots", {}, [])
+
+        with open(
+            Path(test_work_dir) / "config" / "export.yml", "r", encoding="utf-8"
+        ) as f:
+            export_config = yaml.safe_load(f) or {}
+
+        web_export = next(
+            export
+            for export in export_config.get("exports", [])
+            if export.get("name") == "web_pages"
+        )
+        assert web_export["name"] == "web_pages"
+        assert web_export["exporter"] == "html_page_exporter"
+        assert web_export["params"]["template_dir"] == "templates/"
+        assert web_export["params"]["output_dir"] == "exports/web"
+        assert web_export["params"]["navigation"] == []
         assert web_export["static_pages"] == []
 
     def test_scaffold_uses_explicit_relation_for_hierarchical_reference(

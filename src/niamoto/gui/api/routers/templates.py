@@ -494,9 +494,7 @@ def _generate_export_config(
                     "lang": "fr",
                     "primary_color": "#228b22",
                 },
-                "navigation": [
-                    {"text": "Accueil", "url": "/index.html"},
-                ],
+                "navigation": [],
             },
             "static_pages": [],
             "groups": [],
