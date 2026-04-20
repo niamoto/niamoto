@@ -64,6 +64,7 @@ import { UnifiedSiteTree } from './UnifiedSiteTree'
 // Hooks
 import { useSiteBuilderState } from '../hooks/useSiteBuilderState'
 import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
+import { requiresSiteSetup } from '../lib/siteReadiness'
 import { generateFooterFromTree } from '../utils/generateFooter'
 import { SiteSetupWizard } from './SiteSetupWizard'
 
@@ -219,10 +220,17 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     toast.warning(t('common:messages.pageNotFound', { href }))
   }
 
-  // Check if site is empty (condition on API data, not local state)
-  const isSiteEmpty = state.siteConfig &&
-    state.siteConfig.static_pages.length === 0 &&
-    state.siteConfig.navigation.length === 0
+  const persistedSiteNeedsSetup = state.siteConfig
+    ? requiresSiteSetup(state.siteConfig)
+    : true
+
+  const draftSiteNeedsSetup = requiresSiteSetup({
+    static_pages: state.editedPages,
+    navigation: state.editedNavigation,
+    footer_navigation: state.editedFooterNavigation,
+  })
+
+  const siteNeedsSetup = state.hasChanges ? draftSiteNeedsSetup : persistedSiteNeedsSetup
 
   // Wizard completion handler — applies preset and auto-saves so that
   // siteConfig refreshes (otherwise isSiteEmpty stays true and the wizard reopens)
@@ -261,14 +269,20 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     }
   }
 
+  useEffect(() => {
+    if (siteNeedsSetup) {
+      setWizardDismissed(false)
+    }
+  }, [siteNeedsSetup])
+
   const editorTransitionKey = state.selection
     ? `${state.selection.type}:${state.selection.id ?? ''}:${previewEnabled ? 'preview' : 'editor'}`
-    : `${overviewPreview ? 'overview-preview' : showWizard || (isSiteEmpty && !wizardDismissed) ? 'wizard' : 'overview'}:${previewEnabled ? 'preview' : 'editor'}`
+    : `${overviewPreview ? 'overview-preview' : showWizard || (siteNeedsSetup && !wizardDismissed) ? 'wizard' : 'overview'}:${previewEnabled ? 'preview' : 'editor'}`
 
   // Render editor based on selection
   const renderEditor = () => {
     // Show wizard for empty sites (unless dismissed) or when explicitly triggered
-    if ((!state.selection && isSiteEmpty && !wizardDismissed) || showWizard) {
+    if ((!state.selection && siteNeedsSetup && !wizardDismissed) || showWizard) {
       return (
         <SiteSetupWizard
           groups={state.groups}
@@ -540,7 +554,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isSiteEmpty && !showWizard && (
+          {!siteNeedsSetup && !showWizard && (
             <Button
               variant="ghost"
               size="sm"
