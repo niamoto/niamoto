@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { type Locale, formatDistanceToNow } from 'date-fns'
 import { enUS, fr } from 'date-fns/locale'
@@ -65,6 +65,7 @@ import {
 } from '@/shared/hooks/site-config/siteConfigApi'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/features/publish/api/export'
+import { getBuildGate } from '@/features/publish/lib/buildGate'
 import { apiClient } from '@/shared/lib/api/client'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
@@ -297,6 +298,7 @@ function StaticSitePreview({
 
 export default function PublishOverview() {
   const { t, i18n } = useTranslation('publish')
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { setBreadcrumbs } = useNavigationStore()
   const dateLocale = i18n.language === 'fr' ? fr : enUS
@@ -338,10 +340,10 @@ export default function PublishOverview() {
   const { data: pipelineData } = usePipelineStatus()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
-  const siteStatus = pipelineData?.site?.status
+  const buildGate = getBuildGate(pipelineData?.site?.status)
   const groupsStatus = pipelineData?.groups?.status
   const canRecomputeStatistics = groupsStatus !== 'unconfigured'
-  const siteBuildBlocked = siteStatus === 'unconfigured' || siteStatus === 'never_run'
+  const siteBuildBlocked = !buildGate.canGenerate
   const dynamicPreviewKey = siteConfig
     ? [
         previewLang,
@@ -379,15 +381,10 @@ export default function PublishOverview() {
     ? t('build.includeTransformInitial', 'Compute statistics before generation')
     : t('build.includeTransform', 'Recompute statistics before generation')
   const buildBlockedTitle = t('build.configurationRequiredTitle', 'Site configuration required')
-  const buildBlockedDescription = siteStatus === 'unconfigured'
-    ? t(
-        'build.configurationIncomplete',
-        'The site configuration is incomplete. Save the site once so template and output directories are written before generating.'
-      )
-    : t(
-        'build.configurationRequired',
-        'Complete and save the site configuration before launching a generation.'
-      )
+  const buildBlockedDescription = t(
+    'build.configurationRequired',
+    'Configure the site in Site Builder before launching a generation.'
+  )
 
   const configuredPlatforms = PLATFORM_ORDER.filter((platform) => Boolean(platformConfigs[platform]))
   const primaryPlatform = configuredPlatforms.includes(preferredPlatform as DeployPlatform)
@@ -444,6 +441,11 @@ export default function PublishOverview() {
     const next = new URLSearchParams(searchParams)
     next.delete('panel')
     setSearchParams(next, { replace: true })
+  }
+
+  const openSiteBuilder = () => {
+    if (!buildGate.siteBuilderPath) return
+    navigate(buildGate.siteBuilderPath)
   }
 
   const runBuild = async () => {
@@ -792,13 +794,20 @@ export default function PublishOverview() {
             </Alert>
           )}
 
-          {siteBuildBlocked && (
+          {buildGate.showConfigurationRequired && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <span className="font-medium">{buildBlockedTitle}</span>
-                {' '}
-                {buildBlockedDescription}
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  <span className="font-medium">{buildBlockedTitle}</span>
+                  {' '}
+                  {buildBlockedDescription}
+                </span>
+                {buildGate.siteBuilderPath && (
+                  <Button size="sm" variant="outline" onClick={openSiteBuilder}>
+                    {t('build.goToSiteBuilder', 'Open Site Builder')}
+                  </Button>
+                )}
               </AlertDescription>
             </Alert>
           )}
