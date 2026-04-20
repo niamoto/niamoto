@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.8] - 2026-04-20
+
+### Bug Fixes
+
+- Restore macos executable permissions
+- Harden release automation flows
+
+### Documentation
+
+- Include release retrospective in docs toctree
+
 ## [v0.15.7] - 2026-04-20
 
 ### Bug Fixes
