@@ -1,240 +1,112 @@
 # Release Process
 
-This document explains how to create a new Niamoto release with cross-platform binaries.
+This document describes the current release contract for Niamoto.
 
-## 🚀 Quick Release
+## Quick Release
 
-### 1. Update Version (Automated with bump2version)
-
-**Recommended approach** - Updates all files automatically:
+Inspect the release state and proposed bump:
 
 ```bash
-# Patch version (0.7.4 → 0.7.5)
-uv run bump2version patch
-
-# Minor version (0.7.5 → 0.8.0)
-uv run bump2version minor
-
-# Major version (0.8.0 → 1.0.0)
-uv run bump2version major
+uv run python scripts/build/niamoto_release.py
 ```
 
-This automatically:
-- ✅ Updates version in `pyproject.toml`, `docs/conf.py`, `src/niamoto/__version__.py`
-- ✅ Creates a commit: "Bump version: X.X.X → Y.Y.Y"
-- ✅ Creates a git tag `vY.Y.Y`
-
-### 2. Push Release
+Cut a specific release:
 
 ```bash
-# Push commit and tag
-git push && git push origin v0.7.5
+uv run python scripts/build/niamoto_release.py 0.15.6 --yes
 ```
 
-### 3. Publish to PyPI (automated)
-
-PyPI publication is automated via GitHub Actions (Trusted Publishers / OIDC).
-Creating a GitHub Release triggers the `publish-pypi.yml` workflow which:
-- ✅ Builds React UI
-- ✅ Creates wheel (with GUI) and sdist (without GUI)
-- ✅ Publishes to PyPI via OIDC (no token needed)
-
-### 4. Automated Binary Build
-
-Once the tag is pushed, GitHub Actions will automatically:
-
-1. ✅ Build React UI
-2. ✅ Build binaries for all platforms:
-   - macOS Apple Silicon (arm64) — Intel Macs run it via Rosetta 2
-   - Linux x86_64
-   - Linux arm64
-   - Windows x86_64
-3. ✅ Create GitHub Release with all binaries
-4. ✅ Generate release notes
-
-### 5. Monitor Progress
-
-Visit: https://github.com/niamoto/niamoto/actions
-
-The build takes approximately:
-- React UI: ~2-3 minutes
-- Each binary: ~5-10 minutes
-- **Total: ~10-15 minutes**
-
-## 📦 What Gets Released
-
-Each release includes 4 CLI binaries and matching desktop bundles:
-
-| File | Platform | Size |
-|------|----------|------|
-| `niamoto-macos-arm64.tar.gz` | macOS (Apple Silicon native; Intel via Rosetta 2) | ~50-60 MB |
-| `niamoto-linux-x86_64.tar.gz` | Linux x86_64 | ~50-60 MB |
-| `niamoto-linux-arm64.tar.gz` | Linux arm64 (Pi, Ampere, Graviton) | ~50-60 MB |
-| `niamoto-windows-x86_64.zip` | Windows 10/11 x86_64 | ~50-60 MB |
-
-Desktop bundles (`.dmg`, `.deb`, `.msi`) are produced for every platform above
-by the `build-tauri.yml` workflow and attached to the same GitHub Release.
-
-**Note:** There is no free GitHub Actions runner for Intel macOS since late
-2024 (`macos-13` has been retired). Apple Silicon users get a native binary,
-Intel Mac users continue to use Rosetta 2 — which handles Tauri bundles and
-PyInstaller CLI binaries transparently.
-
-**Uncompressed binaries are ~130-140 MB each**
-
-## 🏷️ Managing Git Tags
-
-### Move/Recreate a Tag
-
-If you need to move a tag to a different commit (e.g., after fixing a build issue):
+Cut the suggested release automatically:
 
 ```bash
-# Delete local tag
-git tag -d v0.7.5
-
-# Delete remote tag
-git push origin :refs/tags/v0.7.5
-
-# Create new tag at current commit
-git tag v0.7.5
-
-# Push new tag
-git push origin v0.7.5
+uv run python scripts/build/niamoto_release.py --yes
 ```
 
-**⚠️ Warning**: Only recreate tags for unreleased versions or if critical issue. Released tags should generally not be moved.
-
-### List All Tags
+Dry-run only:
 
 ```bash
-# List all tags
-git tag -l
-
-# List tags with pattern
-git tag -l "v0.7.*"
-
-# Show tag details
-git show v0.7.5
+uv run python scripts/build/niamoto_release.py --dry-run
 ```
 
-### Delete a Tag
+## Release Contract
+
+The release flow is intentionally split into two layers:
+
+1. `scripts/build/niamoto_release.py` is the source of truth for the release cut.
+   It inspects Git state, runs preflight checks, updates `CHANGELOG.md`, bumps
+   versions, creates the release commit/tag, pushes `main`, and publishes the
+   GitHub Release with `gh release create`.
+2. GitHub Actions reacts to that published release:
+   - `publish-pypi.yml` publishes the Python package
+   - `build-tauri.yml` builds desktop bundles and finalizes the macOS artifacts
+   - `build-binaries.yml` builds CLI archives on tag push and uploads them to the
+     existing GitHub Release
+
+The important rule is: **the GitHub Release is created locally, not from
+`build-binaries.yml`**. This avoids the broken fan-out where release-triggered
+workflows never start because the release was created from another workflow.
+
+## What the Script Checks
+
+Before mutating Git state, `niamoto_release.py` inspects:
+
+- current branch
+- dirty working tree
+- last tag
+- commits since the last tag
+- suggested semantic version bump
+
+With `--yes`, it also runs:
+
+- `uv run pytest tests/ -x -q --tb=short`
+- `uvx ruff check src/`
+- `pnpm install --frozen-lockfile`
+- `pnpm run build`
+- `cargo audit` when Cargo is available
+- local `build_desktop.sh` on macOS as a non-blocking warning step
+
+## macOS Finalization
+
+The macOS release path now relies on:
+
+- `scripts/dev/verify_macos_distribution.sh`
+- `scripts/build/finalize_macos_release.sh`
+
+`build-tauri.yml` builds the raw bundle first, then the finalizer repairs the
+embedded Python framework layout, re-signs the final bundle, notarizes it, and
+rebuilds:
+
+- `Niamoto_<arch>.app.tar.gz`
+- `Niamoto_<arch>.app.tar.gz.sig`
+- `Niamoto_<version>_<arch>.dmg`
+- `latest.json`
+
+## Manual Recovery
+
+If the published release exists but macOS finalization fails, fix the workflow
+or the finalizer and rerun `build-tauri.yml`. Do not move the tag unless the
+release is still unreleased and you intentionally want to restart the version.
+
+If the GitHub Release already exists and you only need to refresh its notes:
 
 ```bash
-# Delete local tag
-git tag -d v0.7.5
-
-# Delete remote tag
-git push origin --delete v0.7.5
-# or
-git push origin :refs/tags/v0.7.5
+gh release edit v0.15.6 --title "Niamoto v0.15.6" --notes-file /tmp/release-notes.md
 ```
 
-### Tag a Specific Commit
+If you need to refinalize a downloaded macOS bundle locally:
 
 ```bash
-# Tag a specific commit
-git tag v0.7.5 <commit-hash>
-git push origin v0.7.5
-
-# Tag with annotation
-git tag -a v0.7.5 -m "Release version 0.7.5"
-git push origin v0.7.5
+bash scripts/build/finalize_macos_release.sh \
+  --app path/to/Niamoto.app \
+  --release-tag v0.15.6 \
+  --output-dir /tmp/niamoto-release-fix
 ```
 
-## 🔧 Manual Trigger
+## Pre-Release Checklist
 
-You can also trigger a build manually without creating a release:
-
-1. Go to https://github.com/niamoto/niamoto/actions/workflows/build-binaries.yml
-2. Click "Run workflow"
-3. Select branch
-4. Click "Run workflow"
-
-This will build binaries but won't create a release.
-
-## 🐛 Troubleshooting
-
-### Build Fails on One Platform
-
-If a build fails on one platform (e.g., Windows), the other platforms will continue building thanks to `fail-fast: false`.
-
-Check the logs for the failed platform to identify the issue.
-
-### PyInstaller Errors
-
-Common issues:
-- **Missing dependency**: Add to `hiddenimports` in `build_scripts/niamoto.spec`
-- **Missing data file**: Add to `datas` pattern in `niamoto.spec`
-- **Import error**: Check that the dependency is in `pyproject.toml`
-
-### React Build Missing
-
-If the binary doesn't include the React UI:
-1. Check that `src/niamoto/gui/ui/dist/` exists
-2. Verify the build-react job succeeded
-3. Check the artifact download step
-
-## 📝 Release Notes Customization
-
-The workflow auto-generates release notes. To customize:
-
-Edit `.github/workflows/build-binaries.yml` in the "Create Release Notes" step.
-
-## 🔐 Permissions
-
-The workflow requires `contents: write` permission to create releases.
-
-This is already configured in the workflow file.
-
-## ✅ Pre-Release Checklist
-
-Before creating a release:
-
-- [ ] All tests pass: `pytest`
-- [ ] Version bumped in `__version__.py`
-- [ ] CHANGELOG updated (if you have one)
-- [ ] Documentation updated
-- [ ] Local build works: `pyinstaller build_scripts/niamoto.spec`
-- [ ] React UI builds: `cd src/niamoto/gui/ui && pnpm run build`
-
-## 🎯 Version Numbering
-
-Follow semantic versioning: `MAJOR.MINOR.PATCH`
-
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes
-
-Examples:
-- `v0.7.4` → `v0.7.5` (bug fix)
-- `v0.7.5` → `v0.8.0` (new feature)
-- `v0.8.0` → `v1.0.0` (breaking change / stable release)
-
-## 📊 Build Matrix Details
-
-The workflow builds on:
-
-- **macos-14**: Apple Silicon runner for native arm64 binaries
-- **ubuntu-22.04**: Ubuntu 22.04 LTS for Linux x86_64 binaries
-- **ubuntu-22.04-arm**: Ubuntu 22.04 arm64 runner for Linux arm64 binaries
-- **windows-latest**: Windows Server 2022 for Windows x86_64 binaries
-
-**Note:** Intel macOS is not part of the matrix because GitHub retired the
-free `macos-13` runner in late 2024. The paid `macos-13-large` alternative
-is not worth the cost for a niche audience — Intel Mac users run the arm64
-bundle via Rosetta 2 instead.
-
-## 🔄 Updating the Workflow
-
-To modify the build process:
-
-1. Edit `.github/workflows/build-binaries.yml`
-2. Test locally if possible
-3. Or create a test tag: `git tag v0.0.0-test && git push origin v0.0.0-test`
-4. Check the build, then delete the test tag
-
-## 📚 Resources
-
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [PyInstaller Manual](https://pyinstaller.org/en/stable/)
-- [Semantic Versioning](https://semver.org/)
+- `main` is checked out and clean
+- GitHub CLI is authenticated
+- Apple signing secrets are valid
+- updater signing secrets are valid
+- the new changelog section is accurate
+- the version has not already been published to PyPI
