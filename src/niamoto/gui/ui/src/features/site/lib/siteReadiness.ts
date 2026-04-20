@@ -18,6 +18,9 @@ function footerHasUrl(sections: FooterSection[], target: string): boolean {
   return sections.some((section) => section.links.some((link) => link.url === target))
 }
 
+// Keep these frontend readiness rules aligned with the backend pipeline site-status
+// logic in src/niamoto/gui/api/routers/pipeline.py so Site Builder and Publish
+// use the same readiness semantics.
 export function hasPublishableRootPage(pages: StaticPage[]): boolean {
   return pages.some((page) => getCanonicalStaticPageOutputFile(page) === 'index.html')
 }
