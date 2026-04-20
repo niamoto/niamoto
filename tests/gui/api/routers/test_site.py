@@ -180,7 +180,7 @@ class TestSiteGroups:
             assert data["navigation"][0]["url"] == "/index.html"
             assert data["footer_navigation"][0]["links"][0]["url"] == "/index.html"
 
-    def test_get_site_config_injects_default_home_page_when_missing(self):
+    def test_get_site_config_keeps_empty_static_pages_when_missing(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
             config_dir = project / "config"
@@ -211,14 +211,7 @@ class TestSiteGroups:
                 assert response.status_code == 200, response.text
 
             data = response.json()
-            assert data["static_pages"] == [
-                {
-                    "name": "home",
-                    "template": "index.html",
-                    "output_file": "index.html",
-                    "context": None,
-                }
-            ]
+            assert data["static_pages"] == []
 
     def test_update_site_config_normalizes_home_output_and_links(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -307,7 +300,7 @@ class TestSiteGroups:
             assert web_pages["params"]["template_dir"] == "templates/"
             assert web_pages["params"]["output_dir"] == "exports/web"
 
-    def test_update_site_config_adds_default_home_page_when_missing(self):
+    def test_update_site_config_persists_empty_static_pages(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
             config_dir = project / "config"
@@ -332,13 +325,7 @@ class TestSiteGroups:
 
             saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
             web_pages = saved_config["exports"][0]
-            assert web_pages["static_pages"] == [
-                {
-                    "name": "home",
-                    "template": "index.html",
-                    "output_file": "index.html",
-                }
-            ]
+            assert web_pages["static_pages"] == []
 
     def test_update_site_config_rejects_multiple_home_templates(self):
         with tempfile.TemporaryDirectory() as temp_dir:
