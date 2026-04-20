@@ -45,4 +45,36 @@ describe('siteReadiness', () => {
       })
     ).toBe(false)
   })
+
+  it('treats a footer-linked home as configured even for the legacy placeholder page', () => {
+    expect(
+      isLegacyPlaceholderSite({
+        static_pages: [
+          { name: 'home', template: 'index.html', output_file: 'index.html' },
+        ],
+        navigation: [],
+        footer_navigation: [
+          {
+            title: 'Explore',
+            links: [{ text: 'Home', url: '/index.html' }],
+          },
+        ],
+      })
+    ).toBe(false)
+
+    expect(
+      requiresSiteSetup({
+        static_pages: [
+          { name: 'home', template: 'index.html', output_file: 'index.html' },
+        ],
+        navigation: [],
+        footer_navigation: [
+          {
+            title: 'Explore',
+            links: [{ text: 'Home', url: '/index.html' }],
+          },
+        ],
+      })
+    ).toBe(false)
+  })
 })

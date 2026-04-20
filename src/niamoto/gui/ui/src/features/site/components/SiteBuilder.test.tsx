@@ -1,6 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+// @vitest-environment jsdom
+
+import { act, type ReactNode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SiteBuilder } from './SiteBuilder'
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const stateRef = {
   value: null as any,
@@ -25,11 +31,43 @@ vi.mock('@/shared/hooks/useSiteConfig', () => ({
 }))
 
 vi.mock('./SiteSetupWizard', () => ({
-  SiteSetupWizard: () => <div>Site setup</div>,
+  SiteSetupWizard: (props: { onComplete: (result: any) => void }) => (
+    <div>
+      <div>Site setup</div>
+      <button
+        type="button"
+        data-testid="complete-setup"
+        onClick={() => props.onComplete({
+          tree: [],
+          pages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
+          footerSections: [],
+          site: {
+            title: 'Niamoto',
+            lang: 'fr',
+            languages: ['fr'],
+            primary_color: '#228b22',
+            nav_color: '#ffffff',
+          },
+        })}
+      >
+        Complete setup
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('./PagesOverview', () => ({
   PagesOverview: () => <div>Pages overview</div>,
+}))
+
+vi.mock('@/components/ui/resizable', () => ({
+  ResizablePanelGroup: (props: { children: ReactNode }) => <div>{props.children}</div>,
+  ResizablePanel: (props: { children: ReactNode }) => <div>{props.children}</div>,
+  ResizableHandle: () => <div />,
+}))
+
+vi.mock('@/components/motion/PanelTransition', () => ({
+  PanelTransition: (props: { children: ReactNode }) => <>{props.children}</>,
 }))
 
 vi.mock('./UnifiedSiteTree', () => ({
@@ -103,6 +141,23 @@ function buildState(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function buildConfiguredSiteConfig() {
+  return {
+    site: { title: 'Niamoto', lang: 'fr', languages: ['fr'], primary_color: '#228b22', nav_color: '#ffffff' },
+    navigation: [{ text: 'Home', url: '/index.html' }],
+    footer_navigation: [],
+    static_pages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
+    template_dir: 'templates/',
+    output_dir: 'exports/web',
+    copy_assets_from: [],
+  }
+}
+
+afterEach(() => {
+  document.body.innerHTML = ''
+  stateRef.value = null
+})
+
 describe('SiteBuilder empty-state regressions', () => {
   it('renders Site Setup for an empty persisted config', () => {
     stateRef.value = buildState()
@@ -132,15 +187,7 @@ describe('SiteBuilder empty-state regressions', () => {
 
   it('renders the overview path for a genuinely configured root page', () => {
     stateRef.value = buildState({
-      siteConfig: {
-        site: { title: 'Niamoto', lang: 'fr', languages: ['fr'], primary_color: '#228b22', nav_color: '#ffffff' },
-        navigation: [{ text: 'Home', url: '/index.html' }],
-        footer_navigation: [],
-        static_pages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
-        template_dir: 'templates/',
-        output_dir: 'exports/web',
-        copy_assets_from: [],
-      },
+      siteConfig: buildConfiguredSiteConfig(),
       editedNavigation: [{ text: 'Home', url: '/index.html' }],
       editedPages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
     })
@@ -148,5 +195,55 @@ describe('SiteBuilder empty-state regressions', () => {
     const html = renderToStaticMarkup(<SiteBuilder />)
     expect(html).not.toContain('<div>Site setup</div>')
     expect(html).toContain('Pages overview')
+  })
+
+  it('reopens the wizard when the site becomes unconfigured again after dismissal', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    let root: Root | null = createRoot(container)
+
+    stateRef.value = buildState()
+    await act(async () => {
+      root!.render(<SiteBuilder />)
+    })
+    expect(container.innerHTML).toContain('<div>Site setup</div>')
+
+    const completeButton = container.querySelector('[data-testid="complete-setup"]')
+    expect(completeButton).not.toBeNull()
+
+    await act(async () => {
+      ;(completeButton as HTMLButtonElement).click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.innerHTML).not.toContain('<div>Site setup</div>')
+    expect(container.innerHTML).toContain('Pages overview')
+
+    stateRef.value = buildState({
+      siteConfig: buildConfiguredSiteConfig(),
+      editedNavigation: [{ text: 'Home', url: '/index.html' }],
+      editedPages: [{ name: 'home', template: 'index.html', output_file: 'index.html' }],
+    })
+    await act(async () => {
+      root!.render(<SiteBuilder />)
+    })
+    expect(container.innerHTML).not.toContain('<div>Site setup</div>')
+    expect(container.innerHTML).toContain('Pages overview')
+
+    stateRef.value = buildState({
+      siteConfig: buildConfiguredSiteConfig(),
+      editedNavigation: [],
+      editedPages: [],
+      hasChanges: true,
+    })
+    await act(async () => {
+      root!.render(<SiteBuilder />)
+    })
+    expect(container.innerHTML).toContain('<div>Site setup</div>')
+
+    await act(async () => {
+      root?.unmount()
+      root = null
+    })
   })
 })
