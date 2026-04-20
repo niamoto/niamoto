@@ -50,6 +50,13 @@ VERSION_FILES = [
     "CHANGELOG.md",
 ]
 
+LOCKFILES = [
+    "uv.lock",
+    "src-tauri/Cargo.lock",
+]
+
+RELEASE_COMMIT_FILES = [*VERSION_FILES, *LOCKFILES]
+
 WORKFLOW_SPECS = [
     ("build-binaries.yml", "push"),
     ("publish-pypi.yml", "release"),
@@ -355,7 +362,7 @@ def build_release_notes(
 
 
 def ensure_release_prerequisites() -> None:
-    required_tools = ["git", "gh", "uv", "pnpm"]
+    required_tools = ["git", "gh", "uv", "pnpm", "cargo"]
     missing = [tool for tool in required_tools if shutil.which(tool) is None]
     if missing:
         raise ReleaseError(f"Missing required tools: {', '.join(missing)}")
@@ -420,7 +427,13 @@ def prepare_release_commit(
             "patch",
         ],
     )
-    run_step("Stage release files", ["git", "add", *VERSION_FILES])
+    run_step("Refresh uv.lock", ["uv", "lock"])
+    run_step(
+        "Refresh Cargo.lock",
+        ["cargo", "update", "--workspace", "--offline", "--quiet"],
+        cwd=TAURI_DIR,
+    )
+    run_step("Stage release files", ["git", "add", *RELEASE_COMMIT_FILES])
     run_step("Commit release", ["git", "commit", "-m", f"release: v{version}"])
     run_step("Create tag", ["git", "tag", f"v{version}"])
 
