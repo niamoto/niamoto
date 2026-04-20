@@ -82,6 +82,7 @@ Identified in ideation, not yet planned.
 - **Suggestion explainability layer** — attached evidence for every auto-suggestion (matched fields, confidence band, override paths)
 - **Transform provenance explorer** — dependency graph across import → transform → export
 - **Desktop v1.0** — iteration round after the GBIF submission
+- **Plugin platform overhaul** — three related workstreams: (a) a real plugin **marketplace** for discovering, installing, and updating community plugins, (b) **R-language plugin support** alongside the current Python plugins, and (c) an **in-app plugin creator** that walks users through scaffolding a new plugin without leaving the desktop app.
 - **Hosted Niamoto (exploratory)** — optional dynamic deployment to serve the Niamoto API (and, if needed, the generated pages) online. Scenarios being considered: self-hosted multi-instance portals, optional hosting on `niamoto.org` for users who want it, publication of static sites to `niamoto.org` with sync back to the local instance, and a reproducible self-host setup for teams that prefer their own infrastructure. Large scope, exploratory — the desktop app and static publication remain the primary path.
 
 ## Not planned
