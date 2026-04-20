@@ -337,13 +337,21 @@ export default function PublishOverview() {
   const activePanel = searchParams.get('panel')
   const { data: siteConfig } = useSiteConfig()
   const { data: groupsData } = useGroups()
-  const { data: pipelineData } = usePipelineStatus()
+  const {
+    data: pipelineData,
+    isLoading: isPipelineStatusLoading,
+    isError: isPipelineStatusError,
+    error: pipelineStatusError,
+  } = usePipelineStatus()
   const groups = groupsData?.groups || []
   const isStale = pipelineData?.publication?.status === 'stale'
   const buildGate = getBuildGate(pipelineData?.site?.status)
+  const showConfigurationRequired =
+    !isPipelineStatusError && buildGate.showConfigurationRequired
   const groupsStatus = pipelineData?.groups?.status
   const canRecomputeStatistics = groupsStatus !== 'unconfigured'
-  const siteBuildBlocked = !buildGate.canGenerate
+  const siteBuildBlocked =
+    isPipelineStatusLoading || isPipelineStatusError || !buildGate.canGenerate
   const dynamicPreviewKey = siteConfig
     ? [
         previewLang,
@@ -385,6 +393,17 @@ export default function PublishOverview() {
     'build.configurationRequired',
     'Configure the site in Site Builder before launching a generation.'
   )
+  const pipelineStatusUnavailableTitle = t(
+    'build.statusUnavailableTitle',
+    'Pipeline status unavailable'
+  )
+  const pipelineStatusUnavailableDescription = getApiErrorMessage(
+    pipelineStatusError,
+    t(
+      'build.statusUnavailable',
+      'The publish status could not be loaded. Retry once the server is reachable.'
+    )
+  )
 
   const configuredPlatforms = PLATFORM_ORDER.filter((platform) => Boolean(platformConfigs[platform]))
   const primaryPlatform = configuredPlatforms.includes(preferredPlatform as DeployPlatform)
@@ -405,7 +424,7 @@ export default function PublishOverview() {
     currentDeploy,
     hasSuccessfulBuild,
     isStale,
-    showConfigurationRequired: buildGate.showConfigurationRequired,
+    showConfigurationRequired,
     t: (key, defaultValue) => (defaultValue ? t(key, defaultValue) : t(key)),
   })
 
@@ -450,7 +469,14 @@ export default function PublishOverview() {
 
   const runBuild = async () => {
     if (siteBuildBlocked) {
-      if (!buildGate.showConfigurationRequired) return
+      if (isPipelineStatusError) {
+        toast.error(pipelineStatusUnavailableTitle, {
+          description: pipelineStatusUnavailableDescription,
+        })
+        return
+      }
+
+      if (!showConfigurationRequired) return
 
       toast.error(buildBlockedTitle, {
         description: buildBlockedDescription,
@@ -768,7 +794,7 @@ export default function PublishOverview() {
           }}
       onLinkClick={siteBuildBlocked ? undefined : handlePreviewLinkClick}
       title={t('overview.previewDynamic', 'Dynamic preview')}
-      emptyMessage={buildGate.showConfigurationRequired
+      emptyMessage={showConfigurationRequired
         ? buildBlockedDescription
         : t('overview.noPreview', 'Generate the site to preview the final output')}
       className="h-full"
@@ -796,7 +822,18 @@ export default function PublishOverview() {
             </Alert>
           )}
 
-          {buildGate.showConfigurationRequired && (
+          {isPipelineStatusError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <span className="font-medium">{pipelineStatusUnavailableTitle}</span>
+                {' '}
+                {pipelineStatusUnavailableDescription}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showConfigurationRequired && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

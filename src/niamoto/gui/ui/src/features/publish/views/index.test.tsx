@@ -40,6 +40,15 @@ const pipelineState = vi.hoisted(() => ({
   },
 }))
 
+const pipelineQueryState = vi.hoisted(() => ({
+  value: {
+    data: pipelineState.value,
+    isLoading: false,
+    isError: false,
+    error: null as Error | null,
+  },
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, defaultValue?: string) => defaultValue ?? key,
@@ -90,9 +99,7 @@ vi.mock('@/shared/hooks/useSiteConfig', () => ({
 }))
 
 vi.mock('@/hooks/usePipelineStatus', () => ({
-  usePipelineStatus: () => ({
-    data: pipelineState.value,
-  }),
+  usePipelineStatus: () => pipelineQueryState.value,
 }))
 
 vi.mock('@/features/publish/api/export', () => ({
@@ -106,7 +113,8 @@ vi.mock('@/shared/lib/api/client', () => ({
 }))
 
 vi.mock('@/shared/lib/api/errors', () => ({
-  getApiErrorMessage: () => 'Build error',
+  getApiErrorMessage: (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback,
 }))
 
 vi.mock('@/shared/hooks/useRuntimeMode', () => ({
@@ -222,6 +230,12 @@ describe('PublishOverview', () => {
     setSearchParamsSpy.mockReset()
     refetchSpy.mockReset()
     apiGetSpy.mockClear()
+    pipelineQueryState.value = {
+      data: pipelineState.value,
+      isLoading: false,
+      isError: false,
+      error: null,
+    }
 
     if (root) {
       await act(async () => {
@@ -237,6 +251,12 @@ describe('PublishOverview', () => {
       publication: { status: 'never_run' },
       site: { status: 'unconfigured' },
       groups: { status: 'fresh' },
+    }
+    pipelineQueryState.value = {
+      data: pipelineState.value,
+      isLoading: false,
+      isError: false,
+      error: null,
     }
 
     container = document.createElement('div')
@@ -270,6 +290,12 @@ describe('PublishOverview', () => {
       site: { status: undefined },
       groups: { status: 'fresh' },
     }
+    pipelineQueryState.value = {
+      data: pipelineState.value,
+      isLoading: true,
+      isError: false,
+      error: null,
+    }
 
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -282,6 +308,33 @@ describe('PublishOverview', () => {
     })
 
     expect(container.textContent).not.toContain('Configure the site in Site Builder before launching a generation.')
+    expect(container.textContent).not.toContain('Open Site Builder')
+  })
+
+  it('shows explicit non-CTA feedback when the pipeline status query fails', async () => {
+    pipelineState.value = {
+      publication: { status: 'never_run' },
+      site: { status: undefined },
+      groups: { status: 'fresh' },
+    }
+    pipelineQueryState.value = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error('Pipeline status unavailable'),
+    }
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root.render(<PublishOverview />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain('Pipeline status unavailable')
     expect(container.textContent).not.toContain('Open Site Builder')
   })
 })

@@ -49,6 +49,8 @@
     "outputPath": "Répertoire",
     "success": "Build terminé avec succès !",
     "error": "Erreur lors du build",
+    "statusUnavailableTitle": "Statut du pipeline indisponible",
+    "statusUnavailable": "Le statut de publication n'a pas pu être chargé. Réessayez quand le serveur sera joignable.",
     "configurationRequiredTitle": "Configuration du site requise",
     "configurationRequired": "Configurez d'abord le site dans le Site Builder avant de lancer une génération.",
     "goToSiteBuilder": "Ouvrir le Site Builder",

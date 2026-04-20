@@ -49,6 +49,8 @@
     "outputPath": "Directory",
     "success": "Build completed successfully!",
     "error": "Build error",
+    "statusUnavailableTitle": "Pipeline status unavailable",
+    "statusUnavailable": "The publish status could not be loaded. Retry once the server is reachable.",
     "configurationRequiredTitle": "Site configuration required",
     "configurationRequired": "Configure the site in Site Builder before launching a generation.",
     "goToSiteBuilder": "Open Site Builder",
