@@ -81,12 +81,12 @@ Identified in ideation, not yet planned.
 - **Suggestion explainability layer** — attached evidence for every auto-suggestion (matched fields, confidence band, override paths)
 - **Transform provenance explorer** — dependency graph across import → transform → export
 - **Desktop v1.0** — iteration round after the GBIF submission
+- **Hosted Niamoto (exploratory)** — optional dynamic deployment to serve the Niamoto API (and, if needed, the generated pages) online. Scenarios being considered: self-hosted multi-instance portals, optional hosting on `niamoto.org` for users who want it, publication of static sites to `niamoto.org` with sync back to the local instance, and a reproducible self-host setup for teams that prefer their own infrastructure. Large scope, exploratory — the desktop app and static publication remain the primary path.
 
 ## Not planned
 
 These directions are not on the roadmap. Not hard "nevers", but not actively planned:
 
-- **Multi-tenant cloud hosting** — Niamoto stays local-first; the desktop app is the primary distribution channel.
 - **Native mobile app** — generated portals are responsive; no iOS/Android client planned.
 - **Real-time multi-user collaboration** — outside the "one analyst, one instance" model.
 - **Replacing DuckDB** — DuckDB remains the core engine.
