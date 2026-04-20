@@ -15,15 +15,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -32,17 +30,20 @@ jobs:
       - name: Regenerate plugin manifest
         run: python scripts/generate-plugin-manifest.py
 
-      - name: Commit manifest if changed
+      - name: Check manifest is up to date
+        # Branch protection on main blocks auto-commit from CI. So we fail loudly
+        # if a developer modified plugins without running the extractor locally.
+        # Run `python scripts/generate-plugin-manifest.py` and include the updated
+        # .marketing/plugins.json in your PR when you change plugin code or docstrings.
         run: |
           if ! git diff --quiet -- .marketing/plugins.json; then
-            git config user.name "niamoto-bot"
-            git config user.email "bot@niamoto.org"
-            git add .marketing/plugins.json
-            git commit -m "chore: regenerate .marketing/plugins.json [skip ci]"
-            git push
-          else
-            echo "Plugin manifest unchanged — skipping commit."
+            echo "::error::.marketing/plugins.json is out of sync with the plugin sources."
+            echo "Run: python scripts/generate-plugin-manifest.py"
+            echo "Then commit the updated .marketing/plugins.json."
+            git --no-pager diff --stat -- .marketing/plugins.json
+            exit 1
           fi
+          echo "Plugin manifest up to date."
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
