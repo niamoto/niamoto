@@ -42,7 +42,10 @@ export function getProjectNameValidationError(name: string): string | null {
     return 'trailing_dot_or_space'
   }
 
-  if ([...trimmed].some((char) => /[\u0000-\u001f\u007f]/.test(char))) {
+  if ([...trimmed].some((char) => {
+    const codePoint = char.codePointAt(0)
+    return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)
+  })) {
     return 'unsupported_characters'
   }
 

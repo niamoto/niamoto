@@ -66,7 +66,7 @@ export function DocumentationArticle({
       const target = document.getElementById(hash)
       target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
     })
-  }, [page.slug])
+  }, [page.page_type, page.slug])
 
   useEffect(() => {
     const container = articleRef.current

@@ -17,6 +17,16 @@ const FOREGROUND_RECHECK_DEBOUNCE_MS = 5000
 let inFlightConnectivityProbe: Promise<boolean> | null = null
 let lastConnectivityProbeAt = 0
 
+function getInitialConnectivityStatus(): Pick<
+  NetworkStatus,
+  'isOnline' | 'isInternetAvailable'
+> {
+  return {
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    isInternetAvailable: null,
+  }
+}
+
 export function applyConnectivityResult(
   status: NetworkStatus,
   online: boolean,
@@ -90,15 +100,14 @@ async function probeConnectivity(): Promise<boolean> {
  * that require internet (enrichment, deploy).
  */
 export function useNetworkStatus() {
-  const initialStatusRef = useRef<Pick<NetworkStatus, 'isOnline' | 'isInternetAvailable'>>({
-    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    isInternetAvailable: null,
-  })
-  const [status, setStatus] = useState<NetworkStatus>({
-    ...initialStatusRef.current,
+  const [shouldCheckOnMount] = useState(() =>
+    shouldCheckConnectivityOnMount(getInitialConnectivityStatus())
+  )
+  const [status, setStatus] = useState<NetworkStatus>(() => ({
+    ...getInitialConnectivityStatus(),
     isChecking: false,
     lastChecked: null,
-  })
+  }))
   const isMountedRef = useRef(true)
 
   // On-demand connectivity check via backend
@@ -117,6 +126,7 @@ export function useNetworkStatus() {
   // Listen to browser online/offline events
   useEffect(() => {
     isMountedRef.current = true
+    let mountProbeTimeoutId: number | null = null
 
     const handleOnline = () => {
       // Clear stale offline state immediately, then confirm via backend.
@@ -155,18 +165,23 @@ export function useNetworkStatus() {
     document.addEventListener('visibilitychange', handleForegroundResume)
 
     // Heal stale desktop/browser offline flags as soon as the hook mounts.
-    if (shouldCheckConnectivityOnMount(initialStatusRef.current)) {
-      void checkConnectivity()
+    if (shouldCheckOnMount) {
+      mountProbeTimeoutId = window.setTimeout(() => {
+        void checkConnectivity()
+      }, 0)
     }
 
     return () => {
       isMountedRef.current = false
+      if (mountProbeTimeoutId !== null) {
+        window.clearTimeout(mountProbeTimeoutId)
+      }
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       window.removeEventListener('focus', handleForegroundResume)
       document.removeEventListener('visibilitychange', handleForegroundResume)
     }
-  }, [checkConnectivity])
+  }, [checkConnectivity, shouldCheckOnMount])
 
   return {
     ...status,

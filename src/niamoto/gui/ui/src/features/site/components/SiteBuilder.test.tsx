@@ -8,8 +8,23 @@ import { SiteBuilder } from './SiteBuilder'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-const stateRef = {
-  value: null as any,
+type SiteBuilderStateMock = ReturnType<typeof buildState>
+
+interface MockWizardCompleteResult {
+  tree: Array<unknown>
+  pages: Array<{ name: string; template: string; output_file: string }>
+  footerSections: Array<unknown>
+  site: {
+    title: string
+    lang: string
+    languages: string[]
+    primary_color: string
+    nav_color: string
+  }
+}
+
+const stateRef: { value: SiteBuilderStateMock | null } = {
+  value: null,
 }
 
 vi.mock('react-i18next', () => ({
@@ -31,7 +46,7 @@ vi.mock('@/shared/hooks/useSiteConfig', () => ({
 }))
 
 vi.mock('./SiteSetupWizard', () => ({
-  SiteSetupWizard: (props: { onComplete: (result: any) => void }) => (
+  SiteSetupWizard: (props: { onComplete: (result: MockWizardCompleteResult) => void }) => (
     <div>
       <div>Site setup</div>
       <button
