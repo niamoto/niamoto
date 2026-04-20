@@ -1,0 +1,53 @@
+name: Marketing site sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/niamoto/core/plugins/**"
+      - "docs/0*/README.md"
+      - "ROADMAP.md"
+      - "CHANGELOG.md"
+      - "pyproject.toml"
+      - ".marketing/**"
+      - "scripts/generate-plugin-manifest.py"
+      - ".github/workflows/marketing-sync.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Regenerate plugin manifest
+        run: python scripts/generate-plugin-manifest.py
+
+      - name: Commit manifest if changed
+        run: |
+          if ! git diff --quiet -- .marketing/plugins.json; then
+            git config user.name "niamoto-bot"
+            git config user.email "bot@niamoto.org"
+            git add .marketing/plugins.json
+            git commit -m "chore: regenerate .marketing/plugins.json [skip ci]"
+            git push
+          else
+            echo "Plugin manifest unchanged — skipping commit."
+          fi
+
+      - name: Trigger niamoto-site rebuild
+        run: |
+          curl --fail -X GET "$COOLIFY_WEBHOOK" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN"
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
