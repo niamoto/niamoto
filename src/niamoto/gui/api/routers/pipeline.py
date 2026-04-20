@@ -121,6 +121,65 @@ def _has_valid_site_export_params(export_entry: dict) -> bool:
     return True
 
 
+def _normalize_output_alias(path: str | None) -> str:
+    return (path or "").strip().lstrip("/")
+
+
+def _navigation_has_url(items: list[dict], target: str) -> bool:
+    for item in items:
+        if item.get("url") == target:
+            return True
+        if _navigation_has_url(item.get("children", []) or [], target):
+            return True
+    return False
+
+
+def _footer_has_url(sections: list[dict], target: str) -> bool:
+    for section in sections:
+        for link in section.get("links", []) or []:
+            if link.get("url") == target:
+                return True
+    return False
+
+
+def _has_root_static_page(static_pages: list[dict]) -> bool:
+    return any(
+        _normalize_output_alias(str(page.get("output_file", ""))) == "index.html"
+        or page.get("template") == "index.html"
+        for page in static_pages
+    )
+
+
+def _is_legacy_placeholder_site(export_entry: dict) -> bool:
+    static_pages = export_entry.get("static_pages", []) or []
+    if len(static_pages) != 1:
+        return False
+
+    page = static_pages[0]
+    if str(page.get("name", "")).lower() != "home":
+        return False
+    if page.get("template") != "index.html":
+        return False
+    if _normalize_output_alias(str(page.get("output_file", ""))) != "index.html":
+        return False
+    if page.get("context"):
+        return False
+
+    params = export_entry.get("params", {}) or {}
+    navigation = params.get("navigation", []) or []
+    footer_navigation = params.get("footer_navigation", []) or []
+    return not _navigation_has_url(navigation, "/index.html") and not _footer_has_url(
+        footer_navigation, "/index.html"
+    )
+
+
+def _has_publishable_site(export_entry: dict) -> bool:
+    static_pages = export_entry.get("static_pages", []) or []
+    return _has_root_static_page(static_pages) and not _is_legacy_placeholder_site(
+        export_entry
+    )
+
+
 def _get_entities_last_updated() -> Optional[datetime]:
     """Query niamoto_metadata_entities for the most recent updated_at.
 
@@ -259,9 +318,11 @@ def _get_site_summary(work_dir: Path) -> Optional[dict]:
 
             return {
                 "title": title,
-                "page_count": len(static_pages)
-                if isinstance(static_pages, list)
-                else 0,
+                "page_count": (
+                    0
+                    if _is_legacy_placeholder_site(exp)
+                    else (len(static_pages) if isinstance(static_pages, list) else 0)
+                ),
                 "language_count": len(languages),
                 "languages": languages,
             }
@@ -507,7 +568,9 @@ async def get_pipeline_status(http_request: Request):
                     if exp.get("exporter") == "html_page_exporter" and exp.get(
                         "enabled", True
                     ):
-                        if _has_valid_site_export_params(exp):
+                        if _has_valid_site_export_params(exp) and _has_publishable_site(
+                            exp
+                        ):
                             site_configured = True
                             break
                         site_unconfigured = True
