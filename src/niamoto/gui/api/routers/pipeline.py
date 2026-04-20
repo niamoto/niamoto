@@ -145,7 +145,6 @@ def _footer_has_url(sections: list[dict], target: str) -> bool:
 def _has_root_static_page(static_pages: list[dict]) -> bool:
     return any(
         _normalize_output_alias(str(page.get("output_file", ""))) == "index.html"
-        or page.get("template") == "index.html"
         for page in static_pages
     )
 
