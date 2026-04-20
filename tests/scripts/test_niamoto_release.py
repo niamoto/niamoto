@@ -5,6 +5,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[2] / "scripts" / "build" / "niamoto_release.py"
@@ -115,3 +117,58 @@ def test_render_changelog_section_groups_entries_by_category() -> None:
     assert "### Documentation" in rendered
     assert "- Repair trigger fan-out" in rendered
     assert "- Rewrite release contract" in rendered
+
+
+def test_release_commit_files_include_lockfiles() -> None:
+    assert niamoto_release.RELEASE_COMMIT_FILES == [
+        *niamoto_release.VERSION_FILES,
+        "uv.lock",
+        "src-tauri/Cargo.lock",
+    ]
+
+
+def test_prepare_release_commit_refreshes_and_stages_lockfiles(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    changelog_path = tmp_path / "CHANGELOG.md"
+    recorded_steps: list[tuple[str, list[str], Path]] = []
+
+    monkeypatch.setattr(niamoto_release, "CHANGELOG_PATH", changelog_path)
+
+    def fake_run_step(
+        description: str, args: list[str], *, cwd: Path = niamoto_release.ROOT_DIR
+    ) -> None:
+        recorded_steps.append((description, args, cwd))
+
+    monkeypatch.setattr(niamoto_release, "run_step", fake_run_step)
+
+    niamoto_release.prepare_release_commit(
+        "0.15.8",
+        "## [v0.15.8] - 2026-04-20\n\n### Bug Fixes\n\n- Refresh release lockfiles\n",
+        "0.15.7",
+    )
+
+    assert changelog_path.read_text(encoding="utf-8").startswith("## [v0.15.8]")
+    assert [description for description, _, _ in recorded_steps] == [
+        "Version bump",
+        "Refresh uv.lock",
+        "Refresh Cargo.lock",
+        "Stage release files",
+        "Commit release",
+        "Create tag",
+    ]
+    assert recorded_steps[1] == (
+        "Refresh uv.lock",
+        ["uv", "lock"],
+        niamoto_release.ROOT_DIR,
+    )
+    assert recorded_steps[2] == (
+        "Refresh Cargo.lock",
+        ["cargo", "update", "--workspace", "--offline", "--quiet"],
+        niamoto_release.TAURI_DIR,
+    )
+    assert recorded_steps[3] == (
+        "Stage release files",
+        ["git", "add", *niamoto_release.RELEASE_COMMIT_FILES],
+        niamoto_release.ROOT_DIR,
+    )

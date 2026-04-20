@@ -177,7 +177,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           for _ in {1..30}; do
-            if gh release view "$TAG" >/dev/null 2>&1; then
+            if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
               exit 0
             fi
             sleep 10
@@ -192,6 +192,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           gh release upload "$TAG" \
+            --repo "${{ github.repository }}" \
             artifacts/niamoto-macos-arm64/*.tar.gz \
             artifacts/niamoto-linux-x86_64/*.tar.gz \
             artifacts/niamoto-linux-arm64/*.tar.gz \
