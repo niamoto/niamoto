@@ -664,11 +664,10 @@ class TestPreviewEndpoint:
 
 
 class TestConfigScaffoldSpatialReferences:
-    def test_scaffold_adds_default_home_page_to_web_export(self, test_work_dir):
+    def test_scaffold_keeps_web_export_without_default_home_page(self, test_work_dir):
         from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
 
         changed, _ = scaffold_configs(Path(test_work_dir))
-
         assert changed is True
 
         with open(
@@ -681,15 +680,7 @@ class TestConfigScaffoldSpatialReferences:
             for export in export_config.get("exports", [])
             if export.get("name") == "web_pages"
         )
-        assert web_export["params"]["template_dir"] == "templates/"
-        assert web_export["params"]["output_dir"] == "exports/web"
-        assert web_export["static_pages"] == [
-            {
-                "name": "home",
-                "template": "index.html",
-                "output_file": "index.html",
-            }
-        ]
+        assert web_export["static_pages"] == []
 
     def test_scaffold_uses_explicit_relation_for_hierarchical_reference(
         self, test_work_dir
