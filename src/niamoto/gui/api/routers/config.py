@@ -2375,6 +2375,7 @@ class SuggestedDisplayField(BaseModel):
 
     name: str
     source: str
+    fallback: Optional[str] = None
     type: str  # text, select, boolean, json_array
     label: str
     searchable: bool = False
@@ -2925,6 +2926,26 @@ def _get_suggestion_label(path: str, info: Dict[str, Any]) -> str:
     if info.get("synthetic_label"):
         return str(info["synthetic_label"])
     return _generate_label(path)
+
+
+def _pick_name_fallback_column(path: str, columns: List[str]) -> Optional[str]:
+    """Pick a flat fallback column for nested name-like paths."""
+    if not columns or "." not in path or not _is_name_field(path):
+        return None
+
+    leaf_name = _get_field_leaf_name(path).lower()
+    lowered = {column.lower(): column for column in columns}
+    candidates: List[str] = []
+    for candidate in [leaf_name, "full_name", "name", "label", "title"]:
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    for candidate in candidates:
+        resolved = lowered.get(candidate)
+        if resolved:
+            return resolved
+
+    return None
 
 
 def _is_name_field(path: str) -> bool:
@@ -4050,6 +4071,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
             field_name = _get_field_leaf_name(path)
             field_label = _get_suggestion_label(path, info)
+            fallback_name = _pick_name_fallback_column(path, source_columns)
             display_hint = None
             inline_badge = False
             link_label = None
@@ -4069,6 +4091,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             display_field = SuggestedDisplayField(
                 name=field_name,
                 source=path,
+                fallback=fallback_name,
                 type=field_type,
                 label=field_label,
                 searchable=is_searchable,

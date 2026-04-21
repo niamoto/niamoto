@@ -657,6 +657,11 @@ def test_index_suggestions_skip_low_value_widget_outputs_on_transformed_tables(
 
     payload = response.json()
     display_field_sources = {field["source"] for field in payload["display_fields"]}
+    name_field = next(
+        field
+        for field in payload["display_fields"]
+        if field["source"] == "general_info.name.value"
+    )
 
     assert "general_info.name.value" in display_field_sources
     assert "general_info.rank.value" in display_field_sources
@@ -664,6 +669,7 @@ def test_index_suggestions_skip_low_value_widget_outputs_on_transformed_tables(
     assert (
         "extra_data.api_enrichment.sources.api-endemia-nc.data" in display_field_sources
     )
+    assert name_field["fallback"] == "full_name"
 
     assert "distribution_map.type" not in display_field_sources
     assert "distribution_substrat.um" not in display_field_sources

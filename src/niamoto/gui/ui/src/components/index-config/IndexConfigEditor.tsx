@@ -100,6 +100,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     mutate: requestGroupIndexPreview,
     isPending: isPreviewPending,
   } = useGroupIndexPreview()
+  const needsSaveAttention = isDirty && !saving
 
   const loadPreview = useCallback(() => {
     if (!config.enabled) {
@@ -107,13 +108,22 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     }
 
     requestGroupIndexPreview(
-      { groupName: groupBy },
+      {
+        groupName: groupBy,
+        request: {
+          index_config: {
+            ...config,
+            filters: config.filters ?? [],
+            views: config.views ?? [{ type: 'grid', default: true }],
+          },
+        },
+      },
       {
         onSuccess: (data) => setPreviewHtml(data.html),
         onError: () => setPreviewHtml(null),
       }
     )
-  }, [config.enabled, groupBy, requestGroupIndexPreview])
+  }, [config, config.enabled, groupBy, requestGroupIndexPreview])
 
   // Load preview when enabled and showPreview is true
   useEffect(() => {
@@ -245,8 +255,12 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
           {config.enabled && (
             <>
               <Button
-                variant={showPreview ? 'default' : 'outline'}
+                variant="outline"
                 size="sm"
+                className={cn(
+                  showPreview &&
+                    'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                )}
                 onClick={() => {
                   setShowPreview(!showPreview)
                   if (!showPreview) {
@@ -263,17 +277,35 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                 onClick={handleAutoDetectClick}
                 disabled={detecting || saving}
               >
-                {detecting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('actions.detecting')}
-                  </>
-                ) : (
-                  <>
+                <span className="grid items-center">
+                  <span
+                    aria-hidden="true"
+                    className="invisible col-start-1 row-start-1 flex items-center"
+                  >
                     <Sparkles className="mr-2 h-4 w-4" />
                     {t('actions.autoDetect')}
-                  </>
-                )}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="invisible col-start-1 row-start-1 flex items-center"
+                  >
+                    <Loader2 className="mr-2 h-4 w-4" />
+                    {t('actions.detecting')}
+                  </span>
+                  <span className="col-start-1 row-start-1 flex items-center justify-center">
+                    {detecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t('actions.detecting')}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {t('actions.autoDetect')}
+                      </>
+                    )}
+                  </span>
+                </span>
               </Button>
             </>
           )}
@@ -290,18 +322,41 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             size="sm"
             onClick={handleSave}
             disabled={!isDirty || saving}
+            className={cn(
+              'relative',
+              needsSaveAttention &&
+                'animate-pulse bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 focus-visible:ring-amber-300'
+            )}
           >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {t('actions.saving')}
-              </>
-            ) : (
-              <>
+            <span className="grid items-center">
+              <span
+                aria-hidden="true"
+                className="invisible col-start-1 row-start-1 flex items-center"
+              >
                 <Save className="mr-2 h-4 w-4" />
                 {t('common:actions.save')}
-              </>
-            )}
+              </span>
+              <span
+                aria-hidden="true"
+                className="invisible col-start-1 row-start-1 flex items-center"
+              >
+                <Loader2 className="mr-2 h-4 w-4" />
+                {t('actions.saving')}
+              </span>
+              <span className="col-start-1 row-start-1 flex items-center justify-center">
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('actions.saving')}
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    {t('common:actions.save')}
+                  </>
+                )}
+              </span>
+            </span>
           </Button>
         </div>
       </div>

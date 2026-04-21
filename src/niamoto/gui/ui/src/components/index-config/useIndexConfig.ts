@@ -19,6 +19,7 @@ const API_BASE = '/api/config'
 export interface SuggestedDisplayField {
   name: string
   source: string
+  fallback?: string
   type: 'text' | 'select' | 'boolean' | 'json_array' | 'number'
   label: LocalizedString
   searchable: boolean
@@ -398,6 +399,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     const displayFields: IndexDisplayField[] = suggestions.display_fields.map(sf => ({
       name: sf.name,
       source: sf.source,
+      fallback: sf.fallback,
       type: sf.type === 'number' ? 'text' : sf.type,
       label: sf.label,
       searchable: sf.searchable,

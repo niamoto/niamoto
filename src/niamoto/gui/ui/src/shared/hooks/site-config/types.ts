@@ -212,6 +212,7 @@ export interface GroupIndexPreviewRequest {
   site?: Record<string, unknown>
   navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
   gui_lang?: string
+  index_config?: GroupIndexConfig
 }
 
 export interface FileContentResponse {
