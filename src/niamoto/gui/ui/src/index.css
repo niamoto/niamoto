@@ -305,6 +305,12 @@
   transform: scale(0.98);
 }
 
+/* Prevent text jitter on compact inline action buttons. */
+.btn-interactive-stable:hover:not(:disabled),
+.btn-interactive-stable:active:not(:disabled) {
+  transform: none;
+}
+
 /* ============================================
    NATIVE DESKTOP FEEL
    ============================================ */
