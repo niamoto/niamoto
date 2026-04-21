@@ -33,6 +33,8 @@ interface AddExportWizardProps {
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9_]{2,30}$/
+const selectionCardClassName =
+  'flex w-full items-center gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-border/80 hover:bg-muted/50'
 
 /** Stepper indicator */
 function Stepper({ step }: { step: WizardStep }) {
@@ -212,7 +214,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                     <button
                       key={target.name}
                       type="button"
-                      className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+                      className={selectionCardClassName}
                       onClick={() => handleSelectExisting(target)}
                     >
                       <Zap className="h-5 w-5 shrink-0 text-amber-500" />
@@ -236,7 +238,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
               <div className="space-y-2">
                 <button
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+                  className={selectionCardClassName}
                   onClick={() => handleSelectTemplate('simple')}
                 >
                   <FileJson className="h-5 w-5 shrink-0 text-blue-500" />
@@ -251,7 +253,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                 </button>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+                  className={selectionCardClassName}
                   onClick={() => handleSelectTemplate('dwc')}
                 >
                   <Leaf className="h-5 w-5 shrink-0 text-green-600" />
@@ -282,11 +284,16 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                 }}
                 placeholder={t('collectionPanel.api.wizard.targetNamePlaceholder')}
                 autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
               {nameError && <p className="text-xs text-destructive">{nameError}</p>}
-              <p className="text-xs text-muted-foreground">
-                {t('collectionPanel.api.wizard.targetNameHelp')}
-              </p>
+              {!nameError && (
+                <p className="text-xs text-muted-foreground">
+                  {t('collectionPanel.api.wizard.targetNameHelp')}
+                </p>
+              )}
             </div>
 
             {selectedTemplate === 'dwc' && (
