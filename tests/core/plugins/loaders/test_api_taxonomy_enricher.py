@@ -88,6 +88,88 @@ def test_load_data_success_no_auth(
     assert history[0].url == f"{api_url}?format=json&q=Test+species"
 
 
+def test_load_data_preserves_mapped_image_arrays(
+    enricher: ApiTaxonomyEnricher, requests_mock: requests_mock.Mocker
+):
+    """Flat response_mapping should preserve list fields such as Endemia images."""
+
+    taxon_data = {
+        "id": 1,
+        "full_name": "Abebaia dissecta",
+        "rank": "species",
+        "metadata": {},
+    }
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.endemia.nc/v1/taxons",
+            "query_params": {
+                "section": "flore",
+                "maxitem": "1",
+                "excludes": "meta,links",
+                "includes": "images",
+            },
+            "query_field": "full_name",
+            "response_mapping": {
+                "images": "images",
+                "image_small_thumb": "image.small_thumb",
+                "image_big_thumb": "image.big_thumb",
+            },
+            "rate_limit": 10.0,
+            "cache_results": False,
+            "auth_method": "none",
+        },
+    }
+
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+    api_url = valid_config["params"]["api_url"]
+    expected_query = taxon_data["full_name"]
+    mock_response_data = {
+        "data": [
+            {
+                "id": 9314,
+                "full_name": "Abebaia dissecta",
+                "image": {
+                    "small_thumb": "https://img.example/small.jpg",
+                    "big_thumb": "https://img.example/big.jpg",
+                },
+                "images": [
+                    {
+                        "url": "https://img.example/a.jpg",
+                        "small_thumb": "https://img.example/a-small.jpg",
+                        "big_thumb": "https://img.example/a-big.jpg",
+                    },
+                    {
+                        "url": "https://img.example/b.jpg",
+                        "small_thumb": "https://img.example/b-small.jpg",
+                        "big_thumb": "https://img.example/b-big.jpg",
+                    },
+                ],
+            }
+        ]
+    }
+    requests_mock.get(
+        f"{api_url}?section=flore&maxitem=1&excludes=meta%2Clinks&includes=images&q={expected_query.replace(' ', '+')}",
+        json=mock_response_data,
+    )
+
+    enriched_data = enricher.load_data(taxon_data, valid_config)
+
+    assert (
+        enriched_data["api_enrichment"]["image_small_thumb"]
+        == "https://img.example/small.jpg"
+    )
+    assert (
+        enriched_data["api_enrichment"]["image_big_thumb"]
+        == "https://img.example/big.jpg"
+    )
+    assert (
+        enriched_data["api_enrichment"]["images"]
+        == mock_response_data["data"][0]["images"]
+    )
+
+
 # --- Config Validation Tests ---
 
 

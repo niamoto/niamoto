@@ -24,6 +24,8 @@ import {
   type ReferenceEnrichmentConfig,
 } from '../components/enrichment/enrichmentSources'
 
+const RESULTS_PAGE_SIZE = 20
+
 // ---------------------------------------------------------------------------
 // Interfaces (re-exported for consumers)
 // ---------------------------------------------------------------------------
@@ -71,6 +73,9 @@ export interface EnrichmentJob {
   processed: number
   successful: number
   failed: number
+  already_completed?: number
+  pending_total?: number
+  pending_processed?: number
   started_at: string
   updated_at: string
   source_ids: string[]
@@ -80,6 +85,9 @@ export interface EnrichmentJob {
   current_source_label?: string | null
   current_source_processed?: number
   current_source_total?: number
+  current_source_already_completed?: number
+  current_source_pending_total?: number
+  current_source_pending_processed?: number
   error?: string | null
   current_entity?: string | null
 }
@@ -111,6 +119,13 @@ export interface PreviewResponse {
   entity_name: string
   results: PreviewSourceResult[]
   error?: string
+}
+
+interface ResultsResponse {
+  results: EnrichmentResult[]
+  total: number
+  page: number
+  limit: number
 }
 
 export interface EntityOption {
@@ -172,6 +187,15 @@ export interface SourceProgress {
   percentage: number
 }
 
+export interface JobRunProgress {
+  total: number
+  processed: number
+  percentage: number
+  alreadyCompleted: number
+}
+
+export type FeatureAvailability = 'unknown' | 'checking' | 'available' | 'unavailable'
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -184,12 +208,18 @@ export function useEnrichmentState({
   onConfigSaved,
 }: UseEnrichmentStateOptions) {
   const { t } = useTranslation(['sources', 'common'])
-  const { isOffline } = useNetworkStatus()
+  const { checkConnectivity } = useNetworkStatus()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const previewRequestRef = useRef(0)
   const previewSourceSignatureRef = useRef<string | null>(null)
   const entitiesPreloadedRef = useRef(false)
   const resultsPreloadedRef = useRef(false)
+  const pollingResultsSignatureRef = useRef<string | null>(null)
+  const silentResultsRefreshRef = useRef(false)
+  const resultsRequestRef = useRef(0)
+  const resultsLoadingRef = useRef(false)
+  const resultsPageRef = useRef(0)
+  const connectivityCheckRequestRef = useRef(0)
   const workspaceSectionRef = useRef<HTMLDivElement | null>(null)
 
   // -- Config state ---------------------------------------------------------
@@ -206,6 +236,9 @@ export function useEnrichmentState({
   const [job, setJob] = useState<EnrichmentJob | null>(null)
   const [results, setResults] = useState<EnrichmentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
+  const [resultsLoadingMore, setResultsLoadingMore] = useState(false)
+  const [resultsTotal, setResultsTotal] = useState(0)
+  const [resultsPage, setResultsPage] = useState(0)
 
   // -- Entities / Preview ---------------------------------------------------
   const [entities, setEntities] = useState<EntityOption[]>([])
@@ -225,6 +258,7 @@ export function useEnrichmentState({
   const [previewResultMode, setPreviewResultMode] = useState<'mapped' | 'raw'>('mapped')
   const [jobLoadingScope, setJobLoadingScope] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [enrichmentAvailability, setEnrichmentAvailability] = useState<FeatureAvailability>('unknown')
 
   // -- Derived state --------------------------------------------------------
   const isSpatialReference = useMemo(() => referenceHasGeometry(referenceConfig), [referenceConfig])
@@ -272,6 +306,31 @@ export function useEnrichmentState({
     })
   }, [activeSource, mode, quickSelectedSource])
   const recentResults = useMemo(() => results.slice(0, 6), [results])
+  const resultsHasMore = results.length < resultsTotal
+
+  useEffect(() => {
+    resultsLoadingRef.current = resultsLoading
+  }, [resultsLoading])
+
+  useEffect(() => {
+    resultsPageRef.current = resultsPage
+  }, [resultsPage])
+
+  const setAvailabilityState = useCallback((next: FeatureAvailability) => {
+    connectivityCheckRequestRef.current += 1
+    setEnrichmentAvailability(next)
+  }, [])
+
+  const verifyEnrichmentConnectivity = useCallback(async () => {
+    const requestId = ++connectivityCheckRequestRef.current
+    setEnrichmentAvailability('checking')
+    const online = await checkConnectivity()
+    if (connectivityCheckRequestRef.current !== requestId) {
+      return online
+    }
+    setEnrichmentAvailability(online ? 'available' : 'unavailable')
+    return online
+  }, [checkConnectivity])
 
   // -- Data loaders ---------------------------------------------------------
 
@@ -341,20 +400,99 @@ export function useEnrichmentState({
     }
   }, [referenceName])
 
-  const loadResults = useCallback(async () => {
-    setResultsLoading(true)
+  const loadResults = useCallback(async ({
+    page = 0,
+    append = false,
+    showLoader = true,
+    sourceId,
+  }: {
+    page?: number
+    append?: boolean
+    showLoader?: boolean
+    sourceId?: string
+  } = {}) => {
+    if (
+      !showLoader &&
+      (resultsLoadingRef.current ||
+        silentResultsRefreshRef.current ||
+        resultsPageRef.current > 0)
+    ) {
+      return
+    }
+
+    const requestId = ++resultsRequestRef.current
+
+    if (append) {
+      setResultsLoadingMore(true)
+    } else if (showLoader) {
+      resultsLoadingRef.current = true
+      setResultsLoading(true)
+    } else {
+      silentResultsRefreshRef.current = true
+    }
+
     try {
-      const response = await apiClient.get(`/enrichment/results/${referenceName}`, {
-        params: { limit: 100 },
+      const response = await apiClient.get<ResultsResponse>(`/enrichment/results/${referenceName}`, {
+        params: {
+          limit: RESULTS_PAGE_SIZE,
+          page,
+          source_id: sourceId,
+        },
       })
-      setResults(response.data.results || [])
+      if (requestId !== resultsRequestRef.current) {
+        return
+      }
+
+      const nextResults = response.data.results || []
+      setResults((previous) => {
+        if (!append) {
+          return nextResults
+        }
+
+        const existingKeys = new Set(
+          previous.map((result) => `${result.source_id}:${getResultEntityName(result)}:${result.processed_at}`)
+        )
+        const deduped = nextResults.filter(
+          (result) => !existingKeys.has(`${result.source_id}:${getResultEntityName(result)}:${result.processed_at}`)
+        )
+        return [...previous, ...deduped]
+      })
+      setResultsTotal(response.data.total || 0)
+      resultsPageRef.current = response.data.page || 0
+      setResultsPage(response.data.page || 0)
     } catch (err) {
       console.error('Failed to load results:', err)
-      setResults([])
+      if (!append && showLoader) {
+        setResults([])
+        setResultsTotal(0)
+        resultsPageRef.current = 0
+        setResultsPage(0)
+      }
     } finally {
-      setResultsLoading(false)
+      if (append) {
+        setResultsLoadingMore(false)
+      } else if (showLoader) {
+        resultsLoadingRef.current = false
+        setResultsLoading(false)
+      } else {
+        silentResultsRefreshRef.current = false
+      }
     }
   }, [referenceName])
+
+  const loadMoreResults = useCallback(async () => {
+    if (resultsLoading || resultsLoadingMore || !resultsHasMore) {
+      return
+    }
+
+    const scopedSourceId = mode === 'workspace' ? activeSource?.id ?? undefined : undefined
+    await loadResults({
+      page: resultsPage + 1,
+      append: true,
+      showLoader: false,
+      sourceId: scopedSourceId,
+    })
+  }, [activeSource?.id, loadResults, mode, resultsHasMore, resultsLoading, resultsLoadingMore, resultsPage])
 
   const loadEntities = useCallback(async (search = '') => {
     setEntitiesLoading(true)
@@ -388,11 +526,30 @@ export function useEnrichmentState({
       await loadStats()
 
       if (!jobData || ['completed', 'failed', 'cancelled'].includes(jobData.status)) {
+        pollingResultsSignatureRef.current = null
         stopPolling()
-        void loadResults()
+        void loadResults({
+          sourceId: mode === 'workspace' ? activeSource?.id ?? undefined : undefined,
+        })
+        return
+      }
+
+      const nextResultsSignature = [
+        jobData.id,
+        jobData.status,
+        jobData.processed,
+        jobData.failed,
+      ].join(':')
+
+      if (nextResultsSignature !== pollingResultsSignatureRef.current) {
+        pollingResultsSignatureRef.current = nextResultsSignature
+        void loadResults({
+          showLoader: false,
+          sourceId: mode === 'workspace' ? activeSource?.id ?? undefined : undefined,
+        })
       }
     }, 1000)
-  }, [loadJobStatus, loadResults, loadStats, stopPolling])
+  }, [activeSource?.id, loadJobStatus, loadResults, loadStats, mode, stopPolling])
 
   // -- Effects --------------------------------------------------------------
 
@@ -402,7 +559,16 @@ export function useEnrichmentState({
     setWorkspacePane('config')
     entitiesPreloadedRef.current = false
     resultsPreloadedRef.current = false
-  }, [referenceName, hasEnrichment])
+    pollingResultsSignatureRef.current = null
+    silentResultsRefreshRef.current = false
+    resultsRequestRef.current = 0
+    resultsLoadingRef.current = false
+    resultsPageRef.current = 0
+    setResults([])
+    setResultsTotal(0)
+    setResultsPage(0)
+    setAvailabilityState('unknown')
+  }, [hasEnrichment, referenceName, setAvailabilityState])
 
   useEffect(() => {
     setPendingInitialSourceId(initialSourceId)
@@ -457,6 +623,12 @@ export function useEnrichmentState({
       setStats(null)
       setJob(null)
       setResults([])
+      setResultsTotal(0)
+      resultsPageRef.current = 0
+      setResultsPage(0)
+      pollingResultsSignatureRef.current = null
+      silentResultsRefreshRef.current = false
+      setAvailabilityState('unknown')
       return
     }
 
@@ -468,7 +640,7 @@ export function useEnrichmentState({
     })
 
     return () => stopPolling()
-  }, [effectiveHasEnrichment, loadJobStatus, loadStats, referenceName, startPolling, stopPolling])
+  }, [effectiveHasEnrichment, loadJobStatus, loadStats, referenceName, setAvailabilityState, startPolling, stopPolling])
 
   useEffect(() => {
     if (mode === 'quick') {
@@ -476,30 +648,35 @@ export function useEnrichmentState({
         resultsPreloadedRef.current = true
         void loadResults()
       }
-      if (canLoadEntities && !entitiesPreloadedRef.current && !entitiesLoading) {
-        entitiesPreloadedRef.current = true
-        void loadEntities()
-      }
       return
     }
 
-    if (effectiveHasEnrichment && !resultsPreloadedRef.current) {
-      resultsPreloadedRef.current = true
-      void loadResults()
+    if (effectiveHasEnrichment && activeSource?.id) {
+      void loadResults({ sourceId: activeSource.id })
     }
+  }, [activeSource?.id, effectiveHasEnrichment, loadResults, mode])
 
+  useEffect(() => {
     if (canLoadEntities && !entitiesPreloadedRef.current && !entitiesLoading) {
       entitiesPreloadedRef.current = true
       void loadEntities()
     }
-  }, [
-    canLoadEntities,
-    effectiveHasEnrichment,
-    entitiesLoading,
-    loadEntities,
-    loadResults,
-    mode,
-  ])
+  }, [canLoadEntities, entitiesLoading, loadEntities])
+
+  useEffect(() => {
+    if (!effectiveHasEnrichment) {
+      return
+    }
+
+    if (job?.status === 'paused_offline') {
+      setAvailabilityState('unavailable')
+      return
+    }
+
+    if (job?.status === 'running') {
+      setAvailabilityState('available')
+    }
+  }, [effectiveHasEnrichment, job?.status, setAvailabilityState])
 
   // -- Source manipulation --------------------------------------------------
 
@@ -687,12 +864,12 @@ export function useEnrichmentState({
   }, [referenceName, t])
 
   const startGlobalJob = useCallback(async () => {
-    if (isOffline) return
-
     setJobLoadingScope('all')
+    void verifyEnrichmentConnectivity()
     try {
       const response = await apiClient.post<EnrichmentJob>(`/enrichment/start/${referenceName}`)
       setJob(response.data)
+      setAvailabilityState('available')
       startPolling()
       trackStartedJob(response.data, stats?.pending ?? 0)
       toast.success(t('enrichmentTab.toasts.startedTitle'), {
@@ -708,16 +885,16 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [isOffline, referenceName, startPolling, stats?.pending, t, trackStartedJob])
+  }, [referenceName, setAvailabilityState, startPolling, stats?.pending, t, trackStartedJob, verifyEnrichmentConnectivity])
 
   const startSourceJob = useCallback(async (sourceId: string) => {
-    if (isOffline) return
-
     const sourceStats = stats?.sources.find((source) => source.source_id === sourceId)
     setJobLoadingScope(sourceId)
+    void verifyEnrichmentConnectivity()
     try {
       const response = await apiClient.post<EnrichmentJob>(`/enrichment/start/${referenceName}/${sourceId}`)
       setJob(response.data)
+      setAvailabilityState('available')
       startPolling()
       trackStartedJob(response.data, sourceStats?.pending ?? 0)
       toast.success(t('enrichmentTab.toasts.startedTitle'), {
@@ -733,7 +910,7 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [isOffline, referenceName, startPolling, stats?.sources, t, trackStartedJob])
+  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob, verifyEnrichmentConnectivity])
 
   const pauseJob = useCallback(async (sourceId?: string) => {
     setJobLoadingScope(sourceId ?? 'all')
@@ -757,15 +934,15 @@ export function useEnrichmentState({
   }, [loadJobStatus, referenceName, t])
 
   const resumeJob = useCallback(async (sourceId?: string) => {
-    if (isOffline) return
-
     setJobLoadingScope(sourceId ?? 'all')
+    void verifyEnrichmentConnectivity()
     try {
       const path = sourceId
         ? `/enrichment/resume/${referenceName}/${sourceId}`
         : `/enrichment/resume/${referenceName}`
       await apiClient.post(path)
       await loadJobStatus()
+      setAvailabilityState('available')
       startPolling()
       toast.success(t('enrichmentTab.toasts.resumedTitle'), {
         description: t('enrichmentTab.toasts.resumedDescription'),
@@ -778,7 +955,7 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [isOffline, loadJobStatus, referenceName, startPolling, t])
+  }, [loadJobStatus, referenceName, setAvailabilityState, startPolling, t, verifyEnrichmentConnectivity])
 
   const cancelJob = useCallback(async (sourceId?: string) => {
     setJobLoadingScope(sourceId ?? 'all')
@@ -790,9 +967,13 @@ export function useEnrichmentState({
       await loadJobStatus()
       stopPolling()
       await loadStats()
+      const currentRunProcessed = Math.max(
+        job?.pending_processed ?? Math.max((job?.processed ?? 0) - (job?.already_completed ?? 0), 0),
+        0
+      )
       toast.warning(t('enrichmentTab.toasts.cancelledTitle'), {
         description: t('enrichmentTab.toasts.cancelledDescription', {
-          count: job?.processed ?? 0,
+          count: currentRunProcessed,
         }),
       })
     } catch (err: unknown) {
@@ -803,7 +984,7 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [job?.processed, loadJobStatus, loadStats, referenceName, stopPolling, t])
+  }, [job?.already_completed, job?.pending_processed, job?.processed, loadJobStatus, loadStats, referenceName, stopPolling, t])
 
   // -- Refresh / Preview ----------------------------------------------------
 
@@ -813,13 +994,17 @@ export function useEnrichmentState({
       await Promise.all([
         loadStats(),
         loadJobStatus(),
-        effectiveHasEnrichment ? loadResults() : Promise.resolve(),
+        effectiveHasEnrichment
+          ? loadResults({
+              sourceId: mode === 'workspace' ? activeSource?.id ?? undefined : undefined,
+            })
+          : Promise.resolve(),
         canLoadEntities ? loadEntities(entitySearch) : Promise.resolve(),
       ])
     } finally {
       setIsRefreshing(false)
     }
-  }, [canLoadEntities, effectiveHasEnrichment, entitySearch, loadEntities, loadJobStatus, loadResults, loadStats])
+  }, [activeSource?.id, canLoadEntities, effectiveHasEnrichment, entitySearch, loadEntities, loadJobStatus, loadResults, loadStats, mode])
 
   // Preview-related effects
   useEffect(() => {
@@ -896,6 +1081,7 @@ export function useEnrichmentState({
       }
       setPreviewQuery(query)
       setPreviewData(response.data)
+      setAvailabilityState('available')
     } catch (err: unknown) {
       if (requestId !== previewRequestRef.current) {
         return
@@ -903,32 +1089,46 @@ export function useEnrichmentState({
       setPreviewError(getApiErrorMessage(err, t('enrichmentTab.errors.preview')))
     } finally {
       if (requestId === previewRequestRef.current) {
-        setPreviewLoading(false)
+      setPreviewLoading(false)
       }
     }
-  }, [previewQuery, previewScope, referenceName, sources, t])
+  }, [previewQuery, previewScope, referenceName, setAvailabilityState, sources, t])
 
   // -- Derived variables (job-related) --------------------------------------
 
   const runningSingleSourceId = job?.mode === 'single' ? job.source_id ?? undefined : undefined
 
-  const getSourceProgress = useCallback((sourceId: string, srcStats: EnrichmentSourceStats | undefined): SourceProgress => {
-    if (job && job.current_source_id === sourceId) {
-      const total = job.current_source_total ?? srcStats?.total ?? 0
-      const processed = job.current_source_processed ?? 0
-      const percentage = total > 0 ? (processed / total) * 100 : 0
-      return { total, processed, percentage }
-    }
-
+  const getSourceProgress = useCallback((_sourceId: string, srcStats: EnrichmentSourceStats | undefined): SourceProgress => {
     const total = srcStats?.total ?? 0
     const processed = srcStats?.enriched ?? 0
     const percentage = total > 0 ? (processed / total) * 100 : 0
     return { total, processed, percentage }
-  }, [job])
+  }, [])
+
+  const getJobRunProgress = useCallback((jobData: EnrichmentJob | null | undefined): JobRunProgress | null => {
+    if (!jobData) {
+      return null
+    }
+
+    const total = Math.max(jobData.pending_total ?? Math.max(jobData.total - (jobData.already_completed ?? 0), 0), 0)
+    const processed = Math.min(
+      Math.max(jobData.pending_processed ?? Math.max(jobData.processed - (jobData.already_completed ?? 0), 0), 0),
+      total
+    )
+    const percentage = total > 0 ? (processed / total) * 100 : 0
+
+    return {
+      total,
+      processed,
+      percentage,
+      alreadyCompleted: Math.max(jobData.already_completed ?? Math.max(jobData.processed - processed, 0), 0),
+    }
+  }, [])
 
   const activeSourceProgress = activeSource
     ? getSourceProgress(activeSource.id, activeSourceStats)
     : null
+  const jobRunProgress = getJobRunProgress(job)
   const activeSourceIndex = activeSource
     ? sources.findIndex((source) => source.id === activeSource.id)
     : -1
@@ -963,12 +1163,16 @@ export function useEnrichmentState({
     // Job
     job,
     jobLoadingScope,
+    jobRunProgress,
     isTerminalJob,
     runningSingleSourceId,
 
     // Results
     results,
     resultsLoading,
+    resultsLoadingMore,
+    resultsTotal,
+    resultsHasMore,
     recentResults,
 
     // Entities
@@ -1014,7 +1218,7 @@ export function useEnrichmentState({
     apiCategory,
 
     // Network
-    isOffline,
+    enrichmentAvailability,
 
     // Actions
     addSource,
@@ -1033,6 +1237,7 @@ export function useEnrichmentState({
     resumeJob,
     cancelJob,
     handleRefresh,
+    loadMoreResults,
     previewEnrichment,
     resetPreviewState,
     loadEntities,

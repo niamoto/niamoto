@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -23,6 +23,9 @@ interface EnrichmentJobSummary {
   status: 'pending' | 'running' | 'paused' | 'paused_offline' | 'completed' | 'failed' | 'cancelled'
   total: number
   processed: number
+  already_completed?: number
+  pending_total?: number
+  pending_processed?: number
   current_entity?: string
   current_source_label?: string
 }
@@ -45,6 +48,21 @@ interface EnrichmentStatsSummary {
 
 const EMPTY_REFERENCES: ReferenceInfo[] = []
 
+function getJobRunProgress(job: EnrichmentJobSummary | null | undefined) {
+  if (!job) {
+    return null
+  }
+
+  const total = Math.max(job.pending_total ?? Math.max(job.total - (job.already_completed ?? 0), 0), 0)
+  const processed = Math.min(
+    Math.max(job.pending_processed ?? Math.max(job.processed - (job.already_completed ?? 0), 0), 0),
+    total
+  )
+  const percentage = total > 0 ? (processed / total) * 100 : 0
+
+  return { total, processed, percentage }
+}
+
 export function EnrichmentView() {
   const { t } = useTranslation('sources')
   const navigate = useNavigate()
@@ -56,6 +74,10 @@ export function EnrichmentView() {
   const [jobsByReference, setJobsByReference] = useState<Record<string, EnrichmentJobSummary | null>>({})
   const [statsByReference, setStatsByReference] = useState<Record<string, EnrichmentStatsSummary>>({})
   const [progressLoadingByReference, setProgressLoadingByReference] = useState<Record<string, boolean>>({})
+  const trackedJobs = useNotificationStore((state) => state.trackedJobs)
+  const jobsByReferenceRef = useRef<Record<string, EnrichmentJobSummary | null>>({})
+  const statsByReferenceRef = useRef<Record<string, EnrichmentStatsSummary>>({})
+  const trackedJobsRef = useRef(trackedJobs)
 
   const references = useMemo(() => referencesData?.references ?? EMPTY_REFERENCES, [referencesData?.references])
   const enrichableReferences = useMemo(
@@ -66,6 +88,18 @@ export function EnrichmentView() {
     () => enrichableReferences.filter((reference) => reference.enrichment_enabled),
     [enrichableReferences]
   )
+
+  useEffect(() => {
+    jobsByReferenceRef.current = jobsByReference
+  }, [jobsByReference])
+
+  useEffect(() => {
+    statsByReferenceRef.current = statsByReference
+  }, [statsByReference])
+
+  useEffect(() => {
+    trackedJobsRef.current = trackedJobs
+  }, [trackedJobs])
 
   const entityRows = new Map(summary?.entities.map((entity) => [entity.name, entity]) ?? [])
 
@@ -95,27 +129,54 @@ export function EnrichmentView() {
     let isCancelled = false
 
     const loadProgress = async () => {
+      const activeTrackedJobsByReference = new Map(
+        trackedJobsRef.current
+          .filter((job) => job.jobType === 'enrichment' && job.meta?.referenceName)
+          .map((job) => [job.meta?.referenceName as string, job])
+      )
+
       const updates = await Promise.all(
         configuredReferences.map(async (reference) => {
-          const [statsResult, jobResult] = await Promise.allSettled([
-            apiClient.get<EnrichmentStatsSummary>(`/enrichment/stats/${reference.name}`),
-            apiClient.get<EnrichmentJobSummary>(`/enrichment/job/${reference.name}`),
-          ])
+          try {
+            const statsResult = await apiClient.get<EnrichmentStatsSummary>(`/enrichment/stats/${reference.name}`)
 
-          const stats =
-            statsResult.status === 'fulfilled'
-              ? statsResult.value.data
-              : { total: 0, enriched: 0, pending: 0, sources: [] }
+            const knownJob = jobsByReferenceRef.current[reference.name]
+            const shouldPollJob =
+              Boolean(activeTrackedJobsByReference.get(reference.name)) ||
+              (knownJob !== null &&
+                knownJob !== undefined &&
+                !['completed', 'failed', 'cancelled'].includes(knownJob.status))
 
-          const job =
-            jobResult.status === 'fulfilled'
-              ? jobResult.value.data
+            const jobResult = shouldPollJob
+              ? await apiClient.get<EnrichmentJobSummary>(`/enrichment/job/${reference.name}`).catch((error: unknown) => {
+                  const isNotFound =
+                    typeof error === 'object' &&
+                    error !== null &&
+                    'response' in error &&
+                    typeof error.response === 'object' &&
+                    error.response !== null &&
+                    'status' in error.response &&
+                    error.response.status === 404
+
+                  if (isNotFound) {
+                    return null
+                  }
+
+                  throw error
+                })
               : null
 
-          return {
-            referenceName: reference.name,
-            stats,
-            job,
+            return {
+              referenceName: reference.name,
+              stats: statsResult.data ?? { total: 0, enriched: 0, pending: 0, sources: [] },
+              job: jobResult?.data ?? null,
+            }
+          } catch {
+            return {
+              referenceName: reference.name,
+              stats: statsByReferenceRef.current[reference.name] ?? { total: 0, enriched: 0, pending: 0, sources: [] },
+              job: jobsByReferenceRef.current[reference.name] ?? null,
+            }
           }
         })
       )
@@ -296,13 +357,14 @@ export function EnrichmentView() {
               const job = jobsByReference[reference.name]
               const stats = statsByReference[reference.name]
               const progressLoading = progressLoadingByReference[reference.name] ?? false
-              const currentProgress = job
-                ? (job.total > 0 ? (job.processed / job.total) * 100 : 0)
+              const jobRunProgress = getJobRunProgress(job)
+              const currentProgress = jobRunProgress
+                ? jobRunProgress.percentage
                 : stats && stats.total > 0
                   ? (stats.enriched / stats.total) * 100
                   : 0
-              const progressLabel = job
-                ? `${job.processed.toLocaleString()} / ${job.total.toLocaleString()} (${Math.round(currentProgress)}%)`
+              const progressLabel = jobRunProgress
+                ? `${t('enrichmentTab.runtime.runProgress')}: ${jobRunProgress.processed.toLocaleString()} / ${jobRunProgress.total.toLocaleString()} (${Math.round(currentProgress)}%)`
                 : stats
                   ? `${stats.enriched.toLocaleString()} / ${stats.total.toLocaleString()}`
                   : '-'

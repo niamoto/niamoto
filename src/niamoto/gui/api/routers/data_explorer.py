@@ -434,7 +434,7 @@ async def list_tables():
         )
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             table_names = db.get_table_names()
 
             tables = []
@@ -482,7 +482,7 @@ async def query_table(request: QueryRequest):
         )
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             if request.table not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Table '{request.table}' not found"
@@ -581,7 +581,7 @@ async def get_table_columns_endpoint(table_name: str):
         )
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             if table_name not in db.get_table_names():
                 raise HTTPException(
                     status_code=404, detail=f"Table '{table_name}' not found"

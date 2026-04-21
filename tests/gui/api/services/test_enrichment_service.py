@@ -402,7 +402,7 @@ def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     monkeypatch.setattr(
         enrichment_service,
         "_load_reference_rows",
-        lambda _reference_name: [
+        lambda _reference_name, columns=None, require_extra_data=False: [
             {
                 "id": 1,
                 "full_name": "Araucaria columnaris",
@@ -447,6 +447,268 @@ def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     assert results.results[0].entity_name == "Araucaria columnaris"
     assert results.results[0].data == {"api_id": 42}
     assert results.results[0].success is True
+
+
+def test_get_results_projects_only_display_columns_and_extra_data(monkeypatch):
+    """Persisted result reconstruction should avoid selecting full reference rows."""
+
+    captured: dict[str, object] = {}
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        return [
+            {
+                "plot": "Forêt Nord",
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "open-meteo": {
+                                "label": "Open-Meteo",
+                                "data": {"elevation": 812},
+                                "enriched_at": "2026-04-21T18:30:00",
+                                "status": "completed",
+                            }
+                        }
+                    }
+                },
+            }
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {"schema": {"name_field": "plot"}},
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="open-meteo",
+                    label="Open-Meteo",
+                    enabled=True,
+                    api_url="https://api.open-meteo.com/v1/elevation",
+                )
+            ],
+        ),
+    )
+
+    results = enrichment_service.get_results(reference_name="plots")
+
+    assert results.total == 1
+    assert captured == {
+        "reference_name": "plots",
+        "columns": ["plot", "full_name", "name", "label", "title", "id", "extra_data"],
+        "require_extra_data": True,
+    }
+
+
+def test_get_results_filters_by_source_id(monkeypatch):
+    """Results listing should support scoping the history to one source."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_rows",
+        lambda _reference_name, columns=None, require_extra_data=False: [
+            {
+                "full_name": "Araucaria columnaris",
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "label": "Endemia",
+                                "data": {"api_id": 42},
+                                "enriched_at": "2026-04-09T10:00:00",
+                                "status": "completed",
+                            },
+                            "gbif": {
+                                "label": "GBIF",
+                                "data": {"usage_key": 99},
+                                "enriched_at": "2026-04-09T11:00:00",
+                                "status": "completed",
+                            },
+                        }
+                    }
+                },
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="endemia",
+                    label="Endemia",
+                    enabled=True,
+                    api_url="https://api.endemia.nc/v1/taxons",
+                ),
+                enrichment_service.EnrichmentSourceConfig(
+                    id="gbif",
+                    label="GBIF",
+                    enabled=True,
+                    api_url="https://api.gbif.org/v2/species/match",
+                ),
+            ],
+        ),
+    )
+
+    results = enrichment_service.get_results(reference_name="taxons", source_id="gbif")
+
+    assert results.total == 1
+    assert results.results[0].source_id == "gbif"
+    assert results.results[0].data == {"usage_key": 99}
+
+
+def test_get_reference_enrichment_stats_reads_only_extra_data(monkeypatch):
+    """Polling stats should not reselect the full reference payload."""
+
+    captured: dict[str, object] = {}
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        return [
+            {"extra_data": None},
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "data": {"api_id": 42},
+                                "status": "completed",
+                            }
+                        }
+                    }
+                }
+            },
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="endemia",
+                    label="Endemia",
+                    enabled=True,
+                    api_url="https://api.endemia.nc/v1/taxons",
+                )
+            ],
+        ),
+    )
+
+    stats = enrichment_service.get_reference_enrichment_stats("taxons")
+
+    assert stats.entity_total == 2
+    assert stats.enriched == 1
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+    }
+
+
+def test_run_enrichment_job_exposes_pending_run_progress(monkeypatch):
+    """Runtime progress should distinguish pending attempts from already saved rows."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Already enriched",
+            "extra_data": {
+                "api_enrichment": {
+                    "sources": {
+                        "endemia": {
+                            "label": "Endemia",
+                            "data": {"api_id": 42},
+                            "enriched_at": "2026-04-09T10:00:00",
+                            "status": "completed",
+                        }
+                    }
+                }
+            },
+        },
+        {
+            "id": 2,
+            "full_name": "Still pending",
+            "extra_data": None,
+        },
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            raise RuntimeError(f"No match for {payload['full_name']}")
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.ALL,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.ALL,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert job.total == 2
+    assert job.processed == 2
+    assert job.already_completed == 1
+    assert job.pending_total == 1
+    assert job.pending_processed == 1
+    assert job.successful == 1
+    assert job.failed == 1
 
 
 def test_preview_default_enrichment_forwards_source_id(monkeypatch):
