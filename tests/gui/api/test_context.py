@@ -96,6 +96,42 @@ class TestGetWorkingDirectory:
         assert result == dir_set
 
 
+class TestValidWorkingDirectoryHelpers:
+    """Test helpers that filter out invalid explicit project paths."""
+
+    def test_resolve_explicit_working_directory_accepts_valid_project(self, tmp_path):
+        """A complete project path should be preserved and normalized."""
+        project_dir = tmp_path / "niamoto-project"
+        (project_dir / "db").mkdir(parents=True)
+        (project_dir / "config").mkdir(parents=True)
+        (project_dir / "config" / "config.yml").write_text(
+            yaml.dump({"database": {"path": "db/niamoto.duckdb"}})
+        )
+
+        result = context.resolve_explicit_working_directory(str(project_dir))
+
+        assert result == project_dir.resolve()
+
+    def test_resolve_explicit_working_directory_rejects_missing_project(self, tmp_path):
+        """A missing project path should be ignored instead of re-used."""
+        invalid_project = tmp_path / "missing-project"
+
+        result = context.resolve_explicit_working_directory(str(invalid_project))
+
+        assert result is None
+
+    def test_get_valid_optional_working_directory_rejects_invalid_env_path(
+        self, tmp_path
+    ):
+        """Invalid NIAMOTO_HOME should not be treated as an active project."""
+        invalid_project = tmp_path / "missing-project"
+
+        with patch.dict(os.environ, {"NIAMOTO_HOME": str(invalid_project)}):
+            result = context.get_valid_optional_working_directory()
+
+        assert result is None
+
+
 class TestGetDatabasePath:
     """Test get_database_path function."""
 

@@ -88,6 +88,32 @@ def get_optional_working_directory() -> Optional[Path]:
     return None
 
 
+def resolve_explicit_working_directory(path: Optional[str]) -> Optional[Path]:
+    """Return a normalized project path only when it is a valid project."""
+    if not path:
+        return None
+
+    resolved = Path(path).expanduser().resolve()
+    if _is_valid_desktop_project_path(resolved):
+        return resolved
+
+    logger.warning(f"Ignoring invalid explicit working directory: {resolved}")
+    return None
+
+
+def get_valid_optional_working_directory() -> Optional[Path]:
+    """Return the configured working directory only when it is still valid."""
+    work_dir = get_optional_working_directory()
+    if work_dir is None:
+        return None
+
+    if _is_valid_desktop_project_path(work_dir):
+        return work_dir
+
+    logger.warning(f"Ignoring invalid configured working directory: {work_dir}")
+    return None
+
+
 def get_database_path() -> Optional[Path]:
     """Return the analytics database path (DuckDB by default).
 
