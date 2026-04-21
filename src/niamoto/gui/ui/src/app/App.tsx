@@ -1,6 +1,7 @@
-import { useEffect, lazy, Suspense, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
+import WelcomeScreen from '@/features/welcome/views/WelcomeScreen'
 import { hasDesktopBridge } from '@/shared/desktop/bridge'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import {
@@ -18,9 +19,6 @@ import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizar
 import { useProjectCreationStore } from '@/stores/projectCreationStore'
 import { AppLoader } from '@/components/ui/app-loader'
 import { AppRouterProvider } from './router'
-
-// Lazy load pages
-const WelcomeScreen = lazy(() => import('@/features/welcome/views/WelcomeScreen'))
 
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
@@ -180,22 +178,18 @@ function App() {
   if (isDesktopMode && (showWelcome || bootFallbackToWelcome)) {
     return (
       <ThemeProvider>
-        <Suspense
-          fallback={fullScreenLoader}
-        >
-          <WelcomeScreen
-            recentProjects={recentProjects}
-            invalidProjects={invalidProjects}
-            settings={settings}
-            error={bootError ?? welcomeError}
-            onOpenProject={openProject}
-            onBrowseProject={browseAndOpen}
-            onCreateProject={createProject}
-            onRemoveProject={removeProject}
-            onUpdateSettings={updateSettings}
-            onBrowseFolder={browseFolder}
-          />
-        </Suspense>
+        <WelcomeScreen
+          recentProjects={recentProjects}
+          invalidProjects={invalidProjects}
+          settings={settings}
+          error={bootError ?? welcomeError}
+          onOpenProject={openProject}
+          onBrowseProject={browseAndOpen}
+          onCreateProject={createProject}
+          onRemoveProject={removeProject}
+          onUpdateSettings={updateSettings}
+          onBrowseFolder={browseFolder}
+        />
       </ThemeProvider>
     )
   }
