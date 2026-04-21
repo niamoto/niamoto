@@ -119,13 +119,14 @@ def test_render_changelog_section_groups_entries_by_category() -> None:
     assert "- Rewrite release contract" in rendered
 
 
-def test_release_commit_files_include_lockfiles() -> None:
+def test_release_commit_files_include_lockfiles_and_release_metadata() -> None:
     assert niamoto_release.RELEASE_COMMIT_FILES == [
         *niamoto_release.VERSION_FILES,
         "src/niamoto/gui/help_content/manifest.json",
         "src/niamoto/gui/help_content/search-index.json",
         "uv.lock",
         "src-tauri/Cargo.lock",
+        ".marketing/plugins.json",
     ]
 
 
@@ -133,6 +134,12 @@ def test_help_content_files_are_part_of_release_commit() -> None:
     assert niamoto_release.HELP_CONTENT_FILES == [
         "src/niamoto/gui/help_content/manifest.json",
         "src/niamoto/gui/help_content/search-index.json",
+    ]
+
+
+def test_release_metadata_files_are_part_of_release_commit() -> None:
+    assert niamoto_release.RELEASE_METADATA_FILES == [
+        ".marketing/plugins.json",
     ]
 
 
