@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.15.9] - 2026-04-21
+
+### Features
+
+- Add script to revert Tauri updater manifest to a previous version
+
+### Bug Fixes
+
+- Polish export format wizard
+- Stabilize index config preview and actions
+- Honor taxon stats relation fields
+- Avoid welcome screen flicker on desktop
+- Avoid recreating missing desktop project dirs
+- Use native macOS traffic light placement
+- Stabilize create project button hover
+- Remove stale docs toctree entry
+- Stabilize table preview pagination
+- Harden release artifact publishing
+
+### Other
+
+- Sync plugin manifest and auto-regenerate via pre-commit
+
 ## [v0.15.8] - 2026-04-20
 
 ### Bug Fixes
