@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import duckdb
+import yaml
 
 logger = logging.getLogger(__name__)
 CLASS_OBJECT_REQUIRED_COLUMNS = {"class_object", "class_name", "class_value"}
@@ -16,6 +17,56 @@ AUTO_ATTACH_MIN_SCORE = 0.75
 def _column_tokens(column_name: str) -> set[str]:
     tokens = {part for part in column_name.lower().split("_") if part}
     return {token for token in tokens if token not in {"id", "code", "name", "label"}}
+
+
+def _default_ref_field(reference_name: str) -> str:
+    ref_field = f"id_{reference_name}"
+    if reference_name.endswith("s"):
+        ref_field = f"id_{reference_name[:-1]}"
+    return ref_field
+
+
+def _looks_like_identifier(column_name: str) -> bool:
+    normalized = column_name.lower()
+    return (
+        normalized.startswith("id")
+        or normalized.endswith("_id")
+        or normalized.endswith("_code")
+    )
+
+
+def _load_reference_defaults(
+    work_dir: Path, reference_name: str
+) -> tuple[str, str | None]:
+    """Load the preferred reference/match defaults from import.yml when possible."""
+    ref_field = _default_ref_field(reference_name)
+    import_path = work_dir / "config" / "import.yml"
+    if not import_path.exists():
+        return ref_field, None
+
+    try:
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+    except Exception:
+        logger.warning("Could not read import.yml while detecting stats relations")
+        return ref_field, None
+
+    references = import_config.get("entities", {}).get("references", {}) or {}
+    ref_config = references.get(reference_name)
+    if not isinstance(ref_config, dict):
+        return ref_field, None
+
+    relation_config = ref_config.get("relation", {}) or {}
+    reference_key = relation_config.get("reference_key")
+    if isinstance(reference_key, str) and reference_key.strip():
+        ref_field = reference_key.strip()
+    else:
+        schema = ref_config.get("schema", {}) or {}
+        schema_id = schema.get("id_field")
+        if isinstance(schema_id, str) and schema_id.strip():
+            ref_field = schema_id.strip()
+
+    return ref_field, relation_config.get("foreign_key")
 
 
 def read_csv_columns(csv_path: Path) -> list[str]:
@@ -50,7 +101,12 @@ def is_high_confidence_auto_attach(
 
 
 def detect_relation_fields(
-    work_dir: Path, reference_name: str, csv_path: Path, csv_columns: list[str]
+    work_dir: Path,
+    reference_name: str,
+    csv_path: Path,
+    csv_columns: list[str],
+    *,
+    preferred_match_field: str | None = None,
 ) -> tuple[str, str, float]:
     """
     Infer the best reference field / CSV field pair for a stats CSV.
@@ -58,22 +114,34 @@ def detect_relation_fields(
     Returns:
         (ref_field, match_field, score)
     """
-    ref_field = f"id_{reference_name}"
-    if reference_name.endswith("s"):
-        ref_field = f"id_{reference_name[:-1]}"
+    ref_field, default_match_field = _load_reference_defaults(work_dir, reference_name)
 
     entity_candidates = ["plot_id", "shape_id", "taxon_id", "entity_id", "id"]
+    normalized_columns = {column.lower(): column for column in csv_columns}
     match_field = "id"
-    for candidate in csv_columns:
-        normalized = candidate.lower()
-        if (
-            normalized in entity_candidates
-            or normalized.endswith("_id")
-            or normalized.endswith("_code")
-            or normalized.startswith("id_")
-        ):
-            match_field = candidate
-            break
+    has_explicit_match_field = False
+    if preferred_match_field:
+        preferred_column = normalized_columns.get(preferred_match_field.lower())
+        if preferred_column:
+            match_field = preferred_column
+            has_explicit_match_field = True
+    elif default_match_field:
+        preferred_column = normalized_columns.get(default_match_field.lower())
+        if preferred_column:
+            match_field = preferred_column
+            has_explicit_match_field = True
+
+    if not has_explicit_match_field:
+        for candidate in csv_columns:
+            normalized = candidate.lower()
+            if (
+                normalized in entity_candidates
+                or normalized.endswith("_id")
+                or normalized.endswith("_code")
+                or normalized.startswith("id_")
+            ):
+                match_field = candidate
+                break
 
     db_path = work_dir / "db" / "niamoto.duckdb"
     if not db_path.exists():
@@ -114,8 +182,10 @@ def detect_relation_fields(
             if "VARCHAR" in str(c[1]).upper() or "TEXT" in str(c[1]).upper()
         ]
         matchable_entity_cols.extend(
-            [c[0] for c in entity_cols if str(c[0]).startswith("id")]
+            [c[0] for c in entity_cols if _looks_like_identifier(str(c[0]))]
         )
+        if ref_field not in matchable_entity_cols:
+            matchable_entity_cols.append(ref_field)
         matchable_entity_cols = list(set(matchable_entity_cols))
 
         entity_values: dict[str, set[str]] = {}
@@ -138,12 +208,15 @@ def detect_relation_fields(
         csv_candidates = [
             c
             for c in csv_columns
-            if c in entity_candidates
-            or "name" in c.lower()
-            or "label" in c.lower()
-            or c.lower().startswith("id_")
-            or c.lower().endswith("_id")
-            or c.lower().endswith("_code")
+            if (
+                c.lower() == (match_field.lower() if match_field else "")
+                or c in entity_candidates
+                or "name" in c.lower()
+                or "label" in c.lower()
+                or c.lower().startswith("id_")
+                or c.lower().endswith("_id")
+                or c.lower().endswith("_code")
+            )
         ]
 
         for col in csv_candidates:
@@ -181,6 +254,10 @@ def detect_relation_fields(
                         len(csv_tokens & entity_tokens)
                         / len(csv_tokens | entity_tokens)
                     )
+                if entity_col == ref_field:
+                    score += 0.15
+                if match_field and csv_col.lower() == match_field.lower():
+                    score += 0.05
                 if csv_col == "id" or entity_col == "id":
                     score -= 0.05
                 if score > best_score:
