@@ -122,6 +122,10 @@ export const PLUGIN_INFO: Record<string, PluginInfo> = {
     label: 'Aggregation',
     description: 'Multi-field aggregation',
   },
+  reference_enrichment_profile: {
+    label: 'Enrichment profile',
+    description: 'Normalisation des données enrichies par source',
+  },
   time_series_analysis: {
     label: 'Time series',
     description: 'Temporal data analysis',
@@ -155,6 +159,10 @@ export const PLUGIN_INFO: Record<string, PluginInfo> = {
   info_grid: {
     label: 'Info grid',
     description: 'Grid of informative values',
+  },
+  enrichment_panel: {
+    label: 'Enrichment panel',
+    description: 'Panel structuré pour données enrichies',
   },
 }
 

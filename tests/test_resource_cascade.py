@@ -9,9 +9,11 @@ Following testing-anti-patterns skill: test real behavior, not mock behavior.
 """
 
 from pathlib import Path
+from unittest.mock import Mock
 import pytest
 
 from niamoto.common.resource_paths import ResourcePaths, ResourceLocation
+from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 
@@ -56,6 +58,41 @@ class TestExporter(ExporterPlugin):
 
     def export(self, data, config, output_path):
         pass
+'''
+
+SAMPLE_PYDANTIC_TRANSFORMER = '''"""Sample transformer with postponed annotations."""
+from __future__ import annotations
+
+from typing import Any, Dict, Literal
+
+from pydantic import Field
+
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams, PluginConfig
+
+
+class SampleParams(BasePluginParams):
+    source: str = Field(...)
+
+
+class SampleConfig(PluginConfig):
+    plugin: Literal["test_pydantic_transformer"] = "test_pydantic_transformer"
+    params: SampleParams
+
+
+@register("test_pydantic_transformer", PluginType.TRANSFORMER)
+class TestPydanticTransformer(TransformerPlugin):
+    name = "test_pydantic_transformer"
+    type = PluginType.TRANSFORMER
+    config_model = SampleConfig
+    param_schema = SampleParams
+
+    def validate_config(self, config: Dict[str, Any]) -> SampleConfig:
+        return self.config_model(**config)
+
+    def transform(self, data, config):
+        validated = self.validate_config(config)
+        return {"source": validated.params.source}
 '''
 
 
@@ -264,6 +301,63 @@ class TestPluginCascade:
             plugin_info = loader.plugin_info_by_name["test_transformer"]
             assert plugin_info.scope == ResourcePaths.SCOPE_USER
             assert plugin_info.priority == 50
+
+    def test_dynamic_loader_supports_pydantic_models_with_future_annotations(
+        self, temp_project
+    ):
+        """Dynamically loaded plugin modules must stay available for Pydantic."""
+
+        plugin_path = temp_project / "plugins" / "pydantic_transformer.py"
+        plugin_path.write_text(SAMPLE_PYDANTIC_TRANSFORMER)
+
+        loader = PluginLoader()
+        loader.load_plugins_with_cascade(temp_project)
+
+        plugin_cls = PluginRegistry.get_plugin(
+            "test_pydantic_transformer", PluginType.TRANSFORMER
+        )
+        plugin = plugin_cls(Mock())
+
+        validated = plugin.validate_config(
+            {
+                "plugin": "test_pydantic_transformer",
+                "params": {"source": "taxons"},
+            }
+        )
+
+        assert validated.params.source == "taxons"
+
+    def test_project_discovery_ignores_imported_base_plugin_classes(self, temp_project):
+        """Discovery must only retain plugin classes defined in the scanned module."""
+
+        plugin_path = temp_project / "plugins" / "pydantic_transformer.py"
+        plugin_path.write_text(SAMPLE_PYDANTIC_TRANSFORMER)
+
+        location = ResourceLocation(
+            scope=ResourcePaths.SCOPE_PROJECT,
+            path=temp_project / "plugins",
+            priority=100,
+        )
+        loader = PluginLoader()
+
+        discovered = loader._discover_plugins_in_location(location)
+
+        assert set(discovered) == {"test_pydantic_transformer"}
+
+    def test_system_discovery_keeps_builtin_enrichment_plugins_available(self):
+        """System discovery must include the built-in enrichment transformer and widget."""
+
+        system_location = next(
+            loc
+            for loc in ResourcePaths.get_plugin_paths(project_path=None)
+            if loc.scope == ResourcePaths.SCOPE_SYSTEM
+        )
+        loader = PluginLoader()
+
+        discovered = loader._discover_plugins_in_location(system_location)
+
+        assert "reference_enrichment_profile" in discovered
+        assert "enrichment_panel" in discovered
 
     def test_project_overrides_user_overrides_system(self, temp_project, temp_user_dir):
         """

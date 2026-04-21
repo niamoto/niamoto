@@ -19,6 +19,7 @@ from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.gui.api.models.templates import (
     TemplateSuggestionResponse,
     SuggestionsResponse,
+    EnrichmentSourceCatalogResponse,
     GenerateConfigRequest,
     GenerateConfigResponse,
     SaveConfigRequest,
@@ -42,6 +43,8 @@ from niamoto.gui.api.services.templates.utils.widget_utils import (
 from niamoto.gui.api.services.templates.suggestion_service import (  # noqa: E402
     generate_navigation_suggestion,
     generate_general_info_suggestion,
+    get_reference_enrichment_catalog,
+    get_reference_enrichment_suggestions,
     get_entity_map_suggestions,
     get_class_object_suggestions,
     get_reference_field_suggestions,
@@ -220,6 +223,9 @@ async def get_reference_suggestions(
     # Generate general_info suggestion (field_aggregator for metadata)
     general_info_suggestion = generate_general_info_suggestion(reference_name)
 
+    # Generate enrichment panel suggestions from reference extra_data sources
+    enrichment_suggestions = get_reference_enrichment_suggestions(reference_name)
+
     # Get suggestions based on reference entity table columns (e.g., plots.holdridge, plots.rainfall)
     reference_field_suggestions = get_reference_field_suggestions(reference_name)
 
@@ -239,9 +245,12 @@ async def get_reference_suggestions(
     # Sort column suggestions by confidence
     column_suggestion_dicts.sort(key=lambda s: -s.get("confidence", 0))
 
-    # Calculate how many column suggestions we can include (reserve slots for navigation + general_info + entity maps + class_objects + reference_fields)
+    # Calculate how many column suggestions we can include (reserve slots for
+    # navigation + general_info + enrichment panels + entity maps +
+    # class_objects + reference_fields)
     reserved_slots = (
         2
+        + len(enrichment_suggestions)
         + len(class_object_suggestions)
         + len(entity_map_suggestions)
         + len(reference_field_suggestions)
@@ -249,10 +258,13 @@ async def get_reference_suggestions(
     remaining_slots = max(0, max_suggestions - reserved_slots)
     limited_column_suggestions = column_suggestion_dicts[:remaining_slots]
 
-    # Combine: navigation first, then general_info, then entity maps, then reference fields, then class_object, then column suggestions
+    # Combine: navigation first, then general_info, then enrichment panels,
+    # then entity maps, then reference fields, then class_object,
+    # then column suggestions
     all_suggestions = (
         ([navigation_suggestion] if navigation_suggestion else [])
         + ([general_info_suggestion] if general_info_suggestion else [])
+        + enrichment_suggestions
         + entity_map_suggestions
         + reference_field_suggestions
         + class_object_suggestions
@@ -276,6 +288,19 @@ async def get_reference_suggestions(
         columns_analyzed=columns_analyzed,
         total_suggestions=len(all_suggestions),
     )
+
+
+@router.get(
+    "/{reference_name}/enrichment-catalog",
+    response_model=List[EnrichmentSourceCatalogResponse],
+)
+async def get_enrichment_catalog(reference_name: str):
+    """Return enrichment fields grouped by source for one reference."""
+
+    return [
+        EnrichmentSourceCatalogResponse(**catalog)
+        for catalog in get_reference_enrichment_catalog(reference_name)
+    ]
 
 
 @router.post("/generate-config", response_model=GenerateConfigResponse)
@@ -1156,6 +1181,7 @@ def _ensure_plugins_loaded():
         statistical_summary,
         field_aggregator,
         binary_counter,
+        reference_enrichment_profile,
         top_ranking,
     )
     from niamoto.core.plugins.transformers.extraction import (  # noqa: F401
@@ -1173,6 +1199,7 @@ def _ensure_plugins_loaded():
         interactive_map,
         radial_gauge,
         info_grid,
+        enrichment_panel,
         scatter_plot,
     )
 

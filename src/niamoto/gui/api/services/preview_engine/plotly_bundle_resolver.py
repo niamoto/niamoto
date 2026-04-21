@@ -17,6 +17,7 @@ MAP_WIDGET_PLUGINS: frozenset[str] = frozenset({"interactive_map"})
 NO_PLOTLY_PLUGINS: frozenset[str] = frozenset(
     {
         "info_grid",
+        "enrichment_panel",
         "hierarchical_nav_widget",
         "table_view",
         "raw_data_widget",

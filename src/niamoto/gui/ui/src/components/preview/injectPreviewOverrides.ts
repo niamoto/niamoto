@@ -18,6 +18,11 @@ export interface PreviewOverrideOptions {
    */
   fullSize?: boolean
   /**
+   * Réactive le scroll natif dans l'iframe de preview pour les widgets
+   * plus hauts que leur conteneur.
+   */
+  allowScroll?: boolean
+  /**
    * Masque les contrôles Leaflet via CSS (utile pour les miniatures où
    * l'utilisateur ne peut pas interagir avec la carte).
    */
@@ -68,8 +73,20 @@ try{
 }
 
 function buildStyle(opts: PreviewOverrideOptions): string {
-  if (!opts.hideLeafletControls) return ''
-  return `<style>.leaflet-control{display:none!important}</style>`
+  const styles: string[] = []
+
+  if (opts.allowScroll) {
+    styles.push(
+      'html,body{height:auto!important;min-height:100%!important;overflow:auto!important;}'
+    )
+  }
+
+  if (opts.hideLeafletControls) {
+    styles.push('.leaflet-control{display:none!important}')
+  }
+
+  if (styles.length === 0) return ''
+  return `<style>${styles.join('')}</style>`
 }
 
 /**

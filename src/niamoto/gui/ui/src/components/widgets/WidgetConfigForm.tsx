@@ -1,9 +1,9 @@
 /**
  * WidgetConfigForm - Combined form for transformer and widget parameters
  *
- * Displays two JsonSchemaForm sections:
- * 1. Widget params (from export.yml)
- * 2. Transformer params (from transform.yml)
+ * Displays either:
+ * 1. A dedicated editor for widgets with custom UX
+ * 2. Two JsonSchemaForm sections for generic widgets
  *
  * Supports:
  * - Live preview updates via onChange callback (debounced)
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/accordion'
 import JsonSchemaForm from '@/components/forms/JsonSchemaForm'
 import type { FormValues } from '@/components/forms/formSchemaTypes'
+import { EnrichmentPanelEditor } from './EnrichmentPanelEditor'
 import type { ConfiguredWidget } from './useWidgetConfig'
 
 interface WidgetConfigFormProps {
@@ -117,6 +118,14 @@ export function WidgetConfigForm({
     setWidgetParams(prev => ({ ...prev, ...data }))
   }, [])
 
+  const handleTransformerReplace = useCallback((data: Record<string, unknown>) => {
+    setTransformerParams(data)
+  }, [])
+
+  const handleWidgetReplace = useCallback((data: Record<string, unknown>) => {
+    setWidgetParams(data)
+  }, [])
+
   // Handle save
   const handleSave = async () => {
     setSaving(true)
@@ -143,6 +152,10 @@ export function WidgetConfigForm({
       JSON.stringify(widgetParams) !== JSON.stringify(widget.widgetParams)
     )
   }, [title, description, transformerParams, widgetParams, widget])
+
+  const isEnrichmentPanelEditor =
+    widget.widgetPlugin === 'enrichment_panel' &&
+    widget.transformerPlugin === 'reference_enrichment_profile'
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
@@ -171,70 +184,80 @@ export function WidgetConfigForm({
 
       {/* Accordion sections for transformer and widget params */}
       <div className="flex-1 overflow-auto p-4">
-        <Accordion
-          type="multiple"
-          defaultValue={widget.hasTransformConfig ? ['widget', 'transformer'] : ['widget']}
-          className="space-y-2"
-        >
-          {/* Widget params */}
-          <AccordionItem value="widget" className="border rounded-lg">
-            <AccordionTrigger className="px-4 py-3 hover:no-underline">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
-                  <Palette className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div className="text-left">
-                  <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
-                  <p className="text-xs text-muted-foreground font-normal">
-                    Plugin: {widget.widgetPlugin}
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-4 pb-4">
-              <JsonSchemaForm
-                pluginId={widget.widgetPlugin}
-                groupBy={groupBy}
-                onChange={handleWidgetChange}
-                availableFields={availableFields}
-                hiddenFields={['title', 'description']}
-                showTitle={false}
-                className="border-0 shadow-none p-0"
-                initialValues={widgetParams as FormValues}
-              />
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Transformer params */}
-          {widget.hasTransformConfig && (
-            <AccordionItem value="transformer" className="border rounded-lg">
+        {isEnrichmentPanelEditor ? (
+          <EnrichmentPanelEditor
+            groupBy={groupBy}
+            transformerParams={transformerParams}
+            widgetParams={widgetParams}
+            onTransformerChange={handleTransformerReplace}
+            onWidgetChange={handleWidgetReplace}
+          />
+        ) : (
+          <Accordion
+            type="multiple"
+            defaultValue={widget.hasTransformConfig ? ['widget', 'transformer'] : ['widget']}
+            className="space-y-2"
+          >
+            {/* Widget params */}
+            <AccordionItem value="widget" className="border rounded-lg">
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
-                    <Settings2 className="h-4 w-4 text-amber-600" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
+                    <Palette className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div className="text-left">
-                    <span className="font-medium">{t('widgets:form.dataTransformationSection')}</span>
+                    <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
                     <p className="text-xs text-muted-foreground font-normal">
-                      Plugin: {widget.transformerPlugin}
+                      Plugin: {widget.widgetPlugin}
                     </p>
                   </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
                 <JsonSchemaForm
-                  pluginId={widget.transformerPlugin}
+                  pluginId={widget.widgetPlugin}
                   groupBy={groupBy}
-                  onChange={handleTransformerChange}
+                  onChange={handleWidgetChange}
                   availableFields={availableFields}
+                  hiddenFields={['title', 'description']}
                   showTitle={false}
                   className="border-0 shadow-none p-0"
-                  initialValues={transformerParams as FormValues}
+                  initialValues={widgetParams as FormValues}
                 />
               </AccordionContent>
             </AccordionItem>
-          )}
-        </Accordion>
+
+            {/* Transformer params */}
+            {widget.hasTransformConfig && (
+              <AccordionItem value="transformer" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
+                      <Settings2 className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-medium">{t('widgets:form.dataTransformationSection')}</span>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        Plugin: {widget.transformerPlugin}
+                      </p>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <JsonSchemaForm
+                    pluginId={widget.transformerPlugin}
+                    groupBy={groupBy}
+                    onChange={handleTransformerChange}
+                    availableFields={availableFields}
+                    showTitle={false}
+                    className="border-0 shadow-none p-0"
+                    initialValues={transformerParams as FormValues}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+          </Accordion>
+        )}
       </div>
 
       {/* Error display */}

@@ -165,6 +165,52 @@ class TestTemplatesEndpoints:
         # Should return configured widgets from transform.yml
         assert response.status_code in [200, 404, 500]
 
+    def test_get_enrichment_catalog(self, client):
+        """Test GET /api/templates/{reference}/enrichment-catalog."""
+        with patch(
+            "niamoto.gui.api.routers.templates.get_reference_enrichment_catalog"
+        ) as mock_catalog:
+            mock_catalog.return_value = [
+                {
+                    "id": "gbif",
+                    "label": "GBIF",
+                    "field_count": 2,
+                    "fields": [
+                        {
+                            "source_id": "gbif",
+                            "source_label": "GBIF",
+                            "path": "canonical_name",
+                            "label": "Nom canonique",
+                            "format": "text",
+                            "section_hint": "Identité",
+                            "sample_values": ["Araucaria columnaris"],
+                        }
+                    ],
+                }
+            ]
+
+            response = client.get("/api/templates/taxons/enrichment-catalog")
+
+        assert response.status_code == 200, response.text
+        assert response.json() == [
+            {
+                "id": "gbif",
+                "label": "GBIF",
+                "field_count": 2,
+                "fields": [
+                    {
+                        "source_id": "gbif",
+                        "source_label": "GBIF",
+                        "path": "canonical_name",
+                        "label": "Nom canonique",
+                        "format": "text",
+                        "section_hint": "Identité",
+                        "sample_values": ["Araucaria columnaris"],
+                    }
+                ],
+            }
+        ]
+
     def test_generate_config_requires_body(self, client):
         """Test POST /api/templates/generate-config requires request body."""
         response = client.post("/api/templates/generate-config", json={})

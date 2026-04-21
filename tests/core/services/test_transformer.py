@@ -526,6 +526,26 @@ class TestTransformerService:
         assert "species_count JSON" in create_call
         assert "diversity_index JSON" in create_call
 
+    def test_create_group_table_quotes_unsafe_widget_identifiers(
+        self, transformer_service, mock_db
+    ):
+        """Unsafe widget identifiers must be quoted in generated SQL."""
+        widgets_config = {
+            "taxons_api-endemia-nc_reference_enrichment_profile_enrichment_panel": {
+                "plugin": "reference_enrichment_profile"
+            }
+        }
+
+        transformer_service._create_group_table(
+            "taxons", widgets_config, recreate_table=True
+        )
+
+        create_call = mock_db.execute_sql.call_args_list[1][0][0]
+        assert (
+            '"taxons_api-endemia-nc_reference_enrichment_profile_enrichment_panel" JSON'
+            in create_call
+        )
+
     def test_create_group_table_without_recreate(self, transformer_service, mock_db):
         """Test _create_group_table without table recreation."""
         widgets_config = {"species_count": {"plugin": "count_transformer"}}
@@ -639,6 +659,21 @@ class TestTransformerService:
         assert "INSERT INTO plots" in insert_sql
         assert "DROP TABLE IF EXISTS plots__staging" in drop_sql
         assert "plots" not in transformer_service._table_buffers
+
+    def test_flush_group_table_upsert_mode_quotes_unsafe_columns(
+        self, transformer_service, mock_db, mock_to_sql
+    ):
+        """Upserts must quote widget columns when identifiers are not SQL-safe."""
+        column_name = (
+            "taxons_api-endemia-nc_reference_enrichment_profile_enrichment_panel"
+        )
+        transformer_service._table_buffers = {"taxons": {1: {column_name: "value"}}}
+
+        transformer_service._flush_group_table("taxons", recreate_table=False)
+
+        mock_to_sql.assert_called_once()
+        insert_sql = mock_db.execute_sql.call_args_list[0][0][0]
+        assert f'"{column_name}"' in insert_sql
 
     def test_flush_group_table_upsert_mode_duckdb_avoids_replace_reflection(
         self, transformer_service, mock_db, mock_to_sql

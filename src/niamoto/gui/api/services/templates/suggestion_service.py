@@ -8,6 +8,7 @@ import copy
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -17,6 +18,11 @@ from sqlalchemy import text
 from niamoto.common.table_resolver import (
     quote_identifier,
     resolve_entity_table as shared_resolve_entity_table,
+)
+from niamoto.core.enrichment_display import (
+    build_default_panel_config,
+    build_enrichment_catalog,
+    canonicalize_source_id,
 )
 from niamoto.core.imports.data_analyzer import (
     DataCategory,
@@ -32,6 +38,7 @@ from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.imports.class_object_suggester import suggest_widgets_for_source
 
 logger = logging.getLogger(__name__)
+_SAFE_TEMPLATE_TOKEN_RE = re.compile(r"[^a-z0-9]+")
 
 _REFERENCE_FIELD_SKIP_EXACT = {
     "id",
@@ -77,6 +84,13 @@ def _get_path_mtime_ns(path: Path) -> int:
         return path.stat().st_mtime_ns
     except OSError:
         return 0
+
+
+def _safe_template_token(value: str) -> str:
+    """Normalize a free-form token for use inside widget/template identifiers."""
+
+    normalized = _SAFE_TEMPLATE_TOKEN_RE.sub("_", value.lower()).strip("_")
+    return normalized or "source"
 
 
 def _build_reference_field_cache_key(
@@ -1000,6 +1014,157 @@ def generate_general_info_suggestion(
     except Exception as e:
         logger.warning(f"Error generating general_info suggestion: {e}")
         return None
+
+
+def get_reference_enrichment_suggestions(reference_name: str) -> List[Dict[str, Any]]:
+    """Generate one enrichment panel suggestion per detected enrichment source."""
+
+    from niamoto.common.database import Database
+
+    db_path = get_database_path()
+    if not db_path:
+        return []
+
+    db = Database(str(db_path), read_only=True)
+
+    try:
+        registry = _get_entity_registry(db)
+        entity_table = _resolve_entity_table(
+            db, reference_name, registry=registry, kind="reference"
+        )
+        if not entity_table:
+            return []
+
+        quoted_entity_table = quote_identifier(db, entity_table)
+        sample_df = pd.read_sql(
+            text(
+                f"SELECT extra_data FROM {quoted_entity_table} "
+                "WHERE extra_data IS NOT NULL LIMIT 100"
+            ),
+            db.engine,
+        )
+        if sample_df.empty or "extra_data" not in sample_df.columns:
+            return []
+
+        source_catalogs = build_enrichment_catalog(sample_df["extra_data"].dropna())
+        suggestions: List[Dict[str, Any]] = []
+
+        for source_catalog in source_catalogs:
+            if source_catalog.get("field_count", 0) < 2:
+                continue
+
+            default_panel_config = build_default_panel_config(source_catalog)
+            if (
+                not default_panel_config["summary_items"]
+                and not default_panel_config["sections"]
+            ):
+                continue
+
+            source_id = source_catalog["id"]
+            source_label = source_catalog["label"]
+            canonical_source_id = canonicalize_source_id(source_id)
+            safe_source_token = _safe_template_token(source_id)
+            confidence = (
+                0.93 if canonical_source_id in {"gbif", "taxref", "endemia"} else 0.84
+            )
+            transformer_params = {
+                "source": reference_name,
+                **default_panel_config,
+            }
+
+            suggestions.append(
+                {
+                    "template_id": (
+                        f"{reference_name}_{safe_source_token}_"
+                        "reference_enrichment_profile_enrichment_panel"
+                    ),
+                    "name": f"Profil {source_label}",
+                    "description": (
+                        f"Panel enrichi pour consulter les données provenant de {source_label}"
+                    ),
+                    "plugin": "reference_enrichment_profile",
+                    "transformer_plugin": "reference_enrichment_profile",
+                    "widget_plugin": "enrichment_panel",
+                    "category": "info",
+                    "icon": "Sparkles",
+                    "confidence": confidence,
+                    "source": "reference",
+                    "source_name": reference_name,
+                    "matched_column": source_label,
+                    "match_reason": (
+                        f"Source d'enrichissement détectée dans extra_data: {source_label}"
+                    ),
+                    "is_recommended": True,
+                    "config": transformer_params,
+                    "transformer_config": {
+                        "plugin": "reference_enrichment_profile",
+                        "params": transformer_params,
+                    },
+                    "widget_params": {
+                        "summary_columns": 3,
+                        "show_source_badges": True,
+                    },
+                    "alternatives": [],
+                }
+            )
+
+        suggestions.sort(
+            key=lambda suggestion: (-suggestion["confidence"], suggestion["name"])
+        )
+        return suggestions
+
+    except Exception as e:
+        logger.warning(
+            "Error generating reference enrichment suggestions for '%s': %s",
+            reference_name,
+            e,
+        )
+        return []
+    finally:
+        db.close_db_session()
+
+
+def get_reference_enrichment_catalog(reference_name: str) -> List[Dict[str, Any]]:
+    """Return the available enrichment fields grouped by source."""
+
+    from niamoto.common.database import Database
+
+    db_path = get_database_path()
+    if not db_path:
+        return []
+
+    db = Database(str(db_path), read_only=True)
+
+    try:
+        registry = _get_entity_registry(db)
+        entity_table = _resolve_entity_table(
+            db, reference_name, registry=registry, kind="reference"
+        )
+        if not entity_table:
+            return []
+
+        quoted_entity_table = quote_identifier(db, entity_table)
+        sample_df = pd.read_sql(
+            text(
+                f"SELECT extra_data FROM {quoted_entity_table} "
+                "WHERE extra_data IS NOT NULL LIMIT 100"
+            ),
+            db.engine,
+        )
+        if sample_df.empty or "extra_data" not in sample_df.columns:
+            return []
+
+        return build_enrichment_catalog(sample_df["extra_data"].dropna())
+
+    except Exception as e:
+        logger.warning(
+            "Error generating reference enrichment catalog for '%s': %s",
+            reference_name,
+            e,
+        )
+        return []
+    finally:
+        db.close_db_session()
 
 
 def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
