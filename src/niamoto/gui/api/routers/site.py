@@ -1316,10 +1316,13 @@ class GroupIndexPreviewRequest(BaseModel):
     site: Optional[Dict[str, Any]] = None
     navigation: Optional[List[Dict[str, Any]]] = None
     gui_lang: Optional[str] = None
+    index_config: Optional[GroupIndexConfig] = None
 
 
 def _generate_mock_items(
-    display_fields: List[Dict[str, Any]], count: int = 12
+    display_fields: List[Dict[str, Any]],
+    count: int = 12,
+    id_column: str = "id",
 ) -> List[Dict[str, Any]]:
     """
     Generate mock items based on display_fields configuration.
@@ -1373,7 +1376,8 @@ def _generate_mock_items(
     ]
 
     for i in range(min(count, len(sample_names))):
-        item = {"id": i + 1}
+        item_id = i + 1
+        item = {"id": item_id, id_column: item_id}
 
         for field in display_fields:
             field_name = field.get("name", "")
@@ -1473,7 +1477,12 @@ async def preview_group_index(
                 status_code=404, detail=f"Group '{group_name}' not found"
             )
 
-        index_gen = group_config.get("index_generator")
+        requested_index_gen = (
+            request.index_config.model_dump(exclude_none=True)
+            if request and request.index_config
+            else None
+        )
+        index_gen = requested_index_gen or group_config.get("index_generator")
         if not index_gen or not index_gen.get("enabled", False):
             raise HTTPException(
                 status_code=400,
@@ -1561,7 +1570,11 @@ async def preview_group_index(
         }
 
         # Generate mock items
-        mock_items = _generate_mock_items(display_fields, count=12)
+        mock_items = _generate_mock_items(
+            display_fields,
+            count=12,
+            id_column=index_config["id_column"],
+        )
 
         # Render the template
         rendered_html = template.render(
