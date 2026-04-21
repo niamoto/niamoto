@@ -1,5 +1,6 @@
 """Unit tests for suggestion_service helper resolution logic."""
 
+import json
 from dataclasses import dataclass
 from enum import Enum
 from types import SimpleNamespace
@@ -23,6 +24,8 @@ from niamoto.gui.api.services.templates.suggestion_service import (
     _pick_name_column,
     _resolve_entity_table,
     _should_profile_reference_field,
+    get_reference_enrichment_catalog,
+    get_reference_enrichment_suggestions,
     get_reference_field_suggestions,
 )
 
@@ -453,3 +456,159 @@ def test_reference_field_suggestions_cache_skips_second_ml_pass(monkeypatch, tmp
     get_reference_field_suggestions("plots")
 
     assert calls["profile"] == 1
+
+
+def test_reference_enrichment_suggestions_build_one_panel_per_source(
+    monkeypatch, tmp_path
+):
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1, 2],
+                "plot": ["Plot A", "Plot B"],
+                "extra_data": [
+                    json.dumps(
+                        {
+                            "api_enrichment": {
+                                "sources": {
+                                    "gbif": {
+                                        "label": "GBIF",
+                                        "status": "completed",
+                                        "data": {
+                                            "match": {
+                                                "canonical_name": "Araucaria columnaris",
+                                                "rank": "SPECIES",
+                                                "status": "ACCEPTED",
+                                            },
+                                            "occurrence_summary": {
+                                                "occurrence_count": 42,
+                                                "datasets_count": 4,
+                                            },
+                                            "links": {
+                                                "species": "https://www.gbif.org/species/2685484"
+                                            },
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "api_enrichment": {
+                                "sources": {
+                                    "gbif": {
+                                        "label": "GBIF",
+                                        "status": "completed",
+                                        "data": {
+                                            "match": {
+                                                "canonical_name": "Agathis ovata",
+                                                "rank": "SPECIES",
+                                                "status": "ACCEPTED",
+                                            },
+                                            "occurrence_summary": {
+                                                "occurrence_count": 12,
+                                                "datasets_count": 2,
+                                            },
+                                        },
+                                    },
+                                    "custom-source": {
+                                        "label": "Custom source",
+                                        "status": "completed",
+                                        "data": {
+                                            "status": "verified",
+                                            "reference_url": "https://example.org/resource",
+                                        },
+                                    },
+                                }
+                            }
+                        }
+                    ),
+                ],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+
+    suggestions = get_reference_enrichment_suggestions("plots")
+
+    assert [suggestion["name"] for suggestion in suggestions] == [
+        "Profil GBIF",
+        "Profil Custom source",
+    ]
+    assert all(
+        suggestion["plugin"] == "reference_enrichment_profile"
+        for suggestion in suggestions
+    )
+    assert all(
+        suggestion["widget_plugin"] == "enrichment_panel" for suggestion in suggestions
+    )
+    assert suggestions[1]["template_id"] == (
+        "plots_custom_source_reference_enrichment_profile_enrichment_panel"
+    )
+    assert suggestions[0]["config"]["source"] == "plots"
+    assert suggestions[0]["widget_params"]["summary_columns"] == 3
+    assert suggestions[0]["config"]["summary_items"]
+    assert suggestions[0]["config"]["sections"]
+
+
+def test_reference_enrichment_catalog_returns_structured_fields(monkeypatch, tmp_path):
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1],
+                "plot": ["Plot A"],
+                "extra_data": [
+                    json.dumps(
+                        {
+                            "api_enrichment": {
+                                "sources": {
+                                    "gbif": {
+                                        "label": "GBIF",
+                                        "status": "completed",
+                                        "data": {
+                                            "match": {
+                                                "canonical_name": "Araucaria columnaris",
+                                                "status": "ACCEPTED",
+                                            },
+                                            "links": {
+                                                "species": "https://www.gbif.org/species/2685484"
+                                            },
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    )
+                ],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+
+    catalogs = get_reference_enrichment_catalog("plots")
+
+    assert [catalog["label"] for catalog in catalogs] == ["GBIF"]
+    assert catalogs[0]["field_count"] >= 2
+    assert any(
+        field["path"] == "match.canonical_name" for field in catalogs[0]["fields"]
+    )
+    assert any(field["format"] == "link" for field in catalogs[0]["fields"])

@@ -258,10 +258,13 @@ export function WidgetPreviewPanel({
       table: 'info_grid',
       navigation: 'hierarchical_nav_widget',
     }
-    const widgetPlugin = categoryToPlugin[activeTemplate.category] || activeTemplate.category
+    const widgetPlugin =
+      activeTemplate.widget_plugin ||
+      categoryToPlugin[activeTemplate.category] ||
+      activeTemplate.category
 
     // Generate export widget params matching backend's _generate_widget_params
-    let exportParams: Record<string, unknown> = {}
+    let exportParams: Record<string, unknown> = { ...(activeTemplate.widget_params || {}) }
 
     if (widgetPlugin === 'bar_plot') {
       if (transformer === 'top_ranking') {
@@ -328,6 +331,12 @@ export function WidgetPreviewPanel({
             radius: 8,
           },
         }],
+      }
+    } else if (widgetPlugin === 'enrichment_panel') {
+      exportParams = {
+        summary_columns: 3,
+        show_source_badges: true,
+        ...(activeTemplate.widget_params || {}),
       }
     }
 

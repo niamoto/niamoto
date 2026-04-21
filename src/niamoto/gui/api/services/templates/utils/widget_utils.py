@@ -35,6 +35,7 @@ _WELL_KNOWN_WIDGETS = {
     "radial_gauge",
     "interactive_map",
     "info_grid",
+    "enrichment_panel",
     "hierarchical_nav_widget",
     "concentric_rings",
     "stacked_area_plot",
@@ -46,6 +47,8 @@ def map_transformer_to_widget(transformer_plugin: str, widget_id: str) -> str:
     # Navigation widget passes through
     if transformer_plugin == "hierarchical_nav_widget":
         return "hierarchical_nav_widget"
+    if transformer_plugin == "reference_enrichment_profile":
+        return "enrichment_panel"
 
     # Determine widget type from widget_id suffix
     if widget_id.endswith("_bar_plot"):
@@ -58,6 +61,8 @@ def map_transformer_to_widget(transformer_plugin: str, widget_id: str) -> str:
         return "interactive_map"
     elif widget_id.endswith("_info_grid"):
         return "info_grid"
+    elif widget_id.endswith("_enrichment_panel"):
+        return "enrichment_panel"
 
     # Default mappings based on transformer
     transformer_to_widget = {
@@ -69,6 +74,7 @@ def map_transformer_to_widget(transformer_plugin: str, widget_id: str) -> str:
         "geospatial_extractor": "interactive_map",
         "field_aggregator": "info_grid",
         "class_object_field_aggregator": "info_grid",
+        "reference_enrichment_profile": "enrichment_panel",
     }
     return transformer_to_widget.get(transformer_plugin, "info_grid")
 
@@ -219,6 +225,11 @@ def generate_widget_params(
                     },
                 }
             ],
+        }
+    elif widget_plugin == "enrichment_panel":
+        params = {
+            "summary_columns": 3,
+            "show_source_badges": True,
         }
 
     elif widget_plugin == "hierarchical_nav_widget":

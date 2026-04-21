@@ -50,6 +50,7 @@ def _ensure_plugins_loaded():
         statistical_summary,
         field_aggregator,
         binary_counter,
+        reference_enrichment_profile,
         top_ranking,
     )
     from niamoto.core.plugins.transformers.extraction import (  # noqa: F401
@@ -73,6 +74,7 @@ def _ensure_plugins_loaded():
         interactive_map,
         radial_gauge,
         info_grid,
+        enrichment_panel,
         stacked_area_plot,
         concentric_rings,
         line_plot,

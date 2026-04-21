@@ -54,7 +54,7 @@ import { recordCollectionsPerf } from '@/features/collections/performance/collec
 // toute la hauteur du panneau : on garde donc l'override Plotly, puis on borne
 // la taille du conteneur côté layout.
 function injectFullPreviewOverrides(html: string): string {
-  return injectPreviewOverrides(html, { fullSize: true })
+  return injectPreviewOverrides(html, { fullSize: true, allowScroll: true })
 }
 
 // Category icons
@@ -105,7 +105,7 @@ export function WidgetDetailPanel({
   onUpdate,
   onDelete,
 }: WidgetDetailPanelProps) {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
   const [panelState, setPanelState] = useState<{
     widgetId: string
@@ -397,11 +397,11 @@ export function WidgetDetailPanel({
           <TabsList className="h-9">
             <TabsTrigger value="params" className="gap-1.5 text-sm">
               <Settings className="h-3.5 w-3.5" />
-              Paramètres
+              {t('widgets:detailPanel.paramsTab')}
             </TabsTrigger>
             <TabsTrigger value="yaml" className="gap-1.5 text-sm">
               <FileCode className="h-3.5 w-3.5" />
-              YAML
+              {t('widgets:detailPanel.yamlTab')}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -429,11 +429,15 @@ export function WidgetDetailPanel({
             <div className="flex h-[38vh] shrink-0 flex-col border-t bg-muted/20 p-4 lg:h-full lg:basis-[38%] lg:border-l-0 lg:border-t-0">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">Preview</p>
+                  <p className="text-sm font-medium">{t('widgets:detailPanel.previewTitle')}</p>
                   <p className="text-xs text-muted-foreground">
                     {autoRefreshPreview
-                      ? (previewDraft ? 'Mise à jour en direct' : 'Version enregistrée')
-                      : (previewDraft ? 'Brouillon en attente d’actualisation' : 'Version enregistrée')}
+                      ? (previewDraft
+                          ? t('widgets:detailPanel.livePreview')
+                          : t('widgets:detailPanel.savedVersion'))
+                      : (previewDraft
+                          ? t('widgets:detailPanel.draftPendingRefresh')
+                          : t('widgets:detailPanel.savedVersion'))}
                   </p>
                 </div>
                 {autoRefreshPreview ? (
@@ -453,7 +457,7 @@ export function WidgetDetailPanel({
                     onClick={handleRefresh}
                   >
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Actualiser l’aperçu
+                    {t('widgets:detailPanel.refreshPreview')}
                   </Button>
                 )}
               </div>
@@ -479,7 +483,7 @@ export function WidgetDetailPanel({
                   <FileCode className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">transform.yml</span>
                   <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
-                    Transformation
+                    {t('widgets:preview.transformation')}
                   </Badge>
                 </div>
                 <pre className="p-3 rounded-lg bg-slate-950 text-slate-50 text-xs overflow-auto font-mono">
@@ -511,15 +515,18 @@ export function WidgetDetailPanel({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Supprimer le widget ?
+              {t('widgets:detailPanel.deleteTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Cela supprimera <strong>"{resolveLocalizedString(widget.title)}"</strong> de la configuration.
-              Cette action est irreversible.
+              {t('widgets:detailPanel.deleteDescription', {
+                title: resolveLocalizedString(widget.title),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              {t('common:actions.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isDeleting}
@@ -528,10 +535,10 @@ export function WidgetDetailPanel({
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('status.deleting')}
+                  {t('common:status.deleting')}
                 </>
               ) : (
-                t('actions.delete')
+                t('common:actions.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -270,6 +270,12 @@
     "version": "0.15.9"
   },
   {
+    "name": "reference_enrichment_profile",
+    "type": "transformer",
+    "body": "Normalize enrichment source payloads into a stable widget contract.",
+    "version": "0.15.9"
+  },
+  {
     "name": "scatter_analysis",
     "type": "transformer",
     "body": "Plugin d'analyse de dispersion entre deux champs numériques.",
@@ -333,6 +339,12 @@
     "name": "donut_chart",
     "type": "widget",
     "body": "Widget to display a donut chart using Plotly.",
+    "version": "0.15.9"
+  },
+  {
+    "name": "enrichment_panel",
+    "type": "widget",
+    "body": "Render a compact, sectioned view of enriched reference metadata.",
     "version": "0.15.9"
   },
   {

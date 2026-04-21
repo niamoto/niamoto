@@ -188,6 +188,7 @@ function getWidgetCategory(plugin: string): string {
     radial_gauge: 'gauge',
     interactive_map: 'map',
     info_grid: 'info',
+    enrichment_panel: 'info',
     hierarchical_nav_widget: 'navigation',
     stacked_area_plot: 'chart',
     concentric_rings: 'chart',

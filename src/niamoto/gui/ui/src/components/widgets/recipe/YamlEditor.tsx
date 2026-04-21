@@ -91,6 +91,7 @@ export function YamlEditor({
           'class_object_series_matrix_extractor',
           'class_object_series_by_axis_extractor',
           'field_aggregator',
+          'reference_enrichment_profile',
           'geospatial_extractor',
           'top_ranking',
           'binary_counter',
@@ -99,6 +100,7 @@ export function YamlEditor({
           'bar_plot',
           'donut_chart',
           'info_grid',
+          'enrichment_panel',
           'radial_gauge',
           'interactive_map',
         ].map((plugin) => ({

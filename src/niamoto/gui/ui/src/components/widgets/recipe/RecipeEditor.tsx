@@ -509,6 +509,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
         binned_distribution: 'bar_plot',
         statistical_summary: 'radial_gauge',
         field_aggregator: 'info_grid',
+        reference_enrichment_profile: 'enrichment_panel',
         geospatial_extractor: 'interactive_map',
         binary_counter: 'donut_chart',
         class_object_binary_aggregator: 'donut_chart',

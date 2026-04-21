@@ -15,3 +15,13 @@ def test_parse_dynamic_template_id_supports_regular_transformers():
         "transformer": "binned_distribution",
         "widget": "bar_plot",
     }
+
+
+def test_map_transformer_to_widget_supports_reference_enrichment_profile():
+    assert (
+        widget_utils.map_transformer_to_widget(
+            "reference_enrichment_profile",
+            "taxons_gbif_reference_enrichment_profile_enrichment_panel",
+        )
+        == "enrichment_panel"
+    )

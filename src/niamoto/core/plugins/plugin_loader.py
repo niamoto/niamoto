@@ -33,6 +33,7 @@ from .registry import PluginRegistry
 from niamoto.common.resource_paths import ResourcePaths, ResourceLocation
 
 logger = logging.getLogger(__name__)
+PLUGIN_FAMILY_DIRS = {"transformers", "exporters", "loaders", "widgets", "deployers"}
 
 
 @dataclass
@@ -198,6 +199,9 @@ class PluginLoader:
             for file in location.path.rglob("*.py"):
                 if file.name.startswith("_"):
                     continue
+                if location.scope == ResourcePaths.SCOPE_SYSTEM:
+                    if not any(part in PLUGIN_FAMILY_DIRS for part in file.parts):
+                        continue
 
                 # Determine module name based on scope
                 is_core = location.scope == ResourcePaths.SCOPE_SYSTEM
@@ -211,11 +215,20 @@ class PluginLoader:
                         continue
 
                     module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
+                    sys.modules[module_name] = module
+                    try:
+                        spec.loader.exec_module(module)
+                    except Exception:
+                        sys.modules.pop(module_name, None)
+                        raise
 
                     # Find plugin classes in this module
                     for name, obj in inspect.getmembers(module):
-                        if inspect.isclass(obj) and is_plugin_class(obj):
+                        if (
+                            inspect.isclass(obj)
+                            and obj.__module__ == module_name
+                            and is_plugin_class(obj)
+                        ):
                             plugin_name = getattr(obj, "name", file.stem)
 
                             plugins[plugin_name] = PluginInfo(

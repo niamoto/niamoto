@@ -68,6 +68,27 @@ class SuggestionsResponse(BaseModel):
     total_suggestions: int
 
 
+class EnrichmentFieldCatalogItem(BaseModel):
+    """One displayable enrichment field."""
+
+    source_id: str
+    source_label: str
+    path: str
+    label: str
+    format: str
+    section_hint: str
+    sample_values: List[Any] = []
+
+
+class EnrichmentSourceCatalogResponse(BaseModel):
+    """One enrichment source catalog."""
+
+    id: str
+    label: str
+    field_count: int = 0
+    fields: List[EnrichmentFieldCatalogItem] = []
+
+
 # =============================================================================
 # CONFIG GENERATION MODELS
 # =============================================================================

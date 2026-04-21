@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional, Callable
 import logging
 import json
 from pathlib import Path
+import re
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -27,6 +28,7 @@ from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.transform_config_models import TransformGroupConfig
+from niamoto.common.table_resolver import quote_identifier
 
 # Check if we're in CLI context for progress display
 try:
@@ -41,6 +43,7 @@ except ImportError:
     MetricsCollector = None
 
 logger = logging.getLogger(__name__)
+_SAFE_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Backward compatibility toggle expected by tests and legacy code
 CLI_CONTEXT = CLI_DETECTED
@@ -119,12 +122,28 @@ class TransformerService:
         """
 
         if getattr(self.db, "is_duckdb", False):
-            quoted_table = str(quoted_name(table_name, quote=True))
+            quoted_table = self._quote_sql_identifier(table_name)
             self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
             df.to_sql(table_name, self.db.engine, if_exists="fail", index=False)
             return
 
         df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+
+    def _quote_sql_identifier(self, name: str) -> str:
+        """Return a SQL-safe identifier for dynamic table and column names."""
+
+        if _SAFE_SQL_IDENTIFIER_RE.match(name):
+            return name
+
+        try:
+            quoted = quote_identifier(self.db, name)
+            if isinstance(quoted, str):
+                return quoted
+        except Exception:
+            pass
+
+        escaped = str(name).replace('"', '""')
+        return f'"{escaped}"'
 
     def transform_single_widget(
         self,
@@ -1121,12 +1140,17 @@ class TransformerService:
         """Create or update table for group results."""
         try:
             # Create columns for each widget
-            columns = [f"{widget_name} JSON" for widget_name in widgets_config.keys()]
+            columns = [
+                f"{self._quote_sql_identifier(widget_name)} JSON"
+                for widget_name in widgets_config.keys()
+            ]
+            quoted_table = self._quote_sql_identifier(group_by)
+            quoted_id_column = self._quote_sql_identifier(f"{group_by}_id")
 
             # Drop table if recreate_table is True
             if recreate_table:
                 drop_table_sql = f"""
-                DROP TABLE IF EXISTS {group_by}
+                DROP TABLE IF EXISTS {quoted_table}
                 """
                 self.db.execute_sql(drop_table_sql)
 
@@ -1134,8 +1158,8 @@ class TransformerService:
             # This allows transformations for all hierarchy levels (families, genera, species)
             # not just those with external IDs (e.g., taxonomy_id)
             create_table_sql = f"""
-            CREATE TABLE IF NOT EXISTS {group_by} (
-                {group_by}_id BIGINT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS {quoted_table} (
+                {quoted_id_column} BIGINT PRIMARY KEY,
                 {", ".join(columns)}
             )
             """
@@ -1234,6 +1258,8 @@ class TransformerService:
         self._table_flush_modes.pop(group_by, None)
 
         id_column = f"{group_by}_id"
+        quoted_table = self._quote_sql_identifier(group_by)
+        quoted_id_column = self._quote_sql_identifier(id_column)
         rows: List[Dict[str, Any]] = []
         for entity_id, values in buffer.items():
             row = {id_column: entity_id}
@@ -1255,28 +1281,33 @@ class TransformerService:
             return
 
         staging_table = f"{group_by}__staging"
+        quoted_staging_table = self._quote_sql_identifier(staging_table)
         self._write_dataframe_to_table(df, staging_table)
 
         non_id_columns = [col for col in ordered_columns if col != id_column]
-        columns_sql = ", ".join(ordered_columns)
+        quoted_columns = [self._quote_sql_identifier(col) for col in ordered_columns]
+        quoted_non_id_columns = [
+            self._quote_sql_identifier(col) for col in non_id_columns
+        ]
+        columns_sql = ", ".join(quoted_columns)
         if non_id_columns:
             update_clause = ", ".join(
-                f"{col} = excluded.{col}" for col in non_id_columns
+                f"{col} = excluded.{col}" for col in quoted_non_id_columns
             )
             insert_sql = f"""
-                INSERT INTO {group_by} ({columns_sql})
-                SELECT {columns_sql} FROM {staging_table}
-                ON CONFLICT ({id_column})
+                INSERT INTO {quoted_table} ({columns_sql})
+                SELECT {columns_sql} FROM {quoted_staging_table}
+                ON CONFLICT ({quoted_id_column})
                 DO UPDATE SET {update_clause}
             """
         else:
             insert_sql = f"""
-                INSERT INTO {group_by} ({id_column})
-                SELECT {id_column} FROM {staging_table}
-                ON CONFLICT ({id_column}) DO NOTHING
+                INSERT INTO {quoted_table} ({quoted_id_column})
+                SELECT {quoted_id_column} FROM {quoted_staging_table}
+                ON CONFLICT ({quoted_id_column}) DO NOTHING
             """
 
         try:
             self.db.execute_sql(insert_sql)
         finally:
-            self.db.execute_sql(f"DROP TABLE IF EXISTS {staging_table}")
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_staging_table}")
