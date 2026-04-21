@@ -60,7 +60,16 @@ LOCKFILES = [
     "src-tauri/Cargo.lock",
 ]
 
-RELEASE_COMMIT_FILES = [*VERSION_FILES, *HELP_CONTENT_FILES, *LOCKFILES]
+RELEASE_METADATA_FILES = [
+    ".marketing/plugins.json",
+]
+
+RELEASE_COMMIT_FILES = [
+    *VERSION_FILES,
+    *HELP_CONTENT_FILES,
+    *LOCKFILES,
+    *RELEASE_METADATA_FILES,
+]
 
 WORKFLOW_SPECS = [
     ("build-binaries.yml", "push"),
