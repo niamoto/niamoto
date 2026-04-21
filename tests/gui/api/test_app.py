@@ -162,7 +162,7 @@ class TestCreateApp:
     ):
         """Desktop welcome mode should not initialize a project-scoped job store."""
         monkeypatch.setattr(
-            "niamoto.gui.api.app.get_optional_working_directory", lambda: None
+            "niamoto.gui.api.app.get_valid_optional_working_directory", lambda: None
         )
 
         app = create_app()
@@ -186,7 +186,8 @@ class TestSPAStaticFiles:
         # Use monkeypatch instead of nested patches
         monkeypatch.setattr("niamoto.gui.api.app.UI_BUILD_DIR", ui_build)
         monkeypatch.setattr(
-            "niamoto.gui.api.app.get_optional_working_directory", lambda: tmp_path
+            "niamoto.gui.api.app.get_valid_optional_working_directory",
+            lambda: tmp_path,
         )
 
         app = create_app()

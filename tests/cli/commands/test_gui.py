@@ -2,6 +2,7 @@
 
 import os
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 import sys
@@ -14,6 +15,7 @@ def mocked_gui_runtime(mock_uvicorn):
     """Provide fake GUI modules so tests control runtime import side effects."""
     fake_app_module = MagicMock()
     fake_context_module = MagicMock()
+    fake_context_module.resolve_explicit_working_directory.return_value = None
 
     with patch.dict(
         "sys.modules",
@@ -122,12 +124,42 @@ class TestGuiCommand:
                 fake_app_module,
                 fake_context_module,
             ):
+                fake_context_module.resolve_explicit_working_directory.return_value = (
+                    Path(expected_dir)
+                )
                 fake_app_module.create_app.side_effect = fake_create_app
                 result = runner.invoke(gui, ["--no-browser"])
 
             assert result.exit_code == 0
             assert observed["niamoto_home"] == expected_dir
             fake_context_module.set_working_directory.assert_called_once()
+
+    def test_gui_ignores_invalid_niamoto_home_before_app_creation(self, monkeypatch):
+        """Test GUI command drops an invalid explicit project path before app startup."""
+        runner = CliRunner()
+        mock_uvicorn = MagicMock()
+        mock_uvicorn.run.side_effect = KeyboardInterrupt()
+
+        observed = {}
+
+        def fake_create_app():
+            observed["niamoto_home"] = os.environ.get("NIAMOTO_HOME")
+            return MagicMock()
+
+        invalid_dir = "/tmp/missing-niamoto-project"
+        monkeypatch.setenv("NIAMOTO_HOME", invalid_dir)
+
+        with mocked_gui_runtime(mock_uvicorn) as (
+            fake_app_module,
+            fake_context_module,
+        ):
+            fake_app_module.create_app.side_effect = fake_create_app
+            fake_context_module.resolve_explicit_working_directory.return_value = None
+            result = runner.invoke(gui, ["--no-browser"])
+
+        assert result.exit_code == 0
+        assert observed["niamoto_home"] is None
+        fake_context_module.set_working_directory.assert_not_called()
 
     def test_gui_custom_port_and_host(self):
         """Test GUI command with custom port and host."""

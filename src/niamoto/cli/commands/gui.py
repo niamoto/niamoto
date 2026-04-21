@@ -5,7 +5,6 @@ import webbrowser
 from threading import Timer
 import logging
 import os
-from pathlib import Path
 import time
 
 from niamoto.gui.startup_logging import log_desktop_startup
@@ -52,19 +51,27 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
         f"API Docs: http://{host}:{port}/api/docs"
     )
 
-    from niamoto.gui.api.context import set_working_directory
+    from niamoto.gui.api.context import (
+        resolve_explicit_working_directory,
+        set_working_directory,
+    )
 
     # Expose the resolved project directory before importing the FastAPI app module.
     # The module creates an app instance at import time and reads the GUI context.
     niamoto_home = os.environ.get("NIAMOTO_HOME")
-    if niamoto_home:
-        work_dir = Path(niamoto_home).expanduser().resolve()
+    work_dir = resolve_explicit_working_directory(niamoto_home)
+    if work_dir is not None:
         os.environ["NIAMOTO_HOME"] = str(work_dir)
         set_working_directory(work_dir)
         log_desktop_startup(f"resolved working directory to {work_dir}")
     else:
         os.environ.pop("NIAMOTO_HOME", None)
-        log_desktop_startup("no working directory resolved at startup")
+        if niamoto_home:
+            log_desktop_startup(
+                f"ignored invalid working directory candidate {niamoto_home}"
+            )
+        else:
+            log_desktop_startup("no working directory resolved at startup")
 
     try:
         app_import_started = time.perf_counter()

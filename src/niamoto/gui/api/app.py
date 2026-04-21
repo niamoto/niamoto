@@ -41,7 +41,7 @@ from .routers import (
     preview,
     pipeline,
 )
-from .context import get_optional_working_directory
+from .context import get_valid_optional_working_directory
 from .services.job_store_runtime import resolve_job_store
 
 APP_IMPORT_STARTED = time.perf_counter()
@@ -57,7 +57,7 @@ def _resolve_gui_log_directory() -> Path:
     if configured:
         return Path(configured).expanduser()
 
-    work_dir = get_optional_working_directory()
+    work_dir = get_valid_optional_working_directory()
     if work_dir is not None:
         return work_dir / "logs"
 
@@ -160,7 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
     app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
-    work_dir = get_optional_working_directory()
+    work_dir = get_valid_optional_working_directory()
     if work_dir is not None:
         resolve_job_store(app)
     else:
