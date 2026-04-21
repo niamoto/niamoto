@@ -710,11 +710,24 @@
       "internetRequired": "Internet connection required",
       "internetRequiredResume": "Internet connection required to resume"
     },
+    "connectivity": {
+      "warningTitle": "Connectivity to verify",
+      "warningDescription": "The last network check did not confirm internet access for enrichment. You can still try the action; the backend will make the real check.",
+      "pausedTitle": "Enrichment paused",
+      "pausedDescription": "The job was paused after repeated network errors. Check connectivity, then resume the job."
+    },
     "actions": {
       "description": "Manage the enrichment process",
       "start": "Start enrichment",
       "pause": "Pause",
       "resume": "Resume"
+    },
+    "runtime": {
+      "startAll": "Start all APIs",
+      "startSource": "Start this API",
+      "alreadyEnriched": "Already enriched",
+      "runProgress": "This run",
+      "failedAttempts": "Failures"
     },
     "cancelDialog": {
       "title": "Cancel enrichment?",
@@ -742,7 +755,9 @@
       "title": "Enrichment results",
       "description": "Entities enriched during the latest job",
       "emptyTitle": "No results available",
-      "emptyDescription": "Run an enrichment to see results"
+      "emptyDescription": "Run an enrichment to see results",
+      "loadMore": "Load more",
+      "loadingMore": "Loading..."
     },
     "result": {
       "success": "Success",

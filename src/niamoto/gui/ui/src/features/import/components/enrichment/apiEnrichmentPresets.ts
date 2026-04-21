@@ -121,6 +121,7 @@ export const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
         endemic: 'endemique',
         protected: 'protected',
         redlist_cat: 'categorie_uicn',
+        images: 'images',
         image_small_thumb: 'image.small_thumb',
         image_big_thumb: 'image.big_thumb',
       },

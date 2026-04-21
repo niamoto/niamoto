@@ -108,6 +108,7 @@
     "rebuild": "Rebuild",
     "cancelled": "Deployment cancelled",
     "offline_warning": "Deployment unavailable offline.",
+    "connectivity_warning": "The last network check did not confirm internet access for deployment. You can still try again; the real deployment attempt will decide.",
     "platforms": {
       "title": "Deployment Platform",
       "description": "Choose where to deploy your site",

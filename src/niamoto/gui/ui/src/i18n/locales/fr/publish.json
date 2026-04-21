@@ -108,6 +108,7 @@
     "rebuild": "Reconstruire",
     "cancelled": "Déploiement annulé",
     "offline_warning": "Déploiement indisponible hors connexion.",
+    "connectivity_warning": "La dernière vérification réseau n'a pas confirmé l'accès internet pour le déploiement. Vous pouvez quand même réessayer ; la tentative réelle fera foi.",
     "platforms": {
       "title": "Plateforme de déploiement",
       "description": "Choisissez où déployer votre site",

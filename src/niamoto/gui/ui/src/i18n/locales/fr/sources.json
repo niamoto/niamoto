@@ -710,11 +710,24 @@
       "internetRequired": "Connexion internet requise",
       "internetRequiredResume": "Connexion internet requise pour reprendre"
     },
+    "connectivity": {
+      "warningTitle": "Connectivité à vérifier",
+      "warningDescription": "La dernière vérification réseau n'a pas confirmé l'accès internet pour l'enrichissement. Vous pouvez quand même tenter l'action ; le backend fera la vérification réelle.",
+      "pausedTitle": "Enrichissement mis en pause",
+      "pausedDescription": "Le traitement a été mis en pause après plusieurs erreurs réseau. Vérifiez la connexion puis relancez le job."
+    },
     "actions": {
       "description": "Gérer le processus d'enrichissement",
       "start": "Démarrer l'enrichissement",
       "pause": "Pause",
       "resume": "Reprendre"
+    },
+    "runtime": {
+      "startAll": "Lancer toutes les APIs",
+      "startSource": "Lancer cette API",
+      "alreadyEnriched": "Déjà enrichis",
+      "runProgress": "Ce lancement",
+      "failedAttempts": "Échecs"
     },
     "cancelDialog": {
       "title": "Annuler l'enrichissement ?",
@@ -742,7 +755,9 @@
       "title": "Résultats d'enrichissement",
       "description": "Entités enrichies lors du dernier job",
       "emptyTitle": "Aucun résultat disponible",
-      "emptyDescription": "Lancez un enrichissement pour voir les résultats"
+      "emptyDescription": "Lancez un enrichissement pour voir les résultats",
+      "loadMore": "Voir plus",
+      "loadingMore": "Chargement..."
     },
     "result": {
       "success": "Succès",
