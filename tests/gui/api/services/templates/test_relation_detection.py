@@ -185,3 +185,75 @@ def test_read_csv_columns_normalizes_quoted_headers(tmp_path: Path):
 def test_high_confidence_auto_attach_rejects_generic_reference_id():
     assert not is_high_confidence_auto_attach("id", "plot_id", 1.0, min_score=0.75)
     assert is_high_confidence_auto_attach("id_plot", "plot_id", 1.0, min_score=0.75)
+
+
+def test_find_best_stats_source_for_reference_uses_reference_key_suffix_id(
+    tmp_path: Path,
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    imports_dir = work_dir / "imports"
+    config_dir.mkdir()
+    db_dir.mkdir()
+    imports_dir.mkdir()
+
+    (config_dir / "import.yml").write_text(
+        "\n".join(
+            [
+                "entities:",
+                "  datasets:",
+                "    occurrences:",
+                "      connector:",
+                "        type: csv",
+                "  references:",
+                "    taxons:",
+                "      kind: hierarchical",
+                "      relation:",
+                "        dataset: occurrences",
+                "        foreign_key: id_taxonref",
+                "        reference_key: taxons_id",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        """
+        CREATE TABLE entity_taxons (
+            id INTEGER,
+            taxons_id INTEGER,
+            full_name VARCHAR
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO entity_taxons VALUES
+        (1001, 4, 'Taxon 4'),
+        (1002, 38, 'Taxon 38')
+        """
+    )
+    conn.close()
+
+    (imports_dir / "raw_taxa_stats.csv").write_text(
+        "\n".join(
+            [
+                "class_name;taxon_id;class_value;class_object",
+                "network;4;12;nbe_source_dataset",
+                "network;38;18;nbe_source_dataset",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    best = find_best_stats_source_for_reference(work_dir, "taxons")
+
+    assert best is not None
+    assert best["name"] == "taxa_stats"
+    assert best["ref_field"] == "taxons_id"
+    assert best["match_field"] == "taxon_id"

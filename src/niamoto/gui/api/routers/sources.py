@@ -442,12 +442,29 @@ async def save_source_config(
         delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
         f.seek(0)
         reader = csv.reader(f, delimiter=delimiter)
-        csv_columns = [c.strip().lower() for c in next(reader)]
+        csv_columns = [c.strip() for c in next(reader)]
+
+    selected_entity_column = None
+    for column in csv_columns:
+        if column.lower() == request.entity_id_column.lower():
+            selected_entity_column = column
+            break
+
+    if not selected_entity_column:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Column '{request.entity_id_column}' not found in CSV",
+        )
 
     # Use smart detection to find best ref_field and match_field
     ref_field, match_field, _ = detect_relation_fields(
-        work_dir, reference_name, csv_path, csv_columns
+        work_dir,
+        reference_name,
+        csv_path,
+        csv_columns,
+        preferred_match_field=selected_entity_column,
     )
+    match_field = selected_entity_column
 
     new_source = {
         "name": request.source_name,
