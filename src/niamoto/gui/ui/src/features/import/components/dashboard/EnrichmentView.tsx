@@ -144,19 +144,29 @@ export function EnrichmentView() {
 
       const updates = await Promise.all(
         configuredReferences.map(async (reference) => {
-          try {
-            const statsResult = await apiClient.get<EnrichmentStatsSummary>(`/enrichment/stats/${reference.name}`)
+          const defaultStats = { total: 0, enriched: 0, pending: 0, sources: [] }
+          const knownStats =
+            statsByReferenceRef.current[reference.name] ?? defaultStats
+          const knownJob = jobsByReferenceRef.current[reference.name]
+          const shouldPollJob = shouldPollEnrichmentJob({
+            hasTrackedJob: Boolean(activeTrackedJobsByReference.get(reference.name)),
+            knownJob,
+            lastBackgroundProbeAt:
+              jobProbeTimestampByReferenceRef.current[reference.name],
+          })
 
-            const knownJob = jobsByReferenceRef.current[reference.name]
-            const shouldPollJob = shouldPollEnrichmentJob({
-              hasTrackedJob: Boolean(activeTrackedJobsByReference.get(reference.name)),
-              knownJob,
-              lastBackgroundProbeAt:
-                jobProbeTimestampByReferenceRef.current[reference.name],
-            })
+          const stats = await apiClient
+            .get<EnrichmentStatsSummary>(`/enrichment/stats/${reference.name}`)
+            .then((response) => response.data ?? defaultStats)
+            .catch(() => knownStats)
 
-            const jobResult = shouldPollJob
-              ? await apiClient.get<EnrichmentJobSummary>(`/enrichment/job/${reference.name}`).catch((error: unknown) => {
+          let job = knownJob ?? null
+
+          if (shouldPollJob) {
+            try {
+              const jobResult = await apiClient
+                .get<EnrichmentJobSummary>(`/enrichment/job/${reference.name}`)
+                .catch((error: unknown) => {
                   const isNotFound =
                     typeof error === 'object' &&
                     error !== null &&
@@ -172,23 +182,18 @@ export function EnrichmentView() {
 
                   throw error
                 })
-              : null
 
-            if (shouldPollJob) {
+              job = jobResult?.data ?? null
               jobProbeTimestampByReferenceRef.current[reference.name] = Date.now()
+            } catch {
+              job = knownJob ?? null
             }
+          }
 
-            return {
-              referenceName: reference.name,
-              stats: statsResult.data ?? { total: 0, enriched: 0, pending: 0, sources: [] },
-              job: jobResult?.data ?? null,
-            }
-          } catch {
-            return {
-              referenceName: reference.name,
-              stats: statsByReferenceRef.current[reference.name] ?? { total: 0, enriched: 0, pending: 0, sources: [] },
-              job: jobsByReferenceRef.current[reference.name] ?? null,
-            }
+          return {
+            referenceName: reference.name,
+            stats,
+            job,
           }
         })
       )

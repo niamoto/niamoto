@@ -146,6 +146,22 @@ describe('EnrichmentView', () => {
   let container: HTMLDivElement
   let root: Root
 
+  const renderView = async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root.render(<EnrichmentView />)
+    })
+  }
+
+  const flushEffects = async () => {
+    await act(async () => {
+      await Promise.resolve()
+    })
+  }
+
   afterEach(async () => {
     vi.useRealTimers()
     navigateSpy.mockReset()
@@ -202,17 +218,8 @@ describe('EnrichmentView', () => {
       throw new Error(`Unexpected GET ${url}`)
     })
 
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-
-    await act(async () => {
-      root.render(<EnrichmentView />)
-    })
-
-    await act(async () => {
-      await Promise.resolve()
-    })
+    await renderView()
+    await flushEffects()
 
     expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/stats/taxons')
     expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/job/taxons')
@@ -223,11 +230,82 @@ describe('EnrichmentView', () => {
       vi.advanceTimersByTime(3000)
     })
 
-    await act(async () => {
-      await Promise.resolve()
-    })
+    await flushEffects()
 
     expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/stats/taxons')
     expect(apiGetSpy).not.toHaveBeenCalledWith('/enrichment/job/taxons')
+  })
+
+  it('polls the job endpoint even when the stats request fails', async () => {
+    vi.useFakeTimers()
+
+    apiGetSpy.mockImplementation(async (url: string) => {
+      if (url === '/enrichment/stats/taxons') {
+        throw new Error('Stats unavailable')
+      }
+      if (url === '/enrichment/job/taxons') {
+        return {
+          data: {
+            id: 'job-taxons',
+            mode: 'single',
+            status: 'running',
+            total: 12,
+            processed: 3,
+            pending_total: 12,
+            pending_processed: 3,
+            current_source_label: 'GBIF',
+          },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
+
+    await renderView()
+    await flushEffects()
+
+    expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/stats/taxons')
+    expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/job/taxons')
+    expect(container.textContent).toContain('enrichmentTab.status.running')
+    expect(container.textContent).toContain('GBIF')
+  })
+
+  it('preserves a terminal job state when background polling is skipped', async () => {
+    vi.useFakeTimers()
+
+    apiGetSpy.mockImplementation(async (url: string) => {
+      if (url === '/enrichment/stats/taxons') {
+        return { data: { total: 12, enriched: 12, pending: 0, sources: [] } }
+      }
+      if (url === '/enrichment/job/taxons') {
+        return {
+          data: {
+            id: 'job-taxons',
+            mode: 'single',
+            status: 'completed',
+            total: 12,
+            processed: 12,
+            current_source_label: 'GBIF',
+          },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
+
+    await renderView()
+    await flushEffects()
+
+    expect(container.textContent).toContain('enrichmentTab.status.completed')
+
+    apiGetSpy.mockClear()
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    await flushEffects()
+
+    expect(apiGetSpy).toHaveBeenCalledWith('/enrichment/stats/taxons')
+    expect(apiGetSpy).not.toHaveBeenCalledWith('/enrichment/job/taxons')
+    expect(container.textContent).toContain('enrichmentTab.status.completed')
   })
 })
