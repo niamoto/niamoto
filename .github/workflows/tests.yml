@@ -39,6 +39,12 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
+    - name: Set up pnpm
+      if: matrix.python-version == '3.12'
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.17.1
+
     - name: Set up Node.js
       if: matrix.python-version == '3.12'
       uses: actions/setup-node@v4
@@ -46,12 +52,6 @@ jobs:
         node-version: 24
         cache: pnpm
         cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
-
-    - name: Set up pnpm
-      if: matrix.python-version == '3.12'
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.17.1
 
     - name: Install Python dependencies
       run: |
