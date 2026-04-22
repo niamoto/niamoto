@@ -228,8 +228,21 @@ class ExporterService:
                         }
                     )
 
-                target_result["status"] = "success"
-                logger.info(f"Successfully processed export target: '{target.name}'")
+                if target_result.get("errors", 0) > 0:
+                    target_result["status"] = "error"
+                    target_result["error"] = (
+                        f"Exporter reported {target_result['errors']} internal errors"
+                    )
+                    logger.error(
+                        "Export target '%s' completed with %s internal errors",
+                        target.name,
+                        target_result["errors"],
+                    )
+                else:
+                    target_result["status"] = "success"
+                    logger.info(
+                        f"Successfully processed export target: '{target.name}'"
+                    )
 
             except Exception as e:
                 target_result["status"] = "error"

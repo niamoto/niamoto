@@ -271,6 +271,35 @@ class TestExporterService(NiamotoTestCase):
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
     @patch("niamoto.core.services.exporter.PluginRegistry")
+    def test_run_export_marks_internal_export_errors_as_failure(
+        self, mock_registry, mock_loader, mock_db
+    ):
+        """Exporter-reported internal errors must not be surfaced as success."""
+        self.mock_config.get_exports_config.return_value = self.valid_export_config
+
+        mock_plugin_instance = Mock(spec=MockExporterPlugin)
+        mock_plugin_instance.stats = {
+            "total_files_generated": 7,
+            "errors_count": 2,
+            "groups_processed": {},
+            "output_path": "/tmp/export",
+        }
+        mock_plugin_class = Mock(return_value=mock_plugin_instance)
+
+        mock_registry_instance = Mock()
+        mock_registry_instance.get_plugin.return_value = mock_plugin_class
+        mock_registry.return_value = mock_registry_instance
+
+        service = ExporterService(self.db_path, self.mock_config)
+        results = service.run_export()
+
+        self.assertEqual(results["test_export"]["status"], "error")
+        self.assertEqual(results["test_export"]["errors"], 2)
+        self.assertIn("internal errors", results["test_export"]["error"])
+
+    @patch("niamoto.core.services.exporter.Database")
+    @patch("niamoto.core.services.exporter.PluginLoader")
+    @patch("niamoto.core.services.exporter.PluginRegistry")
     def test_run_export_with_target_name(self, mock_registry, mock_loader, mock_db):
         """Test export with specific target name."""
         # Add multiple targets
