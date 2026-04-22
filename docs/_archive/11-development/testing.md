@@ -1,8 +1,11 @@
-# Testing Guidelines (Coming Soon)
+# Testing Guidance
 
-This document will consolidate test strategies, coverage expectations, and tooling tips for Niamoto contributors.
+This archived placeholder is no longer the active testing reference.
 
-While we prepare the full guide:
-- Run the default suite with `uv run pytest`.
-- See `tests/` for examples of unit, integration, and CLI tests.
-- Refer to `pyproject.toml` for linting and type-checking commands that should accompany new code.
+Use the current architecture docs instead:
+
+- [docs/07-architecture/testing-audit.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/testing-audit.md)
+- [docs/07-architecture/testing-strategy.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/testing-strategy.md)
+
+Those pages track the current gap inventory, preferred test layers, and the
+coverage commands used by the project.

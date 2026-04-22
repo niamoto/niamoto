@@ -126,7 +126,8 @@ def update_import_config(
                         "levels": hierarchy["levels"],
                         "aggregate_geometry": hierarchy.get("aggregate_geometry", True),
                     }
-
+            config["plots"] = plots_config
+        elif filename and filename != "null":
             config["plots"] = plots_config
 
     elif import_type == "occurrences":
