@@ -725,9 +725,15 @@
     "runtime": {
       "startAll": "Lancer toutes les APIs",
       "startSource": "Lancer cette API",
+      "restartSource": "Relancer à zéro",
       "alreadyEnriched": "Déjà enrichis",
-      "runProgress": "Ce lancement",
+      "runProgress": "Tentatives terminées",
       "failedAttempts": "Échecs"
+    },
+    "restartDialog": {
+      "title": "Relancer cette source à zéro ?",
+      "description": "Cette action relance {{source}} sur {{count}} entités. Les données existantes de cette source seront remplacées et supprimées si l’API ne renvoie plus rien.",
+      "confirm": "Relancer à zéro"
     },
     "cancelDialog": {
       "title": "Annuler l'enrichissement ?",
@@ -775,6 +781,7 @@
       "loadConfig": "Impossible de charger la configuration d'enrichissement",
       "saveConfig": "Impossible de sauvegarder la configuration d'enrichissement",
       "startJob": "Impossible de démarrer le job",
+      "restartJob": "Impossible de relancer cette source à zéro",
       "pauseJob": "Impossible de mettre en pause",
       "resumeJob": "Impossible de reprendre",
       "cancelJob": "Impossible d'annuler",
@@ -785,6 +792,8 @@
       "saveErrorTitle": "Erreur de sauvegarde",
       "startedTitle": "Enrichissement démarré",
       "startedDescription": "{{count}} entités à traiter",
+      "restartStartedTitle": "Relance à zéro démarrée",
+      "restartStartedDescription": "{{count}} entités vont être retraitées",
       "startErrorTitle": "Erreur de démarrage",
       "pausedTitle": "Enrichissement en pause",
       "pausedDescription": "Vous pouvez reprendre à tout moment",

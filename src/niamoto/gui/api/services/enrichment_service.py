@@ -43,6 +43,21 @@ class JobMode(str, Enum):
     SINGLE = "single"
 
 
+class JobStrategy(str, Enum):
+    """Execution strategy for enrichment jobs."""
+
+    RESUME = "resume"
+    RESET = "reset"
+
+
+class EnrichmentResultOutcome(str, Enum):
+    """Outcome categories for one enrichment attempt."""
+
+    STORED = "stored"
+    EMPTY = "empty"
+    FAILED = "failed"
+
+
 TERMINAL_JOB_STATUSES = {
     JobStatus.COMPLETED,
     JobStatus.FAILED,
@@ -191,6 +206,7 @@ class EnrichmentJob(BaseModel):
     id: str
     reference_name: str
     mode: JobMode
+    strategy: JobStrategy = JobStrategy.RESUME
     status: JobStatus
     total: int = 0
     processed: int = 0
@@ -223,6 +239,7 @@ class EnrichmentResult(BaseModel):
     source_label: str
     entity_name: str
     success: bool
+    outcome: EnrichmentResultOutcome = EnrichmentResultOutcome.STORED
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     processed_at: str
@@ -990,6 +1007,43 @@ def _merge_source_enrichment_data(
     return extra_dict
 
 
+def _replace_source_enrichment_data(
+    extra_data: Any, source: EnrichmentSourceConfig, source_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Replace one source payload while preserving unrelated enrichment data."""
+
+    return _merge_source_enrichment_data(extra_data, source, source_data)
+
+
+def _delete_source_enrichment_data(extra_data: Any, source_id: str) -> Dict[str, Any]:
+    """Remove one stored source payload while preserving unrelated extra_data."""
+
+    extra_dict = _deserialize_extra_data(extra_data)
+    api_enrichment = extra_dict.get("api_enrichment")
+    if not isinstance(api_enrichment, dict):
+        return extra_dict
+
+    sources = api_enrichment.get("sources")
+    if not isinstance(sources, dict):
+        return extra_dict
+
+    remaining_sources = dict(sources)
+    remaining_sources.pop(source_id, None)
+    extra_dict.pop("enriched_at", None)
+
+    if remaining_sources:
+        now = datetime.now().isoformat()
+        extra_dict["api_enrichment"] = {
+            **api_enrichment,
+            "sources": remaining_sources,
+            "updated_at": now,
+        }
+        return extra_dict
+
+    extra_dict.pop("api_enrichment", None)
+    return extra_dict
+
+
 def _reference_display_column_candidates(reference_name: str) -> List[str]:
     """Return likely human-readable columns for one reference table."""
 
@@ -1263,6 +1317,11 @@ def _get_results_for_source_sql(
                         or source_label,
                         entity_name=entity_name,
                         success=success,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if success
+                            else EnrichmentResultOutcome.FAILED
+                        ),
                         data=data if isinstance(data, dict) else None,
                         error=None if success else str(error or status),
                         processed_at=str(processed_at),
@@ -1426,7 +1485,7 @@ def _save_source_enrichment_to_db(
             ).columns.tolist()
             id_field = _reference_id_field(reference_name, table_columns)
             quoted_id_field = quote_identifier(db, id_field)
-            merged = _merge_source_enrichment_data(
+            merged = _replace_source_enrichment_data(
                 existing_extra_data, source, source_data
             )
             with db.engine.connect() as connection:
@@ -1450,6 +1509,62 @@ def _save_source_enrichment_to_db(
             reference_name,
             entity_id,
             source.id,
+            exc,
+        )
+        return None
+
+
+def _delete_source_enrichment_from_db(
+    reference_name: str,
+    entity_id: Any,
+    source_id: str,
+    existing_extra_data: Any,
+) -> Optional[Dict[str, Any]]:
+    """Delete one source payload from the entity extra_data column."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    try:
+        import pandas as pd
+
+        db = Database(str(db_path))
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            id_field = _reference_id_field(reference_name, table_columns)
+            quoted_id_field = quote_identifier(db, id_field)
+            updated = _delete_source_enrichment_data(existing_extra_data, source_id)
+            serialized = json.dumps(updated) if updated else None
+            with db.engine.connect() as connection:
+                connection.execute(
+                    text(
+                        f"UPDATE {quoted_table_name} "
+                        f"SET extra_data = :extra_data WHERE {quoted_id_field} = :entity_id"
+                    ),
+                    {
+                        "extra_data": serialized,
+                        "entity_id": entity_id,
+                    },
+                )
+                connection.commit()
+            return updated
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning(
+            "Error deleting enrichment for '%s' entity %s source %s: %s",
+            reference_name,
+            entity_id,
+            source_id,
             exc,
         )
         return None
@@ -1954,6 +2069,7 @@ async def _run_enrichment_job(
     reference_name: str,
     sources: Sequence[EnrichmentSourceConfig],
     mode: JobMode,
+    strategy: JobStrategy = JobStrategy.RESUME,
 ) -> None:
     """Background worker executing one or many sources for a reference."""
 
@@ -1972,7 +2088,7 @@ async def _run_enrichment_job(
             _current_job.updated_at = datetime.now().isoformat()
             return
 
-        source_completed = {
+        persisted_source_completed = {
             source.id: sum(
                 1
                 for row in rows
@@ -1985,19 +2101,25 @@ async def _run_enrichment_job(
             for source in sources
         }
 
-        pending_steps: List[tuple[Dict[str, Any], EnrichmentSourceConfig]] = []
-        for source in sources:
-            for row in rows:
-                if _has_completed_source(
-                    _deserialize_extra_data(row.get("extra_data")),
-                    source.id,
-                    preferred_source_ids,
-                ):
-                    continue
-                pending_steps.append((row, source))
+        if strategy == JobStrategy.RESET:
+            source_completed = {source.id: 0 for source in sources}
+            pending_steps = [(row, source) for source in sources for row in rows]
+            already_completed = 0
+        else:
+            source_completed = dict(persisted_source_completed)
+            pending_steps = []
+            for source in sources:
+                for row in rows:
+                    if _has_completed_source(
+                        _deserialize_extra_data(row.get("extra_data")),
+                        source.id,
+                        preferred_source_ids,
+                    ):
+                        continue
+                    pending_steps.append((row, source))
+            already_completed = sum(source_completed.values())
 
         total_steps = len(rows) * len(sources)
-        already_completed = sum(source_completed.values())
         _current_job.total = total_steps
         _current_job.processed = already_completed
         _current_job.successful = already_completed
@@ -2036,18 +2158,22 @@ async def _run_enrichment_job(
         source_initial_completed = dict(source_completed)
         source_pending_processed = {source.id: 0 for source in sources}
         source_totals = {source.id: len(rows) for source in sources}
-        source_pending_totals = {
-            source.id: sum(
-                1
-                for row in rows
-                if not _has_completed_source(
-                    _deserialize_extra_data(row.get("extra_data")),
-                    source.id,
-                    preferred_source_ids,
+        source_pending_totals = (
+            {source.id: len(rows) for source in sources}
+            if strategy == JobStrategy.RESET
+            else {
+                source.id: sum(
+                    1
+                    for row in rows
+                    if not _has_completed_source(
+                        _deserialize_extra_data(row.get("extra_data")),
+                        source.id,
+                        preferred_source_ids,
+                    )
                 )
-            )
-            for source in sources
-        }
+                for source in sources
+            }
+        )
         enrichers: Dict[str, Any] = {}
 
         for row, source in pending_steps:
@@ -2096,10 +2222,17 @@ async def _run_enrichment_job(
                     row,
                     _build_plugin_config(source),
                 )
-                source_data = result.get("api_enrichment", {})
+                source_data = (
+                    result.get("api_enrichment", {}) if isinstance(result, dict) else {}
+                )
+                has_source_data = isinstance(source_data, dict) and bool(source_data)
                 entity_id = _row_entity_id(row)
 
-                if source_data and entity_id is not None:
+                if has_source_data:
+                    if entity_id is None:
+                        raise RuntimeError(
+                            f"Missing entity id for '{entity_name}' while saving enrichment data"
+                        )
                     merged_extra_data = _save_source_enrichment_to_db(
                         reference_name,
                         entity_id,
@@ -2107,8 +2240,23 @@ async def _run_enrichment_job(
                         source_data,
                         row.get("extra_data"),
                     )
-                    if merged_extra_data is not None:
-                        row["extra_data"] = merged_extra_data
+                    if merged_extra_data is None:
+                        raise RuntimeError(
+                            f"Failed to persist enrichment data for source '{source.label}'"
+                        )
+                    row["extra_data"] = merged_extra_data
+                elif strategy == JobStrategy.RESET and entity_id is not None:
+                    updated_extra_data = _delete_source_enrichment_from_db(
+                        reference_name,
+                        entity_id,
+                        source.id,
+                        row.get("extra_data"),
+                    )
+                    if updated_extra_data is None:
+                        raise RuntimeError(
+                            f"Failed to clear enrichment data for source '{source.label}'"
+                        )
+                    row["extra_data"] = updated_extra_data or None
 
                 _job_results.append(
                     EnrichmentResult(
@@ -2117,11 +2265,17 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=True,
-                        data=source_data,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if has_source_data
+                            else EnrichmentResultOutcome.EMPTY
+                        ),
+                        data=source_data if has_source_data else None,
                         processed_at=datetime.now().isoformat(),
                     )
                 )
-                _current_job.successful += 1
+                if has_source_data:
+                    _current_job.successful += 1
                 consecutive_network_errors = 0
             except network_error_types as exc:
                 consecutive_network_errors += 1
@@ -2132,6 +2286,7 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=False,
+                        outcome=EnrichmentResultOutcome.FAILED,
                         error=f"[Network] {exc}",
                         processed_at=datetime.now().isoformat(),
                     )
@@ -2153,6 +2308,7 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=False,
+                        outcome=EnrichmentResultOutcome.FAILED,
                         error=str(exc),
                         processed_at=datetime.now().isoformat(),
                     )
@@ -2200,8 +2356,11 @@ def _assert_job_can_start() -> None:
         raise ValueError("An enrichment job is already active")
 
 
-def start_reference_enrichment(
-    reference_name: str, source_id: Optional[str] = None
+def _start_reference_enrichment(
+    reference_name: str,
+    source_id: Optional[str] = None,
+    *,
+    strategy: JobStrategy = JobStrategy.RESUME,
 ) -> EnrichmentJob:
     """Start a global or per-source enrichment job for a reference."""
 
@@ -2220,6 +2379,7 @@ def start_reference_enrichment(
         id=str(uuid.uuid4()),
         reference_name=reference_name,
         mode=JobMode.SINGLE if source_id else JobMode.ALL,
+        strategy=strategy,
         status=JobStatus.RUNNING,
         started_at=now,
         updated_at=now,
@@ -2229,10 +2389,38 @@ def start_reference_enrichment(
     )
 
     _job_task = asyncio.create_task(
-        _run_enrichment_job(_current_job.id, reference_name, sources, _current_job.mode)
+        _run_enrichment_job(
+            _current_job.id,
+            reference_name,
+            sources,
+            _current_job.mode,
+            strategy,
+        )
     )
 
     return _current_job
+
+
+def start_reference_enrichment(
+    reference_name: str, source_id: Optional[str] = None
+) -> EnrichmentJob:
+    """Start a global or per-source enrichment job for a reference."""
+
+    return _start_reference_enrichment(
+        reference_name,
+        source_id=source_id,
+        strategy=JobStrategy.RESUME,
+    )
+
+
+def restart_reference_enrichment(reference_name: str, source_id: str) -> EnrichmentJob:
+    """Restart one source from zero for a reference."""
+
+    return _start_reference_enrichment(
+        reference_name,
+        source_id=source_id,
+        strategy=JobStrategy.RESET,
+    )
 
 
 def start_default_enrichment() -> EnrichmentJob:
@@ -2432,6 +2620,11 @@ def get_results(
                         ),
                         entity_name=entity_name,
                         success=success,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if success
+                            else EnrichmentResultOutcome.FAILED
+                        ),
                         data=data if isinstance(data, dict) else None,
                         error=None if success else str(error or status),
                         processed_at=processed_at,
