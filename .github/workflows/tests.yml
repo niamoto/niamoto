@@ -84,6 +84,7 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: niamoto/niamoto
         fail_ci_if_error: true
+        flags: backend
 
     - name: Upload frontend coverage to Codecov
       if: matrix.python-version == '3.12'
