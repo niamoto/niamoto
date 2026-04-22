@@ -39,9 +39,29 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
+    - name: Set up Node.js
+      if: matrix.python-version == '3.12'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: pnpm
+        cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
+
+    - name: Set up pnpm
+      if: matrix.python-version == '3.12'
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.17.1
+
     - name: Install Python dependencies
       run: |
         uv sync --group dev
+
+    - name: Install frontend dependencies
+      if: matrix.python-version == '3.12'
+      working-directory: src/niamoto/gui/ui
+      run: |
+        pnpm install --frozen-lockfile
 
     - name: Run Ruff
       run: |
@@ -51,6 +71,12 @@ jobs:
       run: |
         uv run --group dev pytest -n auto --cov=niamoto tests/ --cov-report=xml --cov-report=html
 
+    - name: Run frontend tests with coverage
+      if: matrix.python-version == '3.12'
+      working-directory: src/niamoto/gui/ui
+      run: |
+        pnpm test:coverage
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
@@ -59,9 +85,27 @@ jobs:
         slug: niamoto/niamoto
         fail_ci_if_error: true
 
+    - name: Upload frontend coverage to Codecov
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v5
+      with:
+        files: ./src/niamoto/gui/ui/coverage/lcov.info
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: niamoto/niamoto
+        fail_ci_if_error: true
+        flags: frontend
+
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
+        if-no-files-found: error
+
+    - name: Upload frontend coverage report
+      if: matrix.python-version == '3.12'
+      uses: actions/upload-artifact@v7
+      with:
+        name: frontend-coverage-report
+        path: src/niamoto/gui/ui/coverage/
         if-no-files-found: error

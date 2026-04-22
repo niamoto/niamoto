@@ -361,6 +361,213 @@ def test_ensure_startable_sources_rejects_missing_api_key(monkeypatch):
         enrichment_service._ensure_startable_sources("taxons")
 
 
+def test_source_helper_detection_and_label_normalization():
+    assert enrichment_service._slugify_source_id(" GBIF / Match ", "fallback") == (
+        "gbif-match"
+    )
+    assert enrichment_service._slugify_source_id("!!!", "fallback") == "fallback"
+    assert (
+        enrichment_service._guess_source_label(
+            {"config": {"api_url": "https://api.gbif.org/v1/species/match"}},
+            0,
+        )
+        == "Api Gbif Org"
+    )
+    assert (
+        enrichment_service._guess_source_label(
+            {"plugin": "api_taxonomy_enricher"},
+            1,
+        )
+        == "Api Taxonomy Enricher"
+    )
+    assert enrichment_service._is_legacy_gbif_source(
+        {"label": "GBIF"},
+        {"api_url": "https://api.gbif.org/v1/species/match"},
+    )
+    assert enrichment_service._is_legacy_tropicos_source(
+        {"plugin": "tropicos_enricher"},
+        {},
+    )
+    assert enrichment_service._is_legacy_inaturalist_source(
+        {"label": "iNaturalist"},
+        {"api_url": "https://api.inaturalist.org/v1/taxa"},
+    )
+    assert enrichment_service._is_endemia_source(
+        {"label": "Endemia NC"},
+        {"api_url": "https://api.endemia.nc/v1/taxons"},
+    )
+    assert enrichment_service._is_legacy_openmeteo_source(
+        {"label": "Open-Meteo Elevation"},
+        {"api_url": "https://api.open-meteo.com/v1/elevation"},
+    )
+    assert enrichment_service._is_legacy_geonames_source(
+        {"label": "GeoNames Nearby"},
+        {"api_url": "https://secure.geonames.org/findNearbyJSON"},
+    )
+    assert enrichment_service._col_search_url(12345).endswith(
+        "/dataset/12345/nameusage/search"
+    )
+
+
+def test_reference_metadata_helpers_cover_geometry_and_display_candidates(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda reference_name: {
+            "kind": "spatial" if reference_name == "plots" else "generic",
+            "schema": (
+                {
+                    "id_field": "id_plot",
+                    "name_field": "plot",
+                    "fields": [{"name": "geo_shape", "type": "geometry"}],
+                }
+                if reference_name == "plots"
+                else {"fields": []}
+            ),
+            "relation": {"reference_key": "plot_code"}
+            if reference_name == "plots"
+            else {},
+        },
+    )
+
+    assert enrichment_service._reference_has_geometry("plots") is True
+    assert enrichment_service._reference_geometry_fields("plots") == ["geo_shape"]
+    assert enrichment_service._reference_geometry_fields("taxons") == [
+        "geo_pt",
+        "location",
+        "geometry",
+        "geo_pt_geom",
+        "geom",
+    ]
+    assert (
+        enrichment_service._reference_id_field("plots", ["id_plot", "plot"])
+        == "id_plot"
+    )
+    assert enrichment_service._reference_display_column_candidates("plots") == [
+        "plot",
+        "plot_code",
+        "full_name",
+        "name",
+        "label",
+        "title",
+        "id",
+    ]
+
+
+def test_row_and_payload_helpers_support_legacy_and_namespaced_storage(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_reference_geometry_fields",
+        lambda _reference_name: ["geometry"],
+    )
+
+    normalized = enrichment_service._normalize_loaded_row(
+        "plots",
+        {"id_plot": 8, "label": "Parcelle 8"},
+        id_field="id_plot",
+    )
+    assert normalized["id"] == 8
+    assert normalized["_entity_id"] == 8
+    assert normalized["_entity_id_field"] == "id_plot"
+    assert normalized["_geometry_fields"] == ["geometry"]
+    assert enrichment_service._row_entity_id(normalized) == 8
+
+    assert enrichment_service._deserialize_extra_data(
+        '{"api_enrichment": {"foo": "bar"}}'
+    ) == {"api_enrichment": {"foo": "bar"}}
+    assert enrichment_service._deserialize_extra_data("not-json") == {}
+
+    legacy_sources = enrichment_service._extract_stored_sources(
+        {
+            "label": "GBIF",
+            "enriched_at": "2026-04-09T10:00:00",
+            "api_enrichment": {"usage_key": 99},
+        },
+        ["gbif"],
+    )
+    assert legacy_sources == {
+        "gbif": {
+            "label": "GBIF",
+            "data": {"usage_key": 99},
+            "enriched_at": "2026-04-09T10:00:00",
+            "status": "completed",
+            "legacy": True,
+        }
+    }
+
+    namespaced = {
+        "api_enrichment": {
+            "sources": {
+                "gbif": {"status": "completed", "data": {"usage_key": 1}},
+                "endemia": {"status": "failed", "data": {"api_id": 2}},
+            }
+        }
+    }
+    assert enrichment_service._has_completed_source(namespaced, "gbif", ["gbif"])
+    assert (
+        enrichment_service._has_completed_source(namespaced, "endemia", ["endemia"])
+        is False
+    )
+    assert enrichment_service._has_any_source_enrichment(
+        namespaced, ["gbif", "endemia"]
+    )
+    assert (
+        enrichment_service._source_json_path('geo"demo\\source')
+        == '$.api_enrichment.sources."geo\\"demo\\\\source"'
+    )
+    assert enrichment_service._can_use_legacy_source_payload(
+        "gbif", ["gbif", "endemia"]
+    )
+    assert (
+        enrichment_service._can_use_legacy_source_payload(
+            "endemia", ["gbif", "endemia"]
+        )
+        is False
+    )
+
+
+def test_resolve_default_reference_name_prefers_taxons_and_then_enabled_sources(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_import_config",
+        lambda: {
+            "entities": {
+                "references": {
+                    "plots": {"enrichment": [{"id": "off", "enabled": False}]},
+                    "taxons": {"enrichment": [{"id": "on", "enabled": True}]},
+                }
+            }
+        },
+    )
+    assert enrichment_service._resolve_default_reference_name() == "taxons"
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_import_config",
+        lambda: {
+            "entities": {
+                "references": {
+                    "plots": {"enrichment": [{"id": "off", "enabled": False}]},
+                    "shapes": {
+                        "enrichment": [
+                            {
+                                "id": "open-meteo",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://api.open-meteo.com/v1/elevation"
+                                },
+                            }
+                        ]
+                    },
+                }
+            }
+        },
+    )
+    assert enrichment_service._resolve_default_reference_name() == "shapes"
+
+
 def test_merge_source_enrichment_data_keeps_existing_sources():
     """Adding one source must not overwrite previously stored source payloads."""
 
@@ -399,6 +606,11 @@ def test_merge_source_enrichment_data_keeps_existing_sources():
 def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     """Results endpoint should expose persisted DB payloads when no job log exists."""
 
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(
         enrichment_service,
         "_load_reference_rows",
@@ -453,6 +665,12 @@ def test_get_results_projects_only_display_columns_and_extra_data(monkeypatch):
     """Persisted result reconstruction should avoid selecting full reference rows."""
 
     captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
 
     def fake_load_reference_rows(
         reference_name: str,
@@ -520,6 +738,11 @@ def test_get_results_filters_by_source_id(monkeypatch):
 
     monkeypatch.setattr(
         enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        enrichment_service,
         "_load_reference_rows",
         lambda _reference_name, columns=None, require_extra_data=False: [
             {
@@ -579,6 +802,15 @@ def test_get_reference_enrichment_stats_reads_only_extra_data(monkeypatch):
     """Polling stats should not reselect the full reference payload."""
 
     captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: None
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
 
     def fake_load_reference_rows(
         reference_name: str,

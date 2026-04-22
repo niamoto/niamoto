@@ -468,8 +468,9 @@ class TestBarPlotWidget(NiamotoTestCase):
 
         params = BarPlotParams(x_axis="species", y_axis="count")
 
-        with patch(
-            "niamoto.core.plugins.widgets.bar_plot.render_plotly_figure",
+        with patch.object(
+            self.widget,
+            "_render_fast_bar_figure",
             side_effect=Exception("Plotly error"),
         ):
             result = self.widget.render(df, params)

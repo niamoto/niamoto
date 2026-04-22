@@ -15,15 +15,27 @@ from niamoto.core.imports.data_analyzer import (
     FieldPurpose,
 )
 from niamoto.core.imports.registry import EntityKind, EntityRegistry
+from niamoto.core.imports.template_suggester import TemplateSuggestion
 from niamoto.core.imports.widget_generator import WidgetSuggestion
 from niamoto.gui.api.services.templates.suggestion_service import (
     _REFERENCE_FIELD_SUGGESTIONS_CACHE,
     _build_reference_field_cache_key,
+    _build_fast_enriched_profile,
+    _classify_reference_column_fast,
+    _coerce_reference_series_numeric,
+    _extract_reference_metadata_signals,
     _get_first_dataset_name,
+    _is_boolean_like,
+    _is_internal_registry_reference,
+    _merge_reference_template_suggestions,
     _pick_identifier_column,
     _pick_name_column,
     _resolve_entity_table,
+    _safe_registry_get,
+    _safe_template_token,
     _should_profile_reference_field,
+    _should_skip_reference_fast_path,
+    generate_navigation_suggestion,
     get_reference_enrichment_catalog,
     get_reference_enrichment_suggestions,
     get_reference_field_suggestions,
@@ -169,6 +181,177 @@ def test_build_reference_field_cache_key_tracks_project_state(monkeypatch, tmp_p
     assert key1 != key2
 
 
+def test_reference_helper_functions_cover_normalization_and_metadata():
+    assert _safe_template_token(" GBIF / Match ") == "gbif_match"
+    assert _safe_template_token("!!!") == "source"
+
+    registry = _DummyRegistry(
+        metadata={
+            "plots": _EntityMeta(
+                name="plots",
+                kind=_Kind.REFERENCE,
+                table_name="entity_plots",
+                config={},
+            )
+        }
+    )
+    assert _safe_registry_get(registry, "plots").name == "plots"
+    assert _safe_registry_get(registry, "missing") is None
+
+    entity_meta = SimpleNamespace(
+        kind="reference",
+        table_name="entity_plots",
+        config={
+            "schema": {
+                "id_field": "id_plot",
+                "fields": [{"name": "geo_pt", "type": "geometry"}],
+            },
+            "derived": {"external_name_field": "plot"},
+        },
+    )
+    signals = _extract_reference_metadata_signals(
+        reference_name="plots",
+        columns=["id_plot", "plot", "geo_pt", "status"],
+        entity_meta=entity_meta,
+        reference_config={
+            "schema": {
+                "fields": [{"name": "shape_geom", "type": "geometry"}],
+            }
+        },
+    )
+
+    assert signals == {
+        "id_field": "id_plot",
+        "label_fields": {"plot"},
+        "geometry_fields": {"geo_pt", "shape_geom"},
+        "technical_fields": {"id_plot"},
+    }
+    assert _is_internal_registry_reference(entity_meta, "entity_plots") is True
+    assert _is_internal_registry_reference(entity_meta, "custom_plots") is False
+
+
+def test_reference_fast_classification_helpers():
+    coerced, ratio = _coerce_reference_series_numeric(
+        pd.Series(["1", "2.5", "bad", None])
+    )
+    assert coerced.tolist() == [1.0, 2.5]
+    assert ratio == 2 / 3
+
+    assert _is_boolean_like(pd.Series(["oui", "non", "oui"])) is True
+    assert _is_boolean_like(pd.Series(["oui", "maybe"])) is False
+
+    metadata_signals = {
+        "geometry_fields": {"geo_pt"},
+        "label_fields": {"plot"},
+        "technical_fields": {"id_plot"},
+    }
+
+    assert (
+        _classify_reference_column_fast(
+            column_name="elevation",
+            series=pd.Series([100.0, 120.0, 150.0]),
+            metadata_signals=metadata_signals,
+        )
+        == DataCategory.NUMERIC_DISCRETE
+    )
+    assert (
+        _classify_reference_column_fast(
+            column_name="forest_type",
+            series=pd.Series(["dense", "open", "dense"]),
+            metadata_signals=metadata_signals,
+        )
+        == DataCategory.CATEGORICAL
+    )
+    assert (
+        _classify_reference_column_fast(
+            column_name="odd_mix",
+            series=pd.Series(["10", "unknown", "30"]),
+            metadata_signals=metadata_signals,
+        )
+        is None
+    )
+
+    assert (
+        _should_skip_reference_fast_path(
+            column_name="plot",
+            series=pd.Series(["Plot A", "Plot B"]),
+            metadata_signals=metadata_signals,
+        )
+        is True
+    )
+    assert (
+        _should_skip_reference_fast_path(
+            column_name="elevation",
+            series=pd.Series([100, 120, 140]),
+            metadata_signals=metadata_signals,
+        )
+        is False
+    )
+
+
+def test_build_fast_profile_and_merge_reference_template_suggestions():
+    numeric_profile = _build_fast_enriched_profile(
+        column_name="elevation",
+        series=pd.Series([100.0, 120.0, 150.0]),
+        category=DataCategory.NUMERIC_CONTINUOUS,
+    )
+
+    assert numeric_profile.field_purpose == FieldPurpose.MEASUREMENT
+    assert numeric_profile.value_range == (100.0, 150.0)
+    assert numeric_profile.sample_values == [100.0, 120.0, 150.0]
+
+    heuristic = TemplateSuggestion(
+        template_id="plots_elevation_binned_distribution_bar_plot",
+        name="Distribution d'altitude",
+        description="Heuristic suggestion",
+        plugin="binned_distribution",
+        category="chart",
+        icon="BarChart3",
+        confidence=0.92,
+        source="auto",
+        source_name="plots",
+        matched_column="elevation",
+        is_recommended=True,
+    )
+    ml_duplicate = TemplateSuggestion(
+        template_id="plots_elevation_binned_distribution_bar_plot",
+        name="Distribution ML",
+        description="Should be ignored when duplicated",
+        plugin="binned_distribution",
+        category="chart",
+        icon="BarChart3",
+        confidence=0.5,
+        source="auto",
+        source_name="plots",
+        matched_column="elevation",
+    )
+    ml_unique = TemplateSuggestion(
+        template_id="plots_status_top_ranking_bar_plot",
+        name="Statuts dominants",
+        description="ML suggestion",
+        plugin="top_ranking",
+        category="chart",
+        icon="BarChart3",
+        confidence=0.6,
+        source="auto",
+        source_name="plots",
+        matched_column="status",
+    )
+
+    merged = _merge_reference_template_suggestions(
+        reference_name="plots",
+        heuristic_suggestions=[heuristic],
+        ml_suggestions=[ml_duplicate, ml_unique],
+    )
+
+    assert [item["template_id"] for item in merged] == [
+        "plots_elevation_binned_distribution_bar_plot",
+        "plots_status_top_ranking_bar_plot",
+    ]
+    assert all(item["source"] == "reference" for item in merged)
+    assert all(item["source_name"] == "plots" for item in merged)
+
+
 def _prepare_reference_project(
     tmp_path,
     *,
@@ -251,6 +434,91 @@ def test_reference_field_suggestions_use_fast_path_without_ml(monkeypatch, tmp_p
     assert matched_columns == {"elevation", "holdridge", "in_um"}
     assert all(suggestion["source"] == "reference" for suggestion in suggestions)
     assert all(suggestion["source_name"] == "plots" for suggestion in suggestions)
+
+
+def test_generate_navigation_suggestion_detects_hierarchy_fields(monkeypatch, tmp_path):
+    project_dir, db_path = _prepare_reference_project(
+        tmp_path,
+        frame=pd.DataFrame(
+            {
+                "id_plot": [1, 2],
+                "plot": ["Plot A", "Plot B"],
+                "lft": [1, 2],
+                "rght": [4, 3],
+                "parent_id": [None, 1],
+                "level": [0, 1],
+            }
+        ),
+        entity_config={"schema": {"id_field": "id_plot"}},
+    )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_working_directory",
+        lambda: project_dir,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: db_path,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service._load_import_config",
+        lambda: {
+            "entities": {
+                "references": {
+                    "plots": {"schema": {"id_field": "id_plot"}},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.WidgetGenerator.generate_navigation_suggestion",
+        lambda reference_name, is_hierarchical, hierarchy_fields: {
+            "reference_name": reference_name,
+            "is_hierarchical": is_hierarchical,
+            "hierarchy_fields": hierarchy_fields,
+        },
+    )
+
+    result = generate_navigation_suggestion("plots")
+
+    assert result["reference_name"] == "plots"
+    assert result["is_hierarchical"] is True
+    assert result["hierarchy_fields"] == {
+        "has_nested_set": True,
+        "has_parent": True,
+        "has_level": True,
+        "lft_field": "lft",
+        "rght_field": "rght",
+        "parent_id_field": "parent_id",
+        "level_field": "level",
+        "id_field": "id_plot",
+        "name_field": "plot",
+    }
+
+
+def test_generate_navigation_suggestion_returns_basic_fallback_without_db(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.get_database_path",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.WidgetGenerator.generate_navigation_suggestion",
+        lambda reference_name, is_hierarchical, hierarchy_fields: {
+            "reference_name": reference_name,
+            "is_hierarchical": is_hierarchical,
+            "hierarchy_fields": hierarchy_fields,
+        },
+    )
+
+    result = generate_navigation_suggestion("plots")
+
+    assert result == {
+        "reference_name": "plots",
+        "is_hierarchical": False,
+        "hierarchy_fields": None,
+    }
 
 
 def test_reference_field_suggestions_fallback_ml_only_on_ambiguous_columns(

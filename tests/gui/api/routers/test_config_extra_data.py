@@ -14,7 +14,38 @@ from fastapi.testclient import TestClient
 from niamoto.gui.api.routers import config as config_router
 from niamoto.gui.api.routers.config import (
     _analyze_dataframe_fields,
+    _build_hierarchy_context_field_analysis,
+    _build_image_display_field_suggestions,
+    _build_link_display_metadata,
+    _deduplicate_columns,
+    _detect_field_type,
+    _detect_hierarchical_structure,
+    _detect_image_variant,
+    _detect_terminal_ranks,
     _extract_extra_data_fields,
+    _extract_path_value_from_record,
+    _filter_records_by_path_values,
+    _generate_label,
+    _get_distinct_values_for_path,
+    _get_field_leaf_name,
+    _get_hierarchy_record_columns,
+    _get_path_coverage,
+    _get_path_root,
+    _get_suggestion_label,
+    _humanize_identifier,
+    _is_category_field,
+    _is_enrichment_metadata_field,
+    _is_hierarchy_structure_field,
+    _is_identifier_field,
+    _is_image_collection_path,
+    _is_metadata_field,
+    _is_name_field,
+    _is_parent_context_field,
+    _is_rank_field,
+    _looks_like_url,
+    _pick_name_fallback_column,
+    _resolve_join_column_for_records,
+    _should_inline_boolean_badge,
 )
 from niamoto.gui.api.app import create_app
 
@@ -99,6 +130,291 @@ def test_analyze_dataframe_fields_expands_dict_paths_even_when_first_value_is_no
         "Abebaia",
         "Pycnandra",
     ]
+
+
+def test_path_and_identifier_helpers_cover_url_and_label_cases():
+    assert _looks_like_url("https://example.org/species/42")
+    assert _looks_like_url("/images/species-42.jpg")
+    assert not _looks_like_url("example.org/species/42")
+
+    assert _get_field_leaf_name("hierarchy_context.family.name") == "family"
+    assert _get_field_leaf_name("general_info.rank.value") == "rank"
+    assert _get_path_root("extra_data.api_enrichment.sources.gbif.data.rank_name") == (
+        "extra_data"
+    )
+
+    assert _humanize_identifier("api-gbif_url") == "GBIF URL"
+    assert _humanize_identifier("provider_endemia_nc") == "Endemia NC"
+
+
+def test_link_display_metadata_skips_images_and_uses_provider_labels():
+    info = {
+        "type": "text",
+        "sample_values": ["https://example.org/species/42"],
+    }
+
+    metadata = _build_link_display_metadata(
+        "extra_data.api_enrichment.sources.gbif.data.url",
+        info,
+    )
+
+    assert metadata == {
+        "name": "gbif",
+        "label": "GBIF",
+        "link_label": "GBIF",
+        "link_title": "Voir sur GBIF",
+        "link_target": "_blank",
+    }
+
+    assert (
+        _build_link_display_metadata(
+            "extra_data.api_enrichment.sources.gbif.data.image_url",
+            info,
+        )
+        is None
+    )
+    assert _detect_image_variant("images.image_small_thumb", info["sample_values"]) == (
+        "thumbnail"
+    )
+    assert _detect_image_variant("images.image_big_thumb", info["sample_values"]) == (
+        "full"
+    )
+    assert _detect_image_variant("images.image_url", info["sample_values"]) == "url"
+    assert _detect_image_variant("images.caption", ["Specimen"]) is None
+
+
+def test_image_field_helpers_group_collections_and_variants():
+    field_analysis = {
+        "gallery": {
+            "type": "json_array",
+            "cardinality": 2,
+            "sample_values": ["small.jpg", "big.jpg"],
+            "priority": "low",
+        },
+        "extra_data.api_enrichment.sources.endemia.data.image_small_thumb": {
+            "type": "text",
+            "sample_values": ["https://img.example/small.jpg"],
+            "priority": "low",
+        },
+        "extra_data.api_enrichment.sources.endemia.data.image_big_thumb": {
+            "type": "text",
+            "sample_values": ["https://img.example/big.jpg"],
+            "priority": "high",
+        },
+    }
+
+    assert _is_image_collection_path("gallery", field_analysis["gallery"])
+
+    suggestions, consumed_paths = _build_image_display_field_suggestions(field_analysis)
+
+    assert [field.source for field in suggestions] == [
+        "gallery",
+        "extra_data.api_enrichment.sources.endemia.data",
+    ]
+    assert suggestions[0].display == "image_preview"
+    assert suggestions[0].sample_values == ["small.jpg", "big.jpg"]
+    assert suggestions[1].image_fields == {
+        "thumbnail": "image_small_thumb",
+        "full": "image_big_thumb",
+        "url": "image_big_thumb",
+    }
+    assert consumed_paths == set(field_analysis)
+
+
+def test_display_field_type_and_label_helpers_cover_common_inference_paths():
+    assert _should_inline_boolean_badge(
+        "extra_data.api_enrichment.sources.gbif.data.endemic"
+    )
+    assert not _should_inline_boolean_badge("general_info.name.value")
+
+    assert _detect_field_type([True, False, 1]) == "boolean"
+    assert _detect_field_type([[1], [2]]) == "json_array"
+    assert _detect_field_type(["1.5", "2", 3]) == "number"
+    assert _detect_field_type(["A", "A", "B", "B", "B", "A"]) == "select"
+    assert _detect_field_type(["A", "B", "C"]) == "text"
+
+    assert _generate_label("hierarchy_context.family.name") == "Family"
+    assert _generate_label("general_info.full_name.value") == "Full Name"
+    assert (
+        _get_suggestion_label(
+            "general_info.name.value",
+            {"synthetic_label": "Nom scientifique"},
+        )
+        == "Nom scientifique"
+    )
+
+
+def test_schema_path_helpers_identify_name_category_and_metadata_fields():
+    assert (
+        _pick_name_fallback_column(
+            "general_info.name.value",
+            ["id", "full_name"],
+        )
+        == "full_name"
+    )
+    assert _pick_name_fallback_column("general_info.rank.value", ["rank_name"]) is None
+
+    assert not _is_name_field("hierarchy_context.family.name")
+    assert _is_name_field("general_info.full_name.value")
+    assert _is_category_field("general_info.family.value")
+    assert _is_rank_field("general_info.rank_name.value")
+    assert _is_metadata_field("extra_data.api_enrichment.sources.gbif.updated_at")
+    assert _is_parent_context_field("general_info.parent_family.value")
+    assert _is_hierarchy_structure_field("hierarchy_context.full_path.value")
+    assert _is_identifier_field("taxons_id", "taxons")
+    assert _is_identifier_field("uuid")
+    assert _is_enrichment_metadata_field(
+        "extra_data.api_enrichment.sources.gbif.data.api_id"
+    )
+    assert _is_enrichment_metadata_field(
+        "extra_data.api_enrichment.sources.gbif.provider"
+    )
+    assert not _is_enrichment_metadata_field(
+        "extra_data.api_enrichment.sources.gbif.data.rank_name"
+    )
+
+
+def test_record_path_helpers_preserve_distinct_values_and_coverage():
+    records = [
+        {"id": 1, "extra_data": '{"nested":{"label":"Araucaria"}}'},
+        {"id": 2, "extra_data": {"nested": {"label": "Araucaria"}}},
+        {"id": 3, "extra_data": {"nested": {"label": "Agathis"}}},
+        {"id": 4, "extra_data": {"nested": {"label": ""}}},
+    ]
+
+    assert _extract_path_value_from_record(records[0], "extra_data.nested.label") == (
+        "Araucaria"
+    )
+    assert (
+        _extract_path_value_from_record({"extra_data": "not-json"}, "extra_data.nested")
+        is None
+    )
+
+    assert _get_distinct_values_for_path(records, "extra_data.nested.label") == [
+        "Araucaria",
+        "Agathis",
+        "",
+    ]
+    assert [
+        record["id"]
+        for record in _filter_records_by_path_values(
+            records,
+            "extra_data.nested.label",
+            ["Agathis"],
+        )
+    ] == [3]
+    assert _get_path_coverage(records, "extra_data.nested.label") == 0.75
+
+
+def test_join_and_hierarchy_helpers_build_context_suggestions():
+    available_columns = [
+        "taxons_id",
+        "id",
+        "rank_name",
+        "full_name",
+        "parent_id",
+        "lft",
+        "rght",
+    ]
+    source_records = [
+        {
+            "id": 1,
+            "taxons_id": 10,
+            "rank_name": "family",
+            "full_name": "Araucariaceae",
+            "parent_id": None,
+            "lft": 1,
+            "rght": 6,
+        },
+        {
+            "id": 2,
+            "taxons_id": 20,
+            "rank_name": "genus",
+            "full_name": "Araucaria",
+            "parent_id": 1,
+            "lft": 2,
+            "rght": 5,
+        },
+        {
+            "id": 3,
+            "taxons_id": 30,
+            "rank_name": "species",
+            "full_name": "Araucaria columnaris",
+            "parent_id": 2,
+            "lft": 3,
+            "rght": 4,
+        },
+    ]
+
+    assert _deduplicate_columns(["", "taxons_id", "id", "taxons_id"]) == [
+        "taxons_id",
+        "id",
+    ]
+    assert _get_hierarchy_record_columns(
+        available_columns,
+        join_candidates=["taxons_id", "missing"],
+    ) == [
+        "taxons_id",
+        "id",
+        "rank_name",
+        "full_name",
+        "parent_id",
+        "lft",
+        "rght",
+    ]
+    assert _resolve_join_column_for_records(
+        source_records, {30}, ["id", "taxons_id"]
+    ) == ("taxons_id")
+    assert (
+        _resolve_join_column_for_records(source_records, {999}, ["id", "taxons_id"])
+        is None
+    )
+
+    synthetic_fields = _build_hierarchy_context_field_analysis(
+        source_records=source_records,
+        transformed_records=[{"taxons_id": 30}],
+        id_column="taxons_id",
+        terminal_item_ids={30},
+        terminal_rank_values=["species"],
+    )
+
+    assert "hierarchy_context.genus.name" in synthetic_fields
+    assert "hierarchy_context.family.name" in synthetic_fields
+    assert synthetic_fields["hierarchy_context.genus.name"]["synthetic_label"] == (
+        "Genus"
+    )
+    assert synthetic_fields["hierarchy_context.family.name"]["sample_values"] == [
+        "Araucariaceae"
+    ]
+
+
+def test_terminal_rank_and_hierarchy_structure_detection_cover_multiple_conventions():
+    assert _detect_terminal_ranks(["family", "species", "espèce", "sp.", "genus"]) == [
+        "species",
+        "espèce",
+        "sp.",
+    ]
+
+    hierarchy = _detect_hierarchical_structure(
+        pd.DataFrame(
+            {
+                "id": [1, 2],
+                "parent_id": [None, 1],
+                "level": [1, 2],
+                "lft": [1, 2],
+                "rght": [4, 3],
+            }
+        )
+    )
+
+    assert hierarchy == {
+        "is_hierarchical": True,
+        "has_nested_set": True,
+        "has_level": True,
+        "has_parent": True,
+        "level_column": "level",
+        "max_level": 2,
+    }
 
 
 def test_update_index_generator_accepts_localized_strings(tmp_path: Path):
