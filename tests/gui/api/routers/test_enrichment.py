@@ -153,6 +153,49 @@ def test_preview_reference_route_forwards_source_override(
     }
 
 
+def test_restart_reference_route_forwards_selected_source(
+    monkeypatch, gui_duckdb_client
+):
+    """Restart route should forward the reference and source identifiers."""
+
+    captured = {}
+
+    def fake_restart_reference_enrichment(reference_name: str, source_id: str):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {
+            "id": "job-1",
+            "reference_name": reference_name,
+            "mode": "single",
+            "strategy": "reset",
+            "status": "running",
+            "total": 0,
+            "processed": 0,
+            "successful": 0,
+            "failed": 0,
+            "already_completed": 0,
+            "pending_total": 0,
+            "pending_processed": 0,
+            "started_at": "2026-04-22T14:10:00",
+            "updated_at": "2026-04-22T14:10:00",
+            "source_ids": [source_id],
+            "source_id": source_id,
+            "source_label": "Endemia",
+        }
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "restart_reference_enrichment",
+        fake_restart_reference_enrichment,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/restart/taxons/endemia")
+
+    assert response.status_code == 200
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+    assert response.json()["strategy"] == "reset"
+
+
 def test_get_results_for_reference_uses_worker_thread(monkeypatch):
     """Heavy result reconstruction should be dispatched off the API loop."""
 

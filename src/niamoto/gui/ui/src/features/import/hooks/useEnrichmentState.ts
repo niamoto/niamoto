@@ -68,6 +68,7 @@ export interface EnrichmentJob {
   id: string
   reference_name: string
   mode: 'all' | 'single'
+  strategy?: 'resume' | 'reset'
   status: 'pending' | 'running' | 'paused' | 'paused_offline' | 'completed' | 'failed' | 'cancelled'
   total: number
   processed: number
@@ -99,6 +100,7 @@ export interface EnrichmentResult {
   entity_name?: string
   taxon_name?: string
   success: boolean
+  outcome?: 'stored' | 'empty' | 'failed'
   data?: Record<string, unknown>
   error?: string
   processed_at: string
@@ -195,6 +197,66 @@ export interface JobRunProgress {
 }
 
 export type FeatureAvailability = 'unknown' | 'checking' | 'available' | 'unavailable'
+
+export function shouldSkipResultsRequest({
+  append,
+  showLoader,
+  isResultsLoading,
+  isSilentRefreshActive,
+  currentPage,
+}: {
+  append: boolean
+  showLoader: boolean
+  isResultsLoading: boolean
+  isSilentRefreshActive: boolean
+  currentPage: number
+}): boolean {
+  if (append) {
+    return false
+  }
+
+  return (
+    !showLoader &&
+    (isResultsLoading || isSilentRefreshActive || currentPage > 0)
+  )
+}
+
+export function deriveSourceProgress(
+  sourceId: string,
+  srcStats: EnrichmentSourceStats | undefined,
+  jobData: EnrichmentJob | null | undefined
+): SourceProgress {
+  const persistedTotal = Math.max(srcStats?.total ?? 0, 0)
+  const persistedProcessed = Math.min(
+    Math.max(srcStats?.enriched ?? 0, 0),
+    persistedTotal
+  )
+
+  const isTerminalJob =
+    !jobData || ['completed', 'failed', 'cancelled'].includes(jobData.status)
+
+  if (isTerminalJob || jobData.current_source_id !== sourceId) {
+    const percentage = persistedTotal > 0 ? (persistedProcessed / persistedTotal) * 100 : 0
+    return {
+      total: persistedTotal,
+      processed: persistedProcessed,
+      percentage,
+    }
+  }
+
+  const runtimeTotal = Math.max(jobData.current_source_total ?? persistedTotal, 0)
+  const runtimeProcessed = Math.min(
+    Math.max(jobData.current_source_processed ?? persistedProcessed, 0),
+    runtimeTotal
+  )
+  const runtimePercentage = runtimeTotal > 0 ? (runtimeProcessed / runtimeTotal) * 100 : 0
+
+  return {
+    total: runtimeTotal,
+    processed: runtimeProcessed,
+    percentage: runtimePercentage,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -411,12 +473,13 @@ export function useEnrichmentState({
     showLoader?: boolean
     sourceId?: string
   } = {}) => {
-    if (
-      !showLoader &&
-      (resultsLoadingRef.current ||
-        silentResultsRefreshRef.current ||
-        resultsPageRef.current > 0)
-    ) {
+    if (shouldSkipResultsRequest({
+      append,
+      showLoader,
+      isResultsLoading: resultsLoadingRef.current,
+      isSilentRefreshActive: silentResultsRefreshRef.current,
+      currentPage: resultsPageRef.current,
+    })) {
       return
     }
 
@@ -849,13 +912,17 @@ export function useEnrichmentState({
 
   // -- Job controls ---------------------------------------------------------
 
-  const trackStartedJob = useCallback((startedJob: EnrichmentJob, pendingCount: number) => {
+  const trackStartedJob = useCallback((
+    startedJob: EnrichmentJob,
+    pendingCount: number,
+    descriptionKey = 'enrichmentTab.toasts.startedDescription'
+  ) => {
     useNotificationStore.getState().trackJob({
       jobId: startedJob.id,
       jobType: 'enrichment',
       status: 'running',
       progress: 0,
-      message: t('enrichmentTab.toasts.startedDescription', {
+      message: t(descriptionKey, {
         count: pendingCount,
       }),
       startedAt: new Date().toISOString(),
@@ -906,6 +973,35 @@ export function useEnrichmentState({
       console.error('Failed to start source job:', err)
       toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
         description: getApiErrorMessage(err, t('enrichmentTab.errors.startJob')),
+      })
+    } finally {
+      setJobLoadingScope(null)
+    }
+  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob, verifyEnrichmentConnectivity])
+
+  const restartSourceJob = useCallback(async (sourceId: string) => {
+    const sourceStats = stats?.sources.find((source) => source.source_id === sourceId)
+    setJobLoadingScope(sourceId)
+    void verifyEnrichmentConnectivity()
+    try {
+      const response = await apiClient.post<EnrichmentJob>(`/enrichment/restart/${referenceName}/${sourceId}`)
+      setJob(response.data)
+      setAvailabilityState('available')
+      startPolling()
+      trackStartedJob(
+        response.data,
+        sourceStats?.total ?? 0,
+        'enrichmentTab.toasts.restartStartedDescription'
+      )
+      toast.success(t('enrichmentTab.toasts.restartStartedTitle'), {
+        description: t('enrichmentTab.toasts.restartStartedDescription', {
+          count: sourceStats?.total ?? 0,
+        }),
+      })
+    } catch (err: unknown) {
+      console.error('Failed to restart source job:', err)
+      toast.error(t('enrichmentTab.toasts.startErrorTitle'), {
+        description: getApiErrorMessage(err, t('enrichmentTab.errors.restartJob')),
       })
     } finally {
       setJobLoadingScope(null)
@@ -1098,12 +1194,9 @@ export function useEnrichmentState({
 
   const runningSingleSourceId = job?.mode === 'single' ? job.source_id ?? undefined : undefined
 
-  const getSourceProgress = useCallback((_sourceId: string, srcStats: EnrichmentSourceStats | undefined): SourceProgress => {
-    const total = srcStats?.total ?? 0
-    const processed = srcStats?.enriched ?? 0
-    const percentage = total > 0 ? (processed / total) * 100 : 0
-    return { total, processed, percentage }
-  }, [])
+  const getSourceProgress = useCallback((sourceId: string, srcStats: EnrichmentSourceStats | undefined): SourceProgress => {
+    return deriveSourceProgress(sourceId, srcStats, job)
+  }, [job])
 
   const getJobRunProgress = useCallback((jobData: EnrichmentJob | null | undefined): JobRunProgress | null => {
     if (!jobData) {
@@ -1142,6 +1235,12 @@ export function useEnrichmentState({
       activeSource.enabled &&
       isTerminalJob &&
       (activeSourceStats?.pending ?? 0) > 0
+  )
+  const canRestartActiveSource = Boolean(
+    activeSource &&
+      activeSource.enabled &&
+      isTerminalJob &&
+      (activeSourceStats?.total ?? 0) > 0
   )
 
   // -- Return ---------------------------------------------------------------
@@ -1205,6 +1304,7 @@ export function useEnrichmentState({
     activePreviewResult,
     isRunningSingleSource,
     canStartActiveSource,
+    canRestartActiveSource,
     previewableSources,
     quickSelectedSource,
 
@@ -1233,6 +1333,7 @@ export function useEnrichmentState({
     saveEnrichmentConfig,
     startGlobalJob,
     startSourceJob,
+    restartSourceJob,
     pauseJob,
     resumeJob,
     cancelJob,

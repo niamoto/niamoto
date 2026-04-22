@@ -27,6 +27,7 @@ from niamoto.gui.api.services.enrichment_service import (
     pause_reference_enrichment,
     preview_default_enrichment,
     preview_reference_enrichment,
+    restart_reference_enrichment,
     resume_default_enrichment,
     resume_reference_enrichment,
     start_default_enrichment,
@@ -123,6 +124,19 @@ async def start_enrichment_for_reference_source(
     del background_tasks
     try:
         return start_reference_enrichment(reference_name, source_id=source_id)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
+
+
+@router.post("/restart/{reference_name}/{source_id}", response_model=EnrichmentJob)
+async def restart_enrichment_for_reference_source(
+    reference_name: str, source_id: str, background_tasks: BackgroundTasks
+):
+    """Restart enrichment from zero for one source of a reference."""
+
+    del background_tasks
+    try:
+        return restart_reference_enrichment(reference_name, source_id)
     except ValueError as exc:
         _raise_http_error(str(exc))
 

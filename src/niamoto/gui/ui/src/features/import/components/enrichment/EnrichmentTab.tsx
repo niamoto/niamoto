@@ -154,6 +154,7 @@ export function EnrichmentTab({
     activePreviewResult,
     isRunningSingleSource,
     canStartActiveSource,
+    canRestartActiveSource,
     quickSelectedSource,
 
     // UI
@@ -180,6 +181,7 @@ export function EnrichmentTab({
     saveEnrichmentConfig,
     startGlobalJob,
     startSourceJob,
+    restartSourceJob,
     pauseJob,
     resumeJob,
     cancelJob,
@@ -901,6 +903,54 @@ export function EnrichmentTab({
           </Button>
         ) : null}
 
+        {canRestartActiveSource ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={jobLoadingScope !== null}
+                title={t('enrichmentTab.runtime.restartSource', {
+                  defaultValue: 'Restart from zero',
+                })}
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${
+                    jobLoadingScope === activeSource.id ? 'animate-spin' : ''
+                  }`}
+                />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t('enrichmentTab.restartDialog.title', {
+                    defaultValue: 'Restart this source from zero?',
+                  })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('enrichmentTab.restartDialog.description', {
+                    defaultValue:
+                      'This relaunches {{source}} for {{count}} entities. Existing data from this source will be replaced, and removed when the API no longer returns anything.',
+                    source: activeSource.label,
+                    count: activeSourceStats?.total ?? 0,
+                  })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => restartSourceJob(activeSource.id)}>
+                  {t('enrichmentTab.restartDialog.confirm', {
+                    defaultValue: 'Restart from zero',
+                  })}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : null}
+
         {isRunningSingleSource && job?.status === 'running' ? (
           <>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => pauseJob(activeSource.id)} disabled={jobLoadingScope !== null}>
@@ -1307,7 +1357,9 @@ export function EnrichmentTab({
             <span className={`h-1.5 w-1.5 rounded-full ${job.status === 'running' ? 'animate-pulse bg-primary' : 'bg-muted-foreground/40'}`} />
             <span className="text-muted-foreground">
               {t(`enrichmentTab.status.${job.status}`, { defaultValue: job.status })}
-              {jobRunLabel ? ` ${jobRunLabel}` : ''}
+              {jobRunLabel
+                ? ` · ${t('enrichmentTab.runtime.runProgress')}: ${jobRunLabel}`
+                : ''}
             </span>
           </span>
         ) : null}

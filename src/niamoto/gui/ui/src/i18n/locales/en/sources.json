@@ -725,9 +725,15 @@
     "runtime": {
       "startAll": "Start all APIs",
       "startSource": "Start this API",
+      "restartSource": "Restart from zero",
       "alreadyEnriched": "Already enriched",
-      "runProgress": "This run",
+      "runProgress": "Attempts completed",
       "failedAttempts": "Failures"
+    },
+    "restartDialog": {
+      "title": "Restart this source from zero?",
+      "description": "This relaunches {{source}} for {{count}} entities. Existing data from this source will be replaced and removed when the API no longer returns anything.",
+      "confirm": "Restart from zero"
     },
     "cancelDialog": {
       "title": "Cancel enrichment?",
@@ -775,6 +781,7 @@
       "loadConfig": "Unable to load enrichment configuration",
       "saveConfig": "Unable to save enrichment configuration",
       "startJob": "Unable to start job",
+      "restartJob": "Unable to restart this source from zero",
       "pauseJob": "Unable to pause",
       "resumeJob": "Unable to resume",
       "cancelJob": "Unable to cancel",
@@ -785,6 +792,8 @@
       "saveErrorTitle": "Save error",
       "startedTitle": "Enrichment started",
       "startedDescription": "{{count}} entities to process",
+      "restartStartedTitle": "Reset restart started",
+      "restartStartedDescription": "{{count}} entities will be reprocessed",
       "startErrorTitle": "Start error",
       "pausedTitle": "Enrichment paused",
       "pausedDescription": "You can resume at any time",
