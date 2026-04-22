@@ -635,6 +635,153 @@ def test_get_reference_enrichment_stats_reads_only_extra_data(monkeypatch):
     }
 
 
+def test_get_reference_enrichment_stats_loads_rows_when_source_sql_count_fails(
+    monkeypatch,
+):
+    """Per-source SQL fallback should reload rows even when entity counting succeeded."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    captured: dict[str, object] = {"load_calls": 0}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: 3
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        captured["load_calls"] = int(captured["load_calls"]) + 1
+        return [
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "status": "completed",
+                                "data": {"api_id": 42},
+                            }
+                        }
+                    }
+                }
+            },
+            {"extra_data": None},
+            {"extra_data": None},
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+
+    stats = enrichment_service._compute_reference_stats("taxons", [source])
+
+    assert stats.entity_total == 3
+    assert stats.enriched == 1
+    assert stats.sources[0].enriched == 1
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+        "load_calls": 1,
+    }
+
+
+def test_get_reference_enrichment_stats_reuses_row_fallback_for_multiple_sources(
+    monkeypatch,
+):
+    """Row fallback should be loaded once and reused across failing sources."""
+
+    sources = [
+        enrichment_service.EnrichmentSourceConfig(
+            id="endemia",
+            label="Endemia",
+            enabled=True,
+            api_url="https://api.endemia.nc/v1/taxons",
+        ),
+        enrichment_service.EnrichmentSourceConfig(
+            id="gbif",
+            label="GBIF",
+            enabled=True,
+            api_url="https://api.gbif.org/v2/species/match",
+        ),
+    ]
+    captured: dict[str, object] = {"load_calls": 0}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: 3
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        captured["load_calls"] = int(captured["load_calls"]) + 1
+        return [
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {"status": "completed", "data": {"api_id": 42}},
+                            "gbif": {"status": "completed", "data": {"usage_key": 1}},
+                        }
+                    }
+                }
+            },
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "gbif": {"status": "completed", "data": {"usage_key": 2}}
+                        }
+                    }
+                }
+            },
+            {"extra_data": None},
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+
+    stats = enrichment_service._compute_reference_stats("taxons", sources)
+
+    assert stats.entity_total == 3
+    assert stats.enriched == 3
+    assert {source.source_id: source.enriched for source in stats.sources} == {
+        "endemia": 1,
+        "gbif": 2,
+    }
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+        "load_calls": 1,
+    }
+
+
 def test_run_enrichment_job_exposes_pending_run_progress(monkeypatch):
     """Runtime progress should distinguish pending attempts from already saved rows."""
 

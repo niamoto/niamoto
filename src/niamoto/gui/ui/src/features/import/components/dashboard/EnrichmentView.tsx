@@ -16,6 +16,7 @@ import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { toast } from 'sonner'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { importQueryKeys } from '@/features/import/queryKeys'
+import { shouldPollEnrichmentJob } from './enrichmentPolling'
 
 interface EnrichmentJobSummary {
   id: string
@@ -78,6 +79,7 @@ export function EnrichmentView() {
   const jobsByReferenceRef = useRef<Record<string, EnrichmentJobSummary | null>>({})
   const statsByReferenceRef = useRef<Record<string, EnrichmentStatsSummary>>({})
   const trackedJobsRef = useRef(trackedJobs)
+  const jobProbeTimestampByReferenceRef = useRef<Record<string, number>>({})
 
   const references = useMemo(() => referencesData?.references ?? EMPTY_REFERENCES, [referencesData?.references])
   const enrichableReferences = useMemo(
@@ -121,6 +123,11 @@ export function EnrichmentView() {
         Object.entries(previous).filter(([referenceName]) => configuredReferenceNames.has(referenceName))
       )
     )
+    jobProbeTimestampByReferenceRef.current = Object.fromEntries(
+      Object.entries(jobProbeTimestampByReferenceRef.current).filter(([referenceName]) =>
+        configuredReferenceNames.has(referenceName)
+      )
+    )
 
     if (configuredReferences.length === 0) {
       return
@@ -141,11 +148,12 @@ export function EnrichmentView() {
             const statsResult = await apiClient.get<EnrichmentStatsSummary>(`/enrichment/stats/${reference.name}`)
 
             const knownJob = jobsByReferenceRef.current[reference.name]
-            const shouldPollJob =
-              Boolean(activeTrackedJobsByReference.get(reference.name)) ||
-              (knownJob !== null &&
-                knownJob !== undefined &&
-                !['completed', 'failed', 'cancelled'].includes(knownJob.status))
+            const shouldPollJob = shouldPollEnrichmentJob({
+              hasTrackedJob: Boolean(activeTrackedJobsByReference.get(reference.name)),
+              knownJob,
+              lastBackgroundProbeAt:
+                jobProbeTimestampByReferenceRef.current[reference.name],
+            })
 
             const jobResult = shouldPollJob
               ? await apiClient.get<EnrichmentJobSummary>(`/enrichment/job/${reference.name}`).catch((error: unknown) => {
@@ -165,6 +173,10 @@ export function EnrichmentView() {
                   throw error
                 })
               : null
+
+            if (shouldPollJob) {
+              jobProbeTimestampByReferenceRef.current[reference.name] = Date.now()
+            }
 
             return {
               referenceName: reference.name,

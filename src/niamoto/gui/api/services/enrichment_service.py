@@ -1463,11 +1463,12 @@ def _compute_reference_stats(
     enabled_sources = [source for source in sources if source.enabled]
     preferred_source_ids = [source.id for source in enabled_sources]
     entity_total = _count_reference_entities(reference_name)
+    rows: Optional[List[Dict[str, Any]]]
     if entity_total is None:
         rows = _load_reference_rows(reference_name, columns=["extra_data"])
         entity_total = len(rows)
     else:
-        rows = []
+        rows = None
 
     if not enabled_sources:
         return EnrichmentStatsResponse(
@@ -1488,6 +1489,8 @@ def _compute_reference_stats(
             preferred_source_ids,
         )
         if enriched is None:
+            if rows is None:
+                rows = _load_reference_rows(reference_name, columns=["extra_data"])
             enriched = sum(
                 1
                 for row in rows
