@@ -83,11 +83,12 @@ describe('useAutoConfigureJob', () => {
     )
     await harness.render()
 
-    const startPromise = harness.current.start(['imports/plots.csv'])
+    let resolved: typeof result | undefined
     await act(async () => {
+      const startPromise = harness.current.start(['imports/plots.csv'])
       await vi.runAllTimersAsync()
+      resolved = await startPromise
     })
-    const resolved = await startPromise
 
     expect(startAutoConfigureJob).toHaveBeenCalledWith({ files: ['imports/plots.csv'] })
     expect(subscribeToAutoConfigureJobEvents).toHaveBeenCalledWith(
@@ -121,11 +122,15 @@ describe('useAutoConfigureJob', () => {
 
     let caughtError: unknown
     await act(async () => {
-      try {
-        await harness.current.start(['imports/broken.csv'], { failed: 'Job failed' })
-      } catch (error) {
-        caughtError = error
-      }
+      const startPromise = harness.current
+        .start(['imports/broken.csv'], {
+          failed: 'Job failed',
+        })
+        .catch((error) => {
+          caughtError = error
+        })
+      await vi.runAllTimersAsync()
+      await startPromise
     })
 
     expect(caughtError).toBeInstanceOf(Error)

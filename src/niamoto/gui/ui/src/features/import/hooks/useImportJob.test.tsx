@@ -108,11 +108,11 @@ describe('useImportJob', () => {
     )
     await harness.render()
 
-    const startPromise = harness.current.start(autoConfigureResponse)
     await act(async () => {
+      const startPromise = harness.current.start(autoConfigureResponse)
       await vi.runAllTimersAsync()
+      await startPromise
     })
-    await startPromise
 
     expect(createEntitiesBulk).toHaveBeenCalledWith({
       entities: autoConfigureResponse.entities,
@@ -148,13 +148,15 @@ describe('useImportJob', () => {
 
     let caughtError: unknown
     await act(async () => {
-      try {
-        await harness.current.start(autoConfigureResponse, {
+      const startPromise = harness.current
+        .start(autoConfigureResponse, {
           importFailed: 'Custom failure',
         })
-      } catch (error) {
-        caughtError = error
-      }
+        .catch((error) => {
+          caughtError = error
+        })
+      await vi.runAllTimersAsync()
+      await startPromise
     })
 
     expect(caughtError).toBeInstanceOf(Error)
