@@ -128,6 +128,12 @@ class TestFailJob:
         assert failed["error"] == "Erreur DuckDB"
         assert failed["completed_at"] is not None
 
+    def test_persists_failed_result_payload(self, store: JobFileStore):
+        job = store.create_job("export")
+        store.fail_job(job["id"], "Erreur DuckDB", result={"metrics": {"failed": 1}})
+        failed = store.get_active_job()
+        assert failed["result"] == {"metrics": {"failed": 1}}
+
 
 # --- get_job ---
 

@@ -103,7 +103,7 @@ class JobFileStore:
             job["result"] = result
             self._write_active(job)
 
-    def fail_job(self, job_id: str, error: str) -> None:
+    def fail_job(self, job_id: str, error: str, result: dict | None = None) -> None:
         """Marque le job comme échoué. Reste dans active_job.json."""
         with self._lock:
             job = self._read_active()
@@ -113,6 +113,7 @@ class JobFileStore:
             job["completed_at"] = datetime.now().isoformat()
             job["updated_at"] = datetime.now().isoformat()
             job["error"] = error
+            job["result"] = result
             self._write_active(job)
 
     # --- Lecture ---

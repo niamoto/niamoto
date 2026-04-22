@@ -5,6 +5,7 @@ import os
 import threading
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
 import asyncio
 import yaml
 
@@ -201,6 +202,74 @@ def _validate_selected_export_targets(
             ) from exc
 
 
+def _extract_target_export_result(
+    export_name: str, export_entry: dict[str, Any]
+) -> dict:
+    """Normalise le payload d'un export individuel quelle que soit sa forme."""
+    data = export_entry.get("data")
+    if isinstance(data, dict):
+        nested = data.get(export_name)
+        if isinstance(nested, dict):
+            return nested
+        return data
+    return {}
+
+
+def _summarize_generated_pages(
+    results: dict[str, dict[str, Any]],
+) -> tuple[int, Optional[str]]:
+    """Compte les pages HTML réellement présentes dans les dossiers exportés."""
+    generated_pages = 0
+    static_site_path: Optional[str] = None
+    counted_output_dirs: set[str] = set()
+
+    for export_name, export_entry in results.items():
+        target_result = _extract_target_export_result(export_name, export_entry)
+        output_path = target_result.get("output_path")
+        if not isinstance(output_path, str) or not output_path:
+            continue
+
+        if static_site_path is None:
+            static_site_path = output_path
+
+        try:
+            output_dir = Path(output_path).resolve()
+        except Exception:
+            continue
+
+        output_dir_key = str(output_dir)
+        if output_dir_key in counted_output_dirs or not output_dir.is_dir():
+            continue
+
+        counted_output_dirs.add(output_dir_key)
+        generated_pages += sum(1 for _ in output_dir.rglob("*.html"))
+
+    return generated_pages, static_site_path
+
+
+def _format_export_failure(results: dict[str, dict[str, Any]]) -> str:
+    """Construit un message d'erreur lisible pour les exports en échec."""
+    failures: list[str] = []
+
+    for export_name, export_entry in results.items():
+        if export_entry.get("status") == "success":
+            continue
+
+        target_result = _extract_target_export_result(export_name, export_entry)
+        error = target_result.get("error") or export_entry.get("error")
+        errors_count = target_result.get("errors")
+
+        if not error and isinstance(errors_count, int) and errors_count > 0:
+            error = f"{errors_count} erreurs pendant la génération"
+
+        failures.append(f"{export_name}: {error or 'échec de génération'}")
+
+    if not failures:
+        return "La génération a échoué."
+
+    return "La génération a échoué pour : " + "; ".join(failures)
+
+
 async def execute_export_background(
     job_id: str,
     job_store: JobFileStore,
@@ -219,7 +288,7 @@ async def execute_export_background(
         logger.info("Job %s: Loading configuration from %s", job_id, config_path)
 
         # Load configuration
-        config = get_export_config(config_path)
+        get_export_config(config_path)
 
         # Initialize services
         db_path = get_database_path()
@@ -293,7 +362,6 @@ async def execute_export_background(
         results = {}
         completed = 0
         failed = 0
-        generated_paths: list[str] = []
 
         if export_types:
             total_exports = len(export_types)
@@ -327,13 +395,25 @@ async def execute_export_background(
                     result = await asyncio.to_thread(
                         exporter_service.run_export, target_name=export_name
                     )
+                    export_result = (
+                        result.get(export_name, {}) if isinstance(result, dict) else {}
+                    )
+                    export_status = (
+                        export_result.get("status", "error")
+                        if isinstance(export_result, dict)
+                        else "error"
+                    )
                     logger.info(
-                        "Job %s: Export %s completed successfully",
+                        "Job %s: Export %s finished with status=%s",
                         job_id,
                         export_name,
+                        export_status,
                     )
-                    results[export_name] = {"status": "success", "data": result}
-                    completed += 1
+                    results[export_name] = {"status": export_status, "data": result}
+                    if export_status == "success":
+                        completed += 1
+                    else:
+                        failed += 1
                 except Exception as e:
                     results[export_name] = {"status": "error", "error": str(e)}
                     failed += 1
@@ -378,49 +458,51 @@ async def execute_export_background(
 
             try:
                 result = await export_task
-                logger.info("Job %s: All exports completed successfully", job_id)
+                logger.info("Job %s: Export task returned results", job_id)
 
                 for export_name, export_result in result.items():
-                    results[export_name] = {"status": "success", "data": export_result}
-                    completed += 1
+                    export_status = (
+                        export_result.get("status", "error")
+                        if isinstance(export_result, dict)
+                        else "error"
+                    )
+                    results[export_name] = {
+                        "status": export_status,
+                        "data": export_result,
+                    }
+                    if export_status == "success":
+                        completed += 1
+                    else:
+                        failed += 1
 
             except Exception as e:
                 results["all"] = {"status": "error", "error": str(e)}
                 failed += 1
 
-        # Determine static site path from config
-        static_site_path = None
-        try:
-            config_exports = config.get("exports", [])
-            if isinstance(config_exports, list):
-                for export_config in config_exports:
-                    if isinstance(export_config, dict):
-                        if export_config.get("exporter") == "static_site":
-                            static_site_path = export_config.get("params", {}).get(
-                                "output_dir", "exports/web"
-                            )
-                            break
-        except Exception:
-            pass
-
         total_exports = completed + failed
         execution_time = (datetime.now() - start_time).total_seconds()
-
-        job_store.complete_job(
-            job_id,
-            result={
-                "metrics": {
-                    "total_exports": total_exports,
-                    "completed_exports": completed,
-                    "failed_exports": failed,
-                    "generated_pages": len(generated_paths),
-                    "static_site_path": static_site_path,
-                    "execution_time": execution_time,
-                },
-                "exports": results,
-                "generated_paths": generated_paths,
+        generated_pages, static_site_path = _summarize_generated_pages(results)
+        result_payload = {
+            "metrics": {
+                "total_exports": total_exports,
+                "completed_exports": completed,
+                "failed_exports": failed,
+                "generated_pages": generated_pages,
+                "static_site_path": static_site_path,
+                "execution_time": execution_time,
             },
-        )
+            "exports": results,
+            "generated_paths": [],
+        }
+
+        if failed > 0:
+            job_store.fail_job(
+                job_id,
+                _format_export_failure(results),
+                result=result_payload,
+            )
+        else:
+            job_store.complete_job(job_id, result=result_payload)
 
     except Exception as e:
         logger.exception("Export job %s failed with exception", job_id)

@@ -659,6 +659,26 @@ def test_delete_source_enrichment_data_cleans_empty_container():
     assert updated == {"notes": {"reviewed": True}}
 
 
+def test_delete_source_enrichment_data_cleans_legacy_payload_when_allowed():
+    """Deleting a legacy flat payload should clear enrichment keys when explicitly allowed."""
+
+    updated = enrichment_service._delete_source_enrichment_data(
+        {
+            "notes": {"reviewed": True},
+            "label": "GBIF",
+            "enriched_at": "2026-04-09T10:00:00",
+            "api_enrichment": {"usage_key": 987654},
+        },
+        "gbif",
+        allow_legacy_payload=True,
+    )
+
+    assert updated == {
+        "notes": {"reviewed": True},
+        "label": "GBIF",
+    }
+
+
 def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     """Results endpoint should expose persisted DB payloads when no job log exists."""
 
@@ -1367,6 +1387,97 @@ def test_run_enrichment_job_reset_preserves_existing_source_on_technical_error(
     assert rows[0]["extra_data"] is original_extra_data
     assert enrichment_service._job_results[0].outcome == (
         enrichment_service.EnrichmentResultOutcome.FAILED
+    )
+
+
+def test_run_enrichment_job_reset_clears_legacy_source_payload_on_empty_result(
+    monkeypatch,
+):
+    """Reset runs should clear legacy flat payloads when the retried source returns nothing."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="gbif",
+        label="GBIF",
+        enabled=True,
+        api_url="https://api.gbif.org/v1/species/match",
+    )
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Legacy row",
+            "extra_data": {
+                "notes": {"reviewed": True},
+                "label": "GBIF",
+                "enriched_at": "2026-04-09T10:00:00",
+                "api_enrichment": {"usage_key": 99},
+            },
+        }
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            assert payload["id"] == 1
+            return {"api_enrichment": {}}
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_save_source_enrichment_to_db",
+        lambda *_args, **_kwargs: pytest.fail(
+            "reset with empty result should delete legacy payload instead of saving it"
+        ),
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_delete_source_enrichment_from_db",
+        lambda _reference_name,
+        entity_id,
+        source_id,
+        existing_extra_data: enrichment_service._delete_source_enrichment_data(
+            existing_extra_data,
+            source_id,
+            allow_legacy_payload=True,
+        ),
+    )
+
+    now = "2026-04-22T18:45:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-reset-legacy-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        strategy=enrichment_service.JobStrategy.RESET,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+        source_label=source.label,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-reset-legacy-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+            enrichment_service.JobStrategy.RESET,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert rows[0]["extra_data"] == {
+        "notes": {"reviewed": True},
+        "label": "GBIF",
+    }
+    assert enrichment_service._job_results[0].outcome == (
+        enrichment_service.EnrichmentResultOutcome.EMPTY
     )
 
 

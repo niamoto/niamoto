@@ -1015,7 +1015,9 @@ def _replace_source_enrichment_data(
     return _merge_source_enrichment_data(extra_data, source, source_data)
 
 
-def _delete_source_enrichment_data(extra_data: Any, source_id: str) -> Dict[str, Any]:
+def _delete_source_enrichment_data(
+    extra_data: Any, source_id: str, *, allow_legacy_payload: bool = False
+) -> Dict[str, Any]:
     """Remove one stored source payload while preserving unrelated extra_data."""
 
     extra_dict = _deserialize_extra_data(extra_data)
@@ -1025,6 +1027,9 @@ def _delete_source_enrichment_data(extra_data: Any, source_id: str) -> Dict[str,
 
     sources = api_enrichment.get("sources")
     if not isinstance(sources, dict):
+        if allow_legacy_payload:
+            extra_dict.pop("api_enrichment", None)
+            extra_dict.pop("enriched_at", None)
         return extra_dict
 
     remaining_sources = dict(sources)
@@ -1542,7 +1547,11 @@ def _delete_source_enrichment_from_db(
             ).columns.tolist()
             id_field = _reference_id_field(reference_name, table_columns)
             quoted_id_field = quote_identifier(db, id_field)
-            updated = _delete_source_enrichment_data(existing_extra_data, source_id)
+            updated = _delete_source_enrichment_data(
+                existing_extra_data,
+                source_id,
+                allow_legacy_payload=True,
+            )
             serialized = json.dumps(updated) if updated else None
             with db.engine.connect() as connection:
                 connection.execute(
