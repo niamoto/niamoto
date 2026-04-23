@@ -3,12 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   Settings,
-  Command,
   MessageSquarePlus,
   Loader2,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
-import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
@@ -25,10 +23,7 @@ interface NavigationSidebarProps {
 export function NavigationSidebar({ className, showHeader = true }: NavigationSidebarProps) {
   const { t } = useTranslation('common')
   const location = useLocation()
-  const {
-    sidebarMode,
-    setCommandPaletteOpen,
-  } = useNavigationStore()
+  const { sidebarMode } = useNavigationStore()
   const { isMac } = usePlatform()
   const { isDesktop, features } = useRuntimeMode()
   const feedback = useFeedback()
@@ -58,13 +53,13 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   }
 
   return (
-      <div
-          className={cn(
-            'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200',
-            isCompact ? (isMac && isDesktop ? 'w-20' : 'w-16') : 'w-52',
-            className
-        )}
-      >
+    <div
+      className={cn(
+        'flex h-full flex-col border-r border-border/70 bg-sidebar/92 text-sidebar-foreground transition-all duration-200 supports-[backdrop-filter]:bg-sidebar/80 supports-[backdrop-filter]:backdrop-blur-md',
+        isCompact ? (isMac && isDesktop ? 'w-20' : 'w-16') : 'w-48',
+        className
+      )}
+    >
       {/* Header behavior:
           - macOS desktop keeps a drag strip for the native traffic lights
           - web shows the Niamoto brand
@@ -73,7 +68,8 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         <div
           data-tauri-drag-region={showDesktopTrafficLightStrip ? true : undefined}
           className={cn(
-            'flex h-12 shrink-0 items-center border-b',
+            'flex shrink-0 items-center border-b border-border/70 bg-background/88 supports-[backdrop-filter]:bg-background/75 supports-[backdrop-filter]:backdrop-blur-md',
+            showDesktopTrafficLightStrip ? 'h-[39px]' : 'h-10',
             isCompact ? 'justify-center px-0' : 'gap-2 px-4'
           )}
         >
@@ -99,16 +95,22 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
         {features.project_switching && (
           <div
             className={cn(
-              'border-b px-3 py-3',
+              'border-b border-border/55 px-2.5 py-2.5',
               isCompact && 'flex justify-center px-2'
             )}
           >
-            <ProjectSwitcher compact={isCompact} />
+            <ProjectSwitcher
+              compact={isCompact}
+              className={cn(
+                'border-border/70 bg-background/70 shadow-none hover:bg-background/85',
+                isCompact && 'h-8 w-8'
+              )}
+            />
           </div>
         )}
 
         {/* Navigation — Flat rail */}
-        <nav className="flex-1 px-2 py-3 space-y-1">
+        <nav className="flex-1 space-y-0.5 px-2 py-2.5">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.matchPrefix)
@@ -121,9 +123,9 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                   to={item.path}
                   prefetch="intent"
                   className={cn(
-                    'flex items-center gap-2.5 rounded-theme-md px-2.5 py-2 text-sm font-medium transition-theme-fast',
-                    'hover:bg-accent hover:text-accent-foreground',
-                    active && 'bg-accent text-accent-foreground',
+                    'flex items-center gap-2.5 rounded-theme-sm px-2.5 py-1.5 text-[13px] font-medium transition-theme-fast',
+                    'hover:bg-background/80 hover:text-foreground',
+                    active && 'bg-background/90 text-foreground',
                     !active && 'text-muted-foreground',
                     isCompact && 'justify-center px-0'
                   )}
@@ -144,10 +146,10 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                           <NavLink
                             to={`/groups/${encodeURIComponent(ref.name)}`}
                             className={cn(
-                              'flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-xs transition-theme-fast',
-                              'hover:bg-accent hover:text-accent-foreground',
+                              'flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
+                              'hover:bg-background/80 hover:text-foreground',
                               isCurrent
-                                ? 'bg-accent text-accent-foreground font-medium'
+                                ? 'bg-background/90 text-foreground font-medium'
                                 : 'text-muted-foreground'
                             )}
                             title={ref.name}
@@ -170,65 +172,56 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
           })}
         </nav>
 
-        {/* Cmd+K hint */}
-        {!isCompact && (
-          <button
-            onClick={() => setCommandPaletteOpen(true)}
-            className="mx-3 mb-2 flex items-center gap-2 rounded-theme-sm px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-theme-fast"
-          >
-            <Command className="h-3 w-3" />
-            <span>K</span>
-            <span className="ml-1 opacity-60">{t('sidebar.cmdkHint', 'Outils & recherche')}</span>
-          </button>
-        )}
-
         {/* Footer */}
-        <div className="border-t p-2.5 space-y-2">
+        <div
+          className={cn(
+            'flex h-9 items-center border-t border-border/60 px-2',
+            isCompact ? 'justify-center gap-1' : 'gap-1.5'
+          )}
+        >
           {!isCompact ? (
             <>
-              <div className="flex items-center gap-1">
-                <NavLink
-                  to="/tools/settings"
-                  prefetch="intent"
-                  className={({ isActive: active }) =>
-                    cn(
-                      'flex flex-1 items-center gap-2 rounded-theme-sm px-3 py-2 text-sm transition-theme-fast',
-                      'hover:bg-accent hover:text-accent-foreground',
-                      active && 'bg-accent text-accent-foreground font-medium'
-                    )
-                  }
-                >
-                  <Settings className="h-4 w-4" />
-                  {t('sidebar.footer.settings')}
-                </NavLink>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => feedback.openWithType('bug')}
-                      disabled={feedbackDisabled}
-                      aria-label={t('feedback:button_label')}
-                      className={cn(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-theme-sm transition-theme-fast',
-                        'hover:bg-accent hover:text-accent-foreground text-muted-foreground',
-                        feedbackDisabled && 'opacity-50 cursor-not-allowed'
-                      )}
-                    >
-                      {feedback.isPreparingScreenshot ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <MessageSquarePlus className="h-4 w-4" />
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {!browserOnline
-                      ? t('feedback:offline_tooltip')
-                      : feedback.cooldownRemaining > 0
-                        ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
-                        : t('feedback:button_label')}
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+              <NavLink
+                to="/tools/settings"
+                prefetch="intent"
+                className={({ isActive: active }) =>
+                  cn(
+                    'flex h-7 flex-1 items-center gap-2 rounded-theme-sm px-2.5 text-[13px] transition-theme-fast',
+                    'hover:bg-background/80 hover:text-foreground',
+                    active && 'bg-background/90 text-foreground font-medium'
+                  )
+                }
+              >
+                <Settings className="h-4 w-4" />
+                {t('sidebar.footer.settings')}
+              </NavLink>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => feedback.openWithType('bug')}
+                    disabled={feedbackDisabled}
+                    aria-label={t('feedback:button_label')}
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-theme-sm transition-theme-fast',
+                      'text-muted-foreground hover:bg-background/80 hover:text-foreground',
+                      feedbackDisabled && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    {feedback.isPreparingScreenshot ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <MessageSquarePlus className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {!browserOnline
+                    ? t('feedback:offline_tooltip')
+                    : feedback.cooldownRemaining > 0
+                      ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
+                      : t('feedback:button_label')}
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : (
             <>
@@ -237,9 +230,9 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                 prefetch="intent"
                 className={({ isActive: active }) =>
                   cn(
-                    'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',
-                    'hover:bg-accent hover:text-accent-foreground',
-                    active && 'bg-accent text-accent-foreground'
+                    'flex h-7 w-7 items-center justify-center rounded-theme-sm transition-theme-fast',
+                    'hover:bg-background/80 hover:text-foreground',
+                    active && 'bg-background/90 text-foreground'
                   )
                 }
                 title={t('sidebar.footer.settings')}
@@ -253,15 +246,15 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                     disabled={feedbackDisabled}
                     aria-label={t('feedback:button_label')}
                     className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-theme-sm transition-theme-fast mx-auto',
-                      'hover:bg-accent hover:text-accent-foreground text-muted-foreground',
-                      feedbackDisabled && 'opacity-50 cursor-not-allowed'
+                      'flex h-7 w-7 items-center justify-center rounded-theme-sm transition-theme-fast',
+                      'text-muted-foreground hover:bg-background/80 hover:text-foreground',
+                      feedbackDisabled && 'cursor-not-allowed opacity-50'
                     )}
                   >
                     {feedback.isPreparingScreenshot ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <MessageSquarePlus className="h-4 w-4" />
+                      <MessageSquarePlus className="h-3.5 w-3.5" />
                     )}
                   </button>
                 </TooltipTrigger>
@@ -273,15 +266,6 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                       : t('feedback:button_label')}
                 </TooltipContent>
               </Tooltip>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mx-auto flex"
-                title="⌘K"
-                onClick={() => setCommandPaletteOpen(true)}
-              >
-                <Command className="h-3.5 w-3.5" />
-              </Button>
             </>
           )}
         </div>

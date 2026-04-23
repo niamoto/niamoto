@@ -3,7 +3,7 @@ import { PageTransition } from '@/components/motion/PageTransition'
 import { useEffect, useLayoutEffect } from 'react'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
-import { BreadcrumbNav } from './BreadcrumbNav'
+import { DesktopStatusBar } from './DesktopStatusBar'
 import { CommandPalette } from './CommandPalette'
 import { FeedbackProvider, FeedbackModal } from '@/features/feedback'
 import { FeedbackErrorBoundary } from '@/features/feedback/components/FeedbackErrorBoundary'
@@ -11,6 +11,7 @@ import { recordNavigation } from '@/features/feedback/lib/navigation-tracker'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useJobPolling } from '@/hooks/useJobPolling'
 import { AppUpdaterProvider } from '@/shared/desktop/updater/useAppUpdater'
+import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { cn } from '@/lib/utils'
 
 function syncSidebarModeToViewport() {
@@ -39,6 +40,7 @@ function syncSidebarModeToViewport() {
 export function MainLayout() {
   const location = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
+  const { isDesktop } = useRuntimeMode()
   const routeSurfaceKey = location.pathname.startsWith('/help/')
     || location.pathname === '/help'
     ? '/help'
@@ -79,16 +81,17 @@ export function MainLayout() {
   return (
     <AppUpdaterProvider>
       <FeedbackProvider>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-screen overflow-hidden bg-sidebar/35">
           <NavigationSidebar />
 
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <TopBar />
-            <BreadcrumbNav />
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+            <div className="border-b border-border/70 bg-background/88 supports-[backdrop-filter]:bg-background/75 supports-[backdrop-filter]:backdrop-blur-md">
+              <TopBar />
+            </div>
 
             <main
               className={cn(
-                'flex-1 overflow-hidden bg-background',
+                'min-h-0 flex-1 overflow-hidden bg-background',
                 'transition-all duration-200'
               )}
             >
@@ -98,6 +101,8 @@ export function MainLayout() {
                 </PageTransition>
               </FeedbackErrorBoundary>
             </main>
+
+            {isDesktop && <DesktopStatusBar />}
           </div>
 
           <CommandPalette />

@@ -28,7 +28,7 @@ from niamoto.core.plugins.exporters.json_api_exporter import (
 )
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
-from niamoto.core.plugins.models import DwcTransformerParams
+from niamoto.core.plugins.models import TargetConfig, DwcTransformerParams
 from niamoto.common.exceptions import ProcessError
 
 
@@ -918,6 +918,43 @@ class TestJsonApiExporterMetadata:
                 mock_json_dump.assert_called_once_with(
                     exporter.errors, mock.ANY, indent=2, default=str
                 )
+
+
+def test_target_config_preserves_enabled_for_json_api_groups():
+    target = TargetConfig(
+        name="json_api",
+        exporter="json_api_exporter",
+        params={"output_dir": "api", "detail_output_pattern": "{group}/{id}.json"},
+        groups=[
+            {
+                "group_by": "taxon",
+                "enabled": False,
+            }
+        ],
+    )
+
+    assert target.groups[0].enabled is False
+
+
+def test_target_config_preserves_enabled_for_dwc_groups():
+    target = TargetConfig(
+        name="dwc_occurrence_json",
+        exporter="json_api_exporter",
+        params={"output_dir": "api", "detail_output_pattern": "{group}/{id}.json"},
+        groups=[
+            {
+                "group_by": "taxon",
+                "enabled": False,
+                "transformer_plugin": "niamoto_to_dwc_occurrence",
+                "transformer_params": {
+                    "occurrence_list_source": "occurrences",
+                    "mapping": {"occurrenceID": "occurrence_id"},
+                },
+            }
+        ],
+    )
+
+    assert target.groups[0].enabled is False
 
 
 class TestJsonApiExporterPerformance:

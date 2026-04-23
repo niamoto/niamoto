@@ -21,7 +21,8 @@
         "devtools": true,
         "decorations": true,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "backgroundColor": "#f5f6f7"
       }
     ],
     "security": {

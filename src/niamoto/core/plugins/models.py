@@ -377,6 +377,7 @@ class GroupConfigApi(BaseModel):
     """Configuration for a group within a 'json_api_exporter' target."""
 
     group_by: str
+    enabled: bool = True
     data_source: Optional[str] = None
     detail: DetailApiConfig = Field(default_factory=DetailApiConfig)
     index: Optional[IndexApiConfig] = None
@@ -469,6 +470,7 @@ class GroupConfigDwc(BaseModel):
     """Configuration for a group within a DwC export target."""
 
     group_by: str
+    enabled: bool = True
     data_source: Optional[str] = None
     transformer_plugin: str
     transformer_params: DwcTransformerParams
