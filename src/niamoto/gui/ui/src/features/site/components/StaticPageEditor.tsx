@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   FileText,
   Trash2,
+  Eye,
   Plus,
   X,
   Navigation,
@@ -61,6 +62,8 @@ interface StaticPageEditorProps {
   page: StaticPage
   onChange: (page: StaticPage) => void
   onDelete?: () => void
+  showRestorePreview?: boolean
+  onRestorePreview?: () => void
   onBack: () => void
   hasExistingIndexPage?: boolean
   // Menu linking (Phase C: unified tree helpers)
@@ -77,6 +80,8 @@ export function StaticPageEditor({
   page,
   onChange,
   onDelete,
+  showRestorePreview = false,
+  onRestorePreview,
   onBack,
   hasExistingIndexPage = false,
   menuRefs = [],
@@ -228,17 +233,30 @@ export function StaticPageEditor({
             </p>
           </div>
         </div>
-        {onDelete && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onDelete}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t('pageEditor.delete')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('pageEditor.delete')}
+            </Button>
+          )}
+          {showRestorePreview && onRestorePreview && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRestorePreview}
+              className="bg-background/90 shadow-sm"
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              {t('preview.title')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Content */}
