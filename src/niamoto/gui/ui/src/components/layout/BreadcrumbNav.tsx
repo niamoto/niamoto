@@ -84,17 +84,17 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
   return (
     <nav
       className={cn(
-        'flex h-8 items-center border-b bg-muted/40 px-4',
+        'flex h-7 items-center bg-transparent px-3',
         className
       )}
       aria-label="Breadcrumb"
     >
-      <ol className="flex flex-1 items-center gap-1 text-sm text-muted-foreground">
+      <ol className="flex flex-1 items-center gap-1 text-[11px] text-muted-foreground">
         {/* Home link */}
         <li>
           <Link
             to="/"
-            className="flex items-center gap-1 hover:text-foreground transition-colors"
+            className="flex items-center gap-1 rounded-theme-sm px-1 py-0.5 hover:bg-background/70 hover:text-foreground transition-colors"
           >
             <Home className="h-3 w-3" />
           </Link>
@@ -110,12 +110,12 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
               {crumb.path && !isLast ? (
                 <Link
                   to={crumb.path}
-                  className="hover:text-foreground transition-colors"
+                  className="rounded-theme-sm px-1 py-0.5 hover:bg-background/70 hover:text-foreground transition-colors"
                 >
                   {crumb.label}
                 </Link>
               ) : (
-                <span className={cn(isLast && 'text-foreground font-medium')}>
+                <span className={cn('px-1 py-0.5', isLast && 'text-foreground font-medium')}>
                   {crumb.label}
                 </span>
               )}
@@ -126,7 +126,7 @@ export function BreadcrumbNav({ className }: BreadcrumbNavProps) {
 
       {/* Pipeline status indicator */}
       {stageData && displayStatus !== 'never_run' && displayStatus !== 'unconfigured' && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           {displayStatus === 'running' ? (
             <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
           ) : (

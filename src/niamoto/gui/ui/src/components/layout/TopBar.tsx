@@ -31,12 +31,14 @@ export function TopBar({ className }: TopBarProps) {
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode, toggleSidebar } = useNavigationStore()
   const { isMac, isDesktop } = usePlatform()
   const navigate = useNavigate()
+  const commandShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
 
   return (
     <header
       data-tauri-drag-region={isDesktop && isMac ? true : undefined}
       className={cn(
-        'flex h-12 items-center justify-between border-b bg-background px-4',
+        'flex items-center justify-between bg-transparent px-3',
+        isDesktop && isMac ? 'h-[38px]' : 'h-10',
         className
       )}
     >
@@ -57,7 +59,7 @@ export function TopBar({ className }: TopBarProps) {
             variant="ghost"
             size="icon"
             onClick={toggleSidebar}
-            className="no-drag -ml-3.5 hidden md:inline-flex text-foreground/75 hover:bg-transparent hover:text-foreground/75 focus-visible:bg-transparent focus-visible:text-foreground/75 active:bg-transparent active:text-foreground/75"
+            className="no-drag hidden h-8 w-8 md:inline-flex text-foreground/70 hover:bg-background/75 hover:text-foreground"
             title={t('sidebar.toggle', 'Toggle sidebar')}
           >
             <PanelLeft className="h-5 w-5" />
@@ -80,13 +82,15 @@ export function TopBar({ className }: TopBarProps) {
         {/* Command palette trigger */}
         <Button
           variant="outline"
-          className="no-drag hidden w-64 justify-start text-muted-foreground md:flex"
+          className="no-drag hidden h-8 justify-start gap-2 rounded-full border-border/70 bg-background/70 px-3 text-muted-foreground shadow-none md:inline-flex"
           onClick={() => setCommandPaletteOpen(true)}
         >
-          <Search className="mr-2 h-4 w-4" />
-          <span className="flex-1 text-left">{t('search.placeholder', 'Search...')}</span>
-          <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-            <span className="text-xs">⌘</span>K
+          <Command className="h-3.5 w-3.5" />
+          <span className="hidden text-left lg:inline">
+            {t('command.search', 'Command palette')}
+          </span>
+          <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border border-border/80 bg-background/80 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            {commandShortcutLabel}
           </kbd>
         </Button>
 
@@ -99,7 +103,7 @@ export function TopBar({ className }: TopBarProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="no-drag">
-              <HelpCircle className="h-5 w-5" />
+              <HelpCircle className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
