@@ -117,10 +117,14 @@ export function EnrichmentTab({
     // Job
     job,
     jobLoadingScope,
+    jobRunProgress,
     isTerminalJob,
 
     // Results
     resultsLoading,
+    resultsLoadingMore,
+    resultsTotal,
+    resultsHasMore,
     recentResults,
 
     // Entities
@@ -150,6 +154,7 @@ export function EnrichmentTab({
     activePreviewResult,
     isRunningSingleSource,
     canStartActiveSource,
+    canRestartActiveSource,
     quickSelectedSource,
 
     // UI
@@ -162,7 +167,7 @@ export function EnrichmentTab({
     setWorkspacePane,
 
     // Network
-    isOffline,
+    enrichmentAvailability,
 
     // Actions
     addSource,
@@ -176,10 +181,12 @@ export function EnrichmentTab({
     saveEnrichmentConfig,
     startGlobalJob,
     startSourceJob,
+    restartSourceJob,
     pauseJob,
     resumeJob,
     cancelJob,
     handleRefresh,
+    loadMoreResults,
     previewEnrichment,
     resetPreviewState,
     loadEntities,
@@ -191,6 +198,14 @@ export function EnrichmentTab({
     initialSourceId,
     onConfigSaved,
   })
+
+  const jobRunLabel =
+    jobRunProgress && jobRunProgress.total > 0
+      ? `${jobRunProgress.processed.toLocaleString()} / ${jobRunProgress.total.toLocaleString()}`
+      : null
+  const showPausedOfflineAlert = job?.status === 'paused_offline'
+  const showConnectivityWarning =
+    enrichmentAvailability === 'unavailable' && !showPausedOfflineAlert
 
   const [isCompactWorkspace, setIsCompactWorkspace] = useState(() => {
     if (typeof window === 'undefined') {
@@ -273,15 +288,29 @@ export function EnrichmentTab({
                       </span>
                     ) : null}
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{t('enrichmentTab.cards.progress')}</span>
-                      <span>
-                        {job.processed.toLocaleString()} / {job.total.toLocaleString()}
-                      </span>
+                  <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                    <div>
+                      <span className="font-medium">{t('enrichmentTab.runtime.alreadyEnriched')}</span>{' '}
+                      {jobRunProgress?.alreadyCompleted.toLocaleString() ?? 0} / {job.total.toLocaleString()}
                     </div>
-                    <Progress value={job.total > 0 ? (job.processed / job.total) * 100 : 0} className="h-1.5" />
+                    <div>
+                      <span className="font-medium">{t('enrichmentTab.runtime.runProgress')}</span>{' '}
+                      {jobRunLabel ?? '0 / 0'}
+                    </div>
+                    <div>
+                      <span className="font-medium">{t('enrichmentTab.runtime.failedAttempts')}</span>{' '}
+                      {job.failed.toLocaleString()}
+                    </div>
                   </div>
+                  {jobRunProgress && jobRunProgress.total > 0 ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{t('enrichmentTab.runtime.runProgress')}</span>
+                        <span>{jobRunLabel}</span>
+                      </div>
+                      <Progress value={jobRunProgress.percentage} className="h-1.5" />
+                    </div>
+                  ) : null}
                 </div>
               ) : stats?.total ? (
                 <div className="space-y-1">
@@ -304,8 +333,7 @@ export function EnrichmentTab({
               {isTerminalJob ? (
                 <Button
                   onClick={startGlobalJob}
-                  disabled={jobLoadingScope !== null || !stats || stats.pending === 0 || isOffline}
-                  title={isOffline ? t('enrichmentTab.offline.internetRequired') : undefined}
+                  disabled={jobLoadingScope !== null || !stats || stats.pending === 0}
                 >
                   {jobLoadingScope === 'all' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -335,8 +363,7 @@ export function EnrichmentTab({
                 <>
                   <Button
                     onClick={() => resumeJob()}
-                    disabled={jobLoadingScope !== null || isOffline}
-                    title={isOffline ? t('enrichmentTab.offline.internetRequiredResume') : undefined}
+                    disabled={jobLoadingScope !== null}
                   >
                     {jobLoadingScope === 'all' ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -369,11 +396,19 @@ export function EnrichmentTab({
           </CardContent>
         </Card>
 
-        {isOffline ? (
+        {showPausedOfflineAlert ? (
+          <Alert variant="destructive">
+            <WifiOff className="h-4 w-4" />
+            <AlertTitle>{t('enrichmentTab.connectivity.pausedTitle')}</AlertTitle>
+            <AlertDescription>{t('enrichmentTab.connectivity.pausedDescription')}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {showConnectivityWarning ? (
           <Alert>
             <WifiOff className="h-4 w-4" />
-            <AlertTitle>{t('enrichmentTab.offline.title')}</AlertTitle>
-            <AlertDescription>{t('enrichmentTab.offline.description')}</AlertDescription>
+            <AlertTitle>{t('enrichmentTab.connectivity.warningTitle')}</AlertTitle>
+            <AlertDescription>{t('enrichmentTab.connectivity.warningDescription')}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -493,7 +528,7 @@ export function EnrichmentTab({
                               type="button"
                               size="sm"
                               onClick={() => startSourceJob(source.id)}
-                              disabled={jobLoadingScope !== null || isOffline}
+                              disabled={jobLoadingScope !== null}
                             >
                               {jobLoadingScope === source.id ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -857,7 +892,7 @@ export function EnrichmentTab({
             size="icon"
             className="h-7 w-7"
             onClick={() => startSourceJob(activeSource.id)}
-            disabled={jobLoadingScope !== null || isOffline}
+            disabled={jobLoadingScope !== null}
             title={t('enrichmentTab.runtime.startSource', { defaultValue: 'Launch this API' })}
           >
             {jobLoadingScope === activeSource.id ? (
@@ -866,6 +901,54 @@ export function EnrichmentTab({
               <Play className="h-3.5 w-3.5" />
             )}
           </Button>
+        ) : null}
+
+        {canRestartActiveSource ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={jobLoadingScope !== null}
+                title={t('enrichmentTab.runtime.restartSource', {
+                  defaultValue: 'Restart from zero',
+                })}
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${
+                    jobLoadingScope === activeSource.id ? 'animate-spin' : ''
+                  }`}
+                />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t('enrichmentTab.restartDialog.title', {
+                    defaultValue: 'Restart this source from zero?',
+                  })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('enrichmentTab.restartDialog.description', {
+                    defaultValue:
+                      'This relaunches {{source}} for {{count}} entities. Existing data from this source will be replaced, and removed when the API no longer returns anything.',
+                    source: activeSource.label,
+                    count: activeSourceStats?.total ?? 0,
+                  })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => restartSourceJob(activeSource.id)}>
+                  {t('enrichmentTab.restartDialog.confirm', {
+                    defaultValue: 'Restart from zero',
+                  })}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         ) : null}
 
         {isRunningSingleSource && job?.status === 'running' ? (
@@ -885,7 +968,7 @@ export function EnrichmentTab({
 
         {isRunningSingleSource && (job?.status === 'paused' || job?.status === 'paused_offline') ? (
           <>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => resumeJob(activeSource.id)} disabled={jobLoadingScope !== null || isOffline}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => resumeJob(activeSource.id)} disabled={jobLoadingScope !== null}>
               {jobLoadingScope === activeSource.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -1168,7 +1251,11 @@ export function EnrichmentTab({
         <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {t('enrichmentTab.tabs.results')}
         </h4>
-        {activeSourceStats ? (
+        {resultsTotal > 0 ? (
+          <span className="text-[10px] tabular-nums text-muted-foreground">
+            {Math.min(activeSourceResults.length, resultsTotal).toLocaleString()}/{resultsTotal.toLocaleString()}
+          </span>
+        ) : activeSourceStats ? (
           <span className="text-[10px] tabular-nums text-muted-foreground">
             {activeSourceStats.enriched.toLocaleString()}/{(activeSourceStats.enriched + activeSourceStats.pending).toLocaleString()}
           </span>
@@ -1184,29 +1271,53 @@ export function EnrichmentTab({
           <p className="text-xs text-muted-foreground">{t('enrichmentTab.results.emptyDescription')}</p>
         </div>
       ) : (
-        <div className="space-y-px">
-          {activeSourceResults.map((result) => (
-            <button
-              key={`${activeSource.id}-${getResultEntityName(result)}-${result.processed_at}`}
+        <div className="space-y-2">
+          <div className="max-h-[26rem] overflow-y-auto rounded-md border border-border/50 bg-background/60">
+            <div className="space-y-px p-1">
+              {activeSourceResults.map((result) => (
+                <button
+                  key={`${activeSource.id}-${getResultEntityName(result)}-${result.processed_at}`}
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-muted/20"
+                  onClick={() => setSelectedResult(result)}
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium">
+                      {getResultEntityName(result)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(result.processed_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <span
+                    className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                      result.success ? 'bg-emerald-500' : 'bg-destructive'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {resultsHasMore ? (
+            <Button
               type="button"
-              className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-muted/20"
-              onClick={() => setSelectedResult(result)}
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => void loadMoreResults()}
+              disabled={resultsLoadingMore}
             >
-              <div className="min-w-0">
-                <div className="truncate text-xs font-medium">
-                  {getResultEntityName(result)}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {new Date(result.processed_at).toLocaleString()}
-                </div>
-              </div>
-              <span
-                className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-                  result.success ? 'bg-emerald-500' : 'bg-destructive'
-                }`}
-              />
-            </button>
-          ))}
+              {resultsLoadingMore ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {t(
+                resultsLoadingMore
+                  ? 'enrichmentTab.results.loadingMore'
+                  : 'enrichmentTab.results.loadMore'
+              )}
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
@@ -1246,7 +1357,9 @@ export function EnrichmentTab({
             <span className={`h-1.5 w-1.5 rounded-full ${job.status === 'running' ? 'animate-pulse bg-primary' : 'bg-muted-foreground/40'}`} />
             <span className="text-muted-foreground">
               {t(`enrichmentTab.status.${job.status}`, { defaultValue: job.status })}
-              {job.total > 0 ? ` ${job.processed}/${job.total}` : ''}
+              {jobRunLabel
+                ? ` · ${t('enrichmentTab.runtime.runProgress')}: ${jobRunLabel}`
+                : ''}
             </span>
           </span>
         ) : null}
@@ -1267,8 +1380,7 @@ export function EnrichmentTab({
               variant="ghost"
               className="h-6 px-2 text-xs"
               onClick={startGlobalJob}
-              disabled={jobLoadingScope !== null || !stats || stats.pending === 0 || isOffline}
-              title={isOffline ? t('enrichmentTab.offline.internetRequired') : undefined}
+              disabled={jobLoadingScope !== null || !stats || stats.pending === 0}
             >
               {jobLoadingScope === 'all' ? (
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
@@ -1295,8 +1407,7 @@ export function EnrichmentTab({
                 variant="ghost"
                 className="h-6 px-2 text-xs"
                 onClick={() => resumeJob()}
-                disabled={jobLoadingScope !== null || isOffline}
-                title={isOffline ? t('enrichmentTab.offline.internetRequiredResume') : undefined}
+                disabled={jobLoadingScope !== null}
               >
                 <Play className="mr-1 h-3 w-3" />
                 {t('enrichmentTab.actions.resume')}
@@ -1314,11 +1425,19 @@ export function EnrichmentTab({
         </div>
       </div>
 
-      {isOffline ? (
+      {showPausedOfflineAlert ? (
+        <Alert variant="destructive">
+          <WifiOff className="h-4 w-4" />
+          <AlertTitle>{t('enrichmentTab.connectivity.pausedTitle')}</AlertTitle>
+          <AlertDescription>{t('enrichmentTab.connectivity.pausedDescription')}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {showConnectivityWarning ? (
         <Alert>
           <WifiOff className="h-4 w-4" />
-          <AlertTitle>{t('enrichmentTab.offline.title')}</AlertTitle>
-          <AlertDescription>{t('enrichmentTab.offline.description')}</AlertDescription>
+          <AlertTitle>{t('enrichmentTab.connectivity.warningTitle')}</AlertTitle>
+          <AlertDescription>{t('enrichmentTab.connectivity.warningDescription')}</AlertDescription>
         </Alert>
       ) : null}
 

@@ -13,6 +13,8 @@ the primary way to understand the codebase.
 - [gui-overview.md](gui-overview.md): GUI backend and frontend split
 - [gui-runtime.md](gui-runtime.md): development, packaged, and desktop runtime modes
 - [gui-preview-system.md](gui-preview-system.md): widget preview rendering path
+- [testing-audit.md](testing-audit.md): current automated test inventory and high-value coverage gaps
+- [testing-strategy.md](testing-strategy.md): active testing guidance and coverage workflow
 
 ## Current architecture
 
@@ -21,6 +23,8 @@ the primary way to understand the codebase.
 - [gui-overview.md](gui-overview.md)
 - [gui-runtime.md](gui-runtime.md)
 - [gui-preview-system.md](gui-preview-system.md)
+- [testing-audit.md](testing-audit.md)
+- [testing-strategy.md](testing-strategy.md)
 
 ## Historical decision notes
 
@@ -68,6 +72,8 @@ plugin-system
 gui-overview
 gui-runtime
 gui-preview-system
+testing-audit
+testing-strategy
 adr/0001-adopt-duckdb
 adr/0002-retire-legacy-importers
 adr/0003-derived-references-with-duckdb

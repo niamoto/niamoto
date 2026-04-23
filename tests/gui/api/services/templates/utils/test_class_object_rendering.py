@@ -7,9 +7,13 @@ C'est le point de défaillance récurrent #1 du preview engine : le widget deman
 qui n'existe pas dans la sortie du transformer → "Input dict structure not recognized".
 """
 
+from niamoto.gui.api.services.templates.utils import class_object_rendering
 from niamoto.gui.api.services.templates.utils.class_object_rendering import (
+    _build_info_grid_items,
+    _build_widget_params_for_class_object,
     _build_widget_params_for_configured,
     _execute_configured_transformer,
+    _extract_class_objects_from_params,
 )
 
 
@@ -177,3 +181,128 @@ class TestBinaryAggregatorBarPlotCoherence:
         # "labels" n'existe pas dans result mais "tops" oui
         # Ce test documente l'état actuel — si on casse les defaults, on le voit
         assert params["y_axis"] in result or params["y_axis"] == "counts"
+
+
+def test_extract_class_objects_from_params_supports_all_config_shapes():
+    params = {
+        "class_object": ["dbh", "height"],
+        "fields": [{"class_object": "dbh"}, {"class_object": "canopy"}],
+        "groups": [{"field": "is_endemic"}],
+        "series": [{"class_object": "height"}, {"class_object": "density"}],
+        "distributions": {"cover": {"total": "all", "subset": "forest"}},
+        "categories": {"richness": {"class_object": "richness_class"}},
+        "types": {"primary": "slope", "secondary": "aspect"},
+    }
+
+    assert _extract_class_objects_from_params(params) == [
+        "dbh",
+        "height",
+        "canopy",
+        "is_endemic",
+        "density",
+        "all",
+        "forest",
+        "richness_class",
+        "slope",
+        "aspect",
+    ]
+
+
+def test_build_info_grid_items_supports_legacy_fields_and_nested_scalars():
+    assert _build_info_grid_items(
+        {
+            "fields": [
+                {"label": "Elevation", "value": 412, "units": "m"},
+                {"name": "Slope", "source": "terrain.slope"},
+            ]
+        }
+    ) == [
+        {"label": "Elevation", "value": 412, "unit": "m"},
+        {"label": "Slope", "source": "terrain.slope"},
+    ]
+
+    assert _build_info_grid_items(
+        {
+            "forest_cover": {"value": 82, "units": "%"},
+            "range_stats": {"min": 120, "max": 360},
+            "flags": {"is_native": True, "rank": 3},
+            "habitats": ["forest", "maquis", "riverine"],
+        }
+    ) == [
+        {"label": "Forest Cover", "source": "forest_cover.value", "unit": "%"},
+        {"label": "Range Stats - Min", "value": 120},
+        {"label": "Range Stats - Max", "value": 360},
+        {"label": "Flags - Is Native", "value": True},
+        {"label": "Flags - Rank", "value": 3},
+        {"label": "Habitats", "value": "forest, maquis, riverine"},
+    ]
+
+
+def test_build_widget_params_for_class_object_handles_numeric_and_gauge_outputs():
+    distribution_params = _build_widget_params_for_class_object(
+        "class_object_series_extractor",
+        "bar_plot",
+        {
+            "tops": [10, 20, 30],
+            "counts": [25, 35, 40],
+            "_is_numeric": True,
+            "class_object": "dbh",
+        },
+        "DBH distribution",
+    )
+
+    assert distribution_params == {
+        "x_axis": "tops",
+        "y_axis": "counts",
+        "title": "DBH distribution",
+        "orientation": "v",
+        "sort_order": "descending",
+        "gradient_color": "#8B4513",
+        "gradient_mode": "luminance",
+        "show_legend": False,
+        "labels": {"tops": "DBH", "counts": "%"},
+    }
+
+    gauge_params = _build_widget_params_for_class_object(
+        "class_object_field_aggregator",
+        "radial_gauge",
+        {"counts": [412], "units": "m"},
+        "Elevation",
+    )
+
+    assert gauge_params == {
+        "value_field": "value",
+        "max_value": 1000,
+        "title": "Elevation",
+        "unit": "m",
+    }
+
+
+def test_render_widget_for_configured_returns_error_html_when_widget_fails(
+    monkeypatch,
+):
+    class FailingWidget:
+        param_schema = None
+
+        def __init__(self, db=None):
+            self.db = db
+
+        def render(self, data, params):
+            raise RuntimeError("<boom>")
+
+    monkeypatch.setattr(
+        class_object_rendering.PluginRegistry,
+        "get_plugin",
+        lambda _widget_name, _plugin_type: FailingWidget,
+    )
+
+    html = class_object_rendering._render_widget_for_configured(
+        None,
+        "bar_plot",
+        {"tops": ["forest"], "counts": [12]},
+        "class_object_series_extractor",
+        "Top habitats",
+    )
+
+    assert "Widget render error" in html
+    assert "&lt;boom&gt;" in html

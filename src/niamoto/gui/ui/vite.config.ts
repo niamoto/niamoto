@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vitest/config'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const apiPort = process.env.NIAMOTO_DESKTOP_API_PORT ?? '8080'
@@ -17,6 +17,23 @@ export default defineConfig({
     '__APP_VERSION__': JSON.stringify(tauriConf.version),
   },
   plugins: [react()],
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json-summary', 'lcov'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/*.test.{ts,tsx}',
+        'src/**/__tests__/**',
+        'src/**/*.generated.ts',
+        'src/**/*.generated.tsx',
+        'src/vite-env.d.ts',
+        'src/main.tsx',
+      ],
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

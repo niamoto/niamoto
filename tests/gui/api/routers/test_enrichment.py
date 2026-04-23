@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import yaml
 
 from niamoto.gui.api.routers import enrichment as enrichment_router
@@ -148,4 +150,148 @@ def test_preview_reference_route_forwards_source_override(
             },
         },
         "entity_id": 42,
+    }
+
+
+def test_restart_reference_route_forwards_selected_source(
+    monkeypatch, gui_duckdb_client
+):
+    """Restart route should forward the reference and source identifiers."""
+
+    captured = {}
+
+    def fake_restart_reference_enrichment(reference_name: str, source_id: str):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {
+            "id": "job-1",
+            "reference_name": reference_name,
+            "mode": "single",
+            "strategy": "reset",
+            "status": "running",
+            "total": 0,
+            "processed": 0,
+            "successful": 0,
+            "failed": 0,
+            "already_completed": 0,
+            "pending_total": 0,
+            "pending_processed": 0,
+            "started_at": "2026-04-22T14:10:00",
+            "updated_at": "2026-04-22T14:10:00",
+            "source_ids": [source_id],
+            "source_id": source_id,
+            "source_label": "Endemia",
+        }
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "restart_reference_enrichment",
+        fake_restart_reference_enrichment,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/restart/taxons/endemia")
+
+    assert response.status_code == 200
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+    assert response.json()["strategy"] == "reset"
+
+
+def test_get_results_for_reference_uses_worker_thread(monkeypatch):
+    """Heavy result reconstruction should be dispatched off the API loop."""
+
+    captured = {}
+
+    def fake_get_results(
+        *,
+        reference_name: str | None = None,
+        page: int = 0,
+        limit: int = 50,
+        source_id: str | None = None,
+    ):
+        captured["service_kwargs"] = {
+            "reference_name": reference_name,
+            "page": page,
+            "limit": limit,
+            "source_id": source_id,
+        }
+        return {"results": [], "total": 0, "page": page, "limit": limit}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        captured["thread_func"] = func
+        captured["thread_args"] = args
+        captured["thread_kwargs"] = kwargs
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(enrichment_router, "get_results", fake_get_results)
+    monkeypatch.setattr(enrichment_router.asyncio, "to_thread", fake_to_thread)
+
+    response = asyncio.run(
+        enrichment_router.get_results_for_reference(
+            "taxons", page=2, limit=25, source_id="endemia"
+        )
+    )
+
+    assert response == {"results": [], "total": 0, "page": 2, "limit": 25}
+    assert captured["thread_func"] is fake_get_results
+    assert captured["thread_args"] == ()
+    assert captured["thread_kwargs"] == {
+        "reference_name": "taxons",
+        "page": 2,
+        "limit": 25,
+        "source_id": "endemia",
+    }
+    assert captured["service_kwargs"] == {
+        "reference_name": "taxons",
+        "page": 2,
+        "limit": 25,
+        "source_id": "endemia",
+    }
+
+
+def test_list_entities_for_reference_uses_worker_thread(monkeypatch):
+    """Entity listings should stay responsive even when another read is slow."""
+
+    captured = {}
+
+    def fake_get_entities(
+        reference_name: str, limit: int = 100, offset: int = 0, search: str = ""
+    ):
+        captured["service_args"] = {
+            "reference_name": reference_name,
+            "limit": limit,
+            "offset": offset,
+            "search": search,
+        }
+        return {"entities": [], "total": 0}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        captured["thread_func"] = func
+        captured["thread_args"] = args
+        captured["thread_kwargs"] = kwargs
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(
+        enrichment_router, "get_entities_for_reference", fake_get_entities
+    )
+    monkeypatch.setattr(enrichment_router.asyncio, "to_thread", fake_to_thread)
+
+    response = asyncio.run(
+        enrichment_router.list_entities_for_reference(
+            "taxons", limit=20, offset=40, search="Araucaria"
+        )
+    )
+
+    assert response == {"entities": [], "total": 0}
+    assert captured["thread_func"] is fake_get_entities
+    assert captured["thread_args"] == ("taxons",)
+    assert captured["thread_kwargs"] == {
+        "limit": 20,
+        "offset": 40,
+        "search": "Araucaria",
+    }
+    assert captured["service_args"] == {
+        "reference_name": "taxons",
+        "limit": 20,
+        "offset": 40,
+        "search": "Araucaria",
     }
