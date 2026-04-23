@@ -5,16 +5,180 @@ from unittest.mock import patch
 import shutil
 import tempfile
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers.site import (
+    _candidate_exported_preview_path,
+    _fallback_legacy_home_page,
+    _fallback_without_language_prefix,
+    _get_preview_api_base_url,
+    _normalize_footer_sections,
+    _normalize_link_url,
+    _normalize_navigation_items,
+    _normalize_output_alias,
+    _normalize_static_pages,
+    _preprocess_markdown_images,
+    _resolve_footer_sections,
+    _resolve_localized,
+    _resolve_navigation,
+    _validate_static_pages,
+)
 
 
 def _write_config(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False)
+
+
+def test_site_helper_normalization_rewrites_home_aliases_recursively():
+    static_pages, output_aliases = _normalize_static_pages(
+        [
+            {
+                "name": "Home",
+                "template": "index.html",
+                "output_file": " Home.html ",
+            },
+            {
+                "name": "About",
+                "template": "page.html",
+                "output_file": "/about.html",
+            },
+        ]
+    )
+
+    assert _normalize_output_alias(" /docs/page.html ") == "docs/page.html"
+    assert static_pages[0]["output_file"] == "index.html"
+    assert static_pages[1]["output_file"] == "about.html"
+    assert output_aliases == {"Home.html": "index.html"}
+    assert _normalize_link_url("/Home.html", output_aliases) == "/index.html"
+    assert _normalize_navigation_items(
+        [
+            {
+                "text": "Home",
+                "url": "/Home.html",
+                "children": [{"text": "About", "url": "Home.html"}],
+            }
+        ],
+        output_aliases,
+    ) == [
+        {
+            "text": "Home",
+            "url": "/index.html",
+            "children": [{"text": "About", "url": "index.html"}],
+        }
+    ]
+    assert _normalize_footer_sections(
+        [{"title": "Footer", "links": [{"text": "Home", "url": "/Home.html"}]}],
+        output_aliases,
+    ) == [{"title": "Footer", "links": [{"text": "Home", "url": "/index.html"}]}]
+
+
+def test_site_helper_validation_rejects_duplicate_root_and_output_files():
+    with pytest.raises(Exception) as duplicate_root:
+        _validate_static_pages(
+            [
+                {"template": "index.html", "output_file": "index.html"},
+                {"template": "index.html", "output_file": "home.html"},
+            ]
+        )
+
+    assert duplicate_root.value.status_code == 422
+    assert "Only one page can use the index.html template" in str(
+        duplicate_root.value.detail
+    )
+
+    with pytest.raises(Exception) as duplicate_output:
+        _validate_static_pages(
+            [
+                {"template": "page.html", "output_file": "about.html"},
+                {"template": "other.html", "output_file": "/about.html"},
+            ]
+        )
+
+    assert duplicate_output.value.status_code == 422
+    assert "Duplicate output_file values are not allowed" in str(
+        duplicate_output.value.detail
+    )
+
+
+def test_site_helper_preview_path_fallbacks_cover_language_and_legacy_routes():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        exports_web_dir = Path(temp_dir)
+        (exports_web_dir / "index.html").write_text("root", encoding="utf-8")
+        (exports_web_dir / "fr").mkdir()
+        (exports_web_dir / "fr" / "Home.html").write_text("legacy", encoding="utf-8")
+
+        assert _candidate_exported_preview_path(exports_web_dir, "") == (
+            exports_web_dir / "index.html"
+        )
+        assert _candidate_exported_preview_path(exports_web_dir, "guides/") == (
+            exports_web_dir / "guides" / "index.html"
+        )
+        assert _fallback_without_language_prefix(
+            exports_web_dir,
+            "en/index.html",
+        ) == (exports_web_dir / "index.html")
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(
+                "niamoto.gui.api.routers.site._get_legacy_home_output_file",
+                lambda: "Home.html",
+            )
+            assert _fallback_legacy_home_page(exports_web_dir, "") == (
+                exports_web_dir / "Home.html"
+            )
+            assert _fallback_legacy_home_page(exports_web_dir, "fr/index.html") == (
+                exports_web_dir / "fr" / "Home.html"
+            )
+
+
+def test_site_helper_localization_and_markdown_preprocessing_cover_nested_cases():
+    assert _resolve_localized({"fr": "Bonjour", "en": "Hello"}, lang="en") == "Hello"
+    assert _resolve_localized({"name": "logo", "fr": "Bonjour"}, lang="en") == {
+        "name": "logo",
+        "fr": "Bonjour",
+    }
+
+    assert _resolve_navigation(
+        [
+            {
+                "text": {"fr": "Accueil", "en": "Home"},
+                "children": [{"text": {"fr": "À propos", "en": "About"}}],
+            }
+        ],
+        lang="en",
+    ) == [{"text": "Home", "children": [{"text": "About"}]}]
+    assert _resolve_footer_sections(
+        [
+            {
+                "title": {"fr": "Liens", "en": "Links"},
+                "links": [{"text": {"fr": "Contact", "en": "Contact"}}],
+            }
+        ],
+        lang="en",
+    ) == [{"title": "Links", "links": [{"text": "Contact"}]}]
+
+    html = _preprocess_markdown_images(
+        "![Carte|320|center](files/maps/site.png)\n![Photo|right](https://img.example/pic.jpg)"
+    )
+    assert "/api/site/files/maps/site.png" in html
+    assert "max-width:320px" in html
+    assert "justify-content:center" in html
+    assert "justify-content:flex-end" in html
+
+
+def test_site_helper_preview_api_base_url_uses_request_base_url_when_available():
+    class DummyRequest:
+        base_url = "https://niamoto.test/gui/"
+
+    assert _get_preview_api_base_url(None) == "/api/site"
+    assert (
+        _get_preview_api_base_url(DummyRequest()) == "https://niamoto.test/gui/api/site"
+    )
 
 
 class TestSiteGroups:

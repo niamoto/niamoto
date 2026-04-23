@@ -4,10 +4,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 import yaml
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import export as export_router
 from niamoto.gui.api.services.job_file_store import JobFileStore
 
 
@@ -129,3 +131,134 @@ class TestExportHistory:
             history = store.get_history(limit=10)
             assert len(history) == 1
             assert history[0]["type"] == "transform"
+
+
+class _DummyJobStore:
+    def __init__(self) -> None:
+        self.completed_result = None
+        self.failed_result = None
+        self.failed_error = None
+
+    def update_progress(
+        self, job_id: str, progress: int, message: str, phase: str | None = None
+    ) -> None:
+        return None
+
+    def complete_job(self, job_id: str, result: dict) -> None:
+        self.completed_result = result
+
+    def fail_job(self, job_id: str, error: str, result: dict | None = None) -> None:
+        self.failed_error = error
+        self.failed_result = result
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_counts_generated_html_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "exports" / "web"
+    (output_dir / "taxons").mkdir(parents=True, exist_ok=True)
+    (output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+    (output_dir / "taxons" / "1.html").write_text(
+        "<html>taxon</html>", encoding="utf-8"
+    )
+    (output_dir / "assets").mkdir(parents=True, exist_ok=True)
+    (output_dir / "assets" / "app.js").write_text("console.log('ok')", encoding="utf-8")
+
+    class DummyExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            self.db_path = db_path
+
+        def run_export(self, target_name=None):
+            return {
+                "web_pages": {
+                    "status": "success",
+                    "files_generated": 2,
+                    "errors": 0,
+                    "output_path": str(output_dir),
+                }
+            }
+
+    monkeypatch.setattr(
+        export_router, "get_export_config", lambda path: {"exports": []}
+    )
+    monkeypatch.setattr(
+        export_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(export_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", DummyExporterService)
+
+    job_store = _DummyJobStore()
+
+    await export_router.execute_export_background(
+        "job-1",
+        job_store,
+        "config/export.yml",
+        None,
+        False,
+    )
+
+    assert job_store.failed_error is None
+    assert job_store.completed_result is not None
+    assert job_store.completed_result["metrics"]["generated_pages"] == 2
+    assert job_store.completed_result["metrics"]["static_site_path"] == str(output_dir)
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_fails_when_export_target_reports_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "exports" / "web"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+
+    class DummyExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            self.db_path = db_path
+
+        def run_export(self, target_name=None):
+            assert target_name == "web_pages"
+            return {
+                "web_pages": {
+                    "status": "error",
+                    "files_generated": 1,
+                    "errors": 3,
+                    "error": "3 erreurs pendant la génération",
+                    "output_path": str(output_dir),
+                }
+            }
+
+    monkeypatch.setattr(
+        export_router, "get_export_config", lambda path: {"exports": []}
+    )
+    monkeypatch.setattr(
+        export_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(export_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", DummyExporterService)
+
+    job_store = _DummyJobStore()
+
+    await export_router.execute_export_background(
+        "job-1",
+        job_store,
+        "config/export.yml",
+        ["web_pages"],
+        False,
+    )
+
+    assert job_store.completed_result is None
+    assert job_store.failed_error is not None
+    assert "web_pages" in job_store.failed_error
+    assert job_store.failed_result is not None
+    assert job_store.failed_result["metrics"]["failed_exports"] == 1
+    assert job_store.failed_result["metrics"]["generated_pages"] == 1
+    assert job_store.failed_result["exports"]["web_pages"]["status"] == "error"

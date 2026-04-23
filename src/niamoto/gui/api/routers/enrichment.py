@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -26,6 +27,7 @@ from niamoto.gui.api.services.enrichment_service import (
     pause_reference_enrichment,
     preview_default_enrichment,
     preview_reference_enrichment,
+    restart_reference_enrichment,
     resume_default_enrichment,
     resume_reference_enrichment,
     start_default_enrichment,
@@ -69,28 +71,28 @@ def _raise_http_error(message: str) -> None:
 async def get_enrichment_config_for_reference(reference_name: str):
     """Return all enrichment sources configured for one reference."""
 
-    return get_reference_enrichment_config(reference_name)
+    return await asyncio.to_thread(get_reference_enrichment_config, reference_name)
 
 
 @router.get("/config", response_model=EnrichmentReferenceConfigResponse)
 async def get_enrichment_config():
     """Return the default enrichment config for legacy callers."""
 
-    return get_default_enrichment_config()
+    return await asyncio.to_thread(get_default_enrichment_config)
 
 
 @router.get("/stats/{reference_name}", response_model=EnrichmentStatsResponse)
 async def get_enrichment_stats_for_reference(reference_name: str):
     """Return per-source and aggregate stats for one reference."""
 
-    return get_reference_enrichment_stats(reference_name)
+    return await asyncio.to_thread(get_reference_enrichment_stats, reference_name)
 
 
 @router.get("/stats", response_model=EnrichmentStatsResponse)
 async def get_enrichment_stats():
     """Return aggregate stats for the default reference."""
 
-    return get_default_enrichment_stats()
+    return await asyncio.to_thread(get_default_enrichment_stats)
 
 
 @router.get("/job/{reference_name}", response_model=EnrichmentJob)
@@ -122,6 +124,19 @@ async def start_enrichment_for_reference_source(
     del background_tasks
     try:
         return start_reference_enrichment(reference_name, source_id=source_id)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
+
+
+@router.post("/restart/{reference_name}/{source_id}", response_model=EnrichmentJob)
+async def restart_enrichment_for_reference_source(
+    reference_name: str, source_id: str, background_tasks: BackgroundTasks
+):
+    """Restart enrichment from zero for one source of a reference."""
+
+    del background_tasks
+    try:
+        return restart_reference_enrichment(reference_name, source_id)
     except ValueError as exc:
         _raise_http_error(str(exc))
 
@@ -242,18 +257,31 @@ async def cancel_enrichment():
 
 @router.get("/results/{reference_name}", response_model=ResultsResponse)
 async def get_results_for_reference(
-    reference_name: str, page: int = 0, limit: int = 50
+    reference_name: str,
+    page: int = 0,
+    limit: int = 50,
+    source_id: Optional[str] = None,
 ):
     """Return recent enrichment results for one reference."""
 
-    return get_results(reference_name=reference_name, page=page, limit=limit)
+    return await asyncio.to_thread(
+        get_results,
+        reference_name=reference_name,
+        page=page,
+        limit=limit,
+        source_id=source_id,
+    )
 
 
 @router.get("/results", response_model=ResultsResponse)
-async def get_all_results(page: int = 0, limit: int = 50):
+async def get_all_results(
+    page: int = 0, limit: int = 50, source_id: Optional[str] = None
+):
     """Return recent enrichment results for the default reference/job."""
 
-    return get_results(page=page, limit=limit)
+    return await asyncio.to_thread(
+        get_results, page=page, limit=limit, source_id=source_id
+    )
 
 
 @router.post("/preview/{reference_name}", response_model=PreviewResponse)
@@ -286,6 +314,10 @@ async def list_entities_for_reference(
 ):
     """Return reference entities with aggregate enrichment completion metadata."""
 
-    return get_entities_for_reference(
-        reference_name, limit=limit, offset=offset, search=search
+    return await asyncio.to_thread(
+        get_entities_for_reference,
+        reference_name,
+        limit=limit,
+        offset=offset,
+        search=search,
     )

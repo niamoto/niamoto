@@ -710,11 +710,30 @@
       "internetRequired": "Connexion internet requise",
       "internetRequiredResume": "Connexion internet requise pour reprendre"
     },
+    "connectivity": {
+      "warningTitle": "Connectivité à vérifier",
+      "warningDescription": "La dernière vérification réseau n'a pas confirmé l'accès internet pour l'enrichissement. Vous pouvez quand même tenter l'action ; le backend fera la vérification réelle.",
+      "pausedTitle": "Enrichissement mis en pause",
+      "pausedDescription": "Le traitement a été mis en pause après plusieurs erreurs réseau. Vérifiez la connexion puis relancez le job."
+    },
     "actions": {
       "description": "Gérer le processus d'enrichissement",
       "start": "Démarrer l'enrichissement",
       "pause": "Pause",
       "resume": "Reprendre"
+    },
+    "runtime": {
+      "startAll": "Lancer toutes les APIs",
+      "startSource": "Lancer cette API",
+      "restartSource": "Relancer à zéro",
+      "alreadyEnriched": "Déjà enrichis",
+      "runProgress": "Tentatives terminées",
+      "failedAttempts": "Échecs"
+    },
+    "restartDialog": {
+      "title": "Relancer cette source à zéro ?",
+      "description": "Cette action relance {{source}} sur {{count}} entités. Les données existantes de cette source seront remplacées et supprimées si l’API ne renvoie plus rien.",
+      "confirm": "Relancer à zéro"
     },
     "cancelDialog": {
       "title": "Annuler l'enrichissement ?",
@@ -742,7 +761,9 @@
       "title": "Résultats d'enrichissement",
       "description": "Entités enrichies lors du dernier job",
       "emptyTitle": "Aucun résultat disponible",
-      "emptyDescription": "Lancez un enrichissement pour voir les résultats"
+      "emptyDescription": "Lancez un enrichissement pour voir les résultats",
+      "loadMore": "Voir plus",
+      "loadingMore": "Chargement..."
     },
     "result": {
       "success": "Succès",
@@ -760,6 +781,7 @@
       "loadConfig": "Impossible de charger la configuration d'enrichissement",
       "saveConfig": "Impossible de sauvegarder la configuration d'enrichissement",
       "startJob": "Impossible de démarrer le job",
+      "restartJob": "Impossible de relancer cette source à zéro",
       "pauseJob": "Impossible de mettre en pause",
       "resumeJob": "Impossible de reprendre",
       "cancelJob": "Impossible d'annuler",
@@ -770,6 +792,8 @@
       "saveErrorTitle": "Erreur de sauvegarde",
       "startedTitle": "Enrichissement démarré",
       "startedDescription": "{{count}} entités à traiter",
+      "restartStartedTitle": "Relance à zéro démarrée",
+      "restartStartedDescription": "{{count}} entités vont être retraitées",
       "startErrorTitle": "Erreur de démarrage",
       "pausedTitle": "Enrichissement en pause",
       "pausedDescription": "Vous pouvez reprendre à tout moment",

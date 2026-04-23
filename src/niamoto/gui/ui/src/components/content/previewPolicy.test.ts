@@ -114,6 +114,8 @@ describe('previewPolicy', () => {
   it('normalizes hardware concurrency safely', () => {
     expect(getCollectionsHardwareConcurrency({ hardwareConcurrency: 4 })).toBe(4)
     expect(getCollectionsHardwareConcurrency({ hardwareConcurrency: 0 })).toBeNull()
-    expect(getCollectionsHardwareConcurrency(undefined)).toBeNull()
+    expect(
+      getCollectionsHardwareConcurrency({} as Pick<Navigator, 'hardwareConcurrency'>),
+    ).toBeNull()
   })
 })

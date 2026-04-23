@@ -7,12 +7,10 @@ import {
   Menu,
   PanelLeft,
   Search,
-  WifiOff,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
-import { useNetworkStatus } from '@/shared/hooks/useNetworkStatus'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import {
   DropdownMenu,
@@ -22,7 +20,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { NotificationDropdown } from './NotificationDropdown'
 
 interface TopBarProps {
@@ -32,7 +29,6 @@ interface TopBarProps {
 export function TopBar({ className }: TopBarProps) {
   const { t } = useTranslation()
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode, toggleSidebar } = useNavigationStore()
-  const { isOffline } = useNetworkStatus()
   const { isMac, isDesktop } = usePlatform()
   const navigate = useNavigate()
 
@@ -93,30 +89,6 @@ export function TopBar({ className }: TopBarProps) {
             <span className="text-xs">⌘</span>K
           </kbd>
         </Button>
-
-        {/* Offline indicator */}
-        {isOffline && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="no-drag flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                <WifiOff className="h-4 w-4" />
-                <span className="hidden text-xs font-medium sm:inline">
-                  {t('network.offline', 'Offline')}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-64">
-              <div className="space-y-1">
-                <p className="font-medium">{t('network.offline_title', 'Offline mode')}</p>
-                <ul className="list-inside list-disc text-xs opacity-80">
-                  <li>{t('network.enrichment_unavailable', 'API enrichment: unavailable')}</li>
-                  <li>{t('network.deploy_unavailable', 'Deployment: unavailable')}</li>
-                  <li>{t('network.tiles_unavailable', 'Map tiles: unavailable')}</li>
-                </ul>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
 
         {/* Notifications */}
         <div className="no-drag">

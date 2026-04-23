@@ -30,7 +30,12 @@ class HelpContentService:
         return self._read_json(self.pages_root / f"{safe_slug}.json")
 
     def resolve_asset_path(self, asset_path: str) -> Path:
-        safe_asset_path = self._sanitize_relative_path(asset_path)
+        try:
+            safe_asset_path = self._sanitize_relative_path(asset_path)
+        except HTTPException as exc:
+            raise HTTPException(
+                status_code=404, detail="Documentation asset not found"
+            ) from exc
         candidate = (self.assets_root / safe_asset_path).resolve()
         try:
             candidate.relative_to(self.assets_root)

@@ -2872,14 +2872,22 @@ def _detect_field_type(values: List[Any]) -> str:
     if not non_null:
         return "text"
 
-    # Check for boolean
-    bool_values = {True, False, "true", "false", "True", "False", 1, 0}
-    if all(v in bool_values for v in non_null):
-        return "boolean"
-
     # Check for arrays
     if any(isinstance(v, list) for v in non_null):
         return "json_array"
+
+    # Check for boolean-like scalar values without assuming hashability
+    def _is_boolean_like(value: Any) -> bool:
+        if isinstance(value, bool):
+            return True
+        if isinstance(value, int):
+            return value in (0, 1)
+        if isinstance(value, str):
+            return value in {"true", "false", "True", "False"}
+        return False
+
+    if all(_is_boolean_like(value) for value in non_null):
+        return "boolean"
 
     # Check for numeric
     try:

@@ -178,21 +178,41 @@ async function pollTrackedEnrichmentJobs() {
         return
       }
 
+      const pendingTotal = Math.max(job.pending_total ?? Math.max((job.total ?? 0) - (job.already_completed ?? 0), 0), 0)
+      const pendingProcessed = Math.min(
+        Math.max(job.pending_processed ?? Math.max((job.processed ?? 0) - (job.already_completed ?? 0), 0), 0),
+        pendingTotal
+      )
+
       if (TERMINAL_STATUSES.has(job.status)) {
+        const newSuccesses = Math.max((job.successful ?? 0) - (job.already_completed ?? 0), 0)
         const msg = job.status === 'completed'
-          ? `${job.processed ?? 0} entités enrichies`
+          ? pendingTotal > 0
+            ? `${newSuccesses} enrichissements réussis, ${job.failed ?? 0} échecs`
+            : `${job.successful ?? 0} entités déjà enrichies`
           : job.error || ''
         handleJobTerminal(tracked.jobId, 'enrichment', job.status as 'completed' | 'failed', msg)
       } else {
-        const progress = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0
+        const progress = pendingTotal > 0 ? Math.round((pendingProcessed / pendingTotal) * 100) : 0
         useNotificationStore.getState().updateTrackedJob(tracked.jobId, {
           status: job.status === 'paused' ? 'paused' : job.status === 'paused_offline' ? 'paused_offline' : 'running',
           progress,
-          message: job.current_entity || `${job.processed ?? 0}/${job.total ?? 0}`,
+          message: job.current_entity || `${pendingProcessed}/${pendingTotal}`,
         })
       }
-    } catch {
-      // 404 = pas de job → ignorer
+    } catch (error: unknown) {
+      const isNotFound =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof error.response === 'object' &&
+        error.response !== null &&
+        'status' in error.response &&
+        error.response.status === 404
+
+      if (isNotFound) {
+        handleJobTerminal(tracked.jobId, 'enrichment', 'completed', '')
+      }
     }
   }))
 }

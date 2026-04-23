@@ -43,6 +43,21 @@ class JobMode(str, Enum):
     SINGLE = "single"
 
 
+class JobStrategy(str, Enum):
+    """Execution strategy for enrichment jobs."""
+
+    RESUME = "resume"
+    RESET = "reset"
+
+
+class EnrichmentResultOutcome(str, Enum):
+    """Outcome categories for one enrichment attempt."""
+
+    STORED = "stored"
+    EMPTY = "empty"
+    FAILED = "failed"
+
+
 TERMINAL_JOB_STATUSES = {
     JobStatus.COMPLETED,
     JobStatus.FAILED,
@@ -191,11 +206,15 @@ class EnrichmentJob(BaseModel):
     id: str
     reference_name: str
     mode: JobMode
+    strategy: JobStrategy = JobStrategy.RESUME
     status: JobStatus
     total: int = 0
     processed: int = 0
     successful: int = 0
     failed: int = 0
+    already_completed: int = 0
+    pending_total: int = 0
+    pending_processed: int = 0
     started_at: str
     updated_at: str
     source_ids: List[str] = Field(default_factory=list)
@@ -205,6 +224,9 @@ class EnrichmentJob(BaseModel):
     current_source_label: Optional[str] = None
     current_source_processed: int = 0
     current_source_total: int = 0
+    current_source_already_completed: int = 0
+    current_source_pending_total: int = 0
+    current_source_pending_processed: int = 0
     error: Optional[str] = None
     current_entity: Optional[str] = None
 
@@ -217,6 +239,7 @@ class EnrichmentResult(BaseModel):
     source_label: str
     entity_name: str
     success: bool
+    outcome: EnrichmentResultOutcome = EnrichmentResultOutcome.STORED
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     processed_at: str
@@ -904,10 +927,16 @@ def _extract_stored_sources(
 
     sources = api_enrichment.get("sources")
     if isinstance(sources, dict):
+        allowed_source_ids = (
+            {str(source_id) for source_id in preferred_source_ids}
+            if preferred_source_ids
+            else None
+        )
         return {
             str(source_id): value
             for source_id, value in sources.items()
             if isinstance(value, dict)
+            and (allowed_source_ids is None or str(source_id) in allowed_source_ids)
         }
 
     # Legacy flat payload: map it to the first configured source when possible.
@@ -958,7 +987,7 @@ def _merge_source_enrichment_data(
     """Merge one source payload into extra_data without clobbering other keys."""
 
     extra_dict = _deserialize_extra_data(extra_data)
-    sources = _extract_stored_sources(extra_dict, [source.id])
+    sources = _extract_stored_sources(extra_dict)
     now = datetime.now().isoformat()
     sources[source.id] = {
         "label": source.label,
@@ -978,8 +1007,356 @@ def _merge_source_enrichment_data(
     return extra_dict
 
 
-def _load_reference_rows(reference_name: str) -> List[Dict[str, Any]]:
-    """Load all rows for a reference table."""
+def _replace_source_enrichment_data(
+    extra_data: Any, source: EnrichmentSourceConfig, source_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Replace one source payload while preserving unrelated enrichment data."""
+
+    return _merge_source_enrichment_data(extra_data, source, source_data)
+
+
+def _delete_source_enrichment_data(
+    extra_data: Any, source_id: str, *, allow_legacy_payload: bool = False
+) -> Dict[str, Any]:
+    """Remove one stored source payload while preserving unrelated extra_data."""
+
+    extra_dict = _deserialize_extra_data(extra_data)
+    api_enrichment = extra_dict.get("api_enrichment")
+    if not isinstance(api_enrichment, dict):
+        return extra_dict
+
+    sources = api_enrichment.get("sources")
+    if not isinstance(sources, dict):
+        if allow_legacy_payload:
+            extra_dict.pop("api_enrichment", None)
+            extra_dict.pop("enriched_at", None)
+        return extra_dict
+
+    remaining_sources = dict(sources)
+    remaining_sources.pop(source_id, None)
+    extra_dict.pop("enriched_at", None)
+
+    if remaining_sources:
+        now = datetime.now().isoformat()
+        extra_dict["api_enrichment"] = {
+            **api_enrichment,
+            "sources": remaining_sources,
+            "updated_at": now,
+        }
+        return extra_dict
+
+    extra_dict.pop("api_enrichment", None)
+    return extra_dict
+
+
+def _reference_display_column_candidates(reference_name: str) -> List[str]:
+    """Return likely human-readable columns for one reference table."""
+
+    reference_config = _load_reference_config_section(reference_name) or {}
+    candidates: List[str] = []
+
+    schema = reference_config.get("schema")
+    if isinstance(schema, dict):
+        name_field = schema.get("name_field")
+        if name_field:
+            candidates.append(str(name_field))
+
+    relation = reference_config.get("relation")
+    if isinstance(relation, dict):
+        reference_key = relation.get("reference_key")
+        if reference_key:
+            candidates.append(str(reference_key))
+
+    candidates.extend(["full_name", "name", "label", "title", "id"])
+
+    deduped: List[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
+def _source_json_path(source_id: str) -> str:
+    """Return the JSON path for one namespaced enrichment source."""
+
+    escaped_source_id = source_id.replace("\\", "\\\\").replace('"', '\\"')
+    return f'$.api_enrichment.sources."{escaped_source_id}"'
+
+
+def _can_use_legacy_source_payload(
+    source_id: str, preferred_source_ids: Optional[Sequence[str]]
+) -> bool:
+    """Return whether a source can claim legacy flat api_enrichment payloads."""
+
+    return bool(preferred_source_ids) and preferred_source_ids[0] == source_id
+
+
+def _count_reference_entities(reference_name: str) -> Optional[int]:
+    """Count rows for one reference directly in SQL."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    try:
+        db = Database(str(db_path), read_only=True)
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            with db.engine.connect() as connection:
+                count = connection.execute(
+                    text(f"SELECT COUNT(*) FROM {quoted_table_name}")
+                ).scalar()
+            return int(count or 0)
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning("Error counting rows for '%s': %s", reference_name, exc)
+        return None
+
+
+def _count_completed_rows_for_source(
+    reference_name: str,
+    source_id: str,
+    preferred_source_ids: Optional[Sequence[str]] = None,
+) -> Optional[int]:
+    """Count completed enriched rows for one source directly in SQL."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    source_path = _source_json_path(source_id)
+    status_path = f"{source_path}.status"
+    allow_legacy_payload = _can_use_legacy_source_payload(
+        source_id, preferred_source_ids
+    )
+
+    where_clauses = [
+        "("
+        "json_extract(extra_data, :source_path) IS NOT NULL "
+        "AND COALESCE(json_extract_string(extra_data, :status_path), 'completed') = 'completed'"
+        ")"
+    ]
+    params: Dict[str, Any] = {
+        "source_path": source_path,
+        "status_path": status_path,
+    }
+    if allow_legacy_payload:
+        where_clauses.append(
+            "("
+            "json_extract(extra_data, '$.api_enrichment.sources') IS NULL "
+            "AND json_extract(extra_data, '$.api_enrichment') IS NOT NULL"
+            ")"
+        )
+
+    try:
+        db = Database(str(db_path), read_only=True)
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            with db.engine.connect() as connection:
+                count = connection.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {quoted_table_name} "
+                        f"WHERE extra_data IS NOT NULL AND ({' OR '.join(where_clauses)})"
+                    ),
+                    params,
+                ).scalar()
+            return int(count or 0)
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning(
+            "Error counting completed rows for '%s' source '%s': %s",
+            reference_name,
+            source_id,
+            exc,
+        )
+        return None
+
+
+def _get_results_for_source_sql(
+    reference_name: str,
+    source_id: str,
+    source_label: str,
+    page: int,
+    limit: int,
+    preferred_source_ids: Optional[Sequence[str]] = None,
+) -> Optional[ResultsResponse]:
+    """Return paginated results for one source using SQL JSON extraction."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    source_path = _source_json_path(source_id)
+    processed_path = f"{source_path}.enriched_at"
+    allow_legacy_payload = _can_use_legacy_source_payload(
+        source_id, preferred_source_ids
+    )
+
+    legacy_select = (
+        ", json_extract(extra_data, '$.api_enrichment') AS legacy_payload, "
+        "json_extract_string(extra_data, '$.enriched_at') AS legacy_processed_at"
+        if allow_legacy_payload
+        else ", NULL AS legacy_payload, NULL AS legacy_processed_at"
+    )
+    legacy_where = (
+        " OR (json_extract(extra_data, '$.api_enrichment.sources') IS NULL "
+        "AND json_extract(extra_data, '$.api_enrichment') IS NOT NULL)"
+        if allow_legacy_payload
+        else ""
+    )
+    order_expression = (
+        "COALESCE("
+        "json_extract_string(extra_data, :processed_path), "
+        "json_extract_string(extra_data, '$.enriched_at')"
+        ")"
+        if allow_legacy_payload
+        else "json_extract_string(extra_data, :processed_path)"
+    )
+
+    params: Dict[str, Any] = {
+        "source_path": source_path,
+        "processed_path": processed_path,
+        "limit": max(1, int(limit)),
+        "offset": max(0, int(page)) * max(1, int(limit)),
+    }
+
+    try:
+        import pandas as pd
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            if not table_columns:
+                return None
+
+            id_field = _reference_id_field(reference_name, table_columns)
+            display_field = _configured_reference_display_field(
+                reference_name, table_columns, id_field
+            )
+            quoted_display_field = quote_identifier(db, display_field)
+
+            with db.engine.connect() as connection:
+                total = connection.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {quoted_table_name} "
+                        f"WHERE extra_data IS NOT NULL AND "
+                        f"(json_extract(extra_data, :source_path) IS NOT NULL{legacy_where})"
+                    ),
+                    {"source_path": source_path},
+                ).scalar()
+
+                rows = (
+                    connection.execute(
+                        text(
+                            f"SELECT CAST({quoted_display_field} AS VARCHAR) AS entity_name, "
+                            f"json_extract(extra_data, :source_path) AS source_payload, "
+                            f"json_extract_string(extra_data, :processed_path) AS source_processed_at"
+                            f"{legacy_select} "
+                            f"FROM {quoted_table_name} "
+                            f"WHERE extra_data IS NOT NULL AND "
+                            f"(json_extract(extra_data, :source_path) IS NOT NULL{legacy_where}) "
+                            f"ORDER BY {order_expression} DESC NULLS LAST "
+                            f"LIMIT :limit OFFSET :offset"
+                        ),
+                        params,
+                    )
+                    .mappings()
+                    .all()
+                )
+
+            now = datetime.now().isoformat()
+            results: List[EnrichmentResult] = []
+            for row in rows:
+                source_payload = _deserialize_extra_data(row["source_payload"])
+                legacy_payload = _deserialize_extra_data(row["legacy_payload"])
+                payload = source_payload or legacy_payload
+                if not payload:
+                    continue
+
+                is_namespaced_payload = bool(source_payload)
+                data = payload.get("data") if is_namespaced_payload else payload
+                status = (
+                    str(payload.get("status") or "completed")
+                    if is_namespaced_payload
+                    else "completed"
+                )
+                error = payload.get("error") if is_namespaced_payload else None
+                success = status == "completed" and isinstance(data, dict)
+                if not success and not error:
+                    continue
+
+                processed_at = (
+                    row["source_processed_at"] or row["legacy_processed_at"] or now
+                )
+                entity_name = str(row["entity_name"] or "").strip() or "Unknown entity"
+
+                results.append(
+                    EnrichmentResult(
+                        reference_name=reference_name,
+                        source_id=source_id,
+                        source_label=str(
+                            payload.get("label")
+                            if is_namespaced_payload
+                            else source_label
+                        )
+                        or source_label,
+                        entity_name=entity_name,
+                        success=success,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if success
+                            else EnrichmentResultOutcome.FAILED
+                        ),
+                        data=data if isinstance(data, dict) else None,
+                        error=None if success else str(error or status),
+                        processed_at=str(processed_at),
+                    )
+                )
+
+            return ResultsResponse(
+                results=results,
+                total=int(total or 0),
+                page=page,
+                limit=limit,
+            )
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning(
+            "Error loading SQL results for '%s' source '%s': %s",
+            reference_name,
+            source_id,
+            exc,
+        )
+        return None
+
+
+def _load_reference_rows(
+    reference_name: str,
+    columns: Optional[Sequence[str]] = None,
+    require_extra_data: bool = False,
+) -> List[Dict[str, Any]]:
+    """Load rows for a reference table with an optional projected column subset."""
 
     work_dir = get_working_directory()
     if not work_dir:
@@ -996,9 +1373,33 @@ def _load_reference_rows(reference_name: str) -> List[Dict[str, Any]]:
         db = Database(str(db_path), read_only=True)
         try:
             quoted_table_name = quote_identifier(db, table_name)
-            df = pd.read_sql(text(f"SELECT * FROM {quoted_table_name}"), db.engine)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            if not table_columns:
+                return []
+
+            id_field = _reference_id_field(reference_name, table_columns)
+            selected_columns = list(table_columns)
+            if columns is not None:
+                selected_columns = [
+                    str(column) for column in columns if str(column) in table_columns
+                ]
+                if not selected_columns:
+                    selected_columns = [id_field]
+
+            select_clause = ", ".join(
+                quote_identifier(db, column) for column in selected_columns
+            )
+            where_clause = ""
+            if require_extra_data and "extra_data" in table_columns:
+                where_clause = " WHERE extra_data IS NOT NULL"
+
+            df = pd.read_sql(
+                text(f"SELECT {select_clause} FROM {quoted_table_name}{where_clause}"),
+                db.engine,
+            )
             rows = df.to_dict("records")
-            id_field = _reference_id_field(reference_name, df.columns.tolist())
             return [
                 _normalize_loaded_row(reference_name, row, id_field=id_field)
                 for row in rows
@@ -1089,7 +1490,7 @@ def _save_source_enrichment_to_db(
             ).columns.tolist()
             id_field = _reference_id_field(reference_name, table_columns)
             quoted_id_field = quote_identifier(db, id_field)
-            merged = _merge_source_enrichment_data(
+            merged = _replace_source_enrichment_data(
                 existing_extra_data, source, source_data
             )
             with db.engine.connect() as connection:
@@ -1118,14 +1519,80 @@ def _save_source_enrichment_to_db(
         return None
 
 
+def _delete_source_enrichment_from_db(
+    reference_name: str,
+    entity_id: Any,
+    source_id: str,
+    existing_extra_data: Any,
+) -> Optional[Dict[str, Any]]:
+    """Delete one source payload from the entity extra_data column."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not db_path.exists() or not table_name:
+        return None
+
+    try:
+        import pandas as pd
+
+        db = Database(str(db_path))
+        try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            id_field = _reference_id_field(reference_name, table_columns)
+            quoted_id_field = quote_identifier(db, id_field)
+            updated = _delete_source_enrichment_data(
+                existing_extra_data,
+                source_id,
+                allow_legacy_payload=True,
+            )
+            serialized = json.dumps(updated) if updated else None
+            with db.engine.connect() as connection:
+                connection.execute(
+                    text(
+                        f"UPDATE {quoted_table_name} "
+                        f"SET extra_data = :extra_data WHERE {quoted_id_field} = :entity_id"
+                    ),
+                    {
+                        "extra_data": serialized,
+                        "entity_id": entity_id,
+                    },
+                )
+                connection.commit()
+            return updated
+        finally:
+            db.close_db_session()
+    except Exception as exc:
+        logger.warning(
+            "Error deleting enrichment for '%s' entity %s source %s: %s",
+            reference_name,
+            entity_id,
+            source_id,
+            exc,
+        )
+        return None
+
+
 def _compute_reference_stats(
     reference_name: str, sources: Sequence[EnrichmentSourceConfig]
 ) -> EnrichmentStatsResponse:
     """Compute aggregated and per-source completion counts."""
 
     enabled_sources = [source for source in sources if source.enabled]
-    rows = _load_reference_rows(reference_name)
-    entity_total = len(rows)
+    preferred_source_ids = [source.id for source in enabled_sources]
+    entity_total = _count_reference_entities(reference_name)
+    rows: Optional[List[Dict[str, Any]]]
+    if entity_total is None:
+        rows = _load_reference_rows(reference_name, columns=["extra_data"])
+        entity_total = len(rows)
+    else:
+        rows = None
 
     if not enabled_sources:
         return EnrichmentStatsResponse(
@@ -1139,18 +1606,24 @@ def _compute_reference_stats(
         )
 
     per_source_stats: List[EnrichmentSourceStats] = []
-    preferred_source_ids = [source.id for source in enabled_sources]
-
     for source in enabled_sources:
-        enriched = sum(
-            1
-            for row in rows
-            if _has_completed_source(
-                _deserialize_extra_data(row.get("extra_data")),
-                source.id,
-                preferred_source_ids,
-            )
+        enriched = _count_completed_rows_for_source(
+            reference_name,
+            source.id,
+            preferred_source_ids,
         )
+        if enriched is None:
+            if rows is None:
+                rows = _load_reference_rows(reference_name, columns=["extra_data"])
+            enriched = sum(
+                1
+                for row in rows
+                if _has_completed_source(
+                    _deserialize_extra_data(row.get("extra_data")),
+                    source.id,
+                    preferred_source_ids,
+                )
+            )
         total = entity_total
         per_source_stats.append(
             EnrichmentSourceStats(
@@ -1605,6 +2078,7 @@ async def _run_enrichment_job(
     reference_name: str,
     sources: Sequence[EnrichmentSourceConfig],
     mode: JobMode,
+    strategy: JobStrategy = JobStrategy.RESUME,
 ) -> None:
     """Background worker executing one or many sources for a reference."""
 
@@ -1623,7 +2097,7 @@ async def _run_enrichment_job(
             _current_job.updated_at = datetime.now().isoformat()
             return
 
-        source_completed = {
+        persisted_source_completed = {
             source.id: sum(
                 1
                 for row in rows
@@ -1636,22 +2110,31 @@ async def _run_enrichment_job(
             for source in sources
         }
 
-        pending_steps: List[tuple[Dict[str, Any], EnrichmentSourceConfig]] = []
-        for source in sources:
-            for row in rows:
-                if _has_completed_source(
-                    _deserialize_extra_data(row.get("extra_data")),
-                    source.id,
-                    preferred_source_ids,
-                ):
-                    continue
-                pending_steps.append((row, source))
+        if strategy == JobStrategy.RESET:
+            source_completed = {source.id: 0 for source in sources}
+            pending_steps = [(row, source) for source in sources for row in rows]
+            already_completed = 0
+        else:
+            source_completed = dict(persisted_source_completed)
+            pending_steps = []
+            for source in sources:
+                for row in rows:
+                    if _has_completed_source(
+                        _deserialize_extra_data(row.get("extra_data")),
+                        source.id,
+                        preferred_source_ids,
+                    ):
+                        continue
+                    pending_steps.append((row, source))
+            already_completed = sum(source_completed.values())
 
         total_steps = len(rows) * len(sources)
-        already_completed = sum(source_completed.values())
         _current_job.total = total_steps
         _current_job.processed = already_completed
         _current_job.successful = already_completed
+        _current_job.already_completed = already_completed
+        _current_job.pending_total = len(pending_steps)
+        _current_job.pending_processed = 0
         _current_job.updated_at = datetime.now().isoformat()
 
         if not pending_steps:
@@ -1681,7 +2164,25 @@ async def _run_enrichment_job(
         except ImportError:
             pass
 
+        source_initial_completed = dict(source_completed)
+        source_pending_processed = {source.id: 0 for source in sources}
         source_totals = {source.id: len(rows) for source in sources}
+        source_pending_totals = (
+            {source.id: len(rows) for source in sources}
+            if strategy == JobStrategy.RESET
+            else {
+                source.id: sum(
+                    1
+                    for row in rows
+                    if not _has_completed_source(
+                        _deserialize_extra_data(row.get("extra_data")),
+                        source.id,
+                        preferred_source_ids,
+                    )
+                )
+                for source in sources
+            }
+        )
         enrichers: Dict[str, Any] = {}
 
         for row, source in pending_steps:
@@ -1713,6 +2214,13 @@ async def _run_enrichment_job(
             _current_job.current_source_label = source.label
             _current_job.current_source_total = source_totals[source.id]
             _current_job.current_source_processed = source_completed[source.id]
+            _current_job.current_source_already_completed = source_initial_completed[
+                source.id
+            ]
+            _current_job.current_source_pending_total = source_pending_totals[source.id]
+            _current_job.current_source_pending_processed = source_pending_processed[
+                source.id
+            ]
             _current_job.updated_at = datetime.now().isoformat()
 
             try:
@@ -1723,10 +2231,17 @@ async def _run_enrichment_job(
                     row,
                     _build_plugin_config(source),
                 )
-                source_data = result.get("api_enrichment", {})
+                source_data = (
+                    result.get("api_enrichment", {}) if isinstance(result, dict) else {}
+                )
+                has_source_data = isinstance(source_data, dict) and bool(source_data)
                 entity_id = _row_entity_id(row)
 
-                if source_data and entity_id is not None:
+                if has_source_data:
+                    if entity_id is None:
+                        raise RuntimeError(
+                            f"Missing entity id for '{entity_name}' while saving enrichment data"
+                        )
                     merged_extra_data = _save_source_enrichment_to_db(
                         reference_name,
                         entity_id,
@@ -1734,8 +2249,23 @@ async def _run_enrichment_job(
                         source_data,
                         row.get("extra_data"),
                     )
-                    if merged_extra_data is not None:
-                        row["extra_data"] = merged_extra_data
+                    if merged_extra_data is None:
+                        raise RuntimeError(
+                            f"Failed to persist enrichment data for source '{source.label}'"
+                        )
+                    row["extra_data"] = merged_extra_data
+                elif strategy == JobStrategy.RESET and entity_id is not None:
+                    updated_extra_data = _delete_source_enrichment_from_db(
+                        reference_name,
+                        entity_id,
+                        source.id,
+                        row.get("extra_data"),
+                    )
+                    if updated_extra_data is None:
+                        raise RuntimeError(
+                            f"Failed to clear enrichment data for source '{source.label}'"
+                        )
+                    row["extra_data"] = updated_extra_data or None
 
                 _job_results.append(
                     EnrichmentResult(
@@ -1744,11 +2274,17 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=True,
-                        data=source_data,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if has_source_data
+                            else EnrichmentResultOutcome.EMPTY
+                        ),
+                        data=source_data if has_source_data else None,
                         processed_at=datetime.now().isoformat(),
                     )
                 )
-                _current_job.successful += 1
+                if has_source_data:
+                    _current_job.successful += 1
                 consecutive_network_errors = 0
             except network_error_types as exc:
                 consecutive_network_errors += 1
@@ -1759,6 +2295,7 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=False,
+                        outcome=EnrichmentResultOutcome.FAILED,
                         error=f"[Network] {exc}",
                         processed_at=datetime.now().isoformat(),
                     )
@@ -1780,6 +2317,7 @@ async def _run_enrichment_job(
                         source_label=source.label,
                         entity_name=entity_name,
                         success=False,
+                        outcome=EnrichmentResultOutcome.FAILED,
                         error=str(exc),
                         processed_at=datetime.now().isoformat(),
                     )
@@ -1788,8 +2326,13 @@ async def _run_enrichment_job(
                 consecutive_network_errors = 0
 
             _current_job.processed += 1
+            _current_job.pending_processed += 1
             source_completed[source.id] += 1
+            source_pending_processed[source.id] += 1
             _current_job.current_source_processed = source_completed[source.id]
+            _current_job.current_source_pending_processed = source_pending_processed[
+                source.id
+            ]
             _current_job.updated_at = datetime.now().isoformat()
 
             sleep_seconds = 0.0
@@ -1803,6 +2346,9 @@ async def _run_enrichment_job(
         _current_job.current_entity = None
         _current_job.current_source_id = None
         _current_job.current_source_label = None
+        _current_job.current_source_already_completed = 0
+        _current_job.current_source_pending_total = 0
+        _current_job.current_source_pending_processed = 0
         _current_job.updated_at = datetime.now().isoformat()
     except Exception as exc:
         if _current_job is None or _current_job.id != job_id:
@@ -1819,8 +2365,11 @@ def _assert_job_can_start() -> None:
         raise ValueError("An enrichment job is already active")
 
 
-def start_reference_enrichment(
-    reference_name: str, source_id: Optional[str] = None
+def _start_reference_enrichment(
+    reference_name: str,
+    source_id: Optional[str] = None,
+    *,
+    strategy: JobStrategy = JobStrategy.RESUME,
 ) -> EnrichmentJob:
     """Start a global or per-source enrichment job for a reference."""
 
@@ -1839,6 +2388,7 @@ def start_reference_enrichment(
         id=str(uuid.uuid4()),
         reference_name=reference_name,
         mode=JobMode.SINGLE if source_id else JobMode.ALL,
+        strategy=strategy,
         status=JobStatus.RUNNING,
         started_at=now,
         updated_at=now,
@@ -1848,10 +2398,38 @@ def start_reference_enrichment(
     )
 
     _job_task = asyncio.create_task(
-        _run_enrichment_job(_current_job.id, reference_name, sources, _current_job.mode)
+        _run_enrichment_job(
+            _current_job.id,
+            reference_name,
+            sources,
+            _current_job.mode,
+            strategy,
+        )
     )
 
     return _current_job
+
+
+def start_reference_enrichment(
+    reference_name: str, source_id: Optional[str] = None
+) -> EnrichmentJob:
+    """Start a global or per-source enrichment job for a reference."""
+
+    return _start_reference_enrichment(
+        reference_name,
+        source_id=source_id,
+        strategy=JobStrategy.RESUME,
+    )
+
+
+def restart_reference_enrichment(reference_name: str, source_id: str) -> EnrichmentJob:
+    """Restart one source from zero for a reference."""
+
+    return _start_reference_enrichment(
+        reference_name,
+        source_id=source_id,
+        strategy=JobStrategy.RESET,
+    )
 
 
 def start_default_enrichment() -> EnrichmentJob:
@@ -1965,7 +2543,10 @@ def cancel_default_enrichment() -> Dict[str, Any]:
 
 
 def get_results(
-    reference_name: Optional[str] = None, page: int = 0, limit: int = 50
+    reference_name: Optional[str] = None,
+    page: int = 0,
+    limit: int = 50,
+    source_id: Optional[str] = None,
 ) -> ResultsResponse:
     """Return paginated enrichment results."""
 
@@ -1973,7 +2554,8 @@ def get_results(
     job_results = [
         result
         for result in _job_results
-        if reference_name is None or result.reference_name == reference_name
+        if (reference_name is None or result.reference_name == reference_name)
+        and (source_id is None or result.source_id == source_id)
     ]
 
     filtered = job_results
@@ -1984,10 +2566,38 @@ def get_results(
             for source in config.sources
             if source.id and source.label
         }
-        preferred_source_ids = list(configured_labels.keys()) or None
-        persisted_results: List[EnrichmentResult] = []
+        preferred_source_ids = (
+            [source_id] if source_id else (list(configured_labels.keys()) or None)
+        )
+        requested_source_id = source_id or (
+            preferred_source_ids[0]
+            if preferred_source_ids and len(preferred_source_ids) == 1
+            else None
+        )
+        if requested_source_id:
+            fast_results = _get_results_for_source_sql(
+                reference_name=resolved_reference_name,
+                source_id=requested_source_id,
+                source_label=configured_labels.get(requested_source_id)
+                or requested_source_id.replace("-", " ").title(),
+                page=page,
+                limit=limit,
+                preferred_source_ids=list(configured_labels.keys()) or None,
+            )
+            if fast_results is not None:
+                return fast_results
 
-        for row in _load_reference_rows(resolved_reference_name):
+        persisted_results: List[EnrichmentResult] = []
+        persisted_columns = [
+            *_reference_display_column_candidates(resolved_reference_name),
+            "extra_data",
+        ]
+
+        for row in _load_reference_rows(
+            resolved_reference_name,
+            columns=persisted_columns,
+            require_extra_data=True,
+        ):
             entity_name = _reference_row_display_name(resolved_reference_name, row)
             stored_sources = _extract_stored_sources(
                 _deserialize_extra_data(row.get("extra_data")),
@@ -2019,6 +2629,11 @@ def get_results(
                         ),
                         entity_name=entity_name,
                         success=success,
+                        outcome=(
+                            EnrichmentResultOutcome.STORED
+                            if success
+                            else EnrichmentResultOutcome.FAILED
+                        ),
                         data=data if isinstance(data, dict) else None,
                         error=None if success else str(error or status),
                         processed_at=processed_at,

@@ -73,6 +73,8 @@ import {
   PLATFORMS,
 } from './deployPlatformConfig'
 
+type DeployAvailability = 'unknown' | 'checking' | 'available' | 'unavailable'
+
 export default function PublishDeploy({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation('publish')
   const navigate = useNavigate()
@@ -97,8 +99,9 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
 
   const isDeploying = usePublishStore(selectIsDeploying)
   const hasSuccessfulBuild = usePublishStore(selectHasSuccessfulBuild)
-  const { isOffline } = useNetworkStatus()
+  const { checkConnectivity } = useNetworkStatus()
   const { data: pipelineData } = usePipelineStatus()
+  const connectivityCheckRequestRef = useRef(0)
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -111,6 +114,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
   const [showLogs, setShowLogs] = useState<DeployPlatform | null>(null)
   const [healthStatus, setHealthStatus] = useState<Record<string, 'up' | 'down' | 'checking'>>({})
   const [isUnpublishing, setIsUnpublishing] = useState(false)
+  const [deployAvailability, setDeployAvailability] = useState<DeployAvailability>('unknown')
 
   // Configured platforms
   const configuredPlatforms = PLATFORM_ORDER.filter(p => platformConfigs[p])
@@ -141,6 +145,22 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
       setHealthStatus(prev => ({ ...prev, [platform]: 'down' }))
     }
   }, [deployHistory])
+
+  const setDeployAvailabilityState = useCallback((next: DeployAvailability) => {
+    connectivityCheckRequestRef.current += 1
+    setDeployAvailability(next)
+  }, [])
+
+  const verifyDeployConnectivity = useCallback(async () => {
+    const requestId = ++connectivityCheckRequestRef.current
+    setDeployAvailability('checking')
+    const online = await checkConnectivity()
+    if (connectivityCheckRequestRef.current !== requestId) {
+      return online
+    }
+    setDeployAvailability(online ? 'available' : 'unavailable')
+    return online
+  }, [checkConnectivity])
 
   useEffect(() => {
     for (const platform of configuredPlatforms) {
@@ -212,6 +232,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
     }
     setPreferredPlatform(platform)
     startDeploy(platform, projectName, config.branch)
+    void verifyDeployConnectivity()
 
     try {
       // Auto-save secret fields to keyring before deploying
@@ -245,6 +266,8 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
           extra,
         }),
       })
+
+      setDeployAvailabilityState('available')
 
       if (!response.ok || !response.body) {
         completeDeploy(`HTTP ${response.status}: ${response.statusText}`)
@@ -310,7 +333,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
       completeDeploy(String(error))
       toast.error(t('deploy.error', 'Deployment error'))
     }
-  }, [platformConfigs, savePlatformConfig, setPreferredPlatform, startDeploy, completeDeploy, appendDeployLog, setDeploymentUrl, t])
+  }, [appendDeployLog, completeDeploy, platformConfigs, savePlatformConfig, setDeployAvailabilityState, setDeploymentUrl, setPreferredPlatform, startDeploy, t, verifyDeployConnectivity])
 
   const handleCancel = () => {
     eventSourceRef.current?.close()
@@ -352,7 +375,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
     if (!dialogPlatform) return
     savePlatformConfig(dialogPlatform, formData as PlatformConfig[DeployPlatform])
     setDialogOpen(false)
-    handleDeploy(dialogPlatform, formData)
+    void handleDeploy(dialogPlatform, formData)
   }
 
   // Delete config
@@ -463,7 +486,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
   }
 
   // Can deploy check
-  const canDeployPlatform = !isDeploying && !isOffline && hasSuccessfulBuild
+  const canDeployPlatform = !isDeploying && hasSuccessfulBuild
 
   return (
     <div className={embedded ? 'space-y-4 p-1' : 'h-full overflow-auto'}>
@@ -516,12 +539,12 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
         </Alert>
       )}
 
-      {/* Offline Warning */}
-      {isOffline && (
+      {/* Connectivity Warning */}
+      {deployAvailability === 'unavailable' && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            {t('deploy.offline_warning', 'Deployment unavailable offline.')}
+            {t('deploy.connectivity_warning', 'The last network check did not confirm internet access for deployment. You can still try again; the real deployment attempt will decide.')}
           </AlertDescription>
         </Alert>
       )}

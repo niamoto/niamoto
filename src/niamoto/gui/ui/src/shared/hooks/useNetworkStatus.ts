@@ -98,6 +98,10 @@ async function probeConnectivity(): Promise<boolean> {
  *
  * The `checkConnectivity()` function can be called before operations
  * that require internet (enrichment, deploy).
+ *
+ * Important: this hook exposes low-level network primitives. Product UI
+ * should prefer capability-specific availability states over a single
+ * app-wide "offline" truth.
  */
 export function useNetworkStatus() {
   const [shouldCheckOnMount] = useState(() =>
@@ -187,7 +191,7 @@ export function useNetworkStatus() {
     ...status,
     /** Trigger an on-demand connectivity check via backend */
     checkConnectivity,
-    /** Convenience: is the app likely offline? */
+    /** Legacy convenience for low-level consumers; avoid using it as product-wide truth. */
     isOffline: getIsOffline(status),
   }
 }

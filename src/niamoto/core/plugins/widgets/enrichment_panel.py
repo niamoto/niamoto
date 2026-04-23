@@ -142,144 +142,172 @@ class EnrichmentPanelWidget(WidgetPlugin):
         <div class="enrichment-panel-widget">
             <style>
                 .enrichment-panel-widget {{
-                    --ep-surface: #ffffff;
-                    --ep-surface-muted: #f8fbfe;
-                    --ep-shell: #f5f9fc;
-                    --ep-border: #d7e3ee;
-                    --ep-border-strong: #c8d7e5;
-                    --ep-text: #0f172a;
-                    --ep-subtle: #5f738b;
-                    --ep-subtle-strong: #415972;
-                    --ep-accent: #0f766e;
-                    --ep-accent-soft: #ecfdf5;
-                    --ep-shadow: 0 1px 2px rgba(15, 23, 42, 0.05),
-                        0 12px 28px rgba(148, 163, 184, 0.12);
+                    --ep-paper: #ffffff;
+                    --ep-paper-strong: #fcfbf8;
+                    --ep-surface: rgba(255, 255, 255, 0.99);
+                    --ep-surface-soft: rgba(255, 255, 255, 0.94);
+                    --ep-border: var(--border, #dfd9cd);
+                    --ep-border-strong: #cfc5b3;
+                    --ep-text: var(--foreground, #233126);
+                    --ep-subtle: var(--muted-foreground, #6d6f63);
+                    --ep-accent: var(--foreground, #3b4038);
+                    --ep-accent-soft: rgba(246, 246, 242, 0.96);
+                    --ep-accent-warm: #8b8478;
+                    --ep-link: var(--foreground, #233126);
+                    --ep-link-foreground: var(--success-foreground, #f8fff9);
+                    --ep-shadow-soft: 0 1px 2px rgba(53, 48, 35, 0.03);
+                    --ep-shadow: 0 3px 10px rgba(53, 48, 35, 0.045);
                     color: var(--ep-text);
-                    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-                        "Segoe UI", sans-serif;
+                    font-family: inherit;
                 }}
                 .enrichment-panel-widget .ep-shell {{
-                    padding: 1rem;
-                    border-radius: 1.25rem;
+                    position: relative;
+                    padding: 1.15rem 1.1rem 1rem;
+                    border-radius: 0.28rem;
                     border: 1px solid var(--ep-border);
-                    background: linear-gradient(180deg, #ffffff 0%, var(--ep-shell) 100%);
+                    background: linear-gradient(
+                        180deg,
+                        rgba(255, 255, 255, 0.99) 0%,
+                        var(--ep-paper) 72%,
+                        var(--ep-paper-strong) 100%
+                    );
+                    box-shadow: var(--ep-shadow);
+                    overflow: hidden;
+                }}
+                .enrichment-panel-widget .ep-shell::before {{
+                    content: "";
+                    position: absolute;
+                    inset: 0 0 auto 0;
+                    height: 1px;
+                    background: var(--ep-border-strong);
+                    opacity: 0.9;
                 }}
                 .enrichment-panel-widget .ep-source-rail {{
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 0.45rem;
-                    margin-bottom: 0.9rem;
+                    gap: 0.4rem;
+                    margin-bottom: 1rem;
                 }}
                 .enrichment-panel-widget .ep-chip {{
                     display: inline-flex;
                     align-items: center;
-                    gap: 0.25rem;
-                    padding: 0.18rem 0.58rem;
-                    border-radius: 999px;
+                    gap: 0.3rem;
+                    padding: 0.18rem 0.56rem;
+                    border-radius: 0.22rem;
                     border: 1px solid var(--ep-border);
-                    background: rgba(255, 255, 255, 0.88);
-                    color: var(--ep-subtle-strong);
-                    font-size: 0.73rem;
+                    background: rgba(255, 255, 255, 0.96);
+                    color: var(--ep-subtle);
+                    font-size: 0.74rem;
+                    font-weight: 600;
                     line-height: 1.1;
-                    backdrop-filter: blur(8px);
                 }}
                 .enrichment-panel-widget .ep-count {{
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    min-width: 1.8rem;
-                    padding: 0.18rem 0.5rem;
-                    border-radius: 999px;
-                    background: #eef4fa;
+                    min-width: 1.95rem;
+                    padding: 0.18rem 0.52rem;
+                    border-radius: 0.22rem;
+                    background: rgba(255, 255, 255, 0.96);
                     border: 1px solid var(--ep-border);
                     color: var(--ep-subtle);
                     font-size: 0.72rem;
-                    font-weight: 700;
+                    font-weight: 600;
                 }}
                 .enrichment-panel-widget .ep-summary-grid {{
                     display: grid;
-                    gap: 0.8rem;
-                    margin-bottom: 0.95rem;
+                    gap: 0.85rem;
+                    margin-bottom: 1.05rem;
                 }}
                 .enrichment-panel-widget .ep-card {{
-                    background: var(--ep-surface);
-                    border: 1px solid var(--ep-border);
-                    border-radius: 1rem;
-                    padding: 0.95rem;
                     min-width: 0;
-                    transition: transform 160ms ease, box-shadow 160ms ease,
-                        border-color 160ms ease;
-                }}
-                .enrichment-panel-widget .ep-card:hover {{
-                    transform: translateY(-1px);
-                    border-color: var(--ep-border-strong);
+                    transition: transform 160ms ease, border-color 160ms ease,
+                        background-color 160ms ease;
                 }}
                 .enrichment-panel-widget .ep-card--summary {{
-                    background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+                    padding: 0.9rem 0.95rem 0.95rem;
+                    border: 1px solid var(--ep-border);
+                    border-radius: 0.18rem;
+                    background: rgba(255, 255, 255, 0.99);
                     border-color: var(--ep-border-strong);
-                    box-shadow: var(--ep-shadow);
+                    box-shadow: none;
                 }}
                 .enrichment-panel-widget .ep-card--section {{
-                    background: var(--ep-surface-muted);
+                    padding: 0.9rem 0;
+                    border-top: 1px solid var(--ep-border);
+                    background: transparent;
+                }}
+                .enrichment-panel-widget .ep-item-grid > .ep-card:first-child {{
+                    border-top: none;
+                    padding-top: 0.2rem;
+                }}
+                .enrichment-panel-widget .ep-card--image {{
+                    padding-top: 1rem;
                 }}
                 .enrichment-panel-widget .ep-card__meta {{
                     display: flex;
-                    align-items: flex-start;
+                    align-items: baseline;
                     justify-content: space-between;
-                    gap: 0.75rem;
-                    margin-bottom: 0.55rem;
+                    gap: 0.95rem;
+                    margin-bottom: 0.32rem;
                 }}
                 .enrichment-panel-widget .ep-card__badges {{
                     display: flex;
                     flex-wrap: wrap;
-                    justify-content: flex-end;
                     gap: 0.35rem;
+                    justify-content: flex-end;
                 }}
                 .enrichment-panel-widget .ep-label {{
                     color: var(--ep-subtle);
                     font-size: 0.72rem;
-                    font-weight: 700;
+                    font-weight: 600;
                     line-height: 1.2;
-                    letter-spacing: 0.03em;
+                    letter-spacing: 0.08em;
                     text-transform: uppercase;
                 }}
                 .enrichment-panel-widget .ep-value {{
                     color: var(--ep-text);
-                    font-size: 1rem;
-                    line-height: 1.45;
+                    font-size: 1.02rem;
+                    line-height: 1.55;
                     word-break: break-word;
                 }}
+                .enrichment-panel-widget .ep-card--summary .ep-label {{
+                    color: var(--ep-subtle);
+                }}
                 .enrichment-panel-widget .ep-card--summary .ep-value {{
-                    font-size: 1.18rem;
-                    font-weight: 600;
+                    font-size: 1.32rem;
+                    font-weight: 700;
+                    line-height: 1.18;
                 }}
                 .enrichment-panel-widget .ep-section {{
                     border: 1px solid var(--ep-border);
-                    border-radius: 1.05rem;
-                    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+                    border-radius: 0.18rem;
+                    background: rgba(255, 255, 255, 0.995);
                     margin-top: 0.85rem;
                     overflow: hidden;
-                    transition: border-color 180ms ease, box-shadow 180ms ease;
+                    box-shadow: none;
+                    transition: border-color 180ms ease, transform 180ms ease,
+                        box-shadow 180ms ease;
                 }}
                 .enrichment-panel-widget .ep-section[open] {{
                     border-color: var(--ep-border-strong);
-                    box-shadow: var(--ep-shadow);
+                    box-shadow: var(--ep-shadow-soft);
                 }}
                 .enrichment-panel-widget .ep-section-summary {{
                     cursor: pointer;
                     list-style: none;
-                    padding: 0.95rem 1rem;
+                    padding: 0.95rem 1rem 0.85rem;
                     display: flex;
-                    align-items: flex-start;
+                    align-items: center;
                     justify-content: space-between;
-                    gap: 0.75rem;
+                    gap: 0.9rem;
                     background: transparent;
                 }}
                 .enrichment-panel-widget .ep-section-summary::-webkit-details-marker {{
                     display: none;
                 }}
                 .enrichment-panel-widget .ep-section-summary:focus-visible {{
-                    outline: 2px solid rgba(15, 118, 110, 0.25);
+                    outline: 2px solid rgba(63, 106, 83, 0.22);
                     outline-offset: -2px;
                 }}
                 .enrichment-panel-widget .ep-section-heading {{
@@ -292,13 +320,14 @@ class EnrichmentPanelWidget(WidgetPlugin):
                     display: flex;
                     flex-wrap: wrap;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.55rem;
                 }}
                 .enrichment-panel-widget .ep-section-title {{
                     color: var(--ep-text);
-                    font-size: 1.02rem;
+                    font-size: 1.35rem;
                     font-weight: 700;
-                    line-height: 1.25;
+                    line-height: 1.1;
+                    letter-spacing: -0.01em;
                 }}
                 .enrichment-panel-widget .ep-section-summary-right {{
                     display: inline-flex;
@@ -308,19 +337,20 @@ class EnrichmentPanelWidget(WidgetPlugin):
                     flex-shrink: 0;
                 }}
                 .enrichment-panel-widget .ep-chevron {{
-                    font-size: 1.05rem;
+                    font-size: 1rem;
                     line-height: 1;
-                    transition: transform 180ms ease, color 180ms ease;
+                    color: var(--ep-subtle);
+                    transition: transform 180ms ease, opacity 180ms ease;
                 }}
                 .enrichment-panel-widget .ep-section[open] .ep-chevron {{
                     transform: rotate(90deg);
-                    color: var(--ep-accent);
+                    opacity: 0.9;
                 }}
                 .enrichment-panel-widget .ep-item-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                    gap: 0.75rem;
-                    padding: 0 1rem 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0;
+                    padding: 0 1rem 0.85rem;
                 }}
                 .enrichment-panel-widget .ep-section[open] .ep-item-grid {{
                     animation: ep-fade-in 180ms ease;
@@ -328,68 +358,80 @@ class EnrichmentPanelWidget(WidgetPlugin):
                 .enrichment-panel-widget .ep-list {{
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 0.35rem;
+                    gap: 0.42rem;
                 }}
                 .enrichment-panel-widget .ep-image-grid {{
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-                    gap: 0.65rem;
+                    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+                    gap: 0.7rem;
                 }}
                 .enrichment-panel-widget .ep-image-wrap {{
-                    border-radius: 0.8rem;
+                    border-radius: 0.12rem;
                     overflow: hidden;
-                    border: 1px solid #deebf5;
-                    background: #ffffff;
-                    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+                    border: 1px solid var(--ep-border);
+                    background: rgba(255, 255, 255, 0.96);
+                    box-shadow: none;
                 }}
                 .enrichment-panel-widget .ep-image {{
                     display: block;
                     width: 100%;
                     aspect-ratio: 4 / 3;
                     object-fit: cover;
-                    background: #eef4fa;
+                    background: var(--ep-paper-strong);
                     transition: transform 180ms ease;
                 }}
                 .enrichment-panel-widget .ep-image-wrap:hover .ep-image {{
                     transform: scale(1.03);
                 }}
                 .enrichment-panel-widget a {{
-                    color: var(--ep-accent);
-                    text-decoration: none;
+                    color: var(--ep-link);
+                    text-decoration: underline;
+                    text-decoration-color: rgba(35, 49, 38, 0.28);
+                    text-underline-offset: 0.12em;
                 }}
                 .enrichment-panel-widget a:hover {{
-                    text-decoration: underline;
+                    text-decoration-color: rgba(35, 49, 38, 0.55);
                 }}
                 .enrichment-panel-widget .ep-link {{
                     display: inline-flex;
                     align-items: center;
                     gap: 0.35rem;
-                    font-weight: 600;
+                    font-size: 1.04rem;
+                    font-weight: 700;
+                    line-height: 1.45;
                 }}
                 .enrichment-panel-widget .ep-pill {{
                     display: inline-flex;
                     align-items: center;
-                    padding: 0.22rem 0.62rem;
-                    border-radius: 999px;
+                    padding: 0.22rem 0.65rem;
+                    border-radius: 0.2rem;
                     border: 1px solid transparent;
-                    font-size: 0.82rem;
+                    font-size: 0.8rem;
                     font-weight: 700;
                     line-height: 1.15;
                 }}
                 .enrichment-panel-widget .ep-pill--positive {{
-                    background: #dcfce7;
-                    border-color: #bbf7d0;
-                    color: #166534;
+                    background: rgba(240, 244, 239, 0.95);
+                    border-color: rgba(112, 126, 114, 0.2);
+                    color: #465248;
                 }}
                 .enrichment-panel-widget .ep-pill--negative {{
-                    background: #fee2e2;
-                    border-color: #fecaca;
-                    color: #991b1b;
+                    background: rgba(247, 239, 237, 0.96);
+                    border-color: rgba(143, 121, 115, 0.2);
+                    color: #6f5a55;
                 }}
                 .enrichment-panel-widget .ep-pill--neutral {{
-                    background: #e0f2fe;
-                    border-color: #bae6fd;
-                    color: #0c4a6e;
+                    background: rgba(245, 244, 240, 0.96);
+                    border-color: rgba(120, 124, 109, 0.16);
+                    color: #5f6258;
+                }}
+                .enrichment-panel-widget .ep-card--list .ep-chip {{
+                    background: rgba(255, 255, 255, 0.98);
+                    color: var(--ep-subtle);
+                }}
+                .enrichment-panel-widget .ep-card--link .ep-card__meta,
+                .enrichment-panel-widget .ep-card--image .ep-card__meta {{
+                    margin-bottom: 0.6rem;
                 }}
                 @keyframes ep-fade-in {{
                     from {{
@@ -403,14 +445,20 @@ class EnrichmentPanelWidget(WidgetPlugin):
                 }}
                 @media (max-width: 640px) {{
                     .enrichment-panel-widget .ep-shell {{
-                        padding: 0.8rem;
-                        border-radius: 1rem;
+                        padding: 0.9rem 0.85rem 0.8rem;
+                        border-radius: 0.18rem;
                     }}
                     .enrichment-panel-widget .ep-summary-grid {{
                         grid-template-columns: 1fr !important;
                     }}
-                    .enrichment-panel-widget .ep-item-grid {{
-                        grid-template-columns: 1fr;
+                    .enrichment-panel-widget .ep-section-summary {{
+                        align-items: flex-start;
+                    }}
+                    .enrichment-panel-widget .ep-section-title {{
+                        font-size: 1.2rem;
+                    }}
+                    .enrichment-panel-widget .ep-image-grid {{
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
                     }}
                 }}
             </style>
@@ -478,9 +526,11 @@ class EnrichmentPanelWidget(WidgetPlugin):
                 )
             count_badge = f"<span class='ep-count'>{len(section.items)}</span>"
             open_attr = "" if section.collapsed else " open"
+            section_id = html.escape(section.id, quote=True)
+            source_id_attr = html.escape(section.source_id or "", quote=True)
             parts.append(
                 f"""
-                <details class="ep-section"{open_attr}>
+                <details class="ep-section" data-section-id="{section_id}" data-source-id="{source_id_attr}"{open_attr}>
                     <summary class="ep-section-summary">
                         <span class="ep-section-heading">
                             <span class="ep-section-title-row">
@@ -521,15 +571,26 @@ class EnrichmentPanelWidget(WidgetPlugin):
 
         value_html = self._render_item_value(item)
         card_variant = "ep-card--summary" if emphasize else "ep-card--section"
-        format_class = f"ep-card--{html.escape(item.format or 'text')}"
+        item_format = item.format or "text"
+        format_class = f"ep-card--{html.escape(item_format)}"
+        source_id_attr = html.escape(item.source_id or "", quote=True)
+        format_attr = html.escape(item_format, quote=True)
+        item_id_attr = html.escape(item.id or "", quote=True)
+        item_kind = "summary" if emphasize else "section"
         return f"""
-        <div class="ep-card {card_variant} {format_class}">
+        <article
+            class="ep-card {card_variant} {format_class}"
+            data-item-kind="{item_kind}"
+            data-item-id="{item_id_attr}"
+            data-format="{format_attr}"
+            data-source-id="{source_id_attr}"
+        >
             <div class="ep-card__meta">
                 <div class="ep-label">{html.escape(item.label)}</div>
                 <div class="ep-card__badges">{source_badge}</div>
             </div>
             <div class="ep-value">{value_html}</div>
-        </div>
+        </article>
         """
 
     def _render_item_value(self, item: EnrichmentPanelItem) -> str:

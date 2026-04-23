@@ -1,0 +1,44 @@
+coverage:
+  status:
+    project:
+      default: false
+      backend:
+        target: 65%
+        threshold: 1%
+        flags:
+          - backend
+      frontend:
+        informational: true
+        target: 8%
+        flags:
+          - frontend
+    patch:
+      default: false
+      backend:
+        informational: true
+        target: 65%
+        flags:
+          - backend
+      frontend:
+        informational: true
+        target: 0%
+        flags:
+          - frontend
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: true
+  require_head: true
+
+flags:
+  backend:
+    paths:
+      - src/niamoto/**/*.py
+    carryforward: true
+  frontend:
+    paths:
+      - src/niamoto/gui/ui/src/**/*.ts
+      - src/niamoto/gui/ui/src/**/*.tsx
+    carryforward: true

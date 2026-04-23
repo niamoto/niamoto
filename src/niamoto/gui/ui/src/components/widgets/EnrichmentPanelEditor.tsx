@@ -88,6 +88,36 @@ interface EnrichmentPanelEditorProps {
   onWidgetChange: (next: Record<string, unknown>) => void
 }
 
+const IMAGE_VARIANT_TOKENS = new Set([
+  'big',
+  'full',
+  'hires',
+  'icon',
+  'large',
+  'original',
+  'preview',
+  'small',
+  'src',
+  'thumb',
+  'thumbnail',
+  'tiny',
+  'url',
+])
+
+const IMAGE_GENERIC_TOKENS = new Set([
+  'gallery',
+  'galleries',
+  'image',
+  'images',
+  'illustration',
+  'illustrations',
+  'media',
+  'photo',
+  'photos',
+  'picture',
+  'pictures',
+])
+
 async function fetchEnrichmentCatalog(groupBy: string): Promise<EnrichmentSourceCatalog[]> {
   const response = await fetch(`/api/templates/${encodeURIComponent(groupBy)}/enrichment-catalog`)
   if (!response.ok) {
@@ -208,6 +238,23 @@ function formatSamplePreview(value: unknown): string {
   return truncateText(stringifySampleValue(value), 120)
 }
 
+function tokenizeFieldPath(path: string): string[] {
+  return path
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter(Boolean)
+}
+
+function humanizeTokens(tokens: string[]): string {
+  return tokens
+    .map((token) => {
+      if (token === 'url') return 'URL'
+      if (token === 'id') return 'ID'
+      return token.charAt(0).toUpperCase() + token.slice(1)
+    })
+    .join(' ')
+}
+
 function moveItem<T>(items: T[], fromIndex: number, delta: number): T[] {
   const toIndex = fromIndex + delta
   if (toIndex < 0 || toIndex >= items.length) {
@@ -325,6 +372,60 @@ export function EnrichmentPanelEditor({
     return getSourceFields(sourceId).find((field) => field.path === path)
   }
 
+  const getImageVariantLabel = (path: string) => {
+    const tokens = tokenizeFieldPath(path)
+    if (tokens.includes('original')) return t('enrichmentEditor.imageVariantOriginal')
+    if (tokens.includes('hires')) return t('enrichmentEditor.imageVariantHighRes')
+    if (tokens.includes('full')) return t('enrichmentEditor.imageVariantFull')
+    if (tokens.includes('large') || tokens.includes('big')) {
+      return t('enrichmentEditor.imageVariantLarge')
+    }
+    if (tokens.includes('thumbnail') || tokens.includes('thumb')) {
+      return t('enrichmentEditor.imageVariantThumbnail')
+    }
+    if (tokens.includes('small')) return t('enrichmentEditor.imageVariantSmall')
+    if (tokens.includes('preview')) return t('enrichmentEditor.imageVariantPreview')
+    if (tokens.includes('icon')) return t('enrichmentEditor.imageVariantIcon')
+    if (tokens.includes('tiny')) return t('enrichmentEditor.imageVariantTiny')
+    return undefined
+  }
+
+  const getImageGroupKey = (path: string) => {
+    if (path === '.') return '.'
+    const tokens = tokenizeFieldPath(path).filter(
+      (token) => token !== 'items' && !IMAGE_VARIANT_TOKENS.has(token)
+    )
+    return tokens.join('.') || path
+  }
+
+  const getImageBaseLabel = (field: Pick<EnrichmentFieldCatalogItem, 'path' | 'label'>) => {
+    const baseTokens = tokenizeFieldPath(field.path).filter(
+      (token) =>
+        token !== 'items' &&
+        !IMAGE_VARIANT_TOKENS.has(token) &&
+        !IMAGE_GENERIC_TOKENS.has(token)
+    )
+
+    if (baseTokens.length > 0) {
+      return humanizeTokens(baseTokens)
+    }
+
+    if (tokenizeFieldPath(field.path).includes('items')) {
+      return t('enrichmentEditor.imageCollection')
+    }
+
+    return t('enrichmentEditor.imageField')
+  }
+
+  const getFieldVariantLabel = (
+    field: Pick<EnrichmentFieldCatalogItem, 'path' | 'format'>
+  ) => {
+    if (field.format !== 'image' || field.path === '.') {
+      return undefined
+    }
+    return getImageVariantLabel(field.path)
+  }
+
   const getFieldDisplayLabel = (field: Pick<EnrichmentFieldCatalogItem, 'path' | 'format' | 'label'>) => {
     if (field.path === '.' && field.format === 'image') {
       return t('enrichmentEditor.sourceMedia')
@@ -335,7 +436,33 @@ export function EnrichmentPanelEditor({
     if (field.path === '.') {
       return t('enrichmentEditor.sourceData')
     }
+    if (field.format === 'image') {
+      const variantLabel = getFieldVariantLabel(field)
+      const baseLabel = getImageBaseLabel(field)
+      return variantLabel
+        ? t('enrichmentEditor.imageFieldWithVariant', {
+            label: baseLabel,
+            variant: variantLabel,
+          })
+        : baseLabel
+    }
     return field.label
+  }
+
+  const getSiblingImageFields = (sourceId: string | undefined, path: string) => {
+    if (!sourceId) return []
+    const metadata = getFieldMetadata(sourceId, path)
+    if (!metadata || metadata.format !== 'image' || path === '.') {
+      return []
+    }
+
+    const groupKey = getImageGroupKey(path)
+    return getSourceFields(sourceId).filter(
+      (field) =>
+        field.format === 'image' &&
+        field.path !== '.' &&
+        getImageGroupKey(field.path) === groupKey
+    )
   }
 
   const getSourceSectionHints = (sourceId?: string) => {
@@ -454,8 +581,15 @@ export function EnrichmentPanelEditor({
             <SelectGroup key={sectionHint}>
               <SelectLabel>{sectionHint}</SelectLabel>
               {groupedFields.map((field) => (
-              <SelectItem key={`${field.source_id}:${field.path}`} value={field.path}>
-                  {getFieldDisplayLabel(field)}
+                <SelectItem key={`${field.source_id}:${field.path}`} value={field.path}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{getFieldDisplayLabel(field)}</span>
+                    {getFieldVariantLabel(field) && (
+                      <span className="rounded-sm border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {getFieldVariantLabel(field)}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -630,6 +764,7 @@ export function EnrichmentPanelEditor({
                   const metadata = item.source_id
                     ? getFieldMetadata(item.source_id, item.path)
                     : undefined
+                  const siblingImageFields = getSiblingImageFields(item.source_id, item.path)
 
                   return (
                     <SortableEditorItem
@@ -738,7 +873,33 @@ export function EnrichmentPanelEditor({
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant="outline">{metadata.format}</Badge>
                             <span>{metadata.section_hint}</span>
+                            {getFieldVariantLabel(metadata) && (
+                              <Badge variant="outline">
+                                {t('enrichmentEditor.variantBadge', {
+                                  variant: getFieldVariantLabel(metadata),
+                                })}
+                              </Badge>
+                            )}
                           </div>
+                          {siblingImageFields.length > 1 && (
+                            <div className="rounded-md border border-dashed bg-muted/20 px-2 py-1.5">
+                              <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                {t('enrichmentEditor.availableVariants', {
+                                  count: siblingImageFields.length,
+                                })}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {siblingImageFields.map((field) => (
+                                  <Badge
+                                    key={`${field.source_id}:${field.path}`}
+                                    variant={field.path === item.path ? 'secondary' : 'outline'}
+                                  >
+                                    {getFieldDisplayLabel(field)}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {metadata.sample_values.length > 0 && (
                             <div
                               className="w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-md bg-muted/40 px-2 py-1 font-mono text-[11px]"
@@ -926,6 +1087,10 @@ export function EnrichmentPanelEditor({
                             <div className="space-y-3">
                               {section.items.map((item, itemIndex) => {
                                 const metadata = getFieldMetadata(section.source_id, item.path)
+                                const siblingImageFields = getSiblingImageFields(
+                                  section.source_id,
+                                  item.path
+                                )
 
                                 return (
                                   <SortableEditorItem
@@ -1062,7 +1227,37 @@ export function EnrichmentPanelEditor({
                                           <div className="flex flex-wrap items-center gap-2">
                                             <Badge variant="outline">{metadata.format}</Badge>
                                             <span>{metadata.section_hint}</span>
+                                            {getFieldVariantLabel(metadata) && (
+                                              <Badge variant="outline">
+                                                {t('enrichmentEditor.variantBadge', {
+                                                  variant: getFieldVariantLabel(metadata),
+                                                })}
+                                              </Badge>
+                                            )}
                                           </div>
+                                          {siblingImageFields.length > 1 && (
+                                            <div className="rounded-md border border-dashed bg-muted/20 px-2 py-1.5">
+                                              <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                {t('enrichmentEditor.availableVariants', {
+                                                  count: siblingImageFields.length,
+                                                })}
+                                              </div>
+                                              <div className="flex flex-wrap gap-1.5">
+                                                {siblingImageFields.map((field) => (
+                                                  <Badge
+                                                    key={`${field.source_id}:${field.path}`}
+                                                    variant={
+                                                      field.path === item.path
+                                                        ? 'secondary'
+                                                        : 'outline'
+                                                    }
+                                                  >
+                                                    {getFieldDisplayLabel(field)}
+                                                  </Badge>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                           {metadata.sample_values.length > 0 && (
                                             <div
                                               className="w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-md bg-muted/40 px-2 py-1 font-mono text-[11px]"

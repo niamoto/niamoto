@@ -361,6 +361,213 @@ def test_ensure_startable_sources_rejects_missing_api_key(monkeypatch):
         enrichment_service._ensure_startable_sources("taxons")
 
 
+def test_source_helper_detection_and_label_normalization():
+    assert enrichment_service._slugify_source_id(" GBIF / Match ", "fallback") == (
+        "gbif-match"
+    )
+    assert enrichment_service._slugify_source_id("!!!", "fallback") == "fallback"
+    assert (
+        enrichment_service._guess_source_label(
+            {"config": {"api_url": "https://api.gbif.org/v1/species/match"}},
+            0,
+        )
+        == "Api Gbif Org"
+    )
+    assert (
+        enrichment_service._guess_source_label(
+            {"plugin": "api_taxonomy_enricher"},
+            1,
+        )
+        == "Api Taxonomy Enricher"
+    )
+    assert enrichment_service._is_legacy_gbif_source(
+        {"label": "GBIF"},
+        {"api_url": "https://api.gbif.org/v1/species/match"},
+    )
+    assert enrichment_service._is_legacy_tropicos_source(
+        {"plugin": "tropicos_enricher"},
+        {},
+    )
+    assert enrichment_service._is_legacy_inaturalist_source(
+        {"label": "iNaturalist"},
+        {"api_url": "https://api.inaturalist.org/v1/taxa"},
+    )
+    assert enrichment_service._is_endemia_source(
+        {"label": "Endemia NC"},
+        {"api_url": "https://api.endemia.nc/v1/taxons"},
+    )
+    assert enrichment_service._is_legacy_openmeteo_source(
+        {"label": "Open-Meteo Elevation"},
+        {"api_url": "https://api.open-meteo.com/v1/elevation"},
+    )
+    assert enrichment_service._is_legacy_geonames_source(
+        {"label": "GeoNames Nearby"},
+        {"api_url": "https://secure.geonames.org/findNearbyJSON"},
+    )
+    assert enrichment_service._col_search_url(12345).endswith(
+        "/dataset/12345/nameusage/search"
+    )
+
+
+def test_reference_metadata_helpers_cover_geometry_and_display_candidates(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda reference_name: {
+            "kind": "spatial" if reference_name == "plots" else "generic",
+            "schema": (
+                {
+                    "id_field": "id_plot",
+                    "name_field": "plot",
+                    "fields": [{"name": "geo_shape", "type": "geometry"}],
+                }
+                if reference_name == "plots"
+                else {"fields": []}
+            ),
+            "relation": {"reference_key": "plot_code"}
+            if reference_name == "plots"
+            else {},
+        },
+    )
+
+    assert enrichment_service._reference_has_geometry("plots") is True
+    assert enrichment_service._reference_geometry_fields("plots") == ["geo_shape"]
+    assert enrichment_service._reference_geometry_fields("taxons") == [
+        "geo_pt",
+        "location",
+        "geometry",
+        "geo_pt_geom",
+        "geom",
+    ]
+    assert (
+        enrichment_service._reference_id_field("plots", ["id_plot", "plot"])
+        == "id_plot"
+    )
+    assert enrichment_service._reference_display_column_candidates("plots") == [
+        "plot",
+        "plot_code",
+        "full_name",
+        "name",
+        "label",
+        "title",
+        "id",
+    ]
+
+
+def test_row_and_payload_helpers_support_legacy_and_namespaced_storage(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_reference_geometry_fields",
+        lambda _reference_name: ["geometry"],
+    )
+
+    normalized = enrichment_service._normalize_loaded_row(
+        "plots",
+        {"id_plot": 8, "label": "Parcelle 8"},
+        id_field="id_plot",
+    )
+    assert normalized["id"] == 8
+    assert normalized["_entity_id"] == 8
+    assert normalized["_entity_id_field"] == "id_plot"
+    assert normalized["_geometry_fields"] == ["geometry"]
+    assert enrichment_service._row_entity_id(normalized) == 8
+
+    assert enrichment_service._deserialize_extra_data(
+        '{"api_enrichment": {"foo": "bar"}}'
+    ) == {"api_enrichment": {"foo": "bar"}}
+    assert enrichment_service._deserialize_extra_data("not-json") == {}
+
+    legacy_sources = enrichment_service._extract_stored_sources(
+        {
+            "label": "GBIF",
+            "enriched_at": "2026-04-09T10:00:00",
+            "api_enrichment": {"usage_key": 99},
+        },
+        ["gbif"],
+    )
+    assert legacy_sources == {
+        "gbif": {
+            "label": "GBIF",
+            "data": {"usage_key": 99},
+            "enriched_at": "2026-04-09T10:00:00",
+            "status": "completed",
+            "legacy": True,
+        }
+    }
+
+    namespaced = {
+        "api_enrichment": {
+            "sources": {
+                "gbif": {"status": "completed", "data": {"usage_key": 1}},
+                "endemia": {"status": "failed", "data": {"api_id": 2}},
+            }
+        }
+    }
+    assert enrichment_service._has_completed_source(namespaced, "gbif", ["gbif"])
+    assert (
+        enrichment_service._has_completed_source(namespaced, "endemia", ["endemia"])
+        is False
+    )
+    assert enrichment_service._has_any_source_enrichment(
+        namespaced, ["gbif", "endemia"]
+    )
+    assert (
+        enrichment_service._source_json_path('geo"demo\\source')
+        == '$.api_enrichment.sources."geo\\"demo\\\\source"'
+    )
+    assert enrichment_service._can_use_legacy_source_payload(
+        "gbif", ["gbif", "endemia"]
+    )
+    assert (
+        enrichment_service._can_use_legacy_source_payload(
+            "endemia", ["gbif", "endemia"]
+        )
+        is False
+    )
+
+
+def test_resolve_default_reference_name_prefers_taxons_and_then_enabled_sources(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_import_config",
+        lambda: {
+            "entities": {
+                "references": {
+                    "plots": {"enrichment": [{"id": "off", "enabled": False}]},
+                    "taxons": {"enrichment": [{"id": "on", "enabled": True}]},
+                }
+            }
+        },
+    )
+    assert enrichment_service._resolve_default_reference_name() == "taxons"
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_import_config",
+        lambda: {
+            "entities": {
+                "references": {
+                    "plots": {"enrichment": [{"id": "off", "enabled": False}]},
+                    "shapes": {
+                        "enrichment": [
+                            {
+                                "id": "open-meteo",
+                                "enabled": True,
+                                "config": {
+                                    "api_url": "https://api.open-meteo.com/v1/elevation"
+                                },
+                            }
+                        ]
+                    },
+                }
+            }
+        },
+    )
+    assert enrichment_service._resolve_default_reference_name() == "shapes"
+
+
 def test_merge_source_enrichment_data_keeps_existing_sources():
     """Adding one source must not overwrite previously stored source payloads."""
 
@@ -396,13 +603,94 @@ def test_merge_source_enrichment_data_keeps_existing_sources():
     assert merged["api_enrichment"]["sources"]["gbif"]["status"] == "completed"
 
 
+def test_delete_source_enrichment_data_keeps_other_sources():
+    """Deleting one source must preserve other source payloads and extra_data keys."""
+
+    updated = enrichment_service._delete_source_enrichment_data(
+        {
+            "notes": {"reviewed": True},
+            "api_enrichment": {
+                "sources": {
+                    "endemia": {
+                        "label": "Endemia",
+                        "data": {"api_id": 12},
+                        "enriched_at": "2026-04-09T09:00:00",
+                        "status": "completed",
+                    },
+                    "gbif": {
+                        "label": "GBIF",
+                        "data": {"usage_key": 987654},
+                        "enriched_at": "2026-04-09T10:00:00",
+                        "status": "completed",
+                    },
+                },
+                "updated_at": "2026-04-09T10:00:00",
+            },
+        },
+        "gbif",
+    )
+
+    assert updated["notes"] == {"reviewed": True}
+    assert "gbif" not in updated["api_enrichment"]["sources"]
+    assert updated["api_enrichment"]["sources"]["endemia"]["data"] == {"api_id": 12}
+
+
+def test_delete_source_enrichment_data_cleans_empty_container():
+    """Deleting the last source should remove empty enrichment containers."""
+
+    updated = enrichment_service._delete_source_enrichment_data(
+        {
+            "notes": {"reviewed": True},
+            "api_enrichment": {
+                "sources": {
+                    "gbif": {
+                        "label": "GBIF",
+                        "data": {"usage_key": 987654},
+                        "enriched_at": "2026-04-09T10:00:00",
+                        "status": "completed",
+                    }
+                },
+                "updated_at": "2026-04-09T10:00:00",
+            },
+        },
+        "gbif",
+    )
+
+    assert updated == {"notes": {"reviewed": True}}
+
+
+def test_delete_source_enrichment_data_cleans_legacy_payload_when_allowed():
+    """Deleting a legacy flat payload should clear enrichment keys when explicitly allowed."""
+
+    updated = enrichment_service._delete_source_enrichment_data(
+        {
+            "notes": {"reviewed": True},
+            "label": "GBIF",
+            "enriched_at": "2026-04-09T10:00:00",
+            "api_enrichment": {"usage_key": 987654},
+        },
+        "gbif",
+        allow_legacy_payload=True,
+    )
+
+    assert updated == {
+        "notes": {"reviewed": True},
+        "label": "GBIF",
+    }
+
+
 def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     """Results endpoint should expose persisted DB payloads when no job log exists."""
 
     monkeypatch.setattr(
         enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        enrichment_service,
         "_load_reference_rows",
-        lambda _reference_name: [
+        lambda _reference_name, columns=None, require_extra_data=False: [
             {
                 "id": 1,
                 "full_name": "Araucaria columnaris",
@@ -447,6 +735,783 @@ def test_get_results_falls_back_to_persisted_source_data(monkeypatch):
     assert results.results[0].entity_name == "Araucaria columnaris"
     assert results.results[0].data == {"api_id": 42}
     assert results.results[0].success is True
+
+
+def test_get_results_projects_only_display_columns_and_extra_data(monkeypatch):
+    """Persisted result reconstruction should avoid selecting full reference rows."""
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        return [
+            {
+                "plot": "Forêt Nord",
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "open-meteo": {
+                                "label": "Open-Meteo",
+                                "data": {"elevation": 812},
+                                "enriched_at": "2026-04-21T18:30:00",
+                                "status": "completed",
+                            }
+                        }
+                    }
+                },
+            }
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_config_section",
+        lambda _reference_name: {"schema": {"name_field": "plot"}},
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="open-meteo",
+                    label="Open-Meteo",
+                    enabled=True,
+                    api_url="https://api.open-meteo.com/v1/elevation",
+                )
+            ],
+        ),
+    )
+
+    results = enrichment_service.get_results(reference_name="plots")
+
+    assert results.total == 1
+    assert captured == {
+        "reference_name": "plots",
+        "columns": ["plot", "full_name", "name", "label", "title", "id", "extra_data"],
+        "require_extra_data": True,
+    }
+
+
+def test_get_results_filters_by_source_id(monkeypatch):
+    """Results listing should support scoping the history to one source."""
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_results_for_source_sql",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_load_reference_rows",
+        lambda _reference_name, columns=None, require_extra_data=False: [
+            {
+                "full_name": "Araucaria columnaris",
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "label": "Endemia",
+                                "data": {"api_id": 42},
+                                "enriched_at": "2026-04-09T10:00:00",
+                                "status": "completed",
+                            },
+                            "gbif": {
+                                "label": "GBIF",
+                                "data": {"usage_key": 99},
+                                "enriched_at": "2026-04-09T11:00:00",
+                                "status": "completed",
+                            },
+                        }
+                    }
+                },
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="endemia",
+                    label="Endemia",
+                    enabled=True,
+                    api_url="https://api.endemia.nc/v1/taxons",
+                ),
+                enrichment_service.EnrichmentSourceConfig(
+                    id="gbif",
+                    label="GBIF",
+                    enabled=True,
+                    api_url="https://api.gbif.org/v2/species/match",
+                ),
+            ],
+        ),
+    )
+
+    results = enrichment_service.get_results(reference_name="taxons", source_id="gbif")
+
+    assert results.total == 1
+    assert results.results[0].source_id == "gbif"
+    assert results.results[0].data == {"usage_key": 99}
+
+
+def test_get_reference_enrichment_stats_reads_only_extra_data(monkeypatch):
+    """Polling stats should not reselect the full reference payload."""
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: None
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        return [
+            {"extra_data": None},
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "data": {"api_id": 42},
+                                "status": "completed",
+                            }
+                        }
+                    }
+                }
+            },
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "get_reference_enrichment_config",
+        lambda reference_name: enrichment_service.EnrichmentReferenceConfigResponse(
+            reference_name=reference_name,
+            enabled=True,
+            sources=[
+                enrichment_service.EnrichmentSourceConfig(
+                    id="endemia",
+                    label="Endemia",
+                    enabled=True,
+                    api_url="https://api.endemia.nc/v1/taxons",
+                )
+            ],
+        ),
+    )
+
+    stats = enrichment_service.get_reference_enrichment_stats("taxons")
+
+    assert stats.entity_total == 2
+    assert stats.enriched == 1
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+    }
+
+
+def test_get_reference_enrichment_stats_loads_rows_when_source_sql_count_fails(
+    monkeypatch,
+):
+    """Per-source SQL fallback should reload rows even when entity counting succeeded."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    captured: dict[str, object] = {"load_calls": 0}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: 3
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        captured["load_calls"] = int(captured["load_calls"]) + 1
+        return [
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {
+                                "status": "completed",
+                                "data": {"api_id": 42},
+                            }
+                        }
+                    }
+                }
+            },
+            {"extra_data": None},
+            {"extra_data": None},
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+
+    stats = enrichment_service._compute_reference_stats("taxons", [source])
+
+    assert stats.entity_total == 3
+    assert stats.enriched == 1
+    assert stats.sources[0].enriched == 1
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+        "load_calls": 1,
+    }
+
+
+def test_get_reference_enrichment_stats_reuses_row_fallback_for_multiple_sources(
+    monkeypatch,
+):
+    """Row fallback should be loaded once and reused across failing sources."""
+
+    sources = [
+        enrichment_service.EnrichmentSourceConfig(
+            id="endemia",
+            label="Endemia",
+            enabled=True,
+            api_url="https://api.endemia.nc/v1/taxons",
+        ),
+        enrichment_service.EnrichmentSourceConfig(
+            id="gbif",
+            label="GBIF",
+            enabled=True,
+            api_url="https://api.gbif.org/v2/species/match",
+        ),
+    ]
+    captured: dict[str, object] = {"load_calls": 0}
+
+    monkeypatch.setattr(
+        enrichment_service, "_count_reference_entities", lambda _reference_name: 3
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_count_completed_rows_for_source",
+        lambda _reference_name, _source_id, _preferred_source_ids: None,
+    )
+
+    def fake_load_reference_rows(
+        reference_name: str,
+        columns=None,
+        require_extra_data: bool = False,
+    ):
+        captured["reference_name"] = reference_name
+        captured["columns"] = list(columns or [])
+        captured["require_extra_data"] = require_extra_data
+        captured["load_calls"] = int(captured["load_calls"]) + 1
+        return [
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "endemia": {"status": "completed", "data": {"api_id": 42}},
+                            "gbif": {"status": "completed", "data": {"usage_key": 1}},
+                        }
+                    }
+                }
+            },
+            {
+                "extra_data": {
+                    "api_enrichment": {
+                        "sources": {
+                            "gbif": {"status": "completed", "data": {"usage_key": 2}}
+                        }
+                    }
+                }
+            },
+            {"extra_data": None},
+        ]
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", fake_load_reference_rows
+    )
+
+    stats = enrichment_service._compute_reference_stats("taxons", sources)
+
+    assert stats.entity_total == 3
+    assert stats.enriched == 3
+    assert {source.source_id: source.enriched for source in stats.sources} == {
+        "endemia": 1,
+        "gbif": 2,
+    }
+    assert captured == {
+        "reference_name": "taxons",
+        "columns": ["extra_data"],
+        "require_extra_data": False,
+        "load_calls": 1,
+    }
+
+
+def test_run_enrichment_job_exposes_pending_run_progress(monkeypatch):
+    """Runtime progress should distinguish pending attempts from already saved rows."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Already enriched",
+            "extra_data": {
+                "api_enrichment": {
+                    "sources": {
+                        "endemia": {
+                            "label": "Endemia",
+                            "data": {"api_id": 42},
+                            "enriched_at": "2026-04-09T10:00:00",
+                            "status": "completed",
+                        }
+                    }
+                }
+            },
+        },
+        {
+            "id": 2,
+            "full_name": "Still pending",
+            "extra_data": None,
+        },
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            raise RuntimeError(f"No match for {payload['full_name']}")
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.ALL,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.ALL,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert job.total == 2
+    assert job.processed == 2
+    assert job.already_completed == 1
+    assert job.pending_total == 1
+    assert job.pending_processed == 1
+    assert job.successful == 1
+    assert job.failed == 1
+
+
+def test_run_enrichment_job_reset_reprocesses_rows_and_deletes_empty_results(
+    monkeypatch,
+):
+    """Reset runs should reprocess completed rows and delete stale source payloads on empty results."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Replace me",
+            "extra_data": {
+                "notes": {"reviewed": True},
+                "api_enrichment": {
+                    "sources": {
+                        "endemia": {
+                            "label": "Endemia",
+                            "data": {"api_id": 1},
+                            "status": "completed",
+                        },
+                        "gbif": {
+                            "label": "GBIF",
+                            "data": {"usage_key": 99},
+                            "status": "completed",
+                        },
+                    }
+                },
+            },
+        },
+        {
+            "id": 2,
+            "full_name": "Remove me",
+            "extra_data": {
+                "api_enrichment": {
+                    "sources": {
+                        "endemia": {
+                            "label": "Endemia",
+                            "data": {"api_id": 2},
+                            "status": "completed",
+                        },
+                        "gbif": {
+                            "label": "GBIF",
+                            "data": {"usage_key": 100},
+                            "status": "completed",
+                        },
+                    }
+                }
+            },
+        },
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            if payload["id"] == 1:
+                return {"api_enrichment": {"api_id": 42}}
+            return {"api_enrichment": {}}
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_save_source_enrichment_to_db",
+        lambda _reference_name,
+        entity_id,
+        source,
+        source_data,
+        existing_extra_data: enrichment_service._replace_source_enrichment_data(
+            existing_extra_data, source, source_data
+        ),
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_delete_source_enrichment_from_db",
+        lambda _reference_name,
+        entity_id,
+        source_id,
+        existing_extra_data: enrichment_service._delete_source_enrichment_data(
+            existing_extra_data, source_id
+        ),
+    )
+
+    now = "2026-04-22T14:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-reset-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        strategy=enrichment_service.JobStrategy.RESET,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+        source_label=source.label,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-reset-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+            enrichment_service.JobStrategy.RESET,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert job.total == 2
+    assert job.already_completed == 0
+    assert job.pending_total == 2
+    assert job.pending_processed == 2
+    assert job.successful == 1
+    assert job.failed == 0
+
+    assert rows[0]["extra_data"]["api_enrichment"]["sources"]["endemia"]["data"] == {
+        "api_id": 42
+    }
+    assert rows[0]["extra_data"]["api_enrichment"]["sources"]["gbif"]["data"] == {
+        "usage_key": 99
+    }
+    assert "endemia" not in rows[1]["extra_data"]["api_enrichment"]["sources"]
+    assert rows[1]["extra_data"]["api_enrichment"]["sources"]["gbif"]["data"] == {
+        "usage_key": 100
+    }
+    assert [result.outcome for result in enrichment_service._job_results] == [
+        enrichment_service.EnrichmentResultOutcome.STORED,
+        enrichment_service.EnrichmentResultOutcome.EMPTY,
+    ]
+
+
+def test_run_enrichment_job_reset_preserves_existing_source_on_technical_error(
+    monkeypatch,
+):
+    """Reset runs should keep the old source payload when the new attempt fails technically."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    original_extra_data = {
+        "api_enrichment": {
+            "sources": {
+                "endemia": {
+                    "label": "Endemia",
+                    "data": {"api_id": 12},
+                    "status": "completed",
+                }
+            }
+        }
+    }
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Keep me",
+            "extra_data": original_extra_data,
+        }
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            raise RuntimeError("Provider unavailable")
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    delete_calls: list[int] = []
+    monkeypatch.setattr(
+        enrichment_service,
+        "_delete_source_enrichment_from_db",
+        lambda _reference_name,
+        entity_id,
+        source_id,
+        existing_extra_data: delete_calls.append(entity_id),
+    )
+
+    now = "2026-04-22T14:05:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-reset-2",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        strategy=enrichment_service.JobStrategy.RESET,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+        source_label=source.label,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-reset-2",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+            enrichment_service.JobStrategy.RESET,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert job.failed == 1
+    assert delete_calls == []
+    assert rows[0]["extra_data"] is original_extra_data
+    assert enrichment_service._job_results[0].outcome == (
+        enrichment_service.EnrichmentResultOutcome.FAILED
+    )
+
+
+def test_run_enrichment_job_reset_clears_legacy_source_payload_on_empty_result(
+    monkeypatch,
+):
+    """Reset runs should clear legacy flat payloads when the retried source returns nothing."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="gbif",
+        label="GBIF",
+        enabled=True,
+        api_url="https://api.gbif.org/v1/species/match",
+    )
+    rows = [
+        {
+            "id": 1,
+            "full_name": "Legacy row",
+            "extra_data": {
+                "notes": {"reviewed": True},
+                "label": "GBIF",
+                "enriched_at": "2026-04-09T10:00:00",
+                "api_enrichment": {"usage_key": 99},
+            },
+        }
+    ]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            assert payload["id"] == 1
+            return {"api_enrichment": {}}
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_save_source_enrichment_to_db",
+        lambda *_args, **_kwargs: pytest.fail(
+            "reset with empty result should delete legacy payload instead of saving it"
+        ),
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_delete_source_enrichment_from_db",
+        lambda _reference_name,
+        entity_id,
+        source_id,
+        existing_extra_data: enrichment_service._delete_source_enrichment_data(
+            existing_extra_data,
+            source_id,
+            allow_legacy_payload=True,
+        ),
+    )
+
+    now = "2026-04-22T18:45:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-reset-legacy-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        strategy=enrichment_service.JobStrategy.RESET,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+        source_label=source.label,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-reset-legacy-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+            enrichment_service.JobStrategy.RESET,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.COMPLETED
+    assert rows[0]["extra_data"] == {
+        "notes": {"reviewed": True},
+        "label": "GBIF",
+    }
+    assert enrichment_service._job_results[0].outcome == (
+        enrichment_service.EnrichmentResultOutcome.EMPTY
+    )
+
+
+def test_restart_reference_enrichment_starts_single_source_reset_job(monkeypatch):
+    """Restart entrypoint should create a single-source reset job."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        enrichment_service,
+        "_ensure_startable_sources",
+        lambda reference_name, source_id=None: [source],
+    )
+    monkeypatch.setattr(enrichment_service, "_assert_job_can_start", lambda: None)
+    monkeypatch.setattr(
+        enrichment_service.asyncio,
+        "create_task",
+        lambda coro: captured.setdefault("task", coro),
+    )
+
+    job = enrichment_service.restart_reference_enrichment("taxons", "endemia")
+
+    assert job.mode == enrichment_service.JobMode.SINGLE
+    assert job.strategy == enrichment_service.JobStrategy.RESET
+    assert job.source_id == "endemia"
+    assert enrichment_service._current_job is job
+    task = captured["task"]
+    task.close()
 
 
 def test_preview_default_enrichment_forwards_source_id(monkeypatch):

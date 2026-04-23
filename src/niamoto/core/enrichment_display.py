@@ -33,6 +33,66 @@ _IMAGE_KEYWORDS = (
     "source_url",
 )
 _IMAGE_URL_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+_MEDIA_DESCRIPTOR_KEYS = {
+    "alt",
+    "attribution",
+    "author",
+    "caption",
+    "copyright",
+    "creator",
+    "credit",
+    "description",
+    "format",
+    "height",
+    "href",
+    "id",
+    "label",
+    "legend",
+    "license",
+    "mime",
+    "mime_type",
+    "name",
+    "source_url",
+    "src",
+    "title",
+    "url",
+    "width",
+}
+_IMAGE_COLLECTION_HINTS = {
+    "gallery",
+    "galleries",
+    "image_set",
+    "image_sets",
+    "images",
+    "illustrations",
+    "media",
+    "photos",
+    "pictures",
+}
+_IMAGE_HIGH_QUALITY_HINTS = {
+    "big",
+    "full",
+    "hires",
+    "large",
+    "master",
+    "original",
+}
+_IMAGE_LOW_QUALITY_HINTS = {
+    "icon",
+    "preview",
+    "small",
+    "thumb",
+    "thumbnail",
+    "tiny",
+}
+_IMAGE_VARIANT_TOKENS = (
+    _IMAGE_HIGH_QUALITY_HINTS
+    | _IMAGE_LOW_QUALITY_HINTS
+    | {
+        "url",
+        "src",
+    }
+)
 _BADGE_KEYWORDS = (
     "status",
     "rank",
@@ -204,6 +264,52 @@ def is_image_like(value: Any) -> bool:
     )
 
 
+def _is_media_descriptor_key(key: Any) -> bool:
+    lower = str(key).strip().lower()
+    if not lower:
+        return False
+    return lower in _MEDIA_DESCRIPTOR_KEYS or any(
+        keyword in lower for keyword in _IMAGE_KEYWORDS
+    )
+
+
+def _should_collect_root_image_value(value: Any) -> bool:
+    """Expose ``.`` only for genuine media payloads, not mixed records.
+
+    This keeps support for:
+    - direct image URLs
+    - root lists of images
+    - compact media objects (thumbnail/url/caption)
+
+    but avoids treating mixed metadata records such as Endemia payloads
+    (status flags + thumbs + links) as one synthetic ``Source media`` field.
+    """
+
+    coerced = _coerce_json_like(value)
+
+    if _looks_like_image_url(coerced):
+        return True
+
+    if isinstance(coerced, list):
+        return _is_image_like_list(coerced)
+
+    if not isinstance(coerced, dict) or not _is_image_like_mapping(coerced):
+        return False
+
+    non_null_items = [
+        (key, _coerce_json_like(nested))
+        for key, nested in coerced.items()
+        if nested is not None
+    ]
+    if not non_null_items:
+        return False
+
+    return all(
+        _is_media_descriptor_key(key) or is_image_like(nested)
+        for key, nested in non_null_items
+    )
+
+
 def resolve_source_path(source_data: Any, path: str) -> Any:
     """Resolve a relative path inside one enrichment source payload."""
 
@@ -229,7 +335,7 @@ def _flatten_display_values(value: Any, prefix: str = "") -> list[tuple[str, Any
     collected: list[tuple[str, Any]] = []
     value = _coerce_json_like(value)
 
-    if prefix in ("", ".") and is_image_like(value):
+    if prefix in ("", ".") and _should_collect_root_image_value(value):
         collected.append((".", value))
 
     if isinstance(value, dict):
@@ -431,6 +537,88 @@ def _filter_existing_fields(
     return [field_index[path] for path in paths if path in field_index]
 
 
+def _image_path_tokens(path: str) -> list[str]:
+    return [token for token in re.split(r"[^a-z0-9]+", path.lower()) if token]
+
+
+def _score_image_field(field: dict[str, Any]) -> int:
+    path = str(field.get("path", ""))
+    if path == ".":
+        return -100
+
+    tokens = _image_path_tokens(path)
+    score = 0
+
+    if any(token in _IMAGE_COLLECTION_HINTS for token in tokens):
+        score += 30
+
+    if any(token in _IMAGE_HIGH_QUALITY_HINTS for token in tokens):
+        score += 12
+
+    if any(token in _IMAGE_LOW_QUALITY_HINTS for token in tokens):
+        score -= 8
+
+    if path.endswith(".items"):
+        score += 8
+
+    if any(isinstance(sample, list) for sample in field.get("sample_values", []) or []):
+        score += 20
+
+    if any(token in _IMAGE_KEYWORDS for token in tokens):
+        score += 4
+
+    return score
+
+
+def _image_field_group_key(field: dict[str, Any]) -> str:
+    path = str(field.get("path", ""))
+    if path == ".":
+        return "."
+
+    tokens = [
+        token
+        for token in _image_path_tokens(path)
+        if token not in _IMAGE_VARIANT_TOKENS
+    ]
+    return ".".join(tokens) or path
+
+
+def _select_image_fields(
+    fields: Iterable[dict[str, Any]],
+    *,
+    max_fields: int,
+) -> list[dict[str, Any]]:
+    image_fields = [
+        field
+        for field in fields
+        if isinstance(field, dict) and field.get("format") == "image"
+    ]
+    if not image_fields:
+        return []
+
+    candidates = [field for field in image_fields if field.get("path") != "."]
+    if not candidates:
+        candidates = image_fields
+
+    ranked = sorted(
+        candidates,
+        key=lambda field: (-_score_image_field(field), str(field.get("path", ""))),
+    )
+
+    selected: list[dict[str, Any]] = []
+    seen_groups: set[str] = set()
+    for field in ranked:
+        group_key = _image_field_group_key(field)
+        if group_key in seen_groups:
+            continue
+        seen_groups.add(group_key)
+        selected.append(field)
+        if len(selected) >= max_fields:
+            break
+
+    return selected
+
+
 def _generic_panel_config(
     source_catalog: dict[str, Any],
 ) -> dict[str, Any]:
@@ -477,7 +665,7 @@ def _generic_panel_config(
         and not str(field["path"]).startswith("provenance.")
     ]
     link_fields = [field for field in fields if field.get("format") == "link"]
-    image_fields = [field for field in fields if field.get("format") == "image"]
+    image_fields = _select_image_fields(fields, max_fields=3)
     provenance_fields = [
         field for field in fields if str(field["path"]).startswith("provenance.")
     ]
@@ -714,11 +902,7 @@ def _endemia_panel_config(source_catalog: dict[str, Any]) -> dict[str, Any]:
         ],
     )
     links = [field for field in field_index.values() if field.get("format") == "link"]
-    media = (
-        [field_index["."]]
-        if "." in field_index and field_index["."].get("format") == "image"
-        else []
-    )
+    media = _select_image_fields(field_index.values(), max_fields=1)
 
     sections = []
     if details:

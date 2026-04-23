@@ -1,5 +1,6 @@
 """Unit tests for data explorer query helpers."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -202,3 +203,74 @@ def test_query_table_applies_default_order_by_when_none_provided(
     assert response.status_code == 200, response.text
     payload = response.json()
     assert [row["id"] for row in payload["rows"]] == [101, 202]
+
+
+def test_query_table_opens_database_in_read_only_mode(
+    monkeypatch, gui_duckdb_project: Path
+):
+    captured: dict[str, object] = {}
+
+    class DummyDB:
+        def get_table_names(self):
+            return ["entity_taxons"]
+
+        def get_columns(self, _table):
+            return [
+                {"name": "id", "type": "INTEGER"},
+                {"name": "full_name", "type": "VARCHAR"},
+            ]
+
+        @property
+        def engine(self):
+            return create_engine("sqlite://")
+
+        def session(self):
+            class DummySessionContext:
+                def __enter__(self_nonlocal):
+                    class DummySession:
+                        def execute(self, query, _params=None):
+                            query_text = str(query)
+
+                            class DummyResult:
+                                def __init__(self, query_text):
+                                    self.query_text = query_text
+
+                                def scalar(self):
+                                    return 1
+
+                                def keys(self):
+                                    return ["id", "full_name"]
+
+                                def __iter__(self):
+                                    if "COUNT(*)" in self.query_text:
+                                        return iter([])
+                                    return iter([(1, "Araucaria columnaris")])
+
+                            return DummyResult(query_text)
+
+                    return DummySession()
+
+                def __exit__(self_nonlocal, exc_type, exc, tb):
+                    return False
+
+            return DummySessionContext()
+
+    @contextmanager
+    def fake_open_database(_path, *, read_only=False):
+        captured["read_only"] = read_only
+        yield DummyDB()
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.data_explorer.open_database",
+        fake_open_database,
+    )
+
+    with patch.object(context, "_working_directory", gui_duckdb_project):
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/data/query",
+            json={"table": "entity_taxons", "limit": 10, "offset": 0},
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured["read_only"] is True

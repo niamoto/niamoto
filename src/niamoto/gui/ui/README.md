@@ -26,9 +26,16 @@ Useful commands:
 pnpm build
 pnpm build:stats
 pnpm test
+pnpm test:coverage
 pnpm lint
 pnpm preview
 ```
+
+`pnpm test:coverage` writes frontend coverage reports to
+`src/niamoto/gui/ui/coverage/` with `text`, `html`, `json-summary`, and `lcov`
+outputs. The coverage config intentionally excludes generated files, test files,
+and Vite entrypoint boilerplate so the report stays focused on behavior-bearing
+application code.
 
 ## Runtime modes
 
