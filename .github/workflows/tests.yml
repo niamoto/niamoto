@@ -85,6 +85,7 @@ jobs:
         slug: niamoto/niamoto
         fail_ci_if_error: true
         flags: backend
+        version: v11.2.7
 
     - name: Upload frontend coverage to Codecov
       if: matrix.python-version == '3.12'
@@ -95,6 +96,7 @@ jobs:
         slug: niamoto/niamoto
         fail_ci_if_error: true
         flags: frontend
+        version: v11.2.7
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
