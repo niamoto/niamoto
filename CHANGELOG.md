@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.16.0] - 2026-04-23
+
+### Features
+
+- Add source enrichment reset mode
+- Add enrichment panel workflow
+
+### Bug Fixes
+
+- Update rustls webpki lockfile
+- Harden export and enrichment jobs
+- Split codecov checks by coverage area
+- Align vitest config typing
+- Address enrichment polling review feedback
+- Stabilize frontend coverage tests
+- Install pnpm before node cache
+- Refine enrichment workflow reliability and UX
+- Stage plugin manifest during releases
+
+### Documentation
+
+- Add source enrichment reset design
+- Add enrichment panel design spec
+
+### Other
+
+- Ignore frontend coverage output
+- Expand coverage baseline
+- Strengthen enrichment regression coverage
+
 ## [v0.15.9] - 2026-04-21
 
 ### Features

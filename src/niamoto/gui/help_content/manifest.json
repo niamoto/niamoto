@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-21T09:04:11.540968+00:00",
+  "generated_at": "2026-04-23T06:33:44.159664+00:00",
   "sections": [
     {
       "slug": "01-getting-started",
@@ -3329,7 +3329,7 @@
       "title": "Architecture",
       "description": "This section describes the current Niamoto architecture.",
       "path": "/help/07-architecture",
-      "article_count": 10,
+      "article_count": 12,
       "pages": [
         {
           "slug": "07-architecture",
@@ -3558,6 +3558,111 @@
               "title": "Related docs",
               "level": 2,
               "id": "related-docs"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/testing-audit",
+          "path": "/help/07-architecture/testing-audit",
+          "title": "Testing Audit",
+          "description": "This report inventories the current automated test surface for the repository.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Coverage Artifacts",
+              "level": 2,
+              "id": "coverage-artifacts"
+            },
+            {
+              "title": "Snapshot",
+              "level": 2,
+              "id": "snapshot"
+            },
+            {
+              "title": "Python Domain Summary",
+              "level": 2,
+              "id": "python-domain-summary"
+            },
+            {
+              "title": "Highest ROI Python Gaps",
+              "level": 2,
+              "id": "highest-roi-python-gaps"
+            },
+            {
+              "title": "Frontend Area Summary",
+              "level": 2,
+              "id": "frontend-area-summary"
+            },
+            {
+              "title": "Highest ROI Frontend Gaps",
+              "level": 2,
+              "id": "highest-roi-frontend-gaps"
+            },
+            {
+              "title": "Recommended First Pass",
+              "level": 2,
+              "id": "recommended-first-pass"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/testing-strategy",
+          "path": "/help/07-architecture/testing-strategy",
+          "title": "Testing Strategy",
+          "description": "This is the active testing reference for Niamoto contributors.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Goals",
+              "level": 2,
+              "id": "goals"
+            },
+            {
+              "title": "Preferred Test Layers",
+              "level": 2,
+              "id": "preferred-test-layers"
+            },
+            {
+              "title": "Python",
+              "level": 3,
+              "id": "python"
+            },
+            {
+              "title": "Frontend",
+              "level": 3,
+              "id": "frontend"
+            },
+            {
+              "title": "Coverage Workflow",
+              "level": 2,
+              "id": "coverage-workflow"
+            },
+            {
+              "title": "Backend coverage",
+              "level": 3,
+              "id": "backend-coverage"
+            },
+            {
+              "title": "Frontend coverage",
+              "level": 3,
+              "id": "frontend-coverage"
+            },
+            {
+              "title": "What To Add First",
+              "level": 2,
+              "id": "what-to-add-first"
+            },
+            {
+              "title": "Contributor Checklist",
+              "level": 2,
+              "id": "contributor-checklist"
+            },
+            {
+              "title": "CI Notes",
+              "level": 2,
+              "id": "ci-notes"
             }
           ]
         },

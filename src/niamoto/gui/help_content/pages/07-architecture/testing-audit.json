@@ -1,0 +1,49 @@
+{
+  "slug": "07-architecture/testing-audit",
+  "path": "/help/07-architecture/testing-audit",
+  "title": "Testing Audit",
+  "description": "This report inventories the current automated test surface for the repository.",
+  "page_type": "markdown",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Coverage Artifacts",
+      "level": 2,
+      "id": "coverage-artifacts"
+    },
+    {
+      "title": "Snapshot",
+      "level": 2,
+      "id": "snapshot"
+    },
+    {
+      "title": "Python Domain Summary",
+      "level": 2,
+      "id": "python-domain-summary"
+    },
+    {
+      "title": "Highest ROI Python Gaps",
+      "level": 2,
+      "id": "highest-roi-python-gaps"
+    },
+    {
+      "title": "Frontend Area Summary",
+      "level": 2,
+      "id": "frontend-area-summary"
+    },
+    {
+      "title": "Highest ROI Frontend Gaps",
+      "level": 2,
+      "id": "highest-roi-frontend-gaps"
+    },
+    {
+      "title": "Recommended First Pass",
+      "level": 2,
+      "id": "recommended-first-pass"
+    }
+  ],
+  "html": "<h1 id=\"testing-audit\">Testing Audit</h1>\n<p>This report inventories the current automated test surface for the repository.</p>\n<h2 id=\"coverage-artifacts\">Coverage Artifacts</h2>\n<ul>\n<li>Python coverage: <strong>stale</strong> — coverage.xml only matches 16/30 tracked files in the current repository.</li>\n<li>Frontend coverage: <strong>missing</strong> — Vitest coverage summary was not found.</li>\n</ul>\n<h2 id=\"snapshot\">Snapshot</h2>\n<ul>\n<li>Python source files tracked: <strong>201</strong></li>\n<li>Python test files tracked: <strong>176</strong></li>\n<li>Frontend source files tracked: <strong>416</strong></li>\n<li>Frontend test files tracked: <strong>31</strong></li>\n</ul>\n<h2 id=\"python-domain-summary\">Python Domain Summary</h2>\n<table>\n<thead>\n<tr>\n<th>Area</th>\n<th>Source files</th>\n<th>Files with direct tests</th>\n<th>Direct-test density</th>\n<th>Coverage line rate</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>cli/commands</code></td>\n<td>11</td>\n<td>10</td>\n<td>90.9%</td>\n<td>40.2%</td>\n</tr>\n<tr>\n<td><code>cli/utils</code></td>\n<td>3</td>\n<td>3</td>\n<td>100.0%</td>\n<td>40.0%</td>\n</tr>\n<tr>\n<td><code>common</code></td>\n<td>12</td>\n<td>8</td>\n<td>66.7%</td>\n<td>72.6%</td>\n</tr>\n<tr>\n<td><code>common/utils</code></td>\n<td>5</td>\n<td>4</td>\n<td>80.0%</td>\n<td>69.9%</td>\n</tr>\n<tr>\n<td><code>core</code></td>\n<td>3</td>\n<td>2</td>\n<td>66.7%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/imports</code></td>\n<td>26</td>\n<td>15</td>\n<td>57.7%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/plugins</code></td>\n<td>10</td>\n<td>8</td>\n<td>80.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/plugins/deployers</code></td>\n<td>7</td>\n<td>2</td>\n<td>28.6%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/plugins/loaders</code></td>\n<td>10</td>\n<td>6</td>\n<td>60.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/plugins/transformers</code></td>\n<td>36</td>\n<td>23</td>\n<td>63.9%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/plugins/widgets</code></td>\n<td>17</td>\n<td>17</td>\n<td>100.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>core/services</code></td>\n<td>6</td>\n<td>5</td>\n<td>83.3%</td>\n<td>36.2%</td>\n</tr>\n<tr>\n<td><code>core/utils</code></td>\n<td>1</td>\n<td>1</td>\n<td>100.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>gui</code></td>\n<td>4</td>\n<td>3</td>\n<td>75.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>gui/api/routers</code></td>\n<td>25</td>\n<td>23</td>\n<td>92.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>gui/api/services</code></td>\n<td>18</td>\n<td>14</td>\n<td>77.8%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>gui/api/utils</code></td>\n<td>3</td>\n<td>2</td>\n<td>66.7%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>gui/help_content</code></td>\n<td>1</td>\n<td>0</td>\n<td>0.0%</td>\n<td>n/a</td>\n</tr>\n<tr>\n<td><code>root</code></td>\n<td>3</td>\n<td>1</td>\n<td>33.3%</td>\n<td>34.4%</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"highest-roi-python-gaps\">Highest-ROI Python Gaps</h2>\n<ul>\n<li><code>src/niamoto/core/plugins/deployers/cloudflare.py</code> (300 lines, area <code>core/plugins/deployers</code>, related tests: none)</li>\n<li><code>src/niamoto/gui/api/routers/layers.py</code> (294 lines, area <code>gui/api/routers</code>, related tests: none)</li>\n<li><code>src/niamoto/gui/api/routers/deploy.py</code> (270 lines, area <code>gui/api/routers</code>, related tests: none)</li>\n<li><code>src/niamoto/core/plugins/deployers/vercel.py</code> (207 lines, area <code>core/plugins/deployers</code>, related tests: none)</li>\n<li><code>src/niamoto/core/plugins/deployers/render.py</code> (202 lines, area <code>core/plugins/deployers</code>, related tests: none)</li>\n<li><code>src/niamoto/core/plugins/deployers/netlify.py</code> (192 lines, area <code>core/plugins/deployers</code>, related tests: none)</li>\n<li><code>src/niamoto/core/plugins/deployers/ssh.py</code> (123 lines, area <code>core/plugins/deployers</code>, related tests: none)</li>\n<li><code>src/niamoto/core/imports/multi_field_detector.py</code> (681 lines, area <code>core/imports</code>, related tests: none)</li>\n<li><code>src/niamoto/gui/api/services/templates/utils/entity_finder.py</code> (582 lines, area <code>gui/api/services</code>, related tests: none)</li>\n<li><code>src/niamoto/gui/api/services/templates/utils/data_loader.py</code> (413 lines, area <code>gui/api/services</code>, related tests: none)</li>\n</ul>\n<h2 id=\"frontend-area-summary\">Frontend Area Summary</h2>\n<table>\n<thead>\n<tr>\n<th>Area</th>\n<th>Source files</th>\n<th>Test files</th>\n<th>Test-file density</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>app</code></td>\n<td>5</td>\n<td>0</td>\n<td>0.0%</td>\n</tr>\n<tr>\n<td><code>collections</code></td>\n<td>21</td>\n<td>3</td>\n<td>14.3%</td>\n</tr>\n<tr>\n<td><code>components</code></td>\n<td>139</td>\n<td>4</td>\n<td>2.9%</td>\n</tr>\n<tr>\n<td><code>dashboard</code></td>\n<td>13</td>\n<td>1</td>\n<td>7.7%</td>\n</tr>\n<tr>\n<td><code>feedback</code></td>\n<td>22</td>\n<td>5</td>\n<td>22.7%</td>\n</tr>\n<tr>\n<td><code>help</code></td>\n<td>7</td>\n<td>1</td>\n<td>14.3%</td>\n</tr>\n<tr>\n<td><code>import</code></td>\n<td>61</td>\n<td>4</td>\n<td>6.6%</td>\n</tr>\n<tr>\n<td><code>other</code></td>\n<td>32</td>\n<td>2</td>\n<td>6.2%</td>\n</tr>\n<tr>\n<td><code>publish</code></td>\n<td>10</td>\n<td>2</td>\n<td>20.0%</td>\n</tr>\n<tr>\n<td><code>shared</code></td>\n<td>37</td>\n<td>5</td>\n<td>13.5%</td>\n</tr>\n<tr>\n<td><code>site</code></td>\n<td>44</td>\n<td>2</td>\n<td>4.5%</td>\n</tr>\n<tr>\n<td><code>tools</code></td>\n<td>19</td>\n<td>1</td>\n<td>5.3%</td>\n</tr>\n<tr>\n<td><code>welcome</code></td>\n<td>6</td>\n<td>1</td>\n<td>16.7%</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"highest-roi-frontend-gaps\">Highest-ROI Frontend Gaps</h2>\n<ul>\n<li><code>src/niamoto/gui/ui/src/features/import/hooks/useEnrichmentState.ts</code> (1249 lines, area <code>import</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/features/site/hooks/useSiteBuilderState.ts</code> (909 lines, area <code>site</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/hooks/useJobPolling.ts</code> (354 lines, area <code>other</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/shared/hooks/site-config/siteConfigApi.ts</code> (302 lines, area <code>shared</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/shared/hooks/site-config/types.ts</code> (266 lines, area <code>shared</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/features/site/hooks/useUnifiedSiteTree.ts</code> (265 lines, area <code>site</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/features/welcome/hooks/useWelcomeScreen.ts</code> (238 lines, area <code>welcome</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/features/collections/hooks/useApiExportConfigs.ts</code> (209 lines, area <code>collections</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/shared/hooks/useProjectSwitcher.ts</code> (205 lines, area <code>shared</code>, sibling tests: none)</li>\n<li><code>src/niamoto/gui/ui/src/features/tools/hooks/useConfig.ts</code> (192 lines, area <code>tools</code>, sibling tests: none)</li>\n</ul>\n<h2 id=\"recommended-first-pass\">Recommended First Pass</h2>\n<ol>\n<li>Add direct tests for backend deploy adapters, shared helpers, and uncovered GUI API routes.</li>\n<li>Extend the import-suggestion suite into uncovered decision seams before refactoring heuristics.</li>\n<li>Add Vitest coverage and first-pass tests for frontend hooks, API normalization helpers, and runtime-dependent state flows.</li>\n</ol>",
+  "asset_path": null,
+  "source_path": "07-architecture/testing-audit.md"
+}
