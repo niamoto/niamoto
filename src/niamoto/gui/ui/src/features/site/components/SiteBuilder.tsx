@@ -16,7 +16,6 @@ import {
   Loader2,
   Save,
   AlertCircle,
-  Eye,
   RotateCcw,
 } from 'lucide-react'
 import {
@@ -455,6 +454,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             page={page}
             onChange={state.handleUpdatePage}
             onDelete={() => state.handleDeletePage(page.name)}
+            showRestorePreview={showPreviewRestore}
+            onRestorePreview={showPreviewRestore ? handleOpenPreview : undefined}
             onBack={() => state.setSelection(null)}
             hasExistingIndexPage={state.editedPages.some(
               (candidate) =>
@@ -645,21 +646,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
         {/* Center Panel - Editor */}
         <ResizablePanel id="editor" defaultSize={showPreview ? 50 : 85} minSize="30%" className="overflow-hidden">
-          <div className="relative h-full">
-            {showPreviewRestore && (
-              <div className="pointer-events-none absolute right-3 top-3 z-10">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="pointer-events-auto bg-background/90 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/75"
-                  onClick={handleOpenPreview}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  {t('preview.title')}
-                </Button>
-              </div>
-            )}
-            <PanelTransition transitionKey={editorTransitionKey}>
+          <div className="flex h-full min-h-0 flex-col">
+            <PanelTransition transitionKey={editorTransitionKey} className="min-h-0 flex-1">
               {renderEditor()}
             </PanelTransition>
           </div>

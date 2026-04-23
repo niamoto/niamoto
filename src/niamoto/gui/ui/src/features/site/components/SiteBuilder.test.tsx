@@ -101,7 +101,23 @@ vi.mock('./FooterSectionsEditor', () => ({
 }))
 
 vi.mock('./StaticPageEditor', () => ({
-  StaticPageEditor: () => <div>Static page editor</div>,
+  StaticPageEditor: (props: {
+    showRestorePreview?: boolean
+    onRestorePreview?: () => void
+  }) => (
+    <div>
+      <div>Static page editor</div>
+      {props.showRestorePreview && props.onRestorePreview ? (
+        <button
+          type="button"
+          data-testid="inline-restore-preview"
+          onClick={props.onRestorePreview}
+        >
+          preview.title
+        </button>
+      ) : null}
+    </div>
+  ),
 }))
 
 vi.mock('./TemplateList', () => ({
@@ -463,10 +479,11 @@ describe('SiteBuilder workbench preview behavior', () => {
       root.render(<SiteBuilder />)
     })
 
-    const restoreButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('preview.title'),
-    )
-    expect(restoreButton).not.toBeUndefined()
+    const restoreBar = container.querySelector('[data-testid="preview-restore-bar"]')
+    expect(restoreBar).toBeNull()
+
+    const restoreButton = container.querySelector('[data-testid="inline-restore-preview"]')
+    expect(restoreButton).not.toBeNull()
 
     await act(async () => {
       ;(restoreButton as HTMLButtonElement).click()
