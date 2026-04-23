@@ -181,7 +181,11 @@ async def test_execute_export_background_counts_generated_html_pages(
             }
 
     monkeypatch.setattr(
-        export_router, "get_export_config", lambda path: {"exports": []}
+        export_router,
+        "get_export_config",
+        lambda path: {
+            "exports": [{"name": "web_pages", "exporter": "html_page_exporter"}]
+        },
     )
     monkeypatch.setattr(
         export_router, "get_database_path", lambda: tmp_path / "db.duckdb"
@@ -206,6 +210,76 @@ async def test_execute_export_background_counts_generated_html_pages(
     assert job_store.completed_result is not None
     assert job_store.completed_result["metrics"]["generated_pages"] == 2
     assert job_store.completed_result["metrics"]["static_site_path"] == str(output_dir)
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_prefers_html_export_output_for_static_site_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    api_output_dir = tmp_path / "exports" / "api"
+    api_output_dir.mkdir(parents=True, exist_ok=True)
+    (api_output_dir / "index.json").write_text("{}", encoding="utf-8")
+
+    html_output_dir = tmp_path / "exports" / "web"
+    html_output_dir.mkdir(parents=True, exist_ok=True)
+    (html_output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+
+    class DummyExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            self.db_path = db_path
+
+        def run_export(self, target_name=None):
+            return {
+                "json_api": {
+                    "status": "success",
+                    "files_generated": 1,
+                    "errors": 0,
+                    "output_path": str(api_output_dir),
+                },
+                "web_pages": {
+                    "status": "success",
+                    "files_generated": 1,
+                    "errors": 0,
+                    "output_path": str(html_output_dir),
+                },
+            }
+
+    monkeypatch.setattr(
+        export_router,
+        "get_export_config",
+        lambda path: {
+            "exports": [
+                {"name": "json_api", "exporter": "json_api_exporter"},
+                {"name": "web_pages", "exporter": "html_page_exporter"},
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        export_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(export_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", DummyExporterService)
+
+    job_store = _DummyJobStore()
+
+    await export_router.execute_export_background(
+        "job-1",
+        job_store,
+        "config/export.yml",
+        None,
+        False,
+    )
+
+    assert job_store.failed_error is None
+    assert job_store.completed_result is not None
+    assert job_store.completed_result["metrics"]["generated_pages"] == 1
+    assert job_store.completed_result["metrics"]["static_site_path"] == str(
+        html_output_dir
+    )
 
 
 @pytest.mark.anyio

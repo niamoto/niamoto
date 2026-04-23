@@ -217,6 +217,7 @@ def _extract_target_export_result(
 
 def _summarize_generated_pages(
     results: dict[str, dict[str, Any]],
+    html_export_names: set[str],
 ) -> tuple[int, Optional[str]]:
     """Compte les pages HTML réellement présentes dans les dossiers exportés."""
     generated_pages = 0
@@ -229,7 +230,7 @@ def _summarize_generated_pages(
         if not isinstance(output_path, str) or not output_path:
             continue
 
-        if static_site_path is None:
+        if static_site_path is None and export_name in html_export_names:
             static_site_path = output_path
 
         try:
@@ -288,7 +289,7 @@ async def execute_export_background(
         logger.info("Job %s: Loading configuration from %s", job_id, config_path)
 
         # Load configuration
-        get_export_config(config_path)
+        config = get_export_config(config_path)
 
         # Initialize services
         db_path = get_database_path()
@@ -481,7 +482,17 @@ async def execute_export_background(
 
         total_exports = completed + failed
         execution_time = (datetime.now() - start_time).total_seconds()
-        generated_pages, static_site_path = _summarize_generated_pages(results)
+        config_exports = config.get("exports", []) if isinstance(config, dict) else []
+        html_export_names = {
+            str(export_entry.get("name"))
+            for export_entry in config_exports
+            if isinstance(export_entry, dict)
+            and export_entry.get("exporter") == "html_page_exporter"
+            and export_entry.get("name")
+        }
+        generated_pages, static_site_path = _summarize_generated_pages(
+            results, html_export_names
+        )
         result_payload = {
             "metrics": {
                 "total_exports": total_exports,
