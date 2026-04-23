@@ -137,6 +137,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
         ) : (
           recentProjects.map((project) => {
             const isInvalid = invalidProjects.has(project.path);
+            const isCurrent = currentProject === project.path;
 
             return (
               <DropdownMenuItem
@@ -147,15 +148,29 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
                   }
                 }}
                 className={cn(
-                  'flex items-center justify-between gap-2',
-                  isInvalid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  'flex items-center justify-between gap-2 border border-transparent transition-colors',
+                  isInvalid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+                  isCurrent && !isInvalid && [
+                    'bg-muted/90 text-foreground shadow-none',
+                    'border-border/70',
+                    'hover:bg-muted focus:bg-muted',
+                    'hover:text-foreground focus:text-foreground',
+                  ],
+                  !isCurrent && !isInvalid && 'hover:bg-accent/60'
                 )}
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-sm font-medium">
                     {project.name}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      'truncate text-xs',
+                      isCurrent && !isInvalid
+                        ? 'text-foreground/70'
+                        : 'text-muted-foreground'
+                    )}
+                  >
                     {project.path}
                   </span>
                 </div>
@@ -164,13 +179,17 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
                   {isInvalid && (
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   )}
-                  {!isInvalid && currentProject === project.path && (
-                    <Check className="h-4 w-4 text-primary" />
+                  {!isInvalid && isCurrent && (
+                    <Check className="h-4 w-4 text-foreground/70" />
                   )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={cn('h-6 w-6', isInvalid && 'opacity-100')}
+                    className={cn(
+                      'h-6 w-6',
+                      isCurrent && !isInvalid && 'text-foreground/60 hover:bg-background/80 hover:text-foreground',
+                      isInvalid && 'opacity-100'
+                    )}
                     onClick={(e) => handleRemoveProject(e, project.path)}
                   >
                     <X className="h-3 w-3" />
