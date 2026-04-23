@@ -119,6 +119,7 @@ export interface GroupIndexPreviewPanelProps {
   groupName: string
   onLinkClick?: (href: string) => void
   onRefresh?: () => void
+  onClose?: () => void
 }
 
 export function GroupIndexPreviewPanel({
@@ -129,6 +130,7 @@ export function GroupIndexPreviewPanel({
   groupName,
   onLinkClick,
   onRefresh,
+  onClose,
 }: GroupIndexPreviewPanelProps) {
   const { t } = useTranslation(['site', 'common'])
 
@@ -139,6 +141,7 @@ export function GroupIndexPreviewPanel({
       device={device}
       onDeviceChange={onDeviceChange}
       onRefresh={onRefresh}
+      onClose={onClose}
       onLinkClick={onLinkClick}
       title={`${t('preview.previewIndex')} - ${groupName}`}
     />
