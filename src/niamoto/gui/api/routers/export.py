@@ -1,5 +1,6 @@
 """Export API endpoints for generating static sites and exports."""
 
+from dataclasses import dataclass
 import logging
 import os
 import threading
@@ -18,7 +19,6 @@ from niamoto.core.plugins.models import HtmlExporterParams
 from niamoto.common.config import Config
 from niamoto.gui.api.context import (
     get_database_path,
-    get_config_path,
     get_working_directory,
 )
 from niamoto.gui.api.services.job_file_store import JobFileStore
@@ -74,6 +74,15 @@ class ExportMetrics(BaseModel):
     execution_time: float
 
 
+@dataclass(frozen=True)
+class ExportExecutionContext:
+    """Immutable project context captured when the export request starts."""
+
+    work_dir: Path
+    config_path: Path
+    db_path: Optional[Path]
+
+
 def _get_job_store(request: Request) -> JobFileStore:
     """Resolve the project-scoped JobFileStore for the current request."""
     try:
@@ -97,9 +106,34 @@ def _job_to_status(job: dict) -> dict:
     }
 
 
-def get_export_config(config_path: str) -> Dict[str, Any]:
+def _resolve_export_config_path(config_path: str | Path, work_dir: Path) -> Path:
+    """Resolve an export config path against an explicit project directory."""
+    path = Path(config_path)
+    if path.is_absolute():
+        return path
+
+    config_path_str = str(config_path)
+    if config_path_str.startswith("config/"):
+        return work_dir / config_path_str
+
+    return work_dir / "config" / config_path_str
+
+
+def _resolve_export_execution_context(config_path: str) -> ExportExecutionContext:
+    """Freeze the project context so background export work cannot drift."""
+    work_dir = get_working_directory()
+    resolved_config_path = _resolve_export_config_path(config_path, work_dir)
+    db_path = get_database_path()
+    return ExportExecutionContext(
+        work_dir=work_dir,
+        config_path=resolved_config_path,
+        db_path=db_path,
+    )
+
+
+def get_export_config(config_path: str | Path) -> Dict[str, Any]:
     """Load and parse export configuration."""
-    path = get_config_path(config_path)
+    path = _resolve_export_config_path(config_path, get_working_directory())
 
     if not path.exists():
         raise HTTPException(
@@ -274,7 +308,7 @@ def _format_export_failure(results: dict[str, dict[str, Any]]) -> str:
 async def execute_export_background(
     job_id: str,
     job_store: JobFileStore,
-    config_path: str,
+    execution_context: ExportExecutionContext,
     export_types: Optional[List[str]] = None,
     include_transform: bool = False,
 ):
@@ -286,20 +320,23 @@ async def execute_export_background(
     try:
         logger.info("Starting export job %s", job_id)
         job_store.update_progress(job_id, 0, "Loading configuration...")
-        logger.info("Job %s: Loading configuration from %s", job_id, config_path)
+        logger.info(
+            "Job %s: Loading configuration from %s",
+            job_id,
+            execution_context.config_path,
+        )
 
         # Load configuration
-        config = get_export_config(config_path)
+        config = get_export_config(execution_context.config_path)
 
         # Initialize services
-        db_path = get_database_path()
-        if not db_path:
+        if not execution_context.db_path:
             raise ValueError(
                 "Database not found. Please ensure the database is initialized."
             )
 
         logger.info("Job %s: Initializing Config", job_id)
-        work_dir = get_working_directory()
+        work_dir = execution_context.work_dir
         config_dir = str(work_dir / "config")
         app_config = Config(config_dir=config_dir, create_default=False)
 
@@ -320,7 +357,9 @@ async def execute_export_background(
             logger.info("Job %s: Running transform phase", job_id)
 
             transformer_service = TransformerService(
-                str(db_path), app_config, enable_cli_integration=False
+                str(execution_context.db_path),
+                app_config,
+                enable_cli_integration=False,
             )
 
             def transform_progress_callback(update: Dict[str, Any]) -> None:
@@ -353,7 +392,7 @@ async def execute_export_background(
         export_range = progress_range - init_offset
 
         logger.info("Job %s: Creating ExporterService", job_id)
-        exporter_service = ExporterService(str(db_path), app_config)
+        exporter_service = ExporterService(str(execution_context.db_path), app_config)
 
         job_store.update_progress(
             job_id, progress_base + init_offset, "Executing exports...", phase="export"
@@ -551,7 +590,10 @@ async def execute_export(
             detail=f"Un calcul est déjà en cours ({running['type']} — {running['progress']}%)",
         )
 
-    config = get_export_config(request.config_path or "config/export.yml")
+    execution_context = _resolve_export_execution_context(
+        request.config_path or "config/export.yml"
+    )
+    config = get_export_config(execution_context.config_path)
     _validate_selected_export_targets(config, request.export_types)
 
     try:
@@ -563,7 +605,7 @@ async def execute_export(
         execute_export_background,
         job["id"],
         job_store,
-        request.config_path,
+        execution_context,
         request.export_types,
         request.include_transform,
     )
@@ -784,15 +826,20 @@ async def execute_export_cli(
         raise HTTPException(status_code=409, detail=str(exc))
 
     job_id = job["id"]
+    work_dir = get_working_directory()
 
     async def run_export_command():
         """Run the niamoto export command."""
         try:
             job_store.update_progress(job_id, 0, "Running niamoto export command...")
+            env = os.environ.copy()
+            env["NIAMOTO_HOME"] = str(work_dir)
 
             process = await asyncio.create_subprocess_exec(
                 "niamoto",
                 "export",
+                cwd=str(work_dir),
+                env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

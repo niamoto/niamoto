@@ -361,6 +361,7 @@ class TestReloadProjectFromDesktopConfig:
         previous_project = tmp_path / "previous-project"
         previous_project.mkdir()
         context.set_working_directory(previous_project)
+        monkeypatch.setenv(context.NIAMOTO_HOME_ENV, str(previous_project))
 
         monkeypatch.setattr(context.Path, "home", staticmethod(lambda: tmp_path))
 
@@ -369,6 +370,7 @@ class TestReloadProjectFromDesktopConfig:
         assert result.state == "welcome"
         assert result.project_path is None
         assert context._working_directory is None
+        assert os.environ.get(context.NIAMOTO_HOME_ENV) is None
 
     def test_invalid_project_returns_invalid_state_and_clears_working_directory(
         self, tmp_path, monkeypatch
@@ -376,6 +378,7 @@ class TestReloadProjectFromDesktopConfig:
         previous_project = tmp_path / "previous-project"
         previous_project.mkdir()
         context.set_working_directory(previous_project)
+        monkeypatch.setenv(context.NIAMOTO_HOME_ENV, str(previous_project))
 
         desktop_config_dir = tmp_path / ".niamoto"
         desktop_config_dir.mkdir()
@@ -391,6 +394,7 @@ class TestReloadProjectFromDesktopConfig:
         assert result.state == "invalid-project"
         assert result.project_path is None
         assert context._working_directory is None
+        assert os.environ.get(context.NIAMOTO_HOME_ENV) is None
 
     def test_valid_project_updates_working_directory(self, tmp_path, monkeypatch):
         desktop_config_dir = tmp_path / ".niamoto"
@@ -412,3 +416,4 @@ class TestReloadProjectFromDesktopConfig:
         assert result.state == "loaded"
         assert result.project_path == project_dir
         assert context._working_directory == project_dir
+        assert os.environ.get(context.NIAMOTO_HOME_ENV) == str(project_dir)
