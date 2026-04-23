@@ -17,7 +17,6 @@ import {
   Save,
   AlertCircle,
   Eye,
-  EyeOff,
   RotateCcw,
 } from 'lucide-react'
 import {
@@ -28,7 +27,6 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { type DeviceSize } from '@/components/ui/preview-frame'
 import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   AlertDialog,
@@ -63,7 +61,9 @@ import { UnifiedSiteTree } from './UnifiedSiteTree'
 
 // Hooks
 import { useSiteBuilderState } from '../hooks/useSiteBuilderState'
+import { useSiteWorkbenchPreferences } from '../hooks/useSiteWorkbenchPreferences'
 import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
+import { type SiteWorkbenchLayout } from '../lib/siteWorkbenchPreferences'
 import { requiresSiteSetup } from '../lib/siteReadiness'
 import { generateFooterFromTree } from '../utils/generateFooter'
 import { SiteSetupWizard } from './SiteSetupWizard'
@@ -76,9 +76,29 @@ interface SiteBuilderProps {
   initialSection?: 'general' | 'appearance' | 'navigation' | 'pages'
 }
 
+const DEFAULT_SITE_PREVIEW_LAYOUT: SiteWorkbenchLayout = {
+  tree: 15,
+  editor: 50,
+  preview: 35,
+}
+
+const DEFAULT_SITE_EDITOR_LAYOUT: SiteWorkbenchLayout = {
+  tree: 15,
+  editor: 85,
+}
+
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
   const state = useSiteBuilderState(initialSection)
+  const {
+    projectScope,
+    previewState,
+    previewDevice,
+    previewLayout,
+    setPreviewState,
+    setPreviewDevice,
+    setPreviewLayout,
+  } = useSiteWorkbenchPreferences()
   const [showWizard, setShowWizard] = useState(false)
   const [wizardDismissed, setWizardDismissed] = useState(false)
   const [overviewPreview, setOverviewPreview] = useState(false)
@@ -100,9 +120,11 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const previewAvailable = state.selection?.type === 'page'
     || (state.selection?.type === 'appearance' && state.editedPages.length > 0)
     || (state.selection?.type === 'group' && groupHasIndex)
-  const [previewEnabled, setPreviewEnabled] = useState(false)
-  const showPreview = previewAvailable && previewEnabled
-  const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
+  const showPreview = previewAvailable && previewState !== 'closed'
+  const showPreviewRestore = previewAvailable && !showPreview
+  const resolvedPreviewLayout = previewLayout
+    ? { ...DEFAULT_SITE_PREVIEW_LAYOUT, ...previewLayout }
+    : DEFAULT_SITE_PREVIEW_LAYOUT
 
   // Group index preview
   const {
@@ -158,12 +180,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   ])
 
   useEffect(() => {
-    if (state.selection?.type === 'group' && groupHasIndex && previewEnabled && state.selection.id) {
+    if (state.selection?.type === 'group' && groupHasIndex && showPreview && state.selection.id) {
       loadGroupIndexPreview()
     } else if (state.selection?.type !== 'group') {
       setGroupIndexHtml(null)
     }
-  }, [groupHasIndex, loadGroupIndexPreview, previewEnabled, state.selection?.id, state.selection?.type])
+  }, [groupHasIndex, loadGroupIndexPreview, showPreview, state.selection?.id, state.selection?.type])
 
   // Current page for preview
   const currentPage = state.selection?.type === 'page'
@@ -275,9 +297,21 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     }
   }, [siteNeedsSetup])
 
+  const handleOpenPreview = useCallback(() => {
+    setPreviewState('open')
+  }, [setPreviewState])
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewState('closed')
+  }, [setPreviewState])
+
+  const handleLayoutChange = useCallback((layout: SiteWorkbenchLayout) => {
+    setPreviewLayout(layout)
+  }, [setPreviewLayout])
+
   const editorTransitionKey = state.selection
-    ? `${state.selection.type}:${state.selection.id ?? ''}:${previewEnabled ? 'preview' : 'editor'}`
-    : `${overviewPreview ? 'overview-preview' : showWizard || (siteNeedsSetup && !wizardDismissed) ? 'wizard' : 'overview'}:${previewEnabled ? 'preview' : 'editor'}`
+    ? `${state.selection.type}:${state.selection.id ?? ''}:${showPreview ? 'preview' : 'editor'}`
+    : `${overviewPreview ? 'overview-preview' : showWizard || (siteNeedsSetup && !wizardDismissed) ? 'wizard' : 'overview'}:${showPreview ? 'preview' : 'editor'}`
 
   // Render editor based on selection
   const renderEditor = () => {
@@ -568,20 +602,6 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               {t('wizard.reconfigure')}
             </Button>
           )}
-          {previewAvailable && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPreviewEnabled(!previewEnabled)}
-            >
-              {previewEnabled ? (
-                <EyeOff className="h-4 w-4 mr-2" />
-              ) : (
-                <Eye className="h-4 w-4 mr-2" />
-              )}
-              {previewEnabled ? t('common:actions.hidePreview') : t('preview.title')}
-            </Button>
-          )}
           {state.hasChanges && (
             <Button
               size="sm"
@@ -600,9 +620,15 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       </div>
 
       {/* Main Content */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+      <ResizablePanelGroup
+        key={`${projectScope ?? 'site'}:${showPreview ? 'preview' : 'editor'}`}
+        direction="horizontal"
+        className="flex-1 overflow-hidden"
+        defaultLayout={showPreview ? resolvedPreviewLayout : DEFAULT_SITE_EDITOR_LAYOUT}
+        onLayoutChanged={showPreview ? handleLayoutChange : undefined}
+      >
         {/* Left Panel - Unified Tree */}
-        <ResizablePanel id="tree" defaultSize="15%" minSize="12%" maxSize="25%">
+        <ResizablePanel id="tree" defaultSize={15} minSize="12%" maxSize="25%">
           <UnifiedSiteTree
             items={state.unifiedTree}
             selection={state.selection}
@@ -618,17 +644,32 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <ResizableHandle withHandle />
 
         {/* Center Panel - Editor */}
-        <ResizablePanel id="editor" defaultSize={showPreview ? "50%" : "85%"} minSize="30%" className="overflow-hidden">
-          <PanelTransition transitionKey={editorTransitionKey}>
-            {renderEditor()}
-          </PanelTransition>
+        <ResizablePanel id="editor" defaultSize={showPreview ? 50 : 85} minSize="30%" className="overflow-hidden">
+          <div className="relative h-full">
+            {showPreviewRestore && (
+              <div className="pointer-events-none absolute right-3 top-3 z-10">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="pointer-events-auto bg-background/90 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/75"
+                  onClick={handleOpenPreview}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  {t('preview.title')}
+                </Button>
+              </div>
+            )}
+            <PanelTransition transitionKey={editorTransitionKey}>
+              {renderEditor()}
+            </PanelTransition>
+          </div>
         </ResizablePanel>
 
         {/* Right Panel - Preview (optional) */}
         {showPreview && (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel id="preview" defaultSize="35%" minSize="20%" maxSize="50%">
+            <ResizablePanel id="preview" defaultSize={35} minSize="20%" maxSize="50%">
               {state.selection?.type === 'group' ? (
                 <GroupIndexPreviewPanel
                   html={groupIndexHtml}
@@ -638,6 +679,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                   groupName={state.selection.id ?? ''}
                   onLinkClick={handlePreviewLinkClick}
                   onRefresh={loadGroupIndexPreview}
+                  onClose={handleClosePreview}
                 />
               ) : (
                 <SitePreview
@@ -649,6 +691,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                   onDeviceChange={setPreviewDevice}
                   fileContent={previewFileContent}
                   onLinkClick={handlePreviewLinkClick}
+                  onClose={handleClosePreview}
                 />
               )}
             </ResizablePanel>
