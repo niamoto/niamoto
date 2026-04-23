@@ -24,17 +24,30 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }))
 
+const mockNavigationState = {
+  sidebarMode: 'full',
+}
+
 vi.mock('@/stores/navigationStore', () => ({
-  useNavigationStore: () => ({
-    setCommandPaletteOpen: vi.fn(),
-    sidebarMode: 'full',
-    setSidebarMode: vi.fn(),
-    toggleSidebar: vi.fn(),
-  }),
+  useNavigationStore: (selector?: (state: typeof mockNavigationState) => unknown) =>
+    selector ? selector(mockNavigationState) : mockNavigationState,
 }))
 
 vi.mock('@/shared/hooks/usePlatform', () => ({
   usePlatform: () => ({ isMac: false, isDesktop: false }),
+}))
+
+vi.mock('@/shared/shell/shellActions', () => ({
+  SHELL_ACTION_IDS: {
+    COMMAND_PALETTE_OPEN: 'command_palette.open',
+    SHELL_TOGGLE_SIDEBAR: 'shell.toggle_sidebar',
+    HELP_DOCUMENTATION: 'help.documentation',
+    HELP_SHORTCUTS: 'help.shortcuts',
+    HELP_ABOUT: 'help.about',
+  },
+  useShellActionRunner: () => ({
+    runShellAction: vi.fn(),
+  }),
 }))
 
 vi.mock('@/components/ui/button', () => ({

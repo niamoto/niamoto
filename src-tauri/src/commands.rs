@@ -1,4 +1,5 @@
 use crate::config::{AppConfig, AppSettings, ProjectEntry};
+use crate::menu;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -7,8 +8,8 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, Url};
 
 const WINDOWS_RESERVED_PROJECT_NAMES: &[&str] = &[
-    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-    "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
 /// Shared state for the app configuration
@@ -141,7 +142,11 @@ pub fn get_recent_projects(state: State<ConfigState>) -> Result<Vec<ProjectEntry
 
 /// Set the current project
 #[tauri::command]
-pub fn set_current_project(path: String, state: State<ConfigState>) -> Result<(), String> {
+pub fn set_current_project(
+    app: AppHandle,
+    path: String,
+    state: State<ConfigState>,
+) -> Result<(), String> {
     let project_path = PathBuf::from(&path);
 
     // Validate first
@@ -149,17 +154,25 @@ pub fn set_current_project(path: String, state: State<ConfigState>) -> Result<()
 
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
     config.set_current_project(project_path)?;
+    drop(config);
+    menu::refresh_app_menu(&app)?;
 
     Ok(())
 }
 
 /// Remove a project from recent projects
 #[tauri::command]
-pub fn remove_recent_project(path: String, state: State<ConfigState>) -> Result<(), String> {
+pub fn remove_recent_project(
+    app: AppHandle,
+    path: String,
+    state: State<ConfigState>,
+) -> Result<(), String> {
     let project_path = PathBuf::from(&path);
 
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
     config.remove_recent_project(&project_path)?;
+    drop(config);
+    menu::refresh_app_menu(&app)?;
 
     Ok(())
 }
@@ -237,17 +250,21 @@ pub fn get_app_settings(state: State<ConfigState>) -> Result<AppSettings, String
 
 /// Update application settings
 #[tauri::command]
-pub fn set_app_settings(settings: AppSettings, state: State<ConfigState>) -> Result<(), String> {
+pub fn set_app_settings(
+    app: AppHandle,
+    settings: AppSettings,
+    state: State<ConfigState>,
+) -> Result<(), String> {
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
-    config.set_settings(settings)
+    config.set_settings(settings)?;
+    drop(config);
+    menu::refresh_app_menu(&app)?;
+    Ok(())
 }
 
 /// Open desktop devtools on demand when debug mode is enabled
 #[tauri::command]
-pub fn open_desktop_devtools(
-    app: AppHandle,
-    state: State<ConfigState>,
-) -> Result<(), String> {
+pub fn open_desktop_devtools(app: AppHandle, state: State<ConfigState>) -> Result<(), String> {
     let config = state.config.lock().map_err(|e| e.to_string())?;
     if !cfg!(debug_assertions) && !config.debug_mode {
         return Err("Desktop debug mode is disabled".to_string());
@@ -265,6 +282,7 @@ pub fn open_desktop_devtools(
 /// Create a new Niamoto project with the standard directory structure
 #[tauri::command]
 pub fn create_project(
+    app: AppHandle,
     name: String,
     location: String,
     state: State<ConfigState>,
@@ -295,6 +313,8 @@ pub fn create_project(
     let path_str = project_path.to_string_lossy().to_string();
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
     config.set_current_project(project_path)?;
+    drop(config);
+    menu::refresh_app_menu(&app)?;
 
     Ok(path_str)
 }
@@ -328,8 +348,7 @@ fn validate_external_url(url: &str) -> Result<Url, String> {
         return Err("URL cannot be empty".to_string());
     }
 
-    let parsed =
-        Url::parse(trimmed_url).map_err(|err| format!("Invalid external URL: {err}"))?;
+    let parsed = Url::parse(trimmed_url).map_err(|err| format!("Invalid external URL: {err}"))?;
 
     match parsed.scheme() {
         "https" | "http" | "mailto" => Ok(parsed),
@@ -428,7 +447,10 @@ mod tests {
             "http://127.0.0.1:8080/preview",
             "mailto:support@niamoto.io",
         ] {
-            assert!(validate_external_url(url).is_ok(), "expected {url} to be allowed");
+            assert!(
+                validate_external_url(url).is_ok(),
+                "expected {url} to be allowed"
+            );
         }
     }
 

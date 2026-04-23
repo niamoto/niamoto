@@ -14,6 +14,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 mod commands;
 mod config;
+mod menu;
 
 use commands::ConfigState;
 use config::{AppConfig, DESKTOP_CONFIG_ENV, DESKTOP_LOG_DIR_ENV};
@@ -24,8 +25,7 @@ const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
 const DESKTOP_PROBE_HEADER: &str = "x-niamoto-desktop-probe";
 const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
-const APP_LOADER_CSS: &str =
-    include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
+const APP_LOADER_CSS: &str = include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -381,13 +381,9 @@ fn encode_data_url_component(value: &str) -> String {
     let mut encoded = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
-            b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'0'..=b'9'
-            | b'-'
-            | b'_'
-            | b'.'
-            | b'~' => encoded.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char)
+            }
             _ => encoded.push_str(&format!("%{:02X}", byte)),
         }
     }
@@ -553,6 +549,8 @@ pub fn run() {
             process: Mutex::new(None),
         })
         .manage(ConfigState::new())
+        .menu(menu::build_app_menu)
+        .on_menu_event(menu::handle_menu_event)
         .invoke_handler(tauri::generate_handler![
             commands::get_current_project,
             commands::get_recent_projects,
@@ -945,8 +943,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_startup_token, health_probe_is_authenticated};
     use super::startup_ready_url;
+    use super::{generate_startup_token, health_probe_is_authenticated};
     use tauri::Url;
 
     #[test]

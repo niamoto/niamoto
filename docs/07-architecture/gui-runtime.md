@@ -60,6 +60,8 @@ Current shells:
 The shell-neutral desktop contract now includes:
 
 - a shared renderer bridge for project selection, settings, external URLs, and desktop-only helpers
+- a Tauri-native application menu that emits shell actions back into the renderer for command palette, settings, documentation, and sidebar toggling
+- a small shared shell action layer in the renderer so menu actions and non-native keyboard bindings reuse the same command paths
 - a shared project-selection config path through `NIAMOTO_DESKTOP_CONFIG`
 - shell-specific settings, logs, and application identifiers kept separate
 
