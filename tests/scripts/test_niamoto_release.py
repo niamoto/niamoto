@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -122,7 +123,9 @@ def test_render_changelog_section_groups_entries_by_category() -> None:
 def test_release_commit_files_include_lockfiles_and_release_metadata() -> None:
     assert niamoto_release.RELEASE_COMMIT_FILES == [
         *niamoto_release.VERSION_FILES,
+        "src/niamoto/gui/help_content/assets",
         "src/niamoto/gui/help_content/manifest.json",
+        "src/niamoto/gui/help_content/pages",
         "src/niamoto/gui/help_content/search-index.json",
         "uv.lock",
         "src-tauri/Cargo.lock",
@@ -132,7 +135,9 @@ def test_release_commit_files_include_lockfiles_and_release_metadata() -> None:
 
 def test_help_content_files_are_part_of_release_commit() -> None:
     assert niamoto_release.HELP_CONTENT_FILES == [
+        "src/niamoto/gui/help_content/assets",
         "src/niamoto/gui/help_content/manifest.json",
+        "src/niamoto/gui/help_content/pages",
         "src/niamoto/gui/help_content/search-index.json",
     ]
 
@@ -185,6 +190,105 @@ def test_prepare_release_commit_refreshes_and_stages_lockfiles(
     )
     assert recorded_steps[3] == (
         "Stage release files",
-        ["git", "add", *niamoto_release.RELEASE_COMMIT_FILES],
+        ["git", "add", "--all", *niamoto_release.RELEASE_COMMIT_FILES],
         niamoto_release.ROOT_DIR,
     )
+
+
+def test_release_worktree_needs_restaging_only_for_worktree_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status_outputs = iter(
+        [
+            "M  .marketing/plugins.json\n",
+            "MM .marketing/plugins.json\n",
+            "?? src/niamoto/gui/help_content/pages/07-architecture/testing-audit.json\n",
+            " M src/niamoto/gui/help_content/search-index.json\n",
+            "",
+        ]
+    )
+
+    def fake_git_output(*args: str, check: bool = True) -> str:
+        assert args[:3] == ("status", "--porcelain", "--untracked-files=all")
+        return next(status_outputs)
+
+    monkeypatch.setattr(niamoto_release, "git_output", fake_git_output)
+
+    assert niamoto_release.release_worktree_needs_restaging() is False
+    assert niamoto_release.release_worktree_needs_restaging() is True
+    assert niamoto_release.release_worktree_needs_restaging() is True
+    assert niamoto_release.release_worktree_needs_restaging() is True
+    assert niamoto_release.release_worktree_needs_restaging() is False
+
+
+def test_prepare_release_commit_restages_after_hook_updates_release_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    changelog_path = tmp_path / "CHANGELOG.md"
+    recorded_steps: list[tuple[str, list[str], Path]] = []
+    commit_attempts = 0
+
+    monkeypatch.setattr(niamoto_release, "CHANGELOG_PATH", changelog_path)
+
+    def fake_run_step(
+        description: str, args: list[str], *, cwd: Path = niamoto_release.ROOT_DIR
+    ) -> None:
+        nonlocal commit_attempts
+        recorded_steps.append((description, args, cwd))
+        if description == "Commit release":
+            commit_attempts += 1
+            raise subprocess.CalledProcessError(1, args)
+
+    monkeypatch.setattr(niamoto_release, "run_step", fake_run_step)
+    monkeypatch.setattr(
+        niamoto_release, "release_worktree_needs_restaging", lambda: True
+    )
+
+    niamoto_release.prepare_release_commit(
+        "0.15.8",
+        "## [v0.15.8] - 2026-04-20\n\n### Bug Fixes\n\n- Refresh release lockfiles\n",
+        "0.15.7",
+    )
+
+    assert commit_attempts == 1
+    assert [description for description, _, _ in recorded_steps] == [
+        "Version bump",
+        "Refresh uv.lock",
+        "Refresh Cargo.lock",
+        "Stage release files",
+        "Commit release",
+        "Re-stage hook-updated release files",
+        "Commit release (retry)",
+        "Create tag",
+    ]
+    assert recorded_steps[5] == (
+        "Re-stage hook-updated release files",
+        ["git", "add", "--all", *niamoto_release.RELEASE_COMMIT_FILES],
+        niamoto_release.ROOT_DIR,
+    )
+
+
+def test_prepare_release_commit_does_not_retry_unrelated_commit_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    changelog_path = tmp_path / "CHANGELOG.md"
+
+    monkeypatch.setattr(niamoto_release, "CHANGELOG_PATH", changelog_path)
+
+    def fake_run_step(
+        description: str, args: list[str], *, cwd: Path = niamoto_release.ROOT_DIR
+    ) -> None:
+        if description == "Commit release":
+            raise subprocess.CalledProcessError(1, args)
+
+    monkeypatch.setattr(niamoto_release, "run_step", fake_run_step)
+    monkeypatch.setattr(
+        niamoto_release, "release_worktree_needs_restaging", lambda: False
+    )
+
+    with pytest.raises(subprocess.CalledProcessError):
+        niamoto_release.prepare_release_commit(
+            "0.15.8",
+            "## [v0.15.8] - 2026-04-20\n\n### Bug Fixes\n\n- Refresh release lockfiles\n",
+            "0.15.7",
+        )
