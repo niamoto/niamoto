@@ -1,0 +1,64 @@
+{
+  "slug": "07-architecture/testing-strategy",
+  "path": "/help/07-architecture/testing-strategy",
+  "title": "Testing Strategy",
+  "description": "This is the active testing reference for Niamoto contributors.",
+  "page_type": "markdown",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Goals",
+      "level": 2,
+      "id": "goals"
+    },
+    {
+      "title": "Preferred Test Layers",
+      "level": 2,
+      "id": "preferred-test-layers"
+    },
+    {
+      "title": "Python",
+      "level": 3,
+      "id": "python"
+    },
+    {
+      "title": "Frontend",
+      "level": 3,
+      "id": "frontend"
+    },
+    {
+      "title": "Coverage Workflow",
+      "level": 2,
+      "id": "coverage-workflow"
+    },
+    {
+      "title": "Backend coverage",
+      "level": 3,
+      "id": "backend-coverage"
+    },
+    {
+      "title": "Frontend coverage",
+      "level": 3,
+      "id": "frontend-coverage"
+    },
+    {
+      "title": "What To Add First",
+      "level": 2,
+      "id": "what-to-add-first"
+    },
+    {
+      "title": "Contributor Checklist",
+      "level": 2,
+      "id": "contributor-checklist"
+    },
+    {
+      "title": "CI Notes",
+      "level": 2,
+      "id": "ci-notes"
+    }
+  ],
+  "html": "<h1 id=\"testing-strategy\">Testing Strategy</h1>\n<p>This is the active testing reference for Niamoto contributors.</p>\n<p>Use it together with <a href=\"/help/07-architecture/testing-audit\">testing-audit.md</a>:</p>\n<ul>\n<li><code>testing-audit.md</code> explains where the current gaps are</li>\n<li>this document explains what to test, how to run it, and how coverage is tracked</li>\n</ul>\n<h2 id=\"goals\">Goals</h2>\n<p>Niamoto does not optimize for raw test count. The goal is to protect the parts\nof the product most likely to cause real regressions:</p>\n<ul>\n<li>shared backend helpers that many flows depend on</li>\n<li>plugin adapters and deploy boundaries</li>\n<li>FastAPI route contracts and serialized payloads consumed by the UI</li>\n<li>import and suggestion heuristics with non-trivial decision branches</li>\n<li>frontend hooks and API normalization logic that drive user-visible state</li>\n</ul>\n<p>Pure wrappers and low-logic presentation components are lower priority unless\nthey encode important branching or content rules.</p>\n<h2 id=\"preferred-test-layers\">Preferred Test Layers</h2>\n<h3 id=\"python\">Python</h3>\n<p>Use focused pytest modules first:</p>\n<ul>\n<li>unit tests for shared helpers and decision-heavy modules</li>\n<li>direct router tests for FastAPI status and payload contracts</li>\n<li>integration tests only where cross-module compatibility really matters</li>\n</ul>\n<p>Strong local patterns already exist in:</p>\n<ul>\n<li><code>tests/core/services/test_importer.py</code></li>\n<li><code>tests/gui/api/routers/test_imports.py</code></li>\n<li><code>tests/gui/api/services/templates/test_suggestion_service.py</code></li>\n</ul>\n<h3 id=\"frontend\">Frontend</h3>\n<p>Prefer narrow Vitest tests over broad snapshots:</p>\n<ul>\n<li>pure helpers in <code>shared/lib</code>, <code>shared/desktop</code>, and feature <code>lib/</code></li>\n<li>hooks with meaningful state transitions or polling behavior</li>\n<li>selective jsdom harnesses for feature entry points when state wiring matters</li>\n</ul>\n<p>Useful local patterns include:</p>\n<ul>\n<li><code>src/features/import/components/dashboard/enrichmentPolling.test.ts</code></li>\n<li><code>src/shared/desktop/runtime.test.ts</code></li>\n<li><code>src/features/feedback/lib/__tests__/server-error-feedback.test.ts</code></li>\n</ul>\n<h2 id=\"coverage-workflow\">Coverage Workflow</h2>\n<h3 id=\"backend-coverage\">Backend coverage</h3>\n<p>Backend coverage is produced by pytest:</p>\n<pre><code class=\"language-bash\">uv run --group dev pytest -n auto --cov=niamoto tests/ --cov-report=xml --cov-report=html\n</code></pre>\n<p>The Python measurement scope comes from <code>.coveragerc</code>.</p>\n<h3 id=\"frontend-coverage\">Frontend coverage</h3>\n<p>Frontend coverage is produced by Vitest:</p>\n<pre><code class=\"language-bash\">cd src/niamoto/gui/ui\npnpm test:coverage\n</code></pre>\n<p>The frontend report is written to <code>src/niamoto/gui/ui/coverage/</code> and currently\nemits:</p>\n<ul>\n<li>text summary</li>\n<li>HTML report</li>\n<li><code>json-summary</code></li>\n<li><code>lcov</code></li>\n</ul>\n<p>The Vitest coverage config excludes:</p>\n<ul>\n<li>generated TypeScript files</li>\n<li>test files themselves</li>\n<li><code>vite-env.d.ts</code></li>\n<li><code>main.tsx</code></li>\n</ul>\n<p>These exclusions keep the report centered on behavior-bearing app code instead\nof scaffolding.</p>\n<h2 id=\"what-to-add-first\">What To Add First</h2>\n<p>When you touch behavior-bearing code, prefer this order:</p>\n<ol>\n<li>Add or update the nearest direct unit test.</li>\n<li>Add a router or serialization test if the UI or CLI depends on the payload.</li>\n<li>Add integration coverage only if the regression risk crosses module or layer boundaries.</li>\n</ol>\n<p>This keeps the suite diagnostic and avoids hiding regressions behind slow,\nover-broad scenarios.</p>\n<h2 id=\"contributor-checklist\">Contributor Checklist</h2>\n<p>Before finishing a change:</p>\n<ul>\n<li>run the smallest relevant pytest or Vitest target first</li>\n<li>broaden only after the local contract is stable</li>\n<li>update docs if the workflow, payload contract, or test command changed</li>\n<li>avoid adding coverage only to move percentages; protect real behavior</li>\n</ul>\n<h2 id=\"ci-notes\">CI Notes</h2>\n<p>CI publishes Python coverage artifacts and now also runs frontend coverage on a\nsingle Node-enabled matrix leg to avoid duplicate reports. Frontend coverage is\ncurrently informational infrastructure: it makes regressions visible and gives a\nstable baseline for future ratchets.</p>",
+  "asset_path": null,
+  "source_path": "07-architecture/testing-strategy.md"
+}
