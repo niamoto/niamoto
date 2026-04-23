@@ -51,7 +51,9 @@ VERSION_FILES = [
 ]
 
 HELP_CONTENT_FILES = [
+    "src/niamoto/gui/help_content/assets",
     "src/niamoto/gui/help_content/manifest.json",
+    "src/niamoto/gui/help_content/pages",
     "src/niamoto/gui/help_content/search-index.json",
 ]
 
@@ -390,6 +392,24 @@ def run_step(description: str, args: list[str], *, cwd: Path = ROOT_DIR) -> None
     run_command(args, cwd=cwd)
 
 
+def stage_release_files(description: str = "Stage release files") -> None:
+    run_step(description, ["git", "add", "--all", *RELEASE_COMMIT_FILES])
+
+
+def release_worktree_needs_restaging() -> bool:
+    status_output = git_output(
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        *RELEASE_COMMIT_FILES,
+    )
+    return any(
+        line.startswith("?? ") or (len(line) >= 2 and line[1] != " ")
+        for line in status_output.splitlines()
+    )
+
+
 def run_preflight_checks() -> None:
     ensure_release_prerequisites()
 
@@ -447,8 +467,16 @@ def prepare_release_commit(
         ["cargo", "update", "--workspace", "--offline", "--quiet"],
         cwd=TAURI_DIR,
     )
-    run_step("Stage release files", ["git", "add", *RELEASE_COMMIT_FILES])
-    run_step("Commit release", ["git", "commit", "-m", f"release: v{version}"])
+    stage_release_files()
+
+    commit_args = ["git", "commit", "-m", f"release: v{version}"]
+    try:
+        run_step("Commit release", commit_args)
+    except subprocess.CalledProcessError:
+        if not release_worktree_needs_restaging():
+            raise
+        stage_release_files("Re-stage hook-updated release files")
+        run_step("Commit release (retry)", commit_args)
     run_step("Create tag", ["git", "tag", f"v{version}"])
 
 
