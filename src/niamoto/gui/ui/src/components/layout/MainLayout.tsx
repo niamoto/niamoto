@@ -11,6 +11,7 @@ import { recordNavigation } from '@/features/feedback/lib/navigation-tracker'
 import { useNavigationStore, routeLabels } from '@/stores/navigationStore'
 import { useJobPolling } from '@/hooks/useJobPolling'
 import { AppUpdaterProvider } from '@/shared/desktop/updater/useAppUpdater'
+import { useShellBindings } from '@/shared/shell/useShellBindings'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { cn } from '@/lib/utils'
 
@@ -40,13 +41,14 @@ function syncSidebarModeToViewport() {
 export function MainLayout() {
   const location = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
-  const { isDesktop } = useRuntimeMode()
+  const { isDesktop, isTauri } = useRuntimeMode()
   const routeSurfaceKey = location.pathname.startsWith('/help/')
     || location.pathname === '/help'
     ? '/help'
     : location.pathname
 
   useJobPolling()
+  useShellBindings({ isDesktop, isTauri })
 
   // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {

@@ -36,13 +36,17 @@ repos:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-yaml
+    -   id: check-json
+        exclude: '(^|/)tsconfig[^/]*\.json$'
     -   id: check-toml  # Vérifie la syntaxe du pyproject.toml
     -   id: check-added-large-files
         args: ['--maxkb=5000']
         exclude: '^(models|ml/models)/.*\.joblib$'
     -   id: check-merge-conflict
+    -   id: check-case-conflict
     -   id: debug-statements
     -   id: detect-private-key
+    -   id: mixed-line-ending
 
 # Hook local pour générer les requirements
 -   repo: local
@@ -51,6 +55,12 @@ repos:
         name: Generate Requirements Files
         entry: python scripts/build/generate_requirements.py
         language: python
+    -   id: ui-pnpm-lint
+        name: UI pnpm lint
+        entry: pnpm --dir src/niamoto/gui/ui lint
+        language: system
+        pass_filenames: false
+        files: ^src/niamoto/gui/ui/
     -   id: regenerate-plugin-manifest
         name: Regenerate marketing plugin manifest
         entry: python scripts/generate-plugin-manifest.py

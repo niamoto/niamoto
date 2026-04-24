@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Command,
@@ -12,6 +11,10 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { usePlatform } from '@/shared/hooks/usePlatform'
+import {
+  SHELL_ACTION_IDS,
+  useShellActionRunner,
+} from '@/shared/shell/shellActions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +31,9 @@ interface TopBarProps {
 
 export function TopBar({ className }: TopBarProps) {
   const { t } = useTranslation()
-  const { setCommandPaletteOpen, sidebarMode, setSidebarMode, toggleSidebar } = useNavigationStore()
+  const sidebarMode = useNavigationStore((state) => state.sidebarMode)
   const { isMac, isDesktop } = usePlatform()
-  const navigate = useNavigate()
+  const { runShellAction } = useShellActionRunner()
   const commandShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
 
   return (
@@ -49,7 +52,7 @@ export function TopBar({ className }: TopBarProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSidebarMode('full')}
+            onClick={() => void runShellAction(SHELL_ACTION_IDS.SHELL_TOGGLE_SIDEBAR)}
             className="no-drag lg:hidden"
           >
             <Menu className="h-5 w-5" />
@@ -58,7 +61,7 @@ export function TopBar({ className }: TopBarProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleSidebar}
+            onClick={() => void runShellAction(SHELL_ACTION_IDS.SHELL_TOGGLE_SIDEBAR)}
             className="no-drag hidden h-8 w-8 md:inline-flex text-foreground/70 hover:bg-background/75 hover:text-foreground"
             title={t('sidebar.toggle', 'Toggle sidebar')}
           >
@@ -70,7 +73,7 @@ export function TopBar({ className }: TopBarProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setCommandPaletteOpen(true)}
+          onClick={() => void runShellAction(SHELL_ACTION_IDS.COMMAND_PALETTE_OPEN)}
           className="no-drag md:hidden"
         >
           <Search className="h-5 w-5" />
@@ -83,7 +86,7 @@ export function TopBar({ className }: TopBarProps) {
         <Button
           variant="outline"
           className="no-drag hidden h-8 justify-start gap-2 rounded-full border-border/70 bg-background/70 px-3 text-muted-foreground shadow-none md:inline-flex"
-          onClick={() => setCommandPaletteOpen(true)}
+          onClick={() => void runShellAction(SHELL_ACTION_IDS.COMMAND_PALETTE_OPEN)}
         >
           <Command className="h-3.5 w-3.5" />
           <span className="hidden text-left lg:inline">
@@ -109,16 +112,22 @@ export function TopBar({ className }: TopBarProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{t('help.title', 'Help')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => navigate('/help')}>
+            <DropdownMenuItem
+              onSelect={() => void runShellAction(SHELL_ACTION_IDS.HELP_DOCUMENTATION)}
+            >
               <FileText className="mr-2 h-4 w-4" />
               {t('help.documentation', 'Documentation')}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setCommandPaletteOpen(true)}>
+            <DropdownMenuItem
+              onSelect={() => void runShellAction(SHELL_ACTION_IDS.HELP_SHORTCUTS)}
+            >
               <Command className="mr-2 h-4 w-4" />
               {t('help.shortcuts', 'Keyboard shortcuts')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => navigate('/tools/settings')}>
+            <DropdownMenuItem
+              onSelect={() => void runShellAction(SHELL_ACTION_IDS.HELP_ABOUT)}
+            >
               {t('help.about', 'About Niamoto')}
             </DropdownMenuItem>
           </DropdownMenuContent>

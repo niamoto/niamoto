@@ -61,7 +61,6 @@
       "range_y": "Plage Y",
       "labels": "Libellés",
       "color_discrete_map": "Couleurs discrètes",
-      "color_continuous_scale": "Échelle continue",
       "auto_color": "Couleurs automatiques",
       "gradient_color": "Couleur de gradient",
       "gradient_mode": "Mode de gradient",

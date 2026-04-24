@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from 'react'
+import { act, useLayoutEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,10 +42,15 @@ describe('useFeedback', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
-    let received: FeedbackState | null = null
+    const receivedRef: { current: FeedbackState | null } = { current: null }
 
     function Probe() {
-      received = useFeedback()
+      const feedback = useFeedback()
+
+      useLayoutEffect(() => {
+        receivedRef.current = feedback
+      }, [feedback])
+
       return null
     }
 
@@ -57,7 +62,7 @@ describe('useFeedback', () => {
       )
     })
 
-    expect(received).toBe(expected)
+    expect(receivedRef.current).toBe(expected)
 
     await act(async () => {
       root.unmount()
