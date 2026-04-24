@@ -3,414 +3,414 @@
     "name": "cloudflare",
     "type": "deployer",
     "body": "Deploy static assets to Cloudflare Workers.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "github",
     "type": "deployer",
     "body": "Deploy static sites to GitHub Pages.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "netlify",
     "type": "deployer",
     "body": "Deploy static sites to Netlify via ZIP upload.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "render",
     "type": "deployer",
     "body": "Deploy to Render via Deploy Hook or API.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "ssh",
     "type": "deployer",
     "body": "Deploy static sites via rsync over SSH.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "vercel",
     "type": "deployer",
     "body": "Deploy static sites to Vercel via the Deployments API.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "dwc_archive_exporter",
     "type": "exporter",
     "body": "Generates standard Darwin Core Archive files.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "html_page_exporter",
     "type": "exporter",
     "body": "Generates a static HTML website based on the export configuration.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "index_generator",
     "type": "exporter",
     "body": "Plugin for generating configurable index pages for groups.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "json_api_exporter",
     "type": "exporter",
     "body": "Generates static JSON API files based on the export configuration.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "adjacency_list",
     "type": "loader",
     "body": "Loader for adjacency list hierarchies.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "api_elevation_enricher",
     "type": "loader",
     "body": "Enrich a point or geometry with elevation data.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "api_spatial_enricher",
     "type": "loader",
     "body": "Enrich a point or geometry with GeoNames administrative context.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "api_taxonomy_enricher",
     "type": "loader",
     "body": "Plugin for enriching taxonomy data with information from external APIs",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "direct_reference",
     "type": "loader",
     "body": "Loader using direct references between tables",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "join_table",
     "type": "loader",
     "body": "Loader using join tables",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "nested_set",
     "type": "loader",
     "body": "Loader for nested set hierarchies",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "spatial_containment",
     "type": "loader",
     "body": "Loader using spatial queries",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "stats_loader",
     "type": "loader",
     "body": "Plugin for loading statistics from various sources.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "binary_counter",
     "type": "transformer",
     "body": "Plugin for counting binary values",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "binned_distribution",
     "type": "transformer",
     "body": "Plugin for creating binned distributions",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "boolean_comparison",
     "type": "transformer",
     "body": "Plugin de comparaison de champs booléens.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "categorical_distribution",
     "type": "transformer",
     "body": "Plugin for creating categorical distributions",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_binary_aggregator",
     "type": "transformer",
     "body": "Plugin for handling binary/ternary class distributions",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_categories_extractor",
     "type": "transformer",
     "body": "Plugin for extracting ordered categorical values",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_categories_mapper",
     "type": "transformer",
     "body": "Plugin for mapping class object data into categories",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_field_aggregator",
     "type": "transformer",
     "body": "Plugin for aggregating fields from class objects",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_series_by_axis_extractor",
     "type": "transformer",
     "body": "Plugin for extracting series by axis from class objects",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_series_extractor",
     "type": "transformer",
     "body": "Plugin for extracting series from class_object data",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_series_matrix_extractor",
     "type": "transformer",
     "body": "Plugin for extracting and transforming series into a matrix format",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "class_object_series_ratio_aggregator",
     "type": "transformer",
     "body": "Plugin for calculating ratios between series distributions",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "custom_calculator",
     "type": "transformer",
     "body": "Plugin for performing custom calculations on data from other transformers.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "custom_formatter",
     "type": "transformer",
     "body": "Plugin that formats data according to a specified template.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "database_aggregator",
     "type": "transformer",
     "body": "Execute SQL queries for cross-cutting data aggregation.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "direct_attribute",
     "type": "transformer",
     "body": "Plugin for getting a direct attribute",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "elevation_profile",
     "type": "transformer",
     "body": "Plugin for creating elevation profiles.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "field_aggregator",
     "type": "transformer",
     "body": "Field aggregator transformer.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "forest_elevation_analysis",
     "type": "transformer",
     "body": "Plugin for analyzing the distribution of forest types by elevation.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "forest_holdridge_analysis",
     "type": "transformer",
     "body": "Plugin for analyzing the distribution of forests in Holdridge life zones.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "fragmentation_analysis",
     "type": "transformer",
     "body": "Plugin for forest fragmentation analysis.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "geospatial_extractor",
     "type": "transformer",
     "body": "Plugin for extracting geospatial data",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "land_use_analysis",
     "type": "transformer",
     "body": "Plugin for a complete analysis of land use.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "multi_column_extractor",
     "type": "transformer",
     "body": "Plugin for extracting values from multiple columns",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "niamoto_to_dwc_occurrence",
     "type": "transformer",
     "body": "Transform Niamoto data to Darwin Core Occurrence format.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "raster_stats",
     "type": "transformer",
     "body": "Plugin for extracting statistics from raster data.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "reference_enrichment_profile",
     "type": "transformer",
     "body": "Normalize enrichment source payloads into a stable widget contract.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "scatter_analysis",
     "type": "transformer",
     "body": "Plugin d'analyse de dispersion entre deux champs numériques.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "shape_processor",
     "type": "transformer",
     "body": "Plugin for processing complex shapes with additional layers",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "statistical_summary",
     "type": "transformer",
     "body": "Plugin for calculating statistical summaries",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "time_series_analysis",
     "type": "transformer",
     "body": "Plugin for analyzing time series data",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "top_ranking",
     "type": "transformer",
     "body": "Plugin for getting top N items",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "transform_chain",
     "type": "transformer",
     "body": "Plugin for chaining multiple transformations",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "vector_overlay",
     "type": "transformer",
     "body": "Plugin for vector overlay analysis.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "bar_plot",
     "type": "widget",
     "body": "Widget to display a bar plot using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "concentric_rings",
     "type": "widget",
     "body": "Widget to display concentric rings for forest cover data.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "diverging_bar_plot",
     "type": "widget",
     "body": "Widget to display a diverging bar plot (horizontal or vertical) using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "donut_chart",
     "type": "widget",
     "body": "Widget to display a donut chart using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "enrichment_panel",
     "type": "widget",
     "body": "Render a compact, sectioned view of enriched reference metadata.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "hierarchical_nav_widget",
     "type": "widget",
     "body": "Interactive hierarchical navigation tree widget.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "info_grid",
     "type": "widget",
     "body": "Displays a grid of key information items (KPIs, stats, labels).",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "interactive_map",
     "type": "widget",
     "body": "Widget to display an interactive map using Plotly Express.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "line_plot",
     "type": "widget",
     "body": "Widget to display a line plot using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "radial_gauge",
     "type": "widget",
     "body": "Widget to display a radial gauge using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "raw_data_widget",
     "type": "widget",
     "body": "Widget to display raw data in an HTML table.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "scatter_plot",
     "type": "widget",
     "body": "Widget to display a scatter plot using Plotly Express.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "stacked_area_plot",
     "type": "widget",
     "body": "Widget to display a stacked area chart using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "summary_stats",
     "type": "widget",
     "body": "Widget to display summary statistics of numeric columns in a DataFrame.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "sunburst_chart",
     "type": "widget",
     "body": "Widget to display a sunburst chart using Plotly.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   },
   {
     "name": "table_view",
     "type": "widget",
     "body": "Widget to display a pandas DataFrame as an HTML table.",
-    "version": "0.16.0"
+    "version": "0.16.1"
   }
 ]

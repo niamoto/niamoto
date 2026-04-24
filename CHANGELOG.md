@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.16.1] - 2026-04-24
+
+### Features
+
+- Improve site builder authoring workflow
+- Persist site workbench preview state
+- Add native desktop menu shell
+- Refine desktop shell and export toggles
+
+### Bug Fixes
+
+- Restore export config path hook
+- Place preview restore next to delete
+- Keep desktop project context in sync
+- Soften project switcher hover states
+- Preserve static site path for html exports
+- Pin codecov cli version
+- Harden release staging flow
+
+### Documentation
+
+- Add site markdown authoring plan
+- Add site markdown authoring design
+- Add site workbench preview plan
+- Add site workbench preview design
+- Add native menu shortcuts design
+- Add desktop shell workbench trial design
+
+### Other
+
+- Add file consistency pre-commit checks
+- Enforce UI lint checks
+
 ## [v0.16.0] - 2026-04-23
 
 ### Features
