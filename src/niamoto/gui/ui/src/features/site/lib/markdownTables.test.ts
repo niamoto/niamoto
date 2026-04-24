@@ -60,4 +60,34 @@ describe('markdownTables', () => {
     expect(tableNodeToMarkdown(tableNode, getText)).toContain('| Lycophytes')
     expect(tableNodeToMarkdown(tableNode, getText)).toContain('---')
   })
+
+  it('escapes literal pipes when serializing table cells', () => {
+    const tableNode: JSONContent = {
+      type: 'table',
+      content: [
+        {
+          type: 'tableRow',
+          content: [
+            markdownTableTestUtils.createTableCell('tableHeader', 'Label'),
+            markdownTableTestUtils.createTableCell('tableHeader', 'Value'),
+          ],
+        },
+        {
+          type: 'tableRow',
+          content: [
+            markdownTableTestUtils.createTableCell('tableCell', 'Alpha | Beta'),
+            markdownTableTestUtils.createTableCell('tableCell', '42'),
+          ],
+        },
+      ],
+    }
+
+    const markdown = tableNodeToMarkdown(tableNode, getText)
+
+    expect(markdown).toContain('Alpha \\| Beta')
+
+    const parsed = parseMarkdownTable(markdown, parseInlineContent)
+    expect(getText(parsed?.content?.[1]?.content?.[0] as JSONContent)).toBe('Alpha | Beta')
+    expect(parsed?.content?.[1]?.content).toHaveLength(2)
+  })
 })

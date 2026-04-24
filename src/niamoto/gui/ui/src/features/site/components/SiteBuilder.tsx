@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  Eye,
   Loader2,
   Save,
   AlertCircle,
@@ -589,6 +590,17 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {showPreviewRestore && state.selection?.type !== 'page' && (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="preview-restore-bar"
+              onClick={handleOpenPreview}
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              {t('preview.title')}
+            </Button>
+          )}
           {!siteNeedsSetup && !showWizard && (
             <Button
               variant="ghost"

@@ -195,6 +195,77 @@ describe('MarkdownContentField', () => {
 
     expect(harness.container.textContent).toContain('Changed draft markdown')
 
+    const writeButton = harness.container.querySelector(
+      'button[aria-label="site:pageEditor.writeMode"]'
+    ) as HTMLButtonElement | null
+    expect(writeButton).not.toBeNull()
+
+    await act(async () => {
+      writeButton?.click()
+    })
+
+    expect(
+      harness.container
+        .querySelector('[data-testid="markdown-write"]')
+        ?.getAttribute('data-content')
+    ).toBe('Changed draft markdown')
+
+    await harness.unmount()
+  })
+
+  it('clears the dirty draft when switching to another source file', async () => {
+    const harness = createHarness()
+    const onContentSourceChange = vi.fn()
+
+    useFileContent.mockImplementation((path: string | null) => {
+      if (path === 'templates/content/terms.md') {
+        return {
+          data: undefined,
+          error: null,
+          isLoading: true,
+        }
+      }
+
+      return {
+        data: { content: 'Initial markdown' },
+        error: null,
+        isLoading: false,
+      }
+    })
+
+    await harness.render(
+      <MarkdownContentField
+        baseName="about"
+        contentSource="templates/content/about.md"
+        onContentSourceChange={onContentSourceChange}
+      />
+    )
+
+    await act(async () => {
+      ;(harness.container.querySelector('[data-testid="markdown-change"]') as HTMLButtonElement).click()
+    })
+
+    const dirtySaveButton = Array.from(harness.container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('site:pageEditor.save')
+    ) as HTMLButtonElement | undefined
+    expect(dirtySaveButton?.disabled).toBe(false)
+
+    await harness.render(
+      <MarkdownContentField
+        baseName="about"
+        contentSource="templates/content/terms.md"
+        onContentSourceChange={onContentSourceChange}
+      />
+    )
+
+    const saveButton = Array.from(harness.container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('site:pageEditor.save')
+    ) as HTMLButtonElement | undefined
+
+    expect(saveButton?.disabled).toBe(true)
+    expect(harness.container.textContent).toContain('terms.md')
+    expect(mutateAsync).not.toHaveBeenCalled()
+
     await harness.unmount()
   })
 
@@ -230,6 +301,11 @@ describe('MarkdownContentField', () => {
       path: 'templates/content/about.md',
       content: 'Changed draft markdown',
     })
+    expect(
+      harness.container
+        .querySelector('[data-testid="markdown-write"]')
+        ?.getAttribute('data-content')
+    ).toBe('Changed draft markdown')
 
     await harness.unmount()
   })
