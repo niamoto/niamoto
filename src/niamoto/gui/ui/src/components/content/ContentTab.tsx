@@ -9,7 +9,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PanelLeft, Plus } from 'lucide-react'
-import type { PanelImperativeHandle } from 'react-resizable-panels'
+import type { PanelImperativeHandle, PanelSize } from 'react-resizable-panels'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -205,6 +205,11 @@ export function ContentTab({ reference }: ContentTabProps) {
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
+  const handleLeftPanelResize = useCallback((panelSize: PanelSize) => {
+    const nextCollapsed = panelSize.asPercentage === 0
+    setIsCollapsed((current) => current === nextCollapsed ? current : nextCollapsed)
+  }, [])
+
   const togglePanel = useCallback(() => {
     const panel = leftPanelRef.current
     if (!panel) return
@@ -236,7 +241,7 @@ export function ContentTab({ reference }: ContentTabProps) {
           maxSize="26%"
           collapsible
           collapsedSize={0}
-          onResize={(panelSize) => setIsCollapsed(panelSize.asPercentage === 0)}
+          onResize={handleLeftPanelResize}
         >
           <div className="relative h-full">
           <div className="absolute inset-0 flex flex-col">
