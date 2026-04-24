@@ -119,6 +119,11 @@ def _resolve_export_config_path(config_path: str | Path, work_dir: Path) -> Path
     return work_dir / "config" / config_path_str
 
 
+def get_config_path(config_file: str | Path) -> Path:
+    """Resolve an export config path for callers that patch this hook in tests."""
+    return _resolve_export_config_path(config_file, get_working_directory())
+
+
 def _resolve_export_execution_context(config_path: str) -> ExportExecutionContext:
     """Freeze the project context so background export work cannot drift."""
     work_dir = get_working_directory()
@@ -133,7 +138,7 @@ def _resolve_export_execution_context(config_path: str) -> ExportExecutionContex
 
 def get_export_config(config_path: str | Path) -> Dict[str, Any]:
     """Load and parse export configuration."""
-    path = _resolve_export_config_path(config_path, get_working_directory())
+    path = get_config_path(config_path)
 
     if not path.exists():
         raise HTTPException(
