@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from 'react'
+import { act, useLayoutEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,10 +22,15 @@ function createHookHarness<T>(useHook: () => T) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  let currentValue: T
+  const currentRef: { current: T | undefined } = { current: undefined }
 
   function Probe() {
-    currentValue = useHook()
+    const value = useHook()
+
+    useLayoutEffect(() => {
+      currentRef.current = value
+    }, [value])
+
     return null
   }
 
@@ -37,7 +42,7 @@ function createHookHarness<T>(useHook: () => T) {
       })
     },
     get current() {
-      return currentValue!
+      return currentRef.current!
     },
     async unmount() {
       await act(async () => {

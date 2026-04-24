@@ -25,7 +25,6 @@
     "addFilesHint": "Ajoutez vos fichiers (CSV pour les données, GeoPackage pour les shapes)",
     "configDetected": "Configuration détectée",
     "importInProgress": "Import en cours",
-    "importComplete": "Import terminé",
     "dropFilesToStart": "Glissez-déposez vos fichiers pour commencer l'import.",
     "editExistingConfigDesc": "Modification de la configuration existante.",
     "startImport": "Lancer l'import",

@@ -123,7 +123,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
         onError: () => setPreviewHtml(null),
       }
     )
-  }, [config, config.enabled, groupBy, requestGroupIndexPreview])
+  }, [config, groupBy, requestGroupIndexPreview])
 
   // Load preview when enabled and showPreview is true
   useEffect(() => {

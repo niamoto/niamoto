@@ -58,6 +58,7 @@ Main source layout:
 - [src/app](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/app): bootstrap, routing, app shell wiring
 - [src/features](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features): domain features
 - [src/shared](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/shared): true cross-feature code
+- [src/shared/shell](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/shared/shell): shell-level desktop actions, native menu event bridge, and shared shortcut bindings
 - [src/components](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/components): reusable UI and legacy/transverse domain components not yet moved into a feature
 - [src/hooks](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/hooks): remaining shared hooks not yet feature-scoped
 - [src/lib](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/lib): shared utilities and still-shared API modules

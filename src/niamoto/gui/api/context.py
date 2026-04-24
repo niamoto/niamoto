@@ -14,6 +14,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+NIAMOTO_HOME_ENV = "NIAMOTO_HOME"
+
 # Store the working directory set at GUI startup
 _working_directory: Optional[Path] = None
 
@@ -99,6 +101,15 @@ def resolve_explicit_working_directory(path: Optional[str]) -> Optional[Path]:
 
     logger.warning(f"Ignoring invalid explicit working directory: {resolved}")
     return None
+
+
+def _sync_niamoto_home_env(project_path: Optional[Path]) -> None:
+    """Keep NIAMOTO_HOME aligned with the active desktop project."""
+    if project_path is None:
+        os.environ.pop(NIAMOTO_HOME_ENV, None)
+        return
+
+    os.environ[NIAMOTO_HOME_ENV] = str(project_path)
 
 
 def get_valid_optional_working_directory() -> Optional[Path]:
@@ -216,6 +227,7 @@ def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
 
     desktop_config_path = _resolve_desktop_config_path()
     _working_directory = None
+    _sync_niamoto_home_env(None)
 
     if not desktop_config_path.exists():
         logger.debug(f"Desktop config not found at {desktop_config_path}")
@@ -252,6 +264,7 @@ def reload_project_from_desktop_config() -> DesktopProjectReloadResult:
 
         # Update the global working directory
         _working_directory = project_path
+        _sync_niamoto_home_env(project_path)
         logger.info(f"Reloaded project from desktop config: {project_path}")
         return DesktopProjectReloadResult(
             state="loaded",

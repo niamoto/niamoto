@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -36,6 +36,11 @@ import { useFeedback, useBrowserOnline } from '@/features/feedback'
 import { useHelpSearchIndex } from '@/features/help/hooks/useDocumentationContent'
 import { rankHelpSearchEntries } from '@/features/help/routing'
 import {
+  isShellActionId,
+  SHELL_ACTION_IDS,
+  useShellActionRunner,
+} from '@/shared/shell/shellActions'
+import {
   applyUiLanguagePreference,
   getAppSettings,
   setAppSettings,
@@ -56,6 +61,7 @@ export function CommandPalette() {
   const { commandPaletteOpen, setCommandPaletteOpen } = useNavigationStore()
   const feedback = useFeedback()
   const browserOnline = useBrowserOnline()
+  const { runShellAction } = useShellActionRunner()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
   const currentLanguage = i18n.resolvedLanguage?.startsWith('fr') ? 'fr' : 'en'
@@ -68,18 +74,6 @@ export function CommandPalette() {
 
     return rankHelpSearchEntries(helpSearchIndexQuery.data.entries, deferredSearch, 8)
   }, [deferredSearch, helpSearchIndexQuery.data])
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setCommandPaletteOpen(!commandPaletteOpen)
-      }
-    }
-
-    document.addEventListener('keydown', down)
-    return () => document.removeEventListener('keydown', down)
-  }, [commandPaletteOpen, setCommandPaletteOpen])
 
   const handleSelect = useCallback((value: string) => {
     const [action, ...params] = value.split(':')
@@ -105,6 +99,15 @@ export function CommandPalette() {
         })()
         setCommandPaletteOpen(false)
         break
+      case 'shell': {
+        const actionId = params.join(':')
+        if (!isShellActionId(actionId)) {
+          break
+        }
+        setCommandPaletteOpen(false)
+        void runShellAction(actionId)
+        break
+      }
       case 'feedback':
         setCommandPaletteOpen(false)
         feedback.openWithType('bug')
@@ -112,7 +115,7 @@ export function CommandPalette() {
       default:
         break
     }
-  }, [feedback, navigate, setCommandPaletteOpen, setThemeMode])
+  }, [feedback, navigate, runShellAction, setCommandPaletteOpen, setThemeMode])
 
   return (
     <CommandDialog
@@ -290,7 +293,7 @@ export function CommandPalette() {
           </CommandItem>
           <CommandSeparator className="my-1" />
           <CommandItem
-            value="navigate:/tools/settings"
+            value={`shell:${SHELL_ACTION_IDS.SETTINGS_OPEN}`}
             keywords={['settings', 'paramètres', 'configuration', 'preferences']}
             onSelect={handleSelect}
           >

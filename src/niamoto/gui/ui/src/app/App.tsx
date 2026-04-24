@@ -2,17 +2,18 @@ import { useEffect, useState } from 'react'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
 import WelcomeScreen from '@/features/welcome/views/WelcomeScreen'
-import { hasDesktopBridge } from '@/shared/desktop/bridge'
+import { hasDesktopBridge, isDesktopTauri } from '@/shared/desktop/bridge'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import {
   applyUiLanguagePreference,
   getAppSettings,
-  openDesktopDevtools,
 } from '@/shared/desktop/appSettings'
 import {
   clearManualProjectOpenTarget,
   getManualProjectOpenTarget,
+  markManualProjectOpen,
 } from '@/shared/desktop/projectLaunchIntent'
+import { listenDesktopProjectSelected } from '@/shared/shell/desktopMenu'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
 import ProjectCreationWizard from '@/features/welcome/views/ProjectCreationWizard'
@@ -123,40 +124,62 @@ function App() {
   }, [projectInfo?.name])
 
   useEffect(() => {
-    if (!isDesktopMode) {
+    if (!isDesktopTauri()) {
       return
     }
 
-    const handleDesktopDebugShortcut = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
-      const isMacShortcut = event.metaKey && event.altKey && key === 'i'
-      const isWindowsLinuxShortcut =
-        (event.ctrlKey && event.shiftKey && key === 'i') || event.key === 'F12'
+    let cancelled = false
+    let unlisten: (() => void) | null = null
 
-      if (!isMacShortcut && !isWindowsLinuxShortcut) {
-        return
-      }
-
-      event.preventDefault()
-
+    void listenDesktopProjectSelected((path) => {
       void (async () => {
         try {
-          const settings = await getAppSettings()
-          if (!settings.debug_mode) {
+          const result = await reloadDesktopProject({
+            allowStates: ['loaded'],
+            expectedProject: path,
+          })
+
+          if (cancelled) {
             return
           }
-          await openDesktopDevtools()
+
+          if (result.state === 'loaded') {
+            markManualProjectOpen(path)
+            window.location.reload()
+            return
+          }
+
+          setBootFallbackToWelcome(true)
+          setBootError(result.message)
         } catch (err) {
-          console.error('Failed to open desktop DevTools from shortcut:', err)
+          if (cancelled) {
+            return
+          }
+
+          console.error('Failed to activate desktop project from menu:', err)
+          setBootFallbackToWelcome(true)
+          setBootError(
+            err instanceof Error ? err.message : 'Failed to open selected project'
+          )
         }
       })()
-    }
+    })
+      .then((cleanup) => {
+        if (cancelled) {
+          cleanup?.()
+          return
+        }
+        unlisten = cleanup
+      })
+      .catch((err) => {
+        console.error('Failed to subscribe to desktop project menu events:', err)
+      })
 
-    window.addEventListener('keydown', handleDesktopDebugShortcut)
     return () => {
-      window.removeEventListener('keydown', handleDesktopDebugShortcut)
+      cancelled = true
+      unlisten?.()
     }
-  }, [isDesktopMode])
+  }, [])
 
   const handleCreateProject = async (name: string, location: string) => {
     closeProjectCreation()

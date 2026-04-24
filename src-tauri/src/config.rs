@@ -337,10 +337,8 @@ mod tests {
 
     #[test]
     fn test_validate_project_path_requires_config_structure() {
-        let project_path = std::env::temp_dir().join(format!(
-            "niamoto-config-test-{}",
-            std::process::id()
-        ));
+        let project_path =
+            std::env::temp_dir().join(format!("niamoto-config-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&project_path);
         fs::create_dir_all(project_path.join("db")).unwrap();
 
@@ -351,7 +349,11 @@ mod tests {
         let missing_config_file = AppConfig::validate_project_path(&project_path);
         assert!(missing_config_file.is_err());
 
-        fs::write(project_path.join("config").join("config.yml"), "project: {}\n").unwrap();
+        fs::write(
+            project_path.join("config").join("config.yml"),
+            "project: {}\n",
+        )
+        .unwrap();
         let valid = AppConfig::validate_project_path(&project_path);
         assert!(valid.is_ok());
 
@@ -361,8 +363,10 @@ mod tests {
     #[test]
     fn test_config_path_prefers_env_override() {
         let _guard = TEST_ENV_LOCK.lock().unwrap();
-        let config_path = std::env::temp_dir()
-            .join(format!("niamoto-desktop-config-{}.json", std::process::id()));
+        let config_path = std::env::temp_dir().join(format!(
+            "niamoto-desktop-config-{}.json",
+            std::process::id()
+        ));
         let _ = fs::remove_file(&config_path);
 
         env::set_var(DESKTOP_CONFIG_ENV, &config_path);

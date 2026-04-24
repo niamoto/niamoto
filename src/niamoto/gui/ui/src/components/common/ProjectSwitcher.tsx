@@ -72,6 +72,13 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
     return null; // Don't show while initially loading
   }
 
+  const triggerHoverClass =
+    'text-foreground hover:!bg-muted/60 hover:!text-foreground data-[state=open]:!bg-muted/60 data-[state=open]:!text-foreground';
+  const menuItemHoverClass =
+    'hover:!bg-muted/60 hover:!text-foreground focus:!bg-muted/60 focus:!text-foreground data-[highlighted]:!bg-muted/60 data-[highlighted]:!text-foreground';
+  const currentMenuItemClass =
+    'bg-muted/90 text-foreground shadow-none border-border/70 hover:!bg-muted focus:!bg-muted data-[highlighted]:!bg-muted hover:!text-foreground focus:!text-foreground data-[highlighted]:!text-foreground';
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -81,6 +88,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
             size="icon"
             className={cn(
               'h-9 w-9 mx-auto',
+              triggerHoverClass,
               error && 'border-red-500',
               className
             )}
@@ -94,6 +102,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
             variant="outline"
             className={cn(
               'w-full justify-between',
+              triggerHoverClass,
               error && 'border-red-500',
               className
             )}
@@ -137,6 +146,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
         ) : (
           recentProjects.map((project) => {
             const isInvalid = invalidProjects.has(project.path);
+            const isCurrent = currentProject === project.path;
 
             return (
               <DropdownMenuItem
@@ -147,15 +157,24 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
                   }
                 }}
                 className={cn(
-                  'flex items-center justify-between gap-2',
-                  isInvalid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  'flex items-center justify-between gap-2 border border-transparent transition-colors',
+                  isInvalid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+                  isCurrent && !isInvalid && currentMenuItemClass,
+                  !isCurrent && !isInvalid && menuItemHoverClass
                 )}
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-sm font-medium">
                     {project.name}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      'truncate text-xs',
+                      isCurrent && !isInvalid
+                        ? 'text-foreground/70'
+                        : 'text-muted-foreground'
+                    )}
+                  >
                     {project.path}
                   </span>
                 </div>
@@ -164,13 +183,17 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
                   {isInvalid && (
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   )}
-                  {!isInvalid && currentProject === project.path && (
-                    <Check className="h-4 w-4 text-primary" />
+                  {!isInvalid && isCurrent && (
+                    <Check className="h-4 w-4 text-foreground/70" />
                   )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={cn('h-6 w-6', isInvalid && 'opacity-100')}
+                    className={cn(
+                      'h-6 w-6 text-muted-foreground hover:!bg-muted/80 hover:!text-foreground',
+                      isCurrent && !isInvalid && 'text-foreground/60',
+                      isInvalid && 'opacity-100'
+                    )}
                     onClick={(e) => handleRemoveProject(e, project.path)}
                   >
                     <X className="h-3 w-3" />
@@ -184,7 +207,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          className="cursor-pointer"
+          className={cn('cursor-pointer', menuItemHoverClass)}
           onClick={() => openProjectCreation()}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -192,7 +215,7 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
         </DropdownMenuItem>
 
         <DropdownMenuItem
-          className="cursor-pointer"
+          className={cn('cursor-pointer', menuItemHoverClass)}
           onClick={async () => {
             try {
               const path = await browseProject();
