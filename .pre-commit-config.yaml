@@ -51,6 +51,12 @@ repos:
         name: Generate Requirements Files
         entry: python scripts/build/generate_requirements.py
         language: python
+    -   id: ui-pnpm-lint
+        name: UI pnpm lint
+        entry: pnpm --dir src/niamoto/gui/ui lint
+        language: system
+        pass_filenames: false
+        files: ^src/niamoto/gui/ui/
     -   id: regenerate-plugin-manifest
         name: Regenerate marketing plugin manifest
         entry: python scripts/generate-plugin-manifest.py
