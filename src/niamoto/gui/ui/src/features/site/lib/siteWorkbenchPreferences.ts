@@ -1,6 +1,7 @@
 import type { DeviceSize } from '@/components/ui/preview-frame'
 
 const SITE_WORKBENCH_STORAGE_KEY_PREFIX = 'niamoto.siteWorkbench'
+export const MIN_SITE_WORKBENCH_TREE_SIZE = 20
 
 export type SiteWorkbenchPreviewState = 'unset' | 'open' | 'closed'
 export type SiteWorkbenchLayout = Record<string, number>
@@ -74,7 +75,31 @@ export function normalizeSiteWorkbenchLayout(
     return null
   }
 
-  return Object.fromEntries(entries)
+  const layout: SiteWorkbenchLayout = Object.fromEntries(entries)
+  const treeSize = layout.tree
+  if (
+    typeof treeSize !== 'number'
+    || treeSize >= MIN_SITE_WORKBENCH_TREE_SIZE
+  ) {
+    return layout
+  }
+
+  const delta = MIN_SITE_WORKBENCH_TREE_SIZE - treeSize
+  const normalizedLayout: SiteWorkbenchLayout = {
+    ...layout,
+    tree: MIN_SITE_WORKBENCH_TREE_SIZE,
+  }
+
+  if (typeof normalizedLayout.editor === 'number') {
+    normalizedLayout.editor = Math.max(1, normalizedLayout.editor - delta)
+    return normalizedLayout
+  }
+
+  if (typeof normalizedLayout.preview === 'number') {
+    normalizedLayout.preview = Math.max(1, normalizedLayout.preview - delta)
+  }
+
+  return normalizedLayout
 }
 
 function sanitizeStoredSiteWorkbenchPreferences(
@@ -91,7 +116,8 @@ function sanitizeStoredSiteWorkbenchPreferences(
   }
 
   if (preferences.previewLayout) {
-    stored.previewLayout = preferences.previewLayout
+    stored.previewLayout = normalizeSiteWorkbenchLayout(preferences.previewLayout)
+      ?? undefined
   }
 
   return stored

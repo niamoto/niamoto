@@ -2,19 +2,36 @@
  * MarkdownContentField - Reusable markdown content editor with external file support
  *
  * This component allows editing markdown content that is stored in external files
- * rather than inline in the YAML configuration. It supports:
- * - File selector (dropdown of .md files in templates/content/)
- * - Upload button for importing .md files
- * - View modes: preview (readOnly), raw code, edit (full WYSIWYG editor)
- * - Single file mode (one .md file)
- * - Multilingual mode (separate .fr.md, .en.md files)
- * - Auto-creation of files when content is first edited
+ * rather than inline in the YAML configuration.
  */
 
-import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
-import { Label } from '@/components/ui/label'
+import {
+  ChevronDown,
+  Code,
+  FileText,
+  Globe,
+  Loader2,
+  Save,
+  Settings2,
+  Upload,
+  X,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
@@ -23,12 +40,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Globe, Save, Loader2, FileText, Upload, Edit3, Code, FileType, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
 import {
   useFileContent,
-  useUpdateFileContent,
   useProjectFiles,
+  useUpdateFileContent,
   useUploadFile,
 } from '@/shared/hooks/useSiteConfig'
 import { useLanguages } from '@/shared/contexts/useLanguages'
@@ -38,6 +55,7 @@ const MarkdownEditor = lazy(() =>
     default: module.MarkdownEditor,
   }))
 )
+
 const MultilingualMarkdownEditor = lazy(() =>
   import('@/features/site/components/MultilingualMarkdownEditor').then((module) => ({
     default: module.MultilingualMarkdownEditor,
@@ -45,22 +63,37 @@ const MultilingualMarkdownEditor = lazy(() =>
 )
 
 type ContentMode = 'single' | 'multilingual'
+type ViewMode = 'write' | 'source'
+type MarkdownContentFieldVariant = 'default' | 'authoring'
 
 interface MarkdownContentFieldProps {
-  /** Base name for the file (e.g., "bibliography" -> templates/content/bibliography.md) */
   baseName: string
-  /** Current content_source value from context */
   contentSource?: string | null
-  /** Callback when content_source changes */
   onContentSourceChange: (source: string | null) => void
-  /** Label for the field */
   label?: string
-  /** Description/hint text */
   description?: string
-  /** Minimum height for editor */
   minHeight?: string
-  /** Placeholder text */
   placeholder?: string
+  variant?: MarkdownContentFieldVariant
+}
+
+function getInitialContentMode(contentSource?: string | null): ContentMode {
+  if (!contentSource) {
+    return 'single'
+  }
+  return /\.md$/i.test(contentSource) ? 'single' : 'multilingual'
+}
+
+function getSourceSummary(contentMode: ContentMode, contentSource?: string | null): string | null {
+  if (!contentSource) {
+    return null
+  }
+
+  const lastSegment = contentSource.split('/').pop() ?? contentSource
+  if (contentMode === 'multilingual') {
+    return `${lastSegment}.[lang].md`
+  }
+  return lastSegment
 }
 
 export function MarkdownContentField({
@@ -71,61 +104,50 @@ export function MarkdownContentField({
   description,
   minHeight = '200px',
   placeholder,
+  variant = 'default',
 }: MarkdownContentFieldProps) {
-  // Get languages from context
   const { languages, defaultLang } = useLanguages()
   const { t } = useTranslation(['site', 'common'])
 
-  // Determine initial mode from content_source
-  const [contentMode, setContentMode] = useState<ContentMode>(() => {
-    if (contentSource) {
-      if (/\.md$/i.test(contentSource)) {
-        return 'single'
-      }
-      return 'multilingual'
-    }
-    return 'single'
-  })
-
-  // View mode state
-  const [isEditing, setIsEditing] = useState(false)
-  const [showRawContent, setShowRawContent] = useState(false)
-
-  // File upload ref
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Generate default file path
-  const getDefaultFilePath = useCallback(() => {
-    return `templates/content/${baseName}.md`
-  }, [baseName])
-
-  const getMultilingualBasePath = useCallback(() => {
-    return `templates/content/${baseName}`
-  }, [baseName])
-
-  // Current file path for single mode — only fetch if contentSource is explicitly set
-  const singleFilePath = contentMode === 'single' && contentSource
-    ? contentSource
-    : null
-
-  // Fetch file content for single mode
-  const { data: fileContentData, isLoading: fileContentLoading } = useFileContent(singleFilePath)
-  const updateFileContentMutation = useUpdateFileContent()
-
-  // Fetch markdown files from templates/content/ folder
-  const { data: filesData, isLoading: filesLoading, refetch: refetchFiles } = useProjectFiles('templates/content')
-  const uploadMutation = useUploadFile()
-
-  // Filter markdown files
-  const markdownFiles =
-    filesData?.files.filter((f) => ['.md', '.markdown', '.txt'].includes(f.extension)) ?? []
-
-  // Local state for editing
-  const [editedContent, setEditedContent] = useState<string>('')
+  const [contentMode, setContentMode] = useState<ContentMode>(() =>
+    getInitialContentMode(contentSource)
+  )
+  const [viewMode, setViewMode] = useState<ViewMode>('write')
+  const [sourceControlsOpen, setSourceControlsOpen] = useState(!contentSource)
+  const [editedContent, setEditedContent] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Sync content from file
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const getDefaultFilePath = useCallback(() => `templates/content/${baseName}.md`, [baseName])
+  const getMultilingualBasePath = useCallback(() => `templates/content/${baseName}`, [baseName])
+
+  const singleFilePath = contentMode === 'single' && contentSource ? contentSource : null
+  const sourceSummary = useMemo(
+    () => getSourceSummary(contentMode, contentSource),
+    [contentMode, contentSource]
+  )
+
+  const {
+    data: fileContentData,
+    error: fileContentError,
+    isLoading: fileContentLoading,
+  } = useFileContent(singleFilePath)
+  const updateFileContentMutation = useUpdateFileContent()
+  const { data: filesData, isLoading: filesLoading, refetch: refetchFiles } =
+    useProjectFiles('templates/content')
+  const uploadMutation = useUploadFile()
+
+  const markdownFiles =
+    filesData?.files.filter((file) => ['.md', '.markdown', '.txt'].includes(file.extension)) ?? []
+
+  useEffect(() => {
+    if (contentSource) {
+      setContentMode(getInitialContentMode(contentSource))
+    }
+  }, [contentSource])
+
   useEffect(() => {
     if (fileContentData?.content !== undefined) {
       setEditedContent(fileContentData.content)
@@ -133,30 +155,35 @@ export function MarkdownContentField({
     }
   }, [fileContentData?.content])
 
-  // Handle mode change
+  useEffect(() => {
+    if (!contentSource) {
+      setSourceControlsOpen(true)
+    }
+  }, [contentSource])
+
   const handleContentModeChange = (mode: ContentMode) => {
     setContentMode(mode)
+    setViewMode('write')
     setHasUnsavedChanges(false)
-    setIsEditing(false)
+    setSourceControlsOpen(false)
 
     if (mode === 'single') {
-      const newPath = getDefaultFilePath()
-      onContentSourceChange(newPath)
-    } else {
-      const basePath = getMultilingualBasePath()
-      onContentSourceChange(basePath)
+      onContentSourceChange(getDefaultFilePath())
+      return
     }
+
+    onContentSourceChange(getMultilingualBasePath())
   }
 
-  // Handle content change in editor
   const handleContentChange = (content: string) => {
     setEditedContent(content)
     setHasUnsavedChanges(content !== (fileContentData?.content || ''))
   }
 
-  // Save content to file
   const handleSave = async () => {
-    if (!singleFilePath) return
+    if (!singleFilePath) {
+      return
+    }
 
     setIsSaving(true)
     try {
@@ -165,13 +192,9 @@ export function MarkdownContentField({
         content: editedContent,
       })
       setHasUnsavedChanges(false)
-      setIsEditing(false)
       toast.success(t('site:pageEditor.fileSaved'), {
         description: singleFilePath,
       })
-      if (!contentSource) {
-        onContentSourceChange(singleFilePath)
-      }
     } catch (error) {
       toast.error(t('site:pageEditor.saveError'), {
         description: String(error),
@@ -181,255 +204,372 @@ export function MarkdownContentField({
     }
   }
 
-  // Cancel editing
   const handleCancelEdit = () => {
     setEditedContent(fileContentData?.content || '')
-    setIsEditing(false)
     setHasUnsavedChanges(false)
+    setViewMode('write')
   }
 
-  // Handle file upload
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
 
     try {
       const result = await uploadMutation.mutateAsync({ file, folder: 'templates/content' })
       await refetchFiles()
       onContentSourceChange(result.path)
-      setIsEditing(false)
+      setViewMode('write')
+      setSourceControlsOpen(false)
       toast.success(t('site:pageEditor.fileUploaded'), {
         description: result.filename,
       })
-    } catch (err) {
+    } catch (error) {
       toast.error(t('site:pageEditor.uploadError'), {
-        description: err instanceof Error ? err.message : t('site:pageEditor.uploadFailed'),
+        description: error instanceof Error ? error.message : t('site:pageEditor.uploadFailed'),
       })
     }
-    e.target.value = ''
+
+    event.target.value = ''
   }
 
-  // Note: we no longer auto-initialize content_source.
-  // It stays null until the user explicitly selects or creates a file.
+  const handleFileSelection = (path: string) => {
+    onContentSourceChange(path || null)
+    setViewMode('write')
+    setSourceControlsOpen(false)
+  }
+
+  const handleClearFile = () => {
+    onContentSourceChange(null)
+    setEditedContent('')
+    setHasUnsavedChanges(false)
+    setViewMode('write')
+    setSourceControlsOpen(true)
+  }
+
   const editorFallback = (
-    <div className="flex items-center justify-center p-8 border rounded-md bg-muted/30">
+    <div
+      className="flex items-center justify-center rounded-lg border bg-muted/30 p-8"
+      style={{ minHeight }}
+    >
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   )
 
-  return (
-    <div className="space-y-4">
-      {/* Header with label and mode toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          {label && <Label className="text-base font-medium">{label}</Label>}
-          {description && (
-            <p className="text-sm text-muted-foreground mt-1">{description}</p>
-          )}
-        </div>
-
-        {/* Mode toggle - only show if multiple languages */}
-        {languages.length > 1 && (
+  const sourceControls = (
+    <div className="space-y-4 border-t border-border/70 px-4 py-4">
+      {languages.length > 1 ? (
+        <div className="space-y-2">
+          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t('site:pageEditor.manageContentSource')}
+          </Label>
           <RadioGroup
             value={contentMode}
-            onValueChange={(v) => handleContentModeChange(v as ContentMode)}
-            className="flex gap-4"
+            onValueChange={(value) => handleContentModeChange(value as ContentMode)}
+            className="flex flex-wrap gap-4"
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="single" id={`mode-single-${baseName}`} />
               <Label htmlFor={`mode-single-${baseName}`} className="cursor-pointer text-sm">
-                <FileText className="h-4 w-4 inline mr-1" />
+                <FileText className="mr-1 inline h-4 w-4" />
                 {t('site:pageEditor.singleFile')}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="multilingual" id={`mode-multi-${baseName}`} />
               <Label htmlFor={`mode-multi-${baseName}`} className="cursor-pointer text-sm">
-                <Globe className="h-4 w-4 inline mr-1" />
+                <Globe className="mr-1 inline h-4 w-4" />
                 {t('site:pageEditor.multilingualFiles')}
               </Label>
             </div>
           </RadioGroup>
-        )}
-      </div>
+        </div>
+      ) : null}
 
-      {/* Single file mode */}
-      {contentMode === 'single' && (
-        <div className="space-y-4">
-          {/* Source file selector */}
-          <div className="space-y-2">
-            <Label>{t('site:pageEditor.sourceFile')}</Label>
-            <div className="flex gap-2">
-              {markdownFiles.length === 0 && !filesLoading ? (
-                <div className="flex-1 flex items-center">
-                  <p className="text-sm text-muted-foreground">
-                    {t('site:pageEditor.noFilesIn')}
-                  </p>
-                </div>
-              ) : (
-                <Select
-                  value={contentSource || ''}
-                  onValueChange={(v) => {
-                    onContentSourceChange(v || null)
-                    setIsEditing(false)
-                  }}
-                  disabled={filesLoading}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={t('site:pageEditor.selectFile')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {markdownFiles.map((f) => (
-                      <SelectItem key={f.path} value={f.path}>
-                        {f.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".md,.markdown,.txt"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadMutation.isPending}
-                title={t('site:pageEditor.uploadMarkdown')}
-              >
-                {uploadMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-              </Button>
-              {contentSource && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    onContentSourceChange(null)
-                    setIsEditing(false)
-                    setEditedContent('')
-                    setHasUnsavedChanges(false)
-                  }}
-                  title={t('site:pageEditor.clearFile')}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {t('site:pageEditor.mdFileIn')}
-            </p>
-          </div>
-
-          {/* File content preview/edit */}
-          {singleFilePath && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>{t('site:pageEditor.fileContent')}</Label>
-                <div className="flex gap-2">
-                  {isEditing ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCancelEdit}
-                      >
-                        {t('site:pageEditor.cancel')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSave}
-                        disabled={!hasUnsavedChanges || isSaving}
-                      >
-                        {isSaving ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="mr-2 h-4 w-4" />
-                        )}
-                        {t('site:pageEditor.save')}
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowRawContent(!showRawContent)}
-                        title={showRawContent ? t('site:pageEditor.viewFormatted') : t('site:pageEditor.viewCode')}
-                      >
-                        {showRawContent ? (
-                          <FileType className="h-4 w-4" />
-                        ) : (
-                          <Code className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsEditing(true)}
-                        disabled={fileContentLoading}
-                      >
-                        <Edit3 className="mr-2 h-4 w-4" />
-                        {t('site:pageEditor.edit')}
-                      </Button>
-                    </>
-                  )}
-                </div>
+      {contentMode === 'single' ? (
+        <div className="space-y-2">
+          <Label>{t('site:pageEditor.sourceFile')}</Label>
+          <div className="flex gap-2">
+            {markdownFiles.length === 0 && !filesLoading ? (
+              <div className="flex flex-1 items-center">
+                <p className="text-sm text-muted-foreground">
+                  {t('site:pageEditor.noFilesIn')}
+                </p>
               </div>
-
-              {fileContentLoading ? (
-                <div className="flex items-center justify-center p-8 border rounded-md bg-muted/30">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : isEditing ? (
-                <Suspense fallback={editorFallback}>
-                  <MarkdownEditor
-                    initialContent={fileContentData?.content ?? editedContent}
-                    onChange={handleContentChange}
-                    placeholder={placeholder || t('site:pageEditor.markdownPlaceholder')}
-                    className={`min-h-[${minHeight}]`}
-                  />
-                </Suspense>
-              ) : showRawContent ? (
-                <div className="border rounded-md bg-muted/30 p-4 max-h-[400px] overflow-auto">
-                  <pre className="text-sm whitespace-pre-wrap font-mono text-muted-foreground">
-                    {editedContent || fileContentData?.content || t('site:pageEditor.noContent')}
-                  </pre>
-                </div>
+            ) : (
+              <Select
+                value={contentSource || ''}
+                onValueChange={handleFileSelection}
+                disabled={filesLoading}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder={t('site:pageEditor.selectFile')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {markdownFiles.map((file) => (
+                    <SelectItem key={file.path} value={file.path}>
+                      {file.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.markdown,.txt"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              title={t('site:pageEditor.uploadMarkdown')}
+            >
+              {uploadMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <div className="max-h-[400px] overflow-auto">
-                  <Suspense fallback={editorFallback}>
-                    <MarkdownEditor
-                      key={editedContent}
-                      initialContent={editedContent || fileContentData?.content || ''}
-                      readOnly
-                      className="border-muted/50"
-                    />
-                  </Suspense>
-                </div>
+                <Upload className="h-4 w-4" />
               )}
-            </div>
-          )}
+            </Button>
+            {contentSource ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleClearFile}
+                title={t('site:pageEditor.clearFile')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t('site:pageEditor.sourceDetailsHint')}
+          </p>
+          {fileContentError instanceof Error ? (
+            <p className="text-xs text-destructive">{fileContentError.message}</p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-3 py-3">
+          <p className="text-sm font-medium">{t('site:pageEditor.basePath')}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {contentSource || getMultilingualBasePath()}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t('site:pageEditor.basePathHint')}
+          </p>
         </div>
       )}
+    </div>
+  )
 
-      {/* Multilingual editor */}
-      {contentMode === 'multilingual' && contentSource && (
+  const renderSingleFileSurface = () => {
+    if (!singleFilePath) {
+      return (
+        <div
+          className={cn(
+            'flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 px-6 py-8 text-center',
+            variant === 'authoring' ? 'min-h-[320px]' : 'min-h-[220px]'
+          )}
+          style={variant === 'default' ? { minHeight } : undefined}
+        >
+          <FileText className="mb-3 h-8 w-8 text-muted-foreground/70" />
+          <p className="text-sm font-medium">{t('site:pageEditor.noSourceSelected')}</p>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">
+            {t('site:pageEditor.selectOrUploadFile')}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => setSourceControlsOpen(true)}
+          >
+            <Settings2 className="mr-2 h-4 w-4" />
+            {t('site:pageEditor.manageContentSource')}
+          </Button>
+        </div>
+      )
+    }
+
+    if (fileContentLoading) {
+      return editorFallback
+    }
+
+    if (viewMode === 'source') {
+      return (
+        <div
+          className="max-h-[480px] overflow-auto rounded-lg border bg-muted/30 p-4"
+          style={{ minHeight }}
+        >
+          <pre className="whitespace-pre-wrap font-mono text-sm text-muted-foreground">
+            {editedContent || fileContentData?.content || t('site:pageEditor.noContent')}
+          </pre>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{ minHeight }}>
         <Suspense fallback={editorFallback}>
-          <MultilingualMarkdownEditor
-            basePath={contentSource}
-            languages={languages}
-            defaultLang={defaultLang}
-            className={`min-h-[${minHeight}]`}
+          <MarkdownEditor
+            key={singleFilePath}
+            initialContent={fileContentData?.content ?? editedContent}
+            onChange={handleContentChange}
+            placeholder={placeholder || t('site:pageEditor.markdownPlaceholder')}
+            className={variant === 'authoring' ? 'border-border/70 shadow-none' : undefined}
           />
         </Suspense>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-markdown-field-variant={variant}
+      className={cn(
+        'space-y-4',
+        variant === 'authoring' && 'rounded-xl border border-border/70 bg-background/70 p-4 shadow-sm'
+      )}
+    >
+      {(label || description) ? (
+        <div>
+          {label ? <Label className="text-base font-medium">{label}</Label> : null}
+          {description ? (
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {contentMode === 'single' ? (
+        <>
+          <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t('site:pageEditor.currentFile')}
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate text-sm font-medium">
+                  {sourceSummary || t('site:pageEditor.noSourceSelected')}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:items-end">
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value) => value && setViewMode(value as ViewMode)}
+                variant="outline"
+                size="sm"
+                spacing={1}
+              >
+                <ToggleGroupItem value="write" aria-label={t('site:pageEditor.writeMode')}>
+                  {t('site:pageEditor.writeMode')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="source" aria-label={t('site:pageEditor.sourceMode')}>
+                  <Code className="mr-1 h-4 w-4" />
+                  {t('site:pageEditor.sourceMode')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {hasUnsavedChanges ? (
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                    {t('site:pageEditor.cancel')}
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasUnsavedChanges || isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  {t('site:pageEditor.save')}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <Collapsible open={sourceControlsOpen} onOpenChange={setSourceControlsOpen}>
+            <div className="rounded-lg border border-border/70 bg-background/60">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="flex h-auto w-full items-center justify-between rounded-lg px-4 py-3"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Settings2 className="h-4 w-4 text-muted-foreground" />
+                    {t('site:pageEditor.manageContentSource')}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 text-muted-foreground transition-transform',
+                      sourceControlsOpen && 'rotate-180'
+                    )}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>{sourceControls}</CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {renderSingleFileSurface()}
+        </>
+      ) : (
+        <>
+          <Collapsible open={sourceControlsOpen} onOpenChange={setSourceControlsOpen}>
+            <div className="rounded-lg border border-border/70 bg-background/60">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="flex h-auto w-full items-center justify-between rounded-lg px-4 py-3"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    {sourceSummary || t('site:pageEditor.multilingualContent')}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 text-muted-foreground transition-transform',
+                      sourceControlsOpen && 'rotate-180'
+                    )}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>{sourceControls}</CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {contentSource ? (
+            <div style={{ minHeight }}>
+              <Suspense fallback={editorFallback}>
+                <MultilingualMarkdownEditor
+                  basePath={contentSource}
+                  languages={languages}
+                  defaultLang={defaultLang}
+                  className={variant === 'authoring' ? 'rounded-xl border-border/70 bg-transparent shadow-none' : undefined}
+                />
+              </Suspense>
+            </div>
+          ) : (
+            <div
+              className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 px-6 py-8 text-center"
+              style={{ minHeight }}
+            >
+              <Globe className="mb-3 h-8 w-8 text-muted-foreground/70" />
+              <p className="text-sm font-medium">{t('site:pageEditor.selectFileFirst')}</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

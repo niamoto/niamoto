@@ -45,8 +45,8 @@ describe('siteWorkbenchPreferences', () => {
         preview: 35,
       }),
     ).toEqual({
-      tree: 15,
-      editor: 50,
+      tree: 20,
+      editor: 45,
       preview: 35,
     })
 
@@ -73,8 +73,8 @@ describe('siteWorkbenchPreferences', () => {
       previewState: 'closed',
       previewDevice: 'tablet',
       previewLayout: {
-        tree: 12,
-        editor: 53,
+        tree: 20,
+        editor: 45,
         preview: 35,
       },
     })
@@ -130,6 +130,29 @@ describe('siteWorkbenchPreferences', () => {
       JSON.stringify({
         previewState: 'open',
         previewDevice: 'mobile',
+        previewLayout: { tree: 20, editor: 45, preview: 35 },
+      }),
+    )
+  })
+
+  it('normalizes the tree width before writing stored layouts', () => {
+    const projectScope = 'desktop:/tmp/project-a'
+    const storage = createStorage()
+
+    writeStoredSiteWorkbenchPreferences(
+      projectScope,
+      {
+        previewState: 'open',
+        previewDevice: 'desktop',
+        previewLayout: { tree: 15, editor: 50, preview: 35 },
+      },
+      storage,
+    )
+
+    expect(storage.setItem).toHaveBeenCalledWith(
+      buildSiteWorkbenchPreferencesStorageKey(projectScope),
+      JSON.stringify({
+        previewState: 'open',
         previewLayout: { tree: 20, editor: 45, preview: 35 },
       }),
     )
