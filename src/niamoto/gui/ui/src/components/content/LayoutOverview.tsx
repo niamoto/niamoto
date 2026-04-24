@@ -558,9 +558,15 @@ export function LayoutOverview({
   }
 
   const handleSelectedEntityChange = useCallback((entityId: string) => {
-    setSelectedEntityState({
-      groupBy,
-      entityId,
+    setSelectedEntityState((current) => {
+      if (current.groupBy === groupBy && current.entityId === entityId) {
+        return current
+      }
+
+      return {
+        groupBy,
+        entityId,
+      }
     })
   }, [groupBy])
 
@@ -656,6 +662,10 @@ export function LayoutOverview({
       onSelectWidget(configuredWidget)
     }
   }, [configuredWidgets, onSelectWidget])
+
+  const handlePreviewFocus = useCallback((cardId: string) => {
+    setFocusedPreviewCardId((current) => current === cardId ? current : cardId)
+  }, [])
 
   const navigationWidget = localWidgets.find((w) => w.is_navigation)
   const contentWidgets = localWidgets.filter((w) => !w.is_navigation)
@@ -889,7 +899,7 @@ export function LayoutOverview({
                       isDragging={isDragging}
                       onColspanToggle={() => handleColspanToggle(widget.index)}
                       onSelect={() => handleSelectWidget(widget)}
-                      onPreviewFocus={() => setFocusedPreviewCardId(`widget-${widget.index}`)}
+                      onPreviewFocus={() => handlePreviewFocus(`widget-${widget.index}`)}
                     />
                   ))}
                 </div>
