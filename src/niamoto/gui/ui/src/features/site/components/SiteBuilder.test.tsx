@@ -495,4 +495,47 @@ describe('SiteBuilder workbench preview behavior', () => {
       root.unmount()
     })
   })
+
+  it('offers a header restore button for closed collection previews', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const setPreviewState = vi.fn()
+
+    stateRef.value = buildState({
+      siteConfig: buildConfiguredSiteConfig(),
+      selection: { type: 'group', id: 'taxons' },
+      groups: [
+        {
+          name: 'taxons',
+          index_generator: { enabled: true },
+          index_output_pattern: 'taxons/index.html',
+        },
+      ],
+    })
+    workbenchRef.value = buildWorkbenchPreferences({
+      previewState: 'closed',
+      setPreviewState,
+    })
+
+    await act(async () => {
+      root.render(<SiteBuilder />)
+    })
+
+    expect(container.innerHTML).toContain('Group page viewer')
+    expect(container.innerHTML).not.toContain('Group preview')
+
+    const restoreButton = container.querySelector('[data-testid="preview-restore-bar"]')
+    expect(restoreButton).not.toBeNull()
+
+    await act(async () => {
+      ;(restoreButton as HTMLButtonElement).click()
+    })
+
+    expect(setPreviewState).toHaveBeenCalledWith('open')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })
