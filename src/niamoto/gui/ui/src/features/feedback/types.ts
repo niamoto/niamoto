@@ -23,7 +23,12 @@ export interface FeedbackContext {
   recent_errors?: ErrorEntry[]
   navigation_history?: Array<{ path: string; timestamp: string }>
   failed_requests?: Array<{ url: string; status: number; duration: number; timestamp: string }>
-  crashes?: Array<{ component: string; error: string; timestamp: string }>
+  crashes?: Array<{
+    component: string
+    error: string
+    component_stack?: string[]
+    timestamp: string
+  }>
   state_snapshot?: Record<string, unknown>
 }
 

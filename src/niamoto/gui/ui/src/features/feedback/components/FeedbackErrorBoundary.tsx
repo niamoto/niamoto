@@ -13,6 +13,24 @@ interface State {
   componentName?: string
 }
 
+function getComponentStackLines(componentStack?: string | null): string[] {
+  return componentStack
+    ?.split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('at '))
+    .map((line) => line.replace(/^at /, ''))
+    ?? []
+}
+
+function getUsefulComponentName(componentStack?: string | null): string {
+  const stackLines = getComponentStackLines(componentStack)
+  const usefulLine = stackLines.find((line) => {
+    const name = line.split(' ')[0]
+    return !!name && !/^[a-z]/.test(name)
+  })
+  return usefulLine?.split(' ')[0] ?? stackLines[0]?.split(' ')[0] ?? 'Unknown'
+}
+
 /**
  * Lightweight ErrorBoundary that records React component crashes
  * for inclusion in feedback reports. Re-throws to let the UI
@@ -26,14 +44,10 @@ export class FeedbackErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    const componentName = info.componentStack
-      ?.split('\n')
-      .find((line) => line.trim().startsWith('at '))
-      ?.trim()
-      .replace(/^at /, '')
-      .split(' ')[0] || 'Unknown'
+    const componentStack = getComponentStackLines(info.componentStack)
+    const componentName = getUsefulComponentName(info.componentStack)
 
-    recordCrash(componentName, error)
+    recordCrash(componentName, error, componentStack)
     this.setState({ componentName })
   }
 

@@ -782,7 +782,7 @@ export function AddWidgetModal({
   // Toggle suggestion selection
   const toggleSuggestion = useCallback((id: string) => {
     startTransition(() => {
-      setFocusedSuggestion(id)
+      setFocusedSuggestion((current) => current === id ? current : id)
     })
     setSelectedSuggestions((prev) => {
       if (prev.includes(id)) {
@@ -917,7 +917,7 @@ export function AddWidgetModal({
       onOpenChange={(isOpen) => {
         onOpenChange(isOpen)
         if (!isOpen) {
-          setFocusedSuggestion(null)
+          setFocusedSuggestion((current) => current === null ? current : null)
         }
       }}
     >
@@ -935,7 +935,9 @@ export function AddWidgetModal({
 
         <Tabs
           value={activeTab}
-          onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+          onValueChange={(v) =>
+            setActiveTab((current) => current === v ? current : v as typeof activeTab)
+          }
           className="flex-1 flex flex-col min-h-0"
         >
           {/* Modal tabs */}
