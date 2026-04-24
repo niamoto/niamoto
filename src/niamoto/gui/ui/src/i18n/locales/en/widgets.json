@@ -61,7 +61,6 @@
       "range_y": "Y Range",
       "labels": "Labels",
       "color_discrete_map": "Discrete Colors",
-      "color_continuous_scale": "Continuous Scale",
       "auto_color": "Auto Colors",
       "gradient_color": "Gradient Color",
       "gradient_mode": "Gradient Mode",
