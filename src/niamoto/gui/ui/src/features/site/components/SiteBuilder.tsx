@@ -76,14 +76,14 @@ interface SiteBuilderProps {
 }
 
 const DEFAULT_SITE_PREVIEW_LAYOUT: SiteWorkbenchLayout = {
-  tree: 15,
-  editor: 50,
+  tree: 20,
+  editor: 45,
   preview: 35,
 }
 
 const DEFAULT_SITE_EDITOR_LAYOUT: SiteWorkbenchLayout = {
-  tree: 15,
-  editor: 85,
+  tree: 20,
+  editor: 80,
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
@@ -629,7 +629,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         onLayoutChanged={showPreview ? handleLayoutChange : undefined}
       >
         {/* Left Panel - Unified Tree */}
-        <ResizablePanel id="tree" defaultSize={15} minSize="12%" maxSize="25%">
+        <ResizablePanel
+          id="tree"
+          defaultSize={showPreview ? DEFAULT_SITE_PREVIEW_LAYOUT.tree : DEFAULT_SITE_EDITOR_LAYOUT.tree}
+          minSize="20%"
+          maxSize="30%"
+        >
           <UnifiedSiteTree
             items={state.unifiedTree}
             selection={state.selection}
@@ -645,7 +650,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <ResizableHandle withHandle />
 
         {/* Center Panel - Editor */}
-        <ResizablePanel id="editor" defaultSize={showPreview ? 50 : 85} minSize="30%" className="overflow-hidden">
+        <ResizablePanel
+          id="editor"
+          defaultSize={showPreview ? DEFAULT_SITE_PREVIEW_LAYOUT.editor : DEFAULT_SITE_EDITOR_LAYOUT.editor}
+          minSize="30%"
+          className="overflow-hidden"
+        >
           <div className="flex h-full min-h-0 flex-col">
             <PanelTransition transitionKey={editorTransitionKey} className="min-h-0 flex-1">
               {renderEditor()}
@@ -657,7 +667,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         {showPreview && (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel id="preview" defaultSize={35} minSize="20%" maxSize="50%">
+            <ResizablePanel
+              id="preview"
+              defaultSize={DEFAULT_SITE_PREVIEW_LAYOUT.preview}
+              minSize="20%"
+              maxSize="50%"
+            >
               {state.selection?.type === 'group' ? (
                 <GroupIndexPreviewPanel
                   html={groupIndexHtml}

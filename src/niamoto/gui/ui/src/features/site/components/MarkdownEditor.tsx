@@ -9,7 +9,7 @@
  * - Real-time editing
  */
 
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   EditorRoot,
@@ -30,6 +30,10 @@ import {
   type EditorInstance,
   type SuggestionItem,
 } from 'novel'
+import Table from '@tiptap/extension-table'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TableRow from '@tiptap/extension-table-row'
 import ImageResize from 'tiptap-extension-resize-image'
 import {
   CheckSquare,
@@ -45,6 +49,13 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ImagePickerDialog, type SelectedImage } from './ImagePickerDialog'
+import {
+  buildMarkdownCommandMenu,
+  groupMarkdownCommandMenu,
+  type MarkdownCommandKey,
+  type MarkdownCommandMenuItem,
+} from '../lib/markdownCommandMenu'
+import { parseMarkdownTable, tableNodeToMarkdown } from '../lib/markdownTables'
 
 interface MarkdownEditorProps {
   initialContent?: string
@@ -54,20 +65,8 @@ interface MarkdownEditorProps {
   readOnly?: boolean
 }
 
-type SuggestionItemKey =
-  | 'text'
-  | 'heading1'
-  | 'heading2'
-  | 'heading3'
-  | 'image'
-  | 'list'
-  | 'numberedList'
-  | 'tasks'
-  | 'quote'
-  | 'code'
 type SuggestionCommand = NonNullable<SuggestionItem['command']>
 type SuggestionCommandProps = Parameters<SuggestionCommand>[0]
-type SuggestionMenuItem = Omit<SuggestionItem, 'command'> & { key: SuggestionItemKey }
 
 // Extract all images from a line (handles multiple images on same line)
 // e.g., "![a](x.png) ![b](y.png)" → [{alt, src}, ...]
@@ -301,18 +300,11 @@ function markdownToContent(markdown: string): JSONContent {
       continue
     }
 
-    // Markdown table (lines starting with |)
-    if (trimmed.startsWith('|') || trimmed.startsWith('| ')) {
-      const tableLines = trimmed.split('\n')
-      const isTable = tableLines.length >= 2 && tableLines.every((l) => l.trim().startsWith('|'))
-      if (isTable) {
-        content.push({
-          type: 'codeBlock',
-          attrs: { language: 'markdown' },
-          content: [{ type: 'text', text: trimmed }],
-        })
-        continue
-      }
+    // Markdown table
+    const parsedTable = parseMarkdownTable(trimmed, parseInlineContent)
+    if (parsedTable) {
+      content.push(parsedTable)
+      continue
     }
 
     // Bullet list item
@@ -455,14 +447,13 @@ function contentToMarkdownWithWidths(content: JSONContent): string {
 
       case 'codeBlock': {
         const codeText = getText(node)
-        // Markdown tables stored as codeBlock: output raw (no backtick fences)
-        if (codeText.trimStart().startsWith('|') && codeText.includes('|---')) {
-          markdown = codeText
-        } else {
-          markdown = '```\n' + codeText + '\n```'
-        }
+        markdown = '```\n' + codeText + '\n```'
         break
       }
+
+      case 'table':
+        markdown = tableNodeToMarkdown(node, getText)
+        break
 
       case 'horizontalRule':
         markdown = '---'
@@ -588,7 +579,7 @@ export function MarkdownEditor({
   }, [])
 
   const runSuggestionCommand = useCallback(
-    (key: SuggestionItemKey, props: SuggestionCommandProps) => {
+    (key: MarkdownCommandKey, props: SuggestionCommandProps) => {
       switch (key) {
         case 'text':
           runParagraphCommand(props)
@@ -635,79 +626,27 @@ export function MarkdownEditor({
   )
 
   const suggestionMenuItems = useMemo(
-    (): SuggestionMenuItem[] => [
-        {
-          key: 'text',
-          title: t('markdownEditor.commands.text'),
-          description: t('markdownEditor.commands.textDesc'),
-          icon: <Text size={18} />,
-          searchTerms: ['p', 'paragraph', 'texte', 'text'],
-        },
-        {
-          key: 'heading1',
-          title: t('markdownEditor.commands.heading1'),
-          description: t('markdownEditor.commands.heading1Desc'),
-          icon: <Heading1 size={18} />,
-          searchTerms: ['title', 'h1', 'heading', 'titre'],
-        },
-        {
-          key: 'heading2',
-          title: t('markdownEditor.commands.heading2'),
-          description: t('markdownEditor.commands.heading2Desc'),
-          icon: <Heading2 size={18} />,
-          searchTerms: ['subtitle', 'h2', 'heading', 'titre'],
-        },
-        {
-          key: 'heading3',
-          title: t('markdownEditor.commands.heading3'),
-          description: t('markdownEditor.commands.heading3Desc'),
-          icon: <Heading3 size={18} />,
-          searchTerms: ['h3', 'heading', 'titre'],
-        },
-        {
-          key: 'image',
-          title: t('markdownEditor.commands.image'),
-          description: t('markdownEditor.commands.imageDesc'),
-          icon: <ImageIcon size={18} />,
-          searchTerms: ['image', 'photo', 'picture', 'img'],
-        },
-        {
-          key: 'list',
-          title: t('markdownEditor.commands.list'),
-          description: t('markdownEditor.commands.listDesc'),
-          icon: <List size={18} />,
-          searchTerms: ['unordered', 'ul', 'bullet', 'liste', 'list'],
-        },
-        {
-          key: 'numberedList',
-          title: t('markdownEditor.commands.numberedList'),
-          description: t('markdownEditor.commands.numberedListDesc'),
-          icon: <ListOrdered size={18} />,
-          searchTerms: ['ordered', 'ol', 'number', 'liste', 'list'],
-        },
-        {
-          key: 'tasks',
-          title: t('markdownEditor.commands.tasks'),
-          description: t('markdownEditor.commands.tasksDesc'),
-          icon: <CheckSquare size={18} />,
-          searchTerms: ['todo', 'task', 'checkbox', 'tache', 'tasks'],
-        },
-        {
-          key: 'quote',
-          title: t('markdownEditor.commands.quote'),
-          description: t('markdownEditor.commands.quoteDesc'),
-          icon: <TextQuote size={18} />,
-          searchTerms: ['blockquote', 'quote', 'citation'],
-        },
-        {
-          key: 'code',
-          title: t('markdownEditor.commands.code'),
-          description: t('markdownEditor.commands.codeDesc'),
-          icon: <Code size={18} />,
-          searchTerms: ['codeblock', 'code', 'pre'],
-        },
-      ],
-    [t]
+    (): Array<MarkdownCommandMenuItem & { icon: ReactNode }> =>
+      buildMarkdownCommandMenu((key) => t(key)).map((item) => ({
+        ...item,
+        icon:
+          item.key === 'text' ? <Text size={18} />
+            : item.key === 'heading1' ? <Heading1 size={18} />
+            : item.key === 'heading2' ? <Heading2 size={18} />
+            : item.key === 'heading3' ? <Heading3 size={18} />
+            : item.key === 'image' ? <ImageIcon size={18} />
+            : item.key === 'list' ? <List size={18} />
+            : item.key === 'numberedList' ? <ListOrdered size={18} />
+            : item.key === 'tasks' ? <CheckSquare size={18} />
+            : item.key === 'quote' ? <TextQuote size={18} />
+            : <Code size={18} />,
+      })),
+    [t],
+  )
+
+  const groupedSuggestionMenuItems = useMemo(
+    () => groupMarkdownCommandMenu(suggestionMenuItems, (key) => t(key)),
+    [suggestionMenuItems, t],
   )
 
   // Create suggestion items with executable commands for Novel
@@ -798,6 +737,23 @@ export function MarkdownEditor({
       ImageResize.configure({
         inline: false,
       }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: 'niamoto-editor-table',
+        },
+      }),
+      TableRow,
+      TableHeader.configure({
+        HTMLAttributes: {
+          class: 'niamoto-editor-table-header',
+        },
+      }),
+      TableCell.configure({
+        HTMLAttributes: {
+          class: 'niamoto-editor-table-cell',
+        },
+      }),
       slashCommand,
     ],
     [slashCommand, t]
@@ -878,6 +834,33 @@ export function MarkdownEditor({
           outline-offset: 2px;
           border-radius: 8px;
         }
+
+        .ProseMirror table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          margin: 12px 0;
+          overflow: hidden;
+          border-radius: 10px;
+        }
+
+        .ProseMirror th,
+        .ProseMirror td {
+          min-width: 120px;
+          border: 1px solid hsl(var(--border));
+          padding: 10px 12px;
+          vertical-align: top;
+          text-align: left;
+        }
+
+        .ProseMirror th {
+          background: hsl(var(--muted));
+          font-weight: 600;
+        }
+
+        .ProseMirror .selectedCell:after {
+          background: hsl(var(--primary) / 0.12);
+        }
       `}</style>
       <div
         className={cn(
@@ -951,21 +934,31 @@ export function MarkdownEditor({
                   {t('markdownEditor.help.noResult')}
                 </EditorCommandEmpty>
                 <EditorCommandList>
-                  {suggestionMenuItems.map((item) => (
-                    <EditorCommandItem
-                      value={item.title}
-                      onCommand={(props) => runSuggestionCommand(item.key, props)}
-                      className="flex w-full items-center space-x-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent aria-selected:bg-accent"
-                      key={item.title}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-muted bg-background">
-                        {item.icon}
+                  {groupedSuggestionMenuItems.map((group) => (
+                    <div key={group.key} className="py-1">
+                      <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                        {group.label}
                       </div>
-                      <div>
-                        <p className="font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      <div className="space-y-1">
+                        {group.items.map((item) => (
+                          <EditorCommandItem
+                            key={item.key}
+                            value={item.title}
+                            keywords={item.searchTerms}
+                            onCommand={(props) => runSuggestionCommand(item.key, props)}
+                            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent aria-selected:bg-accent aria-selected:text-foreground"
+                          >
+                            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-muted bg-background text-foreground/80">
+                              {item.icon}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium leading-none">{item.title}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                            </div>
+                          </EditorCommandItem>
+                        ))}
                       </div>
-                    </EditorCommandItem>
+                    </div>
                   ))}
                 </EditorCommandList>
               </EditorCommand>

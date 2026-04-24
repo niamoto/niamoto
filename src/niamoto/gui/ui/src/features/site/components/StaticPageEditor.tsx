@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
+  ChevronDown,
   FileText,
   Trash2,
   Eye,
@@ -26,6 +27,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 import { TemplateSelect } from './TemplateSelect'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
@@ -95,6 +98,7 @@ export function StaticPageEditor({
 
   // Local state for editing (initialized from prop, component remounts on page change via key)
   const [editedPage, setEditedPage] = useState<StaticPage>(page)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   // Fetch templates
   const { data: templatesData, isLoading: templatesLoading } = useTemplates()
@@ -215,6 +219,230 @@ export function StaticPageEditor({
     }))
   }
 
+  const pageSettingsCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('pageEditor.pageSettings')}</CardTitle>
+        <CardDescription>{t('pageEditor.pageSettingsDesc')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="page-name">{t('pageEditor.pageName')}</Label>
+            <Input
+              id="page-name"
+              value={editedPage.name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="methodology"
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('pageEditor.pageNameHint')}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="output-file">{t('pageEditor.outputFile')}</Label>
+            <Input
+              id="output-file"
+              value={editedPage.output_file}
+              onChange={(e) => updateField('output_file', e.target.value)}
+              placeholder="methodology.html"
+              className="font-mono"
+              readOnly={isIndexPage}
+              disabled={isIndexPage}
+            />
+            {isIndexPage ? (
+              <p className="text-xs text-muted-foreground">
+                {t('pageEditor.outputFileLockedHome')}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>{t('collectionViewer.template')}</Label>
+          <TemplateSelect
+            value={editedPage.template}
+            onChange={handleTemplateChange}
+            templates={availableTemplates}
+            disabled={templatesLoading}
+          />
+        </div>
+
+        {(onAddToMenu || menuRefs.length > 0) ? (
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Menu className="h-4 w-4" />
+              {t('navigation.menuLinks')}
+            </Label>
+            {menuRefs.length > 0 ? (
+              <div className="space-y-2">
+                {menuRefs.map((ref) => (
+                  <div key={ref.id} className="flex items-center gap-2">
+                    <LocalizedInput
+                      value={ref.label}
+                      onChange={(value) => onUpdateMenuLabel?.(ref.id, value ?? '')}
+                      placeholder={editedPage.name}
+                      className="flex-1"
+                    />
+                    {onRemoveMenuItem ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 hover:bg-destructive/10"
+                        onClick={() => onRemoveMenuItem(ref.id)}
+                      >
+                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : onAddToMenu ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                onClick={onAddToMenu}
+              >
+                <Plus className="h-3 w-3" />
+                {t('navigation.addToMainMenu')}
+              </Button>
+            ) : (
+              <span className="text-sm italic text-muted-foreground">
+                {t('navigation.notLinked')}
+              </span>
+            )}
+          </div>
+        ) : null}
+
+        {!onAddToMenu && onUpdateNavigation ? (
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Menu className="h-4 w-4" />
+              {t('navigation.menuLinks')}
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {inMainNav ? (
+                <div className="flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-3 pr-1 text-sm">
+                  <Navigation className="h-3 w-3 text-primary" />
+                  <span className="text-primary">{t('navigation.mainMenu')}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 rounded-full hover:bg-destructive/20"
+                    onClick={handleRemoveFromMainNav}
+                  >
+                    <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={handleAddToMainNav}
+                >
+                  <Plus className="h-3 w-3" />
+                  {t('navigation.addToMainMenu')}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+
+  const additionalContextCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('pageEditor.additionalContext')}</CardTitle>
+        <CardDescription>{t('pageEditor.additionalContextDesc')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <LocalizedInput
+            value={editedPage.context?.title as LocalizedString | undefined}
+            onChange={(title) => updateContext('title', title || null)}
+            placeholder={t('pageEditor.pageTitleHint')}
+            label={t('pageEditor.pageTitle')}
+          />
+          <p className="text-xs text-muted-foreground">
+            {t('pageEditor.pageTitleHint')}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  const templateSpecificContent = hasTemplateForm(editedPage.template) ? (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('pageEditor.pageConfig')}</CardTitle>
+        <CardDescription>
+          {t('pageEditor.templateFormDesc', { template: editedPage.template })}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {editedPage.template === 'index.html' && (
+          <IndexPageForm
+            context={(editedPage.context as IndexPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+        {editedPage.template === 'bibliography.html' && (
+          <BibliographyForm
+            context={(editedPage.context as BibliographyPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+        {editedPage.template === 'team.html' && (
+          <TeamForm
+            context={(editedPage.context as TeamPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+        {editedPage.template === 'resources.html' && (
+          <ResourcesForm
+            context={(editedPage.context as ResourcesPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+        {editedPage.template === 'contact.html' && (
+          <ContactForm
+            context={(editedPage.context as ContactPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+        {editedPage.template === 'glossary.html' && (
+          <GlossaryForm
+            context={(editedPage.context as GlossaryPageContext) || {}}
+            onChange={(ctx) =>
+              setEditedPage((prev) => ({ ...prev, context: ctx }))
+            }
+            pageName={editedPage.name}
+          />
+        )}
+      </CardContent>
+    </Card>
+  ) : null
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -262,249 +490,58 @@ export function StaticPageEditor({
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         <div className="mx-auto max-w-4xl space-y-4">
-          {/* Basic Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t('pageEditor.pageSettings')}</CardTitle>
-              <CardDescription>{t('pageEditor.pageSettingsDesc')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Page name */}
-                <div className="space-y-2">
-                  <Label htmlFor="page-name">{t('pageEditor.pageName')}</Label>
-                  <Input
-                    id="page-name"
-                    value={editedPage.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="methodology"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('pageEditor.pageNameHint')}
+          {hasTemplateForm(editedPage.template) ? (
+            <>
+              {pageSettingsCard}
+              {templateSpecificContent}
+            </>
+          ) : (
+            <>
+              <section data-testid="static-page-markdown-content" className="space-y-3">
+                <div className="space-y-1 px-1">
+                  <h2 className="text-base font-semibold">{t('pageEditor.content')}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {t('pageEditor.markdownContent')}
                   </p>
                 </div>
-
-                {/* Output file */}
-                <div className="space-y-2">
-                  <Label htmlFor="output-file">{t('pageEditor.outputFile')}</Label>
-                  <Input
-                    id="output-file"
-                    value={editedPage.output_file}
-                    onChange={(e) => updateField('output_file', e.target.value)}
-                    placeholder="methodology.html"
-                    className="font-mono"
-                    readOnly={isIndexPage}
-                    disabled={isIndexPage}
-                  />
-                  {isIndexPage && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('pageEditor.outputFileLockedHome')}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Template selection */}
-              <div className="space-y-2">
-                <Label>{t('collectionViewer.template')}</Label>
-                <TemplateSelect
-                  value={editedPage.template}
-                  onChange={handleTemplateChange}
-                  templates={availableTemplates}
-                  disabled={templatesLoading}
+                <MarkdownContentField
+                  baseName={editedPage.name}
+                  contentSource={editedPage.context?.content_source}
+                  onContentSourceChange={(source) => updateContext('content_source', source)}
+                  minHeight="320px"
+                  variant="authoring"
                 />
-              </div>
+              </section>
 
-              {/* Menu occurrences (unified tree helpers) */}
-              {(onAddToMenu || menuRefs.length > 0) && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Menu className="h-4 w-4" />
-                    {t('navigation.menuLinks')}
-                  </Label>
-                  {menuRefs.length > 0 ? (
-                    <div className="space-y-2">
-                      {menuRefs.map(ref => (
-                        <div key={ref.id} className="flex items-center gap-2">
-                          <LocalizedInput
-                            value={ref.label}
-                            onChange={(val) => onUpdateMenuLabel?.(ref.id, val ?? '')}
-                            placeholder={editedPage.name}
-                            className="flex-1"
-                          />
-                          {onRemoveMenuItem && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0 hover:bg-destructive/10"
-                              onClick={() => onRemoveMenuItem(ref.id)}
-                            >
-                              <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : onAddToMenu ? (
+              <Collapsible
+                open={detailsOpen}
+                onOpenChange={setDetailsOpen}
+                data-testid="static-page-settings"
+              >
+                <div className="rounded-xl border border-border/70 bg-muted/20">
+                  <CollapsibleTrigger asChild>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1"
-                      onClick={onAddToMenu}
+                      variant="ghost"
+                      data-testid="static-page-settings-toggle"
+                      className="flex h-auto w-full items-center justify-between rounded-xl px-4 py-3"
                     >
-                      <Plus className="h-3 w-3" />
-                      {t('navigation.addToMainMenu')}
+                      <span className="text-sm font-medium">{t('pageEditor.pageSettings')}</span>
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 text-muted-foreground transition-transform',
+                          detailsOpen && 'rotate-180'
+                        )}
+                      />
                     </Button>
-                  ) : (
-                    <span className="text-sm text-muted-foreground italic">
-                      {t('navigation.notLinked')}
-                    </span>
-                  )}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-4 border-t border-border/60 px-4 py-4">
+                      {pageSettingsCard}
+                      {additionalContextCard}
+                    </div>
+                  </CollapsibleContent>
                 </div>
-              )}
-              {/* Legacy navigation linking (NavigationBuilder compat) */}
-              {!onAddToMenu && onUpdateNavigation && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Menu className="h-4 w-4" />
-                    {t('navigation.menuLinks')}
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {inMainNav ? (
-                      <div className="flex items-center gap-1 rounded-full bg-primary/10 pl-3 pr-1 py-1 text-sm">
-                        <Navigation className="h-3 w-3 text-primary" />
-                        <span className="text-primary">{t('navigation.mainMenu')}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 rounded-full hover:bg-destructive/20"
-                          onClick={handleRemoveFromMainNav}
-                        >
-                          <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1"
-                        onClick={handleAddToMainNav}
-                      >
-                        <Plus className="h-3 w-3" />
-                        {t('navigation.addToMainMenu')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Content Section - Template-specific form or Markdown editor */}
-          {hasTemplateForm(editedPage.template) ? (
-            /* Dedicated form for specific templates */
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t('pageEditor.pageConfig')}</CardTitle>
-                <CardDescription>
-                  {t('pageEditor.templateFormDesc', { template: editedPage.template })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {editedPage.template === 'index.html' && (
-                  <IndexPageForm
-                    context={(editedPage.context as IndexPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-                {editedPage.template === 'bibliography.html' && (
-                  <BibliographyForm
-                    context={(editedPage.context as BibliographyPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-                {editedPage.template === 'team.html' && (
-                  <TeamForm
-                    context={(editedPage.context as TeamPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-                {editedPage.template === 'resources.html' && (
-                  <ResourcesForm
-                    context={(editedPage.context as ResourcesPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-                {editedPage.template === 'contact.html' && (
-                  <ContactForm
-                    context={(editedPage.context as ContactPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-                {editedPage.template === 'glossary.html' && (
-                  <GlossaryForm
-                    context={(editedPage.context as GlossaryPageContext) || {}}
-                    onChange={(ctx) =>
-                      setEditedPage((prev) => ({ ...prev, context: ctx }))
-                    }
-                    pageName={editedPage.name}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            /* Standard markdown editor for other templates */
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">{t('pageEditor.content')}</CardTitle>
-                  <CardDescription>{t('pageEditor.markdownContent')}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <MarkdownContentField
-                    baseName={editedPage.name}
-                    contentSource={editedPage.context?.content_source}
-                    onContentSourceChange={(source) => updateContext('content_source', source)}
-                    minHeight="300px"
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Additional context - only for non-form templates */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">{t('pageEditor.additionalContext')}</CardTitle>
-                  <CardDescription>{t('pageEditor.additionalContextDesc')}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <LocalizedInput
-                      value={editedPage.context?.title as LocalizedString | undefined}
-                      onChange={(title) => updateContext('title', title || null)}
-                      placeholder={t('pageEditor.pageTitleHint')}
-                      label={t('pageEditor.pageTitle')}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {t('pageEditor.pageTitleHint')}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              </Collapsible>
             </>
           )}
         </div>
