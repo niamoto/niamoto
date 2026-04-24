@@ -141,6 +141,10 @@ function extractTableCellText(
   return text.replace(/\s*\n+\s*/g, ' ').trim()
 }
 
+function escapeMarkdownTableCell(text: string): string {
+  return text.replace(/\|/g, '\\|')
+}
+
 function padRow(cells: string[], columnCount: number): string[] {
   return Array.from({ length: columnCount }, (_, index) => cells[index] ?? '')
 }
@@ -155,7 +159,9 @@ export function tableNodeToMarkdown(
   }
 
   const cellRows = rows.map((row) =>
-    (row.content ?? []).map((cell) => extractTableCellText(cell, getText))
+    (row.content ?? []).map((cell) =>
+      escapeMarkdownTableCell(extractTableCellText(cell, getText))
+    )
   )
 
   const columnCount = Math.max(...cellRows.map((row) => row.length))
@@ -181,5 +187,6 @@ export function tableNodeToMarkdown(
 
 export const markdownTableTestUtils = {
   createTableCell,
+  escapeMarkdownTableCell,
   splitMarkdownTableRow,
 }

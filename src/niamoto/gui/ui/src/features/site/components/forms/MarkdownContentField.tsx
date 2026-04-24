@@ -119,6 +119,8 @@ export function MarkdownContentField({
   const [isSaving, setIsSaving] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const previousSingleFilePathRef = useRef<string | null>(null)
+  const hasUnsavedChangesRef = useRef(false)
 
   const getDefaultFilePath = useCallback(() => `templates/content/${baseName}.md`, [baseName])
   const getMultilingualBasePath = useCallback(() => `templates/content/${baseName}`, [baseName])
@@ -148,12 +150,40 @@ export function MarkdownContentField({
     }
   }, [contentSource])
 
+  const resetSingleFileDraft = useCallback((content = '') => {
+    setEditedContent(content)
+    setHasUnsavedChanges(false)
+    setIsSaving(false)
+  }, [])
+
   useEffect(() => {
-    if (fileContentData?.content !== undefined) {
-      setEditedContent(fileContentData.content)
-      setHasUnsavedChanges(false)
+    hasUnsavedChangesRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    const previousPath = previousSingleFilePathRef.current
+    const pathChanged = previousPath !== singleFilePath
+    previousSingleFilePathRef.current = singleFilePath
+
+    if (!singleFilePath) {
+      resetSingleFileDraft()
+      return
     }
-  }, [fileContentData?.content])
+
+    if (pathChanged) {
+      resetSingleFileDraft(fileContentData?.content ?? '')
+      setViewMode('write')
+      return
+    }
+
+    if (!hasUnsavedChangesRef.current && fileContentData?.content !== undefined) {
+      setEditedContent(fileContentData.content)
+    }
+  }, [
+    fileContentData?.content,
+    resetSingleFileDraft,
+    singleFilePath,
+  ])
 
   useEffect(() => {
     if (!contentSource) {
@@ -164,7 +194,7 @@ export function MarkdownContentField({
   const handleContentModeChange = (mode: ContentMode) => {
     setContentMode(mode)
     setViewMode('write')
-    setHasUnsavedChanges(false)
+    resetSingleFileDraft()
     setSourceControlsOpen(false)
 
     if (mode === 'single') {
@@ -219,6 +249,7 @@ export function MarkdownContentField({
     try {
       const result = await uploadMutation.mutateAsync({ file, folder: 'templates/content' })
       await refetchFiles()
+      resetSingleFileDraft()
       onContentSourceChange(result.path)
       setViewMode('write')
       setSourceControlsOpen(false)
@@ -235,6 +266,7 @@ export function MarkdownContentField({
   }
 
   const handleFileSelection = (path: string) => {
+    resetSingleFileDraft()
     onContentSourceChange(path || null)
     setViewMode('write')
     setSourceControlsOpen(false)
@@ -242,8 +274,7 @@ export function MarkdownContentField({
 
   const handleClearFile = () => {
     onContentSourceChange(null)
-    setEditedContent('')
-    setHasUnsavedChanges(false)
+    resetSingleFileDraft()
     setViewMode('write')
     setSourceControlsOpen(true)
   }
@@ -406,7 +437,7 @@ export function MarkdownContentField({
           style={{ minHeight }}
         >
           <pre className="whitespace-pre-wrap font-mono text-sm text-muted-foreground">
-            {editedContent || fileContentData?.content || t('site:pageEditor.noContent')}
+            {editedContent || t('site:pageEditor.noContent')}
           </pre>
         </div>
       )
@@ -417,7 +448,7 @@ export function MarkdownContentField({
         <Suspense fallback={editorFallback}>
           <MarkdownEditor
             key={singleFilePath}
-            initialContent={fileContentData?.content ?? editedContent}
+            initialContent={editedContent}
             onChange={handleContentChange}
             placeholder={placeholder || t('site:pageEditor.markdownPlaceholder')}
             className={variant === 'authoring' ? 'border-border/70 shadow-none' : undefined}
@@ -486,7 +517,7 @@ export function MarkdownContentField({
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={!hasUnsavedChanges || isSaving}
+                  disabled={!hasUnsavedChanges || isSaving || fileContentLoading}
                 >
                   {isSaving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
