@@ -25,12 +25,12 @@ export function usePreviewVisibility(
       ([entry]) => {
         if (!entry.isIntersecting) {
           if (!freezeOnceVisible) {
-            setIsVisible(false)
+            setIsVisible((current) => current ? false : current)
           }
           return
         }
 
-        setIsVisible(true)
+        setIsVisible((current) => current ? current : true)
         if (freezeOnceVisible) {
           observer.disconnect()
         }

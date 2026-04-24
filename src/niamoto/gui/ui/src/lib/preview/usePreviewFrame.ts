@@ -36,24 +36,83 @@ const MAX_CONCURRENT_RENDERS = 3
 
 // --- Sémaphore de rendu Plotly ---
 
-const renderQueue: Array<() => void> = []
+interface RenderQueueEntry {
+  resolve: () => void
+  reject: (error: Error) => void
+  signal?: AbortSignal
+  abortListener?: () => void
+}
+
+const renderQueue: RenderQueueEntry[] = []
 let activeRenders = 0
 
-function acquireRenderSlot(): Promise<void> {
+function createAbortError(): Error {
+  const error = new Error('Preview render cancelled')
+  error.name = 'AbortError'
+  return error
+}
+
+function removeQueuedRender(entry: RenderQueueEntry): void {
+  const index = renderQueue.indexOf(entry)
+  if (index >= 0) {
+    renderQueue.splice(index, 1)
+  }
+}
+
+function cleanupQueuedRender(entry: RenderQueueEntry): void {
+  if (entry.signal && entry.abortListener) {
+    entry.signal.removeEventListener('abort', entry.abortListener)
+  }
+}
+
+function acquireRenderSlot(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(createAbortError())
+  }
+
   if (activeRenders < MAX_CONCURRENT_RENDERS) {
     activeRenders++
     return Promise.resolve()
   }
-  return new Promise(resolve => renderQueue.push(resolve))
+
+  return new Promise((resolve, reject) => {
+    const entry: RenderQueueEntry = {
+      resolve: () => {
+        cleanupQueuedRender(entry)
+        resolve()
+      },
+      reject,
+      signal,
+    }
+
+    entry.abortListener = () => {
+      removeQueuedRender(entry)
+      cleanupQueuedRender(entry)
+      reject(createAbortError())
+    }
+
+    signal?.addEventListener('abort', entry.abortListener, { once: true })
+    renderQueue.push(entry)
+  })
 }
 
 function releaseRenderSlot(): void {
   if (activeRenders <= 0) return
   activeRenders--
-  const next = renderQueue.shift()
-  if (next) {
+
+  while (renderQueue.length > 0) {
+    const next = renderQueue.shift()
+    if (!next) return
+
+    if (next.signal?.aborted) {
+      cleanupQueuedRender(next)
+      next.reject(createAbortError())
+      continue
+    }
+
     activeRenders++
-    next()
+    next.resolve()
+    return
   }
 }
 
@@ -136,8 +195,11 @@ export function usePreviewFrame(
 
       // Sémaphore : limite les rendus Plotly concurrents
       let slotAcquired = false
-      await acquireRenderSlot()
+      await acquireRenderSlot(combinedSignal)
       slotAcquired = true
+      if (combinedSignal.aborted) {
+        throw createAbortError()
+      }
       try {
         if (descriptor.inline) {
           const res = await fetch('/api/preview', {
