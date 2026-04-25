@@ -8,6 +8,7 @@ import { useSources, useRemoveSource } from '@/features/collections/hooks/useSou
 import { SourcesList } from './SourcesList'
 import { AddSourceDialog } from './AddSourceDialog'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 interface SourcesPanelProps {
   reference: ReferenceInfo
@@ -22,6 +23,15 @@ export function SourcesPanel({ reference }: SourcesPanelProps) {
   const removeMutation = useRemoveSource(reference.name)
 
   const customSourceCount = sources.filter((source) => !source.is_builtin).length
+  const schemaFieldCount = reference.schema_fields.length
+
+  useDevListRenderMetric('collections.sources.schemaFields', schemaFieldCount, {
+    itemThreshold: 20,
+    detail: {
+      reference: reference.name,
+      sourcesLoading,
+    },
+  })
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -100,7 +110,7 @@ export function SourcesPanel({ reference }: SourcesPanelProps) {
           </CardContent>
         </Card>
 
-        {reference.schema_fields.length > 0 && (
+        {schemaFieldCount > 0 && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">

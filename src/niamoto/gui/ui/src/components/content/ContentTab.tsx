@@ -41,6 +41,7 @@ import {
   writeStoredCollectionsPreviewPreference,
   type CollectionsPreviewPreference,
 } from './previewPolicy'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // Helper to resolve LocalizedString for search
 function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
@@ -131,6 +132,16 @@ export function ContentTab({ reference }: ContentTabProps) {
     [configuredWidgets.length, hardwareConcurrency, previewPreference],
   )
 
+  useDevListRenderMetric('collections.content.configuredWidgets', configuredWidgets.length, {
+    itemThreshold: 20,
+    detail: {
+      reference: reference.name,
+      filteredCount: filteredWidgets.length,
+      selected: selectedWidgetId !== null,
+      autoRefreshPreview: detailPreviewAutoRefresh,
+    },
+  })
+
   // Get selected widget data
   const selectedWidget = useMemo(() => {
     if (!selectedWidgetId) return null
@@ -139,17 +150,30 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   // Handle widget selection
   const handleSelectWidget = useCallback((widget: ConfiguredWidget | null) => {
-    setSelectedWidgetState({
-      referenceName: reference.name,
-      widgetId: widget?.id || null,
+    const nextWidgetId = widget?.id || null
+    setSelectedWidgetState((current) => {
+      if (current.referenceName === reference.name && current.widgetId === nextWidgetId) {
+        return current
+      }
+
+      return {
+        referenceName: reference.name,
+        widgetId: nextWidgetId,
+      }
     })
   }, [reference.name])
 
   // Handle back to layout overview
   const handleBackToLayout = useCallback(() => {
-    setSelectedWidgetState({
-      referenceName: reference.name,
-      widgetId: null,
+    setSelectedWidgetState((current) => {
+      if (current.referenceName === reference.name && current.widgetId === null) {
+        return current
+      }
+
+      return {
+        referenceName: reference.name,
+        widgetId: null,
+      }
     })
   }, [reference.name])
 
@@ -165,9 +189,15 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleDeleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
     const success = await deleteWidget(widgetId)
     if (success && selectedWidgetId === widgetId) {
-      setSelectedWidgetState({
-        referenceName: reference.name,
-        widgetId: null,
+      setSelectedWidgetState((current) => {
+        if (current.referenceName === reference.name && current.widgetId === null) {
+          return current
+        }
+
+        return {
+          referenceName: reference.name,
+          widgetId: null,
+        }
       })
     }
     return success
@@ -196,9 +226,15 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
-    setSelectedWidgetState({
-      referenceName: reference.name,
-      widgetId: null,
+    setSelectedWidgetState((current) => {
+      if (current.referenceName === reference.name && current.widgetId === null) {
+        return current
+      }
+
+      return {
+        referenceName: reference.name,
+        widgetId: null,
+      }
     })
   }, [reference.name, refetchWidgets])
 

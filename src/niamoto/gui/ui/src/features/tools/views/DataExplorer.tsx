@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner'
 import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
 import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 const DATA_EXPLORER_TABS = ['database', 'exports'] as const
 type DataExplorerTab = (typeof DATA_EXPLORER_TABS)[number]
@@ -117,6 +118,33 @@ export function DataExplorer() {
     column: string
     value: Record<string, unknown> | unknown[]
   } | null>(null)
+  const exportFileCount = (exports?.web.length ?? 0)
+    + (exports?.api.length ?? 0)
+    + (exports?.dwc.length ?? 0)
+
+  useDevListRenderMetric('tools.dataExplorer.tables', tables.length, {
+    itemThreshold: 20,
+    detail: {
+      activeTab,
+      selectedTable: selectedTable || null,
+    },
+  })
+  useDevListRenderMetric('tools.dataExplorer.rows', queryResult?.rows.length ?? 0, {
+    itemThreshold: 50,
+    detail: {
+      table: selectedTable || null,
+      page: currentPage,
+      columnCount: queryResult?.columns.length ?? 0,
+    },
+  })
+  useDevListRenderMetric('tools.dataExplorer.exports', exportFileCount, {
+    itemThreshold: 50,
+    detail: {
+      web: exports?.web.length ?? 0,
+      api: exports?.api.length ?? 0,
+      dwc: exports?.dwc.length ?? 0,
+    },
+  })
 
   const loadExports = useCallback(async () => {
     setExportsLoading(true)

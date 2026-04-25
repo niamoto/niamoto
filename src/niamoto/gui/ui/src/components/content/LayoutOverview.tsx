@@ -72,6 +72,7 @@ import {
   measureCollectionsContentSwitch,
   recordCollectionsPerf,
 } from '@/features/collections/performance/collectionsPerf'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // Types matching layout-editor/types.ts
 interface WidgetLayout {
@@ -682,6 +683,26 @@ export function LayoutOverview({
     : resolvedPreviewMode === 'focused' && effectiveFocusedPreviewCardId
       ? 1
       : 0
+
+  useDevListRenderMetric('collections.layout.contentWidgets', contentWidgets.length, {
+    itemThreshold: 20,
+    detail: {
+      activePreviewCount,
+      groupBy,
+      performanceTier,
+      previewMode: resolvedPreviewMode,
+    },
+  })
+
+  useDevListRenderMetric('collections.layout.activePreviews', activePreviewCount, {
+    itemThreshold: 10,
+    detail: {
+      groupBy,
+      performanceTier,
+      previewMode: resolvedPreviewMode,
+      widgetCount: contentWidgets.length,
+    },
+  })
 
   useEffect(() => {
     const durationMs = measureCollectionsContentSwitch(groupBy, {

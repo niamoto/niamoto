@@ -53,6 +53,7 @@ import { toast } from 'sonner'
 import { clearExportHistory } from '@/features/publish/api/export'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 const PUBLISH_HISTORY_TABS = ['deploys', 'builds'] as const
 type PublishHistoryTab = (typeof PUBLISH_HISTORY_TABS)[number]
@@ -79,6 +80,21 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
     })
 
   const dateLocale = i18n.language === 'fr' ? fr : enUS
+
+  useDevListRenderMetric('publish.history.deploys', deployHistory.length, {
+    itemThreshold: 25,
+    detail: {
+      activeTab,
+      embedded,
+    },
+  })
+  useDevListRenderMetric('publish.history.builds', buildHistory.length, {
+    itemThreshold: 25,
+    detail: {
+      activeTab,
+      embedded,
+    },
+  })
 
   useEffect(() => {
     if (embedded) return

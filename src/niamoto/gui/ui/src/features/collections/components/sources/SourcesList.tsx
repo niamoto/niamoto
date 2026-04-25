@@ -33,6 +33,7 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConfiguredSource } from '@/features/collections/hooks/useSources'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 interface SourcesListProps {
   sources: ConfiguredSource[]
@@ -44,6 +45,30 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
   const { t } = useTranslation('sources')
   const [sourceToDelete, setSourceToDelete] = useState<string | null>(null)
   const [expandedSource, setExpandedSource] = useState<string | null>(null)
+  const builtinSources = sources.filter(s => s.is_builtin)
+  const customSources = sources.filter(s => !s.is_builtin)
+  const sourceColumnCount = sources.reduce(
+    (total, source) => total + (source.columns?.length ?? 0),
+    0,
+  )
+
+  useDevListRenderMetric('collections.sources.sources', sources.length, {
+    itemThreshold: 20,
+    detail: {
+      builtinCount: builtinSources.length,
+      columnCount: sourceColumnCount,
+      customCount: customSources.length,
+      expanded: expandedSource !== null,
+    },
+  })
+
+  useDevListRenderMetric('collections.sources.columns', sourceColumnCount, {
+    itemThreshold: 20,
+    detail: {
+      expanded: expandedSource !== null,
+      sourceCount: sources.length,
+    },
+  })
 
   const handleConfirmDelete = () => {
     if (sourceToDelete) {
@@ -59,10 +84,6 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
       </div>
     )
   }
-
-  // Separate built-in and custom sources
-  const builtinSources = sources.filter(s => s.is_builtin)
-  const customSources = sources.filter(s => !s.is_builtin)
 
   return (
     <>

@@ -27,6 +27,33 @@ import type { FormValues } from '@/components/forms/formSchemaTypes'
 import { EnrichmentPanelEditor } from './EnrichmentPanelEditor'
 import type { ConfiguredWidget } from './useWidgetConfig'
 
+function serializeConfigPart(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function mergeConfigPart(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...previous, ...next }
+  return serializeConfigPart(merged) === serializeConfigPart(previous)
+    ? previous
+    : merged
+}
+
+function replaceConfigPart(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeConfigPart(next) === serializeConfigPart(previous)
+    ? previous
+    : next
+}
+
 interface WidgetConfigFormProps {
   widget: ConfiguredWidget
   groupBy: string
@@ -110,20 +137,20 @@ export function WidgetConfigForm({
 
   // Handle transformer params change
   const handleTransformerChange = useCallback((data: Record<string, unknown>) => {
-    setTransformerParams(prev => ({ ...prev, ...data }))
+    setTransformerParams(prev => mergeConfigPart(prev, data))
   }, [])
 
   // Handle widget params change
   const handleWidgetChange = useCallback((data: Record<string, unknown>) => {
-    setWidgetParams(prev => ({ ...prev, ...data }))
+    setWidgetParams(prev => mergeConfigPart(prev, data))
   }, [])
 
   const handleTransformerReplace = useCallback((data: Record<string, unknown>) => {
-    setTransformerParams(data)
+    setTransformerParams(prev => replaceConfigPart(prev, data))
   }, [])
 
   const handleWidgetReplace = useCallback((data: Record<string, unknown>) => {
-    setWidgetParams(data)
+    setWidgetParams(prev => replaceConfigPart(prev, data))
   }, [])
 
   // Handle save

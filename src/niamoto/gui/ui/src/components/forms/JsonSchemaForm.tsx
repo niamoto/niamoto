@@ -140,6 +140,18 @@ function normalizeSchemaType(type: FieldSchema['type']): string | undefined {
   return Array.isArray(type) ? type[0] : type;
 }
 
+function serializeFormValue(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function areFormValuesEqual(a: unknown, b: unknown): boolean {
+  return serializeFormValue(a) === serializeFormValue(b);
+}
+
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   pluginId,
   pluginType: _pluginType, // unused but kept for interface compatibility
@@ -288,6 +300,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
   // Handle field changes
   const handleFieldChange = React.useCallback((fieldName: string, value: FormValue | undefined) => {
+    if (areFormValuesEqual(formData[fieldName], value)) {
+      return;
+    }
+
     const newData = { ...formData, [fieldName]: value };
     setFormData(newData);
     lastSyncedValuesRef.current = JSON.stringify(filterHiddenValues(newData));
