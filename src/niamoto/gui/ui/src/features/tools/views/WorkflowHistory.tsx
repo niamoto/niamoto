@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -10,6 +11,7 @@ import {
   Clock3,
   Database,
   FileClock,
+  Eye,
   Layers,
   Loader2,
   RefreshCw,
@@ -26,6 +28,14 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -48,6 +58,7 @@ interface HistoryStats {
 }
 
 const HISTORY_LIMIT = 50
+const RAW_RESULT_MAX_LENGTH = 12_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -244,6 +255,101 @@ function resultMetrics(entry: JobHistoryEntry): Record<string, unknown> | null {
   return isRecord(metrics) ? metrics : null
 }
 
+function safeJsonStringify(value: unknown): string | null {
+  if (value == null) {
+    return null
+  }
+
+  try {
+    const json = JSON.stringify(value, null, 2)
+    return json.length > RAW_RESULT_MAX_LENGTH
+      ? `${json.slice(0, RAW_RESULT_MAX_LENGTH)}\n…`
+      : json
+  } catch {
+    return null
+  }
+}
+
+function formatMetricValue(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2)
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false'
+  }
+
+  if (Array.isArray(value)) {
+    return value.length.toLocaleString()
+  }
+
+  return '-'
+}
+
+function humanizeMetricKey(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function metricEntries(entry: JobHistoryEntry): Array<[string, unknown]> {
+  const metrics = resultMetrics(entry)
+
+  if (!metrics) {
+    return []
+  }
+
+  return Object.entries(metrics).filter(([, value]) => {
+    if (value == null) {
+      return false
+    }
+
+    if (Array.isArray(value)) {
+      return value.length > 0
+    }
+
+    return typeof value !== 'object'
+  })
+}
+
+function generatedPaths(entry: JobHistoryEntry): string[] {
+  const paths = new Set<string>()
+  const metrics = resultMetrics(entry)
+
+  if (metrics) {
+    const generatedFiles = metrics.generated_files
+    if (Array.isArray(generatedFiles)) {
+      generatedFiles.forEach((path) => {
+        if (typeof path === 'string' && path) {
+          paths.add(path)
+        }
+      })
+    }
+
+    const staticSitePath = metrics.static_site_path
+    if (typeof staticSitePath === 'string' && staticSitePath) {
+      paths.add(staticSitePath)
+    }
+  }
+
+  if (isRecord(entry.result)) {
+    const resultPaths = entry.result.generated_paths
+    if (Array.isArray(resultPaths)) {
+      resultPaths.forEach((path) => {
+        if (typeof path === 'string' && path) {
+          paths.add(path)
+        }
+      })
+    }
+  }
+
+  return Array.from(paths)
+}
+
 function resultSummary(entry: JobHistoryEntry, t: TFunction): string | null {
   if (entry.error) {
     return entry.error
@@ -288,6 +394,170 @@ function resultSummary(entry: JobHistoryEntry, t: TFunction): string | null {
   }
 
   return entry.message ?? null
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-background/70 p-3">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium">{value}</dd>
+    </div>
+  )
+}
+
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function WorkflowHistoryDetailsSheet({
+  entry,
+  onClose,
+}: {
+  entry: JobHistoryEntry | null
+  onClose: () => void
+}) {
+  const { t } = useTranslation('tools')
+
+  if (!entry) {
+    return null
+  }
+
+  const meta = typeMeta(entry.type, t)
+  const Icon = meta.icon
+  const status = statusMeta(entry.status, t)
+  const StatusIcon = status.icon
+  const completedAt = entry.completed_at ?? entry.updated_at
+  const duration = formatDuration(durationSeconds(entry.started_at, completedAt), t)
+  const summary = resultSummary(entry, t)
+  const metrics = metricEntries(entry)
+  const paths = generatedPaths(entry)
+  const rawResult = safeJsonStringify(entry.result)
+
+  return (
+    <Sheet open={entry !== null} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-[min(760px,92vw)] sm:max-w-[760px]">
+        <SheetHeader className="border-b px-6 py-5">
+          <div className="flex items-start gap-3 pr-8">
+            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', meta.className)}>
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <SheetTitle className="truncate">
+                {t('workflowHistory.details.title', 'Workflow action details')}
+              </SheetTitle>
+              <SheetDescription>
+                {meta.label} · {jobTarget(entry.group_by, entry.group_bys, t)}
+              </SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
+
+        <ScrollArea className="h-[calc(100vh-96px)] px-6 pb-6">
+          <div className="space-y-5 pt-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={status.badge} className="gap-1.5">
+                <StatusIcon className="h-3 w-3" />
+                {status.label}
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[11px]">
+                {entry.id}
+              </Badge>
+            </div>
+
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <DetailField
+                label={t('workflowHistory.details.target', 'Target')}
+                value={jobTarget(entry.group_by, entry.group_bys, t)}
+              />
+              <DetailField
+                label={t('workflowHistory.details.duration', 'Duration')}
+                value={duration}
+              />
+              <DetailField
+                label={t('workflowHistory.details.startedAt', 'Started')}
+                value={formatDateTime(entry.started_at)}
+              />
+              <DetailField
+                label={t('workflowHistory.details.completedAt', 'Completed')}
+                value={formatDateTime(completedAt)}
+              />
+            </dl>
+
+            {summary && (
+              <DetailSection title={t('workflowHistory.details.summary', 'Summary')}>
+                <p
+                  className={cn(
+                    'rounded-lg border p-3 text-sm',
+                    entry.status === 'failed'
+                      ? 'border-destructive/20 bg-destructive/5 text-destructive'
+                      : 'bg-muted/40 text-muted-foreground',
+                  )}
+                >
+                  {summary}
+                </p>
+              </DetailSection>
+            )}
+
+            {entry.message && entry.message !== summary && (
+              <DetailSection title={t('workflowHistory.details.message', 'Message')}>
+                <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  {entry.message}
+                </p>
+              </DetailSection>
+            )}
+
+            {metrics.length > 0 && (
+              <DetailSection title={t('workflowHistory.details.metrics', 'Metrics')}>
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  {metrics.map(([key, value]) => (
+                    <DetailField
+                      key={key}
+                      label={humanizeMetricKey(key)}
+                      value={formatMetricValue(value)}
+                    />
+                  ))}
+                </dl>
+              </DetailSection>
+            )}
+
+            {paths.length > 0 && (
+              <DetailSection title={t('workflowHistory.details.files', 'Generated files')}>
+                <div className="space-y-2">
+                  {paths.map((path) => (
+                    <div
+                      key={path}
+                      className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs text-muted-foreground"
+                    >
+                      {path}
+                    </div>
+                  ))}
+                </div>
+              </DetailSection>
+            )}
+
+            {rawResult && (
+              <DetailSection title={t('workflowHistory.details.rawResult', 'Raw result')}>
+                <pre className="max-h-[360px] overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs text-slate-50">
+                  {rawResult}
+                </pre>
+              </DetailSection>
+            )}
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  )
 }
 
 function buildStats(history: JobHistoryEntry[] | undefined): HistoryStats {
@@ -349,6 +619,7 @@ function RunningJobCard({ job }: { job: RunningJob }) {
 
 export function WorkflowHistory() {
   const { t, i18n } = useTranslation('tools')
+  const [selectedEntry, setSelectedEntry] = useState<JobHistoryEntry | null>(null)
   const locale = i18n.language === 'fr' ? fr : enUS
   const {
     data: history,
@@ -469,6 +740,7 @@ export function WorkflowHistory() {
                     <TableHead>{t('workflowHistory.columns.status', 'Status')}</TableHead>
                     <TableHead>{t('workflowHistory.columns.duration', 'Duration')}</TableHead>
                     <TableHead>{t('workflowHistory.columns.result', 'Result')}</TableHead>
+                    <TableHead className="w-[92px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -481,7 +753,19 @@ export function WorkflowHistory() {
                     const summary = resultSummary(entry, t)
 
                     return (
-                      <TableRow key={entry.id}>
+                      <TableRow
+                        key={entry.id}
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedEntry(entry)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelectedEntry(entry)
+                          }
+                        }}
+                      >
                         <TableCell className="min-w-[160px]">
                           <div className="flex flex-col">
                             <span>{formatRelativeDate(completedAt, locale)}</span>
@@ -537,6 +821,20 @@ export function WorkflowHistory() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1.5 px-2 text-xs"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setSelectedEntry(entry)
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            {t('workflowHistory.details.open', 'Details')}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -545,6 +843,10 @@ export function WorkflowHistory() {
             )}
           </CardContent>
         </Card>
+        <WorkflowHistoryDetailsSheet
+          entry={selectedEntry}
+          onClose={() => setSelectedEntry(null)}
+        />
       </div>
     </div>
   )

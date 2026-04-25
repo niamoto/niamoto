@@ -120,6 +120,19 @@
       "duration": "Durée",
       "result": "Résultat"
     },
+    "details": {
+      "open": "Détails",
+      "title": "Détails de l’action workflow",
+      "target": "Cible",
+      "duration": "Durée",
+      "startedAt": "Démarré",
+      "completedAt": "Terminé",
+      "summary": "Résumé",
+      "message": "Message",
+      "metrics": "Métriques",
+      "files": "Fichiers générés",
+      "rawResult": "Résultat brut"
+    },
     "loadError": "Échec du chargement de l’historique des workflows",
     "emptyTitle": "Aucune action de workflow pour le moment",
     "emptyDescription": "Lancez une transformation ou un export pour alimenter cet historique local."

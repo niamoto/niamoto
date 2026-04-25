@@ -120,6 +120,19 @@
       "duration": "Duration",
       "result": "Result"
     },
+    "details": {
+      "open": "Details",
+      "title": "Workflow action details",
+      "target": "Target",
+      "duration": "Duration",
+      "startedAt": "Started",
+      "completedAt": "Completed",
+      "summary": "Summary",
+      "message": "Message",
+      "metrics": "Metrics",
+      "files": "Generated files",
+      "rawResult": "Raw result"
+    },
     "loadError": "Failed to load workflow history",
     "emptyTitle": "No workflow action yet",
     "emptyDescription": "Run a transform or export job to populate this local history."
