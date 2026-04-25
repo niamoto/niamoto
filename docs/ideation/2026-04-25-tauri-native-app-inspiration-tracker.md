@@ -48,13 +48,14 @@ application desktop locale, sans casser son modèle actuel :
 | Project picker | Testé | Correction de l’ouverture de projets et ajustement du hover pour rester plus neutre et lisible. |
 | Crash collections React depth | Corrigé | Garde-fous ajoutés sur les updates redondants et meilleur reporting du composant fautif. |
 | Mémoire de route par projet | Livré | `main` contient la restauration de la dernière route sûre par `projectScope`. Commit `9ef712ee`. |
-| Préférences de vues par projet | En cours | Branche `desktop-context-tabs`. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. |
+| Préférences de vues par projet | Livré localement | Branche `desktop-context-tabs` mergée dans `main` en fast-forward. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. Commit `4af36604`. |
+| Palette de commandes workflow | En cours | Branche `command-palette-workflows`. Objectif : transformer `Cmd+K` en accès rapide aux workflows Niamoto sans lancer directement les jobs longs. |
 
 ## Idées candidates
 
 ### 1. Mémorisation du contexte desktop
 
-**Statut : phase 1 livrée, phase 2 en cours.**
+**Statut : phases 1 et 2 livrées localement.**
 **Coût estimé : faible à moyen.**
 **Risque : faible si les valeurs sont restaurées prudemment.**
 
@@ -99,7 +100,7 @@ Découpage validé :
 | Phase | Statut | Périmètre | Règle de prudence |
 |---|---|---|---|
 | Phase 1 | Livrée sur `main` | Dernière route sûre par projet | Restaurer seulement depuis `/`, et uniquement vers des routes connues. |
-| Phase 2 | En cours sur `desktop-context-tabs` | Préférences de vues simples par projet | Stocker seulement des valeurs typées et autorisées. |
+| Phase 2 | Livrée localement sur `main` | Préférences de vues simples par projet | Stocker seulement des valeurs typées et autorisées. |
 | Phase 3 | À décider | Sélections fines par module | Ne pas restaurer d’ID ou d’entité sans vérifier qu’ils existent encore. |
 | Phase 4 | À mesurer | Tailles de panneaux hors Site Builder | Ne pas généraliser avant d’identifier les panneaux vraiment utiles. |
 
@@ -148,7 +149,7 @@ Critère d’entrée :
 
 ### 3. Command palette comme vrai centre d’action
 
-**Statut : candidat moyen terme.**
+**Statut : tranche courte en cours.**
 **Coût estimé : moyen.**
 **Risque : faible si elle reste additive.**
 
@@ -171,6 +172,16 @@ Point important :
 
 - la palette ne doit pas devenir un remplacement de navigation pour les
   nouveaux utilisateurs. Elle doit être un accélérateur.
+
+Décision de première tranche :
+
+- ajouter des raccourcis de navigation actionnables vers les workflows
+  `import`, `collections`, `site`, `publish`, `deploy`, `history` ;
+- ajouter des deep links vers les onglets `import.yml`, `transform.yml` et
+  `export.yml` du Config Editor ;
+- ne pas exécuter directement import, transform, export ou deploy depuis la
+  palette tant que la confirmation, les prérequis et le suivi de job ne sont
+  pas clarifiés.
 
 ### 4. Historique local des actions et jobs
 
@@ -276,12 +287,13 @@ Pourquoi c’est différé :
 
 ### Court terme
 
-1. Finaliser et merger `desktop-context-tabs`.
+1. Pousser `main` après validation de `desktop-context-tabs`.
 2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
    mélange pas entre projets.
-3. Mesurer une vraie liste lourde avant de choisir une solution de
+3. Finaliser la tranche `command-palette-workflows`.
+4. Mesurer une vraie liste lourde avant de choisir une solution de
    virtualisation.
-4. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
+5. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
    patterns concrets, pas seulement des impressions.
 
 ### Moyen terme
@@ -339,3 +351,7 @@ Une idée doit être repoussée si :
   appliquées pour forcer le scope desktop explicite, désactiver les préférences
   en web par défaut, préserver les query params Collections et couvrir les cas
   fallback vers scope desktop dans les tests.
+- 2026-04-25 : phase 2 de mémorisation desktop mergée localement dans `main`
+  avec le commit `4af36604`.
+- 2026-04-25 : démarrage de `command-palette-workflows` pour ajouter des
+  raccourcis workflow et des deep links vers les fichiers de configuration.
