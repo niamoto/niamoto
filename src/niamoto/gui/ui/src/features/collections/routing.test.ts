@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCollectionTabPath,
   buildCollectionsPath,
   normalizeCollectionTab,
   selectionFromPath,
@@ -37,5 +38,22 @@ describe('collections routing helpers', () => {
     expect(
       buildCollectionsPath({ type: 'collection', name: 'plots hierarchy' }, 'api')
     ).toBe('/groups/plots%20hierarchy?tab=api')
+  })
+
+  it('updates collection tabs without dropping unrelated query params', () => {
+    expect(
+      buildCollectionTabPath(
+        { type: 'collection', name: 'taxons' },
+        'api',
+        '?foo=bar&tab=index',
+      ),
+    ).toBe('/groups/taxons?foo=bar&tab=api')
+    expect(
+      buildCollectionTabPath(
+        { type: 'collection', name: 'taxons' },
+        'content',
+        '?foo=bar&tab=api',
+      ),
+    ).toBe('/groups/taxons?foo=bar')
   })
 })

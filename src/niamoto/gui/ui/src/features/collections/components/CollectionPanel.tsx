@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
 import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle } from 'lucide-react'
@@ -36,8 +36,15 @@ import {
   useStartTransformJob,
 } from '@/features/collections/hooks/useCollectionTransforms'
 import { useNotificationStore } from '@/stores/notificationStore'
-import { buildCollectionsPath, type CollectionTab } from '@/features/collections/routing'
+import {
+  buildCollectionTabPath,
+  buildCollectionsPath,
+  COLLECTION_TABS,
+  normalizeCollectionTab,
+  type CollectionTab,
+} from '@/features/collections/routing'
 import { markCollectionsContentSwitch } from '@/features/collections/performance/collectionsPerf'
+import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
@@ -49,10 +56,18 @@ export function CollectionPanel({
   initialTab,
 }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
+  const location = useLocation()
   const navigate = useNavigate()
   const { data: referencesData } = useReferences()
   const references = referencesData?.references ?? []
-  const [activeTab, setActiveTab] = useState(initialTab ?? 'content')
+  const initialCollectionTab = normalizeCollectionTab(initialTab) ?? null
+  const [activeTab, setActiveTab] =
+    useProjectDesktopViewPreference<CollectionTab>({
+      key: 'collections.activeTab',
+      defaultValue: 'content',
+      allowedValues: COLLECTION_TABS,
+      overrideValue: initialCollectionTab,
+    })
   const [isStartingTransform, setIsStartingTransform] = useState(false)
   const [ownedTransformJobId, setOwnedTransformJobId] = useState<string | null>(null)
   const { configuredIds, loading: widgetsLoading } = useConfiguredWidgets(reference.name)
@@ -66,18 +81,28 @@ export function CollectionPanel({
     isBlockedByOtherPipelineJob,
   } = useCollectionTransformState(reference.name)
 
-  // Sync active tab when initialTab changes (e.g. from overview shortcuts)
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab)
-    }
-  }, [initialTab])
-
   useEffect(() => {
     if (activeTab === 'content') {
       markCollectionsContentSwitch(reference.name)
     }
   }, [activeTab, reference.name])
+
+  const handleTabChange = (value: string) => {
+    const nextTab = normalizeCollectionTab(value)
+    if (!nextTab) {
+      return
+    }
+
+    setActiveTab(nextTab)
+    navigate(
+      buildCollectionTabPath(
+        { type: 'collection', name: reference.name },
+        nextTab,
+        location.search,
+      ),
+      { replace: true },
+    )
+  }
 
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
@@ -152,7 +177,7 @@ export function CollectionPanel({
     <div className="relative h-full">
     <div className="absolute inset-0 flex flex-col">
       {/* Compact toolbar: tabs + actions in one row */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-1.5">
           {/* Collection selector */}
           <DropdownMenu>
@@ -177,7 +202,7 @@ export function CollectionPanel({
                         navigate(
                           buildCollectionsPath(
                             { type: 'collection', name: item.name },
-                            activeTab as CollectionTab
+                            activeTab
                           )
                         )
                       }

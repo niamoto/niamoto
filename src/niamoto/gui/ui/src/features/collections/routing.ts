@@ -50,3 +50,25 @@ export function buildCollectionsPath(
 
   return `${basePath}?tab=${normalizedTab}`
 }
+
+export function buildCollectionTabPath(
+  selection: CollectionsSelection,
+  tab: string,
+  currentSearch = ''
+): string {
+  if (selection.type !== 'collection') {
+    return buildCollectionsPath(selection, tab)
+  }
+
+  const normalizedTab = normalizeCollectionTab(tab)
+  const searchParams = new URLSearchParams(currentSearch)
+
+  if (!normalizedTab || normalizedTab === 'content') {
+    searchParams.delete('tab')
+  } else {
+    searchParams.set('tab', normalizedTab)
+  }
+
+  const search = searchParams.toString()
+  return `${buildCollectionsPath(selection)}${search ? `?${search}` : ''}`
+}

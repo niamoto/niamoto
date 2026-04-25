@@ -16,8 +16,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert } from '@/components/ui/alert'
 import { useConfig } from '@/features/tools/hooks/useConfig'
 import type { ConfigType } from '@/features/tools/hooks/useConfig'
+import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
 import * as yaml from 'js-yaml'
 import { toast } from 'sonner'
+
+const CONFIG_TAB_VALUES = ['config', 'import', 'transform', 'export'] as const
 
 const CONFIG_TABS: { value: ConfigType; label: string; description: string }[] = [
   {
@@ -201,7 +204,18 @@ function ConfigTab({ configName }: { configName: ConfigType }) {
 }
 
 export function ConfigEditor() {
-  const [activeTab, setActiveTab] = useState<ConfigType>('config')
+  const [activeTab, setActiveTab] =
+    useProjectDesktopViewPreference<ConfigType>({
+      key: 'tools.configEditor.activeTab',
+      defaultValue: 'config',
+      allowedValues: CONFIG_TAB_VALUES,
+    })
+
+  const handleTabChange = (value: string) => {
+    if (CONFIG_TAB_VALUES.includes(value as ConfigType)) {
+      setActiveTab(value as ConfigType)
+    }
+  }
 
   return (
     <div className="h-full overflow-auto">
@@ -241,7 +255,7 @@ export function ConfigEditor() {
           <CardContent>
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as ConfigType)}
+              onValueChange={handleTabChange}
             >
               <TabsList className="grid w-full grid-cols-4">
                 {CONFIG_TABS.map((tab) => (

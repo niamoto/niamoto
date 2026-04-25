@@ -77,7 +77,12 @@ import {
 } from '@/features/publish/views/deployPlatformConfig'
 import PublishHistoryContent from '@/features/publish/views/history'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
+import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
 import { cn } from '@/lib/utils'
+
+const PUBLISH_PREVIEW_DEVICES = ['mobile', 'tablet', 'desktop'] as const
+const PUBLISH_COMPACT_PANELS = ['actions', 'preview'] as const
+type PublishCompactPanel = (typeof PUBLISH_COMPACT_PANELS)[number]
 
 function getExportedSitePreviewUrl(path: string) {
   return `/api/site/preview-exported/${path.replace(/^\/+/, '')}`
@@ -326,12 +331,22 @@ export default function PublishOverview() {
   const lastBuild = buildHistory[0]
   const lastSuccessfulBuild = buildHistory.find((job) => job.status === 'completed') ?? null
   const hasSuccessfulBuild = lastSuccessfulBuild !== null
-  const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
+  const [previewDevice, setPreviewDevice] =
+    useProjectDesktopViewPreference<DeviceSize>({
+      key: 'publish.previewDevice',
+      defaultValue: 'desktop',
+      allowedValues: PUBLISH_PREVIEW_DEVICES,
+    })
   const [dynamicPreviewTarget, setDynamicPreviewTarget] = useState<DynamicPreviewTarget | null>(null)
   const [includeTransform, setIncludeTransform] = useState(true)
   const [currentPhase, setCurrentPhase] = useState<string | null>(null)
   const [exportPath, setExportPath] = useState('exports')
-  const [compactPanel, setCompactPanel] = useState<'actions' | 'preview'>('actions')
+  const [compactPanel, setCompactPanel] =
+    useProjectDesktopViewPreference<PublishCompactPanel>({
+      key: 'publish.compactPanel',
+      defaultValue: 'actions',
+      allowedValues: PUBLISH_COMPACT_PANELS,
+    })
   const autoPreviewKeyRef = useRef<string | null>(null)
 
   const activePanel = searchParams.get('panel')
@@ -1151,7 +1166,11 @@ export default function PublishOverview() {
             <ToggleGroup
               type="single"
               value={compactPanel}
-              onValueChange={(value) => value && setCompactPanel(value as 'actions' | 'preview')}
+              onValueChange={(value) => {
+                if (PUBLISH_COMPACT_PANELS.includes(value as PublishCompactPanel)) {
+                  setCompactPanel(value as PublishCompactPanel)
+                }
+              }}
               className="justify-start"
             >
               <ToggleGroupItem value="actions">

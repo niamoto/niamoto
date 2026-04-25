@@ -63,7 +63,7 @@ async function renderRouteMemoryProbe({
     return null
   }
 
-  await act(async () => {
+  const renderProbe = () => {
     root.render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -71,6 +71,10 @@ async function renderRouteMemoryProbe({
         </Routes>
       </MemoryRouter>,
     )
+  }
+
+  await act(async () => {
+    renderProbe()
     await Promise.resolve()
     await Promise.resolve()
   })
@@ -78,6 +82,13 @@ async function renderRouteMemoryProbe({
   return {
     get location() {
       return latestLocation.current
+    },
+    async rerender() {
+      await act(async () => {
+        renderProbe()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
     },
     async unmount() {
       await act(async () => {
@@ -93,6 +104,8 @@ describe('useProjectDesktopRouteMemory', () => {
     resetProjectDesktopRouteMemoryForTests()
     useCurrentProjectScope.mockReturnValue({
       projectScope: 'desktop:/tmp/project-a',
+      desktopProjectScope: 'desktop:/tmp/project-a',
+      fallbackProjectScope: null,
     })
   })
 
@@ -155,6 +168,47 @@ describe('useProjectDesktopRouteMemory', () => {
 
     expect(harness.location).toBe('/groups')
     expect(storage.setItem).not.toHaveBeenCalled()
+    await harness.unmount()
+  })
+
+  it('waits for the desktop project scope before restoring', async () => {
+    let scope = {
+      projectScope: 'project:Demo:unknown',
+      desktopProjectScope: null as string | null,
+      fallbackProjectScope: 'project:Demo:unknown',
+    }
+    useCurrentProjectScope.mockImplementation(() => scope)
+
+    const storage = createStorage({
+      [buildProjectDesktopContextStorageKey('project:Demo:unknown')]:
+        JSON.stringify({
+          lastRoute: { pathname: '/sources', search: '', hash: '' },
+          updatedAt: 100,
+        }),
+      [buildProjectDesktopContextStorageKey('desktop:/tmp/project-a')]:
+        JSON.stringify({
+          lastRoute: { pathname: '/publish', search: '?panel=history', hash: '' },
+          updatedAt: 200,
+        }),
+    })
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/',
+      storage,
+    })
+
+    expect(harness.location).toBe('/')
+    expect(storage.getItem).not.toHaveBeenCalled()
+
+    scope = {
+      projectScope: 'desktop:/tmp/project-a',
+      desktopProjectScope: 'desktop:/tmp/project-a',
+      fallbackProjectScope: 'project:Demo:unknown',
+    }
+
+    await harness.rerender()
+
+    expect(harness.location).toBe('/publish?panel=history')
     await harness.unmount()
   })
 })

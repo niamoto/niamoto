@@ -47,12 +47,14 @@ application desktop locale, sans casser son modèle actuel :
 | Tables markdown | Testé | Amélioration du rendu des tableaux pour éviter l’affichage brut inutile. |
 | Project picker | Testé | Correction de l’ouverture de projets et ajustement du hover pour rester plus neutre et lisible. |
 | Crash collections React depth | Corrigé | Garde-fous ajoutés sur les updates redondants et meilleur reporting du composant fautif. |
+| Mémoire de route par projet | Livré | `main` contient la restauration de la dernière route sûre par `projectScope`. Commit `9ef712ee`. |
+| Préférences de vues par projet | En cours | Branche `desktop-context-tabs`. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. |
 
 ## Idées candidates
 
 ### 1. Mémorisation du contexte desktop
 
-**Statut : phase 1 en cours.**
+**Statut : phase 1 livrée, phase 2 en cours.**
 **Coût estimé : faible à moyen.**
 **Risque : faible si les valeurs sont restaurées prudemment.**
 
@@ -82,11 +84,40 @@ Points de vigilance :
 Décision d’implémentation :
 
 - la mémoire desktop doit être attachée à un `projectScope`, pas globale ;
-- la première brique mémorise la dernière route sûre par projet ;
+- la première brique mémorise la dernière route sûre par projet et est mergée
+  dans `main` ;
 - la restauration se fait seulement au démarrage sur la route d’accueil, pour
   ne pas empêcher l’utilisateur de revenir volontairement au dashboard ;
+- la deuxième brique mémorise les préférences de vues simples par projet :
+  onglets Collections, Data Explorer, Config Editor, Publish History, panneau
+  compact et device de preview Publish ;
 - les sélections fines par module seront ajoutées ensuite seulement si elles
   ont un vrai bénéfice utilisateur.
+
+Découpage validé :
+
+| Phase | Statut | Périmètre | Règle de prudence |
+|---|---|---|---|
+| Phase 1 | Livrée sur `main` | Dernière route sûre par projet | Restaurer seulement depuis `/`, et uniquement vers des routes connues. |
+| Phase 2 | En cours sur `desktop-context-tabs` | Préférences de vues simples par projet | Stocker seulement des valeurs typées et autorisées. |
+| Phase 3 | À décider | Sélections fines par module | Ne pas restaurer d’ID ou d’entité sans vérifier qu’ils existent encore. |
+| Phase 4 | À mesurer | Tailles de panneaux hors Site Builder | Ne pas généraliser avant d’identifier les panneaux vraiment utiles. |
+
+Ce qui doit rester global :
+
+- thème ;
+- langue d’interface ;
+- activation de l’ouverture automatique du dernier projet ;
+- raccourcis et préférences shell qui ne dépendent pas du dataset.
+
+Ce qui doit rester par projet :
+
+- dernière route ;
+- onglets et panneaux de travail ;
+- device de preview Publish ;
+- layout du Site Builder ;
+- futures sélections métier seulement si elles peuvent être validées contre les
+  données du projet courant.
 
 ### 2. Virtualisation ciblée des listes lourdes
 
@@ -245,10 +276,12 @@ Pourquoi c’est différé :
 
 ### Court terme
 
-1. Implémenter la mémorisation du contexte desktop.
-2. Mesurer une vraie liste lourde avant de choisir une solution de
+1. Finaliser et merger `desktop-context-tabs`.
+2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
+   mélange pas entre projets.
+3. Mesurer une vraie liste lourde avant de choisir une solution de
    virtualisation.
-3. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
+4. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
    patterns concrets, pas seulement des impressions.
 
 ### Moyen terme
@@ -261,8 +294,12 @@ Pourquoi c’est différé :
 ## Questions ouvertes
 
 - Quel état doit être global, et quel état doit être attaché à un projet ?
+  Décision actuelle : global pour les préférences shell générales, par projet
+  pour le contexte de travail et les vues.
 - Est-ce que Niamoto doit restaurer automatiquement la dernière page, ou ouvrir
   un écran d’accueil projet avec reprise explicite ?
+  Décision actuelle : restauration automatique uniquement si l’app démarre sur
+  `/`, afin de respecter un retour volontaire au dashboard.
 - Quelles listes sont réellement lentes aujourd’hui avec de vrais projets ?
 - La command palette doit-elle lancer des actions longues, ou seulement naviguer
   vers les écrans qui les lancent ?
@@ -294,3 +331,11 @@ Une idée doit être repoussée si :
 
 - 2026-04-25 : création du suivi après les essais inspirés de Tolaria et la
   première sélection de dépôts Tauri à scanner.
+- 2026-04-25 : phase 1 de mémorisation desktop livrée et poussée sur `main` :
+  dernière route sûre par projet.
+- 2026-04-25 : phase 2 démarrée sur `desktop-context-tabs` : préférences de
+  vues simples par projet.
+- 2026-04-25 : revue indépendante de `desktop-context-tabs` : corrections
+  appliquées pour forcer le scope desktop explicite, désactiver les préférences
+  en web par défaut, préserver les query params Collections et couvrir les cas
+  fallback vers scope desktop dans les tests.

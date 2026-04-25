@@ -25,6 +25,10 @@ import {
 } from '@/features/tools/api/exports'
 import { toast } from 'sonner'
 import { LazyMonacoEditor } from '@/shared/lib/monaco/LazyMonacoEditor'
+import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
+
+const DATA_EXPLORER_TABS = ['database', 'exports'] as const
+type DataExplorerTab = (typeof DATA_EXPLORER_TABS)[number]
 
 function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
@@ -97,7 +101,12 @@ export function DataExplorer() {
   // Exports state
   const [exports, setExports] = useState<ExportsListResponse | null>(null)
   const [exportsLoading, setExportsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<string>('database')
+  const [activeTab, setActiveTab] =
+    useProjectDesktopViewPreference<DataExplorerTab>({
+      key: 'tools.dataExplorer.activeTab',
+      defaultValue: 'database',
+      allowedValues: DATA_EXPLORER_TABS,
+    })
 
   // JSON viewer state
   const [jsonViewerModal, setJsonViewerModal] = useState(false)
@@ -213,6 +222,12 @@ export function DataExplorer() {
     setQueryResult(null)
   }
 
+  const handleTabChange = (value: string) => {
+    if (DATA_EXPLORER_TABS.includes(value as DataExplorerTab)) {
+      setActiveTab(value as DataExplorerTab)
+    }
+  }
+
   const handleEnrichmentPreview = async (taxonName: string) => {
     setEnrichmentLoading(true)
     setEnrichmentModal(true)
@@ -265,7 +280,7 @@ export function DataExplorer() {
       </div>
 
       {/* Tabs for Database and Exports */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="database" className="gap-2">
             <Database className="h-4 w-4" />

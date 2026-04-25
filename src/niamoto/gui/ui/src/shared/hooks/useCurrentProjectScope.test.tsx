@@ -81,6 +81,12 @@ describe('useCurrentProjectScope', () => {
     expect(harness.current.projectScope).toBe(
       'desktop:/tmp/niamoto-desktop',
     )
+    expect(harness.current.desktopProjectScope).toBe(
+      'desktop:/tmp/niamoto-desktop',
+    )
+    expect(harness.current.fallbackProjectScope).toBe(
+      'project:Fallback project:2026-04-23T10:00:00',
+    )
 
     await harness.unmount()
   })
@@ -102,6 +108,10 @@ describe('useCurrentProjectScope', () => {
     expect(harness.current.projectScope).toBe(
       'project:Niamoto subset:2026-04-23T10:00:00',
     )
+    expect(harness.current.desktopProjectScope).toBeNull()
+    expect(harness.current.fallbackProjectScope).toBe(
+      'project:Niamoto subset:2026-04-23T10:00:00',
+    )
 
     await harness.unmount()
   })
@@ -118,6 +128,8 @@ describe('useCurrentProjectScope', () => {
     await harness.render()
 
     expect(harness.current.projectScope).toBeNull()
+    expect(harness.current.desktopProjectScope).toBeNull()
+    expect(harness.current.fallbackProjectScope).toBeNull()
 
     await harness.unmount()
   })
