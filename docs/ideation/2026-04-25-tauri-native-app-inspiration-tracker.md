@@ -50,7 +50,8 @@ application desktop locale, sans casser son modèle actuel :
 | Mémoire de route par projet | Livré | `main` contient la restauration de la dernière route sûre par `projectScope`. Commit `9ef712ee`. |
 | Préférences de vues par projet | Livré localement | Branche `desktop-context-tabs` mergée dans `main` en fast-forward. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. Commit `4af36604`. |
 | Palette de commandes workflow | Livré localement | Branche `command-palette-workflows` mergée dans `main` en fast-forward. Objectif : transformer `Cmd+K` en accès rapide aux workflows Niamoto sans lancer directement les jobs longs. Commit `9f027000`. |
-| Mesure des listes lourdes | En cours | Branche `list-performance-metrics`. Instrumentation dev-only conservée, avec premiers signaux orientant plutôt vers Data Explorer que Collections. |
+| Mesure des listes lourdes | Livré localement | Branche `list-performance-metrics` mergée dans `main`. Instrumentation dev-only conservée, avec premiers signaux orientant plutôt vers Data Explorer que Collections. Commit `b475a6c7`. |
+| Optimisation table Data Explorer | En cours | Branche `data-explorer-table-performance`. Première tranche sans dépendance : tableau mémoïsé et virtualisation verticale légère au-dessus de 60 lignes. |
 
 ## Idées candidates
 
@@ -170,6 +171,16 @@ Résultats provisoires :
   100 lignes et 13 à 21 colonnes pouvant atteindre environ 50 à 90 ms ;
 - garder l’instrumentation dev-only, mais relever les seuils Collections pour
   éviter de polluer les sessions de développement normales.
+
+Première optimisation Data Explorer :
+
+- extraire le tableau de résultats dans un composant mémoïsé pour éviter de le
+  recalculer quand l’utilisateur tape dans le champ de recherche ;
+- stabiliser les callbacks transmis au tableau ;
+- virtualiser verticalement les pages de résultats au-dessus de 60 lignes, sans
+  ajouter de dépendance externe ;
+- garder `react-virtuoso` comme option seulement si cette optimisation ne suffit
+  pas sur les tables réellement lentes.
 
 ### 3. Command palette comme vrai centre d’action
 
@@ -314,8 +325,8 @@ Pourquoi c’est différé :
 1. Pousser `main` après validation des branches mergées localement.
 2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
    mélange pas entre projets.
-3. Mesurer une vraie liste lourde avant de choisir une solution de
-   virtualisation.
+3. Reprendre les mesures Data Explorer après optimisation de table pour décider
+   si une virtualisation plus robuste est nécessaire.
 4. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
    patterns concrets, pas seulement des impressions.
 
