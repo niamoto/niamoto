@@ -1,4 +1,6 @@
-use crate::config::{AppConfig, AppSettings, ProjectEntry};
+use crate::config::{
+    AppConfig, AppSettings, ProjectDesktopContext, ProjectDesktopRoute, ProjectEntry,
+};
 use crate::menu;
 use serde::Serialize;
 use std::fs;
@@ -239,6 +241,27 @@ pub fn validate_project(path: String) -> Result<bool, String> {
 pub fn get_niamoto_home(state: State<ConfigState>) -> Result<Option<String>, String> {
     let config = state.config.lock().map_err(|e| e.to_string())?;
     Ok(config.get_current_project_str())
+}
+
+/// Get the native desktop context for a project scope.
+#[tauri::command]
+pub fn get_project_desktop_context(
+    project_scope: String,
+    state: State<ConfigState>,
+) -> Result<ProjectDesktopContext, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config.get_project_desktop_context(&project_scope))
+}
+
+/// Persist the last restorable route for a project scope.
+#[tauri::command]
+pub fn set_project_desktop_route(
+    project_scope: String,
+    route: ProjectDesktopRoute,
+    state: State<ConfigState>,
+) -> Result<(), String> {
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    config.set_project_desktop_route(project_scope, route)
 }
 
 /// Get application settings

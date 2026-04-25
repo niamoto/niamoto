@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,6 +31,10 @@ pub struct AppConfig {
     /// Whether desktop debug tools are enabled for on-demand troubleshooting
     #[serde(default = "default_debug_mode")]
     pub debug_mode: bool,
+
+    /// Per-project native desktop context that must survive backend port changes.
+    #[serde(default)]
+    pub project_contexts: HashMap<String, ProjectDesktopContext>,
 }
 
 /// Default value for auto_load_last_project
@@ -74,6 +79,90 @@ pub struct ProjectEntry {
 
     /// Last accessed timestamp (ISO 8601 format)
     pub last_accessed: String,
+}
+
+/// Restorable desktop route for a project.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDesktopRoute {
+    pub pathname: String,
+    pub search: String,
+    pub hash: String,
+}
+
+/// Native desktop context persisted per project.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDesktopContext {
+    #[serde(default)]
+    pub last_route: Option<ProjectDesktopRoute>,
+    #[serde(default)]
+    pub view_preferences: HashMap<String, String>,
+    #[serde(default)]
+    pub updated_at: Option<i64>,
+}
+
+fn is_safe_project_context_key(value: &str) -> bool {
+    value.starts_with("desktop:") && value.len() <= 1024 && !value.chars().any(|ch| ch.is_control())
+}
+
+fn is_safe_route_segment(value: &str, prefix: char) -> bool {
+    value.is_empty()
+        || (value.starts_with(prefix)
+            && value.len() <= 512
+            && !value.chars().any(|ch| matches!(ch, '\r' | '\n')))
+}
+
+fn normalize_project_desktop_route(route: ProjectDesktopRoute) -> Option<ProjectDesktopRoute> {
+    if !route.pathname.starts_with('/')
+        || route.pathname.starts_with("//")
+        || route.pathname.len() > 512
+        || route
+            .pathname
+            .chars()
+            .any(|ch| matches!(ch, '\r' | '\n' | '?' | '#'))
+        || !is_safe_route_segment(&route.search, '?')
+        || !is_safe_route_segment(&route.hash, '#')
+    {
+        return None;
+    }
+
+    Some(route)
+}
+
+fn is_safe_preference_key(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+
+    (first.is_ascii_alphabetic())
+        && value.len() <= 80
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | ':' | '-'))
+}
+
+fn is_safe_preference_value(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 80 && !value.chars().any(|ch| matches!(ch, '\r' | '\n'))
+}
+
+impl ProjectDesktopContext {
+    fn sanitized(self) -> Self {
+        let view_preferences = self
+            .view_preferences
+            .into_iter()
+            .filter(|(key, value)| is_safe_preference_key(key) && is_safe_preference_value(value))
+            .collect();
+
+        Self {
+            last_route: self.last_route.and_then(normalize_project_desktop_route),
+            view_preferences,
+            updated_at: self.updated_at.filter(|value| *value > 0),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.last_route.is_none() && self.view_preferences.is_empty()
+    }
 }
 
 impl AppConfig {
@@ -277,6 +366,45 @@ impl AppConfig {
             .and_then(|p| p.to_str())
             .map(|s| s.to_string())
     }
+
+    pub fn get_project_desktop_context(&self, project_scope: &str) -> ProjectDesktopContext {
+        self.project_contexts
+            .get(project_scope)
+            .cloned()
+            .unwrap_or_default()
+            .sanitized()
+    }
+
+    pub fn set_project_desktop_context(
+        &mut self,
+        project_scope: String,
+        context: ProjectDesktopContext,
+    ) -> Result<(), String> {
+        if !is_safe_project_context_key(&project_scope) {
+            return Err("Invalid project desktop context scope".to_string());
+        }
+
+        let context = context.sanitized();
+        if context.is_empty() {
+            self.project_contexts.remove(&project_scope);
+        } else {
+            self.project_contexts.insert(project_scope, context);
+        }
+
+        self.last_updated = chrono::Utc::now().to_rfc3339();
+        self.save()
+    }
+
+    pub fn set_project_desktop_route(
+        &mut self,
+        project_scope: String,
+        route: ProjectDesktopRoute,
+    ) -> Result<(), String> {
+        let mut context = self.get_project_desktop_context(&project_scope);
+        context.last_route = normalize_project_desktop_route(route);
+        context.updated_at = Some(chrono::Utc::now().timestamp_millis());
+        self.set_project_desktop_context(project_scope, context)
+    }
 }
 
 impl Default for AppConfig {
@@ -288,6 +416,7 @@ impl Default for AppConfig {
             auto_load_last_project: true,
             ui_language: UiLanguagePreference::Auto,
             debug_mode: false,
+            project_contexts: HashMap::new(),
         }
     }
 }
@@ -374,5 +503,88 @@ mod tests {
         env::remove_var(DESKTOP_CONFIG_ENV);
 
         assert_eq!(resolved, config_path);
+    }
+
+    #[test]
+    fn test_project_desktop_route_is_persisted_per_scope() {
+        let _guard = TEST_ENV_LOCK.lock().unwrap();
+        let config_path = std::env::temp_dir().join(format!(
+            "niamoto-desktop-context-{}.json",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&config_path);
+        env::set_var(DESKTOP_CONFIG_ENV, &config_path);
+
+        let mut config = AppConfig::default();
+        config
+            .set_project_desktop_route(
+                "desktop:/tmp/project-a".to_string(),
+                ProjectDesktopRoute {
+                    pathname: "/groups/plots".to_string(),
+                    search: "?tab=index".to_string(),
+                    hash: "".to_string(),
+                },
+            )
+            .unwrap();
+
+        let reloaded = AppConfig::load().unwrap();
+        assert_eq!(
+            reloaded
+                .get_project_desktop_context("desktop:/tmp/project-a")
+                .last_route,
+            Some(ProjectDesktopRoute {
+                pathname: "/groups/plots".to_string(),
+                search: "?tab=index".to_string(),
+                hash: "".to_string(),
+            })
+        );
+        assert_eq!(
+            reloaded
+                .get_project_desktop_context("desktop:/tmp/project-b")
+                .last_route,
+            None
+        );
+
+        env::remove_var(DESKTOP_CONFIG_ENV);
+        let _ = fs::remove_file(&config_path);
+    }
+
+    #[test]
+    fn test_project_desktop_context_rejects_invalid_scope_and_route() {
+        let _guard = TEST_ENV_LOCK.lock().unwrap();
+        let config_path = std::env::temp_dir().join(format!(
+            "niamoto-desktop-context-invalid-{}.json",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&config_path);
+        env::set_var(DESKTOP_CONFIG_ENV, &config_path);
+
+        let mut config = AppConfig::default();
+        let invalid_scope = config.set_project_desktop_route(
+            "project:Demo:unknown".to_string(),
+            ProjectDesktopRoute {
+                pathname: "/publish".to_string(),
+                search: "".to_string(),
+                hash: "".to_string(),
+            },
+        );
+        assert!(invalid_scope.is_err());
+
+        config
+            .set_project_desktop_route(
+                "desktop:/tmp/project-a".to_string(),
+                ProjectDesktopRoute {
+                    pathname: "/publish?bad=true".to_string(),
+                    search: "".to_string(),
+                    hash: "".to_string(),
+                },
+            )
+            .unwrap();
+        assert!(!config
+            .project_contexts
+            .contains_key("desktop:/tmp/project-a"));
+
+        env::remove_var(DESKTOP_CONFIG_ENV);
+        let _ = fs::remove_file(&config_path);
     }
 }
