@@ -121,7 +121,8 @@ Inspiration réaliste pour Niamoto :
 | Mesure des listes lourdes | Livré localement | Branche `list-performance-metrics` mergée dans `main`. Instrumentation dev-only conservée, avec premiers signaux orientant plutôt vers Data Explorer que Collections. Commit `b475a6c7`. |
 | Optimisation table Data Explorer | Livré | Branche `data-explorer-table-performance` mergée dans `main`. Première tranche sans dépendance : tableau mémoïsé et virtualisation verticale légère au-dessus de 60 lignes. Commit `da402378`. |
 | Scan Yaak/GitButler/Spacedrive | Documenté | Les trois références orientent la suite vers un historique local des workflows/actions plutôt que vers une nouvelle refonte visuelle. |
-| Historique workflows lecture seule | En cours | Branche `workflow-history-view`. Ajout d’une page `/tools/history`, accès `Cmd+K` et correction de l’historique backend pour inclure le dernier job terminal. |
+| Historique workflows lecture seule | Livré | Branche `workflow-history-view` mergée et poussée dans `main`. Ajout d’une page `/tools/history`, accès `Cmd+K`, import jobs agrégés et correction de l’historique backend pour inclure le dernier job terminal seulement sur `/pipeline/history`. Commit `201fafb9`. |
+| Détails d’action workflow | En cours | Branche `workflow-history-details`. Ajout d’un panneau latéral inspectable par ligne : dates, durée, cible, métriques, fichiers générés et résultat brut tronqué. |
 
 ## Idées candidates
 
@@ -290,7 +291,7 @@ Décision de première tranche :
 
 ### 4. Historique local des actions et jobs
 
-**Statut : tranche 1 en cours.**
+**Statut : tranche 1 livrée, tranche 2 en cours.**
 **Coût estimé : moyen à élevé.**
 **Risque : moyen.**
 
@@ -338,6 +339,16 @@ Tranche 1 :
   et résumé des métriques disponibles ;
 - garder les liens vers fichiers générés pour une tranche ultérieure, car les
   payloads actuels ne les exposent pas de façon stable.
+
+Tranche 2 :
+
+- rendre chaque ligne de `/tools/history` inspectable dans un panneau latéral ;
+- afficher les détails utiles sans action destructive : statut, cible, dates,
+  durée, résumé, message, métriques et payload brut limité ;
+- exposer les chemins générés quand les payloads les contiennent déjà, sans
+  inventer de nouveau contrat backend ;
+- garder la réexécution d’actions pour plus tard, après validation du suivi et
+  des prérequis.
 
 ### 5. Inspecteur contextuel léger
 
@@ -415,7 +426,7 @@ Pourquoi c’est différé :
 ### Court terme
 
 1. Pousser `main` après validation des branches mergées localement.
-   Statut : fait le 2026-04-25, `main` poussé jusqu’à `da402378`.
+   Statut : fait le 2026-04-25, `main` poussé jusqu’à `201fafb9`.
 2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
    mélange pas entre projets.
 3. Reprendre les mesures Data Explorer après optimisation de table pour décider
