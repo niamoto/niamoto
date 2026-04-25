@@ -320,6 +320,7 @@ function handleJobTerminal(
 ) {
   const state = useNotificationStore.getState()
   void queryClient.invalidateQueries({ queryKey: ['pipeline-status'] })
+  void queryClient.invalidateQueries({ queryKey: ['pipeline-history'] })
   if (state.notifications.some((n) => n.jobId === jobId)) {
     state.removeTrackedJob(jobId)
     return

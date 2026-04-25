@@ -36,6 +36,74 @@ application desktop locale, sans casser son modèle actuel :
 | RapidRAW | https://github.com/CyberTimon/RapidRAW | Exemple d’UI Tauri orientée performance et traitement lourd local. |
 | NeoHtop | https://github.com/Abdenasser/neohtop | Exemple d’UI temps réel dense et très réactive dans Tauri. |
 
+## Scan ciblé du 2026-04-25
+
+### Yaak
+
+Source : https://github.com/mountain-loop/yaak
+
+Points observés :
+
+- stack Tauri, Rust et React ;
+- app offline-first, sans cloud lock-in ;
+- modèle workspace avec collections, variables d’environnement, secrets dans le
+  keychain OS et miroir possible vers le filesystem ;
+- architecture très orientée plugins : auth, importeurs, template functions,
+  filtres, thèmes ;
+- frontend React récent avec TanStack Query, TanStack Router, TanStack Virtual
+  et CodeMirror.
+
+Inspiration réaliste pour Niamoto :
+
+- renforcer les workflows projet comme objets locaux explicites ;
+- mieux exposer les importeurs, exporteurs et configurations comme actions
+  réutilisables ;
+- garder l’idée de plugins, mais côté produit éviter une surface trop technique
+  pour les utilisateurs métier.
+
+### GitButler
+
+Source : https://github.com/gitbutlerapp/gitbutler
+
+Points observés :
+
+- desktop Tauri avec UI Svelte/TypeScript et backend Rust ;
+- même moteur Rust utilisé côté app desktop et CLI ;
+- intégrations forge, PR, CI et actions Git complexes présentées comme un état
+  de travail local ;
+- dépendances desktop utiles : Tauri store, updater, deep-link, filesystem,
+  shell et log.
+
+Inspiration réaliste pour Niamoto :
+
+- traiter `import`, `transform`, `export`, `publish` comme des actions de
+  workflow avec statut, durée, résultat et erreurs ;
+- construire une timeline locale des actions récentes avant d’ajouter des
+  automatisations plus ambitieuses ;
+- éviter de cacher les étapes complexes : les rendre inspectables, rejouables
+  ou au moins clairement traçables.
+
+### Spacedrive
+
+Source : https://github.com/spacedriveapp/spacedrive
+
+Points observés :
+
+- Tauri 2, React, Vite, TanStack Query, Tailwind et design system partagé ;
+- core Rust local-first, SQLite, actions/queries typées et génération de types
+  TypeScript ;
+- architecture CQRS/DDD avec opérations enregistrées comme actions ou queries ;
+- opérations transactionnelles prévisualisables avant exécution, puis
+  transformées en jobs durables.
+
+Inspiration réaliste pour Niamoto :
+
+- formaliser progressivement une notion d’action de workflow côté GUI ;
+- commencer petit : journal local des jobs/actions et prérequis visibles avant
+  lancement ;
+- ne pas viser une refonte backend CQRS, mais reprendre le principe de
+  commandes explicites, typées et traçables.
+
 ## Ce qui a déjà été testé dans Niamoto
 
 | Sujet | Statut | Notes |
@@ -51,7 +119,9 @@ application desktop locale, sans casser son modèle actuel :
 | Préférences de vues par projet | Livré localement | Branche `desktop-context-tabs` mergée dans `main` en fast-forward. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. Commit `4af36604`. |
 | Palette de commandes workflow | Livré localement | Branche `command-palette-workflows` mergée dans `main` en fast-forward. Objectif : transformer `Cmd+K` en accès rapide aux workflows Niamoto sans lancer directement les jobs longs. Commit `9f027000`. |
 | Mesure des listes lourdes | Livré localement | Branche `list-performance-metrics` mergée dans `main`. Instrumentation dev-only conservée, avec premiers signaux orientant plutôt vers Data Explorer que Collections. Commit `b475a6c7`. |
-| Optimisation table Data Explorer | En cours | Branche `data-explorer-table-performance`. Première tranche sans dépendance : tableau mémoïsé et virtualisation verticale légère au-dessus de 60 lignes. |
+| Optimisation table Data Explorer | Livré | Branche `data-explorer-table-performance` mergée dans `main`. Première tranche sans dépendance : tableau mémoïsé et virtualisation verticale légère au-dessus de 60 lignes. Commit `da402378`. |
+| Scan Yaak/GitButler/Spacedrive | Documenté | Les trois références orientent la suite vers un historique local des workflows/actions plutôt que vers une nouvelle refonte visuelle. |
+| Historique workflows lecture seule | En cours | Branche `workflow-history-view`. Ajout d’une page `/tools/history`, accès `Cmd+K` et correction de l’historique backend pour inclure le dernier job terminal. |
 
 ## Idées candidates
 
@@ -220,7 +290,7 @@ Décision de première tranche :
 
 ### 4. Historique local des actions et jobs
 
-**Statut : candidat moyen terme.**
+**Statut : tranche 1 en cours.**
 **Coût estimé : moyen à élevé.**
 **Risque : moyen.**
 
@@ -246,6 +316,28 @@ Pourquoi c’est intéressant :
 - améliore la confiance dans les workflows longs ;
 - aide au debug utilisateur ;
 - réduit le besoin de lire les logs bruts.
+
+Décision proposée après le scan :
+
+- commencer par un historique lecture seule des dernières actions connues ;
+- inclure au minimum : type d’action, cible, statut, durée, horodatage, message
+  d’erreur et liens vers fichiers générés quand ils existent ;
+- ne pas lancer d’actions longues depuis la palette tant que cet historique et
+  les prérequis ne sont pas visibles ;
+- intégrer l’accès depuis `Cmd+K` seulement comme raccourci vers la page de
+  suivi, pas comme exécution directe.
+
+Tranche 1 :
+
+- ajouter une page `/tools/history` lisible depuis la palette de commandes ;
+- réutiliser `/pipeline/history` et `/pipeline/status` sans nouveau modèle
+  backend ;
+- inclure le dernier job terminal encore stocké dans `active_job.json`, sinon
+  l’historique visible est toujours en retard d’une action ;
+- afficher d’abord type, cible, statut, durée, date relative, message d’erreur
+  et résumé des métriques disponibles ;
+- garder les liens vers fichiers générés pour une tranche ultérieure, car les
+  payloads actuels ne les exposent pas de façon stable.
 
 ### 5. Inspecteur contextuel léger
 
@@ -323,17 +415,22 @@ Pourquoi c’est différé :
 ### Court terme
 
 1. Pousser `main` après validation des branches mergées localement.
+   Statut : fait le 2026-04-25, `main` poussé jusqu’à `da402378`.
 2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
    mélange pas entre projets.
 3. Reprendre les mesures Data Explorer après optimisation de table pour décider
    si une virtualisation plus robuste est nécessaire.
+   Statut : première mesure validée, `taxons` est passé de 89 ms à 40 ms sur
+   100 lignes et 21 colonnes.
 4. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
    patterns concrets, pas seulement des impressions.
+   Statut : fait le 2026-04-25.
 
 ### Moyen terme
 
 1. Renforcer la command palette avec des actions réelles.
 2. Construire un historique local des actions/jobs.
+   Candidat désormais prioritaire avant l’exécution directe d’actions longues.
 3. Revenir sur Collections seulement après avoir clarifié ce que le mode
    preview-first améliorerait réellement.
 

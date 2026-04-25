@@ -71,6 +71,59 @@
     "externalDesc": "Ouvrez le site dans un nouvel onglet pour une navigation complète",
     "openNew": "Ouvrir dans un nouvel onglet"
   },
+  "workflowHistory": {
+    "title": "Historique des workflows",
+    "description": "Inspecter les actions récentes d’import, de transformation et d’export de ce projet.",
+    "refresh": "Actualiser",
+    "runningTitle": "Action en cours",
+    "noMessage": "Aucun message",
+    "never": "Jamais",
+    "durationSeconds": "{{count}}s",
+    "durationMinutesSeconds": "{{minutes}}m {{seconds}}s",
+    "durationMinutes": "{{count}}m",
+    "durationHoursMinutes": "{{hours}}h {{minutes}}m",
+    "durationHours": "{{count}}h",
+    "targets": {
+      "project": "Projet",
+      "collections": "{{count}} collections"
+    },
+    "types": {
+      "import": "Import",
+      "transform": "Transformation",
+      "export": "Export",
+      "exportCli": "Export CLI"
+    },
+    "status": {
+      "completed": "Terminé",
+      "failed": "Échec",
+      "running": "En cours",
+      "cancelled": "Annulé",
+      "interrupted": "Interrompu",
+      "unknown": "Inconnu"
+    },
+    "result": {
+      "transform": "{{completed}}/{{total}} widgets calculés, {{failed}} en échec",
+      "export": "{{completed}}/{{total}} exports, {{pages}} pages"
+    },
+    "stats": {
+      "total": "Actions récentes",
+      "completed": "Terminées",
+      "failed": "Échecs",
+      "latest": "Dernière action"
+    },
+    "tableTitle": "Actions de workflow récentes",
+    "tableDescription": "Les {{count}} dernières actions terminées stockées par le projet local.",
+    "columns": {
+      "date": "Date",
+      "action": "Action",
+      "status": "Statut",
+      "duration": "Durée",
+      "result": "Résultat"
+    },
+    "loadError": "Échec du chargement de l’historique des workflows",
+    "emptyTitle": "Aucune action de workflow pour le moment",
+    "emptyDescription": "Lancez une transformation ou un export pour alimenter cet historique local."
+  },
   "settings": {
     "title": "Paramètres",
     "description": "Configurez les préférences de votre application desktop",

@@ -9,8 +9,12 @@ export interface JobHistoryEntry {
   group_bys?: string[] | null
   started_at: string
   completed_at?: string | null
+  updated_at?: string | null
   progress?: number
   message?: string
+  phase?: string | null
+  error?: string | null
+  result?: Record<string, unknown> | null
 }
 
 export function usePipelineHistory(limit = 10) {

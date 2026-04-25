@@ -24,6 +24,7 @@ import {
   Monitor,
   Search,
   FileCode2,
+  FileClock,
   Puzzle,
   BookOpen,
   MessageSquarePlus,
@@ -223,6 +224,17 @@ export function CommandPalette() {
             <div className="flex flex-1 flex-col">
               <span className="font-medium">{t('command.publishHistory', 'Publish history')}</span>
               <span className="text-xs text-muted-foreground">{t('command.publishHistoryDesc', 'Review recent builds and deployments')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/tools/history"
+            keywords={['workflow history', 'jobs', 'pipeline', 'actions', 'logs', 'historique']}
+            onSelect={handleSelect}
+          >
+            <FileClock className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.workflowHistory', 'Workflow history')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.workflowHistoryDesc', 'Inspect recent import, transform and export actions')}</span>
             </div>
           </CommandItem>
           <CommandSeparator className="my-1" />

@@ -35,6 +35,7 @@ describe('projectDesktopContext', () => {
     expect(isRestorableProjectRoute('/site/pages')).toBe(true)
     expect(isRestorableProjectRoute('/publish')).toBe(true)
     expect(isRestorableProjectRoute('/tools/settings')).toBe(true)
+    expect(isRestorableProjectRoute('/tools/history')).toBe(true)
 
     expect(isRestorableProjectRoute('https://example.com')).toBe(false)
     expect(isRestorableProjectRoute('//example.com')).toBe(false)

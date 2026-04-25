@@ -204,16 +204,26 @@ def test_pipeline_marks_batch_transform_groups_as_fresh(tmp_path: Path, monkeypa
 # ---------------------------------------------------------------------------
 
 
-def _build_history_app(history_entries: list[dict], monkeypatch) -> FastAPI:
+def _build_history_app(
+    history_entries: list[dict],
+    monkeypatch,
+    import_history: dict[str, dict] | None = None,
+) -> FastAPI:
     """Build a minimal FastAPI app with a stub job_store for history tests."""
 
     class DummyStore:
         def __init__(self, entries: list[dict]):
             self._entries = entries
             self.last_limit: int | None = None
+            self.last_include_active_terminal: bool | None = None
 
-        def get_history(self, limit: int = 20) -> list[dict]:
+        def get_history(
+            self,
+            limit: int = 20,
+            include_active_terminal: bool = False,
+        ) -> list[dict]:
             self.last_limit = limit
+            self.last_include_active_terminal = include_active_terminal
             return self._entries[:limit]
 
     store = DummyStore(history_entries)
@@ -223,6 +233,7 @@ def _build_history_app(history_entries: list[dict], monkeypatch) -> FastAPI:
     monkeypatch.setattr(
         pipeline_router, "resolve_job_store", lambda app: app.state.job_store
     )
+    monkeypatch.setattr(pipeline_router, "import_jobs", import_history or {})
     return app
 
 
@@ -239,6 +250,7 @@ def test_pipeline_history_returns_entries(monkeypatch):
     assert response.status_code == 200
     assert response.json() == entries
     assert app.state.job_store.last_limit == 5
+    assert app.state.job_store.last_include_active_terminal is True
 
 
 def test_pipeline_history_default_limit(monkeypatch):
@@ -249,6 +261,54 @@ def test_pipeline_history_default_limit(monkeypatch):
 
     assert response.status_code == 200
     assert app.state.job_store.last_limit == 10
+    assert app.state.job_store.last_include_active_terminal is True
+
+
+def test_pipeline_history_merges_terminal_import_jobs(monkeypatch):
+    entries = [
+        {
+            "id": "transform-old",
+            "type": "transform",
+            "status": "completed",
+            "started_at": "2026-04-25T08:00:00+00:00",
+            "completed_at": "2026-04-25T08:01:00+00:00",
+        },
+    ]
+    import_history = {
+        "import-new": {
+            "id": "import-new",
+            "status": "completed",
+            "import_type": "dataset",
+            "entity_name": "occurrences",
+            "created_at": "2026-04-25T08:30:00+00:00",
+            "started_at": "2026-04-25T08:30:00+00:00",
+            "completed_at": "2026-04-25T08:32:00+00:00",
+            "progress": 100,
+            "phase": "completed",
+            "message": "Import completed",
+            "result": {"summary": "ok"},
+            "errors": [],
+            "error_details": None,
+        },
+        "import-running": {
+            "id": "import-running",
+            "status": "running",
+            "created_at": "2026-04-25T09:00:00+00:00",
+            "started_at": "2026-04-25T09:00:00+00:00",
+            "progress": 50,
+            "message": "Importing...",
+        },
+    }
+    app = _build_history_app(entries, monkeypatch, import_history=import_history)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=5")
+
+    assert response.status_code == 200
+    history = response.json()
+    assert [entry["id"] for entry in history] == ["import-new", "transform-old"]
+    assert history[0]["type"] == "import"
+    assert history[0]["group_by"] == "occurrences"
 
 
 def test_pipeline_history_rejects_zero_limit(monkeypatch):

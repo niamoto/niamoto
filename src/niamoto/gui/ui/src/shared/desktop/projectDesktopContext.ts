@@ -12,6 +12,7 @@ const RESTORABLE_EXACT_ROUTES = [
   '/tools/plugins',
   '/tools/docs',
   '/tools/config-editor',
+  '/tools/history',
 ]
 
 const RESTORABLE_ROUTE_PREFIXES = ['/sources', '/groups', '/help']
