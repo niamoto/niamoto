@@ -1004,6 +1004,165 @@ def test_index_suggestions_skip_low_value_widget_outputs_on_transformed_tables(
     )
 
 
+def test_index_suggestions_promote_generic_entity_name_when_transform_lacks_one(
+    tmp_path: Path,
+):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "habitats",
+                    "source": "habitats",
+                    "widgets_data": {
+                        "summary": {
+                            "plugin": "field_aggregator",
+                            "params": {
+                                "fields": [
+                                    {
+                                        "source": "habitats",
+                                        "field": "surface_area",
+                                        "target": "surface_area",
+                                    }
+                                ]
+                            },
+                        }
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE habitats (
+                habitats_id BIGINT,
+                summary JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO habitats VALUES
+                (1, '{"surface_area":{"value":12.5}}'),
+                (2, '{"surface_area":{"value":8.1}}')
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_habitats (
+                id BIGINT,
+                habitats_id BIGINT,
+                display_name VARCHAR,
+                surface_area DOUBLE
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_habitats VALUES
+                (10, 1, 'Dry forest', 12.5),
+                (20, 2, 'Wetland', 8.1)
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/habitats/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    display_field_sources = [field["source"] for field in payload["display_fields"]]
+    available_field_sources = {field["source"] for field in payload["available_fields"]}
+
+    assert display_field_sources[0] == "display_name"
+    assert "summary.surface_area.value" in display_field_sources
+    assert "display_name" in available_field_sources
+    assert payload["display_fields"][0]["is_title"] is True
+    assert payload["display_fields"][0]["searchable"] is True
+
+
+def test_index_suggestions_use_singular_group_field_as_title(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "habitats",
+                    "source": "habitats",
+                    "widgets_data": {},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE habitats (
+                habitats_id BIGINT,
+                summary JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO habitats VALUES
+                (1, '{"habitat":{"value":"Dry forest"},"surface_area":{"value":12.5}}'),
+                (2, '{"habitat":{"value":"Wetland"},"surface_area":{"value":8.1}}')
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/habitats/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    title_field = next(
+        field for field in payload["display_fields"] if field["is_title"]
+    )
+    assert title_field["source"] == "summary.habitat.value"
+    assert title_field["searchable"] is True
+
+
 def test_index_suggestions_promote_external_links_and_inline_badges(
     tmp_path: Path,
 ):

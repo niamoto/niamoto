@@ -30,6 +30,7 @@ export interface SuggestedDisplayField {
   dynamic_options: boolean
   priority: 'high' | 'low'  // high = extra_data/field_aggregator, low = other transformers
   display?: 'normal' | 'hidden' | 'image_preview' | 'link'
+  is_title?: boolean
   inline_badge?: boolean
   link_label?: LocalizedString
   link_title?: LocalizedString
@@ -56,6 +57,7 @@ export interface IndexFieldSuggestions {
   display_fields: SuggestedDisplayField[]
   filters: SuggestedFilter[]
   total_entities: number
+  available_fields?: SuggestedDisplayField[]
 }
 
 /**
@@ -73,6 +75,7 @@ export interface IndexDisplayField {
   filter_options?: Array<{ value: string; label: string }>
   dynamic_options: boolean
   display: 'normal' | 'hidden' | 'image_preview' | 'link'
+  is_title: boolean
 
   // Badge-specific
   inline_badge: boolean
@@ -201,6 +204,7 @@ export function createDefaultDisplayField(partial: Partial<IndexDisplayField> = 
     searchable: false,
     dynamic_options: false,
     display: 'normal',
+    is_title: false,
     inline_badge: false,
     ...partial,
   }
@@ -317,7 +321,11 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     setLocalConfig(prev => ({
       ...prev,
       display_fields: prev.display_fields.map((f, i) =>
-        i === index ? { ...f, ...field } : f
+        i === index
+          ? { ...f, ...field }
+          : field.is_title
+            ? { ...f, is_title: false }
+            : f
       ),
     }))
   }, [])
@@ -405,6 +413,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
       searchable: sf.searchable,
       dynamic_options: sf.dynamic_options,
       display: sf.display ?? 'normal',
+      is_title: sf.is_title ?? false,
       inline_badge: sf.inline_badge ?? false,
       format: sf.format as IndexDisplayField['format'],
       link_label: sf.link_label,

@@ -1873,6 +1873,7 @@ class IndexGeneratorDisplayFieldUpdate(BaseModel):
     mapping: Optional[Dict[str, str]] = None
     filter_options: Optional[List[Dict[str, str]]] = None
     dynamic_options: bool = False
+    is_title: bool = False
     inline_badge: bool = False
     true_label: Optional[LocalizedString] = None
     false_label: Optional[LocalizedString] = None
@@ -2000,10 +2001,18 @@ async def update_index_generator(
             ]
 
         if "display_fields" in config_dict:
-            config_dict["display_fields"] = [
+            display_fields = [
                 {k: v for k, v in f.items() if v is not None}
                 for f in config_dict["display_fields"]
             ]
+            title_seen = False
+            for field in display_fields:
+                if field.get("is_title") and not title_seen:
+                    title_seen = True
+                    field["searchable"] = True
+                elif field.get("is_title"):
+                    field["is_title"] = False
+            config_dict["display_fields"] = display_fields
 
         if "views" in config_dict:
             config_dict["views"] = [
@@ -2386,6 +2395,7 @@ class SuggestedDisplayField(BaseModel):
     dynamic_options: bool = False
     priority: str = "high"  # high, low - indicates importance for index display
     display: Optional[str] = None
+    is_title: bool = False
     inline_badge: bool = False
     link_label: Optional[str] = None
     link_title: Optional[str] = None
@@ -2410,6 +2420,7 @@ class IndexFieldSuggestions(BaseModel):
     display_fields: List[SuggestedDisplayField]
     filters: List[SuggestedFilter]
     total_entities: int
+    available_fields: List[SuggestedDisplayField] = Field(default_factory=list)
 
 
 def _looks_like_url(value: Any) -> bool:
@@ -2956,6 +2967,64 @@ def _pick_name_fallback_column(path: str, columns: List[str]) -> Optional[str]:
     return None
 
 
+def _singularize_identifier(identifier: str) -> str:
+    """Return a conservative singular form for generic group-name matching."""
+    normalized = re.sub(r"[^a-z0-9_]+", "_", identifier.lower()).strip("_")
+    if normalized in {"species", "series"}:
+        return normalized
+    if normalized.endswith("ies") and len(normalized) > 3:
+        return f"{normalized[:-3]}y"
+    if normalized.endswith(("ses", "xes", "zes", "ches", "shes")):
+        return normalized[:-2]
+    if normalized.endswith("s") and len(normalized) > 1:
+        return normalized[:-1]
+    return normalized
+
+
+def _is_title_candidate_field(path: str, group_by: Optional[str] = None) -> bool:
+    """Check whether a field is a good generic title candidate."""
+    if _is_name_field(path):
+        return True
+    if not group_by:
+        return False
+
+    leaf = _get_field_leaf_name(path).lower()
+    group_name = re.sub(r"[^a-z0-9_]+", "_", group_by.lower()).strip("_")
+    return leaf in {group_name, _singularize_identifier(group_name)}
+
+
+def _merge_direct_source_field_analysis(
+    field_analysis: Dict[str, Dict[str, Any]],
+    direct_source_analysis: Dict[str, Dict[str, Any]],
+    inferred_schema: Dict[str, Dict[str, Any]],
+) -> None:
+    """Merge entity-table fields without letting noisy raw columns dominate."""
+    represented_source_columns = {
+        str(info.get("source_column"))
+        for info in inferred_schema.values()
+        if info.get("source_column")
+    }
+    has_declared_transformed_paths = any(
+        not path.startswith("extra_data.") for path in inferred_schema
+    )
+
+    for path, info in direct_source_analysis.items():
+        if path in field_analysis:
+            continue
+        if path in represented_source_columns:
+            continue
+
+        direct_info = dict(info)
+        if has_declared_transformed_paths and not (
+            _is_name_field(path)
+            or _is_category_field(path)
+            or path.startswith("extra_data.")
+        ):
+            direct_info["priority"] = "low"
+
+        field_analysis[path] = direct_info
+
+
 def _is_name_field(path: str) -> bool:
     """Check if this is likely a name/title field."""
     if path.startswith("hierarchy_context."):
@@ -3045,6 +3114,162 @@ def _is_enrichment_metadata_field(path: str) -> bool:
     if leaf.endswith("_id") or leaf.startswith("id_") or leaf == "api_id":
         return True
     return False
+
+
+def _should_skip_available_index_field(path: str) -> bool:
+    """Hide technical bookkeeping fields from the manual picker."""
+    return (
+        _is_metadata_field(path)
+        or _is_enrichment_metadata_field(path)
+        or _is_hierarchy_structure_field(path)
+    )
+
+
+def _coerce_index_field_type(path: str, info: Dict[str, Any]) -> str:
+    """Adapt inferred field types to index-display use cases."""
+    field_type = info.get("type", "text")
+    cardinality = info.get("cardinality", 0)
+
+    if field_type == "text" and _is_category_field(path) and 1 < cardinality <= 20:
+        return "select"
+
+    return field_type
+
+
+def _index_field_sort_key(
+    item: tuple[str, Dict[str, Any]], group_by: Optional[str] = None
+) -> tuple:
+    """Sort index field candidates by generic user-facing usefulness."""
+    path, info = item
+    field_type = info.get("type", "text")
+    cardinality = info.get("cardinality", 0)
+
+    return (
+        0 if info.get("priority", "low") == "high" else 1,
+        0 if _is_title_candidate_field(path, group_by) else 1,
+        0 if _is_category_field(path) else 1,
+        1 if _is_identifier_field(path, group_by) else 0,
+        cardinality if field_type == "select" else 1000,
+        path,
+    )
+
+
+def _build_index_field_suggestion(
+    path: str,
+    info: Dict[str, Any],
+    source_columns: List[str],
+    group_by: Optional[str] = None,
+    field_type: Optional[str] = None,
+) -> SuggestedDisplayField:
+    """Build a suggested display field from generic field analysis metadata."""
+    resolved_type = field_type or _coerce_index_field_type(path, info)
+    link_display_metadata = _build_link_display_metadata(path, info)
+
+    format_hint = None
+    if resolved_type == "select":
+        format_hint = "map"
+    elif resolved_type == "boolean":
+        format_hint = "badge"
+
+    field_name = _get_field_leaf_name(path)
+    field_label = _get_suggestion_label(path, info)
+    display_hint = None
+    inline_badge = False
+    link_label = None
+    link_title = None
+    link_target = None
+
+    if link_display_metadata:
+        field_name = link_display_metadata["name"]
+        field_label = link_display_metadata["label"]
+        display_hint = "link"
+        link_label = link_display_metadata["link_label"]
+        link_title = link_display_metadata["link_title"]
+        link_target = link_display_metadata["link_target"] or None
+    elif resolved_type == "boolean" and _should_inline_boolean_badge(path):
+        inline_badge = True
+
+    cardinality = info.get("cardinality", 0)
+    is_filter_candidate = (
+        resolved_type in ["select", "boolean"]
+        and cardinality <= 20
+        and cardinality >= 2
+    )
+
+    return SuggestedDisplayField(
+        name=field_name,
+        source=path,
+        fallback=_pick_name_fallback_column(path, source_columns),
+        type=resolved_type,
+        label=field_label,
+        searchable=_is_title_candidate_field(path, group_by)
+        and not link_display_metadata,
+        cardinality=cardinality,
+        sample_values=info.get("sample_values", []),
+        suggested_as_filter=is_filter_candidate,
+        format=format_hint,
+        dynamic_options=is_filter_candidate and cardinality > 5,
+        priority=info.get("priority", "low"),
+        display=display_hint,
+        is_title=False,
+        inline_badge=inline_badge,
+        link_label=link_label,
+        link_title=link_title,
+        link_target=link_target,
+    )
+
+
+def _deduplicate_available_fields(
+    fields: List[SuggestedDisplayField],
+) -> List[SuggestedDisplayField]:
+    """Deduplicate manual picker candidates by source path."""
+    deduplicated_fields: List[SuggestedDisplayField] = []
+    seen_sources: set[str] = set()
+
+    for field in fields:
+        if field.source in seen_sources:
+            continue
+        seen_sources.add(field.source)
+        deduplicated_fields.append(field)
+
+    return deduplicated_fields
+
+
+def _mark_primary_title_field(
+    fields: List[SuggestedDisplayField], group_by: Optional[str] = None
+) -> None:
+    """Mark one visible field as the card/list title, preferring semantic names."""
+    if any(field.is_title for field in fields):
+        return
+
+    def is_visible_textish(field: SuggestedDisplayField) -> bool:
+        return (
+            field.display not in {"hidden", "image_preview", "link"}
+            and field.type != "json_array"
+            and not _is_identifier_field(field.source, group_by)
+        )
+
+    semantic_candidate = next(
+        (
+            field
+            for field in fields
+            if is_visible_textish(field)
+            and _is_title_candidate_field(field.source, group_by)
+        ),
+        None,
+    )
+    fallback_candidate = next(
+        (
+            field
+            for field in fields
+            if is_visible_textish(field) and field.type in {"text", "select"}
+        ),
+        None,
+    )
+    title_field = semantic_candidate or fallback_candidate
+    if title_field:
+        title_field.is_title = True
+        title_field.searchable = True
 
 
 def _detect_terminal_ranks(values: List[str]) -> List[str]:
@@ -3800,7 +4025,21 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                         db.engine,
                     )
                     source_columns = list(source_df.columns)
-                    field_analysis.update(_extract_extra_data_fields(source_df))
+                    inferred_schema = _infer_schema_from_transform_config(
+                        group_config, source_df
+                    )
+                    field_analysis.update(
+                        {
+                            path: info
+                            for path, info in inferred_schema.items()
+                            if path.startswith("extra_data.")
+                        }
+                    )
+                    _merge_direct_source_field_analysis(
+                        field_analysis,
+                        _analyze_dataframe_fields(source_df),
+                        inferred_schema,
+                    )
             finally:
                 db.close_db_session()
         else:
@@ -3823,31 +4062,11 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 )
                 field_analysis = dict(inferred_schema)
 
-                direct_source_analysis = _analyze_dataframe_fields(source_df)
-                represented_source_columns = {
-                    str(info.get("source_column"))
-                    for info in inferred_schema.values()
-                    if info.get("source_column")
-                }
-                has_declared_transformed_paths = any(
-                    not path.startswith("extra_data.") for path in inferred_schema
+                _merge_direct_source_field_analysis(
+                    field_analysis,
+                    _analyze_dataframe_fields(source_df),
+                    inferred_schema,
                 )
-
-                for path, info in direct_source_analysis.items():
-                    if path in field_analysis:
-                        continue
-                    if path in represented_source_columns:
-                        continue
-
-                    direct_info = dict(info)
-                    if has_declared_transformed_paths and not (
-                        _is_name_field(path)
-                        or _is_category_field(path)
-                        or path.startswith("extra_data.")
-                    ):
-                        direct_info["priority"] = "low"
-
-                    field_analysis[path] = direct_info
 
             finally:
                 db.close_db_session()
@@ -3997,20 +4216,30 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         # Track if we found a rank field with terminal values for hierarchical entities
         rank_filter_added = False
 
-        # Sort fields by relevance: priority first, then name fields, then category fields
+        # Sort fields by relevance: priority first, then generic name/title fields.
         sorted_fields = sorted(
             field_analysis.items(),
-            key=lambda x: (
-                # Priority: high priority first
-                0 if x[1].get("priority", "low") == "high" else 1,
-                # Then name fields
-                0 if _is_name_field(x[0]) else 1,
-                # Then category fields
-                0 if _is_category_field(x[0]) else 1,
-                # Then by cardinality for select types
-                x[1]["cardinality"] if x[1]["type"] == "select" else 1000,
-            ),
+            key=lambda item: _index_field_sort_key(item, group_by),
         )
+
+        available_fields = list(image_display_fields)
+
+        for path, info in sorted_fields:
+            if path in consumed_image_paths:
+                continue
+            if _should_skip_available_index_field(path):
+                continue
+
+            available_info = dict(info)
+            if _is_identifier_field(path, group_by):
+                available_info["priority"] = "low"
+            available_fields.append(
+                _build_index_field_suggestion(
+                    path, available_info, source_columns, group_by
+                )
+            )
+
+        available_fields = _deduplicate_available_fields(available_fields)
 
         for path, info in sorted_fields:
             if path in consumed_image_paths:
@@ -4029,12 +4258,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             if _is_identifier_field(path, group_by):
                 continue
 
-            if (
-                field_type == "text"
-                and _is_category_field(path)
-                and 1 < info["cardinality"] <= 20
-            ):
-                field_type = "select"
+            field_type = _coerce_index_field_type(path, info)
 
             if (
                 terminal_records
@@ -4052,7 +4276,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             # Skip if cardinality is too high for meaningful display
             if field_type == "text" and info["cardinality"] > 50:
                 if (
-                    not _is_name_field(path)
+                    not _is_title_candidate_field(path, group_by)
                     and not link_display_metadata
                     and not path.startswith("hierarchy_context.")
                 ):
@@ -4063,57 +4287,14 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 continue
 
             # Create display field suggestion
-            is_searchable = _is_name_field(path) and not link_display_metadata
             is_filter_candidate = (
                 field_type in ["select", "boolean"]
                 and info["cardinality"] <= 20
                 and info["cardinality"] >= 2
             )
 
-            # Determine format
-            format_hint = None
-            if field_type == "select":
-                format_hint = "map"
-            elif field_type == "boolean":
-                format_hint = "badge"
-
-            field_name = _get_field_leaf_name(path)
-            field_label = _get_suggestion_label(path, info)
-            fallback_name = _pick_name_fallback_column(path, source_columns)
-            display_hint = None
-            inline_badge = False
-            link_label = None
-            link_title = None
-            link_target = None
-
-            if link_display_metadata:
-                field_name = link_display_metadata["name"]
-                field_label = link_display_metadata["label"]
-                display_hint = "link"
-                link_label = link_display_metadata["link_label"]
-                link_title = link_display_metadata["link_title"]
-                link_target = link_display_metadata["link_target"] or None
-            elif field_type == "boolean" and _should_inline_boolean_badge(path):
-                inline_badge = True
-
-            display_field = SuggestedDisplayField(
-                name=field_name,
-                source=path,
-                fallback=fallback_name,
-                type=field_type,
-                label=field_label,
-                searchable=is_searchable,
-                cardinality=info["cardinality"],
-                sample_values=info["sample_values"],
-                suggested_as_filter=is_filter_candidate,
-                format=format_hint,
-                dynamic_options=is_filter_candidate and info["cardinality"] > 5,
-                priority=priority,
-                display=display_hint,
-                inline_badge=inline_badge,
-                link_label=link_label,
-                link_title=link_title,
-                link_target=link_target,
+            display_field = _build_index_field_suggestion(
+                path, info, source_columns, group_by, field_type
             )
             display_fields.append(display_field)
 
@@ -4162,6 +4343,23 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     )
                 )
 
+        if not any(
+            _is_title_candidate_field(field.source, group_by)
+            for field in display_fields
+        ):
+            title_candidate = next(
+                (
+                    field
+                    for field in available_fields
+                    if _is_title_candidate_field(field.source, group_by)
+                    and not _is_identifier_field(field.source, group_by)
+                    and field.type != "json_array"
+                ),
+                None,
+            )
+            if title_candidate:
+                display_fields.insert(0, title_candidate)
+
         # Deduplicate fields by name, preferring transformation sources over extra_data
         deduplicated_fields = []
         seen_names: Dict[str, int] = {}  # name -> index in deduplicated_fields
@@ -4184,6 +4382,17 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             else:
                 seen_names[field_name] = len(deduplicated_fields)
                 deduplicated_fields.append(field)
+
+        _mark_primary_title_field(deduplicated_fields, group_by)
+        title_source = next(
+            (field.source for field in deduplicated_fields if field.is_title),
+            None,
+        )
+        if title_source:
+            for field in available_fields:
+                field.is_title = field.source == title_source
+                if field.is_title:
+                    field.searchable = True
 
         # Also deduplicate filters by field name
         deduplicated_filters = []
@@ -4212,6 +4421,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             ],  # Limit to top 15 high priority fields
             filters=deduplicated_filters[:5],  # Limit to top 5 filters
             total_entities=int(total_count),
+            available_fields=available_fields,
         )
 
     except HTTPException:

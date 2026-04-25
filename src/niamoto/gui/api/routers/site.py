@@ -1319,10 +1319,34 @@ class GroupIndexPreviewRequest(BaseModel):
     index_config: Optional[GroupIndexConfig] = None
 
 
+def _preview_group_label(group_name: Optional[str]) -> str:
+    """Build a generic, dataset-agnostic label for preview cards."""
+    if not group_name:
+        return "Élément"
+
+    normalized = re.sub(r"[_-]+", " ", group_name).strip()
+    if not normalized:
+        return "Élément"
+
+    parts = normalized.split()
+    last_part = parts[-1].lower()
+    if last_part not in {"species", "series"}:
+        if last_part.endswith("ies") and len(last_part) > 3:
+            last_part = f"{last_part[:-3]}y"
+        elif last_part.endswith(("ses", "xes", "zes", "ches", "shes")):
+            last_part = last_part[:-2]
+        elif last_part.endswith("s") and len(last_part) > 1:
+            last_part = last_part[:-1]
+    parts[-1] = last_part
+
+    return " ".join(part.capitalize() for part in parts)
+
+
 def _generate_mock_items(
     display_fields: List[Dict[str, Any]],
     count: int = 12,
     id_column: str = "id",
+    group_name: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Generate mock items based on display_fields configuration.
@@ -1332,6 +1356,7 @@ def _generate_mock_items(
     import random
 
     mock_items = []
+    preview_label = _preview_group_label(group_name)
 
     # Sample names for different field types
     sample_names = [
@@ -1383,7 +1408,9 @@ def _generate_mock_items(
             field_name = field.get("name", "")
             field_type = field.get("type", "text")
 
-            if field_name == "name" or field_name == "full_name":
+            if field.get("is_title"):
+                item[field_name] = f"{preview_label} {i + 1}"
+            elif field_name == "name" or field_name == "full_name":
                 item[field_name] = sample_names[i]
             elif field_name == "family" or "family" in field_name.lower():
                 item[field_name] = random.choice(sample_families)
@@ -1574,6 +1601,7 @@ async def preview_group_index(
             display_fields,
             count=12,
             id_column=index_config["id_column"],
+            group_name=group_name,
         )
 
         # Render the template

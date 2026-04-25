@@ -30,11 +30,15 @@ import {
 } from '@/components/ui/accordion'
 import { Settings2, Search, Palette, Link2, Braces, Plus, X, PanelRightClose, Save } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import type { IndexDisplayField } from './useIndexConfig'
+import { FieldSourcePicker } from './FieldSourcePicker'
+import type { IndexDisplayField, SuggestedDisplayField } from './useIndexConfig'
 
 interface DisplayFieldEditorPanelProps {
   field: IndexDisplayField
   fieldIndex: number
+  availableFields?: SuggestedDisplayField[]
+  loadingAvailableFields?: boolean
+  onLoadAvailableFields?: () => void
   onSave: (field: Partial<IndexDisplayField>) => void
   onClose: () => void
 }
@@ -59,9 +63,16 @@ function stringifyJsonObject(obj: Record<string, string> | undefined): string {
   return JSON.stringify(obj, null, 2)
 }
 
+function isPlaceholderFieldName(name: string): boolean {
+  return !name.trim() || /^field_\d+$/i.test(name.trim())
+}
+
 export function DisplayFieldEditorPanel({
   field,
   fieldIndex,
+  availableFields = [],
+  loadingAvailableFields = false,
+  onLoadAvailableFields,
   onSave,
   onClose,
 }: DisplayFieldEditorPanelProps) {
@@ -139,6 +150,31 @@ export function DisplayFieldEditorPanel({
     setIsDirty(false)
   }
 
+  const handleSelectSourceField = (suggestion: SuggestedDisplayField) => {
+    const nextType =
+      suggestion.type === 'number' ? 'text' : suggestion.type as IndexDisplayField['type']
+
+    updateField({
+      name: isPlaceholderFieldName(localField.name) ? suggestion.name : localField.name,
+      source: suggestion.source,
+      fallback: suggestion.fallback,
+      type: nextType,
+      label: localField.label || suggestion.label,
+      searchable: suggestion.searchable,
+      dynamic_options: suggestion.dynamic_options,
+      display: suggestion.display ?? localField.display ?? 'normal',
+      is_title: suggestion.is_title === true ? true : localField.is_title,
+      inline_badge: suggestion.inline_badge ?? localField.inline_badge,
+      format: suggestion.type === 'number'
+        ? 'number'
+        : suggestion.format as IndexDisplayField['format'],
+      link_label: suggestion.link_label,
+      link_title: suggestion.link_title,
+      link_target: suggestion.link_target,
+      image_fields: suggestion.image_fields,
+    })
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -211,31 +247,33 @@ export function DisplayFieldEditorPanel({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="field-source">{t('indexConfig:fieldEditor.sourceJsonPath')}</Label>
-                <Input
-                  id="field-source"
+                <Label>{t('indexConfig:fieldEditor.dataField')}</Label>
+                <FieldSourcePicker
                   value={localField.source}
-                  onChange={(e) => updateField({ source: e.target.value })}
-                  placeholder="general_info.name.value"
-                  className="font-mono"
+                  options={availableFields}
+                  loading={loadingAvailableFields}
+                  onLoad={onLoadAvailableFields}
+                  onSelect={handleSelectSourceField}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {t('indexConfig:fieldEditor.sourceHint')}
+                  {t('indexConfig:fieldEditor.dataFieldHint')}
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="field-fallback">{t('indexConfig:fieldEditor.fallbackOptional')}</Label>
-                <Input
-                  id="field-fallback"
-                  value={localField.fallback || ''}
-                  onChange={(e) => updateField({ fallback: e.target.value || undefined })}
-                  placeholder="chemin.alternatif"
-                  className="font-mono"
+              <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                <div className="space-y-0.5">
+                  <Label>{t('indexConfig:fieldEditor.useAsTitle')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('indexConfig:fieldEditor.useAsTitleHint')}
+                  </p>
+                </div>
+                <Switch
+                  checked={localField.is_title ?? false}
+                  onCheckedChange={(checked) => updateField({
+                    is_title: checked,
+                    searchable: checked ? true : localField.searchable,
+                  })}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t('indexConfig:fieldEditor.fallbackHint')}
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -274,6 +312,45 @@ export function DisplayFieldEditorPanel({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Advanced source settings */}
+          <AccordionItem value="source" className="border rounded-lg">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Braces className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{t('indexConfig:fieldEditor.advancedSource')}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="field-source">{t('indexConfig:fieldEditor.sourceJsonPath')}</Label>
+                <Input
+                  id="field-source"
+                  value={localField.source}
+                  onChange={(e) => updateField({ source: e.target.value })}
+                  placeholder="general_info.name.value"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('indexConfig:fieldEditor.sourceHint')}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="field-fallback">{t('indexConfig:fieldEditor.fallbackOptional')}</Label>
+                <Input
+                  id="field-fallback"
+                  value={localField.fallback || ''}
+                  onChange={(e) => updateField({ fallback: e.target.value || undefined })}
+                  placeholder="chemin.alternatif"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('indexConfig:fieldEditor.fallbackHint')}
+                </p>
               </div>
             </AccordionContent>
           </AccordionItem>
