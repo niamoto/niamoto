@@ -45,6 +45,7 @@ import {
   getAppSettings,
   setAppSettings,
 } from '@/shared/desktop/appSettings'
+import { buildConfigEditorPath } from '@/features/tools/configRouting'
 
 const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
@@ -153,15 +154,109 @@ export function CommandPalette() {
               </CommandItem>
             )
           })}
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading={t('command.workflows', 'Workflows')}>
           <CommandItem
             value="navigate:/sources/import"
-            keywords={['import', 'importer', 'csv', 'upload', 'fichier']}
+            keywords={['import', 'importer', 'csv', 'upload', 'fichier', 'data']}
             onSelect={handleSelect}
           >
             <Upload className="!size-[18px] text-foreground/70" />
-            <div className="flex flex-col">
-              <span className="font-medium">Import</span>
-              <span className="text-xs text-muted-foreground">{t('command.importDesc', 'Import a data file')}</span>
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.importData', 'Import data')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.importDesc', 'Add or update source files')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/groups"
+            keywords={['collections', 'groups', 'widgets', 'transform', 'statistics']}
+            onSelect={handleSelect}
+          >
+            <Layers className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.configureCollections', 'Configure collections')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.configureCollectionsDesc', 'Review widgets, sources, indexes and API exports')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/site/pages"
+            keywords={['site', 'pages', 'content', 'markdown', 'builder']}
+            onSelect={handleSelect}
+          >
+            <Globe className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.editSitePages', 'Edit site pages')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.editSitePagesDesc', 'Write content and adjust page configuration')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/publish"
+            keywords={['publish', 'build', 'generate', 'export', 'site']}
+            onSelect={handleSelect}
+          >
+            <Send className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.generateSite', 'Generate site')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.generateSiteDesc', 'Build the static website from current data')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/publish?panel=destinations"
+            keywords={['deploy', 'publish', 'destination', 'github', 'netlify']}
+            onSelect={handleSelect}
+          >
+            <Send className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.deploySite', 'Deploy site')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.deploySiteDesc', 'Open deployment destinations')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="navigate:/publish?panel=history"
+            keywords={['history', 'build history', 'deploy history', 'logs', 'jobs']}
+            onSelect={handleSelect}
+          >
+            <Send className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.publishHistory', 'Publish history')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.publishHistoryDesc', 'Review recent builds and deployments')}</span>
+            </div>
+          </CommandItem>
+          <CommandSeparator className="my-1" />
+          <CommandItem
+            value={`navigate:${buildConfigEditorPath('import')}`}
+            keywords={['import.yml', 'import config', 'loader', 'config']}
+            onSelect={handleSelect}
+          >
+            <FileCode2 className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.editImportConfig', 'Edit import.yml')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.editImportConfigDesc', 'Open the import configuration tab')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value={`navigate:${buildConfigEditorPath('transform')}`}
+            keywords={['transform.yml', 'transform config', 'statistics', 'config']}
+            onSelect={handleSelect}
+          >
+            <FileCode2 className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.editTransformConfig', 'Edit transform.yml')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.editTransformConfigDesc', 'Open the transform configuration tab')}</span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value={`navigate:${buildConfigEditorPath('export')}`}
+            keywords={['export.yml', 'export config', 'publish', 'site config']}
+            onSelect={handleSelect}
+          >
+            <FileCode2 className="!size-[18px] text-foreground/70" />
+            <div className="flex flex-1 flex-col">
+              <span className="font-medium">{t('command.editExportConfig', 'Edit export.yml')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.editExportConfigDesc', 'Open the export configuration tab')}</span>
             </div>
           </CommandItem>
         </CommandGroup>

@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FileCode2, History, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -16,11 +17,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert } from '@/components/ui/alert'
 import { useConfig } from '@/features/tools/hooks/useConfig'
 import type { ConfigType } from '@/features/tools/hooks/useConfig'
+import { CONFIG_TAB_VALUES, normalizeConfigTab } from '@/features/tools/configRouting'
 import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
 import * as yaml from 'js-yaml'
 import { toast } from 'sonner'
-
-const CONFIG_TAB_VALUES = ['config', 'import', 'transform', 'export'] as const
 
 const CONFIG_TABS: { value: ConfigType; label: string; description: string }[] = [
   {
@@ -204,16 +204,34 @@ function ConfigTab({ configName }: { configName: ConfigType }) {
 }
 
 export function ConfigEditor() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] =
     useProjectDesktopViewPreference<ConfigType>({
       key: 'tools.configEditor.activeTab',
       defaultValue: 'config',
       allowedValues: CONFIG_TAB_VALUES,
     })
+  const requestedTab = normalizeConfigTab(searchParams.get('config'))
+
+  useEffect(() => {
+    if (requestedTab && requestedTab !== activeTab) {
+      setActiveTab(requestedTab)
+    }
+  }, [activeTab, requestedTab, setActiveTab])
 
   const handleTabChange = (value: string) => {
     if (CONFIG_TAB_VALUES.includes(value as ConfigType)) {
-      setActiveTab(value as ConfigType)
+      const nextTab = value as ConfigType
+      setActiveTab(nextTab)
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        if (nextTab === 'config') {
+          next.delete('config')
+        } else {
+          next.set('config', nextTab)
+        }
+        return next
+      }, { replace: true })
     }
   }
 
