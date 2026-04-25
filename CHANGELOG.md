@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.16.3] - 2026-04-25
+
+### Features
+
+- Improve index field selection
+- Add workflow history details
+- Add workflow history view
+- Add list performance diagnostics
+- Add workflow commands to palette
+- Remember desktop view preferences
+- Remember desktop route per project
+
+### Performance
+
+- Optimize data explorer table rendering
+
 ## [v0.16.2] - 2026-04-24
 
 ### Bug Fixes
