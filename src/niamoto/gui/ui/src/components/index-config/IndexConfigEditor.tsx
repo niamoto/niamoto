@@ -9,7 +9,7 @@
  * - Views configuration (grid/list)
  * - Live preview panel
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -56,6 +56,7 @@ import {
 import { PreviewFrame, type DeviceSize } from '@/components/ui/preview-frame'
 import { useGroupIndexPreview } from '@/shared/hooks/useSiteConfig'
 import { useIndexConfig, createDefaultDisplayField } from './useIndexConfig'
+import type { IndexFieldSuggestions, SuggestedDisplayField } from './useIndexConfig'
 import { IndexFiltersConfig } from './IndexFiltersConfig'
 import { IndexDisplayFieldsConfig } from './IndexDisplayFieldsConfig'
 import { DisplayFieldEditorPanel } from './DisplayFieldEditorPanel'
@@ -96,11 +97,52 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null)
+  const [availableFields, setAvailableFields] = useState<SuggestedDisplayField[]>([])
+  const [loadingAvailableFields, setLoadingAvailableFields] = useState(false)
+  const activeGroupRef = useRef(groupBy)
   const {
     mutate: requestGroupIndexPreview,
     isPending: isPreviewPending,
   } = useGroupIndexPreview()
   const needsSaveAttention = isDirty && !saving
+
+  useEffect(() => {
+    activeGroupRef.current = groupBy
+    setAvailableFields([])
+    setLoadingAvailableFields(false)
+    setDetecting(false)
+    setEditingFieldIndex(null)
+  }, [groupBy])
+
+  const rememberAvailableFields = useCallback((suggestions: IndexFieldSuggestions) => {
+    setAvailableFields(
+      suggestions.available_fields?.length
+        ? suggestions.available_fields
+        : suggestions.display_fields
+    )
+  }, [])
+
+  const ensureAvailableFields = useCallback(async () => {
+    if (availableFields.length > 0 || loadingAvailableFields) {
+      return
+    }
+
+    const requestedGroup = groupBy
+    setLoadingAvailableFields(true)
+    const suggestions = await fetchSuggestions()
+    if (suggestions && activeGroupRef.current === requestedGroup) {
+      rememberAvailableFields(suggestions)
+    }
+    if (activeGroupRef.current === requestedGroup) {
+      setLoadingAvailableFields(false)
+    }
+  }, [
+    availableFields.length,
+    fetchSuggestions,
+    groupBy,
+    loadingAvailableFields,
+    rememberAvailableFields,
+  ])
 
   const loadPreview = useCallback(() => {
     if (!config.enabled) {
@@ -160,10 +202,15 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
 
   // Run auto-detection
   const runAutoDetect = async () => {
+    const requestedGroup = groupBy
     setDetecting(true)
     const suggestions = await fetchSuggestions()
+    if (activeGroupRef.current !== requestedGroup) {
+      return
+    }
     setDetecting(false)
     if (suggestions) {
+      rememberAvailableFields(suggestions)
       applySuggestions(suggestions)
     }
   }
@@ -194,12 +241,14 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     // Auto-select the new field for editing
     setEditingFieldIndex(newIndex)
     setShowPreview(false)
+    void ensureAvailableFields()
   }
 
   // Handle field selection
   const handleSelectField = (index: number) => {
     setEditingFieldIndex(index)
     setShowPreview(false)
+    void ensureAvailableFields()
   }
 
   // Handle field save from panel
@@ -648,6 +697,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                   key={`${editingFieldIndex}-${config.display_fields[editingFieldIndex].name}-${config.display_fields[editingFieldIndex].source}`}
                   field={config.display_fields[editingFieldIndex]}
                   fieldIndex={editingFieldIndex}
+                  availableFields={availableFields}
+                  loadingAvailableFields={loadingAvailableFields}
+                  onLoadAvailableFields={ensureAvailableFields}
                   onSave={handleSaveField}
                   onClose={() => setEditingFieldIndex(null)}
                 />
