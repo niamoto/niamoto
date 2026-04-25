@@ -219,6 +219,7 @@ class IndexGeneratorDisplayField(BaseModel):
     filter_options: Optional[List[Dict[str, str]]] = None  # Static options
     dynamic_options: bool = False  # Generate options from data
     display: str = "normal"  # normal, hidden, image_preview, link
+    is_title: bool = False  # Use this field as the card/list item title
 
     # Badge-specific fields
     inline_badge: bool = False  # Display as inline badge in title

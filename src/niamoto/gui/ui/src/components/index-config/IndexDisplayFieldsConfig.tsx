@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import { GripVertical, Plus, Trash2, Search, Badge as BadgeIcon, EyeOff } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Search, Badge as BadgeIcon, EyeOff, Heading } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -99,6 +99,13 @@ function SortableFieldItem({
             <Badge variant="outline" className="h-5 text-[10px] px-1.5 shrink-0">
               <Search className="h-3 w-3 mr-1" />
               {t('fields.searchableBadge')}
+            </Badge>
+          )}
+
+          {field.is_title && (
+            <Badge variant="outline" className="h-5 text-[10px] px-1.5 shrink-0">
+              <Heading className="h-3 w-3 mr-1" />
+              {t('fields.titleBadge')}
             </Badge>
           )}
 
