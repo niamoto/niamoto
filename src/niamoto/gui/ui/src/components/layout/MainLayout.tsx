@@ -13,6 +13,7 @@ import { useJobPolling } from '@/hooks/useJobPolling'
 import { AppUpdaterProvider } from '@/shared/desktop/updater/useAppUpdater'
 import { useShellBindings } from '@/shared/shell/useShellBindings'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
+import { useProjectDesktopRouteMemory } from '@/shared/hooks/useProjectDesktopRouteMemory'
 import { cn } from '@/lib/utils'
 
 function syncSidebarModeToViewport() {
@@ -49,6 +50,7 @@ export function MainLayout() {
 
   useJobPolling()
   useShellBindings({ isDesktop, isTauri })
+  useProjectDesktopRouteMemory({ enabled: isDesktop })
 
   // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {
