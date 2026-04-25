@@ -1,3 +1,5 @@
+import { invokeDesktop } from './bridge'
+
 const PROJECT_DESKTOP_CONTEXT_STORAGE_KEY_PREFIX = 'niamoto.projectDesktopContext'
 
 const RESTORABLE_EXACT_ROUTES = [
@@ -321,4 +323,44 @@ export function writeStoredProjectDesktopRoute(
     },
     storage,
   )
+}
+
+export async function readNativeProjectDesktopContext(
+  projectScope: string | null,
+): Promise<ProjectDesktopContext> {
+  if (!projectScope) {
+    return DEFAULT_PROJECT_DESKTOP_CONTEXT
+  }
+
+  const context = await invokeDesktop<unknown>('get_project_desktop_context', {
+    projectScope,
+  })
+
+  if (typeof context !== 'object' || context === null || Array.isArray(context)) {
+    return DEFAULT_PROJECT_DESKTOP_CONTEXT
+  }
+
+  const parsed = context as StoredProjectDesktopContext
+  return {
+    lastRoute: normalizeProjectDesktopRoute(parsed.lastRoute),
+    viewPreferences: normalizeProjectDesktopViewPreferences(
+      parsed.viewPreferences,
+    ),
+    updatedAt: normalizeUpdatedAt(parsed.updatedAt),
+  }
+}
+
+export async function writeNativeProjectDesktopRoute(
+  projectScope: string | null,
+  route: ProjectDesktopRoute,
+): Promise<void> {
+  const normalizedRoute = normalizeProjectDesktopRoute(route)
+  if (!projectScope || !normalizedRoute) {
+    return
+  }
+
+  await invokeDesktop('set_project_desktop_route', {
+    projectScope,
+    route: normalizedRoute,
+  })
 }

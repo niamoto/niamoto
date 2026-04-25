@@ -10,7 +10,11 @@ import {
 } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildProjectDesktopContextStorageKey } from '@/shared/desktop/projectDesktopContext'
+import {
+  buildProjectDesktopContextStorageKey,
+  type ProjectDesktopContext,
+  type ProjectDesktopRoute,
+} from '@/shared/desktop/projectDesktopContext'
 import {
   resetProjectDesktopRouteMemoryForTests,
   useProjectDesktopRouteMemory,
@@ -41,10 +45,15 @@ function createStorage(initial: Record<string, string> = {}) {
 async function renderRouteMemoryProbe({
   initialEntry,
   storage,
+  nativeStorage,
   enabled = true,
 }: {
   initialEntry: string
-  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+  storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+  nativeStorage?: {
+    read(projectScope: string): Promise<ProjectDesktopContext>
+    writeRoute(projectScope: string, route: ProjectDesktopRoute): Promise<void>
+  }
   enabled?: boolean
 }) {
   const container = document.createElement('div')
@@ -53,7 +62,7 @@ async function renderRouteMemoryProbe({
   const latestLocation: { current: string | null } = { current: null }
 
   function Probe() {
-    useProjectDesktopRouteMemory({ enabled, storage })
+    useProjectDesktopRouteMemory({ enabled, storage, nativeStorage })
     const location = useLocation()
 
     useLayoutEffect(() => {
@@ -77,6 +86,7 @@ async function renderRouteMemoryProbe({
     renderProbe()
     await Promise.resolve()
     await Promise.resolve()
+    await Promise.resolve()
   })
 
   return {
@@ -86,6 +96,7 @@ async function renderRouteMemoryProbe({
     async rerender() {
       await act(async () => {
         renderProbe()
+        await Promise.resolve()
         await Promise.resolve()
         await Promise.resolve()
       })
@@ -209,6 +220,34 @@ describe('useProjectDesktopRouteMemory', () => {
     await harness.rerender()
 
     expect(harness.location).toBe('/publish?panel=history')
+    await harness.unmount()
+  })
+
+  it('restores and writes routes through native desktop storage', async () => {
+    const nativeStorage = {
+      read: vi.fn(async () => ({
+        lastRoute: { pathname: '/tools/history', search: '', hash: '' },
+        viewPreferences: {},
+        updatedAt: 100,
+      })),
+      writeRoute: vi.fn(async () => {}),
+    }
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/',
+      nativeStorage,
+    })
+
+    expect(nativeStorage.read).toHaveBeenCalledWith('desktop:/tmp/project-a')
+    expect(harness.location).toBe('/tools/history')
+    expect(nativeStorage.writeRoute).not.toHaveBeenCalledWith(
+      'desktop:/tmp/project-a',
+      expect.objectContaining({ pathname: '/' }),
+    )
+    expect(nativeStorage.writeRoute).toHaveBeenCalledWith(
+      'desktop:/tmp/project-a',
+      { pathname: '/tools/history', search: '', hash: '' },
+    )
     await harness.unmount()
   })
 })
