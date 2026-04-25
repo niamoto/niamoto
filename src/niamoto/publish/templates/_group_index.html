@@ -586,10 +586,10 @@
     }
 
     // Trouver le champ de titre/nom pour afficher dans les cartes
-    // Priorité: 1) champ nommé 'name', 2) champ avec is_title: true, 3) premier champ searchable de type text
+    // Priorité: 1) champ configuré comme titre, 2) champ nommé 'name', 3) premier champ recherchable de type text
     function getTitleField() {
-        return indexConfig.display_fields.find(f => f.name === 'name')
-            || indexConfig.display_fields.find(f => f.is_title === true)
+        return indexConfig.display_fields.find(f => f.is_title === true)
+            || indexConfig.display_fields.find(f => f.name === 'name')
             || indexConfig.display_fields.find(f => f.searchable === true && f.type === 'text');
     }
 
@@ -701,8 +701,9 @@
 
     // Rendu des champs d'un élément
     function renderItemFields(item, inline = false) {
+        const titleField = getTitleField();
         return indexConfig.display_fields
-            .filter(field => field.name !== 'name' && field.display !== 'hidden' && field.display !== 'image_preview' && field.display !== 'link' && field.type !== 'json_array')
+            .filter(field => field.name !== 'name' && field.name !== titleField?.name && field.display !== 'hidden' && field.display !== 'image_preview' && field.display !== 'link' && field.type !== 'json_array')
             .map(field => {
                 const value = getFieldValue(item, field);
                 const label = field.label || field.name;

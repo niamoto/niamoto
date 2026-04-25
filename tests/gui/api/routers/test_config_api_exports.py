@@ -41,4 +41,5 @@ def test_api_export_suggestions_route_serializes_response(monkeypatch):
         "display_fields": [],
         "filters": [],
         "total_entities": 12,
+        "available_fields": [],
     }

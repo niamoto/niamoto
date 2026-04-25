@@ -126,6 +126,7 @@ export interface GroupIndexConfig {
     filter_options?: Array<{ value: string; label: string }>
     dynamic_options?: boolean
     display?: 'normal' | 'hidden' | 'image_preview' | 'link'
+    is_title?: boolean
     inline_badge?: boolean
     badge_color?: string
     badge_style?: string
