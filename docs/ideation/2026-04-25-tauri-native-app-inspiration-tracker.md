@@ -49,7 +49,8 @@ application desktop locale, sans casser son modèle actuel :
 | Crash collections React depth | Corrigé | Garde-fous ajoutés sur les updates redondants et meilleur reporting du composant fautif. |
 | Mémoire de route par projet | Livré | `main` contient la restauration de la dernière route sûre par `projectScope`. Commit `9ef712ee`. |
 | Préférences de vues par projet | Livré localement | Branche `desktop-context-tabs` mergée dans `main` en fast-forward. Couvre les onglets/panneaux simples, sans restauration de sélections métier fines. Commit `4af36604`. |
-| Palette de commandes workflow | En cours | Branche `command-palette-workflows`. Objectif : transformer `Cmd+K` en accès rapide aux workflows Niamoto sans lancer directement les jobs longs. |
+| Palette de commandes workflow | Livré localement | Branche `command-palette-workflows` mergée dans `main` en fast-forward. Objectif : transformer `Cmd+K` en accès rapide aux workflows Niamoto sans lancer directement les jobs longs. Commit `9f027000`. |
+| Mesure des listes lourdes | En cours | Branche `list-performance-metrics`. Instrumentation dev-only conservée, avec premiers signaux orientant plutôt vers Data Explorer que Collections. |
 
 ## Idées candidates
 
@@ -122,7 +123,7 @@ Ce qui doit rester par projet :
 
 ### 2. Virtualisation ciblée des listes lourdes
 
-**Statut : candidat à mesurer avant implémentation.**
+**Statut : mesure en cours avant implémentation.**
 **Coût estimé : moyen.**
 **Risque : moyen si appliqué trop largement.**
 
@@ -146,6 +147,29 @@ Critère d’entrée :
 - identifier une liste qui dépasse clairement les performances acceptables ;
 - mesurer le nombre d’éléments et le coût de rendu ;
 - corriger un cas réel, pas une abstraction.
+
+Décision de première tranche :
+
+- ajouter une instrumentation dev-only commune exposée dans
+  `window.__NIAMOTO_RENDER_METRICS__` ;
+- persister aussi les 200 dernières mesures dans `localStorage` sous
+  `niamoto:dev-render-metrics`, pour pouvoir les relire après une session de
+  test manuel ;
+- commencer par mesurer les listes suivantes : tables et rows du Data Explorer,
+  exports du Data Explorer, historique Publish, arbre Collections, contenu de
+  collection, liste de widgets, previews actives, sources, colonnes et champs de
+  schéma ;
+- ne pas introduire `react-virtuoso` avant d’avoir identifié un écran réel où
+  le coût de rendu est visible.
+
+Résultats provisoires :
+
+- Collections ne justifie pas une virtualisation à ce stade : environ 20 widgets
+  et rendus majoritairement sous quelques dizaines de millisecondes ;
+- Data Explorer montre des signaux plus nets, notamment certaines tables de
+  100 lignes et 13 à 21 colonnes pouvant atteindre environ 50 à 90 ms ;
+- garder l’instrumentation dev-only, mais relever les seuils Collections pour
+  éviter de polluer les sessions de développement normales.
 
 ### 3. Command palette comme vrai centre d’action
 
@@ -287,13 +311,12 @@ Pourquoi c’est différé :
 
 ### Court terme
 
-1. Pousser `main` après validation de `desktop-context-tabs`.
+1. Pousser `main` après validation des branches mergées localement.
 2. Tester manuellement deux projets récents pour vérifier que la mémoire ne se
    mélange pas entre projets.
-3. Finaliser la tranche `command-palette-workflows`.
-4. Mesurer une vraie liste lourde avant de choisir une solution de
+3. Mesurer une vraie liste lourde avant de choisir une solution de
    virtualisation.
-5. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
+4. Faire un scan ciblé de Yaak, GitButler et Spacedrive pour extraire des
    patterns concrets, pas seulement des impressions.
 
 ### Moyen terme
@@ -355,3 +378,7 @@ Une idée doit être repoussée si :
   avec le commit `4af36604`.
 - 2026-04-25 : démarrage de `command-palette-workflows` pour ajouter des
   raccourcis workflow et des deep links vers les fichiers de configuration.
+- 2026-04-25 : `command-palette-workflows` mergée localement dans `main` avec
+  le commit `9f027000`.
+- 2026-04-25 : démarrage de `list-performance-metrics` pour mesurer les listes
+  lourdes avant toute virtualisation.

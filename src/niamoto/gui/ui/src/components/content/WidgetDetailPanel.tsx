@@ -86,6 +86,21 @@ function resolveLocalizedString(value: LocalizedString | undefined, defaultLang 
   return value[defaultLang] || Object.values(value)[0] || ''
 }
 
+function serializeWidgetDraft(value: Partial<ConfiguredWidget> | null): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function areWidgetDraftsEqual(
+  a: Partial<ConfiguredWidget> | null,
+  b: Partial<ConfiguredWidget> | null,
+): boolean {
+  return serializeWidgetDraft(a) === serializeWidgetDraft(b)
+}
+
 interface WidgetDetailPanelProps {
   widget: ConfiguredWidget
   groupBy: string
@@ -170,6 +185,16 @@ export function WidgetDetailPanel({
                 formInstanceKey: base.formInstanceKey,
               })
             : updater
+
+        if (
+          prev.widgetId === widget.id
+          && base.activeTab === next.activeTab
+          && areWidgetDraftsEqual(base.previewDraft, next.previewDraft)
+          && areWidgetDraftsEqual(base.appliedPreviewDraft, next.appliedPreviewDraft)
+          && base.formInstanceKey === next.formInstanceKey
+        ) {
+          return prev
+        }
 
         return {
           widgetId: widget.id,
@@ -315,6 +340,19 @@ export function WidgetDetailPanel({
     }
   }, [onDelete, onBack])
 
+  const handlePreviewDraftChange = useCallback((config: Partial<ConfiguredWidget>) => {
+    updatePanelState((prev) => {
+      if (areWidgetDraftsEqual(prev.previewDraft, config)) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        previewDraft: config,
+      }
+    })
+  }, [updatePanelState])
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -388,7 +426,9 @@ export function WidgetDetailPanel({
         onValueChange={(value) =>
           updatePanelState((prev) => ({
             ...prev,
-            activeTab: value as 'params' | 'yaml',
+            activeTab: prev.activeTab === value
+              ? prev.activeTab
+              : value as 'params' | 'yaml',
           }))
         }
         className="flex-1 flex flex-col min-h-0"
@@ -417,12 +457,7 @@ export function WidgetDetailPanel({
                 availableFields={availableFields}
                 onSave={handleSave}
                 onCancel={handleCancelEdit}
-                onChange={(config) =>
-                  updatePanelState((prev) => ({
-                    ...prev,
-                    previewDraft: config,
-                  }))
-                }
+                onChange={handlePreviewDraftChange}
               />
             </div>
 

@@ -67,6 +67,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ConfiguredWidget } from '@/components/widgets'
 import { getPluginLabel } from '@/components/widgets/types'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -242,6 +243,14 @@ export function WidgetListPanel({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  useDevListRenderMetric('collections.widgetList.items', localWidgets.length, {
+    itemThreshold: 20,
+    detail: {
+      loading: Boolean(loading),
+      selected: selectedId !== null,
+    },
+  })
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {

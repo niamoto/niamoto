@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Layers, Loader2 } from 'lucide-react'
 import { usePipelineStatus, type EntityStatus } from '@/hooks/usePipelineStatus'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // =============================================================================
 // TYPES
@@ -40,6 +41,14 @@ export function CollectionsTree({
   const { t } = useTranslation(['sources', 'common'])
   const { data: pipelineStatus } = usePipelineStatus()
   const fallbackStatus = pipelineStatus?.groups?.status === 'unconfigured' ? 'unconfigured' : undefined
+
+  useDevListRenderMetric('collections.tree.references', references.length, {
+    itemThreshold: 20,
+    detail: {
+      loading: referencesLoading,
+      selectedType: selection.type,
+    },
+  })
 
   // Build status map
   const statusByName = new Map<string, EntityStatus>()
