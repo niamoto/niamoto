@@ -26,16 +26,19 @@ export interface ProjectDesktopRoute {
 
 export interface ProjectDesktopContext {
   lastRoute: ProjectDesktopRoute | null
+  viewPreferences: Record<string, string>
   updatedAt: number | null
 }
 
 interface StoredProjectDesktopContext {
   lastRoute?: unknown
+  viewPreferences?: unknown
   updatedAt?: unknown
 }
 
 export const DEFAULT_PROJECT_DESKTOP_CONTEXT: ProjectDesktopContext = {
   lastRoute: null,
+  viewPreferences: {},
   updatedAt: null,
 }
 
@@ -120,6 +123,31 @@ function normalizeUpdatedAt(value: unknown): number | null {
     : null
 }
 
+function isSafePreferenceKey(value: string): boolean {
+  return /^[a-z][a-z0-9._:-]{0,79}$/i.test(value)
+}
+
+function isSafePreferenceValue(value: string): boolean {
+  return value.length > 0 && value.length <= 80 && !/[\r\n]/.test(value)
+}
+
+export function normalizeProjectDesktopViewPreferences(
+  value: unknown,
+): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([key, preference]) =>
+        isSafePreferenceKey(key)
+        && typeof preference === 'string'
+        && isSafePreferenceValue(preference),
+    ),
+  )
+}
+
 function sanitizeProjectDesktopContext(
   context: ProjectDesktopContext,
 ): StoredProjectDesktopContext {
@@ -127,13 +155,20 @@ function sanitizeProjectDesktopContext(
   const normalizedRoute = context.lastRoute
     ? normalizeProjectDesktopRoute(context.lastRoute)
     : null
+  const viewPreferences = normalizeProjectDesktopViewPreferences(
+    context.viewPreferences,
+  )
 
   if (normalizedRoute) {
     stored.lastRoute = normalizedRoute
   }
 
+  if (Object.keys(viewPreferences).length > 0) {
+    stored.viewPreferences = viewPreferences
+  }
+
   if (
-    normalizedRoute
+    (normalizedRoute || Object.keys(viewPreferences).length > 0)
     && typeof context.updatedAt === 'number'
     && Number.isFinite(context.updatedAt)
   ) {
@@ -166,6 +201,9 @@ export function readStoredProjectDesktopContext(
     const parsed = JSON.parse(raw) as StoredProjectDesktopContext
     return {
       lastRoute: normalizeProjectDesktopRoute(parsed.lastRoute),
+      viewPreferences: normalizeProjectDesktopViewPreferences(
+        parsed.viewPreferences,
+      ),
       updatedAt: normalizeUpdatedAt(parsed.updatedAt),
     }
   } catch {
@@ -198,11 +236,68 @@ export function writeStoredProjectDesktopContext(
   storage.setItem(storageKey, JSON.stringify(stored))
 }
 
+export function readStoredProjectDesktopViewPreference<TValue extends string>(
+  projectScope: string | null,
+  key: string,
+  allowedValues: readonly TValue[],
+  storage:
+    | Pick<Storage, 'getItem' | 'removeItem'>
+    | undefined = typeof window !== 'undefined'
+    ? window.localStorage
+    : undefined,
+): TValue | null {
+  if (!isSafePreferenceKey(key)) {
+    return null
+  }
+
+  const context = readStoredProjectDesktopContext(projectScope, storage)
+  const storedValue = context.viewPreferences[key]
+
+  return allowedValues.includes(storedValue as TValue)
+    ? (storedValue as TValue)
+    : null
+}
+
+export function writeStoredProjectDesktopViewPreference<TValue extends string>(
+  projectScope: string | null,
+  key: string,
+  value: TValue,
+  allowedValues: readonly TValue[],
+  storage:
+    | Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+    | undefined = typeof window !== 'undefined'
+    ? window.localStorage
+    : undefined,
+  now = Date.now(),
+): void {
+  if (
+    !isSafePreferenceKey(key)
+    || !isSafePreferenceValue(value)
+    || !allowedValues.includes(value)
+  ) {
+    return
+  }
+
+  const context = readStoredProjectDesktopContext(projectScope, storage)
+  writeStoredProjectDesktopContext(
+    projectScope,
+    {
+      ...context,
+      viewPreferences: {
+        ...context.viewPreferences,
+        [key]: value,
+      },
+      updatedAt: now,
+    },
+    storage,
+  )
+}
+
 export function writeStoredProjectDesktopRoute(
   projectScope: string | null,
   route: ProjectDesktopRoute,
   storage:
-    | Pick<Storage, 'setItem' | 'removeItem'>
+    | Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
     | undefined = typeof window !== 'undefined'
     ? window.localStorage
     : undefined,
@@ -217,6 +312,10 @@ export function writeStoredProjectDesktopRoute(
     projectScope,
     {
       lastRoute: normalizedRoute,
+      viewPreferences: readStoredProjectDesktopContext(
+        projectScope,
+        storage,
+      ).viewPreferences,
       updatedAt: now,
     },
     storage,

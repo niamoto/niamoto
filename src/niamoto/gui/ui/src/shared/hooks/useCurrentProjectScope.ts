@@ -35,14 +35,22 @@ export function useCurrentProjectScope() {
   const runtimeMode = useRuntimeMode()
   const { data: projectInfo } = useProjectInfo()
 
+  const desktopProjectScope = useMemo(
+    () => buildDesktopProjectScope(runtimeMode.project),
+    [runtimeMode.project],
+  )
+  const fallbackProjectScope = useMemo(
+    () => buildFallbackProjectScope(projectInfo ?? null),
+    [projectInfo],
+  )
   const projectScope = useMemo(
-    () =>
-      buildDesktopProjectScope(runtimeMode.project) ??
-      buildFallbackProjectScope(projectInfo ?? null),
-    [projectInfo, runtimeMode.project],
+    () => desktopProjectScope ?? fallbackProjectScope,
+    [desktopProjectScope, fallbackProjectScope],
   )
 
   return {
     projectScope,
+    desktopProjectScope,
+    fallbackProjectScope,
   }
 }

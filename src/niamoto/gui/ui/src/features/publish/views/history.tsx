@@ -52,6 +52,10 @@ import { fr, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { clearExportHistory } from '@/features/publish/api/export'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
+import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
+
+const PUBLISH_HISTORY_TABS = ['deploys', 'builds'] as const
+type PublishHistoryTab = (typeof PUBLISH_HISTORY_TABS)[number]
 
 export default function PublishHistory({ embedded = false }: { embedded?: boolean }) {
   const { t, i18n } = useTranslation('publish')
@@ -67,7 +71,12 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
   const [selectedBuild, setSelectedBuild] = useState<BuildJob | null>(null)
   const [selectedDeploy, setSelectedDeploy] = useState<DeployJob | null>(null)
   const [showClearDialog, setShowClearDialog] = useState<'builds' | 'deploys' | null>(null)
-  const [activeTab, setActiveTab] = useState<'deploys' | 'builds'>('deploys')
+  const [activeTab, setActiveTab] =
+    useProjectDesktopViewPreference<PublishHistoryTab>({
+      key: 'publish.history.activeTab',
+      defaultValue: 'deploys',
+      allowedValues: PUBLISH_HISTORY_TABS,
+    })
 
   const dateLocale = i18n.language === 'fr' ? fr : enUS
 
@@ -175,7 +184,14 @@ export default function PublishHistory({ embedded = false }: { embedded?: boolea
       </div>
 
       {/* History Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'deploys' | 'builds')}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          if (PUBLISH_HISTORY_TABS.includes(value as PublishHistoryTab)) {
+            setActiveTab(value as PublishHistoryTab)
+          }
+        }}
+      >
         <TabsList>
           <TabsTrigger value="deploys" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />

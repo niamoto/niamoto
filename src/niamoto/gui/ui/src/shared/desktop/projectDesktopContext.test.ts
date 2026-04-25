@@ -6,9 +6,11 @@ import {
   isRestorableProjectRoute,
   normalizeProjectDesktopRoute,
   readStoredProjectDesktopContext,
+  readStoredProjectDesktopViewPreference,
   serializeProjectDesktopRoute,
   writeStoredProjectDesktopContext,
   writeStoredProjectDesktopRoute,
+  writeStoredProjectDesktopViewPreference,
 } from './projectDesktopContext'
 
 function createStorage(initial: Record<string, string> = {}) {
@@ -99,10 +101,12 @@ describe('projectDesktopContext', () => {
 
     expect(readStoredProjectDesktopContext(projectA, storage)).toEqual({
       lastRoute: { pathname: '/sources', search: '', hash: '' },
+      viewPreferences: {},
       updatedAt: 100,
     })
     expect(readStoredProjectDesktopContext(projectB, storage)).toEqual({
       lastRoute: { pathname: '/site/pages', search: '', hash: '' },
+      viewPreferences: {},
       updatedAt: 200,
     })
   })
@@ -129,6 +133,7 @@ describe('projectDesktopContext', () => {
       projectScope,
       {
         lastRoute: { pathname: '/unknown', search: '', hash: '' },
+        viewPreferences: {},
         updatedAt: 100,
       },
       storage,
@@ -158,5 +163,71 @@ describe('projectDesktopContext', () => {
         updatedAt: 123,
       }),
     )
+  })
+
+  it('reads and writes view preferences without mixing project scopes', () => {
+    const projectA = 'desktop:/tmp/project-a'
+    const projectB = 'desktop:/tmp/project-b'
+    const storage = createStorage()
+
+    writeStoredProjectDesktopViewPreference(
+      projectA,
+      'collections.activeTab',
+      'api',
+      ['sources', 'content', 'index', 'api'],
+      storage,
+      123,
+    )
+    writeStoredProjectDesktopViewPreference(
+      projectB,
+      'collections.activeTab',
+      'index',
+      ['sources', 'content', 'index', 'api'],
+      storage,
+      456,
+    )
+
+    expect(
+      readStoredProjectDesktopViewPreference(
+        projectA,
+        'collections.activeTab',
+        ['sources', 'content', 'index', 'api'],
+        storage,
+      ),
+    ).toBe('api')
+    expect(
+      readStoredProjectDesktopViewPreference(
+        projectB,
+        'collections.activeTab',
+        ['sources', 'content', 'index', 'api'],
+        storage,
+      ),
+    ).toBe('index')
+  })
+
+  it('preserves view preferences when writing the last route', () => {
+    const projectScope = 'desktop:/tmp/project-a'
+    const storage = createStorage()
+
+    writeStoredProjectDesktopViewPreference(
+      projectScope,
+      'publish.compactPanel',
+      'preview',
+      ['actions', 'preview'],
+      storage,
+      100,
+    )
+    writeStoredProjectDesktopRoute(
+      projectScope,
+      { pathname: '/publish', search: '', hash: '' },
+      storage,
+      200,
+    )
+
+    expect(readStoredProjectDesktopContext(projectScope, storage)).toEqual({
+      lastRoute: { pathname: '/publish', search: '', hash: '' },
+      viewPreferences: { 'publish.compactPanel': 'preview' },
+      updatedAt: 200,
+    })
   })
 })

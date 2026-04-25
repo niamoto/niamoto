@@ -13,6 +13,7 @@ const restoredProjectScopes = new Set<string>()
 
 interface UseProjectDesktopRouteMemoryOptions {
   enabled: boolean
+  projectScope?: string | null
   storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 }
 
@@ -22,11 +23,13 @@ function isStartupRoute(pathname: string, search: string, hash: string): boolean
 
 export function useProjectDesktopRouteMemory({
   enabled,
+  projectScope: explicitProjectScope,
   storage,
 }: UseProjectDesktopRouteMemoryOptions) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { projectScope } = useCurrentProjectScope()
+  const { desktopProjectScope } = useCurrentProjectScope()
+  const projectScope = explicitProjectScope ?? desktopProjectScope
 
   useEffect(() => {
     if (!enabled || !projectScope) {
