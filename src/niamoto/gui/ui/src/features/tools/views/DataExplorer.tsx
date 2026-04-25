@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, type UIEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles, FileCode, Globe, Package, ExternalLink } from 'lucide-react'
@@ -82,6 +82,206 @@ function getStructuredValuePreview(value: Record<string, unknown> | unknown[]): 
 
   return `{ ${preview}${entries.length > 2 ? ', …' : ''} }`
 }
+
+const RESULT_ROW_HEIGHT_PX = 48
+const RESULT_ROW_OVERSCAN = 8
+const RESULT_TABLE_VIEWPORT_HEIGHT_PX = 600
+const RESULT_VIRTUALIZE_THRESHOLD = 60
+
+type DataExplorerCellView =
+  | { kind: 'empty' }
+  | { kind: 'structured'; preview: string; value: Record<string, unknown> | unknown[] }
+  | { kind: 'text'; text: string }
+
+interface DataExplorerResultsTableProps {
+  queryResult: QueryResponse
+  selectedTable: string
+  actionsLabel: string
+  viewJsonLabel: string
+  onEnrichmentPreview: (taxonName: string) => void
+  onJsonCellClick: (column: string, value: Record<string, unknown> | unknown[]) => void
+}
+
+function createCellView(value: unknown): DataExplorerCellView {
+  if (value === null || value === undefined) {
+    return { kind: 'empty' }
+  }
+
+  if (isStructuredValue(value)) {
+    return {
+      kind: 'structured',
+      preview: getStructuredValuePreview(value),
+      value,
+    }
+  }
+
+  const text = String(value)
+  return {
+    kind: 'text',
+    text: text.length > 100 ? `${text.substring(0, 100)}...` : text,
+  }
+}
+
+function DataExplorerResultCell({
+  cell,
+  viewJsonLabel,
+  onJsonCellClick,
+}: {
+  cell: { column: string; view: DataExplorerCellView }
+  viewJsonLabel: string
+  onJsonCellClick: (column: string, value: Record<string, unknown> | unknown[]) => void
+}) {
+  if (cell.view.kind === 'empty') {
+    return <span className="text-muted-foreground italic">null</span>
+  }
+
+  if (cell.view.kind === 'structured') {
+    const view = cell.view
+    return (
+      <button
+        type="button"
+        onClick={() => onJsonCellClick(cell.column, view.value)}
+        className="inline-flex max-w-[280px] flex-col items-start gap-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-left transition-colors hover:bg-muted"
+      >
+        <span className="max-w-full truncate font-mono text-xs text-foreground">
+          {view.preview}
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {viewJsonLabel}
+        </span>
+      </button>
+    )
+  }
+
+  return cell.view.text
+}
+
+const DataExplorerResultsTable = memo(function DataExplorerResultsTable({
+  queryResult,
+  selectedTable,
+  actionsLabel,
+  viewJsonLabel,
+  onEnrichmentPreview,
+  onJsonCellClick,
+}: DataExplorerResultsTableProps) {
+  const [scrollTop, setScrollTop] = useState(0)
+  const rows = queryResult.rows
+  const columns = queryResult.columns
+  const hasActionsColumn = selectedTable === 'taxon_ref'
+  const totalColumnCount = columns.length + (hasActionsColumn ? 1 : 0)
+  const shouldVirtualize = rows.length > RESULT_VIRTUALIZE_THRESHOLD
+
+  useEffect(() => {
+    setScrollTop(0)
+  }, [queryResult])
+
+  const visibleRange = useMemo(() => {
+    if (!shouldVirtualize) {
+      return { start: 0, end: rows.length }
+    }
+
+    const firstVisibleRow = Math.floor(scrollTop / RESULT_ROW_HEIGHT_PX)
+    const visibleRowCount = Math.ceil(RESULT_TABLE_VIEWPORT_HEIGHT_PX / RESULT_ROW_HEIGHT_PX)
+    const start = Math.max(0, firstVisibleRow - RESULT_ROW_OVERSCAN)
+    const end = Math.min(rows.length, firstVisibleRow + visibleRowCount + RESULT_ROW_OVERSCAN)
+
+    return { start, end }
+  }, [rows.length, scrollTop, shouldVirtualize])
+
+  const renderedRows = useMemo(
+    () =>
+      rows.slice(visibleRange.start, visibleRange.end).map((row, offset) => ({
+        index: visibleRange.start + offset,
+        row,
+        cells: columns.map((column) => ({
+          column,
+          view: createCellView(row[column]),
+        })),
+      })),
+    [columns, rows, visibleRange.end, visibleRange.start],
+  )
+
+  const handleScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (shouldVirtualize) {
+        setScrollTop(event.currentTarget.scrollTop)
+      }
+    },
+    [shouldVirtualize],
+  )
+
+  const topSpacerHeight = shouldVirtualize ? visibleRange.start * RESULT_ROW_HEIGHT_PX : 0
+  const bottomSpacerHeight = shouldVirtualize
+    ? (rows.length - visibleRange.end) * RESULT_ROW_HEIGHT_PX
+    : 0
+
+  return (
+    <div className="rounded-lg border overflow-auto max-h-[600px]" onScroll={handleScroll}>
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 sticky top-0">
+          <tr>
+            {hasActionsColumn && (
+              <th className="px-4 py-2 text-left font-medium whitespace-nowrap">
+                {actionsLabel}
+              </th>
+            )}
+            {columns.map((col) => (
+              <th key={col} className="px-4 py-2 text-left font-medium whitespace-nowrap">
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {topSpacerHeight > 0 && (
+            <tr aria-hidden="true">
+              <td
+                colSpan={totalColumnCount}
+                style={{ height: topSpacerHeight }}
+                className="border-0 p-0"
+              />
+            </tr>
+          )}
+          {renderedRows.map(({ index, row, cells }) => (
+            <tr key={index} className="border-t hover:bg-muted/30">
+              {hasActionsColumn && (
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onEnrichmentPreview(asDisplayText(row['full_name']))}
+                    disabled={!asOptionalString(row['full_name'])}
+                    className="h-8 px-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                </td>
+              )}
+              {cells.map((cell) => (
+                <td key={cell.column} className="px-4 py-2 whitespace-nowrap">
+                  <DataExplorerResultCell
+                    cell={cell}
+                    viewJsonLabel={viewJsonLabel}
+                    onJsonCellClick={onJsonCellClick}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+          {bottomSpacerHeight > 0 && (
+            <tr aria-hidden="true">
+              <td
+                colSpan={totalColumnCount}
+                style={{ height: bottomSpacerHeight }}
+                className="border-0 p-0"
+              />
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+})
 
 export function DataExplorer() {
   const { t } = useTranslation(['tools', 'common'])
@@ -256,7 +456,7 @@ export function DataExplorer() {
     }
   }
 
-  const handleEnrichmentPreview = async (taxonName: string) => {
+  const handleEnrichmentPreview = useCallback(async (taxonName: string) => {
     setEnrichmentLoading(true)
     setEnrichmentModal(true)
     setEnrichmentData(null)
@@ -271,12 +471,12 @@ export function DataExplorer() {
     } finally {
       setEnrichmentLoading(false)
     }
-  }
+  }, [selectedTable, t])
 
-  const handleJsonCellClick = (column: string, value: Record<string, unknown> | unknown[]) => {
+  const handleJsonCellClick = useCallback((column: string, value: Record<string, unknown> | unknown[]) => {
     setSelectedJsonCell({ column, value })
     setJsonCellViewerOpen(true)
-  }
+  }, [])
 
   const enrichmentImages = Array.isArray(enrichmentData?.api_enrichment.images)
     ? enrichmentData.api_enrichment.images
@@ -484,64 +684,14 @@ export function DataExplorer() {
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
                   ) : queryResult && queryResult.rows.length > 0 ? (
-                    <div className="rounded-lg border overflow-auto max-h-[600px]">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
-                          <tr>
-                            {selectedTable === 'taxon_ref' && <th className="px-4 py-2 text-left font-medium whitespace-nowrap">{t('dataExplorer.actions')}</th>}
-                            {queryResult.columns.map((col) => (
-                              <th key={col} className="px-4 py-2 text-left font-medium whitespace-nowrap">
-                                {col}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {queryResult.rows.map((row, idx) => (
-                            <tr key={idx} className="border-t hover:bg-muted/30">
-                              {selectedTable === 'taxon_ref' && (
-                                <td className="px-4 py-2 whitespace-nowrap">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleEnrichmentPreview(asDisplayText(row['full_name']))}
-                                    disabled={!asOptionalString(row['full_name'])}
-                                    className="h-8 px-2"
-                                  >
-                                    <Sparkles className="h-4 w-4" />
-                                  </Button>
-                                </td>
-                              )}
-                              {queryResult.columns.map((col) => (
-                                <td key={col} className="px-4 py-2 whitespace-nowrap">
-                                  {row[col] !== null && row[col] !== undefined
-                                    ? isStructuredValue(row[col])
-                                      ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleJsonCellClick(col, row[col] as Record<string, unknown> | unknown[])}
-                                          className="inline-flex max-w-[280px] flex-col items-start gap-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-left transition-colors hover:bg-muted"
-                                        >
-                                          <span className="max-w-full truncate font-mono text-xs text-foreground">
-                                            {getStructuredValuePreview(row[col] as Record<string, unknown> | unknown[])}
-                                          </span>
-                                          <span className="text-[11px] text-muted-foreground">
-                                            {t('dataExplorer.viewJson', 'Voir JSON')}
-                                          </span>
-                                        </button>
-                                      )
-                                      : String(row[col]).length > 100
-                                        ? String(row[col]).substring(0, 100) + '...'
-                                        : String(row[col])
-                                    : <span className="text-muted-foreground italic">null</span>
-                                  }
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <DataExplorerResultsTable
+                      queryResult={queryResult}
+                      selectedTable={selectedTable}
+                      actionsLabel={t('dataExplorer.actions')}
+                      viewJsonLabel={t('dataExplorer.viewJson', 'Voir JSON')}
+                      onEnrichmentPreview={handleEnrichmentPreview}
+                      onJsonCellClick={handleJsonCellClick}
+                    />
                   ) : (
                     <div className="rounded-lg border p-4">
                       <p className="text-sm text-muted-foreground text-center py-8">
