@@ -16,12 +16,14 @@ from pydantic import BaseModel, ValidationError
 
 from niamoto.core.plugins.models import HtmlExporterParams
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.routers.imports import import_jobs
 from niamoto.gui.api.services.job_file_store import JobFileStore
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +379,94 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
     return "fresh"
 
 
+def _history_timestamp(entry: dict) -> float:
+    """Return a sortable timestamp for heterogeneous job history entries."""
+    for key in ("completed_at", "updated_at", "started_at", "created_at"):
+        parsed = _iso(entry.get(key))
+        if parsed is not None:
+            return parsed.timestamp()
+    return 0
+
+
+def _import_job_error(job: dict) -> str | None:
+    error_details = job.get("error_details")
+    if isinstance(error_details, dict):
+        user_message = error_details.get("user_message")
+        message = error_details.get("message")
+        if isinstance(user_message, str) and user_message:
+            return user_message
+        if isinstance(message, str) and message:
+            return message
+
+    errors = job.get("errors")
+    if isinstance(errors, list) and errors:
+        first_error = errors[0]
+        if isinstance(first_error, str) and first_error:
+            return first_error
+
+    return None
+
+
+def _import_job_target(job: dict) -> str | None:
+    entity_name = job.get("entity_name")
+    if isinstance(entity_name, str) and entity_name:
+        return entity_name
+    return None
+
+
+def _import_job_to_history_entry(job: dict) -> dict | None:
+    if job.get("status") not in TERMINAL_JOB_STATUSES:
+        return None
+
+    job_id = job.get("id")
+    if not isinstance(job_id, str) or not job_id:
+        return None
+
+    result = job.get("result")
+    result_payload = result if isinstance(result, dict) else None
+
+    return {
+        "id": job_id,
+        "type": "import",
+        "status": job.get("status"),
+        "group_by": _import_job_target(job),
+        "group_bys": None,
+        "started_at": job.get("started_at") or job.get("created_at"),
+        "completed_at": job.get("completed_at"),
+        "updated_at": job.get("completed_at") or job.get("started_at"),
+        "progress": job.get("progress", 100),
+        "message": job.get("message", ""),
+        "phase": job.get("phase"),
+        "error": _import_job_error(job),
+        "result": result_payload,
+    }
+
+
+def _get_import_history_entries() -> list[dict]:
+    entries = [
+        entry
+        for job in import_jobs.values()
+        if (entry := _import_job_to_history_entry(job)) is not None
+    ]
+    return sorted(entries, key=_history_timestamp, reverse=True)
+
+
+def _merge_pipeline_history(
+    job_history: list[dict],
+    import_history: list[dict],
+    limit: int,
+) -> list[dict]:
+    entries_by_id: dict[str, dict] = {}
+    for entry in [*job_history, *import_history]:
+        entry_id = entry.get("id")
+        if isinstance(entry_id, str) and entry_id not in entries_by_id:
+            entries_by_id[entry_id] = entry
+
+    entries = list(entries_by_id.values())
+    entries.sort(key=_history_timestamp, reverse=True)
+    return entries[:limit]
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -396,7 +486,11 @@ async def get_pipeline_history(
         job_store: Optional[JobFileStore] = resolve_job_store(http_request.app)
     except Exception:
         return []
-    return job_store.get_history(limit=limit)
+    return _merge_pipeline_history(
+        job_store.get_history(limit=limit, include_active_terminal=True),
+        _get_import_history_entries(),
+        limit,
+    )
 
 
 @router.get("/status", response_model=PipelineStatusResponse)

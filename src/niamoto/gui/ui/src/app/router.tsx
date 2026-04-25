@@ -114,6 +114,13 @@ const appRouter = createBrowserRouter([
         ),
       },
       {
+        path: 'tools/history',
+        lazy: lazyNamed(
+          () => import('@/features/tools/views/WorkflowHistory'),
+          'WorkflowHistory',
+        ),
+      },
+      {
         path: 'publish',
         lazy: lazyNamed(
           () => import('@/features/publish/components/PublishModule'),

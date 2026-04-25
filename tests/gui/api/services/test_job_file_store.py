@@ -186,7 +186,7 @@ class TestGetHistory:
         store.complete_job(job1["id"])
         job2 = store.create_job("export")
         store.complete_job(job2["id"])
-        # job1 archivé quand job2 créé, job2 encore dans active
+        # job1 est archivé quand job2 est créé, job2 reste terminal dans active.
         history = store.get_history()
         assert len(history) == 1
         assert history[0]["id"] == job1["id"]
@@ -197,11 +197,33 @@ class TestGetHistory:
             job = store.create_job("transform")
             store.complete_job(job["id"])
             ids.append(job["id"])
-        # Les 2 premiers sont archivés (le 3e est encore dans active)
+        # Les 2 premiers sont archivés, le 3e est encore terminal dans active.
         history = store.get_history()
         assert len(history) == 2
-        assert history[0]["id"] == ids[1]  # Plus récent en premier
+        assert history[0]["id"] == ids[1]
         assert history[1]["id"] == ids[0]
+
+    def test_can_include_terminal_active_job(self, store: JobFileStore):
+        ids = []
+        for i in range(3):
+            job = store.create_job("transform")
+            store.complete_job(job["id"])
+            ids.append(job["id"])
+
+        history = store.get_history(include_active_terminal=True)
+
+        assert [entry["id"] for entry in history] == [ids[2], ids[1], ids[0]]
+
+    def test_respects_limit_with_terminal_active_job(self, store: JobFileStore):
+        ids = []
+        for i in range(3):
+            job = store.create_job("transform")
+            store.complete_job(job["id"])
+            ids.append(job["id"])
+
+        history = store.get_history(limit=2, include_active_terminal=True)
+
+        assert [entry["id"] for entry in history] == [ids[2], ids[1]]
 
 
 # --- get_last_run ---

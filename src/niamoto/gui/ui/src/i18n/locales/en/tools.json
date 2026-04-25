@@ -71,6 +71,59 @@
     "externalDesc": "Open the site in a new tab for full navigation",
     "openNew": "Open in new tab"
   },
+  "workflowHistory": {
+    "title": "Workflow history",
+    "description": "Inspect recent import, transform and export actions for this project.",
+    "refresh": "Refresh",
+    "runningTitle": "Action running",
+    "noMessage": "No message",
+    "never": "Never",
+    "durationSeconds": "{{count}}s",
+    "durationMinutesSeconds": "{{minutes}}m {{seconds}}s",
+    "durationMinutes": "{{count}}m",
+    "durationHoursMinutes": "{{hours}}h {{minutes}}m",
+    "durationHours": "{{count}}h",
+    "targets": {
+      "project": "Project",
+      "collections": "{{count}} collections"
+    },
+    "types": {
+      "import": "Import",
+      "transform": "Transform",
+      "export": "Export",
+      "exportCli": "Export CLI"
+    },
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "running": "Running",
+      "cancelled": "Cancelled",
+      "interrupted": "Interrupted",
+      "unknown": "Unknown"
+    },
+    "result": {
+      "transform": "{{completed}}/{{total}} widgets calculated, {{failed}} failed",
+      "export": "{{completed}}/{{total}} exports, {{pages}} pages"
+    },
+    "stats": {
+      "total": "Recent actions",
+      "completed": "Completed",
+      "failed": "Failed",
+      "latest": "Latest action"
+    },
+    "tableTitle": "Recent workflow actions",
+    "tableDescription": "The last {{count}} completed actions stored by the local project.",
+    "columns": {
+      "date": "Date",
+      "action": "Action",
+      "status": "Status",
+      "duration": "Duration",
+      "result": "Result"
+    },
+    "loadError": "Failed to load workflow history",
+    "emptyTitle": "No workflow action yet",
+    "emptyDescription": "Run a transform or export job to populate this local history."
+  },
   "settings": {
     "title": "Settings",
     "description": "Configure your desktop application preferences",

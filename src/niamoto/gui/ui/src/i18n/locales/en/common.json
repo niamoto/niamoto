@@ -43,6 +43,8 @@
     "explorerDesc": "SQL queries on your data",
     "configDesc": "Edit YAML files",
     "pluginsDesc": "Manage plugins",
+    "workflowHistory": "Workflow history",
+    "workflowHistoryDesc": "Inspect recent import, transform and export actions",
     "documentationHome": "Documentation",
     "documentationDesc": "Guides, workflows, reference, troubleshooting",
     "apiDocs": "API",

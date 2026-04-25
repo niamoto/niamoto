@@ -158,20 +158,49 @@ class JobFileStore:
                 return job
             return None
 
-    def get_history(self, limit: int = 20) -> list[dict]:
-        """Retourne les N derniers jobs terminés (plus récent en premier)."""
+    def get_history(
+        self,
+        limit: int = 20,
+        include_active_terminal: bool = False,
+    ) -> list[dict]:
+        """Retourne les N derniers jobs terminés (plus récent en premier).
+
+        Le dernier job terminal peut encore être dans ``active_job.json`` pour
+        permettre au poll final de le lire. On l'inclut quand même dans
+        l'historique utilisateur seulement quand l'appelant le demande, afin de
+        ne pas dupliquer les endpoints qui lisent déjà ``get_active_job()``.
+        """
         with self._lock:
-            if not self._history_path.exists():
-                return []
-            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
             entries = []
-            for line in lines[-limit:]:
+            seen_ids = set()
+
+            if include_active_terminal:
+                active = self._read_active()
+                if active and active["status"] in TERMINAL_STATUSES:
+                    entries.append(active)
+                    seen_ids.add(active.get("id"))
+
+            if not self._history_path.exists():
+                return entries[:limit]
+
+            lines = self._history_path.read_text(encoding="utf-8").strip().splitlines()
+            for line in reversed(lines):
                 try:
-                    entries.append(json.loads(line))
+                    entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-            entries.reverse()
-            return entries
+
+                entry_id = entry.get("id")
+                if entry_id in seen_ids:
+                    continue
+
+                entries.append(entry)
+                seen_ids.add(entry_id)
+
+                if len(entries) >= limit:
+                    break
+
+            return entries[:limit]
 
     def get_last_run(
         self,

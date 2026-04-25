@@ -84,6 +84,7 @@ export const routeLabels: Record<string, string> = {
   '/tools/plugins': 'Plugins',
   '/tools/docs': 'API Documentation',
   '/tools/config-editor': 'Config Editor',
+  '/tools/history': 'Workflow History',
 }
 
 // --- Legacy export (kept for backward compat during migration) ---
