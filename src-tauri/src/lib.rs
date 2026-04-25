@@ -560,6 +560,8 @@ pub fn run() {
             commands::validate_recent_projects,
             commands::validate_project,
             commands::get_niamoto_home,
+            commands::get_project_desktop_context,
+            commands::set_project_desktop_route,
             commands::get_app_settings,
             commands::set_app_settings,
             commands::open_desktop_devtools,
