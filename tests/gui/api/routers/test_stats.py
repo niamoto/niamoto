@@ -229,6 +229,39 @@ def test_resolve_mappable_reference_metadata_uses_schema_geometry_field():
     assert metadata["name_column"] == "plot_label"
 
 
+def test_resolve_mappable_reference_metadata_prefers_configured_geometry_field():
+    table_names = ["entity_shapes"]
+    references = {
+        "shapes": {
+            "kind": "spatial",
+            "schema": {
+                "id_field": "shape_id",
+                "name_field": "label",
+                "geometry_field": "polygon_wkt",
+            },
+        }
+    }
+    db = _DummyDatabase(
+        {
+            "entity_shapes": [
+                {"name": "shape_id", "type": "VARCHAR"},
+                {"name": "label", "type": "VARCHAR"},
+                {"name": "geo_pt", "type": "VARCHAR"},
+                {"name": "polygon_wkt", "type": "VARCHAR"},
+            ]
+        }
+    )
+
+    metadata = _resolve_mappable_reference_metadata(
+        db, table_names, references, "shapes"
+    )
+
+    assert metadata is not None
+    assert metadata["geometry_column"] == "polygon_wkt"
+    assert metadata["configured_geometry_column"] == "polygon_wkt"
+    assert metadata["is_native"] is False
+
+
 def test_classify_geometry_kind_groups_common_geometry_types():
     assert _classify_geometry_kind(["POINT"]) == "point"
     assert _classify_geometry_kind(["POLYGON", "MULTIPOLYGON"]) == "polygon"

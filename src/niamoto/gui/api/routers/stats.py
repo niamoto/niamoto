@@ -1269,7 +1269,7 @@ def _resolve_mappable_reference_metadata(
     detected_geo_column, detected_is_native = _find_geometry_column(columns_info)
     configured_geo_column = _find_configured_geometry_column(ref_cfg, columns_by_lower)
 
-    geometry_column = detected_geo_column or configured_geo_column
+    geometry_column = configured_geo_column or detected_geo_column
     is_native = detected_is_native
     if geometry_column and geometry_column != detected_geo_column:
         is_native = _is_native_geometry_column(columns_info, geometry_column)
