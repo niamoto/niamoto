@@ -69,5 +69,13 @@ export const importQueryKeys = {
         offset,
       ] as const,
   },
+  spatialMap: {
+    summary: (referenceName: string) =>
+      ['import', 'spatial-map', referenceName, 'summary'] as const,
+    layerSummary: (referenceName: string, layer: string | null) =>
+      ['import', 'spatial-map', referenceName, 'summary', layer ?? 'all'] as const,
+    page: (referenceName: string, limit: number, offset: number, layer?: string | null) =>
+      ['import', 'spatial-map', referenceName, limit, offset, layer ?? 'all'] as const,
+  },
   summary: () => ['import', 'summary'] as const,
 }

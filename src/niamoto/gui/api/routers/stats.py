@@ -1,12 +1,14 @@
 """Import statistics API endpoints for post-import dashboard."""
 
 import csv
+import html
 import io
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
 import yaml
@@ -25,6 +27,8 @@ from niamoto.common.hierarchy_context import (
 from ..utils.database import open_database
 from ..context import get_working_directory
 from .database import get_database_path
+from ..services.map_renderer import MapConfig, MapRenderer, MapStyle
+from ..services.preview_utils import error_html, wrap_html_response
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -83,6 +87,46 @@ class SpatialStats(BaseModel):
     bounding_box: Optional[Dict[str, float]]  # min_x, min_y, max_x, max_y
     points_outside_bounds: int
     coordinate_columns: Dict[str, str]  # x_col, y_col
+
+
+class SpatialMapLayer(BaseModel):
+    """One selectable spatial layer for a mappable reference."""
+
+    value: str
+    label: str
+    feature_count: int
+    with_geometry: int
+
+
+class SpatialMapInspection(BaseModel):
+    """Bounded GeoJSON inspection for a mappable reference."""
+
+    reference_name: str
+    table_name: Optional[str]
+    is_mappable: bool
+    reason: Optional[str] = None
+    geometry_column: Optional[str] = None
+    geometry_storage: Optional[str] = None
+    geometry_kind: str = "unknown"
+    geometry_types: List[str] = Field(default_factory=list)
+    id_column: Optional[str] = None
+    name_column: Optional[str] = None
+    type_column: Optional[str] = None
+    layer_column: Optional[str] = None
+    selected_layer: Optional[str] = None
+    layers: List[SpatialMapLayer] = Field(default_factory=list)
+    total_features: int = 0
+    with_geometry: int = 0
+    without_geometry: int = 0
+    bounding_box: Optional[Dict[str, float]] = None
+    feature_collection: Dict[str, Any] = Field(
+        default_factory=lambda: {"type": "FeatureCollection", "features": []}
+    )
+    limit: int
+    offset: int = 0
+    result_count: int = 0
+    has_more: bool = False
+    next_offset: Optional[int] = None
 
 
 class TaxonomyLevel(BaseModel):
@@ -762,6 +806,527 @@ def _find_geometry_column(
     return wkt_candidate, False
 
 
+def _is_native_geometry_column(
+    columns_info: List[Dict[str, Any]], column_name: Optional[str]
+) -> bool:
+    """Return whether a resolved geometry column is stored as native geometry."""
+    if not column_name:
+        return False
+
+    for col in columns_info:
+        if col.get("name") == column_name:
+            col_type = str(col.get("type", "")).upper()
+            return "GEOMETRY" in col_type or "BYTEA" in col_type
+
+    return False
+
+
+def _geometry_sql_expression(
+    db: Database,
+    column_name: str,
+    is_native: bool,
+    alias: Optional[str] = None,
+) -> str:
+    """Build a SQL expression that safely normalizes a geometry column."""
+    quoted_col = quote_identifier(db, column_name)
+    col_ref = f"{quote_identifier(db, alias)}.{quoted_col}" if alias else quoted_col
+
+    if is_native:
+        return f"TRY_CAST({col_ref} AS GEOMETRY)"
+
+    return f"TRY(ST_GeomFromText(CAST({col_ref} AS VARCHAR)))"
+
+
+def _load_spatial_extension_best_effort(conn: Any) -> None:
+    """Load DuckDB spatial functions for short-lived API connections."""
+    try:
+        conn.execute(text("LOAD spatial"))
+    except Exception as exc:
+        logger.debug("Could not load spatial extension: %s", exc)
+
+
+def _compute_geometry_bbox(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+) -> Optional[Dict[str, float]]:
+    """Compute a bounding box for point, line, or polygon geometries."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+
+    try:
+        _load_spatial_extension_best_effort(conn)
+        row = conn.execute(
+            text(
+                f"""
+                WITH mapped AS (
+                    SELECT {geom_expr} AS geom
+                    FROM {quoted_table}
+                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                ),
+                extent AS (
+                    SELECT ST_Extent_Agg(geom) AS bbox
+                    FROM mapped
+                    WHERE geom IS NOT NULL
+                )
+                SELECT
+                    ST_XMin(bbox),
+                    ST_YMin(bbox),
+                    ST_XMax(bbox),
+                    ST_YMax(bbox)
+                FROM extent
+                WHERE bbox IS NOT NULL
+                """
+            )
+        ).fetchone()
+    except Exception as exc:
+        logger.debug(
+            "Failed to compute geometry bounding box for table '%s': %s",
+            table_name,
+            exc,
+        )
+        return None
+
+    if not row or row[0] is None:
+        return None
+
+    return {
+        "min_x": float(row[0]),
+        "min_y": float(row[1]),
+        "max_x": float(row[2]),
+        "max_y": float(row[3]),
+    }
+
+
+def _count_valid_geometries(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+) -> int:
+    """Count rows with a parseable geometry value."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+
+    try:
+        _load_spatial_extension_best_effort(conn)
+        return int(
+            conn.execute(
+                text(
+                    f"""
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT {geom_expr} AS geom
+                        FROM {quoted_table}
+                        WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                    ) mapped
+                    WHERE geom IS NOT NULL
+                    """
+                )
+            ).scalar()
+            or 0
+        )
+    except Exception as exc:
+        logger.debug(
+            "Failed to count valid geometries for table '%s': %s",
+            table_name,
+            exc,
+        )
+        return 0
+
+
+def _spatial_layer_candidates(
+    column_names: List[str], preferred_column: Optional[str]
+) -> List[str]:
+    """Return candidate columns that can split a spatial reference into layers."""
+    columns_by_lower = {column.lower(): column for column in column_names}
+    ordered_candidates = [
+        preferred_column,
+        "type",
+        "category",
+        "group",
+        "entity_type",
+        "shape_type",
+    ]
+    candidates: List[str] = []
+    for candidate in ordered_candidates:
+        if not candidate:
+            continue
+        resolved = columns_by_lower.get(str(candidate).lower())
+        if resolved and resolved not in candidates:
+            candidates.append(resolved)
+    return candidates
+
+
+def _spatial_layer_filter_sql(
+    db: Database,
+    layer_column: Optional[str],
+    selected_layer: Optional[str],
+    *,
+    prefix: str = " AND ",
+) -> str:
+    """Build a parameterized SQL fragment for a selected map layer."""
+    if not layer_column or selected_layer is None:
+        return ""
+
+    return (
+        f"{prefix}TRY_CAST({quote_identifier(db, layer_column)} AS VARCHAR) "
+        "= :selected_layer"
+    )
+
+
+def _resolve_spatial_layer_column(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+    column_names: List[str],
+    preferred_column: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve the best column for splitting a spatial reference into layers."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+
+    for candidate in _spatial_layer_candidates(column_names, preferred_column):
+        layer_col = quote_identifier(db, candidate)
+        try:
+            row = conn.execute(
+                text(
+                    f"""
+                    WITH mapped AS (
+                        SELECT
+                            TRY_CAST({layer_col} AS VARCHAR) AS layer_value,
+                            {geom_expr} AS geom
+                        FROM {quoted_table}
+                        WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                    )
+                    SELECT COUNT(DISTINCT layer_value)
+                    FROM mapped
+                    WHERE geom IS NOT NULL
+                      AND layer_value IS NOT NULL
+                      AND layer_value <> ''
+                    """
+                )
+            ).fetchone()
+        except Exception as exc:
+            logger.debug(
+                "Failed to inspect layer column '%s' for table '%s': %s",
+                candidate,
+                table_name,
+                exc,
+            )
+            continue
+
+        distinct_count = int(row[0] or 0) if row else 0
+        if 1 < distinct_count <= 80:
+            return candidate
+
+    return None
+
+
+def _fetch_spatial_layers(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+    layer_column: Optional[str],
+) -> List[SpatialMapLayer]:
+    """Return layer counts for a mappable spatial reference."""
+    if not layer_column:
+        return []
+
+    quoted_table = quote_identifier(db, table_name)
+    layer_col = quote_identifier(db, layer_column)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+
+    try:
+        rows = conn.execute(
+            text(
+                f"""
+                WITH mapped AS (
+                    SELECT
+                        TRY_CAST({layer_col} AS VARCHAR) AS layer_value,
+                        {geom_expr} AS geom
+                    FROM {quoted_table}
+                )
+                SELECT
+                    layer_value,
+                    COUNT(*) AS feature_count,
+                    SUM(CASE WHEN geom IS NOT NULL THEN 1 ELSE 0 END) AS with_geometry
+                FROM mapped
+                WHERE layer_value IS NOT NULL
+                  AND layer_value <> ''
+                GROUP BY layer_value
+                ORDER BY with_geometry DESC, feature_count DESC, layer_value
+                """
+            )
+        ).fetchall()
+    except Exception as exc:
+        logger.debug(
+            "Failed to fetch spatial layers for table '%s': %s",
+            table_name,
+            exc,
+        )
+        return []
+
+    return [
+        SpatialMapLayer(
+            value=str(row[0]),
+            label=str(row[0]),
+            feature_count=int(row[1] or 0),
+            with_geometry=int(row[2] or 0),
+        )
+        for row in rows
+        if row[0] is not None
+    ]
+
+
+def _count_spatial_features(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    layer_column: Optional[str] = None,
+    selected_layer: Optional[str] = None,
+) -> int:
+    """Count rows in the selected spatial scope."""
+    quoted_table = quote_identifier(db, table_name)
+    layer_filter = _spatial_layer_filter_sql(
+        db, layer_column, selected_layer, prefix=" WHERE "
+    )
+    params = {"selected_layer": selected_layer} if selected_layer is not None else {}
+
+    return int(
+        conn.execute(
+            text(f"SELECT COUNT(*) FROM {quoted_table}{layer_filter}"),
+            params,
+        ).scalar()
+        or 0
+    )
+
+
+def _count_valid_geometries_for_scope(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+    layer_column: Optional[str] = None,
+    selected_layer: Optional[str] = None,
+) -> int:
+    """Count parseable geometries in the selected spatial scope."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+    layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+    params = {"selected_layer": selected_layer} if selected_layer is not None else {}
+
+    return int(
+        conn.execute(
+            text(
+                f"""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT {geom_expr} AS geom
+                    FROM {quoted_table}
+                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                    {layer_filter}
+                ) mapped
+                WHERE geom IS NOT NULL
+                """
+            ),
+            params,
+        ).scalar()
+        or 0
+    )
+
+
+def _compute_geometry_bbox_for_scope(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+    layer_column: Optional[str] = None,
+    selected_layer: Optional[str] = None,
+) -> Optional[Dict[str, float]]:
+    """Compute a bounding box for the selected spatial scope."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+    layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+    params = {"selected_layer": selected_layer} if selected_layer is not None else {}
+
+    try:
+        row = conn.execute(
+            text(
+                f"""
+                WITH mapped AS (
+                    SELECT {geom_expr} AS geom
+                    FROM {quoted_table}
+                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                    {layer_filter}
+                ),
+                extent AS (
+                    SELECT ST_Extent_Agg(geom) AS bbox
+                    FROM mapped
+                    WHERE geom IS NOT NULL
+                )
+                SELECT
+                    ST_XMin(bbox),
+                    ST_YMin(bbox),
+                    ST_XMax(bbox),
+                    ST_YMax(bbox)
+                FROM extent
+                WHERE bbox IS NOT NULL
+                """
+            ),
+            params,
+        ).fetchone()
+    except Exception as exc:
+        logger.debug(
+            "Failed to compute scoped geometry bounding box for table '%s': %s",
+            table_name,
+            exc,
+        )
+        return None
+
+    if not row or row[0] is None:
+        return None
+
+    return {
+        "min_x": float(row[0]),
+        "min_y": float(row[1]),
+        "max_x": float(row[2]),
+        "max_y": float(row[3]),
+    }
+
+
+def _find_configured_geometry_column(
+    ref_cfg: Dict[str, Any], columns_by_lower: Dict[str, str]
+) -> Optional[str]:
+    """Resolve a geometry column declared in import.yml schema metadata."""
+    schema = _dict_config(ref_cfg.get("schema"))
+    fields = schema.get("fields")
+    candidates: List[Optional[str]] = [
+        schema.get("geometry_field"),
+        schema.get("geo_field"),
+        schema.get("location_field"),
+    ]
+
+    def is_geometry_type(value: Any) -> bool:
+        normalized = str(value or "").lower()
+        return (
+            normalized in {"geometry", "geography", "wkt"} or "geometry" in normalized
+        )
+
+    if isinstance(fields, list):
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_name = field.get("name") or field.get("field") or field.get("column")
+            if is_geometry_type(field.get("type")) or is_geometry_type(
+                field.get("semantic_type")
+            ):
+                candidates.append(field_name)
+    elif isinstance(fields, dict):
+        for field_name, field_config in fields.items():
+            if isinstance(field_config, dict):
+                if is_geometry_type(field_config.get("type")) or is_geometry_type(
+                    field_config.get("semantic_type")
+                ):
+                    candidates.append(str(field_name))
+            elif is_geometry_type(field_config):
+                candidates.append(str(field_name))
+
+    return _pick_first_existing(columns_by_lower, candidates)
+
+
+def _resolve_mappable_reference_metadata(
+    db: Database,
+    table_names: List[str],
+    references: Dict[str, Any],
+    reference_name: str,
+) -> Optional[Dict[str, Any]]:
+    """Resolve mapping metadata for a reference with point or polygon geometry."""
+    target_table = resolve_reference_table_name(table_names, reference_name)
+    if not target_table:
+        target_table = resolve_entity_table_name(table_names, reference_name)
+    if not target_table:
+        return None
+
+    ref_cfg = _dict_config(references.get(reference_name))
+    columns_info = db.get_columns(target_table)
+    column_names = [col["name"] for col in columns_info]
+    columns_by_lower = {column.lower(): column for column in column_names}
+
+    detected_geo_column, detected_is_native = _find_geometry_column(columns_info)
+    configured_geo_column = _find_configured_geometry_column(ref_cfg, columns_by_lower)
+
+    geometry_column = detected_geo_column or configured_geo_column
+    is_native = detected_is_native
+    if geometry_column and geometry_column != detected_geo_column:
+        is_native = _is_native_geometry_column(columns_info, geometry_column)
+
+    schema = _dict_config(ref_cfg.get("schema"))
+    id_column = _pick_first_existing(
+        columns_by_lower,
+        [
+            schema.get("id_field"),
+            "id",
+            f"{reference_name}_id",
+            f"id_{reference_name.rstrip('s')}",
+        ],
+    ) or (column_names[0] if column_names else None)
+    name_column = (
+        _pick_first_existing(
+            columns_by_lower,
+            [
+                schema.get("name_field"),
+                "name",
+                "full_name",
+                "label",
+                "title",
+                reference_name.rstrip("s"),
+                id_column,
+            ],
+        )
+        or id_column
+    )
+    type_column = _pick_first_existing(
+        columns_by_lower,
+        ["type", "category", "group", "entity_type", "shape_type"],
+    )
+
+    return {
+        "reference_name": reference_name,
+        "table_name": target_table,
+        "geometry_column": geometry_column,
+        "is_native": is_native,
+        "id_column": id_column,
+        "name_column": name_column,
+        "type_column": type_column,
+        "configured_as_spatial": ref_cfg.get("kind") == "spatial",
+        "configured_geometry_column": configured_geo_column,
+    }
+
+
+def _classify_geometry_kind(geometry_types: List[str]) -> str:
+    """Return a coarse map rendering kind from geometry type names."""
+    normalized = {geometry_type.upper() for geometry_type in geometry_types}
+    if not normalized:
+        return "unknown"
+    if normalized <= {"POINT", "MULTIPOINT"}:
+        return "point"
+    if normalized <= {"POLYGON", "MULTIPOLYGON"}:
+        return "polygon"
+    if normalized <= {"LINESTRING", "MULTILINESTRING"}:
+        return "line"
+    return "mixed"
+
+
 def _pick_first_existing(
     columns_by_lower: Dict[str, str], candidates: List[Optional[str]]
 ) -> Optional[str]:
@@ -839,7 +1404,7 @@ def _resolve_spatial_reference_tables(
 
         type_column = _pick_first_existing(
             columns_by_lower,
-            ["shape_type", "type", "entity_type", "category", "group"],
+            ["type", "category", "group", "entity_type", "shape_type"],
         )
 
         spatial_tables.append(
@@ -883,7 +1448,7 @@ def _resolve_spatial_reference_tables(
             )
             type_column = _pick_first_existing(
                 columns_by_lower,
-                ["shape_type", "type", "entity_type", "category", "group"],
+                ["type", "category", "group", "entity_type", "shape_type"],
             )
 
             spatial_tables.append(
@@ -1370,6 +1935,375 @@ async def get_hierarchy_inspection(
         )
 
 
+def _build_spatial_map_inspection(
+    db: Database,
+    reference_name: str,
+    limit: int,
+    offset: int = 0,
+    layer: Optional[str] = None,
+    simplify_tolerance: Optional[float] = None,
+) -> SpatialMapInspection:
+    """Build the spatial map inspection payload for JSON and rendered maps."""
+    table_names = db.get_table_names()
+    _, references = _load_import_entities_config()
+    metadata = _resolve_mappable_reference_metadata(
+        db, table_names, references, reference_name
+    )
+
+    if not metadata:
+        raise HTTPException(
+            status_code=404, detail=f"Reference '{reference_name}' not found"
+        )
+
+    table_name = metadata["table_name"]
+    geometry_column = metadata.get("geometry_column")
+
+    if not geometry_column:
+        return SpatialMapInspection(
+            reference_name=reference_name,
+            table_name=table_name,
+            is_mappable=False,
+            reason="no_geometry_column",
+            id_column=metadata.get("id_column"),
+            name_column=metadata.get("name_column"),
+            type_column=metadata.get("type_column"),
+            limit=limit,
+            offset=offset,
+        )
+
+    selected_layer = layer.strip() if isinstance(layer, str) and layer.strip() else None
+    is_native = bool(metadata.get("is_native"))
+    geometry_storage = "native" if is_native else "wkt"
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+    columns_info = db.get_columns(table_name)
+    column_names = [col["name"] for col in columns_info]
+    id_column = metadata.get("id_column")
+    name_column = metadata.get("name_column")
+    type_column = metadata.get("type_column")
+
+    id_expr = (
+        f"TRY_CAST({quote_identifier(db, id_column)} AS VARCHAR)"
+        if id_column
+        else "NULL"
+    )
+    name_expr = (
+        f"TRY_CAST({quote_identifier(db, name_column)} AS VARCHAR)"
+        if name_column
+        else id_expr
+    )
+    type_expr = (
+        f"TRY_CAST({quote_identifier(db, type_column)} AS VARCHAR)"
+        if type_column
+        else "NULL"
+    )
+
+    with db.engine.connect() as conn:
+        _load_spatial_extension_best_effort(conn)
+        layer_column = _resolve_spatial_layer_column(
+            conn,
+            db,
+            table_name,
+            geometry_column,
+            is_native,
+            column_names,
+            preferred_column=type_column,
+        )
+        if selected_layer is not None and not layer_column:
+            raise HTTPException(
+                status_code=400,
+                detail="Layer filtering is not available for this reference",
+            )
+
+        layers = _fetch_spatial_layers(
+            conn, db, table_name, geometry_column, is_native, layer_column
+        )
+        layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+        layer_expr = (
+            f"TRY_CAST({quote_identifier(db, layer_column)} AS VARCHAR)"
+            if layer_column
+            else "NULL"
+        )
+        params = (
+            {"selected_layer": selected_layer} if selected_layer is not None else {}
+        )
+
+        total_features = _count_spatial_features(
+            conn, db, table_name, layer_column, selected_layer
+        )
+        with_geometry = _count_valid_geometries_for_scope(
+            conn,
+            db,
+            table_name,
+            geometry_column,
+            is_native,
+            layer_column,
+            selected_layer,
+        )
+        bbox = _compute_geometry_bbox_for_scope(
+            conn,
+            db,
+            table_name,
+            geometry_column,
+            is_native,
+            layer_column,
+            selected_layer,
+        )
+        geometry_rows = conn.execute(
+            text(
+                f"""
+                WITH mapped AS (
+                    SELECT {geom_expr} AS geom
+                    FROM {quoted_table}
+                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                    {layer_filter}
+                )
+                SELECT DISTINCT CAST(ST_GeometryType(geom) AS VARCHAR)
+                FROM mapped
+                WHERE geom IS NOT NULL
+                ORDER BY 1
+                """
+            ),
+            params,
+        ).fetchall()
+        geometry_types = [str(row[0]) for row in geometry_rows if row[0]]
+
+        rows = []
+        if limit > 0:
+            feature_params = {**params, "limit": limit + 1, "offset": offset}
+            if simplify_tolerance and simplify_tolerance > 0:
+                geometry_json_expr = "ST_Simplify(geom, :simplify_tolerance)"
+                feature_params["simplify_tolerance"] = simplify_tolerance
+            else:
+                geometry_json_expr = "geom"
+            rows = conn.execute(
+                text(
+                    f"""
+                    WITH mapped AS (
+                        SELECT
+                            {id_expr} AS id_value,
+                            {name_expr} AS name_value,
+                            {type_expr} AS type_value,
+                            {layer_expr} AS layer_value,
+                            {geom_expr} AS geom
+                        FROM {quoted_table}
+                        WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                        {layer_filter}
+                    )
+                    SELECT
+                        id_value,
+                        name_value,
+                        type_value,
+                        layer_value,
+                        CAST(ST_GeometryType(geom) AS VARCHAR) AS geometry_type,
+                        CAST(ST_AsGeoJSON({geometry_json_expr}) AS VARCHAR) AS geometry_json
+                    FROM mapped
+                    WHERE geom IS NOT NULL
+                    ORDER BY id_value NULLS LAST
+                    LIMIT :limit OFFSET :offset
+                    """
+                ),
+                feature_params,
+            ).fetchall()
+
+    visible_rows = rows[:limit]
+    features: List[Dict[str, Any]] = []
+    for row in visible_rows:
+        mapping = row._mapping if hasattr(row, "_mapping") else row
+        geometry_json = mapping["geometry_json"]
+        if not geometry_json:
+            continue
+
+        try:
+            geometry = json.loads(geometry_json)
+        except (TypeError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "Failed to decode GeoJSON for reference '%s': %s",
+                reference_name,
+                exc,
+            )
+            continue
+
+        feature_id = mapping["id_value"]
+        feature_name = mapping["name_value"] or feature_id
+        feature_type = mapping["type_value"]
+        feature_layer = mapping["layer_value"]
+        features.append(
+            {
+                "type": "Feature",
+                "id": feature_id,
+                "geometry": geometry,
+                "properties": {
+                    "id": feature_id,
+                    "label": str(feature_name) if feature_name else None,
+                    "name": str(feature_name) if feature_name else None,
+                    "type": str(feature_type) if feature_type else None,
+                    "layer": str(feature_layer) if feature_layer else None,
+                    "geometry_type": mapping["geometry_type"],
+                },
+            }
+        )
+
+    has_more = limit > 0 and len(rows) > limit
+    return SpatialMapInspection(
+        reference_name=reference_name,
+        table_name=table_name,
+        is_mappable=True,
+        geometry_column=geometry_column,
+        geometry_storage=geometry_storage,
+        geometry_kind=_classify_geometry_kind(geometry_types),
+        geometry_types=geometry_types,
+        id_column=id_column,
+        name_column=name_column,
+        type_column=type_column,
+        layer_column=layer_column,
+        selected_layer=selected_layer,
+        layers=layers,
+        total_features=total_features,
+        with_geometry=with_geometry,
+        without_geometry=max(total_features - with_geometry, 0),
+        bounding_box=bbox,
+        feature_collection={
+            "type": "FeatureCollection",
+            "features": features,
+        },
+        limit=limit,
+        offset=offset,
+        result_count=with_geometry,
+        has_more=has_more,
+        next_offset=offset + limit if has_more else None,
+    )
+
+
+@router.get("/spatial-map/{reference_name}", response_model=SpatialMapInspection)
+async def get_spatial_map_inspection(
+    reference_name: str,
+    limit: int = Query(default=250, ge=0, le=500),
+    offset: int = Query(default=0, ge=0),
+    layer: Optional[str] = Query(default=None, description="Optional layer value"),
+):
+    """Return bounded GeoJSON features for a mappable reference."""
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path, read_only=True) as db:
+            return _build_spatial_map_inspection(
+                db,
+                reference_name,
+                limit=limit,
+                offset=offset,
+                layer=layer,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting spatial map data: {str(e)}"
+        )
+
+
+@router.get("/spatial-map/{reference_name}/render", response_class=HTMLResponse)
+async def render_spatial_map(
+    reference_name: str,
+    layer: Optional[str] = Query(default=None, description="Optional layer value"),
+    limit: int = Query(default=500, ge=1, le=1000),
+):
+    """Render a Plotly map with a base map for a mappable reference."""
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path, read_only=True) as db:
+            selected_layer = (
+                layer.strip() if isinstance(layer, str) and layer.strip() else None
+            )
+            inspection = _build_spatial_map_inspection(
+                db,
+                reference_name,
+                limit=0 if selected_layer is None else limit,
+                offset=0,
+                layer=selected_layer,
+                simplify_tolerance=0.001,
+            )
+
+            if (
+                inspection.is_mappable
+                and selected_layer is None
+                and len(inspection.layers) > 1
+            ):
+                layer_items = "".join(
+                    "<li>"
+                    f"<strong>{html.escape(item.label)}</strong> "
+                    f"({item.with_geometry}/{item.feature_count})"
+                    "</li>"
+                    for item in inspection.layers
+                )
+                content = f"""
+                <div class="info" style="text-align:left;max-width:560px;margin:0 auto;">
+                    <p>Select a layer to load the interactive map.</p>
+                    <ul>{layer_items}</ul>
+                </div>
+                """
+                return HTMLResponse(
+                    wrap_html_response(
+                        content,
+                        title=f"{reference_name} map",
+                        plotly_bundle="none",
+                    )
+                )
+
+            if inspection.is_mappable and selected_layer is None:
+                inspection = _build_spatial_map_inspection(
+                    db,
+                    reference_name,
+                    limit=limit,
+                    offset=0,
+                    layer=None,
+                    simplify_tolerance=0.001,
+                )
+
+        if not inspection.is_mappable:
+            content = error_html("No geometry column is available for this reference.")
+        elif not inspection.feature_collection.get("features"):
+            content = "<p class='info'>No geometry is available for this layer.</p>"
+        else:
+            content = MapRenderer.render(
+                inspection.feature_collection,
+                config=MapConfig(
+                    title=reference_name,
+                    auto_zoom=True,
+                    map_style="open-street-map",
+                    height=520,
+                    style=MapStyle(
+                        color="#2563eb",
+                        fill_color="#2563eb",
+                        fill_opacity=0.24,
+                        stroke_width=2,
+                        point_radius=8,
+                    ),
+                ),
+                engine="plotly",
+            )
+
+        title = f"{reference_name} map"
+        if inspection.selected_layer:
+            title = f"{title} - {inspection.selected_layer}"
+        return HTMLResponse(
+            wrap_html_response(content, title=title, plotly_bundle="maps")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error rendering spatial map: {str(e)}"
+        )
+
+
 @router.get("/spatial", response_model=SpatialStats)
 async def get_spatial_stats(
     entity: str = Query(default="occurrences", description="Entity with spatial data"),
@@ -1425,51 +2359,16 @@ async def get_spatial_stats(
 
                 # Check if we have WKT column
                 if "wkt_col" in coord_cols:
-                    wkt_col = preparer.quote(coord_cols["wkt_col"])
-
-                    # With coordinates (WKT not null and not empty)
-                    result = conn.execute(
-                        text(
-                            f"""
-                            SELECT COUNT(*) FROM {quoted_table}
-                            WHERE {wkt_col} IS NOT NULL AND {wkt_col} != ''
-                        """
-                        )
+                    geometry_column = coord_cols["wkt_col"]
+                    is_native = _is_native_geometry_column(
+                        columns_info, geometry_column
                     )
-                    with_coords = result.scalar() or 0
-
-                    # Extract bounding box from WKT using regex
-                    # WKT format: POINT (x y) or POINT(x y)
-                    try:
-                        result = conn.execute(
-                            text(
-                                f"""
-                                SELECT
-                                    MIN(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\(([\\d.-]+)', 1) AS DOUBLE)),
-                                    MIN(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\([\\d.-]+\\s+([\\d.-]+)', 1) AS DOUBLE)),
-                                    MAX(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\(([\\d.-]+)', 1) AS DOUBLE)),
-                                    MAX(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\([\\d.-]+\\s+([\\d.-]+)', 1) AS DOUBLE))
-                                FROM {quoted_table}
-                                WHERE {wkt_col} IS NOT NULL AND {wkt_col} LIKE 'POINT%'
-                            """
-                            )
-                        )
-                        row = result.fetchone()
-                        bbox = None
-                        if row and row[0] is not None:
-                            bbox = {
-                                "min_x": float(row[0]),
-                                "min_y": float(row[1]),
-                                "max_x": float(row[2]),
-                                "max_y": float(row[3]),
-                            }
-                    except Exception as exc:
-                        logger.debug(
-                            "Failed to compute WKT bounding box for table '%s': %s",
-                            target_table,
-                            exc,
-                        )
-                        bbox = None
+                    with_coords = _count_valid_geometries(
+                        conn, db, target_table, geometry_column, is_native
+                    )
+                    bbox = _compute_geometry_bbox(
+                        conn, db, target_table, geometry_column, is_native
+                    )
 
                     return SpatialStats(
                         total_points=total,

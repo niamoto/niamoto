@@ -69,3 +69,20 @@ def test_render_dispatches_to_leaflet_engine(monkeypatch):
     }
 
     assert MapRenderer.render(geojson, engine="leaflet") == "<div>leaflet-map</div>"
+
+
+def test_render_plotly_uses_feature_label_for_hover_text():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {"id": "plot-1", "label": "Preferred label"},
+            }
+        ],
+    }
+
+    html = MapRenderer.render(geojson, config=MapConfig(), engine="plotly")
+
+    assert "Preferred label" in html

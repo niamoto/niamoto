@@ -16,6 +16,7 @@ import {
   getHierarchyInspection,
   type HierarchyInspectionParams,
 } from '@/features/import/api/hierarchy'
+import { getSpatialMapInspection } from '@/features/import/api/spatial-map'
 import type { ImportSummaryDetailed } from '@/features/import/api/summary'
 import { importQueryKeys } from '@/features/import/queryKeys'
 
@@ -27,6 +28,7 @@ export interface EntityConfigResponse<TConfig = unknown> {
 export const IMPORT_DETAIL_PAGE_SIZE = 20
 export const IMPORT_DETAIL_PREVIEW_MAX_COLUMNS = 6
 export const HIERARCHY_INSPECTION_PAGE_SIZE = 100
+export const SPATIAL_MAP_PAGE_SIZE = 250
 
 export function getPreviewColumnNames(columnNames: string[], maxColumns: number): string[] {
   return columnNames.slice(0, Math.max(1, maxColumns))
@@ -127,6 +129,38 @@ export function hierarchyInspectionQueryOptions(
     queryKey,
     queryFn: () => getHierarchyInspection(referenceName, params),
     staleTime: 60_000,
+  }
+}
+
+export function spatialMapSummaryQueryOptions(referenceName: string) {
+  return {
+    queryKey: importQueryKeys.spatialMap.summary(referenceName),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit: 0 }),
+    staleTime: 60_000,
+    retry: false,
+  }
+}
+
+export function spatialMapLayerSummaryQueryOptions(referenceName: string, layer: string | null) {
+  return {
+    queryKey: importQueryKeys.spatialMap.layerSummary(referenceName, layer),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit: 0, layer }),
+    staleTime: 60_000,
+    retry: false,
+  }
+}
+
+export function spatialMapPageQueryOptions(
+  referenceName: string,
+  offset: number = 0,
+  limit: number = SPATIAL_MAP_PAGE_SIZE,
+  layer?: string | null
+) {
+  return {
+    queryKey: importQueryKeys.spatialMap.page(referenceName, limit, offset, layer),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit, offset, layer }),
+    staleTime: 60_000,
+    retry: false,
   }
 }
 

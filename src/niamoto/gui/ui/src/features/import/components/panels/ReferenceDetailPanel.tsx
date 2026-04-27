@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,10 +48,14 @@ import { ReferenceConfigEditor } from '@/features/import/components/editors/Refe
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
 import { HierarchyView } from '@/features/import/components/hierarchy/HierarchyView'
 import { SourceSummary } from '@/features/import/components/panels/SourceSummary'
+import { SpatialMapView } from '@/features/import/components/spatial/SpatialMapView'
 import { deleteEntity } from '@/features/import/api/import'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
-import { removeImportEntityFromCache } from '@/features/import/queryUtils'
+import {
+  removeImportEntityFromCache,
+  spatialMapSummaryQueryOptions,
+} from '@/features/import/queryUtils'
 
 interface EnrichmentConfigSource {
   id: string
@@ -95,7 +99,12 @@ export function ReferenceDetailPanel({
 
   // Reset to summary tab when reference changes
   useEffect(() => {
-    if (requestedTab === 'enrichment' || requestedTab === 'config' || requestedTab === 'preview') {
+    if (
+      requestedTab === 'enrichment' ||
+      requestedTab === 'config' ||
+      requestedTab === 'preview' ||
+      requestedTab === 'map'
+    ) {
       setActiveTab(requestedTab)
       return
     }
@@ -126,7 +135,9 @@ export function ReferenceDetailPanel({
     reloadEnrichmentConfig()
   }, [reloadEnrichmentConfig])
 
+  const { data: spatialMapSummary } = useQuery(spatialMapSummaryQueryOptions(referenceName))
   const hasEnrichment = Boolean(enrichmentConfig?.sources?.some((source) => source.enabled))
+  const hasSpatialMap = Boolean(spatialMapSummary?.is_mappable)
   const referenceKindLabel =
     kind === 'hierarchical'
       ? t('reference.hierarchical')
@@ -281,6 +292,12 @@ export function ReferenceDetailPanel({
                 {t('reference.hierarchy')}
               </TabsTrigger>
             )}
+            {(hasSpatialMap || activeTab === 'map') && (
+              <TabsTrigger value="map" className="gap-1">
+                <Map className="h-4 w-4" />
+                {t('reference.map', 'Map')}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="preview" className="gap-1">
               <Eye className="h-4 w-4" />
               {t('reference.preview')}
@@ -305,19 +322,27 @@ export function ReferenceDetailPanel({
                   rowCount={entityCount}
                   kind={kind}
                   hasEnrichment={hasEnrichment}
+                  enrichmentSources={enrichmentConfig?.sources}
                   hasHierarchy={kind === 'hierarchical'}
+                  hasSpatialMap={hasSpatialMap}
+                  spatialMap={spatialMapSummary}
                   onPreview={() => setActiveTab('preview')}
                   onConfigure={() => setActiveTab('config')}
                   onOpenExplorer={openInDataExplorer}
                   onOpenHierarchy={
                     kind === 'hierarchical' ? () => setActiveTab('hierarchy') : undefined
                   }
+                  onOpenMap={hasSpatialMap ? () => setActiveTab('map') : undefined}
                   onOpenEnrichment={() => setActiveTab('enrichment')}
                 />
               </div>
             ) : activeTab === 'hierarchy' && kind === 'hierarchical' ? (
               <div className="space-y-4">
                 <HierarchyView referenceName={referenceName} />
+              </div>
+            ) : activeTab === 'map' ? (
+              <div className="space-y-4">
+                <SpatialMapView referenceName={referenceName} />
               </div>
             ) : activeTab === 'preview' ? (
               <div className="space-y-4">
