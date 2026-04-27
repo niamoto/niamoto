@@ -20,6 +20,7 @@ from niamoto.gui.api.routers.stats import (
     _resolve_occurrence_table,
     _resolve_spatial_reference_tables,
     _resolve_taxonomy_table_name,
+    _serialize_hierarchy_node,
     classify_table_type,
     detect_coordinate_columns,
     find_table_by_pattern,
@@ -388,6 +389,42 @@ def test_resolve_taxonomy_table_name_prefers_hierarchical_reference():
     )
 
     assert resolved == "entity_plants"
+
+
+def test_serialize_hierarchy_node_falls_back_for_non_numeric_level():
+    node = _serialize_hierarchy_node(
+        {
+            "id_value": 7,
+            "parent_value": 3,
+            "label_value": "Araucaria columnaris",
+            "rank_value": "species",
+            "level_value": "species",
+            "path_value": "Araucariaceae > Araucaria > Araucaria columnaris",
+        },
+        child_count=0,
+        level_fallback=2,
+    )
+
+    assert node.level == 2
+    assert node.label == "Araucaria columnaris"
+    assert node.has_children is False
+
+
+def test_serialize_hierarchy_node_keeps_unknown_non_numeric_level_null():
+    node = _serialize_hierarchy_node(
+        {
+            "id_value": 7,
+            "parent_value": None,
+            "label_value": "Family label",
+            "rank_value": "family",
+            "level_value": "rank-label",
+            "path_value": "Family label",
+        },
+        child_count=1,
+    )
+
+    assert node.level is None
+    assert node.has_children is True
 
 
 def test_import_summary_uses_duckdb_fixture_without_sqlalchemy_reflection_errors(

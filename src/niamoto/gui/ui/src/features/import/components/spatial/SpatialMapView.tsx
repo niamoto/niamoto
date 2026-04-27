@@ -40,10 +40,9 @@ export function SpatialMapView({ referenceName }: SpatialMapViewProps) {
 
   const summaryQuery = useQuery(spatialMapSummaryQueryOptions(referenceName))
   const summary = summaryQuery.data
-  const defaultLayer = summary?.layers[0]?.value ?? ALL_LAYERS_VALUE
   const selectedLayerValue =
     selectedLayerState?.referenceName === referenceName ? selectedLayerState.value : null
-  const selectedValue = selectedLayerValue ?? defaultLayer
+  const selectedValue = selectedLayerValue ?? ALL_LAYERS_VALUE
   const effectiveLayer = selectedValue === ALL_LAYERS_VALUE ? null : selectedValue
   const layerSummaryQuery = useQuery({
     ...spatialMapLayerSummaryQueryOptions(referenceName, effectiveLayer),

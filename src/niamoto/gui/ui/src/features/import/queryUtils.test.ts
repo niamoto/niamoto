@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   hierarchyInspectionInfiniteQueryOptions,
   hierarchyInspectionQueryOptions,
+  spatialMapLayerSummaryQueryOptions,
+  spatialMapPageQueryOptions,
+  spatialMapSummaryQueryOptions,
   tableColumnsQueryOptions,
   tablePreviewQueryOptions,
 } from '@/features/import/queryUtils'
@@ -11,6 +14,10 @@ import {
   queryTable,
 } from '@/features/import/api/data-explorer'
 import { getHierarchyInspection } from '@/features/import/api/hierarchy'
+import {
+  getSpatialMapInspection,
+  type SpatialMapInspection,
+} from '@/features/import/api/spatial-map'
 
 vi.mock('@/features/import/api/data-explorer', () => ({
   getTableColumns: vi.fn(),
@@ -21,6 +28,40 @@ vi.mock('@/features/import/api/data-explorer', () => ({
 vi.mock('@/features/import/api/hierarchy', () => ({
   getHierarchyInspection: vi.fn(),
 }))
+
+vi.mock('@/features/import/api/spatial-map', () => ({
+  getSpatialMapInspection: vi.fn(),
+}))
+
+const spatialMapInspection: SpatialMapInspection = {
+  reference_name: 'shapes',
+  table_name: 'entity_shapes',
+  is_mappable: true,
+  reason: null,
+  geometry_column: 'geometry',
+  geometry_storage: 'wkt',
+  geometry_kind: 'polygon',
+  geometry_types: ['POLYGON'],
+  id_column: 'id',
+  name_column: 'name',
+  type_column: 'type',
+  layer_column: 'type',
+  selected_layer: null,
+  layers: [],
+  total_features: 0,
+  with_geometry: 0,
+  without_geometry: 0,
+  bounding_box: null,
+  feature_collection: {
+    type: 'FeatureCollection',
+    features: [],
+  },
+  limit: 0,
+  offset: 0,
+  result_count: 0,
+  has_more: false,
+  next_offset: null,
+}
 
 describe('import query utils', () => {
   it('requests preview pages with only the visible columns', async () => {
@@ -172,6 +213,61 @@ describe('import query utils', () => {
       search: 'Araucaria',
       limit: 25,
       offset: 25,
+    })
+  })
+
+  it('builds spatial map summary queries', async () => {
+    vi.mocked(getSpatialMapInspection).mockResolvedValue(spatialMapInspection)
+
+    const summaryOptions = spatialMapSummaryQueryOptions('shapes')
+    const layerOptions = spatialMapLayerSummaryQueryOptions('shapes', 'province')
+
+    expect(summaryOptions.queryKey).toEqual([
+      'import',
+      'spatial-map',
+      'shapes',
+      'summary',
+    ])
+    expect(layerOptions.queryKey).toEqual([
+      'import',
+      'spatial-map',
+      'shapes',
+      'summary',
+      'province',
+    ])
+
+    await summaryOptions.queryFn()
+    await layerOptions.queryFn()
+
+    expect(getSpatialMapInspection).toHaveBeenNthCalledWith(1, 'shapes', {
+      limit: 0,
+    })
+    expect(getSpatialMapInspection).toHaveBeenNthCalledWith(2, 'shapes', {
+      limit: 0,
+      layer: 'province',
+    })
+  })
+
+  it('builds spatial map page queries', async () => {
+    vi.mocked(getSpatialMapInspection).mockResolvedValue(spatialMapInspection)
+
+    const options = spatialMapPageQueryOptions('shapes', 250, 1000, 'province')
+
+    expect(options.queryKey).toEqual([
+      'import',
+      'spatial-map',
+      'shapes',
+      1000,
+      250,
+      'province',
+    ])
+
+    await options.queryFn()
+
+    expect(getSpatialMapInspection).toHaveBeenCalledWith('shapes', {
+      limit: 1000,
+      offset: 250,
+      layer: 'province',
     })
   })
 })

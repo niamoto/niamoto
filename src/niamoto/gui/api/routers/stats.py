@@ -705,7 +705,10 @@ def _serialize_hierarchy_node(
     """Convert a SQL row into the API node shape."""
     mapping = row._mapping if hasattr(row, "_mapping") else row
     raw_level = mapping.get("level_value", level_fallback)
-    level_value = int(raw_level) if raw_level is not None else level_fallback
+    try:
+        level_value = int(raw_level) if raw_level is not None else level_fallback
+    except (TypeError, ValueError):
+        level_value = level_fallback
     label = mapping.get("label_value")
 
     return HierarchyNode(
