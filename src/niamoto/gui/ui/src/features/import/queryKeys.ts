@@ -35,5 +35,39 @@ export const importQueryKeys = {
       ['import', 'dashboard', 'completeness', entityName] as const,
     geoCoverage: () => ['import', 'dashboard', 'geo-coverage'] as const,
   },
+  hierarchy: {
+    roots: (referenceName: string, limit: number, offset: number) =>
+      ['import', 'hierarchy', referenceName, 'roots', limit, offset] as const,
+    children: (
+      referenceName: string,
+      parentId: string | number,
+      limit: number,
+      offset: number
+    ) =>
+      [
+        'import',
+        'hierarchy',
+        referenceName,
+        'children',
+        String(parentId),
+        limit,
+        offset,
+      ] as const,
+    search: (
+      referenceName: string,
+      search: string,
+      limit: number,
+      offset: number
+    ) =>
+      [
+        'import',
+        'hierarchy',
+        referenceName,
+        'search',
+        search,
+        limit,
+        offset,
+      ] as const,
+  },
   summary: () => ['import', 'summary'] as const,
 }

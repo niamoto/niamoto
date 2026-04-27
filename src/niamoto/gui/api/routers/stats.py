@@ -7,15 +7,20 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
 import yaml
 
 from niamoto.common.database import Database
 from niamoto.common.table_resolver import (
+    quote_identifier,
     resolve_dataset_table_name,
     resolve_entity_table_name,
     resolve_reference_table_name,
+)
+from niamoto.common.hierarchy_context import (
+    HierarchyMetadata,
+    detect_hierarchy_metadata,
 )
 from ..utils.database import open_database
 from ..context import get_working_directory
@@ -96,6 +101,41 @@ class TaxonomyConsistency(BaseModel):
     orphan_records: List[Dict[str, Any]]
     duplicate_names: List[Dict[str, Any]]
     hierarchy_depth: int
+
+
+class HierarchyNode(BaseModel):
+    """One node in a bounded hierarchy inspection response."""
+
+    id: Any
+    parent_id: Optional[Any] = None
+    label: str
+    rank: Optional[str] = None
+    level: Optional[int] = None
+    child_count: int = 0
+    has_children: bool = False
+    path: Optional[str] = None
+
+
+class HierarchyInspection(BaseModel):
+    """Bounded hierarchy inspection for a reference."""
+
+    reference_name: str
+    table_name: Optional[str]
+    is_hierarchical: bool
+    metadata_available: bool
+    mode: str
+    search: Optional[str] = None
+    parent_id: Optional[Any] = None
+    total_nodes: int = 0
+    root_count: int = 0
+    orphan_count: int = 0
+    levels: List[TaxonomyLevel] = Field(default_factory=list)
+    nodes: List[HierarchyNode] = Field(default_factory=list)
+    limit: int
+    offset: int = 0
+    result_count: int = 0
+    has_more: bool = False
+    next_offset: Optional[int] = None
 
 
 class HistogramBin(BaseModel):
@@ -415,6 +455,290 @@ def _resolve_taxonomy_table_name(
 
     # 4) Fallback to legacy fuzzy match for compatibility with older DBs.
     return find_table_by_pattern(table_names, requested)
+
+
+def _resolve_hierarchy_reference_table(
+    table_names: List[str], references: Dict[str, Any], reference_name: str
+) -> Optional[str]:
+    """Resolve a reference name for hierarchy inspection."""
+    if reference_name in references:
+        return resolve_reference_table_name(table_names, reference_name)
+
+    return resolve_reference_table_name(table_names, reference_name)
+
+
+def _is_reference_hierarchical(
+    reference_name: str,
+    references: Dict[str, Any],
+    metadata: Optional[HierarchyMetadata],
+) -> bool:
+    """Return whether the reference should expose hierarchy inspection."""
+    ref_cfg = references.get(reference_name)
+    if isinstance(ref_cfg, dict):
+        return ref_cfg.get("kind") in {"hierarchical", "nested"}
+
+    # Fallback for projects without import.yml metadata.
+    return metadata is not None
+
+
+def _dict_config(value: Any) -> Dict[str, Any]:
+    """Return a mapping-like config section or an empty dict."""
+    return value if isinstance(value, dict) else {}
+
+
+def _detect_configured_hierarchy_metadata(
+    columns: List[str], ref_cfg: Dict[str, Any]
+) -> Optional[HierarchyMetadata]:
+    """Detect hierarchy columns, preferring explicit import.yml metadata."""
+    schema = _dict_config(ref_cfg.get("schema"))
+    hierarchy = _dict_config(ref_cfg.get("hierarchy"))
+    connector = _dict_config(ref_cfg.get("connector"))
+    extraction = _dict_config(connector.get("extraction"))
+
+    columns_by_lower = {column.lower(): column for column in columns}
+
+    def pick(candidates: List[Optional[str]]) -> Optional[str]:
+        return _pick_first_existing(columns_by_lower, candidates)
+
+    id_field = pick(
+        [
+            hierarchy.get("id_field"),
+            schema.get("id_field"),
+            extraction.get("id_column"),
+            "id",
+        ]
+    )
+    parent_field = pick(
+        [
+            hierarchy.get("parent_field"),
+            hierarchy.get("parent_id_field"),
+            schema.get("parent_field"),
+            "parent_id",
+            "parent",
+            "id_parent",
+        ]
+    )
+    left_field = pick(
+        [
+            hierarchy.get("left_field"),
+            schema.get("left_field"),
+            "lft",
+            "left",
+            "left_bound",
+        ]
+    )
+    right_field = pick(
+        [
+            hierarchy.get("right_field"),
+            schema.get("right_field"),
+            "rght",
+            "rgt",
+            "right",
+            "right_bound",
+        ]
+    )
+    rank_field = pick(
+        [
+            hierarchy.get("rank_field"),
+            hierarchy.get("level_field"),
+            schema.get("rank_field"),
+            "rank_name",
+            "rank",
+            "rank_value",
+            "level_name",
+            "level",
+            "category",
+        ]
+    )
+    name_field = pick(
+        [
+            hierarchy.get("name_field"),
+            schema.get("name_field"),
+            extraction.get("name_column"),
+            "full_name",
+            "name",
+            "label",
+            "title",
+            "rank_value",
+        ]
+    )
+
+    if not id_field or not rank_field or not name_field:
+        return None
+    if not parent_field and not (left_field and right_field):
+        return None
+
+    join_field = pick(
+        [
+            hierarchy.get("join_field"),
+            schema.get("join_field"),
+            schema.get("id_field"),
+            id_field,
+        ]
+    )
+
+    return HierarchyMetadata(
+        id_field=id_field,
+        join_field=join_field or id_field,
+        parent_field=parent_field,
+        left_field=left_field,
+        right_field=right_field,
+        rank_field=rank_field,
+        name_field=name_field,
+    )
+
+
+def _first_existing_column(columns: List[str], candidates: List[str]) -> Optional[str]:
+    """Return the first existing column from a case-insensitive candidate list."""
+    by_lower = {column.lower(): column for column in columns}
+    for candidate in candidates:
+        resolved = by_lower.get(candidate.lower())
+        if resolved:
+            return resolved
+    return None
+
+
+def _hierarchy_order_clause(
+    db: Database, metadata: HierarchyMetadata, alias: str
+) -> str:
+    """Build stable ordering for bounded hierarchy queries."""
+    prefix = f"{quote_identifier(db, alias)}." if alias else ""
+    fields: List[str] = []
+
+    if metadata.left_field:
+        fields.append(f"{prefix}{quote_identifier(db, metadata.left_field)} ASC")
+    elif metadata.parent_field:
+        if metadata.rank_field:
+            fields.append(f"{prefix}{quote_identifier(db, metadata.rank_field)} ASC")
+        fields.append(f"{prefix}{quote_identifier(db, metadata.name_field)} ASC")
+
+    fields.append(f"{prefix}{quote_identifier(db, metadata.id_field)} ASC")
+    return " ORDER BY " + ", ".join(fields)
+
+
+def _hierarchy_node_select_sql(
+    db: Database,
+    table_name: str,
+    metadata: HierarchyMetadata,
+    path_field: Optional[str],
+    level_field: Optional[str],
+    alias: str = "node",
+) -> str:
+    """Build a safe SELECT clause for hierarchy nodes."""
+    quoted_alias = quote_identifier(db, alias)
+    quoted_table = quote_identifier(db, table_name)
+
+    def col(name: str) -> str:
+        return f"{quoted_alias}.{quote_identifier(db, name)}"
+
+    selected = [
+        f"{col(metadata.id_field)} AS id_value",
+        (
+            f"{col(metadata.parent_field)} AS parent_value"
+            if metadata.parent_field
+            else "NULL AS parent_value"
+        ),
+        f"{col(metadata.name_field)} AS label_value",
+        f"{col(metadata.rank_field)} AS rank_value",
+        (
+            f"{col(level_field)} AS level_value"
+            if level_field
+            else "NULL AS level_value"
+        ),
+        (
+            f"{col(path_field)} AS path_value"
+            if path_field
+            else f"{col(metadata.name_field)} AS path_value"
+        ),
+    ]
+    return f"SELECT {', '.join(selected)} FROM {quoted_table} {quoted_alias}"
+
+
+def _serialize_hierarchy_node(
+    row: Any, child_count: int, level_fallback: Optional[int] = None
+) -> HierarchyNode:
+    """Convert a SQL row into the API node shape."""
+    mapping = row._mapping if hasattr(row, "_mapping") else row
+    raw_level = mapping.get("level_value", level_fallback)
+    level_value = int(raw_level) if raw_level is not None else level_fallback
+    label = mapping.get("label_value")
+
+    return HierarchyNode(
+        id=mapping.get("id_value"),
+        parent_id=mapping.get("parent_value"),
+        label=str(label) if label not in (None, "") else str(mapping.get("id_value")),
+        rank=(
+            str(mapping.get("rank_value"))
+            if mapping.get("rank_value") not in (None, "")
+            else None
+        ),
+        level=level_value,
+        child_count=child_count,
+        has_children=child_count > 0,
+        path=(
+            str(mapping.get("path_value"))
+            if mapping.get("path_value") not in (None, "")
+            else None
+        ),
+    )
+
+
+def _count_hierarchy_children_bulk(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    metadata: HierarchyMetadata,
+    node_ids: List[Any],
+) -> Dict[Any, int]:
+    """Count direct children for visible hierarchy nodes in one query."""
+    if not node_ids:
+        return {}
+
+    quoted_table = quote_identifier(db, table_name)
+    id_params = {f"node_id_{idx}": node_id for idx, node_id in enumerate(node_ids)}
+    id_placeholders = ", ".join(f":{key}" for key in id_params)
+
+    if metadata.parent_field:
+        query = text(
+            f"""
+            SELECT {quote_identifier(db, metadata.parent_field)}, COUNT(*)
+            FROM {quoted_table}
+            WHERE {quote_identifier(db, metadata.parent_field)} IN ({id_placeholders})
+            GROUP BY {quote_identifier(db, metadata.parent_field)}
+            """
+        )
+        return {row[0]: int(row[1]) for row in conn.execute(query, id_params)}
+
+    if not metadata.left_field or not metadata.right_field:
+        return {}
+
+    parent_alias = quote_identifier(db, "parent_node")
+    child_alias = quote_identifier(db, "child")
+    mid_alias = quote_identifier(db, "mid")
+    left_col = quote_identifier(db, metadata.left_field)
+    right_col = quote_identifier(db, metadata.right_field)
+    id_col = quote_identifier(db, metadata.id_field)
+
+    query = text(
+        f"""
+        SELECT {parent_alias}.{id_col}, COUNT({child_alias}.{id_col})
+        FROM {quoted_table} {parent_alias}
+        JOIN {quoted_table} {child_alias}
+          ON {child_alias}.{left_col} > {parent_alias}.{left_col}
+         AND {child_alias}.{right_col} < {parent_alias}.{right_col}
+        WHERE {parent_alias}.{id_col} IN ({id_placeholders})
+          AND NOT EXISTS (
+            SELECT 1
+            FROM {quoted_table} {mid_alias}
+            WHERE {mid_alias}.{left_col} > {parent_alias}.{left_col}
+              AND {mid_alias}.{right_col} < {parent_alias}.{right_col}
+              AND {child_alias}.{left_col} > {mid_alias}.{left_col}
+              AND {child_alias}.{right_col} < {mid_alias}.{right_col}
+          )
+        GROUP BY {parent_alias}.{id_col}
+        """
+    )
+    return {row[0]: int(row[1]) for row in conn.execute(query, id_params)}
 
 
 def _find_geometry_column(
@@ -747,6 +1071,302 @@ async def get_completeness(entity: str):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error getting completeness: {str(e)}"
+        )
+
+
+@router.get("/hierarchy/{reference_name}", response_model=HierarchyInspection)
+async def get_hierarchy_inspection(
+    reference_name: str,
+    mode: str = Query(
+        default="roots",
+        pattern="^(roots|children|search)$",
+        description="Hierarchy loading mode",
+    ),
+    parent_id: Optional[str] = Query(
+        default=None, description="Parent node id for child loading"
+    ),
+    search: Optional[str] = Query(default=None, description="Node label search"),
+    limit: int = Query(default=100, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
+):
+    """Inspect a hierarchical reference with bounded root, child, or search results."""
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path, read_only=True) as db:
+            table_names = db.get_table_names()
+            _, references = _load_import_entities_config()
+            target_table = _resolve_hierarchy_reference_table(
+                table_names, references, reference_name
+            )
+
+            if not target_table:
+                raise HTTPException(
+                    status_code=404, detail=f"Reference '{reference_name}' not found"
+                )
+
+            columns_info = db.get_columns(target_table)
+            column_names = [col["name"] for col in columns_info]
+            ref_cfg = _dict_config(references.get(reference_name))
+            metadata = _detect_configured_hierarchy_metadata(
+                column_names, ref_cfg
+            ) or detect_hierarchy_metadata(column_names)
+            is_hierarchical = _is_reference_hierarchical(
+                reference_name, references, metadata
+            )
+
+            if not is_hierarchical or not metadata:
+                return HierarchyInspection(
+                    reference_name=reference_name,
+                    table_name=target_table,
+                    is_hierarchical=is_hierarchical,
+                    metadata_available=bool(metadata),
+                    mode=mode,
+                    search=search,
+                    parent_id=parent_id,
+                    limit=limit,
+                    offset=offset,
+                )
+
+            path_field = _first_existing_column(column_names, ["full_path", "path"])
+            level_field = _first_existing_column(column_names, ["level", "depth"])
+            quoted_table = quote_identifier(db, target_table)
+            node_alias = quote_identifier(db, "node")
+            parent_alias = quote_identifier(db, "parent_node")
+            id_col = quote_identifier(db, metadata.id_field)
+            name_col = quote_identifier(db, metadata.name_field)
+            rank_col = quote_identifier(db, metadata.rank_field)
+            parent_col = (
+                quote_identifier(db, metadata.parent_field)
+                if metadata.parent_field
+                else None
+            )
+            left_col = (
+                quote_identifier(db, metadata.left_field)
+                if metadata.left_field
+                else None
+            )
+            right_col = (
+                quote_identifier(db, metadata.right_field)
+                if metadata.right_field
+                else None
+            )
+            level_col = quote_identifier(db, level_field) if level_field else None
+
+            select_sql = _hierarchy_node_select_sql(
+                db, target_table, metadata, path_field, level_field, alias="node"
+            )
+            order_clause = _hierarchy_order_clause(db, metadata, "node")
+            params: Dict[str, Any] = {"limit": limit + 1, "offset": offset}
+
+            if mode == "search":
+                search_value = (search or "").strip().lower()
+                if not search_value:
+                    where_clause = " WHERE 1 = 0"
+                else:
+                    search_conditions = [
+                        f"LOWER(CAST({node_alias}.{name_col} AS VARCHAR)) LIKE :search",
+                        f"LOWER(CAST({node_alias}.{rank_col} AS VARCHAR)) LIKE :search",
+                    ]
+                    if path_field:
+                        search_conditions.append(
+                            f"LOWER(CAST({node_alias}.{quote_identifier(db, path_field)} AS VARCHAR)) LIKE :search"
+                        )
+                    where_clause = " WHERE " + " OR ".join(search_conditions)
+                    params["search"] = f"%{search_value}%"
+            elif mode == "children":
+                if parent_id is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="parent_id is required when mode is 'children'",
+                    )
+                params["parent_id"] = parent_id
+                if metadata.parent_field and parent_col:
+                    where_clause = f" WHERE {node_alias}.{parent_col} = :parent_id"
+                elif left_col and right_col:
+                    where_clause = f"""
+                    JOIN {quoted_table} {parent_alias}
+                      ON {parent_alias}.{id_col} = :parent_id
+                    WHERE {node_alias}.{left_col} > {parent_alias}.{left_col}
+                      AND {node_alias}.{right_col} < {parent_alias}.{right_col}
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM {quoted_table} mid_node
+                        WHERE mid_node.{left_col} > {parent_alias}.{left_col}
+                          AND mid_node.{right_col} < {parent_alias}.{right_col}
+                          AND {node_alias}.{left_col} > mid_node.{left_col}
+                          AND {node_alias}.{right_col} < mid_node.{right_col}
+                      )
+                    """
+                else:
+                    where_clause = " WHERE 1 = 0"
+            else:
+                if metadata.parent_field and parent_col:
+                    where_clause = f" WHERE {node_alias}.{parent_col} IS NULL"
+                elif left_col and right_col:
+                    where_clause = f"""
+                    WHERE NOT EXISTS (
+                      SELECT 1
+                      FROM {quoted_table} {parent_alias}
+                      WHERE {node_alias}.{left_col} > {parent_alias}.{left_col}
+                        AND {node_alias}.{right_col} < {parent_alias}.{right_col}
+                    )
+                    """
+                else:
+                    where_clause = " WHERE 1 = 0"
+
+            with db.engine.connect() as conn:
+                total_nodes = int(
+                    conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}")).scalar()
+                    or 0
+                )
+
+                if metadata.parent_field and parent_col:
+                    root_count = int(
+                        conn.execute(
+                            text(
+                                f"""
+                                SELECT COUNT(*) FROM {quoted_table}
+                                WHERE {parent_col} IS NULL
+                                """
+                            )
+                        ).scalar()
+                        or 0
+                    )
+                    orphan_condition = (
+                        f"({node_alias}.{parent_col} IS NOT NULL AND NOT EXISTS ("
+                        f"SELECT 1 FROM {quoted_table} parent_lookup "
+                        f"WHERE parent_lookup.{id_col} = {node_alias}.{parent_col}"
+                        "))"
+                    )
+                    if level_col:
+                        orphan_condition = (
+                            f"({orphan_condition} OR "
+                            f"({node_alias}.{level_col} > 0 AND {node_alias}.{parent_col} IS NULL))"
+                        )
+                    orphan_count = int(
+                        conn.execute(
+                            text(
+                                f"""
+                                SELECT COUNT(*) FROM {quoted_table} {node_alias}
+                                WHERE {orphan_condition}
+                                """
+                            )
+                        ).scalar()
+                        or 0
+                    )
+                else:
+                    root_count = int(
+                        conn.execute(
+                            text(
+                                f"""
+                                SELECT COUNT(*) FROM {quoted_table} {node_alias}
+                                WHERE NOT EXISTS (
+                                  SELECT 1
+                                  FROM {quoted_table} {parent_alias}
+                                  WHERE {node_alias}.{left_col} > {parent_alias}.{left_col}
+                                    AND {node_alias}.{right_col} < {parent_alias}.{right_col}
+                                )
+                                """
+                            )
+                        ).scalar()
+                        or 0
+                    )
+                    orphan_condition = "FALSE"
+                    orphan_count = 0
+
+                level_order = (
+                    f" ORDER BY MIN({node_alias}.{level_col})"
+                    if level_col
+                    else f" ORDER BY MIN({node_alias}.{rank_col})"
+                )
+                level_rows = conn.execute(
+                    text(
+                        f"""
+                        SELECT {node_alias}.{rank_col}, COUNT(*),
+                               SUM(CASE WHEN {orphan_condition} THEN 1 ELSE 0 END)
+                        FROM {quoted_table} {node_alias}
+                        WHERE {node_alias}.{rank_col} IS NOT NULL
+                        GROUP BY {node_alias}.{rank_col}
+                        {level_order}
+                        """
+                    )
+                ).fetchall()
+                levels = [
+                    TaxonomyLevel(
+                        level=str(row[0]),
+                        count=int(row[1]),
+                        orphan_count=int(row[2] or 0),
+                    )
+                    for row in level_rows
+                ]
+
+                rows = conn.execute(
+                    text(
+                        f"{select_sql}{where_clause}{order_clause} "
+                        "LIMIT :limit OFFSET :offset"
+                    ),
+                    params,
+                ).fetchall()
+
+                result_count = int(
+                    conn.execute(
+                        text(
+                            f"""
+                            SELECT COUNT(*)
+                            FROM {quoted_table} {node_alias}
+                            {where_clause}
+                            """
+                        ),
+                        params,
+                    ).scalar()
+                    or 0
+                )
+
+                has_more = len(rows) > limit
+                visible_rows = rows[:limit]
+                child_counts = _count_hierarchy_children_bulk(
+                    conn,
+                    db,
+                    target_table,
+                    metadata,
+                    [row._mapping["id_value"] for row in visible_rows],
+                )
+                nodes = [
+                    _serialize_hierarchy_node(
+                        row,
+                        child_count=child_counts.get(row._mapping["id_value"], 0),
+                    )
+                    for row in visible_rows
+                ]
+
+            return HierarchyInspection(
+                reference_name=reference_name,
+                table_name=target_table,
+                is_hierarchical=True,
+                metadata_available=True,
+                mode=mode,
+                search=search,
+                parent_id=parent_id,
+                total_nodes=total_nodes,
+                root_count=root_count,
+                orphan_count=orphan_count,
+                levels=levels,
+                nodes=nodes,
+                limit=limit,
+                offset=offset,
+                result_count=result_count,
+                has_more=has_more,
+                next_offset=offset + limit if has_more else None,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting hierarchy inspection: {str(e)}"
         )
 
 

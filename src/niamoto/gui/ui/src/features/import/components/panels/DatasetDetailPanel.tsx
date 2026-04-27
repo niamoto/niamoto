@@ -2,7 +2,8 @@
  * DatasetDetailPanel - Detailed view of a dataset entity with tabs
  *
  * Tabs:
- * - Overview: Stats, data preview
+ * - Summary: Identity, readiness cues, next actions
+ * - Preview: Data preview
  * - Configuration: Edit dataset settings
  */
 
@@ -30,16 +31,15 @@ import {
 import {
   ArrowLeft,
   ExternalLink,
-  Database,
   Trash2,
   Loader2,
   Table2,
   Settings,
-  LayoutDashboard,
+  Eye,
 } from 'lucide-react'
 import { TableBrowser } from '@/features/import/components/data-preview/TableBrowser'
-import { TableStats } from '@/features/import/components/data-preview/TableStats'
 import { DatasetConfigEditor } from '@/features/import/components/editors/DatasetConfigEditor'
+import { SourceSummary } from '@/features/import/components/panels/SourceSummary'
 import { deleteEntity } from '@/features/import/api/import'
 import { importQueryKeys } from '@/features/import/queryKeys'
 import { removeImportEntityFromCache } from '@/features/import/queryUtils'
@@ -67,7 +67,7 @@ export function DatasetDetailPanel({
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTable, setDeleteTable] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('summary')
 
   const openInDataExplorer = () => {
     navigate(`/tools/explorer?table=${encodeURIComponent(tableName)}`)
@@ -185,9 +185,13 @@ export function DatasetDetailPanel({
       <div className="flex-1 overflow-auto p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="overview" className="gap-1">
-              <LayoutDashboard className="h-4 w-4" />
-              {t('sources:reference.overview')}
+            <TabsTrigger value="summary" className="gap-1">
+              <Table2 className="h-4 w-4" />
+              {t('sources:reference.summary')}
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="gap-1">
+              <Eye className="h-4 w-4" />
+              {t('sources:reference.preview')}
             </TabsTrigger>
             <TabsTrigger value="config" className="gap-1">
               <Settings className="h-4 w-4" />
@@ -196,23 +200,22 @@ export function DatasetDetailPanel({
           </TabsList>
 
           <PanelTransition transitionKey={activeTab} className="min-h-0">
-            {activeTab === 'overview' ? (
+            {activeTab === 'summary' ? (
               <div className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Database className="h-4 w-4" />
-                      {t('sources:reference.statistics')}
-                    </CardTitle>
-                    {path && (
-                      <CardDescription className="font-mono text-xs">{path}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <TableStats tableName={tableName} />
-                  </CardContent>
-                </Card>
-
+                <SourceSummary
+                  entityType="dataset"
+                  name={datasetName}
+                  tableName={tableName}
+                  rowCount={entityCount}
+                  connectorType={connectorType}
+                  path={path}
+                  onPreview={() => setActiveTab('preview')}
+                  onConfigure={() => setActiveTab('config')}
+                  onOpenExplorer={openInDataExplorer}
+                />
+              </div>
+            ) : activeTab === 'preview' ? (
+              <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">{t('sources:reference.dataPreview')}</CardTitle>

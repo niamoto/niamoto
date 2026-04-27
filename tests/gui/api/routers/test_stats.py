@@ -3,6 +3,7 @@
 import asyncio
 from typing import Any, Dict, List
 
+import duckdb
 import yaml
 from fastapi.testclient import TestClient
 
@@ -393,6 +394,177 @@ def test_completeness_endpoint_returns_404_for_unknown_entity(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Entity 'missing_table' not found"
+
+
+def test_hierarchy_inspection_loads_roots_children_and_search(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DROP TABLE entity_taxons")
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id INTEGER,
+                parent_id INTEGER,
+                level INTEGER,
+                rank_name VARCHAR,
+                rank_value VARCHAR,
+                full_name VARCHAR,
+                full_path VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (101, NULL, 0, 'family', 'Araucariaceae', 'Araucariaceae', 'Araucariaceae'),
+                (102, 101, 1, 'genus', 'Araucaria', 'Araucaria', 'Araucariaceae > Araucaria'),
+                (103, 102, 2, 'species', 'columnaris', 'Araucaria columnaris', 'Araucariaceae > Araucaria > Araucaria columnaris'),
+                (104, 999, 2, 'species', 'missing', 'Missing parent species', 'Missing parent species')
+            """
+        )
+    finally:
+        conn.close()
+
+    roots_response = gui_duckdb_client.get("/api/stats/hierarchy/taxons?limit=10")
+    assert roots_response.status_code == 200, roots_response.text
+    roots = roots_response.json()
+
+    assert roots["reference_name"] == "taxons"
+    assert roots["table_name"] == "entity_taxons"
+    assert roots["is_hierarchical"] is True
+    assert roots["metadata_available"] is True
+    assert roots["total_nodes"] == 4
+    assert roots["root_count"] == 1
+    assert roots["orphan_count"] == 1
+    assert roots["nodes"][0]["label"] == "Araucariaceae"
+    assert roots["nodes"][0]["child_count"] == 1
+    species_level = next(
+        level for level in roots["levels"] if level["level"] == "species"
+    )
+    assert species_level["orphan_count"] == 1
+
+    children_response = gui_duckdb_client.get(
+        "/api/stats/hierarchy/taxons?mode=children&parent_id=101&limit=10"
+    )
+    assert children_response.status_code == 200, children_response.text
+    children = children_response.json()
+    assert children["mode"] == "children"
+    assert children["parent_id"] == "101"
+    assert [node["label"] for node in children["nodes"]] == ["Araucaria"]
+
+    search_response = gui_duckdb_client.get(
+        "/api/stats/hierarchy/taxons?mode=search&search=columnaris&limit=10"
+    )
+    assert search_response.status_code == 200, search_response.text
+    search = search_response.json()
+    assert search["mode"] == "search"
+    assert search["nodes"][0]["label"] == "Araucaria columnaris"
+    assert "Araucariaceae" in search["nodes"][0]["path"]
+
+    first_page_response = gui_duckdb_client.get(
+        "/api/stats/hierarchy/taxons?mode=search&search=Araucaria&limit=1"
+    )
+    assert first_page_response.status_code == 200, first_page_response.text
+    first_page = first_page_response.json()
+    assert first_page["result_count"] == 3
+    assert first_page["has_more"] is True
+    assert first_page["next_offset"] == 1
+
+    second_page_response = gui_duckdb_client.get(
+        "/api/stats/hierarchy/taxons?mode=search&search=Araucaria&limit=1&offset=1"
+    )
+    assert second_page_response.status_code == 200, second_page_response.text
+    second_page = second_page_response.json()
+    assert second_page["offset"] == 1
+    assert second_page["nodes"][0]["label"] == "Araucaria"
+
+
+def test_hierarchy_inspection_uses_configured_hierarchy_columns(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["custom_taxons"] = {
+        "kind": "hierarchical",
+        "schema": {
+            "id_field": "taxon_key",
+            "name_field": "display_label",
+        },
+        "hierarchy": {
+            "parent_field": "parent_key",
+            "rank_field": "rank_label",
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_custom_taxons (
+                taxon_key INTEGER,
+                parent_key INTEGER,
+                rank_label VARCHAR,
+                display_label VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_custom_taxons VALUES
+                (1, NULL, 'family', 'Configured Family'),
+                (2, 1, 'genus', 'Configured Genus')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/hierarchy/custom_taxons")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["metadata_available"] is True
+    assert payload["nodes"][0]["label"] == "Configured Family"
+    assert payload["nodes"][0]["child_count"] == 1
+    assert {level["level"] for level in payload["levels"]} == {"family", "genus"}
+
+
+def test_hierarchy_inspection_handles_non_hierarchical_reference(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["plots"] = {"kind": "generic"}
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE entity_plots (id INTEGER, name VARCHAR)")
+        conn.execute("INSERT INTO entity_plots VALUES (1, 'Plot A')")
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/hierarchy/plots")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["is_hierarchical"] is False
+    assert payload["metadata_available"] is False
+    assert payload["nodes"] == []
+
+
+def test_hierarchy_inspection_returns_404_for_unknown_reference(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get("/api/stats/hierarchy/missing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Reference 'missing' not found"
 
 
 def test_validation_rules_default_and_roundtrip(tmp_path, monkeypatch):

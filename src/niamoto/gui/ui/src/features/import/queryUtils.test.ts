@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  hierarchyInspectionInfiniteQueryOptions,
+  hierarchyInspectionQueryOptions,
   tableColumnsQueryOptions,
   tablePreviewQueryOptions,
 } from '@/features/import/queryUtils'
@@ -8,11 +10,16 @@ import {
   getTableColumns,
   queryTable,
 } from '@/features/import/api/data-explorer'
+import { getHierarchyInspection } from '@/features/import/api/hierarchy'
 
 vi.mock('@/features/import/api/data-explorer', () => ({
   getTableColumns: vi.fn(),
   listTables: vi.fn(),
   queryTable: vi.fn(),
+}))
+
+vi.mock('@/features/import/api/hierarchy', () => ({
+  getHierarchyInspection: vi.fn(),
 }))
 
 describe('import query utils', () => {
@@ -70,5 +77,101 @@ describe('import query utils', () => {
     await options.queryFn()
 
     expect(getTableColumns).toHaveBeenCalledWith('entity_taxons')
+  })
+
+  it('builds hierarchy inspection queries by mode', async () => {
+    vi.mocked(getHierarchyInspection).mockResolvedValue({
+      reference_name: 'taxons',
+      table_name: 'entity_taxons',
+      is_hierarchical: true,
+      metadata_available: true,
+      mode: 'children',
+      search: null,
+      parent_id: 101,
+      total_nodes: 4,
+      root_count: 1,
+      orphan_count: 0,
+      levels: [],
+      nodes: [],
+      limit: 100,
+      offset: 0,
+      result_count: 0,
+      has_more: false,
+      next_offset: null,
+    })
+
+    const options = hierarchyInspectionQueryOptions('taxons', {
+      mode: 'children',
+      parentId: 101,
+      limit: 25,
+      offset: 50,
+    })
+
+    expect(options.queryKey).toEqual([
+      'import',
+      'hierarchy',
+      'taxons',
+      'children',
+      '101',
+      25,
+      50,
+    ])
+
+    await options.queryFn()
+
+    expect(getHierarchyInspection).toHaveBeenCalledWith('taxons', {
+      mode: 'children',
+      parentId: 101,
+      limit: 25,
+      offset: 50,
+    })
+  })
+
+  it('builds pageable hierarchy inspection queries', async () => {
+    vi.mocked(getHierarchyInspection).mockResolvedValue({
+      reference_name: 'taxons',
+      table_name: 'entity_taxons',
+      is_hierarchical: true,
+      metadata_available: true,
+      mode: 'search',
+      search: 'Araucaria',
+      parent_id: null,
+      total_nodes: 4,
+      root_count: 1,
+      orphan_count: 0,
+      levels: [],
+      nodes: [],
+      limit: 25,
+      offset: 25,
+      result_count: 30,
+      has_more: true,
+      next_offset: 50,
+    })
+
+    const options = hierarchyInspectionInfiniteQueryOptions('taxons', {
+      mode: 'search',
+      search: '  Araucaria  ',
+      limit: 25,
+    })
+
+    expect(options.queryKey).toEqual([
+      'import',
+      'hierarchy',
+      'taxons',
+      'search',
+      'Araucaria',
+      25,
+      0,
+    ])
+    expect(options.initialPageParam).toBe(0)
+
+    await options.queryFn({ pageParam: 25 })
+
+    expect(getHierarchyInspection).toHaveBeenCalledWith('taxons', {
+      mode: 'search',
+      search: 'Araucaria',
+      limit: 25,
+      offset: 25,
+    })
   })
 })
