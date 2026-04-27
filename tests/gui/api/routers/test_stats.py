@@ -775,6 +775,7 @@ def test_spatial_map_inspection_maps_spatial_polygons_and_spatial_stats_bbox(
     assert render_response.status_code == 200, render_response.text
     assert "Plotly.newPlot" in render_response.text
     assert "plotly-niamoto-maps" in render_response.text
+    assert "#2E7D32" in render_response.text
 
     all_layers_render_response = gui_duckdb_client.get(
         "/api/stats/spatial-map/shapes/render?limit=10"

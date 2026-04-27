@@ -32,6 +32,7 @@ from ..services.preview_utils import error_html, wrap_html_response
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+NIAMOTO_MAP_GREEN = "#2E7D32"
 
 
 # =============================================================================
@@ -2276,11 +2277,12 @@ async def render_spatial_map(
                 config=MapConfig(
                     title=reference_name,
                     auto_zoom=True,
+                    zoom_offset=0.85,
                     map_style="open-street-map",
                     height=520,
                     style=MapStyle(
-                        color="#2563eb",
-                        fill_color="#2563eb",
+                        color=NIAMOTO_MAP_GREEN,
+                        fill_color=NIAMOTO_MAP_GREEN,
                         fill_opacity=0.24,
                         stroke_width=2,
                         point_radius=8,

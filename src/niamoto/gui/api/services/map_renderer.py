@@ -44,6 +44,7 @@ class MapConfig:
     center_lon: Optional[float] = None
     zoom: float = 9.0
     auto_zoom: bool = True
+    zoom_offset: float = 0.0
     # Use open-street-map by default (raster tiles, no CORS issues)
     # carto-positron uses vector tiles that have CORS issues from localhost
     map_style: str = "open-street-map"
@@ -96,7 +97,10 @@ class MapRenderer:
                 config.center_lat = (bounds["min_lat"] + bounds["max_lat"]) / 2
                 config.center_lon = (bounds["min_lon"] + bounds["max_lon"]) / 2
                 if config.auto_zoom:
-                    config.zoom = cls._calculate_zoom(bounds)
+                    config.zoom = max(
+                        1.0,
+                        min(18.0, cls._calculate_zoom(bounds) + config.zoom_offset),
+                    )
 
         # Default center if still not set
         if config.center_lat is None:
