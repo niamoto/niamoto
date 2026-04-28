@@ -5,6 +5,7 @@ import html
 import io
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
@@ -33,6 +34,7 @@ from ..services.preview_utils import error_html, wrap_html_response
 router = APIRouter()
 logger = logging.getLogger(__name__)
 NIAMOTO_MAP_GREEN = "#2E7D32"
+_WKT_NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 
 
 # =============================================================================
@@ -877,6 +879,112 @@ def _geometry_sql_expression(
     return f"TRY(ST_GeomFromText(CAST({col_ref} AS VARCHAR)))"
 
 
+def _extract_wkt_bbox(value: Any) -> Optional[Dict[str, float]]:
+    """Extract a bbox from common 2D WKT strings without DuckDB spatial."""
+    if value in (None, ""):
+        return None
+
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+    if ";" in text_value and text_value.upper().startswith("SRID="):
+        text_value = text_value.split(";", 1)[1].strip()
+
+    header = text_value.split("(", 1)[0].strip().upper()
+    geometry_type = header.split()[0] if header else ""
+    if geometry_type not in {
+        "GEOMETRYCOLLECTION",
+        "LINESTRING",
+        "MULTILINESTRING",
+        "MULTIPOINT",
+        "MULTIPOLYGON",
+        "POINT",
+        "POLYGON",
+    }:
+        return None
+    if "EMPTY" in header:
+        return None
+
+    dimensions = 2
+    header_tokens = header.split()
+    if "ZM" in header_tokens:
+        dimensions = 4
+    elif "Z" in header_tokens or "M" in header_tokens:
+        dimensions = 3
+
+    values = [float(match.group()) for match in _WKT_NUMBER_RE.finditer(text_value)]
+    if len(values) < 2:
+        return None
+
+    points = [
+        (values[index], values[index + 1])
+        for index in range(0, len(values) - 1, dimensions)
+    ]
+    if not points:
+        return None
+
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return {
+        "min_x": min(xs),
+        "min_y": min(ys),
+        "max_x": max(xs),
+        "max_y": max(ys),
+    }
+
+
+def _merge_bbox(
+    current: Optional[Dict[str, float]], next_bbox: Dict[str, float]
+) -> Dict[str, float]:
+    """Merge one bbox into an aggregate bbox."""
+    if not current:
+        return dict(next_bbox)
+
+    return {
+        "min_x": min(current["min_x"], next_bbox["min_x"]),
+        "min_y": min(current["min_y"], next_bbox["min_y"]),
+        "max_x": max(current["max_x"], next_bbox["max_x"]),
+        "max_y": max(current["max_y"], next_bbox["max_y"]),
+    }
+
+
+def _compute_wkt_geometry_stats_fallback(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    layer_column: Optional[str] = None,
+    selected_layer: Optional[str] = None,
+) -> Tuple[int, Optional[Dict[str, float]]]:
+    """Count WKT geometries and bbox without DuckDB spatial functions."""
+    quoted_table = quote_identifier(db, table_name)
+    geometry_col = quote_identifier(db, geometry_column)
+    layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+    params = {"selected_layer": selected_layer} if selected_layer is not None else {}
+    rows = conn.execute(
+        text(
+            f"""
+            SELECT {geometry_col}
+            FROM {quoted_table}
+            WHERE {geometry_col} IS NOT NULL
+            {layer_filter}
+            """
+        ),
+        params,
+    ).fetchall()
+
+    count = 0
+    bbox: Optional[Dict[str, float]] = None
+    for row in rows:
+        row_bbox = _extract_wkt_bbox(row[0])
+        if not row_bbox:
+            continue
+        count += 1
+        bbox = _merge_bbox(bbox, row_bbox)
+
+    return count, bbox
+
+
 def _load_spatial_extension_best_effort(conn: Any) -> None:
     """Load DuckDB spatial functions for short-lived API connections."""
     try:
@@ -927,6 +1035,11 @@ def _compute_geometry_bbox(
             table_name,
             exc,
         )
+        if not is_native:
+            _, bbox = _compute_wkt_geometry_stats_fallback(
+                conn, db, table_name, geometry_column
+            )
+            return bbox
         return None
 
     if not row or row[0] is None:
@@ -975,6 +1088,11 @@ def _count_valid_geometries(
             table_name,
             exc,
         )
+        if not is_native:
+            count, _ = _compute_wkt_geometry_stats_fallback(
+                conn, db, table_name, geometry_column
+            )
+            return count
         return 0
 
 

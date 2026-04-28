@@ -908,6 +908,68 @@ def test_spatial_map_inspection_maps_spatial_polygons_and_spatial_stats_bbox(
     assert stats_payload["bounding_box"] == payload["bounding_box"]
 
 
+def test_spatial_stats_preserves_wkt_counts_without_spatial_extension(
+    gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [{"name": "location", "type": "geometry"}],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES
+                ('point', 'Point', 'POINT (164.5 -21.5)'),
+                ('polygon', 'Polygon',
+                 'POLYGON ((166 -22, 167 -22, 167 -20, 166 -20, 166 -22))'),
+                ('invalid', 'Invalid', 'not a geometry'),
+                ('missing', 'Missing', NULL)
+            """
+        )
+    finally:
+        conn.close()
+
+    def fail_spatial_extension(_conn):
+        raise RuntimeError("spatial extension unavailable")
+
+    monkeypatch.setattr(
+        stats_router, "_load_spatial_extension_best_effort", fail_spatial_extension
+    )
+
+    response = gui_duckdb_client.get("/api/stats/spatial?entity=shapes")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["total_points"] == 4
+    assert payload["with_coordinates"] == 2
+    assert payload["without_coordinates"] == 2
+    assert payload["bounding_box"] == {
+        "min_x": 164.5,
+        "min_y": -22.0,
+        "max_x": 167.0,
+        "max_y": -20.0,
+    }
+
+
 def test_validation_rules_default_and_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
 

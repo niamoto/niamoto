@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { SpatialMapInspection } from '@/features/import/api/spatial-map'
+import { hasHierarchyInspection } from '@/features/import/referenceKinds'
 import { tablesQueryOptions } from '@/features/import/queryUtils'
 import { apiClient } from '@/shared/lib/api/client'
 
@@ -188,7 +189,7 @@ export function SourceSummary({
   const typeLabel =
     entityType === 'dataset'
       ? t('summary.datasetType', 'Dataset')
-      : kind === 'hierarchical'
+      : hasHierarchy || hasHierarchyInspection(kind)
         ? t('reference.hierarchical')
         : kind === 'spatial'
           ? t('reference.spatial')

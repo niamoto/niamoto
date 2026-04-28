@@ -50,6 +50,7 @@ import { HierarchyView } from '@/features/import/components/hierarchy/HierarchyV
 import { SourceSummary } from '@/features/import/components/panels/SourceSummary'
 import { SpatialMapView } from '@/features/import/components/spatial/SpatialMapView'
 import { deleteEntity } from '@/features/import/api/import'
+import { hasHierarchyInspection } from '@/features/import/referenceKinds'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
 import {
@@ -93,6 +94,7 @@ export function ReferenceDetailPanel({
   const [activeTab, setActiveTab] = useState('summary')
   const requestedTab = searchParams.get('tab')
   const requestedSource = searchParams.get('source')
+  const hasHierarchy = hasHierarchyInspection(kind)
 
   // Check if enrichment is configured for this reference
   const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfigResponse | null>(null)
@@ -108,12 +110,12 @@ export function ReferenceDetailPanel({
       setActiveTab(requestedTab)
       return
     }
-    if (requestedTab === 'hierarchy' && kind === 'hierarchical') {
+    if (requestedTab === 'hierarchy' && hasHierarchy) {
       setActiveTab('hierarchy')
       return
     }
     setActiveTab('summary')
-  }, [kind, referenceName, requestedTab])
+  }, [hasHierarchy, referenceName, requestedTab])
 
   // Function to reload enrichment config (called after config changes)
   const reloadEnrichmentConfig = useCallback(async () => {
@@ -139,7 +141,7 @@ export function ReferenceDetailPanel({
   const hasEnrichment = Boolean(enrichmentConfig?.sources?.some((source) => source.enabled))
   const hasSpatialMap = Boolean(spatialMapSummary?.is_mappable)
   const referenceKindLabel =
-    kind === 'hierarchical'
+    hasHierarchy
       ? t('reference.hierarchical')
       : kind === 'spatial'
         ? t('reference.spatial')
@@ -179,9 +181,11 @@ export function ReferenceDetailPanel({
 
   // Get icon based on kind
   const getKindIcon = () => {
+    if (hasHierarchy) {
+      return <Leaf className="h-6 w-6 text-success" />
+    }
+
     switch (kind) {
-      case 'hierarchical':
-        return <Leaf className="h-6 w-6 text-success" />
       case 'spatial':
         return <Map className="h-6 w-6 text-primary" />
       default:
@@ -239,7 +243,7 @@ export function ReferenceDetailPanel({
                 <AlertDialogTitle>{t('reference.deleteReference', { name: referenceName })}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {t('reference.deleteReferenceDescription')}
-                  {kind === 'hierarchical' && (
+                  {hasHierarchy && (
                     <span className="mt-2 block text-warning">
                       {t('reference.deleteWarningHierarchical')}
                     </span>
@@ -286,7 +290,7 @@ export function ReferenceDetailPanel({
               <MapPin className="h-4 w-4" />
               {t('reference.summary')}
             </TabsTrigger>
-            {kind === 'hierarchical' && (
+            {hasHierarchy && (
               <TabsTrigger value="hierarchy" className="gap-1">
                 <GitBranch className="h-4 w-4" />
                 {t('reference.hierarchy')}
@@ -323,20 +327,18 @@ export function ReferenceDetailPanel({
                   kind={kind}
                   hasEnrichment={hasEnrichment}
                   enrichmentSources={enrichmentConfig?.sources}
-                  hasHierarchy={kind === 'hierarchical'}
+                  hasHierarchy={hasHierarchy}
                   hasSpatialMap={hasSpatialMap}
                   spatialMap={spatialMapSummary}
                   onPreview={() => setActiveTab('preview')}
                   onConfigure={() => setActiveTab('config')}
                   onOpenExplorer={openInDataExplorer}
-                  onOpenHierarchy={
-                    kind === 'hierarchical' ? () => setActiveTab('hierarchy') : undefined
-                  }
+                  onOpenHierarchy={hasHierarchy ? () => setActiveTab('hierarchy') : undefined}
                   onOpenMap={hasSpatialMap ? () => setActiveTab('map') : undefined}
                   onOpenEnrichment={() => setActiveTab('enrichment')}
                 />
               </div>
-            ) : activeTab === 'hierarchy' && kind === 'hierarchical' ? (
+            ) : activeTab === 'hierarchy' && hasHierarchy ? (
               <div className="space-y-4">
                 <HierarchyView referenceName={referenceName} />
               </div>
