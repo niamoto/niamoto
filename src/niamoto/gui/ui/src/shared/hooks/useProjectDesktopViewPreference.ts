@@ -29,7 +29,6 @@ export function useProjectDesktopViewPreference<TValue extends string>({
     useCurrentProjectScope()
   const projectScope = desktopOnly ? desktopProjectScope : fallbackAwareProjectScope
   const effectiveEnabled = enabled && Boolean(projectScope)
-  const [value, setValueState] = useState<TValue>(overrideValue ?? defaultValue)
   const allowedValuesKey = useMemo(
     () => allowedValues.join('\u0000'),
     [allowedValues],
@@ -39,22 +38,22 @@ export function useProjectDesktopViewPreference<TValue extends string>({
     [allowedValuesKey],
   )
 
-  useEffect(() => {
+  const preferenceCacheKey = [
+    effectiveEnabled ? 'enabled' : 'disabled',
+    projectScope ?? '',
+    key,
+    defaultValue,
+    allowedValuesKey,
+    overrideValue ?? '',
+  ].join('\u0000')
+
+  const resolvePreferenceValue = useCallback(() => {
     if (!effectiveEnabled) {
-      setValueState(defaultValue)
-      return
+      return defaultValue
     }
 
     if (overrideValue && stableAllowedValues.includes(overrideValue)) {
-      setValueState(overrideValue)
-      writeStoredProjectDesktopViewPreference(
-        projectScope,
-        key,
-        overrideValue,
-        stableAllowedValues,
-        storage,
-      )
-      return
+      return overrideValue
     }
 
     const storedValue = readStoredProjectDesktopViewPreference(
@@ -63,9 +62,38 @@ export function useProjectDesktopViewPreference<TValue extends string>({
       stableAllowedValues,
       storage,
     )
-    setValueState(storedValue ?? defaultValue)
+    return storedValue ?? defaultValue
   }, [
     defaultValue,
+    effectiveEnabled,
+    key,
+    overrideValue,
+    projectScope,
+    stableAllowedValues,
+    storage,
+  ])
+
+  const [valueState, setValueState] = useState(() => ({
+    cacheKey: preferenceCacheKey,
+    value: resolvePreferenceValue(),
+  }))
+  const value = valueState.cacheKey === preferenceCacheKey
+    ? valueState.value
+    : resolvePreferenceValue()
+
+  useEffect(() => {
+    if (!effectiveEnabled || !overrideValue || !stableAllowedValues.includes(overrideValue)) {
+      return
+    }
+
+    writeStoredProjectDesktopViewPreference(
+      projectScope,
+      key,
+      overrideValue,
+      stableAllowedValues,
+      storage,
+    )
+  }, [
     effectiveEnabled,
     key,
     overrideValue,
@@ -80,7 +108,10 @@ export function useProjectDesktopViewPreference<TValue extends string>({
         return
       }
 
-      setValueState(nextValue)
+      setValueState({
+        cacheKey: preferenceCacheKey,
+        value: nextValue,
+      })
 
       if (!effectiveEnabled) {
         return
@@ -94,7 +125,15 @@ export function useProjectDesktopViewPreference<TValue extends string>({
         storage,
       )
     },
-    [effectiveEnabled, key, projectScope, stableAllowedValues, storage],
+    [
+      effectiveEnabled,
+      key,
+      preferenceCacheKey,
+      projectScope,
+      setValueState,
+      stableAllowedValues,
+      storage,
+    ],
   )
 
   return [value, setValue] as const

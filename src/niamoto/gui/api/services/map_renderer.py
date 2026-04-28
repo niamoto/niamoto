@@ -44,6 +44,7 @@ class MapConfig:
     center_lon: Optional[float] = None
     zoom: float = 9.0
     auto_zoom: bool = True
+    zoom_offset: float = 0.0
     # Use open-street-map by default (raster tiles, no CORS issues)
     # carto-positron uses vector tiles that have CORS issues from localhost
     map_style: str = "open-street-map"
@@ -96,7 +97,10 @@ class MapRenderer:
                 config.center_lat = (bounds["min_lat"] + bounds["max_lat"]) / 2
                 config.center_lon = (bounds["min_lon"] + bounds["max_lon"]) / 2
                 if config.auto_zoom:
-                    config.zoom = cls._calculate_zoom(bounds)
+                    config.zoom = max(
+                        1.0,
+                        min(18.0, cls._calculate_zoom(bounds) + config.zoom_offset),
+                    )
 
         # Default center if still not set
         if config.center_lat is None:
@@ -133,7 +137,7 @@ class MapRenderer:
         for feature in polygons:
             geom = feature.get("geometry", {})
             props = feature.get("properties", {})
-            name = props.get("name", f"ID: {props.get('id', '?')}")
+            name = cls._feature_label(props)
 
             coords_list = cls._extract_polygon_coords(geom)
 
@@ -175,7 +179,7 @@ class MapRenderer:
                 if len(coords) >= 2:
                     lons.append(coords[0])
                     lats.append(coords[1])
-                    names.append(props.get("name", f"ID: {props.get('id', '?')}"))
+                    names.append(cls._feature_label(props))
 
             if lons:
                 fig.add_trace(
@@ -300,8 +304,8 @@ class MapRenderer:
                 }});
             }},
             onEachFeature: function(feature, layer) {{
-                if (feature.properties && feature.properties.name) {{
-                    layer.bindPopup('<strong>' + feature.properties.name + '</strong>');
+                if (feature.properties && (feature.properties.label || feature.properties.name)) {{
+                    layer.bindPopup('<strong>' + (feature.properties.label || feature.properties.name) + '</strong>');
                 }}
             }}
         }}).addTo(map);
@@ -334,6 +338,16 @@ class MapRenderer:
                     result.append(ring)
 
         return result
+
+    @staticmethod
+    def _feature_label(properties: Dict[str, Any]) -> str:
+        """Return a display label for feature hover text."""
+        return str(
+            properties.get("label")
+            or properties.get("name")
+            or properties.get("type")
+            or f"ID: {properties.get('id', '?')}"
+        )
 
     @staticmethod
     def _calculate_bounds(features: List[Dict[str, Any]]) -> Optional[Dict[str, float]]:

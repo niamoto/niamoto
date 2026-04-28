@@ -12,6 +12,11 @@ import {
   listTables,
   queryTable,
 } from '@/features/import/api/data-explorer'
+import {
+  getHierarchyInspection,
+  type HierarchyInspectionParams,
+} from '@/features/import/api/hierarchy'
+import { getSpatialMapInspection } from '@/features/import/api/spatial-map'
 import type { ImportSummaryDetailed } from '@/features/import/api/summary'
 import { importQueryKeys } from '@/features/import/queryKeys'
 
@@ -22,6 +27,8 @@ export interface EntityConfigResponse<TConfig = unknown> {
 
 export const IMPORT_DETAIL_PAGE_SIZE = 20
 export const IMPORT_DETAIL_PREVIEW_MAX_COLUMNS = 6
+export const HIERARCHY_INSPECTION_PAGE_SIZE = 100
+export const SPATIAL_MAP_PAGE_SIZE = 250
 
 export function getPreviewColumnNames(columnNames: string[], maxColumns: number): string[] {
   return columnNames.slice(0, Math.max(1, maxColumns))
@@ -98,6 +105,95 @@ export function tablePreviewQueryOptions(
       if (isAxiosError(error) && error.response?.status === 404) return false
       return failureCount < 2
     },
+  }
+}
+
+export function hierarchyInspectionQueryOptions(
+  referenceName: string,
+  params: HierarchyInspectionParams = {}
+) {
+  const mode = params.mode ?? 'roots'
+  const search = params.search?.trim() ?? ''
+  const parentId = params.parentId
+  const limit = params.limit ?? HIERARCHY_INSPECTION_PAGE_SIZE
+  const offset = params.offset ?? 0
+
+  const queryKey =
+    mode === 'children' && parentId != null
+      ? importQueryKeys.hierarchy.children(referenceName, parentId, limit, offset)
+      : mode === 'search'
+        ? importQueryKeys.hierarchy.search(referenceName, search, limit, offset)
+        : importQueryKeys.hierarchy.roots(referenceName, limit, offset)
+
+  return {
+    queryKey,
+    queryFn: () => getHierarchyInspection(referenceName, params),
+    staleTime: 60_000,
+  }
+}
+
+export function spatialMapSummaryQueryOptions(referenceName: string) {
+  return {
+    queryKey: importQueryKeys.spatialMap.summary(referenceName),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit: 0 }),
+    staleTime: 60_000,
+    retry: false,
+  }
+}
+
+export function spatialMapLayerSummaryQueryOptions(referenceName: string, layer: string | null) {
+  return {
+    queryKey: importQueryKeys.spatialMap.layerSummary(referenceName, layer),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit: 0, layer }),
+    staleTime: 60_000,
+    retry: false,
+  }
+}
+
+export function spatialMapPageQueryOptions(
+  referenceName: string,
+  offset: number = 0,
+  limit: number = SPATIAL_MAP_PAGE_SIZE,
+  layer?: string | null
+) {
+  return {
+    queryKey: importQueryKeys.spatialMap.page(referenceName, limit, offset, layer),
+    queryFn: () => getSpatialMapInspection(referenceName, { limit, offset, layer }),
+    staleTime: 60_000,
+    retry: false,
+  }
+}
+
+export function hierarchyInspectionInfiniteQueryOptions(
+  referenceName: string,
+  params: HierarchyInspectionParams = {}
+) {
+  const mode = params.mode ?? 'roots'
+  const search = params.search?.trim() ?? ''
+  const parentId = params.parentId
+  const limit = params.limit ?? HIERARCHY_INSPECTION_PAGE_SIZE
+  const initialOffset = params.offset ?? 0
+
+  const queryKey =
+    mode === 'children' && parentId != null
+      ? importQueryKeys.hierarchy.children(referenceName, parentId, limit, initialOffset)
+      : mode === 'search'
+        ? importQueryKeys.hierarchy.search(referenceName, search, limit, initialOffset)
+        : importQueryKeys.hierarchy.roots(referenceName, limit, initialOffset)
+
+  return {
+    queryKey,
+    queryFn: ({ pageParam = initialOffset }: { pageParam?: number }) =>
+      getHierarchyInspection(referenceName, {
+        ...params,
+        limit,
+        offset: pageParam,
+        search: mode === 'search' ? search : params.search,
+      }),
+    initialPageParam: initialOffset,
+    getNextPageParam: (lastPage: Awaited<ReturnType<typeof getHierarchyInspection>>) =>
+      lastPage.next_offset ?? undefined,
+    staleTime: 60_000,
   }
 }
 

@@ -164,16 +164,13 @@ const DataExplorerResultsTable = memo(function DataExplorerResultsTable({
   onEnrichmentPreview,
   onJsonCellClick,
 }: DataExplorerResultsTableProps) {
-  const [scrollTop, setScrollTop] = useState(0)
+  const [scrollState, setScrollState] = useState({ queryResult, scrollTop: 0 })
+  const scrollTop = scrollState.queryResult === queryResult ? scrollState.scrollTop : 0
   const rows = queryResult.rows
   const columns = queryResult.columns
   const hasActionsColumn = selectedTable === 'taxon_ref'
   const totalColumnCount = columns.length + (hasActionsColumn ? 1 : 0)
   const shouldVirtualize = rows.length > RESULT_VIRTUALIZE_THRESHOLD
-
-  useEffect(() => {
-    setScrollTop(0)
-  }, [queryResult])
 
   const visibleRange = useMemo(() => {
     if (!shouldVirtualize) {
@@ -204,10 +201,13 @@ const DataExplorerResultsTable = memo(function DataExplorerResultsTable({
   const handleScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
       if (shouldVirtualize) {
-        setScrollTop(event.currentTarget.scrollTop)
+        setScrollState({
+          queryResult,
+          scrollTop: event.currentTarget.scrollTop,
+        })
       }
     },
-    [shouldVirtualize],
+    [queryResult, shouldVirtualize],
   )
 
   const topSpacerHeight = shouldVirtualize ? visibleRange.start * RESULT_ROW_HEIGHT_PX : 0

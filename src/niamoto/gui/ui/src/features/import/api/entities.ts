@@ -21,7 +21,7 @@ export interface DatasetsResponse {
 export interface ReferenceInfo {
   name: string
   table_name: string
-  kind: 'hierarchical' | 'generic' | 'spatial'
+  kind: 'hierarchical' | 'nested' | 'generic' | 'spatial'
   description?: string
   schema_fields: Array<{
     name: string

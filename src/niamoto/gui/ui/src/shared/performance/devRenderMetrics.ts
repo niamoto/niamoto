@@ -123,13 +123,13 @@ export function useDevListRenderMetric(
   const itemThreshold = options.itemThreshold ?? DEFAULT_LIST_ITEM_THRESHOLD
   const shouldRecord = isDevRenderMetricsEnabled()
     && shouldRecordListRenderMetric(itemCount, itemThreshold)
-  const startedAt = shouldRecord ? performance.now() : null
 
   useEffect(() => {
-    if (startedAt === null) {
+    if (!shouldRecord) {
       return
     }
 
+    const startedAt = performance.now()
     recordDevRenderMetric(createDevRenderMetric({
       name,
       itemCount,
