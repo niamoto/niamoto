@@ -67,6 +67,10 @@ interface IndexConfigEditorProps {
 }
 
 export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps) {
+  return <IndexConfigEditorContent key={groupBy} groupBy={groupBy} className={className} />
+}
+
+function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps) {
   const {
     config,
     loading,
@@ -100,6 +104,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const [availableFields, setAvailableFields] = useState<SuggestedDisplayField[]>([])
   const [loadingAvailableFields, setLoadingAvailableFields] = useState(false)
   const activeGroupRef = useRef(groupBy)
+  const mountedRef = useRef(true)
   const {
     mutate: requestGroupIndexPreview,
     isPending: isPreviewPending,
@@ -107,12 +112,10 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const needsSaveAttention = isDirty && !saving
 
   useEffect(() => {
-    activeGroupRef.current = groupBy
-    setAvailableFields([])
-    setLoadingAvailableFields(false)
-    setDetecting(false)
-    setEditingFieldIndex(null)
-  }, [groupBy])
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const rememberAvailableFields = useCallback((suggestions: IndexFieldSuggestions) => {
     setAvailableFields(
@@ -130,10 +133,10 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     const requestedGroup = groupBy
     setLoadingAvailableFields(true)
     const suggestions = await fetchSuggestions()
-    if (suggestions && activeGroupRef.current === requestedGroup) {
+    if (suggestions && mountedRef.current && activeGroupRef.current === requestedGroup) {
       rememberAvailableFields(suggestions)
     }
-    if (activeGroupRef.current === requestedGroup) {
+    if (mountedRef.current && activeGroupRef.current === requestedGroup) {
       setLoadingAvailableFields(false)
     }
   }, [
@@ -205,7 +208,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     const requestedGroup = groupBy
     setDetecting(true)
     const suggestions = await fetchSuggestions()
-    if (activeGroupRef.current !== requestedGroup) {
+    if (!mountedRef.current || activeGroupRef.current !== requestedGroup) {
       return
     }
     setDetecting(false)
