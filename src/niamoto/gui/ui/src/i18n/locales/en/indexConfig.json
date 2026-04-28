@@ -102,6 +102,7 @@
     "noDataFieldSelected": "No field selected",
     "fieldPickerPlaceholder": "Search fields or paths...",
     "fieldPickerLoading": "Loading fields...",
+    "fieldPickerLoadError": "Could not load fields. Try again.",
     "fieldPickerEmpty": "No matching field found.",
     "detectedFields": "Detected fields",
     "exampleValues": "Examples: {{values}}",

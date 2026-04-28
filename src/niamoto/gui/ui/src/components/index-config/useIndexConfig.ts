@@ -9,9 +9,12 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isAxiosError } from 'axios'
 import type { LocalizedString } from '@/components/ui/localized-input'
+import { apiClient } from '@/shared/lib/api/client'
+import { getApiErrorMessage } from '@/shared/lib/api/errors'
 
-const API_BASE = '/api/config'
+const API_BASE = '/config'
 
 /**
  * Suggested display field from auto-detection
@@ -237,25 +240,21 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE}/export/${groupBy}/index-generator`)
-
-      if (response.status === 404) {
-        // No config exists yet, use defaults
-        setServerConfig(null)
-        setLocalConfig(buildDefaultConfig())
-        setLoading(false)
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch index config: ${response.statusText}`)
-      }
-
-      const data = await response.json()
+      const response = await apiClient.get<IndexGeneratorConfig>(
+        `${API_BASE}/export/${encodeURIComponent(groupBy)}/index-generator`
+      )
+      const data = response.data
       setServerConfig(data)
       setLocalConfig(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      if (isAxiosError(err) && err.response?.status === 404) {
+        // No config exists yet, use defaults
+        setServerConfig(null)
+        setLocalConfig(buildDefaultConfig())
+        return
+      }
+
+      setError(getApiErrorMessage(err, 'Failed to fetch index config'))
     } finally {
       setLoading(false)
     }
@@ -356,23 +355,16 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
     try {
       setError(null)
 
-      const response = await fetch(`${API_BASE}/export/${groupBy}/index-generator`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localConfig),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to save index config')
-      }
-
-      const savedConfig = await response.json()
+      const response = await apiClient.put<IndexGeneratorConfig>(
+        `${API_BASE}/export/${encodeURIComponent(groupBy)}/index-generator`,
+        localConfig
+      )
+      const savedConfig = response.data
       setServerConfig(savedConfig)
       setLocalConfig(savedConfig)
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      setError(getApiErrorMessage(err, 'Failed to save index config'))
       return false
     }
   }, [groupBy, localConfig])
@@ -389,14 +381,13 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
   // Fetch suggestions from auto-detection
   const fetchSuggestions = useCallback(async (): Promise<IndexFieldSuggestions | null> => {
     try {
-      const response = await fetch(`${API_BASE}/export/${groupBy}/index-generator/suggestions`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to fetch suggestions')
-      }
-      return await response.json()
+      const response = await apiClient.get<IndexFieldSuggestions>(
+        `${API_BASE}/export/${encodeURIComponent(groupBy)}/index-generator/suggestions`,
+        { timeout: 30000 }
+      )
+      return response.data
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      setError(getApiErrorMessage(err, 'Failed to fetch suggestions'))
       return null
     }
   }, [groupBy])
