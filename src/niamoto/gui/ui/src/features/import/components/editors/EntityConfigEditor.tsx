@@ -10,8 +10,10 @@
 import { DatasetConfigForm } from './DatasetConfigForm'
 import { ReferenceConfigForm } from './ReferenceConfigForm'
 import { LayerConfigForm } from './LayerConfigForm'
+import { AuxiliarySourceConfigForm } from './AuxiliarySourceConfigForm'
+import type { AuxiliarySource } from '@/features/import/api/smart-config'
 
-export type EntityType = 'dataset' | 'reference' | 'layer'
+export type EntityType = 'dataset' | 'reference' | 'auxiliary' | 'layer'
 
 export interface DatasetConfig {
   connector: {
@@ -75,10 +77,12 @@ export interface LayerConfig {
   description?: string
 }
 
+export type AuxiliarySourceConfig = AuxiliarySource
+
 interface EntityConfigEditorProps {
   entityName: string
   entityType: EntityType
-  config: DatasetConfig | ReferenceConfig | LayerConfig
+  config: DatasetConfig | ReferenceConfig | AuxiliarySourceConfig | LayerConfig
   /** Available columns from auto-detection (for dropdowns) */
   detectedColumns?: string[]
   /** Available references (for FK links in datasets) */
@@ -88,8 +92,10 @@ interface EntityConfigEditorProps {
   }>
   /** Available datasets (for derived reference source) */
   availableDatasets?: string[]
+  /** Available transform targets for auxiliary sources */
+  availableAuxiliaryTargets?: string[]
   /** Callback when config is updated */
-  onSave: (updated: DatasetConfig | ReferenceConfig | LayerConfig) => void
+  onSave: (updated: DatasetConfig | ReferenceConfig | AuxiliarySourceConfig | LayerConfig) => void
   /** Optional callback for cancel */
   onCancel?: () => void
 }
@@ -101,6 +107,7 @@ export function EntityConfigEditor({
   detectedColumns = [],
   availableReferences = [],
   availableDatasets = [],
+  availableAuxiliaryTargets = [],
   onSave,
   onCancel,
 }: EntityConfigEditorProps) {
@@ -129,6 +136,17 @@ export function EntityConfigEditor({
         />
       )
 
+    case 'auxiliary':
+      return (
+        <AuxiliarySourceConfigForm
+          source={config as AuxiliarySourceConfig}
+          detectedColumns={detectedColumns}
+          availableTargets={availableAuxiliaryTargets}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      )
+
     case 'layer':
       return (
         <LayerConfigForm
@@ -141,7 +159,7 @@ export function EntityConfigEditor({
     default:
       return (
         <div className="p-4 text-sm text-muted-foreground">
-          Type d'entite non supporte: {entityType}
+          Type d'entité non supporté: {entityType}
         </div>
       )
   }

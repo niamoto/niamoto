@@ -22,7 +22,7 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
   if (!result) {
     return (
       <div className="py-4 text-center text-sm text-muted-foreground">
-        Aucune configuration a afficher
+        Aucune configuration à afficher
       </div>
     )
   }
@@ -39,6 +39,9 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
   // Add metadata if present
   if (result.entities.metadata) {
     yamlConfig.metadata = result.entities.metadata
+  }
+  if (result.auxiliary_sources?.length) {
+    yamlConfig.auxiliary_sources = result.auxiliary_sources
   }
 
   const yamlString = yaml.dump(yamlConfig, {
@@ -78,7 +81,7 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
             {copied ? (
               <>
                 <Check className="mr-1 h-4 w-4" />
-                Copie!
+                Copié !
               </>
             ) : (
               <>
@@ -90,7 +93,7 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
 
           <Button variant="secondary" size="sm" onClick={handleDownload}>
             <Download className="mr-1 h-4 w-4" />
-            Telecharger
+            Télécharger
           </Button>
         </div>
       </div>
@@ -98,7 +101,7 @@ export function YamlPreview({ result, maxHeight = '400px' }: YamlPreviewProps) {
       <Alert>
         <FileCode className="h-4 w-4" />
         <AlertDescription>
-          Ce fichier YAML sera enregistre dans{' '}
+          Ce fichier YAML sera enregistré dans{' '}
           <code className="rounded bg-muted px-1 py-0.5">config/import.yml</code>
         </AlertDescription>
       </Alert>

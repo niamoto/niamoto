@@ -157,6 +157,94 @@ class TestAutoConfigServiceBenchmark:
             for source in result["auxiliary_sources"]
         )
 
+    def test_rich_plot_reference_and_stats_sources_match_test_instance_shape(
+        self, benchmark_service: AutoConfigService, tmp_path: Path
+    ):
+        imports_dir = tmp_path / "imports"
+        imports_dir.mkdir(exist_ok=True)
+
+        occurrence_rows = [
+            "id,id_table_liste_plots_n,idtax_individual_f,tax_fam,tax_gen,tax_sp_level,stem_diameter,height_m,observed_at,data_src,level_det,measurement,geo_pt",
+        ]
+        for index in range(1, 31):
+            plot_id = 1 if index <= 15 else 2
+            taxon_id = 4 if index <= 15 else 38
+            occurrence_rows.append(
+                f'{index},{plot_id},{taxon_id},Family {taxon_id},Genus {taxon_id},Species {taxon_id},{index * 2.0},{index / 10},2024-01-01,inventories,species,{index * 1.5},"POINT ({index} {index})"'
+            )
+        (imports_dir / "occurrences.csv").write_text(
+            "\n".join(occurrence_rows) + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "plots.csv").write_text(
+            "\n".join(
+                [
+                    "id_liste_plots,plot_name,locality_name,date_y,nbe_stem,geo_pt",
+                    '1,Plot A,Locality A,2020,356,"POINT (1 1)"',
+                    '2,Plot B,Locality B,2021,408,"POINT (2 2)"',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "raw_plot_stats.csv").write_text(
+            "\n".join(
+                [
+                    "plot_id,class_object,class_value,class_name",
+                    "1,nbe_stem,356,NA",
+                    "2,nbe_stem,408,NA",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (imports_dir / "raw_taxa_stats.csv").write_text(
+            "\n".join(
+                [
+                    "taxon_id,class_object,class_value,class_name",
+                    "4,nbe_source_dataset,12,cafriplot network",
+                    "38,nbe_source_dataset,18,cafriplot network",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = benchmark_service.auto_configure(
+            [
+                "imports/occurrences.csv",
+                "imports/plots.csv",
+                "imports/raw_plot_stats.csv",
+                "imports/raw_taxa_stats.csv",
+            ]
+        )
+
+        assert set(result["entities"]["datasets"]) == {"occurrences"}
+        assert {"plots", "taxons"}.issubset(result["entities"]["references"])
+        assert "raw_plot_stats" not in result["entities"]["references"]
+        assert "raw_taxa_stats" not in result["entities"]["references"]
+        assert result["decision_summary"]["plots"]["final_entity_type"] == "reference"
+        assert (
+            result["decision_summary"]["raw_plot_stats"]["final_entity_type"]
+            == "auxiliary_source"
+        )
+        assert (
+            result["decision_summary"]["raw_taxa_stats"]["final_entity_type"]
+            == "auxiliary_source"
+        )
+
+        sources_by_name = {
+            source["name"]: source for source in result["auxiliary_sources"]
+        }
+        assert sources_by_name["plot_stats"]["grouping"] == "plots"
+        assert (
+            sources_by_name["plot_stats"]["relation"]["ref_field"] == "id_liste_plots"
+        )
+        assert sources_by_name["plot_stats"]["relation"]["match_field"] == "plot_id"
+        assert sources_by_name["taxa_stats"]["grouping"] == "taxons"
+        assert sources_by_name["taxa_stats"]["relation"]["ref_field"] == "taxons_id"
+        assert sources_by_name["taxa_stats"]["relation"]["match_field"] == "taxon_id"
+
     def test_reference_relation_prefers_dataset_over_auxiliary_source(
         self, benchmark_service: AutoConfigService, tmp_path: Path
     ):

@@ -20,6 +20,10 @@ def build_entity_review(
     final_entity_type = decision.get("final_entity_type")
     heuristics = decision.get("heuristic_flags", {})
     review_level = "stable"
+    behaves_like_reference = bool(
+        heuristics.get("is_enriched_reference_candidate")
+        or heuristics.get("is_strong_reference_target")
+    )
 
     def elevate(level: str) -> None:
         nonlocal review_level
@@ -35,7 +39,7 @@ def build_entity_review(
         if (
             final_entity_type in {"reference", "hierarchical_reference"}
             and ml_entity_type == "dataset"
-            and heuristics.get("is_enriched_reference_candidate")
+            and behaves_like_reference
         ):
             elevate("notice")
             review_reasons.append(
@@ -54,7 +58,7 @@ def build_entity_review(
     if final_entity_type in {"reference", "hierarchical_reference"} and heuristics.get(
         "has_observations"
     ):
-        if heuristics.get("is_enriched_reference_candidate"):
+        if behaves_like_reference:
             elevate("notice")
             review_reasons.append(
                 "Observation-like signals were detected, but the file still behaves like an enriched reference."

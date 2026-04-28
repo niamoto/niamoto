@@ -277,6 +277,7 @@ export function ImportWizard() {
           references: importConfig.entities?.references || {},
           metadata: importConfig.metadata || {},
         },
+        auxiliary_sources: importConfig.auxiliary_sources || [],
         detected_columns: detectedColumns,
         confidence: 1.0,
         warnings: [],
@@ -334,12 +335,9 @@ export function ImportWizard() {
 
   // Handle entity reclassification
   const handleReclassify = useCallback(
-    (updatedEntities: AutoConfigureResponse['entities']) => {
+    (updatedResult: AutoConfigureResponse) => {
       if (!configResult) return
-      setConfigResult({
-        ...configResult,
-        entities: updatedEntities,
-      })
+      setConfigResult(updatedResult)
     },
     [configResult]
   )

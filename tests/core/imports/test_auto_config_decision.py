@@ -181,6 +181,51 @@ def test_build_entity_decision_rejects_enriched_reference_when_dates_present():
     assert decision["heuristic_flags"]["is_enriched_reference_candidate"] is False
 
 
+def test_build_entity_decision_promotes_rich_reference_when_strongly_referenced():
+    analysis = _base_analysis()
+    analysis.update(
+        {
+            "columns": ["id_plot", "plot", "observed_at", "nbe_stem", "geo_pt"],
+            "date_columns": ["observed_at"],
+            "id_columns": ["id_plot"],
+            "name_columns": ["plot"],
+            "geometry_columns": ["geo_pt"],
+            "row_count": 20,
+            "ml_predictions": [
+                {
+                    "column": "observed_at",
+                    "concept": "time.event_date",
+                    "confidence": 1.0,
+                    "source": "semantic_classifier",
+                }
+            ],
+        }
+    )
+
+    decision = build_entity_decision(
+        entity_name="plots",
+        analysis=analysis,
+        referenced_by={
+            "plots": [
+                {
+                    "from": "occurrences",
+                    "field": "id_plot",
+                    "target_field": "id_plot",
+                    "confidence": 0.98,
+                }
+            ]
+        },
+        all_analyses={
+            "imports/plots.csv": analysis,
+            "imports/occurrences.csv": {"row_count": 1000},
+        },
+    )
+
+    assert decision["heuristic_flags"]["is_enriched_reference_candidate"] is False
+    assert decision["heuristic_flags"]["is_strong_reference_target"] is True
+    assert decision["final_entity_type"] == "reference"
+
+
 def test_build_entity_decision_reuses_precomputed_heuristics(monkeypatch):
     analysis = _base_analysis()
     analysis["heuristic_classification"] = {
