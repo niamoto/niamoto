@@ -48,6 +48,8 @@ interface FieldRowProps {
   onDelete: (index: number) => void
 }
 
+const NO_FORMAT_VALUE = '__none__'
+
 function FieldRow({
   groupBy,
   sources,
@@ -195,10 +197,10 @@ function FieldRow({
             <div className="space-y-1">
               <Label className="text-xs">Format</Label>
               <Select
-                value={field.format || ''}
+                value={field.format || NO_FORMAT_VALUE}
                 onValueChange={(v) =>
                   handleFieldChange({
-                    format: v ? (v as FieldConfig['format']) : undefined,
+                    format: v === NO_FORMAT_VALUE ? undefined : (v as FieldConfig['format']),
                   })
                 }
               >
@@ -206,7 +208,7 @@ function FieldRow({
                   <SelectValue placeholder={t('recipe.none')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{t('recipe.none')}</SelectItem>
+                  <SelectItem value={NO_FORMAT_VALUE}>{t('recipe.none')}</SelectItem>
                   <SelectItem value="boolean">boolean</SelectItem>
                   <SelectItem value="url">url</SelectItem>
                   <SelectItem value="text">text</SelectItem>
