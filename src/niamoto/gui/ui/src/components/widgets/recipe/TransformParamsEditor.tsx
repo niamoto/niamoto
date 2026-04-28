@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -15,6 +15,18 @@ interface TransformParamsEditorProps {
   onChange: (value: Record<string, unknown> | undefined) => void
 }
 
+function cleanParams(params: Record<string, unknown>): Record<string, unknown> | undefined {
+  const entries = Object.entries(params).filter(
+    ([, value]) => value !== undefined && value !== ''
+  )
+
+  if (entries.length === 0) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries)
+}
+
 /**
  * Dynamic editor for transform_params based on selected transform type.
  * Renders a form with appropriate inputs for each parameter defined in the schema.
@@ -25,14 +37,10 @@ export function TransformParamsEditor({
   value,
   onChange,
 }: TransformParamsEditorProps) {
-  // Local state for editing
-  const [localParams, setLocalParams] = useState<Record<string, unknown>>(value || {})
-
   // Get the schema for the selected transform
   const currentSchema = selectedTransform ? transformSchemas[selectedTransform] : null
 
-  // Initialize params with defaults when transform changes
-  useEffect(() => {
+  const displayParams = useMemo(() => {
     const nextParams: Record<string, unknown> = {}
     if (currentSchema) {
       for (const [key, def] of Object.entries(currentSchema)) {
@@ -44,26 +52,20 @@ export function TransformParamsEditor({
       }
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setLocalParams(nextParams)
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
+    return nextParams
   }, [currentSchema, value])
 
-  // Sync local params to parent
-  useEffect(() => {
-    const hasValues = Object.keys(localParams).length > 0 &&
-                      Object.values(localParams).some(v => v !== undefined && v !== '')
-    onChange(hasValues ? localParams : undefined)
-  }, [localParams, onChange])
-
   const updateParam = useCallback((key: string, val: unknown) => {
-    setLocalParams(prev => ({
-      ...prev,
-      [key]: val,
-    }))
-  }, [])
+    const nextParams = { ...displayParams }
+
+    if (val === undefined || val === '') {
+      delete nextParams[key]
+    } else {
+      nextParams[key] = val
+    }
+
+    onChange(cleanParams(nextParams))
+  }, [displayParams, onChange])
 
   // No transform selected or no schema
   if (!selectedTransform || !currentSchema) {
@@ -79,7 +81,7 @@ export function TransformParamsEditor({
   return (
     <div className="space-y-3 p-3 bg-muted/30 rounded border">
       <Label className="text-xs font-medium text-muted-foreground">
-        Parametres de transformation ({selectedTransform})
+        Paramètres de transformation ({selectedTransform})
       </Label>
 
       <div className="grid gap-3">
@@ -97,19 +99,19 @@ export function TransformParamsEditor({
             {def.type === 'boolean' ? (
               <div className="flex items-center gap-2">
                 <Switch
-                  checked={Boolean(localParams[key] ?? def.default)}
+                  checked={Boolean(displayParams[key] ?? def.default)}
                   onCheckedChange={(checked) => updateParam(key, checked)}
                 />
                 <span className="text-xs text-muted-foreground">
-                  {localParams[key] ? 'Oui' : 'Non'}
+                  {displayParams[key] ? 'Oui' : 'Non'}
                 </span>
               </div>
             ) : def.type === 'array' ? (
               <Input
                 className="h-8"
-                value={Array.isArray(localParams[key])
-                  ? (localParams[key] as string[]).join(', ')
-                  : String(localParams[key] ?? '')}
+                value={Array.isArray(displayParams[key])
+                  ? (displayParams[key] as string[]).join(', ')
+                  : String(displayParams[key] ?? '')}
                 onChange={(e) => {
                   const vals = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
                   updateParam(key, vals.length > 0 ? vals : undefined)
@@ -120,13 +122,13 @@ export function TransformParamsEditor({
               <Input
                 type="number"
                 className="h-8"
-                value={String(localParams[key] ?? def.default ?? '')}
+                value={String(displayParams[key] ?? def.default ?? '')}
                 onChange={(e) => updateParam(key, e.target.value ? Number(e.target.value) : undefined)}
               />
             ) : (
               <Input
                 className="h-8"
-                value={String(localParams[key] ?? def.default ?? '')}
+                value={String(displayParams[key] ?? def.default ?? '')}
                 onChange={(e) => updateParam(key, e.target.value || undefined)}
                 placeholder={def.default ? String(def.default) : undefined}
               />
