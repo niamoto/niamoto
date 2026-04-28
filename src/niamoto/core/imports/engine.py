@@ -99,10 +99,16 @@ class GenericImporter:
             absolute_csv_path = csv_path.absolute()
             escaped_path = str(absolute_csv_path).replace("'", "''")
 
-            # Create table using DuckDB's read_csv_auto (auto-detects schema)
+            # Scan the full CSV for dialect and type detection. DuckDB's default
+            # sample can miss late quoted values and mixed identifier formats.
             create_sql = f"""
                 CREATE TABLE {quoted_table} AS
-                SELECT * FROM read_csv_auto('{escaped_path}', header=true, auto_detect=true)
+                SELECT * FROM read_csv_auto(
+                    '{escaped_path}',
+                    header=true,
+                    auto_detect=true,
+                    sample_size=-1
+                )
             """
             self.db.execute_sql(create_sql)
 

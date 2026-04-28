@@ -348,3 +348,51 @@ def test_multi_feature_import_reprojects_to_wgs84(tmp_path, monkeypatch):
     )
     assert geom.x == pytest.approx(expected_lon, abs=1e-5)
     assert geom.y == pytest.approx(expected_lat, abs=1e-5)
+
+
+def test_duckdb_csv_import_detects_late_quoted_values(tmp_path):
+    """DuckDB CSV detection must scan beyond its default sample size."""
+
+    occurrences_csv = tmp_path / "occurrences.csv"
+    with occurrences_csv.open("w", encoding="utf-8") as f:
+        f.write(
+            "tax_fam,tax_author,tax_infra,tax_esp,tax_gen,tax_name,"
+            "plot_name,idtax_individual_f\n"
+        )
+        for index in range(20500):
+            f.write(
+                "Fam,Author,,species,Genus,Genus species,"
+                f"plot{index},{100000 + index}\n"
+            )
+        f.write(
+            'Anisophylleaceae,"Anisophyllea neopurpurascens Li Bing Zhang, '
+            'X. Chen & H. He",,neopurpurascens,Anisophyllea,'
+            "Anisophyllea neopurpurascens,atogboga001,351398\n"
+        )
+
+    db = Database(str(tmp_path / "test.duckdb"))
+    registry = EntityRegistry(db)
+    importer = GenericImporter(db, registry)
+
+    result = importer.import_from_csv(
+        entity_name="occurrences",
+        table_name="dataset_occurrences",
+        source_path=str(occurrences_csv),
+        kind=EntityKind.DATASET,
+        id_field="idtax_individual_f",
+    )
+
+    assert result.rows == 20501
+
+    row = pd.read_sql(
+        """
+        SELECT tax_author, plot_name, idtax_individual_f
+        FROM dataset_occurrences
+        WHERE plot_name = 'atogboga001'
+        """,
+        db.engine,
+    ).iloc[0]
+    assert row["tax_author"] == (
+        "Anisophyllea neopurpurascens Li Bing Zhang, X. Chen & H. He"
+    )
+    assert row["idtax_individual_f"] == 351398
