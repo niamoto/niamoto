@@ -115,6 +115,7 @@ export function MarkdownContentField({
   const [viewMode, setViewMode] = useState<ViewMode>('write')
   const [sourceControlsOpen, setSourceControlsOpen] = useState(!contentSource)
   const [editedContent, setEditedContent] = useState('')
+  const [draftFilePath, setDraftFilePath] = useState<string | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -150,8 +151,9 @@ export function MarkdownContentField({
     }
   }, [contentSource])
 
-  const resetSingleFileDraft = useCallback((content = '') => {
+  const resetSingleFileDraft = useCallback((content = '', filePath: string | null = null) => {
     setEditedContent(content)
+    setDraftFilePath(filePath)
     setHasUnsavedChanges(false)
     setIsSaving(false)
   }, [])
@@ -171,13 +173,18 @@ export function MarkdownContentField({
     }
 
     if (pathChanged) {
-      resetSingleFileDraft(fileContentData?.content ?? '')
+      if (fileContentData?.content !== undefined) {
+        resetSingleFileDraft(fileContentData.content, singleFilePath)
+      } else {
+        resetSingleFileDraft()
+      }
       setViewMode('write')
       return
     }
 
     if (!hasUnsavedChangesRef.current && fileContentData?.content !== undefined) {
       setEditedContent(fileContentData.content)
+      setDraftFilePath(singleFilePath)
     }
   }, [
     fileContentData?.content,
@@ -236,6 +243,7 @@ export function MarkdownContentField({
 
   const handleCancelEdit = () => {
     setEditedContent(fileContentData?.content || '')
+    setDraftFilePath(singleFilePath)
     setHasUnsavedChanges(false)
     setViewMode('write')
   }
@@ -426,7 +434,7 @@ export function MarkdownContentField({
       )
     }
 
-    if (fileContentLoading) {
+    if (fileContentLoading || draftFilePath !== singleFilePath) {
       return editorFallback
     }
 

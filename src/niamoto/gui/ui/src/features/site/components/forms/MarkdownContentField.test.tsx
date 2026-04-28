@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, type ReactElement } from 'react'
+import { act, useState, type ReactElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,23 +47,30 @@ vi.mock('@/features/site/components/MarkdownEditor', () => ({
     initialContent?: string
     onChange?: (value: string) => void
     readOnly?: boolean
-  }) => (
-    <div
-      data-testid={props.readOnly ? 'markdown-preview' : 'markdown-write'}
-      data-content={props.initialContent || ''}
-    >
-      <span>{props.initialContent || ''}</span>
-      {!props.readOnly ? (
-        <button
-          type="button"
-          data-testid="markdown-change"
-          onClick={() => props.onChange?.('Changed draft markdown')}
-        >
-          change
-        </button>
-      ) : null}
-    </div>
-  ),
+  }) => {
+    const [content, setContent] = useState(props.initialContent || '')
+
+    return (
+      <div
+        data-testid={props.readOnly ? 'markdown-preview' : 'markdown-write'}
+        data-content={content}
+      >
+        <span>{content}</span>
+        {!props.readOnly ? (
+          <button
+            type="button"
+            data-testid="markdown-change"
+            onClick={() => {
+              setContent('Changed draft markdown')
+              props.onChange?.('Changed draft markdown')
+            }}
+          >
+            change
+          </button>
+        ) : null}
+      </div>
+    )
+  },
 }))
 
 vi.mock('@/features/site/components/MultilingualMarkdownEditor', () => ({
@@ -155,7 +162,9 @@ describe('MarkdownContentField', () => {
       />
     )
 
-    expect(harness.container.querySelector('[data-testid="markdown-write"]')).not.toBeNull()
+    const editor = harness.container.querySelector('[data-testid="markdown-write"]')
+    expect(editor).not.toBeNull()
+    expect(editor?.getAttribute('data-content')).toBe('Initial markdown')
     expect(
       harness.container.querySelector('[data-markdown-field-variant="authoring"]')
     ).not.toBeNull()
@@ -265,6 +274,75 @@ describe('MarkdownContentField', () => {
     expect(saveButton?.disabled).toBe(true)
     expect(harness.container.textContent).toContain('terms.md')
     expect(mutateAsync).not.toHaveBeenCalled()
+
+    await harness.unmount()
+  })
+
+  it('mounts the write editor with the fetched content after switching to a loading page', async () => {
+    const harness = createHarness()
+    const onContentSourceChange = vi.fn()
+    let termsLoaded = false
+
+    useFileContent.mockImplementation((path: string | null) => {
+      if (path === 'templates/content/terms.md') {
+        return termsLoaded
+          ? {
+              data: { content: 'Terms markdown' },
+              error: null,
+              isLoading: false,
+            }
+          : {
+              data: undefined,
+              error: null,
+              isLoading: true,
+            }
+      }
+
+      return {
+        data: { content: 'Initial markdown' },
+        error: null,
+        isLoading: false,
+      }
+    })
+
+    await harness.render(
+      <MarkdownContentField
+        baseName="about"
+        contentSource="templates/content/about.md"
+        onContentSourceChange={onContentSourceChange}
+      />
+    )
+
+    expect(
+      harness.container
+        .querySelector('[data-testid="markdown-write"]')
+        ?.getAttribute('data-content')
+    ).toBe('Initial markdown')
+
+    await harness.render(
+      <MarkdownContentField
+        baseName="about"
+        contentSource="templates/content/terms.md"
+        onContentSourceChange={onContentSourceChange}
+      />
+    )
+
+    expect(harness.container.querySelector('[data-testid="markdown-write"]')).toBeNull()
+
+    termsLoaded = true
+    await harness.render(
+      <MarkdownContentField
+        baseName="about"
+        contentSource="templates/content/terms.md"
+        onContentSourceChange={onContentSourceChange}
+      />
+    )
+
+    expect(
+      harness.container
+        .querySelector('[data-testid="markdown-write"]')
+        ?.getAttribute('data-content')
+    ).toBe('Terms markdown')
 
     await harness.unmount()
   })
