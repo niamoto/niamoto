@@ -428,13 +428,13 @@
       "availableApiFields": "Available API Fields",
       "commonFields": "Common Niamoto fields you might want to map:",
       "structuredPresetInfo": {
-        "gbif": "GBIF Rich produces a structured summary by blocks (`Match`, `Taxonomy`, `Occurrences`, `Media`). Manual mapping is not required for this preset.",
-        "openMeteo": "Open-Meteo Elevation produces a structured summary by blocks (`Location`, `Elevation`) or (`Geometry summary`, `Elevation summary`, `Sampling`). Manual mapping is not required for this preset.",
-        "geoNames": "GeoNames Spatial produces a structured summary by blocks (`Location`, `Administrative context`, `Nearby place`) or (`Geometry summary`, `Administrative summary`, `Sampling`). Manual mapping is not required for this preset.",
-        "tropicos": "Tropicos Rich produces a structured summary by blocks (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Manual mapping is not required for this preset.",
-        "col": "Catalogue of Life Rich produces a structured summary by blocks (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Manual mapping is not required for this preset.",
-        "bhl": "BHL References produces a structured summary by blocks (`Match`, `Titles`, `Mentions`, `Pages`, `Links`). Manual mapping is not required for this preset.",
-        "inaturalist": "iNaturalist Rich produces a structured summary by blocks (`Match`, `Taxon`, `Observations`, `Media`, `Places`). Manual mapping is not required for this preset."
+        "gbif": "GBIF Rich builds a structured summary (match, taxonomy, occurrences, media). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "openMeteo": "Open-Meteo Elevation builds a structured summary (location, elevation, sampling). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "geoNames": "GeoNames Spatial builds a structured summary (location, administrative context, nearby place, sampling). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "tropicos": "Tropicos Rich builds a structured summary (match, nomenclature, taxonomy, references, distribution, media). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "col": "Catalogue of Life Rich builds a structured summary (match, taxonomy, nomenclature, vernacular names, distribution, references). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "bhl": "BHL References builds a structured summary (match, titles, mentions, pages, links). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis.",
+        "inaturalist": "iNaturalist Rich builds a structured summary (match, taxon, observations, media, places). Manual response mapping is disabled for this preset; use the test summary or raw API response for diagnosis."
       }
     }
   },

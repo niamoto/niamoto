@@ -818,8 +818,20 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     ]
                 )
             except Exception as exc:
-                summary["block_status"]["taxonomy"] = "error"
-                summary["block_errors"]["taxonomy"] = str(exc)
+                taxonomy_summary, taxonomy_raw = self._gbif_taxonomy_from_match(
+                    match_raw
+                )
+                if taxonomy_summary:
+                    summary["taxonomy"] = taxonomy_summary
+                    summary["block_status"]["taxonomy"] = "complete"
+                    raw_payload["taxonomy"] = taxonomy_raw
+                    processed_payload["taxonomy"] = taxonomy_summary
+                    summary["provenance"]["endpoints"].append(
+                        "v2/species/match:classification"
+                    )
+                else:
+                    summary["block_status"]["taxonomy"] = "error"
+                    summary["block_errors"]["taxonomy"] = str(exc)
 
         if params.include_occurrences:
             try:
@@ -2084,18 +2096,24 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
         raw = self._request_json(params.api_url or GBIF_MATCH_ENDPOINT, query_params)
         usage_key = self._gbif_extract_usage_key(raw)
+        usage = self._gbif_extract_usage_payload(raw)
+        diagnostics = (
+            raw.get("diagnostics") if isinstance(raw.get("diagnostics"), dict) else {}
+        )
 
         return (
             {
                 "usage_key": usage_key,
-                "scientific_name": raw.get("scientificName")
+                "scientific_name": usage.get("name")
+                or raw.get("scientificName")
                 or raw.get("matchedScientificName")
                 or query_value,
-                "canonical_name": raw.get("canonicalName"),
-                "rank": raw.get("rank"),
-                "status": raw.get("status"),
-                "confidence": raw.get("confidence"),
-                "match_type": raw.get("matchType"),
+                "canonical_name": usage.get("canonicalName")
+                or raw.get("canonicalName"),
+                "rank": usage.get("rank") or raw.get("rank"),
+                "status": usage.get("status") or raw.get("status"),
+                "confidence": diagnostics.get("confidence") or raw.get("confidence"),
+                "match_type": diagnostics.get("matchType") or raw.get("matchType"),
                 "taxonomy_source": self._gbif_taxonomy_source_label(params),
             },
             raw,
@@ -2262,7 +2280,106 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             value = str(candidate).strip()
             if value:
                 return value
+        usage = self._gbif_extract_usage_payload(raw)
+        for candidate in (
+            usage.get("usageKey"),
+            usage.get("acceptedUsageKey"),
+            usage.get("taxonID"),
+            usage.get("key"),
+        ):
+            if candidate is None:
+                continue
+            value = str(candidate).strip()
+            if value:
+                return value
         return ""
+
+    def _gbif_extract_usage_payload(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract the nested GBIF v2 usage payload when present."""
+
+        if not isinstance(raw, dict):
+            return {}
+
+        for container_key in ("usage", "acceptedUsage"):
+            payload = raw.get(container_key)
+            if isinstance(payload, dict):
+                return payload
+
+        nested_match = raw.get("match")
+        if isinstance(nested_match, dict):
+            for container_key in ("usage", "acceptedUsage"):
+                payload = nested_match.get(container_key)
+                if isinstance(payload, dict):
+                    return payload
+
+        return {}
+
+    def _gbif_taxonomy_from_match(
+        self, match_raw: Dict[str, Any]
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build a taxonomy summary from the GBIF v2 match payload."""
+
+        if not isinstance(match_raw, dict):
+            return {}, {}
+
+        classification = match_raw.get("classification")
+        if not isinstance(classification, list):
+            classification = []
+
+        rank_to_field = {
+            "KINGDOM": "kingdom",
+            "PHYLUM": "phylum",
+            "CLASS": "class",
+            "ORDER": "order",
+            "FAMILY": "family",
+            "GENUS": "genus",
+            "SPECIES": "species",
+        }
+        summary: Dict[str, Any] = {}
+        for item in classification:
+            if not isinstance(item, dict):
+                continue
+            field = rank_to_field.get(self._coerce_string(item.get("rank")).upper())
+            name = self._coerce_string(item.get("name"))
+            if field and name and field not in summary:
+                summary[field] = name
+
+        usage = self._gbif_extract_usage_payload(match_raw)
+        if usage:
+            summary.setdefault(
+                "species", usage.get("canonicalName") or usage.get("name")
+            )
+            if usage.get("genericName"):
+                summary.setdefault("genus", usage.get("genericName"))
+
+        iucn_category = self._gbif_extract_iucn_from_additional_status(
+            match_raw.get("additionalStatus")
+        )
+        if iucn_category:
+            summary["iucn_category"] = iucn_category
+
+        raw_summary = {
+            "classification": classification,
+            "additional_status": match_raw.get("additionalStatus"),
+        }
+        return summary, raw_summary if summary else {}
+
+    def _gbif_extract_iucn_from_additional_status(self, statuses: Any) -> Optional[str]:
+        """Extract an IUCN category from GBIF v2 additionalStatus entries."""
+
+        if not isinstance(statuses, list):
+            return None
+
+        for item in statuses:
+            if not isinstance(item, dict):
+                continue
+            dataset_alias = self._coerce_string(item.get("datasetAlias")).upper()
+            status_code = self._coerce_string(item.get("statusCode"))
+            status = self._coerce_string(item.get("status"))
+            if dataset_alias == "IUCN" or status_code:
+                return status_code or status or None
+
+        return None
 
     def _gbif_build_links(self, usage_key: str) -> Dict[str, str]:
         """Build public GBIF links for a matched taxon."""

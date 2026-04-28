@@ -428,13 +428,13 @@
       "availableApiFields": "Champs API disponibles",
       "commonFields": "Champs Niamoto courants que vous pourriez vouloir mapper :",
       "structuredPresetInfo": {
-        "gbif": "GBIF Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Occurrences`, `Media`). Le mapping manuel n'est pas requis pour ce preset.",
-        "openMeteo": "Open-Meteo Elevation produit un résumé structuré par blocs (`Location`, `Elevation`) ou (`Geometry summary`, `Elevation summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset.",
-        "geoNames": "GeoNames Spatial produit un résumé structuré par blocs (`Location`, `Administrative context`, `Nearby place`) ou (`Geometry summary`, `Administrative summary`, `Sampling`). Le mapping manuel n'est pas requis pour ce preset.",
-        "tropicos": "Tropicos Rich produit un résumé structuré par blocs (`Match`, `Nomenclature`, `Taxonomy`, `References`, `Distribution`, `Media`). Le mapping manuel n'est pas requis pour ce preset.",
-        "col": "Catalogue of Life Rich produit un résumé structuré par blocs (`Match`, `Taxonomy`, `Nomenclature`, `Vernaculars`, `Distribution`, `References`). Le mapping manuel n'est pas requis pour ce preset.",
-        "bhl": "BHL References produit un résumé structuré par blocs (`Match`, `Titles`, `Mentions`, `Pages`, `Links`). Le mapping manuel n'est pas requis pour ce preset.",
-        "inaturalist": "iNaturalist Rich produit un résumé structuré par blocs (`Match`, `Taxon`, `Observations`, `Media`, `Places`). Le mapping manuel n'est pas requis pour ce preset."
+        "gbif": "GBIF Rich construit un résumé structuré (correspondance, taxonomie, occurrences, médias). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "openMeteo": "Open-Meteo Elevation construit un résumé structuré (localisation, altitude, échantillonnage). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "geoNames": "GeoNames Spatial construit un résumé structuré (localisation, contexte administratif, lieu proche, échantillonnage). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "tropicos": "Tropicos Rich construit un résumé structuré (correspondance, nomenclature, taxonomie, références, distribution, médias). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "col": "Catalogue of Life Rich construit un résumé structuré (correspondance, taxonomie, nomenclature, noms vernaculaires, distribution, références). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "bhl": "BHL References construit un résumé structuré (correspondance, titres, mentions, pages, liens). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer.",
+        "inaturalist": "iNaturalist Rich construit un résumé structuré (correspondance, taxon, observations, médias, lieux). Le mapping manuel de la réponse est désactivé pour ce preset ; utilisez le résumé de test ou la réponse brute API pour diagnostiquer."
       }
     }
   },
