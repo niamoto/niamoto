@@ -1304,6 +1304,70 @@ def test_run_enrichment_job_does_not_save_after_cancel_during_api_call(monkeypat
     assert enrichment_service._job_results == []
 
 
+def test_run_enrichment_job_does_not_count_success_after_cancel_during_save(
+    monkeypatch,
+):
+    """Cancellation during persistence should not append a success or advance counters."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [{"id": 1, "full_name": "Araucaria", "extra_data": None}]
+    save_calls: list[object] = []
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            return {"api_enrichment": {"api_id": 42}}
+
+    def fake_save(reference_name, entity_id, source, source_data, existing_extra_data):
+        save_calls.append((reference_name, entity_id, source.id, source_data))
+        enrichment_service._job_cancel_flag = True
+        return enrichment_service._replace_source_enrichment_data(
+            existing_extra_data, source, source_data
+        )
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(enrichment_service, "_save_source_enrichment_to_db", fake_save)
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-cancel-save-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-cancel-save-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+        )
+    )
+
+    job = enrichment_service._current_job
+    assert job is not None
+    assert job.status == enrichment_service.JobStatus.CANCELLED
+    assert job.successful == 0
+    assert job.processed == 0
+    assert job.pending_processed == 0
+    assert enrichment_service._job_results == []
+    assert len(save_calls) == 1
+
+
 def test_cancel_enrichment_for_project_change_marks_foreign_job(tmp_path):
     """Project reload should release a running job from a previous project."""
 
