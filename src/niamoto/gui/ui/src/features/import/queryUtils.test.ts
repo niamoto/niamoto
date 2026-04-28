@@ -120,6 +120,22 @@ describe('import query utils', () => {
     expect(getTableColumns).toHaveBeenCalledWith('entity_taxons')
   })
 
+  it('does not retry column metadata when the table is missing', () => {
+    const options = tableColumnsQueryOptions('dataset_occurrences') as ReturnType<
+      typeof tableColumnsQueryOptions
+    > & {
+      retry?: (failureCount: number, error: unknown) => boolean
+    }
+    const retry = options.retry
+
+    expect(retry).toBeTypeOf('function')
+    expect(
+      retry?.(0, { isAxiosError: true, response: { status: 404 } })
+    ).toBe(false)
+    expect(retry?.(0, new Error('temporary failure'))).toBe(true)
+    expect(retry?.(2, new Error('temporary failure'))).toBe(false)
+  })
+
   it('builds hierarchy inspection queries by mode', async () => {
     vi.mocked(getHierarchyInspection).mockResolvedValue({
       reference_name: 'taxons',

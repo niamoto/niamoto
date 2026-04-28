@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const pageState = vi.hoisted(() => ({
   value: 1,
@@ -46,6 +46,10 @@ const queryState = vi.hoisted(() => ({
   },
 }))
 
+const queryOptionsLog = vi.hoisted(() => ({
+  previewEnabled: undefined as boolean | undefined,
+}))
+
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react')
   return {
@@ -63,11 +67,22 @@ vi.mock('@tanstack/react-query', async () => {
   return {
     ...actual,
     keepPreviousData: Symbol('keepPreviousData'),
-    useQuery: (options: { queryKey: unknown[] }) => {
+    useQuery: (options: { queryKey: unknown[]; enabled?: boolean }) => {
       const queryKey = options.queryKey
       if (queryKey[2] === 'table-columns') {
         return queryState.columns
       }
+
+      queryOptionsLog.previewEnabled = options.enabled
+      if (options.enabled === false) {
+        return {
+          data: undefined,
+          isLoading: false,
+          isFetching: false,
+          error: null,
+        }
+      }
+
       return queryState.preview
     },
   }
@@ -102,6 +117,48 @@ vi.mock('lucide-react', () => ({
 import { TableBrowser } from './TableBrowser'
 
 describe('TableBrowser', () => {
+  beforeEach(() => {
+    pageState.value = 1
+    queryOptionsLog.previewEnabled = undefined
+    queryState.columns = {
+      data: {
+        table: 'entity_taxons',
+        columns: [
+          { name: 'id', type: 'INTEGER', nullable: false, default: null },
+          { name: 'parent_id', type: 'INTEGER', nullable: true, default: null },
+          { name: 'level', type: 'INTEGER', nullable: true, default: null },
+          { name: 'rank_name', type: 'VARCHAR', nullable: true, default: null },
+          { name: 'rank_value', type: 'VARCHAR', nullable: true, default: null },
+          { name: 'full_path', type: 'VARCHAR', nullable: true, default: null },
+          { name: 'extra_data', type: 'JSON', nullable: true, default: null },
+        ],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }
+    queryState.preview = {
+      data: {
+        columns: ['id', 'parent_id', 'level', 'rank_name', 'rank_value', 'full_path'],
+        rows: [
+          {
+            id: 101,
+            parent_id: null,
+            level: 1,
+            rank_name: 'family',
+            rank_value: 'Araucariaceae',
+            full_path: 'Araucariaceae',
+          },
+        ],
+        total_count: 45,
+        page_count: 15,
+      },
+      isLoading: false,
+      isFetching: true,
+      error: null,
+    }
+  })
+
   it('shows a page-loading state and disables pagination during refetch', () => {
     const html = renderToStaticMarkup(
       <TableBrowser tableName="entity_taxons" pageSize={15} maxColumns={6} />
@@ -111,5 +168,21 @@ describe('TableBrowser', () => {
     expect(html).toContain('Page 2 / 3')
     expect(html).toContain('+1')
     expect((html.match(/<button[^>]*disabled=""/g) ?? []).length).toBe(2)
+  })
+
+  it('does not run the preview query when the table columns are unavailable', () => {
+    queryState.columns = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: { isAxiosError: true, response: { status: 404 } },
+    }
+
+    const html = renderToStaticMarkup(
+      <TableBrowser tableName="dataset_occurrences" pageSize={15} maxColumns={6} />
+    )
+
+    expect(queryOptionsLog.previewEnabled).toBe(false)
+    expect(html).toContain('Table not available')
   })
 })

@@ -602,6 +602,8 @@ async def get_table_columns_endpoint(table_name: str):
             ],
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get columns: {str(e)}")
 

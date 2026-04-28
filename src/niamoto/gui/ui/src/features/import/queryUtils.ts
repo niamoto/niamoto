@@ -75,6 +75,10 @@ export function tableColumnsQueryOptions(tableName: string) {
     queryKey: importQueryKeys.dataPreview.tableColumns(tableName),
     queryFn: () => getTableColumns(tableName),
     staleTime: 60_000,
+    retry: (failureCount: number, error: unknown) => {
+      if (isAxiosError(error) && error.response?.status === 404) return false
+      return failureCount < 2
+    },
   }
 }
 

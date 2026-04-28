@@ -44,6 +44,7 @@ export function TableBrowser({
   const {
     data: tableColumns,
     isLoading: isColumnsLoading,
+    error: columnsError,
   } = useQuery(tableColumnsQueryOptions(tableName))
 
   const previewColumns = tableColumns
@@ -53,14 +54,15 @@ export function TableBrowser({
       )
     : undefined
 
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error: previewError } = useQuery({
     ...tablePreviewQueryOptions(tableName, page, pageSize, previewColumns),
-    enabled: !isColumnsLoading,
+    enabled: !isColumnsLoading && !columnsError,
     placeholderData: keepPreviousData,
   })
 
   const isInitialLoading = isColumnsLoading || isLoading
   const isPageFetching = isFetching && !isInitialLoading
+  const error = columnsError || previewError
 
   if (isInitialLoading) {
     return (

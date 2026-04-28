@@ -175,6 +175,15 @@ def test_get_table_columns_uses_duckdb_fixture_without_reflection_errors(
     ]
 
 
+def test_get_table_columns_returns_404_when_table_is_missing(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get("/api/data/tables/dataset_missing/columns")
+
+    assert response.status_code == 404, response.text
+    assert response.json()["detail"] == "Table 'dataset_missing' not found"
+
+
 def test_query_table_applies_default_order_by_when_none_provided(
     gui_duckdb_project: Path,
 ):
