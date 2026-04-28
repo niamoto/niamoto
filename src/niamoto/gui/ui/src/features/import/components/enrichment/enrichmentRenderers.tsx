@@ -205,7 +205,7 @@ const renderValue = (value: unknown): React.ReactNode => {
 }
 
 const renderMappedPreview = (data: SourceSummary) => (
-  <div className="max-h-[360px] overflow-auto pr-2">
+  <div className="pr-2">
     <div className="space-y-2">
       {Object.entries(data).map(([field, value]) => (
         <div

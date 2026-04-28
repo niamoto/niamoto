@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-import { renderValue } from './enrichmentRenderers'
+import { renderMappedPreview, renderValue } from './enrichmentRenderers'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -37,5 +37,24 @@ describe('enrichmentRenderers', () => {
     expect(html).toContain('Bernard Suprin')
     expect(html).toContain('Benoît Henry')
     expect(html).not.toContain('&quot;small_thumb&quot;')
+  })
+
+  it('does not add an internal scroll container to mapped previews', () => {
+    const html = renderToStaticMarkup(
+      <>
+        {renderMappedPreview({
+          images: [
+            {
+              url: 'http://api.endemia.nc/ressources/images/flore/media/photo/a/example.jpg',
+              small_thumb:
+                'http://api.endemia.nc/media/cache/small_thumb/ressources/images/flore/media/photo/a/example.jpg',
+            },
+          ],
+        })}
+      </>
+    )
+
+    expect(html).not.toContain('max-h-')
+    expect(html).not.toContain('overflow-auto')
   })
 })

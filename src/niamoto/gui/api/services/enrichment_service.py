@@ -2335,6 +2335,9 @@ async def _run_enrichment_job(
                     )
                     if _current_job is None or _current_job.id != job_id:
                         return
+                    if _job_cancel_flag:
+                        _mark_job_cancelled(job_id)
+                        return
                     if merged_extra_data is None:
                         raise RuntimeError(
                             f"Failed to persist enrichment data for source '{source.label}'"
@@ -2349,6 +2352,9 @@ async def _run_enrichment_job(
                         row.get("extra_data"),
                     )
                     if _current_job is None or _current_job.id != job_id:
+                        return
+                    if _job_cancel_flag:
+                        _mark_job_cancelled(job_id)
                         return
                     if updated_extra_data is None:
                         raise RuntimeError(
