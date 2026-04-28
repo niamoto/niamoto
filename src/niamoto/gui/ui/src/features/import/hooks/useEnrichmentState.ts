@@ -73,6 +73,7 @@ export interface EnrichmentJob {
   total: number
   processed: number
   successful: number
+  empty?: number
   failed: number
   already_completed?: number
   pending_total?: number
@@ -932,7 +933,6 @@ export function useEnrichmentState({
 
   const startGlobalJob = useCallback(async () => {
     setJobLoadingScope('all')
-    void verifyEnrichmentConnectivity()
     try {
       const response = await apiClient.post<EnrichmentJob>(`/enrichment/start/${referenceName}`)
       setJob(response.data)
@@ -952,12 +952,11 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [referenceName, setAvailabilityState, startPolling, stats?.pending, t, trackStartedJob, verifyEnrichmentConnectivity])
+  }, [referenceName, setAvailabilityState, startPolling, stats?.pending, t, trackStartedJob])
 
   const startSourceJob = useCallback(async (sourceId: string) => {
     const sourceStats = stats?.sources.find((source) => source.source_id === sourceId)
     setJobLoadingScope(sourceId)
-    void verifyEnrichmentConnectivity()
     try {
       const response = await apiClient.post<EnrichmentJob>(`/enrichment/start/${referenceName}/${sourceId}`)
       setJob(response.data)
@@ -977,12 +976,11 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob, verifyEnrichmentConnectivity])
+  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob])
 
   const restartSourceJob = useCallback(async (sourceId: string) => {
     const sourceStats = stats?.sources.find((source) => source.source_id === sourceId)
     setJobLoadingScope(sourceId)
-    void verifyEnrichmentConnectivity()
     try {
       const response = await apiClient.post<EnrichmentJob>(`/enrichment/restart/${referenceName}/${sourceId}`)
       setJob(response.data)
@@ -1006,7 +1004,7 @@ export function useEnrichmentState({
     } finally {
       setJobLoadingScope(null)
     }
-  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob, verifyEnrichmentConnectivity])
+  }, [referenceName, setAvailabilityState, startPolling, stats?.sources, t, trackStartedJob])
 
   const pauseJob = useCallback(async (sourceId?: string) => {
     setJobLoadingScope(sourceId ?? 'all')

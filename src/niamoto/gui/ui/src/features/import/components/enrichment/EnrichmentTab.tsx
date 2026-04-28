@@ -74,6 +74,14 @@ import {
   useEnrichmentState,
   getResultEntityName,
 } from '../../hooks/useEnrichmentState'
+import { shouldShowEnrichmentConnectivityWarning } from './enrichmentConnectivity'
+import {
+  isStructuredSourceSummary,
+  renderMappedPreview,
+  renderRawPreview,
+  renderStructuredSummary,
+  renderValue,
+} from './enrichmentRenderers'
 
 interface EnrichmentTabProps {
   referenceName: string
@@ -83,14 +91,6 @@ interface EnrichmentTabProps {
   initialSourceId?: string | null
   onOpenWorkspace?: (sourceId?: string) => void
 }
-
-import {
-  isStructuredSourceSummary,
-  renderMappedPreview,
-  renderRawPreview,
-  renderStructuredSummary,
-  renderValue,
-} from './enrichmentRenderers'
 
 export function EnrichmentTab({
   referenceName,
@@ -204,8 +204,11 @@ export function EnrichmentTab({
       ? `${jobRunProgress.processed.toLocaleString()} / ${jobRunProgress.total.toLocaleString()}`
       : null
   const showPausedOfflineAlert = job?.status === 'paused_offline'
-  const showConnectivityWarning =
-    enrichmentAvailability === 'unavailable' && !showPausedOfflineAlert
+  const showConnectivityWarning = shouldShowEnrichmentConnectivityWarning({
+    enrichmentAvailability,
+    jobStatus: job?.status,
+    jobLoadingScope,
+  })
 
   const [isCompactWorkspace, setIsCompactWorkspace] = useState(() => {
     if (typeof window === 'undefined') {

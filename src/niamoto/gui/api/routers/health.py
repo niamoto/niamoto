@@ -10,6 +10,9 @@ from niamoto.gui.api.context import (
     get_working_directory,
     get_database_path,
 )
+from niamoto.gui.api.services.enrichment_service import (
+    cancel_enrichment_for_project_change,
+)
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 from niamoto.gui.api.services.preview_engine.engine import reset_preview_engine
 from niamoto.gui.startup_logging import log_desktop_startup
@@ -85,6 +88,7 @@ async def reload_project(request: Request):
         - success: Whether the reload was successful
     """
     reload_result = reload_project_from_desktop_config()
+    cancel_enrichment_for_project_change(reload_result.project_path)
     reset_preview_engine()
 
     if reload_result.state == "loaded":
