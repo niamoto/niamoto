@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 import csv
 import json
 import logging
@@ -10,6 +11,7 @@ import re
 import uuid
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
@@ -204,6 +206,7 @@ class EnrichmentJob(BaseModel):
     """Current in-memory enrichment job state."""
 
     id: str
+    project_path: Optional[str] = None
     reference_name: str
     mode: JobMode
     strategy: JobStrategy = JobStrategy.RESUME
@@ -211,6 +214,7 @@ class EnrichmentJob(BaseModel):
     total: int = 0
     processed: int = 0
     successful: int = 0
+    empty: int = 0
     failed: int = 0
     already_completed: int = 0
     pending_total: int = 0
@@ -234,6 +238,7 @@ class EnrichmentJob(BaseModel):
 class EnrichmentResult(BaseModel):
     """Single source/entity enrichment attempt."""
 
+    project_path: Optional[str] = None
     reference_name: str
     source_id: str
     source_label: str
@@ -280,6 +285,45 @@ _job_results: List[EnrichmentResult] = []
 _job_cancel_flag = False
 _job_pause_flag = False
 _job_task: Optional[asyncio.Task] = None
+_job_work_dir_context: ContextVar[Optional[Path]] = ContextVar(
+    "enrichment_job_work_dir",
+    default=None,
+)
+
+
+def _resolve_work_dir() -> Optional[Path]:
+    """Return the frozen job project when present, otherwise the active project."""
+
+    return _job_work_dir_context.get() or get_working_directory()
+
+
+def _project_path_string(work_dir: Optional[Path]) -> Optional[str]:
+    """Return a stable project identity string."""
+
+    if work_dir is None:
+        return None
+    try:
+        return str(Path(work_dir).expanduser().resolve())
+    except OSError:
+        return str(Path(work_dir).expanduser())
+
+
+def _current_project_path_string() -> Optional[str]:
+    """Return the currently selected project identity."""
+
+    return _project_path_string(get_working_directory())
+
+
+def _job_matches_project(
+    job: EnrichmentJob, project_path: Optional[Path] = None
+) -> bool:
+    """Return whether a job belongs to the given or current project."""
+
+    if not job.project_path:
+        return True
+    if project_path is None:
+        return job.project_path == _current_project_path_string()
+    return job.project_path == _project_path_string(project_path)
 
 
 def _slugify_source_id(value: str, fallback: str) -> str:
@@ -693,7 +737,7 @@ def _normalize_source_entries(raw_enrichment: Any) -> List[EnrichmentSourceConfi
 def _load_import_config() -> Dict[str, Any]:
     """Load import.yml from the working directory."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     config_path = work_dir / "config" / "import.yml"
     if not config_path.exists():
         return {}
@@ -881,7 +925,7 @@ def _resolve_reference_table_from_db(
 def _get_reference_table_name(reference_name: str) -> Optional[str]:
     """Resolve a reference table from the working database."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1094,7 +1138,7 @@ def _can_use_legacy_source_payload(
 def _count_reference_entities(reference_name: str) -> Optional[int]:
     """Count rows for one reference directly in SQL."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1126,7 +1170,7 @@ def _count_completed_rows_for_source(
 ) -> Optional[int]:
     """Count completed enriched rows for one source directly in SQL."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1194,7 +1238,7 @@ def _get_results_for_source_sql(
 ) -> Optional[ResultsResponse]:
     """Return paginated results for one source using SQL JSON extraction."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1358,7 +1402,7 @@ def _load_reference_rows(
 ) -> List[Dict[str, Any]]:
     """Load rows for a reference table with an optional projected column subset."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return []
 
@@ -1416,7 +1460,7 @@ def _load_reference_row(
 ) -> Optional[Dict[str, Any]]:
     """Load a single reference row by its configured identifier field."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1470,7 +1514,7 @@ def _save_source_enrichment_to_db(
 ) -> Optional[Dict[str, Any]]:
     """Persist one source payload into the entity extra_data column."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1527,7 +1571,7 @@ def _delete_source_enrichment_from_db(
 ) -> Optional[Dict[str, Any]]:
     """Delete one source payload from the entity extra_data column."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return None
 
@@ -1682,7 +1726,9 @@ def get_reference_enrichment_stats(reference_name: str) -> EnrichmentStatsRespon
 
     config = get_reference_enrichment_config(reference_name)
     stats = _compute_reference_stats(reference_name, config.sources)
-    return _decorate_source_statuses(reference_name, stats, _current_job)
+    return _decorate_source_statuses(
+        reference_name, stats, _get_current_job(reference_name)
+    )
 
 
 def get_default_enrichment_stats() -> EnrichmentStatsResponse:
@@ -1892,7 +1938,11 @@ def _load_reference_display_name_map(
     if not relative_path:
         return {}
 
-    file_path = get_working_directory() / str(relative_path)
+    work_dir = _resolve_work_dir()
+    if not work_dir:
+        return {}
+
+    file_path = work_dir / str(relative_path)
     if not file_path.exists():
         return {}
 
@@ -2062,6 +2112,8 @@ def _get_current_job(reference_name: Optional[str] = None) -> Optional[Enrichmen
 
     if _current_job is None:
         return None
+    if not _job_matches_project(_current_job):
+        return None
     if reference_name and _current_job.reference_name != reference_name:
         return None
     return _current_job
@@ -2073,21 +2125,41 @@ def get_current_job(reference_name: Optional[str] = None) -> Optional[Enrichment
     return _get_current_job(reference_name)
 
 
+def _is_active_job(job_id: str) -> bool:
+    """Return whether the background task still owns the visible job state."""
+
+    return _current_job is not None and _current_job.id == job_id
+
+
+def _mark_job_cancelled(job_id: str) -> None:
+    """Mark the matching active job as cancelled."""
+
+    if not _is_active_job(job_id):
+        return
+    _current_job.status = JobStatus.CANCELLED
+    _current_job.updated_at = datetime.now().isoformat()
+
+
 async def _run_enrichment_job(
     job_id: str,
     reference_name: str,
     sources: Sequence[EnrichmentSourceConfig],
     mode: JobMode,
     strategy: JobStrategy = JobStrategy.RESUME,
+    work_dir: Optional[Path] = None,
 ) -> None:
     """Background worker executing one or many sources for a reference."""
 
     global _current_job, _job_results, _job_cancel_flag, _job_pause_flag
 
-    rows = _load_reference_rows(reference_name)
-    preferred_source_ids = [source.id for source in sources]
+    resolved_work_dir = work_dir or _resolve_work_dir()
+    project_path = _project_path_string(resolved_work_dir)
+    context_token = _job_work_dir_context.set(resolved_work_dir)
 
     try:
+        rows = await asyncio.to_thread(_load_reference_rows, reference_name)
+        preferred_source_ids = [source.id for source in sources]
+
         if _current_job is None or _current_job.id != job_id:
             return
 
@@ -2190,16 +2262,20 @@ async def _run_enrichment_job(
                 return
 
             if _job_cancel_flag:
-                _current_job.status = JobStatus.CANCELLED
-                _current_job.updated_at = datetime.now().isoformat()
+                _mark_job_cancelled(job_id)
                 return
 
-            while _job_pause_flag or _current_job.status == JobStatus.PAUSED_OFFLINE:
+            while True:
+                if not _is_active_job(job_id):
+                    return
+                if not (
+                    _job_pause_flag or _current_job.status == JobStatus.PAUSED_OFFLINE
+                ):
+                    break
                 if _current_job.status != JobStatus.PAUSED_OFFLINE:
                     _current_job.status = JobStatus.PAUSED
                 if _job_cancel_flag:
-                    _current_job.status = JobStatus.CANCELLED
-                    _current_job.updated_at = datetime.now().isoformat()
+                    _mark_job_cancelled(job_id)
                     return
                 await asyncio.sleep(0.5)
 
@@ -2227,10 +2303,17 @@ async def _run_enrichment_job(
                 if source.id not in enrichers:
                     enrichers[source.id] = _build_enricher(source.plugin)
 
-                result = enrichers[source.id].load_data(
+                result = await asyncio.to_thread(
+                    enrichers[source.id].load_data,
                     row,
                     _build_plugin_config(source),
                 )
+                if _current_job is None or _current_job.id != job_id:
+                    return
+                if _job_cancel_flag:
+                    _mark_job_cancelled(job_id)
+                    return
+
                 source_data = (
                     result.get("api_enrichment", {}) if isinstance(result, dict) else {}
                 )
@@ -2242,25 +2325,31 @@ async def _run_enrichment_job(
                         raise RuntimeError(
                             f"Missing entity id for '{entity_name}' while saving enrichment data"
                         )
-                    merged_extra_data = _save_source_enrichment_to_db(
+                    merged_extra_data = await asyncio.to_thread(
+                        _save_source_enrichment_to_db,
                         reference_name,
                         entity_id,
                         source,
                         source_data,
                         row.get("extra_data"),
                     )
+                    if _current_job is None or _current_job.id != job_id:
+                        return
                     if merged_extra_data is None:
                         raise RuntimeError(
                             f"Failed to persist enrichment data for source '{source.label}'"
                         )
                     row["extra_data"] = merged_extra_data
                 elif strategy == JobStrategy.RESET and entity_id is not None:
-                    updated_extra_data = _delete_source_enrichment_from_db(
+                    updated_extra_data = await asyncio.to_thread(
+                        _delete_source_enrichment_from_db,
                         reference_name,
                         entity_id,
                         source.id,
                         row.get("extra_data"),
                     )
+                    if _current_job is None or _current_job.id != job_id:
+                        return
                     if updated_extra_data is None:
                         raise RuntimeError(
                             f"Failed to clear enrichment data for source '{source.label}'"
@@ -2269,6 +2358,7 @@ async def _run_enrichment_job(
 
                 _job_results.append(
                     EnrichmentResult(
+                        project_path=project_path,
                         reference_name=reference_name,
                         source_id=source.id,
                         source_label=source.label,
@@ -2285,11 +2375,20 @@ async def _run_enrichment_job(
                 )
                 if has_source_data:
                     _current_job.successful += 1
+                    source_completed[source.id] += 1
+                else:
+                    _current_job.empty += 1
                 consecutive_network_errors = 0
             except network_error_types as exc:
+                if _current_job is None or _current_job.id != job_id:
+                    return
+                if _job_cancel_flag:
+                    _mark_job_cancelled(job_id)
+                    return
                 consecutive_network_errors += 1
                 _job_results.append(
                     EnrichmentResult(
+                        project_path=project_path,
                         reference_name=reference_name,
                         source_id=source.id,
                         source_label=source.label,
@@ -2310,8 +2409,14 @@ async def _run_enrichment_job(
                     )
                     _current_job.updated_at = datetime.now().isoformat()
             except Exception as exc:
+                if _current_job is None or _current_job.id != job_id:
+                    return
+                if _job_cancel_flag:
+                    _mark_job_cancelled(job_id)
+                    return
                 _job_results.append(
                     EnrichmentResult(
+                        project_path=project_path,
                         reference_name=reference_name,
                         source_id=source.id,
                         source_label=source.label,
@@ -2327,7 +2432,6 @@ async def _run_enrichment_job(
 
             _current_job.processed += 1
             _current_job.pending_processed += 1
-            source_completed[source.id] += 1
             source_pending_processed[source.id] += 1
             _current_job.current_source_processed = source_completed[source.id]
             _current_job.current_source_pending_processed = source_pending_processed[
@@ -2340,7 +2444,17 @@ async def _run_enrichment_job(
                 sleep_seconds = max(0.0, 1.0 / source.rate_limit)
             if sleep_seconds:
                 await asyncio.sleep(sleep_seconds)
+            if not _is_active_job(job_id):
+                return
+            if _job_cancel_flag:
+                _mark_job_cancelled(job_id)
+                return
 
+        if not _is_active_job(job_id):
+            return
+        if _job_cancel_flag:
+            _mark_job_cancelled(job_id)
+            return
         _current_job.status = JobStatus.COMPLETED
         _current_job.error = None
         _current_job.current_entity = None
@@ -2356,12 +2470,17 @@ async def _run_enrichment_job(
         _current_job.status = JobStatus.FAILED
         _current_job.error = str(exc)
         _current_job.updated_at = datetime.now().isoformat()
+    finally:
+        _job_work_dir_context.reset(context_token)
 
 
 def _assert_job_can_start() -> None:
     """Reject a new job when a non-terminal one already exists."""
 
     if _current_job and _current_job.status not in TERMINAL_JOB_STATUSES:
+        if not _job_matches_project(_current_job):
+            cancel_enrichment_for_project_change(_resolve_work_dir())
+            return
         raise ValueError("An enrichment job is already active")
 
 
@@ -2376,7 +2495,13 @@ def _start_reference_enrichment(
     global _current_job, _job_results, _job_cancel_flag, _job_pause_flag, _job_task
 
     _assert_job_can_start()
-    sources = _ensure_startable_sources(reference_name, source_id)
+    work_dir = _resolve_work_dir()
+    project_path = _project_path_string(work_dir)
+    context_token = _job_work_dir_context.set(work_dir)
+    try:
+        sources = _ensure_startable_sources(reference_name, source_id)
+    finally:
+        _job_work_dir_context.reset(context_token)
 
     _job_cancel_flag = False
     _job_pause_flag = False
@@ -2386,6 +2511,7 @@ def _start_reference_enrichment(
     single_source = sources[0] if source_id else None
     _current_job = EnrichmentJob(
         id=str(uuid.uuid4()),
+        project_path=project_path,
         reference_name=reference_name,
         mode=JobMode.SINGLE if source_id else JobMode.ALL,
         strategy=strategy,
@@ -2404,6 +2530,7 @@ def _start_reference_enrichment(
             sources,
             _current_job.mode,
             strategy,
+            work_dir,
         )
     )
 
@@ -2542,6 +2669,29 @@ def cancel_default_enrichment() -> Dict[str, Any]:
     return cancel_reference_enrichment(_current_job.reference_name)
 
 
+def cancel_enrichment_for_project_change(
+    active_project_path: Optional[Path],
+) -> Optional[EnrichmentJob]:
+    """Cancel a non-terminal enrichment job that belongs to another project."""
+
+    global _job_cancel_flag, _job_pause_flag
+
+    if _current_job is None or _current_job.status in TERMINAL_JOB_STATUSES:
+        return None
+
+    if active_project_path is not None and _job_matches_project(
+        _current_job, active_project_path
+    ):
+        return None
+
+    _job_cancel_flag = True
+    _job_pause_flag = False
+    _current_job.status = JobStatus.CANCELLED
+    _current_job.error = "Project changed while enrichment was running."
+    _current_job.updated_at = datetime.now().isoformat()
+    return _current_job
+
+
 def get_results(
     reference_name: Optional[str] = None,
     page: int = 0,
@@ -2551,11 +2701,17 @@ def get_results(
     """Return paginated enrichment results."""
 
     resolved_reference_name = reference_name or _resolve_default_reference_name()
+    current_project_path = _current_project_path_string()
     job_results = [
         result
         for result in _job_results
         if (reference_name is None or result.reference_name == reference_name)
         and (source_id is None or result.source_id == source_id)
+        and (
+            not result.project_path
+            or not current_project_path
+            or result.project_path == current_project_path
+        )
     ]
 
     filtered = job_results
@@ -2785,7 +2941,7 @@ def get_entities_for_reference(
 ) -> Dict[str, Any]:
     """List reference entities with aggregate enrichment completion metadata."""
 
-    work_dir = get_working_directory()
+    work_dir = _resolve_work_dir()
     if not work_dir:
         return {"entities": [], "total": 0}
 

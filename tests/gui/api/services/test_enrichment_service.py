@@ -1166,6 +1166,270 @@ def test_run_enrichment_job_exposes_pending_run_progress(monkeypatch):
     assert job.failed == 1
 
 
+def test_run_enrichment_job_keeps_frozen_project_context(monkeypatch, tmp_path):
+    """Background jobs should keep writing to the project that started them."""
+
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    current_project = {"path": project_a}
+    seen_contexts: list[tuple[str, object, object]] = []
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [{"id": 1, "full_name": "Araucaria", "extra_data": None}]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            current_project["path"] = project_b
+            return {"api_enrichment": {"api_id": 42}}
+
+    def fake_load_rows(reference_name):
+        seen_contexts.append(
+            ("load", enrichment_service._resolve_work_dir(), current_project["path"])
+        )
+        return rows
+
+    def fake_save(reference_name, entity_id, source, source_data, existing_extra_data):
+        seen_contexts.append(
+            ("save", enrichment_service._resolve_work_dir(), current_project["path"])
+        )
+        return enrichment_service._replace_source_enrichment_data(
+            existing_extra_data, source, source_data
+        )
+
+    monkeypatch.setattr(
+        enrichment_service, "get_working_directory", lambda: current_project["path"]
+    )
+    monkeypatch.setattr(enrichment_service, "_load_reference_rows", fake_load_rows)
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(enrichment_service, "_save_source_enrichment_to_db", fake_save)
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-project-1",
+        project_path=str(project_a.resolve()),
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-project-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+            work_dir=project_a,
+        )
+    )
+
+    assert seen_contexts == [
+        ("load", project_a, project_a),
+        ("save", project_a, project_b),
+    ]
+    assert (
+        enrichment_service._current_job.status == enrichment_service.JobStatus.COMPLETED
+    )
+    assert enrichment_service.get_current_job("taxons") is None
+    current_project["path"] = project_a
+    assert (
+        enrichment_service.get_current_job("taxons") is enrichment_service._current_job
+    )
+
+
+def test_run_enrichment_job_does_not_save_after_cancel_during_api_call(monkeypatch):
+    """Cancellation after a blocking API call should stop before persistence."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+    )
+    rows = [{"id": 1, "full_name": "Araucaria", "extra_data": None}]
+    saved: list[object] = []
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            enrichment_service._job_cancel_flag = True
+            return {"api_enrichment": {"api_id": 42}}
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_save_source_enrichment_to_db",
+        lambda *args: saved.append(args),
+    )
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-cancel-1",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-cancel-1",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+        )
+    )
+
+    assert (
+        enrichment_service._current_job.status == enrichment_service.JobStatus.CANCELLED
+    )
+    assert saved == []
+    assert enrichment_service._job_results == []
+
+
+def test_cancel_enrichment_for_project_change_marks_foreign_job(tmp_path):
+    """Project reload should release a running job from a previous project."""
+
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-project-change-1",
+        project_path=str(project_a.resolve()),
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=["endemia"],
+        source_id="endemia",
+    )
+
+    job = enrichment_service.cancel_enrichment_for_project_change(project_b)
+
+    assert job is enrichment_service._current_job
+    assert enrichment_service._job_cancel_flag is True
+    assert job.status == enrichment_service.JobStatus.CANCELLED
+    assert job.error == "Project changed while enrichment was running."
+    enrichment_service._assert_job_can_start()
+
+
+def test_assert_job_can_start_cancels_foreign_running_job(monkeypatch, tmp_path):
+    """Starting in a new project should not be blocked by the previous project job."""
+
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: project_b)
+
+    now = "2026-04-21T20:00:00"
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-project-change-2",
+        project_path=str(project_a.resolve()),
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=["endemia"],
+        source_id="endemia",
+    )
+
+    enrichment_service._assert_job_can_start()
+
+    assert enrichment_service._job_cancel_flag is True
+    assert (
+        enrichment_service._current_job.status == enrichment_service.JobStatus.CANCELLED
+    )
+
+
+def test_run_enrichment_job_does_not_complete_replaced_job_after_rate_sleep(
+    monkeypatch,
+):
+    """A stale job should not update the job that replaced it after a rate delay."""
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="endemia",
+        label="Endemia",
+        enabled=True,
+        api_url="https://api.endemia.nc/v1/taxons",
+        rate_limit=1,
+    )
+    rows = [{"id": 1, "full_name": "Araucaria", "extra_data": None}]
+
+    class FakeEnricher:
+        def load_data(self, payload, config):
+            return {"api_enrichment": {"api_id": 42}}
+
+    monkeypatch.setattr(
+        enrichment_service, "_load_reference_rows", lambda _reference_name: rows
+    )
+    monkeypatch.setattr(
+        enrichment_service, "_build_enricher", lambda _plugin: FakeEnricher()
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_save_source_enrichment_to_db",
+        lambda *args: {"api_enrichment": {"sources": {"endemia": {}}}},
+    )
+
+    now = "2026-04-21T20:00:00"
+    replacement_job = enrichment_service.EnrichmentJob(
+        id="job-replacement",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+    )
+
+    async def replace_job_during_sleep(seconds):
+        assert seconds == 1.0
+        enrichment_service._current_job = replacement_job
+
+    monkeypatch.setattr(enrichment_service.asyncio, "sleep", replace_job_during_sleep)
+    enrichment_service._current_job = enrichment_service.EnrichmentJob(
+        id="job-stale",
+        reference_name="taxons",
+        mode=enrichment_service.JobMode.SINGLE,
+        status=enrichment_service.JobStatus.RUNNING,
+        started_at=now,
+        updated_at=now,
+        source_ids=[source.id],
+        source_id=source.id,
+    )
+
+    asyncio.run(
+        enrichment_service._run_enrichment_job(
+            "job-stale",
+            "taxons",
+            [source],
+            enrichment_service.JobMode.SINGLE,
+        )
+    )
+
+    assert enrichment_service._current_job is replacement_job
+    assert replacement_job.status == enrichment_service.JobStatus.RUNNING
+
+
 def test_run_enrichment_job_reset_reprocesses_rows_and_deletes_empty_results(
     monkeypatch,
 ):
@@ -1287,7 +1551,9 @@ def test_run_enrichment_job_reset_reprocesses_rows_and_deletes_empty_results(
     assert job.pending_total == 2
     assert job.pending_processed == 2
     assert job.successful == 1
+    assert job.empty == 1
     assert job.failed == 0
+    assert job.current_source_processed == 1
 
     assert rows[0]["extra_data"]["api_enrichment"]["sources"]["endemia"]["data"] == {
         "api_id": 42

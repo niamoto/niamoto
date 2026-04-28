@@ -540,11 +540,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 session = requests.Session()
                 session.cookies.update(cookies)
                 response = session.get(
-                    url, params=api_params, headers=headers, auth=auth
+                    url, params=api_params, headers=headers, auth=auth, timeout=20
                 )
             else:
                 response = requests.get(
-                    url, params=api_params, headers=headers, auth=auth
+                    url, params=api_params, headers=headers, auth=auth, timeout=20
                 )
 
             response.raise_for_status()
@@ -706,7 +706,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 token_data["scope"] = scope
 
             # Make token request
-            response = requests.post(token_url, data=token_data)
+            response = requests.post(token_url, data=token_data, timeout=20)
             response.raise_for_status()
 
             # Parse response
@@ -3609,11 +3609,19 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     session = requests.Session()
                     session.cookies.update(cookies)
                     response = session.get(
-                        url, params=endpoint_params, headers=headers, auth=auth
+                        url,
+                        params=endpoint_params,
+                        headers=headers,
+                        auth=auth,
+                        timeout=20,
                     )
                 else:
                     response = requests.get(
-                        url, params=endpoint_params, headers=headers, auth=auth
+                        url,
+                        params=endpoint_params,
+                        headers=headers,
+                        auth=auth,
+                        timeout=20,
                     )
 
                 response.raise_for_status()

@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EnrichmentTab } from './EnrichmentTab'
+import { shouldShowEnrichmentConnectivityWarning } from './enrichmentConnectivity'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -402,5 +403,29 @@ describe('EnrichmentTab', () => {
     })
 
     expect(restartSourceJobSpy).toHaveBeenCalledWith('endemia')
+  })
+
+  it('does not show the generic connectivity warning while a job is starting or running', () => {
+    expect(
+      shouldShowEnrichmentConnectivityWarning({
+        enrichmentAvailability: 'unavailable',
+        jobStatus: 'running',
+        jobLoadingScope: null,
+      })
+    ).toBe(false)
+    expect(
+      shouldShowEnrichmentConnectivityWarning({
+        enrichmentAvailability: 'unavailable',
+        jobStatus: null,
+        jobLoadingScope: 'endemia',
+      })
+    ).toBe(false)
+    expect(
+      shouldShowEnrichmentConnectivityWarning({
+        enrichmentAvailability: 'unavailable',
+        jobStatus: 'completed',
+        jobLoadingScope: null,
+      })
+    ).toBe(true)
   })
 })
