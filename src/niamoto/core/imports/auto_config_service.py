@@ -325,6 +325,10 @@ class AutoConfigService:
         auxiliary_sources = self._detect_auxiliary_sources(
             csv_analyses=csv_analyses,
             decision_summary=decision_summary,
+            derived_reference_candidates=self._collect_derived_reference_candidates(
+                csv_analyses,
+                decision_summary,
+            ),
             has_shapes_reference=bool(shapes_sources),
         )
 
@@ -456,6 +460,7 @@ class AutoConfigService:
         self,
         csv_analyses: Dict[str, Dict[str, Any]],
         decision_summary: Dict[str, Dict[str, Any]],
+        derived_reference_candidates: Dict[str, Dict[str, Any]],
         *,
         has_shapes_reference: bool,
     ) -> Dict[str, Dict[str, Any]]:
@@ -465,6 +470,7 @@ class AutoConfigService:
             for filepath in csv_analyses
             if decision_summary.get(Path(filepath).stem, {}).get("final_entity_type")
             in {"reference", "hierarchical_reference"}
+            and not self._is_auxiliary_stats_candidate(csv_analyses[filepath])
         }
 
         for filepath, analysis in csv_analyses.items():
@@ -478,6 +484,7 @@ class AutoConfigService:
                 analysis=analysis,
                 csv_analyses=csv_analyses,
                 reference_candidates=reference_candidates,
+                derived_reference_candidates=derived_reference_candidates,
                 has_shapes_reference=has_shapes_reference,
             )
             if source_config:
@@ -487,6 +494,38 @@ class AutoConfigService:
             "Auto-config detected %d auxiliary source(s)", len(auxiliary_sources)
         )
         return auxiliary_sources
+
+    def _collect_derived_reference_candidates(
+        self,
+        csv_analyses: Dict[str, Dict[str, Any]],
+        decision_summary: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Collect references that will be generated from dataset hierarchies."""
+        candidates: Dict[str, Dict[str, Any]] = {}
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            decision = decision_summary.get(entity_name, {})
+            if decision.get("final_entity_type") != "dataset":
+                continue
+            if not analysis.get("extract_hierarchy_as_reference", False):
+                continue
+            if not analysis.get("hierarchy", {}).get("detected"):
+                continue
+
+            reference_name = self._infer_reference_name(entity_name, analysis)
+            ref_field = (
+                f"{reference_name}_id"
+                if self._is_taxonomic_hierarchy(analysis)
+                else f"{reference_name}_id"
+            )
+            candidates[reference_name] = {
+                "target": reference_name,
+                "source_dataset": entity_name,
+                "ref_field": ref_field,
+                "hierarchy_type": analysis.get("hierarchy", {}).get("hierarchy_type"),
+            }
+
+        return candidates
 
     def _detect_referenced_by(
         self, csv_analyses: Dict[str, Dict[str, Any]]
@@ -610,6 +649,7 @@ class AutoConfigService:
         analysis: Dict[str, Any],
         csv_analyses: Dict[str, Dict[str, Any]],
         reference_candidates: set[str],
+        derived_reference_candidates: Dict[str, Dict[str, Any]],
         has_shapes_reference: bool,
     ) -> Optional[Dict[str, Any]]:
         best_match = self._find_auxiliary_reference_match(
@@ -632,6 +672,24 @@ class AutoConfigService:
                 "source_entity": entity_name,
             }
 
+        derived_match = self._find_auxiliary_derived_reference_match(
+            analysis=analysis,
+            derived_reference_candidates=derived_reference_candidates,
+        )
+        if derived_match:
+            return {
+                "name": self._auxiliary_source_name(entity_name),
+                "data": filepath,
+                "grouping": derived_match["target"],
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": derived_match["ref_field"],
+                    "match_field": derived_match["source_field"],
+                },
+                "source_entity": entity_name,
+            }
+
         if has_shapes_reference:
             label_field = self._find_auxiliary_label_field(analysis)
             if label_field:
@@ -647,6 +705,47 @@ class AutoConfigService:
                     },
                     "source_entity": entity_name,
                 }
+
+        return None
+
+    def _find_auxiliary_derived_reference_match(
+        self,
+        *,
+        analysis: Dict[str, Any],
+        derived_reference_candidates: Dict[str, Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Infer stats CSV links to references generated from dataset hierarchies."""
+        columns = analysis.get("columns", [])
+        lowered = {column.lower(): column for column in columns}
+
+        for target_name, candidate in derived_reference_candidates.items():
+            target_base = target_name.removesuffix("_hierarchy")
+            tokens = {
+                part.rstrip("s")
+                for part in target_base.lower().replace("-", "_").split("_")
+                if part and part not in {"raw", "entity", "dataset", "reference"}
+            }
+            if candidate.get("hierarchy_type") == "taxonomic":
+                tokens.update({"taxon", "taxa"})
+
+            preferred_fields = []
+            for token in tokens:
+                preferred_fields.extend(
+                    [
+                        f"{token}_id",
+                        f"id_{token}",
+                        f"id_{token}ref",
+                    ]
+                )
+
+            for preferred in preferred_fields:
+                source_field = lowered.get(preferred)
+                if source_field:
+                    return {
+                        "target": target_name,
+                        "source_field": source_field,
+                        "ref_field": candidate["ref_field"],
+                    }
 
         return None
 

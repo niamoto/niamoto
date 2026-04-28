@@ -38,6 +38,7 @@ import type {
 } from '@/features/import/api/smart-config'
 import type { ImportJobEvent } from '@/features/import/api/import'
 import type {
+  AuxiliarySourceConfig,
   DatasetConfig,
   ReferenceConfig,
   LayerConfig,
@@ -49,8 +50,8 @@ import { AutoConfigLoadingState } from '@/features/import/components/auto-config
 interface AutoConfigDisplayProps {
   result: AutoConfigureResponse | null
   isLoading?: boolean
-  /** Callback when entities are reclassified or edited */
-  onReclassify?: (updatedEntities: AutoConfigureResponse['entities']) => void
+  /** Callback when the auto-config result is reclassified or edited */
+  onReclassify?: (updatedResult: AutoConfigureResponse) => void
   /** Whether editing is enabled */
   editable?: boolean
   /** Detected columns per file (for form dropdowns) */
@@ -77,6 +78,7 @@ interface AutoConfigDisplayProps {
 type EditingEntity =
   | { type: 'dataset'; name: string; config: DatasetConfig; columns: string[] }
   | { type: 'reference'; name: string; config: ReferenceConfig; columns: string[] }
+  | { type: 'auxiliary'; index: number; name: string; config: AuxiliarySourceConfig; columns: string[] }
   | { type: 'layer'; index: number; config: LayerConfig }
   | null
 
@@ -95,6 +97,118 @@ export function AutoConfigDisplay({
   const [editingEntity, setEditingEntity] = useState<EditingEntity>(null)
   const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({})
 
+  const emitResult = (updatedResult: AutoConfigureResponse) => {
+    onReclassify?.(updatedResult)
+  }
+
+  const sourceEntityName = (source: AuxiliarySource) => {
+    if (source.source_entity) return source.source_entity
+    const filename = source.data.split('/').pop() || source.name
+    return filename.replace(/\.[^.]+$/, '')
+  }
+
+  const getAuxiliaryColumns = (source: AuxiliarySource) => {
+    const sourceEntity = sourceEntityName(source)
+    return detectedColumns[sourceEntity] || detectedColumns[source.name] || []
+  }
+
+  const getAuxiliaryTargets = () => {
+    if (!result) return []
+    return [
+      ...Object.keys(result.entities.references || {}),
+      ...Object.keys(result.entities.datasets || {}),
+    ].filter((value, index, values) => value && values.indexOf(value) === index)
+  }
+
+  const inferAuxiliaryMatchField = (columns: string[]) => {
+    const preferred = [
+      'plot_id',
+      'taxon_id',
+      'shape_id',
+      'entity_id',
+      'id_liste_plots',
+      'id_taxonref',
+      'id',
+    ]
+    const lowered = new Map(columns.map((column) => [column.toLowerCase(), column]))
+    return preferred.map((field) => lowered.get(field)).find(Boolean) || columns[0] || 'id'
+  }
+
+  const inferAuxiliaryTarget = (name: string, columns: string[]) => {
+    const targets = getAuxiliaryTargets()
+    const loweredColumns = columns.map((column) => column.toLowerCase())
+    const targetForToken = (token: string) =>
+      targets.find((target) => target.toLowerCase().includes(token))
+
+    if (loweredColumns.some((column) => column.includes('taxon'))) {
+      return targetForToken('taxon') || targetForToken('taxa') || ''
+    }
+    if (loweredColumns.some((column) => column.includes('plot'))) {
+      return targetForToken('plot') || ''
+    }
+    if (loweredColumns.some((column) => column.includes('shape'))) {
+      return targetForToken('shape') || ''
+    }
+
+    const normalizedName = name.toLowerCase()
+    return targets.find((target) => normalizedName.includes(target.toLowerCase())) || targets[0] || ''
+  }
+
+  const inferAuxiliaryRefField = (target: string, matchField: string) => {
+    const targetColumns = detectedColumns[target] || []
+    const lowered = targetColumns.map((column) => column.toLowerCase())
+
+    if (target.toLowerCase().includes('taxon')) return 'taxons_id'
+    if (matchField.toLowerCase().includes('plot')) {
+      const plotId = targetColumns.find((_column, index) => {
+        const lower = lowered[index]
+        return lower.includes('id') && lower.includes('plot')
+      })
+      if (plotId) return plotId
+    }
+
+    return targetColumns.find((column) => column.toLowerCase() === 'id') || 'id'
+  }
+
+  const buildAuxiliarySource = (
+    name: string,
+    path: string,
+    columns: string[]
+  ): AuxiliarySource => {
+    const sourceName = name.startsWith('raw_') ? name.slice(4) : name
+    const matchField = inferAuxiliaryMatchField(columns)
+    const grouping = inferAuxiliaryTarget(name, columns)
+
+    return {
+      name: sourceName,
+      data: path,
+      grouping,
+      relation: {
+        plugin: 'stats_loader',
+        key: 'id',
+        ref_field: inferAuxiliaryRefField(grouping, matchField),
+        match_field: matchField,
+      },
+      source_entity: name,
+    }
+  }
+
+  const decisionSummaryWith = (
+    name: string,
+    updates: Partial<DecisionSummary>
+  ): AutoConfigureResponse['decision_summary'] => {
+    const current = result?.decision_summary?.[name]
+    if (!result?.decision_summary || !current) return result?.decision_summary
+
+    return {
+      ...result.decision_summary,
+      [name]: {
+        ...current,
+        ...updates,
+      },
+    }
+  }
+
   const openDatasetEditor = (name: string, config: DatasetConfig) => {
     const columns = detectedColumns[name] || []
     setEditingEntity({ type: 'dataset', name, config, columns })
@@ -109,6 +223,16 @@ export function AutoConfigDisplay({
       columns = detectedColumns[name] || []
     }
     setEditingEntity({ type: 'reference', name, config, columns })
+  }
+
+  const openAuxiliaryEditor = (index: number, source: AuxiliarySource) => {
+    setEditingEntity({
+      type: 'auxiliary',
+      index,
+      name: source.name,
+      config: source,
+      columns: getAuxiliaryColumns(source),
+    })
   }
 
   const openLayerEditor = (index: number, config: LayerConfig) => {
@@ -145,10 +269,14 @@ export function AutoConfigDisplay({
       },
     }
 
-    onReclassify({
-      ...result.entities,
-      datasets: newDatasets,
-      references: newReferences,
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        datasets: newDatasets,
+        references: newReferences,
+      },
+      decision_summary: decisionSummaryWith(name, { final_entity_type: 'reference' }),
     })
   }
 
@@ -167,10 +295,111 @@ export function AutoConfigDisplay({
       [name]: { connector: refConfig.connector },
     }
 
-    onReclassify({
-      ...result.entities,
-      datasets: newDatasets,
-      references: newReferences,
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        datasets: newDatasets,
+        references: newReferences,
+      },
+      decision_summary: decisionSummaryWith(name, { final_entity_type: 'dataset' }),
+    })
+  }
+
+  const moveEntityToAuxiliary = (name: string, entityType: 'dataset' | 'reference') => {
+    if (!result || !onReclassify) return
+
+    const sourceConfig =
+      entityType === 'dataset'
+        ? result.entities.datasets?.[name]
+        : result.entities.references?.[name]
+    if (!sourceConfig) return
+
+    const connector = (sourceConfig as unknown as DatasetConfig | ReferenceConfig).connector
+    const path = connector?.path || `imports/${name}.csv`
+    const columns = detectedColumns[name] || []
+    const auxiliary = buildAuxiliarySource(name, path, columns)
+    const newDatasets = { ...result.entities.datasets }
+    const newReferences = { ...result.entities.references }
+
+    if (entityType === 'dataset') {
+      delete newDatasets[name]
+    } else {
+      delete newReferences[name]
+    }
+
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        datasets: newDatasets,
+        references: newReferences,
+      },
+      auxiliary_sources: [...(result.auxiliary_sources || []), auxiliary],
+      decision_summary: decisionSummaryWith(name, {
+        final_entity_type: 'auxiliary_source',
+        auxiliary_target: auxiliary.grouping,
+        auxiliary_relation: auxiliary.relation,
+      }),
+    })
+  }
+
+  const moveAuxiliaryToDataset = (index: number, source: AuxiliarySource) => {
+    if (!result || !onReclassify) return
+
+    const sourceEntity = sourceEntityName(source)
+    const sources = [...(result.auxiliary_sources || [])]
+    sources.splice(index, 1)
+
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        datasets: {
+          ...result.entities.datasets,
+          [sourceEntity]: {
+            connector: {
+              type: 'file',
+              format: 'csv',
+              path: source.data,
+            },
+          },
+        },
+      },
+      auxiliary_sources: sources,
+      decision_summary: decisionSummaryWith(sourceEntity, { final_entity_type: 'dataset' }),
+    })
+  }
+
+  const moveAuxiliaryToReference = (index: number, source: AuxiliarySource) => {
+    if (!result || !onReclassify) return
+
+    const sourceEntity = sourceEntityName(source)
+    const sources = [...(result.auxiliary_sources || [])]
+    sources.splice(index, 1)
+
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        references: {
+          ...result.entities.references,
+          [sourceEntity]: {
+            kind: 'generic',
+            connector: {
+              type: 'file',
+              format: 'csv',
+              path: source.data,
+            },
+            schema: {
+              id_field: source.relation.match_field || 'id',
+              fields: [],
+            },
+          },
+        },
+      },
+      auxiliary_sources: sources,
+      decision_summary: decisionSummaryWith(sourceEntity, { final_entity_type: 'reference' }),
     })
   }
 
@@ -178,12 +407,15 @@ export function AutoConfigDisplay({
   const handleDatasetUpdate = (name: string, updated: DatasetConfig) => {
     if (!result || !onReclassify) return
 
-    onReclassify({
-      ...result.entities,
-      datasets: {
-        ...result.entities.datasets,
-        [name]: updated,
-      } as AutoConfigureResponse['entities']['datasets'],
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        datasets: {
+          ...result.entities.datasets,
+          [name]: updated,
+        } as AutoConfigureResponse['entities']['datasets'],
+      },
     })
     closeEditor()
   }
@@ -192,12 +424,33 @@ export function AutoConfigDisplay({
   const handleReferenceUpdate = (name: string, updated: ReferenceConfig) => {
     if (!result || !onReclassify) return
 
-    onReclassify({
-      ...result.entities,
-      references: {
-        ...result.entities.references,
-        [name]: updated,
-      } as AutoConfigureResponse['entities']['references'],
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        references: {
+          ...result.entities.references,
+          [name]: updated,
+        } as AutoConfigureResponse['entities']['references'],
+      },
+    })
+    closeEditor()
+  }
+
+  const handleAuxiliaryUpdate = (idx: number, updated: AuxiliarySourceConfig) => {
+    if (!result || !onReclassify) return
+
+    const sources = [...(result.auxiliary_sources || [])]
+    sources[idx] = updated
+
+    emitResult({
+      ...result,
+      auxiliary_sources: sources,
+      decision_summary: decisionSummaryWith(sourceEntityName(updated), {
+        final_entity_type: 'auxiliary_source',
+        auxiliary_target: updated.grouping,
+        auxiliary_relation: updated.relation,
+      }),
     })
     closeEditor()
   }
@@ -209,11 +462,14 @@ export function AutoConfigDisplay({
     const layers = [...(result.entities.metadata?.layers || [])]
     layers[idx] = updated
 
-    onReclassify({
-      ...result.entities,
-      metadata: {
-        ...result.entities.metadata,
-        layers,
+    emitResult({
+      ...result,
+      entities: {
+        ...result.entities,
+        metadata: {
+          ...result.entities.metadata,
+          layers,
+        },
       },
     })
     closeEditor()
@@ -248,6 +504,10 @@ export function AutoConfigDisplay({
 
   // Build available datasets for derived reference source dropdown
   const availableDatasets = Object.keys(result.entities.datasets || {})
+  const availableAuxiliaryTargets = [
+    ...Object.keys(result.entities.references || {}),
+    ...availableDatasets,
+  ].filter((value, index, values) => value && values.indexOf(value) === index)
 
   const getAlignmentLabel = (alignment?: DecisionAlignment) => {
     switch (alignment) {
@@ -391,6 +651,11 @@ export function AutoConfigDisplay({
           title: t('autoConfig.sheetTitles.reference', { name: editingEntity.name }),
           description: t('autoConfig.sheetDescriptions.reference'),
         }
+      case 'auxiliary':
+        return {
+          title: t('autoConfig.sheetTitles.auxiliary', { name: editingEntity.name }),
+          description: t('autoConfig.sheetDescriptions.auxiliary'),
+        }
       case 'layer':
         return {
           title: t('autoConfig.sheetTitles.layer', { name: editingEntity.config.name }),
@@ -420,6 +685,7 @@ export function AutoConfigDisplay({
         id: string
         type: 'auxiliary'
         name: string
+        index: number
         source: AuxiliarySource
       }
     | {
@@ -445,10 +711,11 @@ export function AutoConfigDisplay({
       config: config as unknown as ReferenceConfig,
       summary: decisionSummaries[name],
     })),
-    ...auxiliarySources.map((source) => ({
+    ...auxiliarySources.map((source, index) => ({
       id: `aux:${source.name}`,
       type: 'auxiliary' as const,
       name: source.name,
+      index,
       source,
     })),
     ...(result.entities.metadata?.layers || []).map((layer, index) => ({
@@ -718,6 +985,28 @@ export function AutoConfigDisplay({
               refField: entry.source.relation.ref_field,
             })}
           </div>
+          {editable && onReclassify && !isImporting && (
+            <div className="flex flex-wrap gap-2 border-t pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => moveAuxiliaryToDataset(entry.index, entry.source)}
+              >
+                <ArrowRightLeft className="h-3 w-3" />
+                {t('autoConfig.actions.moveToDatasets')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => moveAuxiliaryToReference(entry.index, entry.source)}
+              >
+                <ArrowRightLeft className="h-3 w-3" />
+                {t('autoConfig.actions.moveToReferences')}
+              </Button>
+            </div>
+          )}
         </div>
       )
     }
@@ -792,7 +1081,7 @@ export function AutoConfigDisplay({
         </div>
         {renderDecisionInsight(entry.name)}
         {editable && onReclassify && !isImporting && entry.type === 'dataset' && (
-          <div className="border-t pt-2">
+          <div className="flex flex-wrap gap-2 border-t pt-2">
             <Button
               variant="ghost"
               size="sm"
@@ -802,6 +1091,15 @@ export function AutoConfigDisplay({
               <ArrowRightLeft className="h-3 w-3" />
               {t('autoConfig.actions.moveToReferences')}
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => moveEntityToAuxiliary(entry.name, 'dataset')}
+            >
+              <ArrowRightLeft className="h-3 w-3" />
+              {t('autoConfig.actions.moveToAuxiliary')}
+            </Button>
           </div>
         )}
         {editable &&
@@ -810,7 +1108,7 @@ export function AutoConfigDisplay({
           entry.type === 'reference' &&
           entry.config.connector?.type !== 'derived' &&
           entry.config.kind !== 'hierarchical' && (
-            <div className="border-t pt-2">
+            <div className="flex flex-wrap gap-2 border-t pt-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -819,6 +1117,15 @@ export function AutoConfigDisplay({
               >
                 <ArrowRightLeft className="h-3 w-3" />
                 {t('autoConfig.actions.moveToDatasets')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => moveEntityToAuxiliary(entry.name, 'reference')}
+              >
+                <ArrowRightLeft className="h-3 w-3" />
+                {t('autoConfig.actions.moveToAuxiliary')}
               </Button>
             </div>
           )}
@@ -956,7 +1263,7 @@ export function AutoConfigDisplay({
             {supportingEntries.map((entry) => {
             const summary = 'summary' in entry ? entry.summary : undefined
             const isExpanded = expandedEntries[entry.id] ?? false
-            const canEdit = editable && onReclassify && entry.type !== 'auxiliary'
+            const canEdit = editable && onReclassify
 
             return (
               <AutoConfigEntryCard
@@ -970,6 +1277,8 @@ export function AutoConfigDisplay({
                   canEdit && !isImporting
                     ? entry.type === 'dataset'
                       ? () => openDatasetEditor(entry.name, entry.config)
+                      : entry.type === 'auxiliary'
+                        ? () => openAuxiliaryEditor(entry.index, entry.source)
                       : entry.type === 'layer'
                         ? () => openLayerEditor(entry.index, entry.config)
                         : undefined
@@ -1000,9 +1309,11 @@ export function AutoConfigDisplay({
         description={sheetInfo.description}
         availableReferences={availableReferences}
         availableDatasets={availableDatasets}
+        availableAuxiliaryTargets={availableAuxiliaryTargets}
         onClose={closeEditor}
         onDatasetSave={handleDatasetUpdate}
         onReferenceSave={handleReferenceUpdate}
+        onAuxiliarySave={handleAuxiliaryUpdate}
         onLayerSave={handleLayerUpdate}
       />
     </>

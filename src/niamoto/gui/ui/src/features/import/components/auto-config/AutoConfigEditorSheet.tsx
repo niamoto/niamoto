@@ -8,6 +8,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { EntityConfigEditor } from '@/features/import/components/editors/EntityConfigEditor'
 import type {
+  AuxiliarySourceConfig,
   DatasetConfig,
   LayerConfig,
   ReferenceConfig,
@@ -16,6 +17,7 @@ import type {
 type EditingEntity =
   | { type: 'dataset'; name: string; config: DatasetConfig; columns: string[] }
   | { type: 'reference'; name: string; config: ReferenceConfig; columns: string[] }
+  | { type: 'auxiliary'; index: number; name: string; config: AuxiliarySourceConfig; columns: string[] }
   | { type: 'layer'; index: number; config: LayerConfig }
   | null
 
@@ -26,9 +28,11 @@ interface AutoConfigEditorSheetProps {
   description: string
   availableReferences: Array<{ name: string; columns: string[] }>
   availableDatasets: string[]
+  availableAuxiliaryTargets: string[]
   onClose: () => void
   onDatasetSave: (name: string, updated: DatasetConfig) => void
   onReferenceSave: (name: string, updated: ReferenceConfig) => void
+  onAuxiliarySave: (index: number, updated: AuxiliarySourceConfig) => void
   onLayerSave: (index: number, updated: LayerConfig) => void
 }
 
@@ -39,9 +43,11 @@ export function AutoConfigEditorSheet({
   description,
   availableReferences,
   availableDatasets,
+  availableAuxiliaryTargets,
   onClose,
   onDatasetSave,
   onReferenceSave,
+  onAuxiliarySave,
   onLayerSave,
 }: AutoConfigEditorSheetProps) {
   return (
@@ -71,6 +77,19 @@ export function AutoConfigEditorSheet({
               detectedColumns={editingEntity.columns}
               availableDatasets={availableDatasets}
               onSave={(updated) => onReferenceSave(editingEntity.name, updated as ReferenceConfig)}
+              onCancel={onClose}
+            />
+          )}
+          {editingEntity?.type === 'auxiliary' && (
+            <EntityConfigEditor
+              entityName={editingEntity.name}
+              entityType="auxiliary"
+              config={editingEntity.config}
+              detectedColumns={editingEntity.columns}
+              availableAuxiliaryTargets={availableAuxiliaryTargets}
+              onSave={(updated) =>
+                onAuxiliarySave(editingEntity.index, updated as AuxiliarySourceConfig)
+              }
               onCancel={onClose}
             />
           )}

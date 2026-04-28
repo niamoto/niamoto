@@ -14,12 +14,41 @@ from typing import Any, Dict, List, Optional, Tuple
 from niamoto.core.auto_config_rules import (
     build_heuristic_classification,
     collect_heuristic_flags,
+    has_reference_identity,
     is_enriched_reference_candidate,
 )
 
 ML_REVIEW_THRESHOLD = 0.7
 ML_OVERRIDE_THRESHOLD = 0.82
 logger = logging.getLogger(__name__)
+
+
+def is_strong_reference_target(
+    entity_name: str,
+    analysis: Dict[str, Any],
+    heuristics: Dict[str, Any],
+    referenced_by: Dict[str, List[Dict[str, Any]]],
+    analyses_by_entity: Dict[str, Dict[str, Any]],
+) -> bool:
+    """Detect rich references that are identified by incoming dataset relations."""
+    if not has_reference_identity(entity_name, analysis, heuristics):
+        return False
+
+    target_rows = int(analysis.get("row_count", 0) or 0)
+    if target_rows <= 0:
+        return False
+
+    for relation in referenced_by.get(entity_name, []):
+        if float(relation.get("confidence", 0.0) or 0.0) < 0.75:
+            continue
+        source_analysis = analyses_by_entity.get(str(relation.get("from", "")))
+        if not source_analysis:
+            continue
+        source_rows = int(source_analysis.get("row_count", 0) or 0)
+        if source_rows > 0 and (source_rows / target_rows) >= 10:
+            return True
+
+    return False
 
 
 def infer_ml_entity_type(
@@ -118,8 +147,18 @@ def build_entity_decision(
     analyses_by_entity = {
         Path(filepath).stem: item for filepath, item in all_analyses.items()
     }
+    heuristics["is_strong_reference_target"] = is_strong_reference_target(
+        entity_name=entity_name,
+        analysis=analysis,
+        heuristics=heuristics,
+        referenced_by=referenced_by,
+        analyses_by_entity=analyses_by_entity,
+    )
 
-    if final_entity_type == "dataset" and heuristics["is_enriched_reference_candidate"]:
+    if final_entity_type == "dataset" and (
+        heuristics["is_enriched_reference_candidate"]
+        or heuristics["is_strong_reference_target"]
+    ):
         heuristic_entity_type = "reference"
         heuristic_confidence = max(heuristic_confidence, 0.78)
         final_entity_type = "reference"
@@ -154,6 +193,7 @@ def build_entity_decision(
         and final_entity_type in {"reference", "hierarchical_reference"}
         and ml_confidence >= ml_override_threshold
         and not heuristics["is_enriched_reference_candidate"]
+        and not heuristics["is_strong_reference_target"]
         and (
             heuristics["has_observations"]
             or heuristics["has_geometry"]

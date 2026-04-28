@@ -71,14 +71,26 @@ def is_enriched_reference_candidate(
     heuristics: Dict[str, Any],
 ) -> bool:
     """Detect stable entity tables that should stay references despite rich fields."""
+    if not has_reference_identity(entity_name, analysis, heuristics):
+        return False
+
+    if heuristics["has_observations"] or analysis.get("date_columns"):
+        return False
+
+    return True
+
+
+def has_reference_identity(
+    entity_name: str,
+    analysis: Dict[str, Any],
+    heuristics: Dict[str, Any],
+) -> bool:
+    """Return True when a table has the identity shape of a reference entity."""
     if heuristics["has_taxonomic_hierarchy"]:
         return False
 
     row_count = int(analysis.get("row_count", 0) or 0)
     if row_count <= 0 or row_count > 5000:
-        return False
-
-    if heuristics["has_observations"] or analysis.get("date_columns"):
         return False
 
     id_columns = [column.lower() for column in analysis.get("id_columns", [])]

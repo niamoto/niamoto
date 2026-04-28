@@ -1116,6 +1116,7 @@
       "edit": "Edit",
       "moveToReferences": "Move to references",
       "moveToDatasets": "Move to datasets",
+      "moveToAuxiliary": "Move to auxiliary sources",
       "viewDetails": "Details",
       "hideDetails": "Hide"
     },
@@ -1184,11 +1185,13 @@
     "sheetTitles": {
       "dataset": "Dataset: {{name}}",
       "reference": "Reference: {{name}}",
+      "auxiliary": "Auxiliary source: {{name}}",
       "layer": "Layer: {{name}}"
     },
     "sheetDescriptions": {
       "dataset": "Connector, schema and relations configuration",
       "reference": "Source, hierarchy and enrichment configuration",
+      "auxiliary": "File, target and stats_loader relation configuration",
       "layer": "Metadata layer configuration"
     }
   },
