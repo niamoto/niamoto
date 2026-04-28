@@ -579,6 +579,83 @@ def test_load_data_gbif_rich_handles_no_match(
     assert enriched["api_enrichment"]["provenance"]["outcome"] == "no_match"
 
 
+def test_load_data_gbif_rich_parses_nested_v2_match_payload(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """GBIF v2 match payloads can expose the matched usage under usage.key."""
+
+    raw_match = {
+        "usage": {
+            "key": "8Q33",
+            "name": "Acacia simplex (Sparrm.) Pedley",
+            "canonicalName": "Acacia simplex",
+            "rank": "SPECIES",
+            "status": "ACCEPTED",
+            "genericName": "Acacia",
+        },
+        "classification": [
+            {"key": "P", "name": "Plantae", "rank": "KINGDOM"},
+            {"key": "TP", "name": "Tracheophyta", "rank": "PHYLUM"},
+            {"key": "MG", "name": "Magnoliopsida", "rank": "CLASS"},
+            {"key": "383", "name": "Fabales", "rank": "ORDER"},
+            {"key": "623QT", "name": "Fabaceae", "rank": "FAMILY"},
+            {"key": "LV7", "name": "Acacia", "rank": "GENUS"},
+            {"key": "8Q33", "name": "Acacia simplex", "rank": "SPECIES"},
+        ],
+        "diagnostics": {
+            "matchType": "EXACT",
+            "confidence": 100,
+        },
+        "additionalStatus": [
+            {
+                "datasetAlias": "IUCN",
+                "status": "LEAST_CONCERN",
+                "statusCode": "LC",
+            }
+        ],
+    }
+
+    def fake_request_json(url: str, params=None):
+        if url.endswith("/v2/species/match"):
+            return raw_match
+        raise requests.RequestException("GBIF v1 species endpoint unavailable")
+
+    monkeypatch.setattr(enricher, "_request_json", fake_request_json)
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "taxonomy_source": "col_xr",
+            "query_field": "full_name",
+            "query_param_name": "scientificName",
+            "include_taxonomy": True,
+            "include_occurrences": False,
+            "include_media": False,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Acacia simplex"},
+        valid_config,
+    )
+
+    assert enriched["api_enrichment"]["block_status"]["match"] == "complete"
+    assert enriched["api_enrichment"]["match"]["usage_key"] == "8Q33"
+    assert enriched["api_enrichment"]["match"]["confidence"] == 100
+    assert enriched["api_enrichment"]["match"]["match_type"] == "EXACT"
+    assert enriched["api_enrichment"]["taxonomy"]["kingdom"] == "Plantae"
+    assert enriched["api_enrichment"]["taxonomy"]["family"] == "Fabaceae"
+    assert enriched["api_enrichment"]["taxonomy"]["species"] == "Acacia simplex"
+    assert enriched["api_enrichment"]["taxonomy"]["iucn_category"] == "LC"
+    assert enriched["api_enrichment"]["block_status"]["taxonomy"] == "complete"
+    assert enriched["api_response_raw"]["match"] == raw_match
+
+
 def test_resolve_name_with_verifier_uses_profile_default_source(
     enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
 ):

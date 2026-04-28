@@ -92,10 +92,10 @@ export function ModuleLayout({
   }, [sidebar, sidebarMinSize, sidebarMaxSize])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <ResizablePanelGroup
         direction="horizontal"
-        className="flex-1"
+        className="min-h-0 flex-1 overflow-hidden"
         elementRef={groupRef}
       >
         <ResizablePanel

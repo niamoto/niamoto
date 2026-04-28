@@ -92,6 +92,16 @@ interface EnrichmentTabProps {
   onOpenWorkspace?: (sourceId?: string) => void
 }
 
+const STRUCTURED_ENRICHMENT_PROFILES = new Set([
+  'gbif_rich',
+  'tropicos_rich',
+  'col_rich',
+  'bhl_references',
+  'inaturalist_rich',
+  'openmeteo_elevation_v1',
+  'geonames_spatial_v1',
+])
+
 export function EnrichmentTab({
   referenceName,
   hasEnrichment,
@@ -209,6 +219,32 @@ export function EnrichmentTab({
     jobStatus: job?.status,
     jobLoadingScope,
   })
+  const isStructuredPreview = (
+    data: Record<string, unknown> | null | undefined,
+    sourceProfile: string | undefined
+  ) =>
+    Boolean(
+      (data && isStructuredSourceSummary(data)) ||
+        (sourceProfile && STRUCTURED_ENRICHMENT_PROFILES.has(sourceProfile))
+    )
+  const getPreviewPrimaryTabLabel = (
+    data: Record<string, unknown> | null | undefined,
+    sourceProfile: string | undefined
+  ) =>
+    isStructuredPreview(data, sourceProfile)
+      ? t('dashboard.enrichment.structuredSummary', { defaultValue: 'Structured summary' })
+      : t('dashboard.enrichment.mappedFields', { defaultValue: 'Mapped fields' })
+  const getPreviewPrimaryEmptyLabel = (
+    data: Record<string, unknown> | null | undefined,
+    sourceProfile: string | undefined
+  ) =>
+    isStructuredPreview(data, sourceProfile)
+      ? t('dashboard.enrichment.noStructuredSummary', {
+          defaultValue: 'No structured summary is available for this test.',
+        })
+      : t('dashboard.enrichment.noMappedFields', {
+          defaultValue: 'No mapped fields for this source.',
+        })
 
   const [isCompactWorkspace, setIsCompactWorkspace] = useState(() => {
     if (typeof window === 'undefined') {
@@ -674,9 +710,10 @@ export function EnrichmentTab({
                                 variant={previewResultMode === 'mapped' ? 'default' : 'ghost'}
                                 onClick={() => setPreviewResultMode('mapped')}
                               >
-                                {t('dashboard.enrichment.mappedFields', {
-                                  defaultValue: 'Champs mappés',
-                                })}
+                                {getPreviewPrimaryTabLabel(
+                                  quickPreviewResult.data,
+                                  quickSelectedSource?.config.profile
+                                )}
                               </Button>
                               <Button
                                 type="button"
@@ -697,9 +734,10 @@ export function EnrichmentTab({
                                   : renderMappedPreview(quickPreviewResult.data)
                               ) : (
                                 <div className="py-8 text-center text-sm text-muted-foreground">
-                                  {t('dashboard.enrichment.noMappedFields', {
-                                    defaultValue: 'Aucun champ mappé pour cette source.',
-                                  })}
+                                  {getPreviewPrimaryEmptyLabel(
+                                    quickPreviewResult.data,
+                                    quickSelectedSource?.config.profile
+                                  )}
                                 </div>
                               )
                             ) : quickPreviewResult.raw_data !== undefined ? (
@@ -1184,9 +1222,10 @@ export function EnrichmentTab({
                     className="h-6 text-xs"
                     onClick={() => setPreviewResultMode('mapped')}
                   >
-                    {t('dashboard.enrichment.mappedFields', {
-                      defaultValue: 'Mapped fields',
-                    })}
+                    {getPreviewPrimaryTabLabel(
+                      activePreviewResult.data,
+                      activeSource?.config.profile
+                    )}
                   </Button>
                   <Button
                     type="button"
@@ -1208,9 +1247,10 @@ export function EnrichmentTab({
                       : renderMappedPreview(activePreviewResult.data)
                   ) : (
                     <div className="py-6 text-center text-xs text-muted-foreground">
-                      {t('dashboard.enrichment.noMappedFields', {
-                        defaultValue: 'No mapped fields for this source.',
-                      })}
+                      {getPreviewPrimaryEmptyLabel(
+                        activePreviewResult.data,
+                        activeSource?.config.profile
+                      )}
                     </div>
                   )
                 ) : activePreviewResult.raw_data !== undefined ? (
@@ -1490,15 +1530,15 @@ export function EnrichmentTab({
           <ResizableHandle withHandle />
 
           <ResizablePanel id="enrichment-main-compact" defaultSize="76%" minSize="66%">
-            <ScrollArea className="h-full">
-              <div className="space-y-3 p-3" role="region" aria-label={configRegionLabel}>
-                {workspaceHeaderCard}
-                {activeSource ? (
-                  <Tabs
-                    value={workspacePane}
-                    onValueChange={(value) => setWorkspacePane(value as 'config' | 'preview' | 'results')}
-                    className="space-y-3"
-                  >
+            {activeSource ? (
+              <div className="flex h-full min-h-0 flex-col" role="region" aria-label={configRegionLabel}>
+                <Tabs
+                  value={workspacePane}
+                  onValueChange={(value) => setWorkspacePane(value as 'config' | 'preview' | 'results')}
+                  className="h-full min-h-0 gap-0"
+                >
+                  <div className="shrink-0 space-y-3 border-b border-border/30 p-3">
+                    {workspaceHeaderCard}
                     <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
                       <TabsTrigger value="config" className="gap-2">
                         {t('state.configurationTab', {
@@ -1514,20 +1554,28 @@ export function EnrichmentTab({
                         {t('enrichmentTab.tabs.results')}
                       </TabsTrigger>
                     </TabsList>
+                  </div>
 
-                    <TabsContent value="config" className="m-0 space-y-3">
+                  <ScrollArea className="min-h-0 flex-1">
+                    <TabsContent value="config" className="m-0 space-y-3 p-3">
                       {configDetailsCard}
                     </TabsContent>
-                    <TabsContent value="preview" className="m-0 space-y-3">
+                    <TabsContent value="preview" className="m-0 space-y-3 p-3">
                       {previewInspectorCard}
                     </TabsContent>
-                    <TabsContent value="results" className="m-0 space-y-3">
+                    <TabsContent value="results" className="m-0 space-y-3 p-3">
                       {resultsInspectorCard}
                     </TabsContent>
-                  </Tabs>
-                ) : null}
+                  </ScrollArea>
+                </Tabs>
               </div>
-            </ScrollArea>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="p-3" role="region" aria-label={configRegionLabel}>
+                  {workspaceHeaderCard}
+                </div>
+              </ScrollArea>
+            )}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
@@ -1541,14 +1589,24 @@ export function EnrichmentTab({
           <ResizableHandle withHandle />
 
           <ResizablePanel id="enrichment-config" defaultSize="45%" minSize="30%">
-            <ScrollArea className="h-full">
-              <div className="space-y-3 p-3" role="region" aria-label={configRegionLabel}>
-                {workspaceHeaderCard}
-                <div className="border-t border-border/30 pt-3">
-                  {configDetailsCard}
+            {activeSource ? (
+              <div className="flex h-full min-h-0 flex-col" role="region" aria-label={configRegionLabel}>
+                <div className="shrink-0 border-b border-border/30 p-3">
+                  {workspaceHeaderCard}
                 </div>
+                <ScrollArea className="min-h-0 flex-1">
+                  <div className="p-3">
+                    {configDetailsCard}
+                  </div>
+                </ScrollArea>
               </div>
-            </ScrollArea>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="p-3" role="region" aria-label={configRegionLabel}>
+                  {workspaceHeaderCard}
+                </div>
+              </ScrollArea>
+            )}
           </ResizablePanel>
 
           <ResizableHandle withHandle />

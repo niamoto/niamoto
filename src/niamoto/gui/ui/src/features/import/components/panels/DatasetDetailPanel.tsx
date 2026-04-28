@@ -96,9 +96,9 @@ export function DatasetDetailPanel({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b p-4 pb-3">
+      <div className="flex shrink-0 items-center justify-between border-b p-4 pb-3">
         <div className="flex items-center gap-4">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack}>
@@ -182,9 +182,9 @@ export function DatasetDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 overflow-auto p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList>
+      <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full min-h-0 gap-4">
+          <TabsList className="shrink-0">
             <TabsTrigger value="summary" className="gap-1">
               <Table2 className="h-4 w-4" />
               {t('sources:reference.summary')}
@@ -199,9 +199,9 @@ export function DatasetDetailPanel({
             </TabsTrigger>
           </TabsList>
 
-          <PanelTransition transitionKey={activeTab} className="min-h-0">
+          <PanelTransition transitionKey={activeTab} className="min-h-0 flex-1 overflow-hidden">
             {activeTab === 'summary' ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <SourceSummary
                   entityType="dataset"
                   name={datasetName}
@@ -215,7 +215,7 @@ export function DatasetDetailPanel({
                 />
               </div>
             ) : activeTab === 'preview' ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">{t('sources:reference.dataPreview')}</CardTitle>
@@ -232,7 +232,7 @@ export function DatasetDetailPanel({
                 </Card>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <DatasetConfigEditor datasetName={datasetName} />
               </div>
             )}

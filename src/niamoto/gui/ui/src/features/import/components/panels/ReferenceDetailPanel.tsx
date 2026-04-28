@@ -194,9 +194,9 @@ export function ReferenceDetailPanel({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b p-4 pb-3">
+      <div className="flex shrink-0 items-center justify-between border-b p-4 pb-3">
         <div className="flex items-center gap-4">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack}>
@@ -283,9 +283,9 @@ export function ReferenceDetailPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 overflow-auto p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList>
+      <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full min-h-0 gap-4">
+          <TabsList className="shrink-0">
             <TabsTrigger value="summary" className="gap-1">
               <MapPin className="h-4 w-4" />
               {t('reference.summary')}
@@ -316,9 +316,9 @@ export function ReferenceDetailPanel({
             </TabsTrigger>
           </TabsList>
 
-          <PanelTransition transitionKey={activeTab} className="min-h-0">
+          <PanelTransition transitionKey={activeTab} className="min-h-0 flex-1 overflow-hidden">
             {activeTab === 'summary' ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <SourceSummary
                   entityType="reference"
                   name={referenceName}
@@ -339,15 +339,15 @@ export function ReferenceDetailPanel({
                 />
               </div>
             ) : activeTab === 'hierarchy' && hasHierarchy ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <HierarchyView referenceName={referenceName} />
               </div>
             ) : activeTab === 'map' ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <SpatialMapView referenceName={referenceName} />
               </div>
             ) : activeTab === 'preview' ? (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">{t('reference.dataPreview')}</CardTitle>
@@ -364,7 +364,7 @@ export function ReferenceDetailPanel({
                 </Card>
               </div>
             ) : activeTab === 'enrichment' ? (
-              <div className="space-y-4">
+              <div className="h-full min-h-0">
                 <EnrichmentTab
                   referenceName={referenceName}
                   hasEnrichment={hasEnrichment}
@@ -373,7 +373,7 @@ export function ReferenceDetailPanel({
                 />
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="h-full overflow-auto overscroll-contain pr-1">
                 <ReferenceConfigEditor
                   referenceName={referenceName}
                   onSaved={handleConfigSaved}

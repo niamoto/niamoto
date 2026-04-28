@@ -13,40 +13,71 @@ import { Badge } from '@/components/ui/badge'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SourceSummary = Record<string, any>
+type Translate = (key: string, options?: Record<string, unknown>) => string
 
 const asSummary = (value: unknown): SourceSummary =>
   typeof value === 'object' && value !== null ? (value as SourceSummary) : {}
 
-const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
+const URL_PATTERN = /^(https?:\/\/[^\s]+)$/i
+const IMAGE_PATTERN = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
+
+const isImageUrl = (value: string): boolean =>
+  IMAGE_PATTERN.test(value) ||
+  value.includes('/image') ||
+  value.includes('/photo') ||
+  value.includes('/thumb') ||
+  value.includes('/media/cache')
+
+const asUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const url = value.trim()
+  return URL_PATTERN.test(url) ? url : null
+}
+
+const ImageWithLoader = ({
+  src,
+  href = src,
+  alt,
+  className = 'h-16 w-16',
+}: {
+  src: string
+  href?: string
+  alt: string
+  className?: string
+}) => {
   const { t } = useTranslation(['sources'])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   return (
-    <div className="relative inline-block">
+    <div className={`relative inline-block ${className}`}>
       {loading && !error ? (
         <div className="absolute inset-0 flex items-center justify-center rounded bg-muted">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : null}
       {error ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex h-full w-full items-center justify-center gap-2 rounded border bg-muted p-1 text-xs text-muted-foreground">
           <ImageIcon className="h-4 w-4" />
           <a
-            href={src}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="max-w-[150px] truncate text-blue-600 hover:underline"
+            className="truncate text-blue-600 hover:underline"
           >
             {t('enrichmentTab.viewImage')}
           </a>
         </div>
       ) : (
-        <a href={src} target="_blank" rel="noopener noreferrer">
+        <a href={href} target="_blank" rel="noopener noreferrer" className="block h-full w-full">
           <img
             src={src}
             alt={alt}
-            className={`h-16 w-16 rounded border object-cover transition-opacity hover:opacity-80 ${
+            loading="lazy"
+            className={`h-full w-full rounded border object-cover transition-opacity hover:opacity-80 ${
               loading ? 'opacity-0' : 'opacity-100'
             }`}
             onLoad={() => setLoading(false)}
@@ -61,38 +92,105 @@ const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
   )
 }
 
+const extractImageGalleryItem = (value: unknown) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null
+  }
+
+  const item = value as SourceSummary
+  const thumbnail =
+    asUrl(item.small_thumb) ||
+    asUrl(item.thumbnail_url) ||
+    asUrl(item.thumbnail) ||
+    asUrl(item.thumb) ||
+    asUrl(item.mid_thumb) ||
+    asUrl(item.big_thumb) ||
+    asUrl(item.url) ||
+    asUrl(item.source_url) ||
+    asUrl(item.identifier)
+  const href =
+    asUrl(item.url) ||
+    asUrl(item.big_thumb) ||
+    asUrl(item.source_url) ||
+    asUrl(item.identifier) ||
+    thumbnail
+
+  if (!thumbnail || !href || (!isImageUrl(thumbnail) && !isImageUrl(href))) {
+    return null
+  }
+
+  return {
+    thumbnail,
+    href,
+    author: item.auteur || item.author || item.creator || item.credit,
+    date: item.datmaj || item.date || item.created_at || item.updated_at,
+  }
+}
+
+const renderImageGallery = (value: unknown): React.ReactNode | null => {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const images = value
+    .map(extractImageGalleryItem)
+    .filter((item): item is NonNullable<ReturnType<typeof extractImageGalleryItem>> => item !== null)
+
+  if (images.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2">
+      {images.map((image, index) => (
+        <div key={`${image.href}-${index}`} className="min-w-0 rounded-md border bg-background p-1">
+          <ImageWithLoader
+            src={image.thumbnail}
+            href={image.href}
+            alt={typeof image.author === 'string' ? image.author : `Image ${index + 1}`}
+            className="aspect-square w-full"
+          />
+          {image.author || image.date ? (
+            <div className="mt-1 space-y-0.5 text-[10px] leading-tight text-muted-foreground">
+              {image.author ? <div className="truncate">{String(image.author)}</div> : null}
+              {image.date ? <div className="truncate tabular-nums">{String(image.date)}</div> : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const renderValue = (value: unknown): React.ReactNode => {
   if (value === null || value === undefined) return '-'
 
   if (typeof value === 'string') {
-    const urlPattern = /^(https?:\/\/[^\s]+)$/i
-    if (urlPattern.test(value)) {
-      const imagePattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
-      const isImageUrl =
-        imagePattern.test(value) ||
-        value.includes('/image') ||
-        value.includes('/photo') ||
-        value.includes('/thumb') ||
-        value.includes('/media/cache')
-
-      if (isImageUrl) {
+    const url = asUrl(value)
+    if (url) {
+      if (isImageUrl(url)) {
         return <ImageWithLoader src={value} alt="Preview" />
       }
 
       return (
         <a
-          href={value}
+          href={url}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
         >
-          <span className="max-w-[200px] truncate">{value}</span>
+          <span className="max-w-[200px] truncate">{url}</span>
           <ExternalLink className="h-3 w-3 shrink-0" />
         </a>
       )
     }
 
     return value
+  }
+
+  const gallery = renderImageGallery(value)
+  if (gallery) {
+    return gallery
   }
 
   if (typeof value === 'object') {
@@ -177,14 +275,23 @@ const renderSummaryRows = (rows: Array<[string, unknown]>) => (
   </div>
 )
 
-const renderStatusPill = (status: string | undefined) =>
-  status ? (
-    <Badge variant={status === 'complete' ? 'secondary' : 'outline'} className="text-[11px] uppercase">
-      {status}
-    </Badge>
-  ) : null
+const renderStatusPill = (t: Translate, status: unknown) => {
+  if (typeof status !== 'string' || status.length === 0) {
+    return null
+  }
 
-const renderNameResolutionSummary = (nameResolution: SourceSummary) => {
+  const label = t(`dashboard.enrichment.structured.status.${status}`, {
+    defaultValue: status.replace(/_/g, ' '),
+  })
+
+  return (
+    <Badge variant={status === 'complete' ? 'secondary' : 'outline'} className="text-[11px] font-medium">
+      {label}
+    </Badge>
+  )
+}
+
+const renderNameResolutionSummary = (nameResolution: SourceSummary, t: Translate) => {
   if (!nameResolution || Object.keys(nameResolution).length === 0) {
     return null
   }
@@ -192,8 +299,10 @@ const renderNameResolutionSummary = (nameResolution: SourceSummary) => {
   return (
     <div className="rounded-lg border border-border/70 bg-background p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold">Name resolution</div>
-        {renderStatusPill(typeof nameResolution.status === 'string' ? nameResolution.status : undefined)}
+        <div className="text-sm font-semibold">
+          {t('dashboard.enrichment.structured.nameResolution', { defaultValue: 'Name resolution' })}
+        </div>
+        {renderStatusPill(t, nameResolution.status)}
       </div>
       <div className="space-y-3">
         {renderSummaryRows([
@@ -210,7 +319,9 @@ const renderNameResolutionSummary = (nameResolution: SourceSummary) => {
         ])}
         {Array.isArray(nameResolution.alternatives) && nameResolution.alternatives.length > 0 ? (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">Alternatives</div>
+            <div className="text-xs font-medium text-muted-foreground">
+              {t('dashboard.enrichment.structured.alternatives', { defaultValue: 'Alternatives' })}
+            </div>
             <div className="flex flex-wrap gap-2">
               {nameResolution.alternatives.map((alternative: string) => (
                 <Badge key={alternative} variant="outline">{alternative}</Badge>
@@ -242,7 +353,7 @@ const renderOpenMeteoStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Location</div>
-              {renderStatusPill(blockStatus.location)}
+              {renderStatusPill(t, blockStatus.location)}
             </div>
             {blockErrors.location ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.location)}</div>
@@ -257,7 +368,7 @@ const renderOpenMeteoStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Elevation</div>
-              {renderStatusPill(blockStatus.elevation)}
+              {renderStatusPill(t, blockStatus.elevation)}
             </div>
             {blockErrors.elevation ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.elevation)}</div>
@@ -276,7 +387,7 @@ const renderOpenMeteoStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Geometry summary</div>
-              {renderStatusPill(blockStatus.geometry_summary)}
+              {renderStatusPill(t, blockStatus.geometry_summary)}
             </div>
             {blockErrors.geometry_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.geometry_summary)}</div>
@@ -294,7 +405,7 @@ const renderOpenMeteoStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Elevation summary</div>
-              {renderStatusPill(blockStatus.elevation_summary)}
+              {renderStatusPill(t, blockStatus.elevation_summary)}
             </div>
             {blockErrors.elevation_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.elevation_summary)}</div>
@@ -354,7 +465,7 @@ const renderGeoNamesStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Location</div>
-              {renderStatusPill(blockStatus.location)}
+              {renderStatusPill(t, blockStatus.location)}
             </div>
             {blockErrors.location ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.location)}</div>
@@ -369,7 +480,7 @@ const renderGeoNamesStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Administrative context</div>
-              {renderStatusPill(blockStatus.admin)}
+              {renderStatusPill(t, blockStatus.admin)}
             </div>
             {blockErrors.admin ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.admin)}</div>
@@ -386,7 +497,7 @@ const renderGeoNamesStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Nearby place</div>
-              {renderStatusPill(blockStatus.nearby_place)}
+              {renderStatusPill(t, blockStatus.nearby_place)}
             </div>
             {blockErrors.nearby_place ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.nearby_place)}</div>
@@ -408,7 +519,7 @@ const renderGeoNamesStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Geometry summary</div>
-              {renderStatusPill(blockStatus.geometry_summary)}
+              {renderStatusPill(t, blockStatus.geometry_summary)}
             </div>
             {blockErrors.geometry_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.geometry_summary)}</div>
@@ -426,7 +537,7 @@ const renderGeoNamesStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Administrative summary</div>
-              {renderStatusPill(blockStatus.admin_summary)}
+              {renderStatusPill(t, blockStatus.admin_summary)}
             </div>
             {blockErrors.admin_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.admin_summary)}</div>
@@ -521,18 +632,19 @@ const renderGbifStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
-      {renderNameResolutionSummary(nameResolution)}
+      {renderNameResolutionSummary(nameResolution, t)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">
             {t('dashboard.enrichment.structured.match', { defaultValue: 'Match' })}
           </div>
-          {renderStatusPill(blockStatus.match)}
+          {renderStatusPill(t, blockStatus.match)}
         </div>
         {noMatch ? (
           <div className="text-sm text-muted-foreground">
             {t('dashboard.enrichment.structured.noMatch', {
-              defaultValue: 'GBIF n’a pas retourné de match exploitable pour ce test.',
+              defaultValue:
+                'No exploitable identifier was found for this source, so dependent blocks were not run.',
             })}
           </div>
         ) : (
@@ -556,7 +668,7 @@ const renderGbifStructuredSummary = (
               <div className="text-sm font-semibold">
                 {t('dashboard.enrichment.structured.taxonomy', { defaultValue: 'Taxonomy' })}
               </div>
-              {renderStatusPill(blockStatus.taxonomy)}
+              {renderStatusPill(t, blockStatus.taxonomy)}
             </div>
             {blockErrors.taxonomy ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
@@ -596,7 +708,7 @@ const renderGbifStructuredSummary = (
               <div className="text-sm font-semibold">
                 {t('dashboard.enrichment.structured.occurrences', { defaultValue: 'Occurrences' })}
               </div>
-              {renderStatusPill(blockStatus.occurrence_summary)}
+              {renderStatusPill(t, blockStatus.occurrence_summary)}
             </div>
             {blockErrors.occurrence_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.occurrence_summary)}</div>
@@ -635,7 +747,7 @@ const renderGbifStructuredSummary = (
               <div className="text-sm font-semibold">
                 {t('dashboard.enrichment.structured.media', { defaultValue: 'Media' })}
               </div>
-              {renderStatusPill(blockStatus.media_summary)}
+              {renderStatusPill(t, blockStatus.media_summary)}
             </div>
             {blockErrors.media_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
@@ -698,16 +810,17 @@ const renderTropicosStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
-      {renderNameResolutionSummary(nameResolution)}
+      {renderNameResolutionSummary(nameResolution, t)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>
-          {renderStatusPill(blockStatus.match)}
+          {renderStatusPill(t, blockStatus.match)}
         </div>
         {noMatch ? (
           <div className="text-sm text-muted-foreground">
             {t('dashboard.enrichment.structured.noMatch', {
-              defaultValue: "Tropicos n’a pas retourné de match exploitable pour ce test.",
+              defaultValue:
+                'No exploitable identifier was found for this source, so dependent blocks were not run.',
             })}
           </div>
         ) : (
@@ -728,7 +841,7 @@ const renderTropicosStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Nomenclature</div>
-              {renderStatusPill(blockStatus.nomenclature)}
+              {renderStatusPill(t, blockStatus.nomenclature)}
             </div>
             {blockErrors.nomenclature ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.nomenclature)}</div>
@@ -758,7 +871,7 @@ const renderTropicosStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Taxonomy</div>
-              {renderStatusPill(blockStatus.taxonomy)}
+              {renderStatusPill(t, blockStatus.taxonomy)}
             </div>
             {blockErrors.taxonomy ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
@@ -782,7 +895,7 @@ const renderTropicosStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">References</div>
-              {renderStatusPill(blockStatus.references)}
+              {renderStatusPill(t, blockStatus.references)}
             </div>
             {blockErrors.references ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.references)}</div>
@@ -810,7 +923,7 @@ const renderTropicosStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Distribution</div>
-              {renderStatusPill(blockStatus.distribution_summary)}
+              {renderStatusPill(t, blockStatus.distribution_summary)}
             </div>
             {blockErrors.distribution_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.distribution_summary)}</div>
@@ -844,7 +957,7 @@ const renderTropicosStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Media</div>
-              {renderStatusPill(blockStatus.media_summary)}
+              {renderStatusPill(t, blockStatus.media_summary)}
             </div>
             {blockErrors.media_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
@@ -900,12 +1013,13 @@ const renderInaturalistStructuredSummary = (
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>
-          {renderStatusPill(blockStatus.match)}
+          {renderStatusPill(t, blockStatus.match)}
         </div>
         {noMatch ? (
           <div className="text-sm text-muted-foreground">
             {t('dashboard.enrichment.structured.noMatch', {
-              defaultValue: "iNaturalist n’a pas retourné de match exploitable pour ce test.",
+              defaultValue:
+                'No exploitable identifier was found for this source, so dependent blocks were not run.',
             })}
           </div>
         ) : (
@@ -925,7 +1039,7 @@ const renderInaturalistStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Taxon</div>
-              {renderStatusPill(blockStatus.taxon)}
+              {renderStatusPill(t, blockStatus.taxon)}
             </div>
             {blockErrors.taxon ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.taxon)}</div>
@@ -959,7 +1073,7 @@ const renderInaturalistStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Observations</div>
-              {renderStatusPill(blockStatus.observation_summary)}
+              {renderStatusPill(t, blockStatus.observation_summary)}
             </div>
             {blockErrors.observation_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.observation_summary)}</div>
@@ -997,7 +1111,7 @@ const renderInaturalistStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Media</div>
-              {renderStatusPill(blockStatus.media_summary)}
+              {renderStatusPill(t, blockStatus.media_summary)}
             </div>
             {blockErrors.media_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.media_summary)}</div>
@@ -1031,7 +1145,7 @@ const renderInaturalistStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Places</div>
-              {renderStatusPill(blockStatus.places)}
+              {renderStatusPill(t, blockStatus.places)}
             </div>
             {blockErrors.places ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.places)}</div>
@@ -1088,12 +1202,13 @@ const renderBhlStructuredSummary = (
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>
-          {renderStatusPill(blockStatus.match)}
+          {renderStatusPill(t, blockStatus.match)}
         </div>
         {noMatch ? (
           <div className="text-sm text-muted-foreground">
             {t('dashboard.enrichment.structured.noMatch', {
-              defaultValue: "BHL n’a pas retourné de référence exploitable pour ce test.",
+              defaultValue:
+                'No exploitable identifier was found for this source, so dependent blocks were not run.',
             })}
           </div>
         ) : (
@@ -1112,7 +1227,7 @@ const renderBhlStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Titles</div>
-              {renderStatusPill(blockStatus.title_summary)}
+              {renderStatusPill(t, blockStatus.title_summary)}
             </div>
             {blockErrors.title_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.title_summary)}</div>
@@ -1147,7 +1262,7 @@ const renderBhlStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Mentions</div>
-              {renderStatusPill(blockStatus.name_mentions)}
+              {renderStatusPill(t, blockStatus.name_mentions)}
             </div>
             {blockErrors.name_mentions ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.name_mentions)}</div>
@@ -1174,7 +1289,7 @@ const renderBhlStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Pages</div>
-              {renderStatusPill(blockStatus.page_links)}
+              {renderStatusPill(t, blockStatus.page_links)}
             </div>
             {blockErrors.page_links ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.page_links)}</div>
@@ -1231,16 +1346,17 @@ const renderColStructuredSummary = (
 
   return (
     <div className="max-h-[420px] space-y-3 overflow-auto pr-2">
-      {renderNameResolutionSummary(nameResolution)}
+      {renderNameResolutionSummary(nameResolution, t)}
       <div className="rounded-lg border border-border/70 bg-background p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">Match</div>
-          {renderStatusPill(blockStatus.match)}
+          {renderStatusPill(t, blockStatus.match)}
         </div>
         {noMatch ? (
           <div className="text-sm text-muted-foreground">
             {t('dashboard.enrichment.structured.noMatch', {
-              defaultValue: "Catalogue of Life n’a pas retourné de match exploitable pour ce test.",
+              defaultValue:
+                'No exploitable identifier was found for this source, so dependent blocks were not run.',
             })}
           </div>
         ) : (
@@ -1261,7 +1377,7 @@ const renderColStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Taxonomy</div>
-              {renderStatusPill(blockStatus.taxonomy)}
+              {renderStatusPill(t, blockStatus.taxonomy)}
             </div>
             {blockErrors.taxonomy ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.taxonomy)}</div>
@@ -1298,7 +1414,7 @@ const renderColStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Nomenclature</div>
-              {renderStatusPill(blockStatus.nomenclature)}
+              {renderStatusPill(t, blockStatus.nomenclature)}
             </div>
             {blockErrors.nomenclature ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.nomenclature)}</div>
@@ -1326,7 +1442,7 @@ const renderColStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Vernaculars</div>
-              {renderStatusPill(blockStatus.vernaculars)}
+              {renderStatusPill(t, blockStatus.vernaculars)}
             </div>
             {blockErrors.vernaculars ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.vernaculars)}</div>
@@ -1378,7 +1494,7 @@ const renderColStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Distribution</div>
-              {renderStatusPill(blockStatus.distribution_summary)}
+              {renderStatusPill(t, blockStatus.distribution_summary)}
             </div>
             {blockErrors.distribution_summary ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.distribution_summary)}</div>
@@ -1412,7 +1528,7 @@ const renderColStructuredSummary = (
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">References</div>
-              {renderStatusPill(blockStatus.references)}
+              {renderStatusPill(t, blockStatus.references)}
             </div>
             {blockErrors.references ? (
               <div className="text-sm text-muted-foreground">{String(blockErrors.references)}</div>

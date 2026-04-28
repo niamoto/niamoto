@@ -248,7 +248,10 @@ export function DataModule() {
         />
       }
     >
-      <PanelTransition transitionKey={`${selection.type}:${'name' in selection ? selection.name ?? '' : ''}`}>
+      <PanelTransition
+        transitionKey={`${selection.type}:${'name' in selection ? selection.name ?? '' : ''}`}
+        className="h-full min-h-0 overflow-hidden"
+      >
         {renderContent()}
       </PanelTransition>
     </ModuleLayout>
