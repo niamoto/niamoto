@@ -25,6 +25,7 @@ interface FieldSourcePickerProps {
   value: string
   options: SuggestedDisplayField[]
   loading?: boolean
+  error?: string | null
   onLoad?: () => void
   onSelect: (field: SuggestedDisplayField) => void
 }
@@ -44,6 +45,7 @@ export function FieldSourcePicker({
   value,
   options,
   loading = false,
+  error = null,
   onLoad,
   onSelect,
 }: FieldSourcePickerProps) {
@@ -99,6 +101,13 @@ export function FieldSourcePicker({
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t('fieldEditor.fieldPickerLoading')}
+              </div>
+            ) : error ? (
+              <div
+                role="alert"
+                className="px-3 py-6 text-center text-sm text-destructive"
+              >
+                {error}
               </div>
             ) : (
               <CommandEmpty>{t('fieldEditor.fieldPickerEmpty')}</CommandEmpty>

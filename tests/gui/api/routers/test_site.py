@@ -15,6 +15,7 @@ from niamoto.gui.api.routers.site import (
     _fallback_legacy_home_page,
     _fallback_without_language_prefix,
     _get_preview_api_base_url,
+    _generate_mock_items,
     _normalize_footer_sections,
     _normalize_link_url,
     _normalize_navigation_items,
@@ -856,6 +857,30 @@ class TestSiteGroups:
             html = response.json()["html"]
             assert "Plot 1" in html
             assert "Araucaria columnaris" not in html
+
+    def test_preview_group_index_preserves_field_specific_title_samples(self):
+        items = _generate_mock_items(
+            [
+                {
+                    "name": "name",
+                    "source": "general_info.name.value",
+                    "type": "text",
+                    "is_title": False,
+                },
+                {
+                    "name": "occurrences_count",
+                    "source": "general_info.occurrences_count.value",
+                    "type": "text",
+                    "is_title": True,
+                },
+            ],
+            count=1,
+            id_column="plots_id",
+            group_name="plots",
+        )
+
+        assert isinstance(items[0]["occurrences_count"], int)
+        assert items[0]["occurrences_count"] != "Plot 1"
 
     def test_preview_exported_site_falls_back_to_legacy_home_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -103,19 +103,25 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
   const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null)
   const [availableFields, setAvailableFields] = useState<SuggestedDisplayField[]>([])
   const [loadingAvailableFields, setLoadingAvailableFields] = useState(false)
+  const [availableFieldsError, setAvailableFieldsError] = useState<string | null>(null)
+  const [fieldEditorIsValid, setFieldEditorIsValid] = useState(true)
   const activeGroupRef = useRef(groupBy)
   const mountedRef = useRef(true)
   const {
     mutate: requestGroupIndexPreview,
     isPending: isPreviewPending,
   } = useGroupIndexPreview()
-  const needsSaveAttention = isDirty && !saving
+  const canSave = isDirty && !saving && fieldEditorIsValid
+  const needsSaveAttention = canSave
 
   useEffect(() => {
+    mountedRef.current = true
+    activeGroupRef.current = groupBy
+
     return () => {
       mountedRef.current = false
     }
-  }, [])
+  }, [groupBy])
 
   const rememberAvailableFields = useCallback((suggestions: IndexFieldSuggestions) => {
     setAvailableFields(
@@ -123,6 +129,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
         ? suggestions.available_fields
         : suggestions.display_fields
     )
+    setAvailableFieldsError(null)
   }, [])
 
   const ensureAvailableFields = useCallback(async () => {
@@ -132,12 +139,27 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
 
     const requestedGroup = groupBy
     setLoadingAvailableFields(true)
-    const suggestions = await fetchSuggestions()
-    if (suggestions && mountedRef.current && activeGroupRef.current === requestedGroup) {
-      rememberAvailableFields(suggestions)
-    }
-    if (mountedRef.current && activeGroupRef.current === requestedGroup) {
-      setLoadingAvailableFields(false)
+    setAvailableFieldsError(null)
+
+    try {
+      const suggestions = await fetchSuggestions()
+      if (!mountedRef.current || activeGroupRef.current !== requestedGroup) {
+        return
+      }
+
+      if (suggestions) {
+        rememberAvailableFields(suggestions)
+      } else {
+        setAvailableFieldsError(t('fieldEditor.fieldPickerLoadError'))
+      }
+    } catch {
+      if (mountedRef.current && activeGroupRef.current === requestedGroup) {
+        setAvailableFieldsError(t('fieldEditor.fieldPickerLoadError'))
+      }
+    } finally {
+      if (mountedRef.current && activeGroupRef.current === requestedGroup) {
+        setLoadingAvailableFields(false)
+      }
     }
   }, [
     availableFields.length,
@@ -145,6 +167,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
     groupBy,
     loadingAvailableFields,
     rememberAvailableFields,
+    t,
   ])
 
   const loadPreview = useCallback(() => {
@@ -179,6 +202,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
 
   // Handle save
   const handleSave = async () => {
+    if (!fieldEditorIsValid) return
     setSaving(true)
     setSaveSuccess(false)
     const success = await save()
@@ -242,6 +266,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
       source: '',
     }))
     // Auto-select the new field for editing
+    setFieldEditorIsValid(true)
     setEditingFieldIndex(newIndex)
     setShowPreview(false)
     void ensureAvailableFields()
@@ -249,13 +274,14 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
 
   // Handle field selection
   const handleSelectField = (index: number) => {
+    setFieldEditorIsValid(true)
     setEditingFieldIndex(index)
     setShowPreview(false)
     void ensureAvailableFields()
   }
 
-  // Handle field save from panel
-  const handleSaveField = (field: Partial<typeof config.display_fields[0]>) => {
+  // Handle field changes from panel
+  const handleChangeField = (field: Partial<typeof config.display_fields[0]>) => {
     if (editingFieldIndex !== null) {
       updateDisplayField(editingFieldIndex, field)
     }
@@ -266,6 +292,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
     removeDisplayField(index)
     // If we're editing the removed field, close the editor
     if (editingFieldIndex === index) {
+      setFieldEditorIsValid(true)
       setEditingFieldIndex(null)
     } else if (editingFieldIndex !== null && index < editingFieldIndex) {
       // Adjust index if a field before the edited one is removed
@@ -316,6 +343,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
                 onClick={() => {
                   setShowPreview(!showPreview)
                   if (!showPreview) {
+                    setFieldEditorIsValid(true)
                     setEditingFieldIndex(null)
                   }
                 }}
@@ -364,7 +392,10 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
           <Button
             variant="outline"
             size="sm"
-            onClick={reset}
+            onClick={() => {
+              reset()
+              setFieldEditorIsValid(true)
+            }}
             disabled={!isDirty || saving}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
@@ -373,7 +404,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={!isDirty || saving}
+            disabled={!canSave}
             className={cn(
               'relative',
               needsSaveAttention &&
@@ -697,14 +728,19 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
             <ResizablePanel defaultSize="45%" minSize="30%">
               {editingFieldIndex !== null && config.display_fields[editingFieldIndex] ? (
                 <DisplayFieldEditorPanel
-                  key={`${editingFieldIndex}-${config.display_fields[editingFieldIndex].name}-${config.display_fields[editingFieldIndex].source}`}
+                  key={editingFieldIndex}
                   field={config.display_fields[editingFieldIndex]}
                   fieldIndex={editingFieldIndex}
                   availableFields={availableFields}
                   loadingAvailableFields={loadingAvailableFields}
+                  availableFieldsError={availableFieldsError}
                   onLoadAvailableFields={ensureAvailableFields}
-                  onSave={handleSaveField}
-                  onClose={() => setEditingFieldIndex(null)}
+                  onChange={handleChangeField}
+                  onValidityChange={setFieldEditorIsValid}
+                  onClose={() => {
+                    setFieldEditorIsValid(true)
+                    setEditingFieldIndex(null)
+                  }}
                 />
               ) : showPreview ? (
                 <PreviewFrame

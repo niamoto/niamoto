@@ -7,7 +7,7 @@
  * - Display: format, badge options
  * - Advanced: link settings, mapping
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,7 +28,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import { Settings2, Search, Palette, Link2, Braces, Plus, X, PanelRightClose, Save } from 'lucide-react'
+import { Settings2, Search, Palette, Link2, Braces, Plus, X, PanelRightClose } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { FieldSourcePicker } from './FieldSourcePicker'
 import type { IndexDisplayField, SuggestedDisplayField } from './useIndexConfig'
@@ -38,8 +38,10 @@ interface DisplayFieldEditorPanelProps {
   fieldIndex: number
   availableFields?: SuggestedDisplayField[]
   loadingAvailableFields?: boolean
+  availableFieldsError?: string | null
   onLoadAvailableFields?: () => void
-  onSave: (field: Partial<IndexDisplayField>) => void
+  onChange: (field: Partial<IndexDisplayField>) => void
+  onValidityChange?: (isValid: boolean) => void
   onClose: () => void
 }
 
@@ -72,14 +74,13 @@ export function DisplayFieldEditorPanel({
   fieldIndex,
   availableFields = [],
   loadingAvailableFields = false,
+  availableFieldsError = null,
   onLoadAvailableFields,
-  onSave,
+  onChange,
+  onValidityChange,
   onClose,
 }: DisplayFieldEditorPanelProps) {
   const { t } = useTranslation(['sources', 'common', 'indexConfig'])
-  // Local state for editing
-  const [localField, setLocalField] = useState<IndexDisplayField>(field)
-  const [isDirty, setIsDirty] = useState(false)
 
   // State for JSON text editing
   const [mappingText, setMappingText] = useState(stringifyJsonObject(field.mapping))
@@ -91,10 +92,19 @@ export function DisplayFieldEditorPanel({
   const [newFilterValue, setNewFilterValue] = useState('')
   const [newFilterLabel, setNewFilterLabel] = useState('')
 
-  // Update local field
+  useEffect(() => {
+    onValidityChange?.(!mappingError && !badgeColorsError)
+  }, [badgeColorsError, mappingError, onValidityChange])
+
+  useEffect(() => {
+    return () => {
+      onValidityChange?.(true)
+    }
+  }, [onValidityChange])
+
+  // Propagate changes immediately so the global dirty state and preview stay in sync.
   const updateField = (updates: Partial<IndexDisplayField>) => {
-    setLocalField(prev => ({ ...prev, ...updates }))
-    setIsDirty(true)
+    onChange(updates)
   }
 
   // Handle mapping text change
@@ -128,7 +138,7 @@ export function DisplayFieldEditorPanel({
       value: newFilterValue.trim(),
       label: newFilterLabel.trim() || newFilterValue.trim()
     }
-    const currentOptions = localField.filter_options || []
+    const currentOptions = field.filter_options || []
     updateField({ filter_options: [...currentOptions, newOption] })
     setNewFilterValue('')
     setNewFilterLabel('')
@@ -136,18 +146,11 @@ export function DisplayFieldEditorPanel({
 
   // Handle removing filter option
   const handleRemoveFilterOption = (index: number) => {
-    const currentOptions = localField.filter_options || []
+    const currentOptions = field.filter_options || []
+    const nextOptions = currentOptions.filter((_, i) => i !== index)
     updateField({
-      filter_options: currentOptions.filter((_, i) => i !== index) || undefined
+      filter_options: nextOptions.length > 0 ? nextOptions : undefined
     })
-  }
-
-  // Handle save
-  const handleSave = () => {
-    // Don't save if there are JSON errors
-    if (mappingError || badgeColorsError) return
-    onSave(localField)
-    setIsDirty(false)
   }
 
   const handleSelectSourceField = (suggestion: SuggestedDisplayField) => {
@@ -155,16 +158,16 @@ export function DisplayFieldEditorPanel({
       suggestion.type === 'number' ? 'text' : suggestion.type as IndexDisplayField['type']
 
     updateField({
-      name: isPlaceholderFieldName(localField.name) ? suggestion.name : localField.name,
+      name: isPlaceholderFieldName(field.name) ? suggestion.name : field.name,
       source: suggestion.source,
       fallback: suggestion.fallback,
       type: nextType,
-      label: localField.label || suggestion.label,
+      label: field.label || suggestion.label,
       searchable: suggestion.searchable,
       dynamic_options: suggestion.dynamic_options,
-      display: suggestion.display ?? localField.display ?? 'normal',
-      is_title: suggestion.is_title === true ? true : localField.is_title,
-      inline_badge: suggestion.inline_badge ?? localField.inline_badge,
+      display: suggestion.display ?? field.display ?? 'normal',
+      is_title: suggestion.is_title === true ? true : field.is_title,
+      inline_badge: suggestion.inline_badge ?? field.inline_badge,
       format: suggestion.type === 'number'
         ? 'number'
         : suggestion.format as IndexDisplayField['format'],
@@ -181,21 +184,13 @@ export function DisplayFieldEditorPanel({
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
           <h3 className="font-semibold">
-            {localField.name || t('indexConfig:fieldEditor.newField')}
+            {field.name || t('indexConfig:fieldEditor.newField')}
           </h3>
           <p className="text-xs text-muted-foreground">
             Champ #{fieldIndex + 1}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={!isDirty || !!mappingError || !!badgeColorsError}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {t('common:actions.save')}
-          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -224,7 +219,7 @@ export function DisplayFieldEditorPanel({
                   <Label htmlFor="field-name">{t('indexConfig:fieldEditor.fieldName')}</Label>
                   <Input
                     id="field-name"
-                    value={localField.name}
+                    value={field.name}
                     onChange={(e) => updateField({ name: e.target.value })}
                     placeholder="nom_du_champ"
                   />
@@ -236,7 +231,7 @@ export function DisplayFieldEditorPanel({
                 <div className="space-y-2">
                   <Label htmlFor="field-label">{t('indexConfig:fieldEditor.labelOptional')}</Label>
                   <LocalizedInput
-                    value={localField.label || ''}
+                    value={field.label || ''}
                     onChange={(value) => updateField({ label: value || undefined })}
                     placeholder={t('indexConfig:fieldEditor.displayedName')}
                   />
@@ -249,9 +244,10 @@ export function DisplayFieldEditorPanel({
               <div className="space-y-2">
                 <Label>{t('indexConfig:fieldEditor.dataField')}</Label>
                 <FieldSourcePicker
-                  value={localField.source}
+                  value={field.source}
                   options={availableFields}
                   loading={loadingAvailableFields}
+                  error={availableFieldsError}
                   onLoad={onLoadAvailableFields}
                   onSelect={handleSelectSourceField}
                 />
@@ -268,10 +264,10 @@ export function DisplayFieldEditorPanel({
                   </p>
                 </div>
                 <Switch
-                  checked={localField.is_title ?? false}
+                  checked={field.is_title ?? false}
                   onCheckedChange={(checked) => updateField({
                     is_title: checked,
-                    searchable: checked ? true : localField.searchable,
+                    searchable: checked ? true : field.searchable,
                   })}
                 />
               </div>
@@ -280,7 +276,7 @@ export function DisplayFieldEditorPanel({
                 <div className="space-y-2">
                   <Label>{t('indexConfig:fieldEditor.dataType')}</Label>
                   <Select
-                    value={localField.type}
+                    value={field.type}
                     onValueChange={(value) => updateField({ type: value as IndexDisplayField['type'] })}
                   >
                     <SelectTrigger>
@@ -298,7 +294,7 @@ export function DisplayFieldEditorPanel({
                 <div className="space-y-2">
                   <Label>{t('indexConfig:fieldEditor.displayMode')}</Label>
                   <Select
-                    value={localField.display}
+                    value={field.display}
                     onValueChange={(value) => updateField({ display: value as IndexDisplayField['display'] })}
                   >
                     <SelectTrigger>
@@ -329,7 +325,7 @@ export function DisplayFieldEditorPanel({
                 <Label htmlFor="field-source">{t('indexConfig:fieldEditor.sourceJsonPath')}</Label>
                 <Input
                   id="field-source"
-                  value={localField.source}
+                  value={field.source}
                   onChange={(e) => updateField({ source: e.target.value })}
                   placeholder="general_info.name.value"
                   className="font-mono"
@@ -343,7 +339,7 @@ export function DisplayFieldEditorPanel({
                 <Label htmlFor="field-fallback">{t('indexConfig:fieldEditor.fallbackOptional')}</Label>
                 <Input
                   id="field-fallback"
-                  value={localField.fallback || ''}
+                  value={field.fallback || ''}
                   onChange={(e) => updateField({ fallback: e.target.value || undefined })}
                   placeholder="chemin.alternatif"
                   className="font-mono"
@@ -372,7 +368,7 @@ export function DisplayFieldEditorPanel({
                   </p>
                 </div>
                 <Switch
-                  checked={localField.searchable}
+                  checked={field.searchable}
                   onCheckedChange={(checked) => updateField({ searchable: checked })}
                 />
               </div>
@@ -385,7 +381,7 @@ export function DisplayFieldEditorPanel({
                   </p>
                 </div>
                 <Switch
-                  checked={localField.dynamic_options}
+                  checked={field.dynamic_options}
                   onCheckedChange={(checked) => updateField({ dynamic_options: checked })}
                 />
               </div>
@@ -404,7 +400,7 @@ export function DisplayFieldEditorPanel({
               <div className="space-y-2">
                 <Label>{t('indexConfig:fieldEditor.displayFormat')}</Label>
                 <Select
-                  value={localField.format || 'none'}
+                  value={field.format || 'none'}
                   onValueChange={(value) => updateField({ format: value === 'none' ? undefined : value as IndexDisplayField['format'] })}
                 >
                   <SelectTrigger>
@@ -428,29 +424,29 @@ export function DisplayFieldEditorPanel({
                   </p>
                 </div>
                 <Switch
-                  checked={localField.inline_badge}
+                  checked={field.inline_badge}
                   onCheckedChange={(checked) => updateField({ inline_badge: checked })}
                 />
               </div>
 
-              {localField.inline_badge && (
+              {field.inline_badge && (
                 <div className="space-y-2">
                   <Label htmlFor="badge-color">{t('indexConfig:fieldEditor.badgeColorCss')}</Label>
                   <Input
                     id="badge-color"
-                    value={localField.badge_color || ''}
+                    value={field.badge_color || ''}
                     onChange={(e) => updateField({ badge_color: e.target.value || undefined })}
                     placeholder="bg-green-600 text-white"
                   />
                 </div>
               )}
 
-              {localField.type === 'boolean' && (
+              {field.type === 'boolean' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="true-label">{t('indexConfig:fieldEditor.trueLabel')}</Label>
                     <LocalizedInput
-                      value={localField.true_label || ''}
+                      value={field.true_label || ''}
                       onChange={(value) => updateField({ true_label: value || undefined })}
                       placeholder="Oui"
                     />
@@ -458,7 +454,7 @@ export function DisplayFieldEditorPanel({
                   <div className="space-y-2">
                     <Label htmlFor="false-label">{t('indexConfig:fieldEditor.falseLabel')}</Label>
                     <LocalizedInput
-                      value={localField.false_label || ''}
+                      value={field.false_label || ''}
                       onChange={(value) => updateField({ false_label: value || undefined })}
                       placeholder="Non"
                     />
@@ -469,7 +465,7 @@ export function DisplayFieldEditorPanel({
           </AccordionItem>
 
           {/* Link settings */}
-          {localField.display === 'link' && (
+          {field.display === 'link' && (
             <AccordionItem value="link" className="border rounded-lg">
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -482,7 +478,7 @@ export function DisplayFieldEditorPanel({
                   <Label htmlFor="link-template">{t('indexConfig:fieldEditor.urlTemplate')}</Label>
                   <Input
                     id="link-template"
-                    value={localField.link_template || ''}
+                    value={field.link_template || ''}
                     onChange={(e) => updateField({ link_template: e.target.value || undefined })}
                     placeholder="https://example.com/{value}"
                     className="font-mono"
@@ -496,7 +492,7 @@ export function DisplayFieldEditorPanel({
                   <div className="space-y-2">
                     <Label htmlFor="link-label">{t('indexConfig:fieldEditor.linkLabel')}</Label>
                     <LocalizedInput
-                      value={localField.link_label || ''}
+                      value={field.link_label || ''}
                       onChange={(value) => updateField({ link_label: value || undefined })}
                       placeholder={t('indexConfig:fields.linkLabelPlaceholder')}
                     />
@@ -504,7 +500,7 @@ export function DisplayFieldEditorPanel({
                   <div className="space-y-2">
                     <Label htmlFor="link-target">{t('indexConfig:fieldEditor.target')}</Label>
                     <Select
-                      value={localField.link_target || '_self'}
+                      value={field.link_target || '_self'}
                       onValueChange={(value) => updateField({ link_target: value })}
                     >
                       <SelectTrigger>
@@ -549,11 +545,11 @@ export function DisplayFieldEditorPanel({
               </div>
 
               {/* Filter Options (for select type) */}
-              {localField.type === 'select' && !localField.dynamic_options && (
+              {field.type === 'select' && !field.dynamic_options && (
                 <div className="space-y-2">
                   <Label>{t('indexConfig:fieldEditor.staticFilterOptions')}</Label>
                   <div className="space-y-2">
-                    {(localField.filter_options || []).map((option, index) => (
+                    {(field.filter_options || []).map((option, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <Badge variant="secondary" className="flex-1 justify-between py-1.5">
                           <span className="font-mono text-xs">{option.value}</span>
@@ -609,7 +605,7 @@ export function DisplayFieldEditorPanel({
               )}
 
               {/* Badge colors per value */}
-              {(localField.inline_badge || localField.format === 'badge') && (
+              {(field.inline_badge || field.format === 'badge') && (
                 <div className="space-y-2">
                   <Label htmlFor="badge-colors">{t('indexConfig:fieldEditor.badgeColorsJson')}</Label>
                   <Textarea

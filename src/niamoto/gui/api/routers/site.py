@@ -1407,14 +1407,10 @@ def _generate_mock_items(
         for field in display_fields:
             field_name = field.get("name", "")
             field_type = field.get("type", "text")
+            field_key = field_name.lower()
+            is_title = field.get("is_title")
 
-            if field.get("is_title"):
-                item[field_name] = f"{preview_label} {i + 1}"
-            elif field_name == "name" or field_name == "full_name":
-                item[field_name] = sample_names[i]
-            elif field_name == "family" or "family" in field_name.lower():
-                item[field_name] = random.choice(sample_families)
-            elif field_type == "boolean":
+            if field_type == "boolean":
                 item[field_name] = random.choice([True, False])
             elif field_type == "select":
                 options = field.get("filter_options", [])
@@ -1424,10 +1420,15 @@ def _generate_mock_items(
                     item[field_name] = random.choice(list(field["mapping"].keys()))
                 else:
                     item[field_name] = f"Option {random.randint(1, 3)}"
-            elif "count" in field_name.lower() or "number" in field_name.lower():
+            elif "count" in field_key or "number" in field_key:
                 item[field_name] = random.randint(10, 500)
-            elif "height" in field_name.lower() or "dbh" in field_name.lower():
-                item[field_name] = round(random.uniform(5.0, 30.0), 1)
+            elif any(
+                token in field_key
+                for token in ("height", "dbh", "elevation", "altitude")
+            ):
+                item[field_name] = round(random.uniform(5.0, 800.0), 1)
+            elif any(token in field_key for token in ("rainfall", "precip", "pluvio")):
+                item[field_name] = random.randint(800, 3500)
             elif field.get("display") == "image_preview" or field_type == "json_array":
                 # Generate mock image data with inline SVG placeholders (offline-safe)
                 color = random.choice(placeholder_colors)
@@ -1458,6 +1459,12 @@ def _generate_mock_items(
                         }
                     )
                 item[field_name] = images
+            elif field_name == "family" or "family" in field_key:
+                item[field_name] = random.choice(sample_families)
+            elif is_title:
+                item[field_name] = f"{preview_label} {i + 1}"
+            elif field_name == "name" or field_name == "full_name":
+                item[field_name] = sample_names[i]
             else:
                 item[field_name] = f"Valeur {i + 1}"
 

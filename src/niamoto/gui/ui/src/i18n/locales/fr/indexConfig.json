@@ -102,6 +102,7 @@
     "noDataFieldSelected": "Aucun champ sélectionné",
     "fieldPickerPlaceholder": "Rechercher des champs ou chemins...",
     "fieldPickerLoading": "Chargement des champs...",
+    "fieldPickerLoadError": "Impossible de charger les champs. Réessayez.",
     "fieldPickerEmpty": "Aucun champ correspondant.",
     "detectedFields": "Champs détectés",
     "exampleValues": "Exemples : {{values}}",
