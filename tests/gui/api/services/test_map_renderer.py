@@ -48,6 +48,34 @@ def test_render_computes_center_and_zoom_before_plotly_dispatch(monkeypatch):
     assert captured["config"].zoom == 12.0
 
 
+def test_render_applies_zoom_offset_to_auto_zoom(monkeypatch):
+    captured = {}
+
+    def fake_render_plotly(cls, geojson, config):
+        captured["config"] = config
+        return "<div>plotly-map</div>"
+
+    monkeypatch.setattr(
+        MapRenderer,
+        "_render_plotly",
+        classmethod(fake_render_plotly),
+    )
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {"name": "Aoupinié"},
+            }
+        ],
+    }
+
+    MapRenderer.render(geojson, config=MapConfig(zoom_offset=0.55), engine="plotly")
+
+    assert captured["config"].zoom == pytest.approx(12.55)
+
+
 def test_render_dispatches_to_leaflet_engine(monkeypatch):
     def fake_render_leaflet(cls, geojson, config):
         return "<div>leaflet-map</div>"
@@ -69,3 +97,20 @@ def test_render_dispatches_to_leaflet_engine(monkeypatch):
     }
 
     assert MapRenderer.render(geojson, engine="leaflet") == "<div>leaflet-map</div>"
+
+
+def test_render_plotly_uses_feature_label_for_hover_text():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {"id": "plot-1", "label": "Preferred label"},
+            }
+        ],
+    }
+
+    html = MapRenderer.render(geojson, config=MapConfig(), engine="plotly")
+
+    assert "Preferred label" in html

@@ -56,7 +56,7 @@ def detect_hierarchy_metadata(
     name_field = first_available(["full_name", "name", "label", "title", "rank_value"])
     parent_field = first_available(["parent_id", "parent", "id_parent"])
     left_field = first_available(["lft", "left", "left_bound"])
-    right_field = first_available(["rght", "right", "right_bound"])
+    right_field = first_available(["rght", "rgt", "right", "right_bound"])
 
     if not id_field or not rank_field or not name_field:
         return None

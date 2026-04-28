@@ -2,7 +2,9 @@
  * ReferenceDetailPanel - Detailed view of a reference entity with tabs
  *
  * Tabs:
- * - Overview: Stats, hierarchy, data preview
+ * - Summary: Identity, readiness cues, next actions
+ * - Hierarchy: Hierarchical reference inspection (conditional)
+ * - Preview: Data preview
  * - Enrichment: API enrichment management (conditional)
  * - Configuration: Reference settings
  */
@@ -10,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,19 +38,25 @@ import {
   MapPin,
   Trash2,
   Loader2,
-  Database,
   Zap,
   Settings,
-  LayoutDashboard,
+  Eye,
+  GitBranch,
 } from 'lucide-react'
 import { TableBrowser } from '@/features/import/components/data-preview/TableBrowser'
-import { TableStats } from '@/features/import/components/data-preview/TableStats'
 import { ReferenceConfigEditor } from '@/features/import/components/editors/ReferenceConfigEditor'
 import { EnrichmentTab } from '@/features/import/components/enrichment/EnrichmentTab'
+import { HierarchyView } from '@/features/import/components/hierarchy/HierarchyView'
+import { SourceSummary } from '@/features/import/components/panels/SourceSummary'
+import { SpatialMapView } from '@/features/import/components/spatial/SpatialMapView'
 import { deleteEntity } from '@/features/import/api/import'
+import { hasHierarchyInspection } from '@/features/import/referenceKinds'
 import { apiClient } from '@/shared/lib/api/client'
 import { importQueryKeys } from '@/features/import/queryKeys'
-import { removeImportEntityFromCache } from '@/features/import/queryUtils'
+import {
+  removeImportEntityFromCache,
+  spatialMapSummaryQueryOptions,
+} from '@/features/import/queryUtils'
 
 interface EnrichmentConfigSource {
   id: string
@@ -66,7 +74,6 @@ interface ReferenceDetailPanelProps {
   tableName: string
   kind?: string
   entityCount?: number
-  hierarchyLevels?: string[]
   onBack?: () => void
 }
 
@@ -75,7 +82,6 @@ export function ReferenceDetailPanel({
   tableName,
   kind,
   entityCount,
-  hierarchyLevels,
   onBack,
 }: ReferenceDetailPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
@@ -85,21 +91,31 @@ export function ReferenceDetailPanel({
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTable, setDeleteTable] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('summary')
   const requestedTab = searchParams.get('tab')
   const requestedSource = searchParams.get('source')
+  const hasHierarchy = hasHierarchyInspection(kind)
 
   // Check if enrichment is configured for this reference
   const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfigResponse | null>(null)
 
-  // Reset to overview tab when reference changes
+  // Reset to summary tab when reference changes
   useEffect(() => {
-    if (requestedTab === 'enrichment' || requestedTab === 'config') {
+    if (
+      requestedTab === 'enrichment' ||
+      requestedTab === 'config' ||
+      requestedTab === 'preview' ||
+      requestedTab === 'map'
+    ) {
       setActiveTab(requestedTab)
       return
     }
-    setActiveTab('overview')
-  }, [referenceName, requestedTab])
+    if (requestedTab === 'hierarchy' && hasHierarchy) {
+      setActiveTab('hierarchy')
+      return
+    }
+    setActiveTab('summary')
+  }, [hasHierarchy, referenceName, requestedTab])
 
   // Function to reload enrichment config (called after config changes)
   const reloadEnrichmentConfig = useCallback(async () => {
@@ -121,7 +137,17 @@ export function ReferenceDetailPanel({
     reloadEnrichmentConfig()
   }, [reloadEnrichmentConfig])
 
+  const { data: spatialMapSummary } = useQuery(spatialMapSummaryQueryOptions(referenceName))
   const hasEnrichment = Boolean(enrichmentConfig?.sources?.some((source) => source.enabled))
+  const hasSpatialMap = Boolean(spatialMapSummary?.is_mappable)
+  const referenceKindLabel =
+    hasHierarchy
+      ? t('reference.hierarchical')
+      : kind === 'spatial'
+        ? t('reference.spatial')
+        : kind
+          ? t('reference.file')
+          : t('reference.file')
 
   const handleConfigSaved = async () => {
     await reloadEnrichmentConfig()
@@ -155,9 +181,11 @@ export function ReferenceDetailPanel({
 
   // Get icon based on kind
   const getKindIcon = () => {
+    if (hasHierarchy) {
+      return <Leaf className="h-6 w-6 text-success" />
+    }
+
     switch (kind) {
-      case 'hierarchical':
-        return <Leaf className="h-6 w-6 text-success" />
       case 'spatial':
         return <Map className="h-6 w-6 text-primary" />
       default:
@@ -181,7 +209,7 @@ export function ReferenceDetailPanel({
               {referenceName}
             </h1>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span>{t('reference.referenceKind', { kind: kind || 'generic' })}</span>
+              <span>{t('reference.referenceKind', { kind: referenceKindLabel })}</span>
               {entityCount != null && (
                 <Badge variant="outline">
                   {entityCount.toLocaleString()} {t('reference.entities')}
@@ -215,7 +243,7 @@ export function ReferenceDetailPanel({
                 <AlertDialogTitle>{t('reference.deleteReference', { name: referenceName })}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {t('reference.deleteReferenceDescription')}
-                  {kind === 'hierarchical' && (
+                  {hasHierarchy && (
                     <span className="mt-2 block text-warning">
                       {t('reference.deleteWarningHierarchical')}
                     </span>
@@ -258,9 +286,25 @@ export function ReferenceDetailPanel({
       <div className="flex-1 overflow-auto p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="overview" className="gap-1">
-              <LayoutDashboard className="h-4 w-4" />
-              {t('reference.overview')}
+            <TabsTrigger value="summary" className="gap-1">
+              <MapPin className="h-4 w-4" />
+              {t('reference.summary')}
+            </TabsTrigger>
+            {hasHierarchy && (
+              <TabsTrigger value="hierarchy" className="gap-1">
+                <GitBranch className="h-4 w-4" />
+                {t('reference.hierarchy')}
+              </TabsTrigger>
+            )}
+            {(hasSpatialMap || activeTab === 'map') && (
+              <TabsTrigger value="map" className="gap-1">
+                <Map className="h-4 w-4" />
+                {t('reference.map', 'Map')}
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="preview" className="gap-1">
+              <Eye className="h-4 w-4" />
+              {t('reference.preview')}
             </TabsTrigger>
             <TabsTrigger value="config" className="gap-1">
               <Settings className="h-4 w-4" />
@@ -273,57 +317,41 @@ export function ReferenceDetailPanel({
           </TabsList>
 
           <PanelTransition transitionKey={activeTab} className="min-h-0">
-            {activeTab === 'overview' ? (
+            {activeTab === 'summary' ? (
               <div className="space-y-4">
-                {kind === 'hierarchical' && hierarchyLevels && hierarchyLevels.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Leaf className="h-4 w-4" />
-                        {t('reference.hierarchy')}
-                      </CardTitle>
-                      <CardDescription>
-                        {t('reference.hierarchyLevels', { count: hierarchyLevels.length })}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {hierarchyLevels.map((level, idx) => (
-                          <div key={level} className="flex items-center gap-2">
-                            <Badge variant="outline">{level}</Badge>
-                            {idx < hierarchyLevels.length - 1 && (
-                              <span className="text-muted-foreground">→</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Database className="h-4 w-4" />
-                      {t('reference.statistics')}
-                    </CardTitle>
-                    <CardDescription>Table: {tableName}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <TableStats
-                      tableName={tableName}
-                      kind={kind}
-                      hierarchyLevels={hierarchyLevels}
-                    />
-                  </CardContent>
-                </Card>
-
+                <SourceSummary
+                  entityType="reference"
+                  name={referenceName}
+                  tableName={tableName}
+                  rowCount={entityCount}
+                  kind={kind}
+                  hasEnrichment={hasEnrichment}
+                  enrichmentSources={enrichmentConfig?.sources}
+                  hasHierarchy={hasHierarchy}
+                  hasSpatialMap={hasSpatialMap}
+                  spatialMap={spatialMapSummary}
+                  onPreview={() => setActiveTab('preview')}
+                  onConfigure={() => setActiveTab('config')}
+                  onOpenExplorer={openInDataExplorer}
+                  onOpenHierarchy={hasHierarchy ? () => setActiveTab('hierarchy') : undefined}
+                  onOpenMap={hasSpatialMap ? () => setActiveTab('map') : undefined}
+                  onOpenEnrichment={() => setActiveTab('enrichment')}
+                />
+              </div>
+            ) : activeTab === 'hierarchy' && hasHierarchy ? (
+              <div className="space-y-4">
+                <HierarchyView referenceName={referenceName} />
+              </div>
+            ) : activeTab === 'map' ? (
+              <div className="space-y-4">
+                <SpatialMapView referenceName={referenceName} />
+              </div>
+            ) : activeTab === 'preview' ? (
+              <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">{t('reference.dataPreview')}</CardTitle>
-                    <CardDescription>
-                      {t('reference.firstRows')}
-                    </CardDescription>
+                    <CardDescription>Table: {tableName}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <TableBrowser
