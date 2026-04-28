@@ -643,6 +643,42 @@ def _first_existing_column(columns: List[str], candidates: List[str]) -> Optiona
     return None
 
 
+def _is_numeric_column(
+    columns_info: List[Dict[str, Any]], column_name: Optional[str]
+) -> bool:
+    """Return whether a column is declared as a numeric SQL type."""
+    if not column_name:
+        return False
+
+    numeric_types = {
+        "BIGINT",
+        "DECIMAL",
+        "DOUBLE",
+        "FLOAT",
+        "HUGEINT",
+        "INT",
+        "INTEGER",
+        "NUMBER",
+        "NUMERIC",
+        "REAL",
+        "SMALLINT",
+        "TINYINT",
+        "UBIGINT",
+        "UHUGEINT",
+        "UINTEGER",
+        "USMALLINT",
+        "UTINYINT",
+    }
+    requested = column_name.lower()
+    for column in columns_info:
+        if str(column.get("name", "")).lower() != requested:
+            continue
+        declared_type = str(column.get("type", "")).upper()
+        base_type = declared_type.replace("(", " ").split()[0]
+        return base_type in numeric_types
+    return False
+
+
 def _hierarchy_order_clause(
     db: Database, metadata: HierarchyMetadata, alias: str
 ) -> str:
@@ -1723,6 +1759,7 @@ async def get_hierarchy_inspection(
                 else None
             )
             level_col = quote_identifier(db, level_field) if level_field else None
+            level_is_numeric = _is_numeric_column(columns_info, level_field)
 
             select_sql = _hierarchy_node_select_sql(
                 db, target_table, metadata, path_field, level_field, alias="node"
@@ -1810,7 +1847,7 @@ async def get_hierarchy_inspection(
                         f"WHERE parent_lookup.{id_col} = {node_alias}.{parent_col}"
                         "))"
                     )
-                    if level_col:
+                    if level_col and level_is_numeric:
                         orphan_condition = (
                             f"({orphan_condition} OR "
                             f"({node_alias}.{level_col} > 0 AND {node_alias}.{parent_col} IS NULL))"
