@@ -81,6 +81,7 @@
   "upload": {
     "dropFiles": "Glissez-déposez vos fichiers",
     "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "addMore": "Ajouter des fichiers",
     "uploading": "Téléversement...",
     "uploadSelected_one": "Télécharger {{count}} fichier",
     "uploadSelected_other": "Télécharger {{count}} fichiers",

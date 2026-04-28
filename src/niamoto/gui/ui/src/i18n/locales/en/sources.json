@@ -81,6 +81,7 @@
   "upload": {
     "dropFiles": "Drag and drop your files",
     "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "addMore": "Add files",
     "uploading": "Uploading...",
     "uploadSelected_one": "Upload {{count}} file",
     "uploadSelected_other": "Upload {{count}} files",

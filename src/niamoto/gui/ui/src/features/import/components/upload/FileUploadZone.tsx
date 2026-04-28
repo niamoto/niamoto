@@ -4,7 +4,7 @@
  * Extracted from WelcomeStep for reuse in Flow DataPanel
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ import {
   Loader2,
   CheckCircle2,
   Sparkles,
+  Plus,
 } from 'lucide-react'
 import { uploadFiles, type UploadedFileInfo } from '@/features/import/api/upload'
 
@@ -70,6 +71,13 @@ export function FileUploadZone({
   const [dragActive, setDragActive] = useState(false)
   const [existingFiles, setExistingFiles] = useState<string[]>([])
   const [showExistingDialog, setShowExistingDialog] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const openFilePicker = useCallback(() => {
+    if (!disabled && !uploading) {
+      fileInputRef.current?.click()
+    }
+  }, [disabled, uploading])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -93,6 +101,7 @@ export function FileUploadZone({
     if (e.target.files) {
       const files = Array.from(e.target.files)
       setSelectedFiles((prev) => [...prev, ...files])
+      e.target.value = ''
     }
   }, [])
 
@@ -254,6 +263,18 @@ export function FileUploadZone({
 
   return (
     <div className="space-y-4">
+      {!analysisMode && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".csv,.gpkg,.geojson,.tif,.tiff,.zip"
+          onChange={handleFileInput}
+          className="hidden"
+          disabled={disabled || uploading}
+        />
+      )}
+
       {/* Drop zone */}
       {!analysisMode && selectedFiles.length === 0 && (
         <div
@@ -266,20 +287,11 @@ export function FileUploadZone({
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          onClick={() => document.getElementById('file-upload-zone')?.click()}
+          onClick={openFilePicker}
         >
           <Upload className={`mb-2 ${compact ? 'h-8 w-8' : 'h-10 w-10'} text-muted-foreground`} />
           <p className="mb-1 text-sm font-medium">{t('upload.dropFiles', { ns: 'sources' })}</p>
           <p className="text-xs text-muted-foreground">{t('upload.supportedFormats', { ns: 'sources' })}</p>
-          <input
-            type="file"
-            multiple
-            accept=".csv,.gpkg,.geojson,.tif,.tiff,.zip"
-            onChange={handleFileInput}
-            className="hidden"
-            id="file-upload-zone"
-            disabled={disabled}
-          />
         </div>
       )}
 
@@ -381,10 +393,21 @@ export function FileUploadZone({
 
           {/* Actions */}
           {!uploading && !hideActions && (
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="outline" size="sm" onClick={clearFiles}>
-                {t('common:actions.cancel')}
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={clearFiles}>
+                  {t('common:actions.cancel')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openFilePicker}
+                  disabled={uploading || disabled}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t('upload.addMore', { ns: 'sources' })}
+                </Button>
+              </div>
               <Button onClick={() => handleUpload()} disabled={uploading || disabled}>
                 <Upload className="mr-2 h-4 w-4" />
                 {t('upload.uploadSelected', {
