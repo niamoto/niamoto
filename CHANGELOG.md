@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.17.1] - 2026-04-28
+
+### Features
+
+- Support auxiliary source review editing
+
+### Bug Fixes
+
+- Address enrichment review feedback
+- Improve enrichment previews
+- Stabilize enrichment jobs
+- Scan full CSV during DuckDB imports
+- Allow adding import files incrementally
+- Handle missing data preview tables
+- Prevent recipe editor crashes
+- Stabilize index field editor
+- Preserve markdown content on page switch
+
+### Other
+
+- Update GitHub Actions to Node 24 (#143)
+
 ## [v0.17.0] - 2026-04-28
 
 ### Features
