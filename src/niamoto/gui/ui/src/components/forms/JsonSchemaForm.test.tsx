@@ -6,6 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import JsonSchemaForm from './JsonSchemaForm'
 
+interface MockSelectOption {
+  value: string | number | boolean
+  label: string
+}
+
+interface MockSelectFieldProps {
+  name: string
+  value?: string | number | boolean
+  onChange?: (value: string | number | boolean | undefined) => void
+  options: MockSelectOption[]
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
@@ -14,6 +26,28 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/lib/api/recipes', () => ({
   useSourceColumns: () => ({ columns: [] }),
+}))
+
+vi.mock('./fields/SelectField', () => ({
+  default: ({ name, value, onChange, options }: MockSelectFieldProps) => (
+    <select
+      data-testid={name}
+      value={value?.toString() ?? ''}
+      onChange={(event) => {
+        const option = options.find(
+          (selectOption) => selectOption.value.toString() === event.target.value
+        )
+        onChange?.(option?.value)
+      }}
+    >
+      <option value="">Select</option>
+      {options.map((option) => (
+        <option key={option.value.toString()} value={option.value.toString()}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
 }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -36,7 +70,10 @@ describe('JsonSchemaForm', () => {
                 type: 'string',
                 title: 'Transform',
                 'ui:widget': 'select',
-                'ui:options': [{ value: 'known_transform', label: 'Known transform' }],
+                'ui:options': [
+                  { value: 'known_transform', label: 'Known transform' },
+                  { value: 'other_transform', label: 'Other transform' },
+                ],
               },
               transform_params: {
                 type: 'object',
@@ -46,6 +83,9 @@ describe('JsonSchemaForm', () => {
                 'ui:transform_schemas': {
                   known_transform: {
                     x_field: { type: 'string', default: 'x' },
+                  },
+                  other_transform: {
+                    y_field: { type: 'string', default: 'y' },
                   },
                 },
               },
@@ -104,5 +144,38 @@ describe('JsonSchemaForm', () => {
     expect(textarea?.value).toContain('"x_field": "class_name"')
     expect(textarea?.value).toContain('"y_field": "value"')
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('resets transform params when the selected transform changes', async () => {
+    const onChange = vi.fn()
+
+    await render(
+      <JsonSchemaForm
+        pluginId="bar_plot"
+        showTitle={false}
+        initialValues={{
+          transform: 'known_transform',
+          transform_params: {
+            x_field: 'class_name',
+            stale_field: 'stale',
+          },
+        }}
+        onChange={onChange}
+      />,
+    )
+
+    const select = container?.querySelector('[data-testid="transform"]') as HTMLSelectElement
+
+    act(() => {
+      select.value = 'other_transform'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      transform: 'other_transform',
+      transform_params: {
+        y_field: 'y',
+      },
+    })
   })
 })

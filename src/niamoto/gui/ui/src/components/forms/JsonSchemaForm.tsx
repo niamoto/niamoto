@@ -44,6 +44,14 @@ import {
   isStringArray,
 } from './formSchemaTypes';
 
+interface TransformParamDef {
+  type: string;
+  default?: FormValue;
+  description?: string;
+}
+
+type TransformSchemas = Record<string, Record<string, TransformParamDef>>;
+
 interface JsonSchemaFormProps {
   pluginId: string;
   pluginType?: string;
@@ -150,6 +158,12 @@ function serializeFormValue(value: unknown): string {
 
 function areFormValuesEqual(a: unknown, b: unknown): boolean {
   return serializeFormValue(a) === serializeFormValue(b);
+}
+
+function hasMeaningfulParamsValue(params: FormValues): boolean {
+  return Object.values(params).some(
+    (paramValue) => paramValue !== undefined && paramValue !== ''
+  );
 }
 
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
@@ -298,6 +312,40 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     });
   }, [t]);
 
+  const resolveParamsForTransform = React.useCallback((transformValue: FormValue | undefined): FormValue | undefined => {
+    if (typeof transformValue !== 'string') {
+      return undefined;
+    }
+
+    const transformParamsField = schema?.schema?.properties?.transform_params;
+    if (!transformParamsField) {
+      return undefined;
+    }
+
+    const transformSchemas = getUiSchemaValue<TransformSchemas>(
+      transformParamsField,
+      'ui:transform_schemas'
+    );
+    const transformSchema = transformSchemas?.[transformValue];
+    if (!transformSchema) {
+      return undefined;
+    }
+
+    const previousParams = isFormValues(formData.transform_params)
+      ? formData.transform_params
+      : {};
+    const nextParams: FormValues = {};
+    Object.entries(transformSchema).forEach(([key, def]) => {
+      if (previousParams[key] !== undefined) {
+        nextParams[key] = previousParams[key];
+      } else if (def.default !== undefined) {
+        nextParams[key] = def.default;
+      }
+    });
+
+    return hasMeaningfulParamsValue(nextParams) ? nextParams : undefined;
+  }, [formData.transform_params, schema]);
+
   // Handle field changes
   const handleFieldChange = React.useCallback((fieldName: string, value: FormValue | undefined) => {
     if (areFormValuesEqual(formData[fieldName], value)) {
@@ -305,6 +353,13 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
     }
 
     const newData = { ...formData, [fieldName]: value };
+    let nextTransformParams: FormValue | undefined;
+
+    if (fieldName === 'transform') {
+      nextTransformParams = resolveParamsForTransform(value);
+      newData.transform_params = nextTransformParams;
+    }
+
     setFormData(newData);
     lastSyncedValuesRef.current = JSON.stringify(filterHiddenValues(newData));
 
@@ -314,8 +369,11 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
     if (form) {
       form.setValue(fieldName as never, value as never);
+      if (fieldName === 'transform') {
+        form.setValue('transform_params' as never, nextTransformParams as never);
+      }
     }
-  }, [filterHiddenValues, form, formData, onChange]);
+  }, [filterHiddenValues, form, formData, onChange, resolveParamsForTransform]);
 
   // Helper function to resolve $ref in schema
   const resolveRef = React.useCallback((ref: string): FieldSchema | null => {
