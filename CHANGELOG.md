@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.18.0] - 2026-04-29
+
+### Features
+
+- Improve API export auto-configuration
+
 ## [v0.17.1] - 2026-04-28
 
 ### Features

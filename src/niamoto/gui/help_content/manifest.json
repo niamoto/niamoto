@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T17:10:14.465142+00:00",
+  "generated_at": "2026-04-29T15:05:54.013354+00:00",
   "sections": [
     {
       "slug": "01-getting-started",
@@ -3229,6 +3229,11 @@
               "title": "Export configuration surface",
               "level": 2,
               "id": "export-configuration-surface"
+            },
+            {
+              "title": "GUI workflow",
+              "level": 2,
+              "id": "gui-workflow"
             },
             {
               "title": "Related docs",

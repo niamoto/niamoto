@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T17:10:14.465142+00:00",
+  "generated_at": "2026-04-29T15:05:54.013354+00:00",
   "entries": [
     {
       "slug": "01-getting-started",
@@ -1616,6 +1616,7 @@
       "headings": [
         "Main exporters",
         "Export configuration surface",
+        "GUI workflow",
         "Related docs"
       ],
       "keywords": [
@@ -1623,6 +1624,7 @@
         "API Export Guide",
         "Main exporters",
         "Export configuration surface",
+        "GUI workflow",
         "Related docs"
       ]
     },
