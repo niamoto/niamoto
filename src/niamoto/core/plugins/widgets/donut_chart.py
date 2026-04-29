@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
+    MUTED_CHART_COLORS,
     apply_plotly_defaults,
     get_plotly_dependencies,
     render_plotly_figure,
@@ -211,18 +212,7 @@ class DonutChartWidget(WidgetPlugin):
                 logger.error(f"Error creating subplots: {e}", exc_info=True)
                 return f"<p class='error'>Error setting up subplots: {html.escape(str(e))}</p>"
 
-            default_colors = params.color_discrete_sequence or [
-                "blue",
-                "green",
-                "red",
-                "yellow",
-                "orange",
-                "purple",
-                "pink",
-                "brown",
-                "gray",
-                "black",
-            ]
+            default_colors = params.color_discrete_sequence or MUTED_CHART_COLORS
             traces_added = 0
 
             for i, subplot_conf in enumerate(params.subplots):
@@ -462,7 +452,9 @@ class DonutChartWidget(WidgetPlugin):
                                 hole=params.hole_size,
                                 textinfo=params.text_info,
                                 hoverinfo="label+percent+value",
-                                marker_colors=params.color_discrete_sequence,
+                                marker_colors=(
+                                    params.color_discrete_sequence or MUTED_CHART_COLORS
+                                ),
                                 sort=True,
                             )
                         ]

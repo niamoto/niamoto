@@ -93,7 +93,7 @@ export function ColorMapEditor({ value, onChange, placeholder }: ColorMapEditorP
     const newEntry: ColorEntry = {
       id: nextId++,
       key: `serie${entries.length + 1}`,
-      color: '#1fb99d',
+      color: '#4f8068',
     }
     emitChange([...entries, newEntry])
   }, [entries, emitChange])

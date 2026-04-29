@@ -135,7 +135,7 @@ def generate_widget_params(
                 "orientation": "v",
                 "x_axis": "labels",
                 "y_axis": "counts",
-                "gradient_color": "#10b981",
+                "gradient_color": "#4f8068",
                 "gradient_mode": "luminance",
                 "show_legend": False,  # Hide legend - values shown on bars
             }
@@ -217,9 +217,9 @@ def generate_widget_params(
                     "source": "coordinates",
                     "type": "circle_markers",
                     "style": {
-                        "color": "#1fb99d",
+                        "color": "#5f8f82",
                         "weight": 1,
-                        "fillColor": "#00716b",
+                        "fillColor": "#4f8068",
                         "fillOpacity": 0.5,
                         "radius": 8,
                     },

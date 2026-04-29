@@ -10,9 +10,14 @@ from niamoto.common.utils.data_access import convert_to_dataframe
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
+    MUTED_CHART_COLORS,
     apply_plotly_defaults,
-    render_plotly_figure,
+    generate_muted_discrete_colors,
+    generate_muted_gradient_colors,
     get_plotly_dependencies,
+    hex_to_rgb as _hex_to_rgb,
+    render_plotly_figure,
+    rgb_to_hex as _rgb_to_hex,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,129 +25,24 @@ logger = logging.getLogger(__name__)
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     """Convert hex color to RGB."""
-    hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+    return _hex_to_rgb(hex_color)
 
 
 def rgb_to_hex(r: int, g: int, b: int) -> str:
     """Convert RGB to hex."""
-    return f"#{r:02x}{g:02x}{b:02x}"
+    return _rgb_to_hex(r, g, b)
 
 
 def generate_gradient_colors(
     base_color: str, count: int, mode: str = "luminance"
 ) -> List[str]:
-    """Generate a gradient of colors based on a base color.
-
-    Args:
-        base_color: Base color in hex format (e.g., '#1fb99d')
-        count: Number of colors to generate
-        mode: Gradient mode - 'luminance' (light to dark) or 'saturation' (saturated to pale)
-
-    Returns:
-        List of hex color strings forming a gradient
-    """
-    if count <= 0:
-        return []
-
-    if count == 1:
-        return [base_color]
-
-    # Convert base color to RGB
-    r, g, b = hex_to_rgb(base_color)
-
-    colors = []
-
-    if mode == "luminance":
-        # Create gradient from lighter to darker
-        for i in range(count):
-            # Calculate factor: 0.3 (lightest) to 1.0 (original color)
-            factor = 0.3 + (0.7 * i / (count - 1))
-
-            # Apply factor to create gradient
-            new_r = int(r * factor + 255 * (1 - factor))
-            new_g = int(g * factor + 255 * (1 - factor))
-            new_b = int(b * factor + 255 * (1 - factor))
-
-            colors.append(rgb_to_hex(new_r, new_g, new_b))
-
-    elif mode == "saturation":
-        # Create gradient from saturated to pale
-        for i in range(count):
-            # Calculate factor: 1.0 (full saturation) to 0.3 (pale)
-            factor = 1.0 - (0.7 * i / (count - 1))
-
-            # Mix with gray to reduce saturation
-            gray = 128
-            new_r = int(r * factor + gray * (1 - factor))
-            new_g = int(g * factor + gray * (1 - factor))
-            new_b = int(b * factor + gray * (1 - factor))
-
-            colors.append(rgb_to_hex(new_r, new_g, new_b))
-
-    return colors
+    """Generate a restrained gradient of colors based on a base color."""
+    return generate_muted_gradient_colors(base_color, count, mode)
 
 
 def generate_colors(count: int) -> List[str]:
-    """Generate harmonious colors using HSL color space and golden ratio.
-
-    Args:
-        count: Number of colors to generate
-
-    Returns:
-        List of hex color strings
-    """
-
-    def hsl_to_rgb(h: float, s: float, lightness: float) -> tuple[int, int, int]:
-        """Convert HSL to RGB."""
-        if s == 0:
-            r = g = b = lightness  # achromatic
-        else:
-
-            def hue_to_rgb(p: float, q: float, t: float) -> float:
-                if t < 0:
-                    t += 1
-                if t > 1:
-                    t -= 1
-                if t < 1 / 6:
-                    return p + (q - p) * 6 * t
-                if t < 1 / 2:
-                    return q
-                if t < 2 / 3:
-                    return p + (q - p) * (2 / 3 - t) * 6
-                return p
-
-            q = (
-                lightness * (1 + s)
-                if lightness < 0.5
-                else lightness + s - lightness * s
-            )
-            p = 2 * lightness - q
-            r = hue_to_rgb(p, q, h + 1 / 3)
-            g = hue_to_rgb(p, q, h)
-            b = hue_to_rgb(p, q, h - 1 / 3)
-
-        return (round(r * 255), round(g * 255), round(b * 255))
-
-    def rgb_to_hex(r: int, g: int, b: int) -> str:
-        """Convert RGB to hex."""
-        return f"#{r:02x}{g:02x}{b:02x}"
-
-    colors = []
-    for i in range(count):
-        # Use golden ratio to spread hues evenly
-        hue = (i * 0.618033988749895) % 1
-
-        # Vary saturation slightly
-        saturation = 0.5 + (i % 3) * 0.1
-
-        # Vary lightness to create contrast
-        lightness = 0.4 + (i % 2) * 0.2
-
-        r, g, b = hsl_to_rgb(hue, saturation, lightness)
-        colors.append(rgb_to_hex(r, g, b))
-
-    return colors
+    """Generate restrained colors for automatic chart coloring."""
+    return generate_muted_discrete_colors(count)
 
 
 def _resolve_bar_colors(
@@ -495,7 +395,7 @@ class BarPlotParams(BasePluginParams):
     )
     gradient_color: Optional[str] = Field(
         default=None,
-        description="Couleur de base pour gradient (ex: '#1fb99d')",
+        description="Couleur de base pour gradient (ex: '#4f8068')",
         json_schema_extra={"ui:widget": "color", "ui:group": "4_colors", "ui:order": 3},
     )
     gradient_mode: Optional[str] = Field(
@@ -1000,7 +900,7 @@ class BarPlotWidget(WidgetPlugin):
 
             # Handle automatic coloring
             color_field = params.color_field
-            color_discrete_sequence = None
+            color_discrete_sequence = MUTED_CHART_COLORS
             color_discrete_map = params.color_discrete_map
 
             # Check if gradient color is specified
@@ -1142,6 +1042,8 @@ class BarPlotWidget(WidgetPlugin):
         marker_kwargs: Dict[str, Any] = {}
         if color_values is not None:
             marker_kwargs["color"] = color_values
+        else:
+            marker_kwargs["color"] = MUTED_CHART_COLORS[0]
 
         value_series = (
             df_plot[params.x_axis]

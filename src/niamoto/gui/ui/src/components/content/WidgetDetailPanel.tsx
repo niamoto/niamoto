@@ -101,6 +101,15 @@ function areWidgetDraftsEqual(
   return serializeWidgetDraft(a) === serializeWidgetDraft(b)
 }
 
+function getSavedWidgetDraft(widget: ConfiguredWidget): Partial<ConfiguredWidget> {
+  return {
+    title: widget.title,
+    description: widget.description,
+    transformerParams: widget.transformerParams,
+    widgetParams: widget.widgetParams,
+  }
+}
+
 interface WidgetDetailPanelProps {
   widget: ConfiguredWidget
   groupBy: string
@@ -217,6 +226,8 @@ export function WidgetDetailPanel({
     () => (autoRefreshPreview ? previewDraft : appliedPreviewDraft),
     [appliedPreviewDraft, autoRefreshPreview, previewDraft],
   )
+
+  const savedWidgetDraft = useMemo(() => getSavedWidgetDraft(widget), [widget])
 
   const previewTitle = useMemo(
     () => resolveLocalizedString(
@@ -341,17 +352,19 @@ export function WidgetDetailPanel({
   }, [onDelete, onBack])
 
   const handlePreviewDraftChange = useCallback((config: Partial<ConfiguredWidget>) => {
+    const normalizedConfig = areWidgetDraftsEqual(config, savedWidgetDraft) ? null : config
+
     updatePanelState((prev) => {
-      if (areWidgetDraftsEqual(prev.previewDraft, config)) {
+      if (areWidgetDraftsEqual(prev.previewDraft, normalizedConfig)) {
         return prev
       }
 
       return {
         ...prev,
-        previewDraft: config,
+        previewDraft: normalizedConfig,
       }
     })
-  }, [updatePanelState])
+  }, [savedWidgetDraft, updatePanelState])
 
   return (
     <div className="h-full flex flex-col">

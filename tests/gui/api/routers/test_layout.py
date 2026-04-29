@@ -21,6 +21,59 @@ from niamoto.gui.api.app import create_app
 INSTANCE_DIR = Path(__file__).parents[4] / "test-instance" / "niamoto-nc"
 
 
+def test_layout_accepts_localized_widget_metadata(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "bar_plot",
+                                        "data_source": "richness",
+                                        "title": {
+                                            "fr": "Richesse spécifique",
+                                            "en": "Species richness",
+                                        },
+                                        "description": {
+                                            "fr": "Nombre d'espèces",
+                                            "en": "Number of species",
+                                        },
+                                        "layout": {"order": 0, "colspan": 2},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/layout/taxons")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["widgets"][0]["title"] == {
+        "fr": "Richesse spécifique",
+        "en": "Species richness",
+    }
+    assert payload["widgets"][0]["description"] == {
+        "fr": "Nombre d'espèces",
+        "en": "Number of species",
+    }
+
+
 class TestLayoutPreviewDelegation:
     """Vérifie que layout.preview_widget utilise le moteur de preview unifié."""
 

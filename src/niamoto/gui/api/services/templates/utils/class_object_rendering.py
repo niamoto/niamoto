@@ -322,7 +322,7 @@ def _build_widget_params_for_configured(
             params.setdefault("x_axis", "labels")
             params.setdefault("y_axis", "counts")
             params.setdefault("orientation", "v")
-            params.setdefault("gradient_color", "#10b981")
+            params.setdefault("gradient_color", "#4f8068")
 
         # For series extractors — data is {"tops": [...], "counts": [...]}
         elif transformer in ("class_object_series_extractor", "series_extractor"):

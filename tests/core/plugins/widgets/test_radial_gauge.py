@@ -282,6 +282,8 @@ class TestRadialGaugeWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
+        self.assertIn("#b76f63", result)
+        self.assertNotIn("#f02828", result)
 
     def test_render_with_deprecated_units(self):
         """Test rendering with deprecated units parameter."""
@@ -726,7 +728,7 @@ class TestRadialGaugeParams(NiamotoTestCase):
         self.assertIsNone(params.unit)
         self.assertIsNone(params.steps)
         self.assertIsNone(params.threshold)
-        self.assertEqual(params.bar_color, "cornflowerblue")
+        self.assertEqual(params.bar_color, "#6d8796")
         self.assertEqual(params.background_color, "white")
         self.assertEqual(params.gauge_shape, "angular")
         self.assertEqual(params.style_mode, "classic")

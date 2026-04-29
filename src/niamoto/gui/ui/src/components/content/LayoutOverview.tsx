@@ -63,7 +63,10 @@ import {
 } from '@/components/ui/select'
 import type { ConfiguredWidget } from '@/components/widgets'
 import {
-  classifyCollectionsPerformanceTier,
+  resolveLocalizedString as resolveLocalizedStringValue,
+  type LocalizedString,
+} from '@/components/ui/localized-string'
+import {
   resolveCollectionsPreviewMode,
   type CollectionsPreviewPreference,
   type ResolvedCollectionsPreviewMode,
@@ -78,8 +81,8 @@ import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 interface WidgetLayout {
   index: number
   plugin: string
-  title: string
-  description?: string
+  title: LocalizedString
+  description?: LocalizedString
   data_source: string
   colspan: 1 | 2
   order: number
@@ -88,7 +91,7 @@ interface WidgetLayout {
 
 interface NavigationWidgetInfo {
   plugin: string
-  title: string
+  title: LocalizedString
   params: Record<string, unknown>
   is_hierarchical: boolean
 }
@@ -102,8 +105,8 @@ interface LayoutResponse {
 
 interface WidgetLayoutUpdate {
   index: number
-  title?: string
-  description?: string
+  title?: LocalizedString
+  description?: LocalizedString
   colspan?: 1 | 2
   order: number
 }
@@ -172,7 +175,7 @@ function NavigationSidebar({
   navigationWidget,
   previewMode,
 }: NavigationSidebarProps) {
-  const { t } = useTranslation(['widgets', 'common'])
+  const { t, i18n } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
 
   const referential = navigationWidget.params?.referential_data as string || groupBy
@@ -197,7 +200,7 @@ function NavigationSidebar({
           <List className="h-4 w-4 text-muted-foreground" />
         )}
         <span className="flex-1 font-medium text-sm truncate">
-          {navigationWidget.title}
+          {resolveLocalizedStringValue(navigationWidget.title, i18n.language)}
         </span>
         <Badge variant="outline" className="text-xs shrink-0">
           {navigationWidget.is_hierarchical ? t('layout.hierarchical') : t('layout.list')}
@@ -282,7 +285,7 @@ function SortableWidgetCard({
   onSelect,
   onPreviewFocus,
 }: SortableWidgetCardProps) {
-  const { t } = useTranslation(['widgets', 'common'])
+  const { t, i18n } = useTranslation(['widgets', 'common'])
 
   const descriptor: PreviewDescriptor = useMemo(() => ({
     templateId: widget.data_source,
@@ -307,6 +310,8 @@ function SortableWidgetCard({
 
   // Column span class
   const colSpanClass = widget.colspan === 1 ? 'col-span-6' : 'col-span-12'
+  const title = resolveLocalizedStringValue(widget.title, i18n.language)
+  const description = resolveLocalizedStringValue(widget.description, i18n.language)
 
   const shouldRenderPreview =
     !isDragging
@@ -340,7 +345,7 @@ function SortableWidgetCard({
         </button>
 
         {/* Title */}
-        <span className="flex-1 font-medium text-sm truncate">{widget.title}</span>
+        <span className="flex-1 font-medium text-sm truncate">{title}</span>
 
         {/* Plugin badge */}
         <Badge variant="secondary" className="text-[10px] shrink-0">
@@ -409,9 +414,9 @@ function SortableWidgetCard({
       </div>
 
       {/* Description footer */}
-      {widget.description && (
+      {description && (
         <div className="px-3 py-2 border-t bg-muted/30">
-          <p className="text-xs text-muted-foreground truncate">{widget.description}</p>
+          <p className="text-xs text-muted-foreground truncate">{description}</p>
         </div>
       )}
     </div>
@@ -424,7 +429,6 @@ interface LayoutOverviewProps {
   groupBy: string
   previewPreference: CollectionsPreviewPreference
   onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
-  hardwareConcurrency: number | null
   onSelectWidget: (widget: ConfiguredWidget) => void
   onLayoutSaved?: () => void
 }
@@ -434,11 +438,10 @@ export function LayoutOverview({
   groupBy,
   previewPreference,
   onPreviewPreferenceChange,
-  hardwareConcurrency,
   onSelectWidget,
   onLayoutSaved,
 }: LayoutOverviewProps) {
-  const { t } = useTranslation(['widgets', 'common'])
+  const { t, i18n } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
 
   // Fetch layout data
@@ -450,16 +453,6 @@ export function LayoutOverview({
   } = useQuery({
     queryKey: ['layout', groupBy],
     queryFn: () => fetchLayout(groupBy),
-  })
-
-  // Fetch representative entities
-  const {
-    data: representatives,
-    error: representativesError,
-    refetch: refetchRepresentatives,
-  } = useQuery({
-    queryKey: ['representatives', groupBy],
-    queryFn: () => fetchRepresentatives(groupBy),
   })
 
   // Local state
@@ -497,29 +490,26 @@ export function LayoutOverview({
       ? layoutDraftState.hasChanges
       : false
 
-  const contentWidgetCount = useMemo(
-    () => localWidgets.filter((w) => !w.is_navigation).length,
-    [localWidgets],
-  )
-  const performanceTier = useMemo(
-    () =>
-      classifyCollectionsPerformanceTier({
-        widgetCount: contentWidgetCount,
-        hardwareConcurrency,
-      }),
-    [contentWidgetCount, hardwareConcurrency],
-  )
   const resolvedPreviewMode = useMemo(
     () =>
       resolveCollectionsPreviewMode({
         preference: previewPreference,
-        widgetCount: contentWidgetCount,
-        hardwareConcurrency,
         isDragging,
       }),
-    [contentWidgetCount, hardwareConcurrency, isDragging, previewPreference],
+    [isDragging, previewPreference],
   )
   const navigationPreviewMode = resolvedPreviewMode === 'thumbnail' ? 'thumbnail' : 'off'
+
+  // Fetch representative entities only when previews need a selected entity.
+  const {
+    data: representatives,
+    error: representativesError,
+    refetch: refetchRepresentatives,
+  } = useQuery({
+    queryKey: ['representatives', groupBy],
+    queryFn: () => fetchRepresentatives(groupBy),
+    enabled: resolvedPreviewMode !== 'off',
+  })
 
   const selectedEntityId = useMemo(() => {
     const explicitEntityId =
@@ -657,12 +647,15 @@ export function LayoutOverview({
   const handleSelectWidget = useCallback((layoutWidget: WidgetLayout) => {
     // Try to find matching ConfiguredWidget by data_source or title
     const configuredWidget = configuredWidgets.find(
-      (w) => w.dataSource === layoutWidget.data_source || w.title === layoutWidget.title
+      (w) =>
+        w.dataSource === layoutWidget.data_source ||
+        resolveLocalizedStringValue(w.title, i18n.language) ===
+          resolveLocalizedStringValue(layoutWidget.title, i18n.language)
     )
     if (configuredWidget) {
       onSelectWidget(configuredWidget)
     }
-  }, [configuredWidgets, onSelectWidget])
+  }, [configuredWidgets, i18n.language, onSelectWidget])
 
   const handlePreviewFocus = useCallback((cardId: string) => {
     setFocusedPreviewCardId((current) => current === cardId ? current : cardId)
@@ -689,7 +682,6 @@ export function LayoutOverview({
     detail: {
       activePreviewCount,
       groupBy,
-      performanceTier,
       previewMode: resolvedPreviewMode,
     },
   })
@@ -698,7 +690,6 @@ export function LayoutOverview({
     itemThreshold: 10,
     detail: {
       groupBy,
-      performanceTier,
       previewMode: resolvedPreviewMode,
       widgetCount: contentWidgets.length,
     },
@@ -708,13 +699,11 @@ export function LayoutOverview({
     const durationMs = measureCollectionsContentSwitch(groupBy, {
       widgetCount: contentWidgets.length,
       previewMode: resolvedPreviewMode,
-      performanceTier,
     })
     recordCollectionsPerf('collections.layout.state', {
       activePreviewCount,
       durationMs,
       groupBy,
-      performanceTier,
       previewMode: resolvedPreviewMode,
       widgetCount: contentWidgets.length,
     })
@@ -722,7 +711,6 @@ export function LayoutOverview({
     activePreviewCount,
     contentWidgets.length,
     groupBy,
-    performanceTier,
     resolvedPreviewMode,
   ])
 
@@ -800,18 +788,11 @@ export function LayoutOverview({
             <SelectValue placeholder={t('layout.previews')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="auto">{t('layout.previewMode.auto')}</SelectItem>
             <SelectItem value="thumbnail">{t('layout.previewMode.thumbnail')}</SelectItem>
             <SelectItem value="focused">{t('layout.previewMode.focused')}</SelectItem>
             <SelectItem value="off">{t('layout.previewMode.off')}</SelectItem>
           </SelectContent>
         </Select>
-
-        {previewPreference === 'auto' && performanceTier === 'low' && (
-          <Badge variant="outline" className="text-xs">
-            {t('layout.performanceModeLow')}
-          </Badge>
-        )}
 
         {resolvedPreviewMode !== 'off' && representatives && representatives.entities.length > 0 && (
           <Select
@@ -841,7 +822,9 @@ export function LayoutOverview({
           className="h-8 w-8"
           onClick={() => {
             refetch()
-            void refetchRepresentatives()
+            if (resolvedPreviewMode !== 'off') {
+              void refetchRepresentatives()
+            }
             invalidateAllPreviews(queryClient)
           }}
           disabled={saveMutation.isPending}
@@ -936,7 +919,9 @@ export function LayoutOverview({
                     )}
                   >
                     <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
-                      <span className="font-medium text-sm">{activeWidget.title}</span>
+                      <span className="font-medium text-sm">
+                        {resolveLocalizedStringValue(activeWidget.title, i18n.language)}
+                      </span>
                     </div>
                     <div className="h-16 bg-muted/30 flex items-center justify-center text-muted-foreground text-sm">
                       {getPluginLabel(activeWidget.plugin)}
