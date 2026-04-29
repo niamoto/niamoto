@@ -1,169 +1,145 @@
+---
+date: 2026-03-31
+updated: 2026-04-29
+topic: api-export-ux-simplification
+status: Ready for planning
+---
+
 # API Export UX Simplification
 
-**Date**: 2026-03-31
-**Status**: Ready for planning
-**Scope**: Simplify the API export configuration for non-technical users (botanists, ecologists)
-**Builds on**: `2026-03-30-api-export-gui-brainstorm.md` (initial API tab implementation)
+## Summary
 
-## What We're Building
+Improve the Collections > Export experience for static API exports by making auto-configuration reviewable, field editing visual, and raw JSON editing available as an advanced synchronized view. The goal is to keep the current power of JSON API and Darwin Core exports while preventing users from starting with an empty or opaque JSON field.
 
-A UX overhaul of the API export tab in GroupPanel to make it accessible to non-technical users (field botanists, ecologists) while preserving full power for advanced users.
+---
 
-The current implementation exposes all configuration options in a single long scrollable card per export target — data source, pass-through toggle, field mappings with source/generator modes, Darwin Core mapping with 20+ generators, JSON overrides, transformer params. This is overwhelming for a botanist who just wants to publish their data.
+## Problem Frame
 
-## Why This Approach
+The API export tab now exposes static API configuration in the right place: inside a collection, next to content and list configuration. That is better than YAML-only configuration, but the most technical parts still ask users to understand raw JSON structures, source paths, generators, and Darwin Core mappings before they can make a confident choice.
 
-The hybrid **Wizard + Cards with progressive disclosure** approach was chosen because:
+The affected users are botanists, ecologists, project maintainers, and advanced integrators. Non-technical users need a safe default they can review and accept. Technical users still need an escape hatch where they can inspect and edit the underlying JSON without losing the convenience of the visual editor.
 
-- **Different intents need different UIs**: Adding a new export format is a guided, one-time decision (→ wizard). Editing an existing export is a targeted, repeat action (→ compact card with collapsible sections).
-- **Multiple formats per group**: A group can have both a simple JSON export and a DwC export. The card-based list naturally supports this.
-- **Progressive disclosure over hiding**: Non-technical users see summaries and can stop there. Power users unfold sections to access everything. Nothing is removed.
+---
 
-Alternatives considered:
-- **Presets only** (no wizard) — rejected because activating a preset still dumps the user into the full form
-- **Wizard only** — rejected because editing an existing export via a wizard is cumbersome for power users
-- **Separate simple/advanced modes** — rejected because it fragments the interface and requires maintaining two UIs
+## Actors
+
+- A1. Collection editor: configures collection exports from the GUI and needs readable defaults.
+- A2. Advanced integrator: understands JSON configuration and may prefer direct editing for precise changes.
+- A3. Downstream implementer: uses this document to plan UI behavior without inventing product scope.
+
+---
+
+## Key Flows
+
+- F1. Review auto-configuration for an export
+  - **Trigger:** A user activates or edits a static API export and wants a suggested configuration.
+  - **Actors:** A1
+  - **Steps:** The user requests auto-configuration, reviews the proposed index, detail, JSON options, and Darwin Core mapping when applicable, then applies or rejects the proposal.
+  - **Outcome:** The export card has an understandable draft configuration without silently overwriting user choices.
+  - **Covered by:** R1, R2, R3, R4
+
+- F2. Edit fields visually, then inspect JSON
+  - **Trigger:** A user wants to change what appears in index or detail API files.
+  - **Actors:** A1, A2
+  - **Steps:** The user edits fields in visual controls, switches to JSON view, sees the corresponding JSON, optionally edits it, and returns to the visual view.
+  - **Outcome:** Both views represent the same configuration and validation prevents saving invalid JSON.
+  - **Covered by:** R5, R6, R9, R10, R11, R12
+
+- F3. Keep simple JSON export broad when desired
+  - **Trigger:** A user configures a simple JSON API export and does not want a curated field subset.
+  - **Actors:** A1, A2
+  - **Steps:** The user keeps or selects the option to export all transformed data, then optionally configures index fields separately.
+  - **Outcome:** Simple JSON export remains a low-friction publication path.
+  - **Covered by:** R13, R14, R15
+
+---
+
+## Requirements
+
+**Auto-configuration**
+- R1. Static API exports must offer an auto-configuration action that generates a proposal instead of silently applying changes.
+- R2. The auto-configuration proposal must cover the full static API export surface: index fields, detail fields, JSON formatting options, and Darwin Core mapping when the export uses Darwin Core.
+- R3. The proposal must be reviewable before application, with a clear distinction between accepting the whole proposal, editing it, or cancelling it.
+- R4. Auto-configuration must not remove or overwrite an existing custom configuration without an explicit user action.
+
+**Visual field editing**
+- R5. Index fields must be editable through structured interface controls rather than requiring raw JSON.
+- R6. Detail fields must be editable through structured interface controls when the user chooses a curated detail payload.
+- R7. Darwin Core mapping must remain editable through a guided interface that is more understandable than editing the mapping as raw JSON.
+- R8. Field editors must preserve advanced cases such as generated values or custom parameters without hiding them from advanced users.
+
+**JSON view**
+- R9. Each relevant export section must provide a synchronized JSON view for the same configuration represented by the visual editor.
+- R10. The visual editor remains the default editing mode; JSON is an advanced view, not the primary path for normal users.
+- R11. JSON edits must validate before they update the visual editor or become saveable.
+- R12. When JSON and visual forms cannot be reconciled, the UI must make the problem visible and protect the last valid configuration.
+
+**Simple JSON export**
+- R13. Simple JSON API exports must always keep the option to export all transformed data.
+- R14. Auto-configuration may suggest a curated detail payload, but it must not remove the user's ability to keep pass-through detail export.
+- R15. Index configuration and detail configuration must remain separate choices so users can expose a compact listing while keeping full detail files.
+
+**User understanding**
+- R16. Export cards must summarize the current configuration in domain language, including whether detail export is pass-through, curated, or Darwin Core-based.
+- R17. Auto-configuration proposals must explain why the suggested fields or mappings are useful at a level understandable to ecology project users.
+- R18. Advanced controls should remain available through progressive disclosure rather than being removed or made mandatory.
+
+---
+
+## Acceptance Examples
+
+- AE1. **Covers R1, R2, R3, R4.** Given an existing static API export with custom fields, when the user asks for auto-configuration, the UI shows a proposal for review and does not change the saved configuration until the user applies it.
+- AE2. **Covers R5, R6, R9, R11.** Given a user adds a detail field through the visual editor, when they open JSON view, the new field appears in the JSON representation; when they enter invalid JSON, the UI blocks applying it and keeps the last valid visual state.
+- AE3. **Covers R7, R8.** Given a Darwin Core export contains generated values, when the user opens the mapping editor, those generated mappings remain visible and editable without requiring raw JSON as the only path.
+- AE4. **Covers R13, R14, R15.** Given a simple JSON API export, when auto-configuration suggests curated detail fields, the user can still choose "Export all transformed data" and keep a separate compact index configuration.
+
+---
+
+## Success Criteria
+
+- A non-technical project user can create or update a static API export without hand-writing JSON.
+- An advanced user can inspect and edit the JSON representation without losing synchronization with the visual editor.
+- The simple JSON export path remains fast and broad for users who want all transformed data.
+- A planner can proceed from this document without inventing product behavior for auto-configuration, JSON mode, or pass-through export.
+
+---
+
+## Scope Boundaries
+
+- In scope: auto-configuration proposals for static API exports.
+- In scope: visual editors for index fields, detail fields, and Darwin Core mapping.
+- In scope: synchronized editable JSON views for advanced users.
+- In scope: preserving the option to export all transformed data for simple JSON API exports.
+- Out of scope for this V2: final generated JSON preview.
+- Out of scope for this V2: running an export test directly from an export card.
+- Out of scope for this V2: a full rewrite of the export engine.
+- Out of scope for this V2: forcing all users through JSON mode.
+
+---
 
 ## Key Decisions
 
-### 1. Card-based list view (default state of API tab)
+- Auto-configuration is review-first rather than automatic: this reduces surprise and avoids overwriting custom export choices.
+- Visual editing is the primary experience: it fits the project goal of keeping workflows understandable to ecology domain users.
+- JSON remains editable: advanced users keep a precise escape hatch without making raw JSON the normal path.
+- Simple JSON pass-through remains first-class: exporting all transformed data is a useful, low-friction publication mode and should not be treated as a legacy fallback.
+- Darwin Core receives guided treatment: its value depends on reliable standard mapping, so the UI should help users understand and adjust the mapping rather than exposing only raw structure.
 
-Each export target configured for the group is shown as a **compact card**:
-- Header: target name, active/inactive badge, on/off toggle
-- Summary: one sentence in natural language describing what the export does (e.g., "Export JSON simple — toutes les données transformées. 127 taxons.")
-- Collapsible sections as chips, organized in two tiers:
-  - **Main sections** (visible): Index fields, Detail fields, DwC mapping (when applicable)
-  - **Advanced options** (dimmed): JSON overrides, data source, transformer params
-- Save/Cancel buttons appear only when the card has unsaved changes (dirty state)
-- A **"+ Add an export format"** button at the bottom launches the wizard
+---
 
-### 2. Wizard for adding a new format
+## Dependencies / Assumptions
 
-Triggered by the "+" button. Three steps:
+- Static API export targets already exist in the GUI and can be enabled per collection.
+- Existing field suggestions for collection index configuration can inform auto-configuration, but planning should verify whether they are sufficient for detail fields and Darwin Core mapping.
+- The synchronized JSON view must reflect the same saved configuration as the visual editor.
+- Existing documentation in `docs/brainstorms/2026-03-30-api-export-gui-brainstorm.md` remains useful background for the original API export tab shape.
 
-**Step 1 — Type**:
-- "Existing targets" section: targets already defined in export.yml but not yet activated for this group. One click activates with defaults → skip to step 3.
-- "Create a new format" section: three options:
-  - **Simple JSON export** — pass-through, minimal config
-  - **Darwin Core (GBIF)** — pre-filled DwC mapping with smart defaults
-  - **Manual configuration** — full form (current UI, within wizard context)
+---
 
-**Step 2 — Content** (varies by type):
-- *Simple*: target name + optional index field selection from suggestions
-- *Darwin Core*: target name + pre-filled mapping with readable summary ("23 terms auto-mapped"). User can adjust if needed.
-- *Manual*: target name + full form
+## Outstanding Questions
 
-**Step 3 — Confirm**: Natural language summary of what will be created/activated. "Create export" button.
+### Deferred to Planning
 
-The wizard is a modal dialog or inline panel replacing the list view temporarily. Cancellable at any point.
-
-### 3. Contextual help and domain vocabulary
-
-The most impactful change for the botanist is the **language used** throughout.
-
-**Relabeled fields** (technical → domain):
-| Current | Proposed |
-|---------|----------|
-| pass_through | Exporter toutes les données transformées |
-| Detail JSON fields | Contenu de chaque fiche individuelle |
-| Index JSON fields | Quelles infos apparaissent dans la liste |
-| JSON overrides | Options de format avancées |
-| data_source | Source de données |
-| transformer_params | Paramètres du traitement |
-
-**Inline help** at the top of each opened section:
-- Index fields: "Ces champs seront visibles dans le fichier `all_taxon.json` — la liste de tous vos taxons."
-- Detail fields: "Chaque taxon aura un fichier JSON individuel avec ces données."
-- DwC mapping: "Le standard Darwin Core permet de partager vos données avec GBIF et d'autres réseaux de biodiversité."
-
-**Status badges** on collapsed sections showing current config without expanding:
-- "Toutes les données (pass-through)" or "5 champs sélectionnés"
-- "23 termes mappés" for DwC
-- "par défaut" when nothing has been customized
-
-### 4. API Settings page (global params)
-
-Same treatment as group cards:
-- Readable summary at the top of each target card ("Exporte vers `/api/data/`, 2 groupes actifs")
-- Collapsible sections: "Output directory" (always visible, essential), "JSON options" (collapsed), "Error handling" (collapsed), "Metadata" (collapsed)
-- Rarely-used sections visually dimmed
-- No wizard here — this page is for users who know what they're doing
-- Bidirectional links: group card → "View global settings", API Settings → list of groups using each target
-
-## UI Structure
-
-```
-GroupPanel > API tab
-├── Export Card 1 (e.g., json_api)
-│   ├── Header: name + badge + toggle
-│   ├── Summary: "Export JSON simple — toutes les données transformées"
-│   ├── Collapsible chips:
-│   │   ├── [main] Champs de l'index (badge: "3 champs")
-│   │   ├── [main] Fiches détail (badge: "pass-through")
-│   │   └── [dimmed] Options avancées
-│   └── [if dirty] Save / Cancel
-│
-├── Export Card 2 (e.g., dwc_export)
-│   ├── Header: name + badge + toggle
-│   ├── Summary: "Darwin Core (GBIF) — 23 termes mappés"
-│   ├── Collapsible chips:
-│   │   ├── [main] Mapping Darwin Core (badge: "23 termes")
-│   │   ├── [main] Champs de l'index
-│   │   └── [dimmed] Options avancées
-│   └── [if dirty] Save / Cancel
-│
-└── [+ Ajouter un format d'export]
-        └── Opens wizard (modal/inline)
-
-Wizard flow:
-Step 1: Type  ──→  Step 2: Content  ──→  Step 3: Confirm
- ├ Existing target → activate → skip to 3
- ├ Simple JSON → name + index fields
- ├ Darwin Core → name + pre-filled mapping
- └ Manual → name + full form
-```
-
-## Components Impact
-
-| Component | Change |
-|-----------|--------|
-| `ApiExportsTab.tsx` (442 lines) | Major refactor → card list + wizard trigger |
-| `ApiExportGroupCard` (inline) | Extract to own file, redesign as compact card with collapsible sections |
-| `ApiSettingsPanel.tsx` (206 lines) | Add summaries, collapsible sections |
-| `ApiFieldMappingsEditor.tsx` (358 lines) | Keep as-is, used inside expanded sections |
-| `DwcMappingEditor.tsx` (447 lines) | Keep as-is, used inside expanded sections |
-| `JsonSchemaForm.tsx` (689 lines) | Keep as-is, used in advanced sections |
-| New: `AddExportWizard.tsx` | Wizard component (3 steps) |
-| New: `ExportCard.tsx` | Compact card with summary + collapsible sections |
-| i18n `sources.json` (en + fr) | Add wizard labels, update existing labels to domain vocabulary |
-
-## Backend Impact
-
-Minimal. The existing endpoints support all needed operations:
-- `GET /api/config/export/api-targets` — list targets (wizard step 1: existing targets)
-- `PUT /api/config/export/api-targets/{name}/groups/{group}` — activate/configure (wizard completion)
-- `GET /api/config/export/api-targets/{name}/groups/{group}/suggestions` — field suggestions (wizard step 2)
-
-**One potential addition**: a `POST /api/config/export/api-targets` endpoint to create a brand new target from the wizard (currently targets must exist in export.yml). This could also be handled by writing to export.yml directly from the existing update infrastructure.
-
-## Open Questions
-
-1. **Wizard as modal or inline panel?** Modal is simpler to implement and clearly separates the creation flow. Inline feels more integrated but requires managing two states in the same view.
-2. **Should the wizard pre-create the target in export.yml on step 3, or only when the user first saves?** Pre-creating is simpler but adds entries even if the user never configures them.
-3. **How to generate the natural language summary?** Static templates per export type, or dynamic from the actual config? Static is simpler and more predictable.
-
-## Scope
-
-**In scope:**
-- Card-based list view with summaries and collapsible sections
-- Wizard for adding exports (activate existing + create new)
-- Relabeled fields and inline help
-- Status badges on collapsed sections
-- API Settings page improvements
-- i18n updates (en + fr)
-
-**Out of scope (future):**
-- Visual preview of JSON output
-- Drag-and-drop reordering of exports
-- Export validation/test run from the GUI
-- Preset templates beyond Simple/DwC/Manual
+- [Affects R2, R17][Technical] What confidence signals should auto-configuration expose when suggestions are partial or uncertain?
+- [Affects R7, R8][Technical] Which Darwin Core mappings can be suggested safely from current project data, and which should be shown as unresolved?
+- [Affects R9, R11, R12][Technical] What validation boundary best prevents JSON edits from corrupting the visual editor state?

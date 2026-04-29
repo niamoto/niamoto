@@ -138,6 +138,25 @@ describe('useProjectDesktopViewPreference', () => {
     await harness.unmount()
   })
 
+  it('uses explicit overrides before desktop project scope is available', async () => {
+    useCurrentProjectScope.mockReturnValue({
+      projectScope: 'project:Demo:unknown',
+      desktopProjectScope: null,
+      fallbackProjectScope: 'project:Demo:unknown',
+    })
+    const storage = createStorage()
+
+    const harness = await renderPreferenceProbe({
+      storage,
+      overrideValue: 'api',
+    })
+
+    expect(harness.value).toBe('api')
+    expect(storage.getItem).not.toHaveBeenCalled()
+    expect(storage.setItem).not.toHaveBeenCalled()
+    await harness.unmount()
+  })
+
   it('stores preference updates when enabled', async () => {
     const storage = createStorage()
     const harness = await renderPreferenceProbe({ storage })

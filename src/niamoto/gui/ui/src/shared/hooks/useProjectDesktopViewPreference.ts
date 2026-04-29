@@ -48,12 +48,12 @@ export function useProjectDesktopViewPreference<TValue extends string>({
   ].join('\u0000')
 
   const resolvePreferenceValue = useCallback(() => {
-    if (!effectiveEnabled) {
-      return defaultValue
-    }
-
     if (overrideValue && stableAllowedValues.includes(overrideValue)) {
       return overrideValue
+    }
+
+    if (!effectiveEnabled) {
+      return defaultValue
     }
 
     const storedValue = readStoredProjectDesktopViewPreference(

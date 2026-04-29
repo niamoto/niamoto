@@ -961,11 +961,13 @@ class DataMapper:
         self, item: Dict[str, Any], group_name: str, params: JsonApiExporterParams
     ) -> Dict[str, Any]:
         """Map data for index file generation."""
-        if not self.group_config.index:
-            return item
-
         # Add group context for generators BEFORE mapping
         self._group_context = {"group_name": group_name, "params": params, "item": item}
+
+        if not self.group_config.index:
+            mapped = dict(item)
+            mapped.setdefault("detail_url", self._generate_endpoint_url(item, {}))
+            return mapped
 
         # Debug: log the first few items
         if item.get("id") in [1, 2, 3]:
@@ -977,12 +979,34 @@ class DataMapper:
             logger.info(f"DEBUG: field configs: {self.group_config.index.fields}")
 
         mapped = self._map_fields(item, self.group_config.index.fields)
+        if not self._has_detail_url_field(self.group_config.index.fields):
+            mapped.setdefault("detail_url", self._generate_endpoint_url(item, {}))
 
         # Debug: log mapped result
         if item.get("id") in [1, 2, 3]:
             logger.info(f"DEBUG: Mapped result for item {item.get('id')}: {mapped}")
 
         return mapped
+
+    def _has_detail_url_field(self, field_configs: List[Any]) -> bool:
+        """Return whether index fields already include the detail_url contract key."""
+        for field_config in field_configs:
+            if isinstance(field_config, str):
+                output_key = field_config.split(":", 1)[0].strip()
+                if output_key == "detail_url":
+                    return True
+                continue
+            if hasattr(field_config, "mapping") and isinstance(
+                field_config.mapping, dict
+            ):
+                if "detail_url" in field_config.mapping:
+                    return True
+                continue
+            if not isinstance(field_config, dict):
+                continue
+            if "detail_url" in field_config:
+                return True
+        return False
 
     def _map_fields(
         self, data: Dict[str, Any], field_configs: List[Any]
@@ -1125,7 +1149,7 @@ class DataMapper:
         """Generate endpoint URL for an item."""
         base_path = params.get("base_path", "/api")
         group_name = self._group_context.get("group_name", "unknown")
-        item_id = data.get("id", "unknown")
+        item_id = data.get(f"{group_name}_id") or data.get("id", "unknown")
 
         pattern = self._group_context["params"].detail_output_pattern
         path = pattern.format(group=group_name, id=item_id)

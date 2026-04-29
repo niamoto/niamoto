@@ -33,8 +33,22 @@ interface AddExportWizardProps {
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9_]{2,30}$/
+const DWC_TARGET_PATTERN = /(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin/i
 const selectionCardClassName =
   'flex w-full items-center gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-border/80 hover:bg-muted/50'
+
+function isDarwinCoreTarget(target: ApiExportTargetSummary): boolean {
+  const candidateValues = [
+    target.name,
+    target.params?.output_dir,
+    target.params?.detail_output_pattern,
+    target.params?.index_output_pattern,
+  ]
+
+  return candidateValues.some(
+    (value) => typeof value === 'string' && DWC_TARGET_PATTERN.test(value)
+  )
+}
 
 /** Stepper indicator */
 function Stepper({ step }: { step: WizardStep }) {
@@ -97,6 +111,7 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
   const availableExistingTargets = (targets ?? []).filter(
     (target) => !target.groups.some((g) => g.group_by === groupBy)
   )
+  const hasExistingDarwinCoreTarget = (targets ?? []).some(isDarwinCoreTarget)
 
   const resetWizard = () => {
     setStep('type')
@@ -221,7 +236,9 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                       <div>
                         <div className="text-sm font-medium">{target.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {t('collectionPanel.api.wizard.activateDescription')}
+                          {isDarwinCoreTarget(target)
+                            ? t('collectionPanel.api.wizard.activateDwcDescription')
+                            : t('collectionPanel.api.wizard.activateDescription')}
                         </div>
                       </div>
                     </button>
@@ -251,21 +268,23 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
                     </div>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  className={selectionCardClassName}
-                  onClick={() => handleSelectTemplate('dwc')}
-                >
-                  <Leaf className="h-5 w-5 shrink-0 text-green-600" />
-                  <div>
-                    <div className="text-sm font-medium">
-                      {t('collectionPanel.api.wizard.dwcTitle')}
+                {!hasExistingDarwinCoreTarget && (
+                  <button
+                    type="button"
+                    className={selectionCardClassName}
+                    onClick={() => handleSelectTemplate('dwc')}
+                  >
+                    <Leaf className="h-5 w-5 shrink-0 text-green-600" />
+                    <div>
+                      <div className="text-sm font-medium">
+                        {t('collectionPanel.api.wizard.dwcTitle')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('collectionPanel.api.wizard.dwcDescription')}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('collectionPanel.api.wizard.dwcDescription')}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                )}
               </div>
             </div>
           </div>
