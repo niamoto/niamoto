@@ -224,6 +224,26 @@ class TestNiamotoDwCTransformer:
         ]
         assert mock_fetch.call_args.args[0] == 123
 
+    def test_transform_does_not_fallback_to_generic_id_for_misconfigured_taxon_field(
+        self, transformer, sample_mapping_config
+    ):
+        """A row id must not silently replace the configured taxon identifier."""
+        data = {
+            "id": 999,
+            "full_name": "Araucaria columnaris (Forster) Hook.",
+        }
+        config = {
+            **sample_mapping_config,
+            "taxonomy_entity": "taxons",
+            "taxon_id_field": "taxon_ref_id",
+        }
+
+        with patch.object(transformer, "_fetch_occurrences_from_db") as mock_fetch:
+            result = transformer.transform(data, config)
+
+        assert result == []
+        mock_fetch.assert_not_called()
+
     def test_transform_no_occurrences(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config
     ):

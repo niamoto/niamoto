@@ -979,7 +979,7 @@ class DataMapper:
             logger.info(f"DEBUG: field configs: {self.group_config.index.fields}")
 
         mapped = self._map_fields(item, self.group_config.index.fields)
-        if not self._has_endpoint_url_field(self.group_config.index.fields):
+        if not self._has_detail_url_field(self.group_config.index.fields):
             mapped.setdefault("detail_url", self._generate_endpoint_url(item, {}))
 
         # Debug: log mapped result
@@ -988,17 +988,24 @@ class DataMapper:
 
         return mapped
 
-    def _has_endpoint_url_field(self, field_configs: List[Any]) -> bool:
-        """Return whether index fields already include an endpoint URL generator."""
+    def _has_detail_url_field(self, field_configs: List[Any]) -> bool:
+        """Return whether index fields already include the detail_url contract key."""
         for field_config in field_configs:
+            if isinstance(field_config, str):
+                output_key = field_config.split(":", 1)[0].strip()
+                if output_key == "detail_url":
+                    return True
+                continue
+            if hasattr(field_config, "mapping") and isinstance(
+                field_config.mapping, dict
+            ):
+                if "detail_url" in field_config.mapping:
+                    return True
+                continue
             if not isinstance(field_config, dict):
                 continue
-            for config in field_config.values():
-                if (
-                    isinstance(config, dict)
-                    and config.get("generator") == "endpoint_url"
-                ):
-                    return True
+            if "detail_url" in field_config:
+                return True
         return False
 
     def _map_fields(

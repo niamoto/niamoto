@@ -391,6 +391,31 @@ class TestDataMapper:
             "detail_url": "/api/plots/456.json",
         }
 
+    def test_map_index_data_adds_detail_url_when_other_endpoint_url_exists(self):
+        """Only the detail_url output key satisfies the index navigation contract."""
+        group_config = GroupConfig(
+            group_by="plots",
+            index=IndexConfig(
+                fields=[
+                    {
+                        "url": {
+                            "generator": "endpoint_url",
+                            "params": {"base_path": "/api"},
+                        }
+                    }
+                ]
+            ),
+        )
+        params = JsonApiExporterParams(output_dir="test")
+        mapper = DataMapper(group_config, params)
+
+        result = mapper.map_index_data({"plots_id": 456}, "plots", params)
+
+        assert result == {
+            "url": "/api/plots/456.json",
+            "detail_url": "/api/plots/456.json",
+        }
+
     def test_map_fields_with_nested_source(self, mapper):
         """Test field mapping with nested source selection."""
         data = {

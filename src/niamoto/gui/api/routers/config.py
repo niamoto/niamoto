@@ -3104,35 +3104,146 @@ def _api_export_target_uses_dwc(export_target: Dict[str, Any], group_by: str) ->
     )
 
 
+def _api_export_auto_field_is_useful(
+    field: SuggestedDisplayField,
+    group_by: str,
+    preview_items: Optional[List[Dict[str, Any]]] = None,
+) -> bool:
+    """Return whether a suggestion is safe enough for automatic API mapping."""
+    source = field.source
+    if not field.name or not source:
+        return False
+    if _is_identifier_field(source, group_by):
+        return False
+    if _is_metadata_field(source) or _is_enrichment_metadata_field(source):
+        return False
+    if _is_hierarchy_structure_field(source):
+        return False
+    if ".meta." in source:
+        return False
+    if source.startswith(("distribution_", "distribution_map.")):
+        return False
+
+    leaf = _get_field_leaf_name(source).lower()
+    if leaf in {"unit", "units", "max_value", "min_value"}:
+        return False
+    if leaf == "type" and "distribution" in source.lower():
+        return False
+
+    if preview_items is None:
+        return True
+
+    return _get_path_coverage(preview_items, source) > 0
+
+
+def _api_export_field_output_name(
+    field: SuggestedDisplayField, used_names: set[str]
+) -> str:
+    """Build a stable output name and avoid generic duplicate keys."""
+    name = field.name.strip()
+    generic_names = {
+        "value",
+        "mean",
+        "max",
+        "min",
+        "num",
+        "count",
+        "percent",
+        "num_percent",
+    }
+
+    if name in generic_names or name in used_names:
+        source = field.source[:-6] if field.source.endswith(".value") else field.source
+        parts = [part for part in source.split(".") if part]
+        if len(parts) >= 2:
+            name = "_".join(parts[-2:])
+
+    sanitized = re.sub(r"[^a-zA-Z0-9_]+", "_", name).strip("_").lower()
+    return sanitized or "field"
+
+
 def _api_export_mapping_from_suggestions(
-    suggestions: IndexFieldSuggestions, limit: int = 6
+    suggestions: IndexFieldSuggestions,
+    group_by: str,
+    *,
+    limit: int = 6,
+    preview_items: Optional[List[Dict[str, Any]]] = None,
+    include_available_fields: bool = False,
 ) -> List[Dict[str, str]]:
-    """Build API field mappings from index suggestions."""
-    candidates = suggestions.display_fields or suggestions.available_fields
+    """Build API field mappings from suggestions that resolve in export data."""
+    primary_candidates = list(suggestions.display_fields)
+    fallback_candidates = list(suggestions.available_fields)
+    candidates = primary_candidates
+    if include_available_fields:
+        candidates = [*primary_candidates, *fallback_candidates]
+
+    useful_candidates = [
+        field
+        for field in candidates
+        if _api_export_auto_field_is_useful(field, group_by, preview_items)
+    ]
+    if not useful_candidates and not include_available_fields:
+        useful_candidates = [
+            field
+            for field in fallback_candidates
+            if _api_export_auto_field_is_useful(field, group_by, preview_items)
+        ]
+        high_priority_candidates = [
+            field
+            for field in useful_candidates
+            if getattr(field, "priority", "low") == "high"
+        ]
+        if high_priority_candidates:
+            useful_candidates = high_priority_candidates
+
+    deduplicated: List[SuggestedDisplayField] = []
+    seen_sources: set[str] = set()
+    for field in useful_candidates:
+        if field.source in seen_sources:
+            continue
+        seen_sources.add(field.source)
+        deduplicated.append(field)
+
     ordered = sorted(
-        candidates,
+        deduplicated,
         key=lambda field: (
+            0 if getattr(field, "is_title", False) else 1,
             0 if getattr(field, "priority", "low") == "high" else 1,
+            0 if not field.source.startswith("extra_data.") else 1,
+            0 if _is_rank_field(field.source) else 1,
+            -_get_path_coverage(preview_items or [], field.source),
             field.name,
         ),
     )
-    return [
-        {field.name: field.source}
-        for field in ordered[:limit]
-        if field.name and field.source
-    ]
+
+    mappings: List[Dict[str, str]] = []
+    used_names: set[str] = set()
+    for field in ordered:
+        output_name = _api_export_field_output_name(field, used_names)
+        if output_name in used_names:
+            continue
+        used_names.add(output_name)
+        mappings.append({output_name: field.source})
+        if len(mappings) >= limit:
+            break
+
+    return mappings
 
 
-def _api_export_fields_include_endpoint_url(
+def _api_export_fields_include_detail_url(
     fields: Optional[List[Union[str, Dict[str, Any]]]],
 ) -> bool:
-    """Return whether field mappings already include a generated detail URL."""
+    """Return whether field mappings already include the detail_url contract key."""
     for field in fields or []:
+        if isinstance(field, str):
+            output_key = field.split(":", 1)[0].strip()
+            if output_key == "detail_url":
+                return True
+            continue
         if not isinstance(field, dict):
             continue
-        for config in field.values():
-            if isinstance(config, dict) and config.get("generator") == "endpoint_url":
-                return True
+        if "detail_url" in field:
+            return True
     return False
 
 
@@ -3157,7 +3268,7 @@ def _ensure_api_export_index_detail_url(
     if not isinstance(fields, list):
         fields = []
 
-    if not _api_export_fields_include_endpoint_url(fields):
+    if not _api_export_fields_include_detail_url(fields):
         index["fields"] = [_api_export_detail_url_field(export_target), *fields]
 
     return next_payload
@@ -3187,14 +3298,28 @@ def _build_api_export_auto_config_proposal(
     export_target: Dict[str, Any],
     group_by: str,
     suggestions: IndexFieldSuggestions,
+    preview_items: Optional[List[Dict[str, Any]]] = None,
 ) -> ApiExportAutoConfigProposal:
     """Build a read-only auto-configuration proposal for review in the UI."""
     existing_group = _find_target_group(export_target, group_by) or {}
-    fields = _api_export_mapping_from_suggestions(suggestions)
+    index_fields_base = _api_export_mapping_from_suggestions(
+        suggestions,
+        group_by,
+        limit=6,
+        preview_items=preview_items,
+    )
+    detail_fields = _api_export_mapping_from_suggestions(
+        suggestions,
+        group_by,
+        limit=10,
+        preview_items=preview_items,
+        include_available_fields=True,
+    )
+    if not detail_fields:
+        detail_fields = deepcopy(index_fields_base)
     index_fields: List[Dict[str, Any]] = _ensure_api_export_index_detail_url(
-        {"index": {"fields": deepcopy(fields)}}, export_target
+        {"index": {"fields": deepcopy(index_fields_base)}}, export_target
     )["index"]["fields"]
-    has_fields = bool(fields)
     json_options = deepcopy(
         existing_group.get("json_options")
         or export_target.get("params", {}).get("json_options", {})
@@ -3204,7 +3329,7 @@ def _build_api_export_auto_config_proposal(
     proposal: Dict[str, Any] = {
         "enabled": True,
         "group_by": group_by,
-        "detail": {"pass_through": False, "fields": deepcopy(fields)},
+        "detail": {"pass_through": False, "fields": deepcopy(detail_fields)},
         "index": {"fields": deepcopy(index_fields)},
     }
     if existing_group.get("data_source"):
@@ -3214,25 +3339,25 @@ def _build_api_export_auto_config_proposal(
 
     sections: Dict[str, ApiExportAutoConfigSection] = {
         "index": ApiExportAutoConfigSection(
-            confidence="high" if has_fields else "low",
+            confidence="high" if index_fields_base else "low",
             config={"fields": deepcopy(index_fields)},
             notes=(
                 [
                     "Includes a detail_url so API clients can fetch each detail JSON file.",
-                    "Uses high-priority fields detected from transformed data.",
+                    "Uses populated fields detected from the transformed export data.",
                 ]
-                if has_fields
+                if index_fields_base
                 else [
                     "Includes a detail_url so API clients can fetch each detail JSON file.",
-                    "No index fields were detected; keep or add fields manually.",
+                    "No populated index fields were detected; keep or add fields manually.",
                 ]
             ),
         ),
         "detail": ApiExportAutoConfigSection(
-            confidence="medium" if has_fields else "low",
-            config={"pass_through": False, "fields": deepcopy(fields)},
+            confidence="medium" if detail_fields else "low",
+            config={"pass_through": False, "fields": deepcopy(detail_fields)},
             notes=[
-                "Applies a curated detail payload from the suggested fields.",
+                "Applies a curated detail payload from populated transformed fields.",
                 "The full transformed data option remains available from the card toggle.",
             ],
         ),
@@ -3292,8 +3417,15 @@ async def suggest_api_export_auto_config(
         )
 
     suggestions = await suggest_index_fields(group_by)
+    existing_group = _find_target_group(export_target, group_by) or {}
+    try:
+        preview_items = _load_api_export_preview_items(
+            group_by, existing_group.get("data_source"), []
+        )
+    except HTTPException:
+        preview_items = None
     return _build_api_export_auto_config_proposal(
-        export_name, export_target, group_by, suggestions
+        export_name, export_target, group_by, suggestions, preview_items
     )
 
 

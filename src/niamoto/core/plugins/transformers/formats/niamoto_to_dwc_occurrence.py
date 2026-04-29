@@ -148,7 +148,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
             taxon_id = self._get_taxon_id_from_data(data)
             if taxon_id in (None, ""):
                 logger.warning(
-                    "Taxon data missing identifier field. Tried '%s', '%s_id', and 'id'",
+                    "Taxon data missing identifier field. Tried '%s' and '%s_id'",
                     self._taxon_id_field,
                     self._taxonomy_entity,
                 )
@@ -421,7 +421,6 @@ class NiamotoDwCTransformer(TransformerPlugin):
         candidate_fields = [
             self._taxon_id_field,
             f"{self._taxonomy_entity}_id" if self._taxonomy_entity else None,
-            "id",
         ]
 
         seen: Set[str] = set()
