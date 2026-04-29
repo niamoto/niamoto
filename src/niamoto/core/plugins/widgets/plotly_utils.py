@@ -64,6 +64,38 @@ def _soften_hex_color(hex_color: str) -> str:
     return rgb_to_hex(*(round(channel * 255) for channel in softened))
 
 
+def _derive_muted_color(hex_color: str, index: int, cycle: int) -> str:
+    """Create a muted color variation without collapsing to repeated shades."""
+    r, g, b = [channel / 255 for channel in hex_to_rgb(hex_color)]
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+
+    hue = (hue + (0.061 * cycle) + (0.013 * index)) % 1.0
+    lightness_offsets = [-0.12, 0.1, -0.06, 0.06, -0.02, 0.14]
+    lightness = max(0.34, min(0.72, lightness + lightness_offsets[cycle % 6]))
+    saturation = max(0.18, min(0.44, saturation * (0.72 + 0.04 * (cycle % 4))))
+
+    derived = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return rgb_to_hex(*(round(channel * 255) for channel in derived))
+
+
+def _make_unique_color(color: str, seen_colors: Set[str]) -> str:
+    """Return a nearby muted color that has not already been emitted."""
+    if color not in seen_colors:
+        return color
+
+    r, g, b = [channel / 255 for channel in hex_to_rgb(color)]
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    for attempt in range(1, 512):
+        next_hue = (hue + 0.017 * attempt) % 1.0
+        next_lightness = max(0.34, min(0.72, lightness + 0.015 * ((attempt % 9) - 4)))
+        adjusted = colorsys.hls_to_rgb(next_hue, next_lightness, saturation)
+        candidate = rgb_to_hex(*(round(channel * 255) for channel in adjusted))
+        if candidate not in seen_colors:
+            return candidate
+
+    raise ValueError("Unable to generate a unique muted color")
+
+
 def generate_muted_gradient_colors(
     base_color: str, count: int, mode: str = "luminance"
 ) -> List[str]:
@@ -96,17 +128,20 @@ def generate_muted_discrete_colors(count: int) -> List[str]:
         return []
 
     colors = []
+    seen_colors: Set[str] = set()
     palette_size = len(MUTED_CHART_COLORS)
     for i in range(count):
         base_color = MUTED_CHART_COLORS[i % palette_size]
         cycle = i // palette_size
         if cycle == 0:
             colors.append(base_color)
+            seen_colors.add(base_color)
             continue
 
-        target = "#f7f5f0" if cycle % 2 else "#28313a"
-        ratio = min(0.12 + 0.08 * ((cycle - 1) // 2), 0.36)
-        colors.append(_mix_hex_colors(base_color, target, ratio))
+        color = _derive_muted_color(base_color, i % palette_size, cycle)
+        color = _make_unique_color(color, seen_colors)
+        colors.append(color)
+        seen_colors.add(color)
 
     return colors
 

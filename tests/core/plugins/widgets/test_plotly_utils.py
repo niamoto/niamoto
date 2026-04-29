@@ -43,6 +43,13 @@ def test_generate_muted_discrete_colors_extends_palette_without_duplicates():
     assert all(color.startswith("#") and len(color) == 7 for color in colors)
 
 
+def test_generate_muted_discrete_colors_keeps_large_palettes_unique():
+    colors = generate_muted_discrete_colors(len(MUTED_CHART_COLORS) * 12)
+
+    assert len(colors) == len(set(colors))
+    assert all(color.startswith("#") and len(color) == 7 for color in colors)
+
+
 def test_generate_muted_gradient_colors_softens_multi_color_gradient():
     colors = generate_muted_gradient_colors("#ff6b35", 4, "saturation")
 
