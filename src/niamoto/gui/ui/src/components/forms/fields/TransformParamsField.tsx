@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,12 @@ interface TransformParamsFieldProps {
   transformSchemas?: Record<string, Record<string, TransformParamDef>>
 }
 
+function hasMeaningfulValue(params: Record<string, unknown>): boolean {
+  return Object.values(params).some(
+    (paramValue) => paramValue !== undefined && paramValue !== ''
+  )
+}
+
 export default function TransformParamsField({
   name: _name,
   label,
@@ -45,14 +51,12 @@ export default function TransformParamsField({
     : null
   const resolvedParams = useMemo<Record<string, unknown>>(() => {
     if (!currentSchema) {
-      return {}
+      return value ? { ...value } : {}
     }
 
-    const nextParams: Record<string, unknown> = {}
+    const nextParams: Record<string, unknown> = value ? { ...value } : {}
     Object.entries(currentSchema).forEach(([key, def]) => {
-      if (value?.[key] !== undefined) {
-        nextParams[key] = value[key]
-      } else if (def.default !== undefined) {
+      if (nextParams[key] === undefined && def.default !== undefined) {
         nextParams[key] = def.default
       }
     })
@@ -67,23 +71,18 @@ export default function TransformParamsField({
     sourceKey,
     params: resolvedParams,
   }))
-  const lastEmittedValueRef = useRef('')
   const localParams = localState.sourceKey === sourceKey ? localState.params : resolvedParams
 
-  useEffect(() => {
-    const hasValues = Object.values(localParams).some(
-      (paramValue) => paramValue !== undefined && paramValue !== ''
-    )
-    const nextValue = hasValues ? localParams : undefined
-    const nextKey = JSON.stringify(nextValue ?? null)
-
-    if (nextKey === lastEmittedValueRef.current) {
-      return
-    }
-
-    lastEmittedValueRef.current = nextKey
-    onChange?.(nextValue)
-  }, [localParams, onChange])
+  const updateParams = useCallback(
+    (nextParams: Record<string, unknown>) => {
+      setLocalState({
+        sourceKey,
+        params: nextParams,
+      })
+      onChange?.(hasMeaningfulValue(nextParams) ? nextParams : undefined)
+    },
+    [onChange, sourceKey]
+  )
 
   if (!selectedTransform || !currentSchema) {
     return null
@@ -114,10 +113,7 @@ export default function TransformParamsField({
                 <Switch
                   checked={Boolean(localParams[key] ?? def.default)}
                   onCheckedChange={(checked) =>
-                    setLocalState({
-                      sourceKey,
-                      params: { ...localParams, [key]: checked },
-                    })
+                    updateParams({ ...localParams, [key]: checked })
                   }
                   disabled={disabled}
                 />
@@ -133,12 +129,9 @@ export default function TransformParamsField({
                     .split(',')
                     .map((item) => item.trim())
                     .filter(Boolean)
-                  setLocalState({
-                    sourceKey,
-                    params: {
-                      ...localParams,
-                      [key]: vals.length > 0 ? vals : undefined,
-                    },
+                  updateParams({
+                    ...localParams,
+                    [key]: vals.length > 0 ? vals : undefined,
                   })
                 }}
                 placeholder={t('widgets:form.commaSeparatedValues')}
@@ -150,12 +143,9 @@ export default function TransformParamsField({
                 className="h-8"
                 value={String(localParams[key] ?? def.default ?? '')}
                 onChange={(e) =>
-                  setLocalState({
-                    sourceKey,
-                    params: {
-                      ...localParams,
-                      [key]: e.target.value ? Number(e.target.value) : undefined,
-                    },
+                  updateParams({
+                    ...localParams,
+                    [key]: e.target.value ? Number(e.target.value) : undefined,
                   })
                 }
                 disabled={disabled}
@@ -165,12 +155,9 @@ export default function TransformParamsField({
                 className="h-8"
                 value={String(localParams[key] ?? def.default ?? '')}
                 onChange={(e) =>
-                  setLocalState({
-                    sourceKey,
-                    params: {
-                      ...localParams,
-                      [key]: e.target.value || undefined,
-                    },
+                  updateParams({
+                    ...localParams,
+                    [key]: e.target.value || undefined,
                   })
                 }
                 placeholder={def.default ? String(def.default) : undefined}

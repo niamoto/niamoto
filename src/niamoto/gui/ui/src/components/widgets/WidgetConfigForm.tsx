@@ -96,17 +96,23 @@ export function WidgetConfigForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Debounce ref for onChange
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasUserEditedRef = useRef(false)
+
   // Reset state when widget changes
   useEffect(() => {
+    hasUserEditedRef.current = false
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
     setTitle(widget.title as LocalizedString | undefined)
     setDescription((widget.description as LocalizedString | undefined) || undefined)
     setTransformerParams(widget.transformerParams)
     setWidgetParams(widget.widgetParams)
     setError(null)
   }, [widget.description, widget.id, widget.title, widget.transformerParams, widget.widgetParams])
-
-  // Debounce ref for onChange
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Build current config from state
   const currentConfig = useMemo(() => ({
@@ -118,7 +124,7 @@ export function WidgetConfigForm({
 
   // Debounced onChange handler
   useEffect(() => {
-    if (!onChange) return
+    if (!onChange || !hasUserEditedRef.current) return
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current)
@@ -135,22 +141,66 @@ export function WidgetConfigForm({
     }
   }, [currentConfig, onChange])
 
+  const markUserEditIfChanged = useCallback((previous: unknown, next: unknown) => {
+    if (serializeConfigPart(previous) !== serializeConfigPart(next)) {
+      hasUserEditedRef.current = true
+    }
+  }, [])
+
+  const handleTitleChange = useCallback((value: LocalizedString | undefined) => {
+    setTitle((previous) => {
+      markUserEditIfChanged(previous, value)
+      return value
+    })
+  }, [markUserEditIfChanged])
+
+  const handleDescriptionChange = useCallback((value: LocalizedString | undefined) => {
+    setDescription((previous) => {
+      markUserEditIfChanged(previous, value)
+      return value
+    })
+  }, [markUserEditIfChanged])
+
   // Handle transformer params change
   const handleTransformerChange = useCallback((data: Record<string, unknown>) => {
-    setTransformerParams(prev => mergeConfigPart(prev, data))
+    setTransformerParams((prev) => {
+      const next = mergeConfigPart(prev, data)
+      if (next !== prev) {
+        hasUserEditedRef.current = true
+      }
+      return next
+    })
   }, [])
 
   // Handle widget params change
   const handleWidgetChange = useCallback((data: Record<string, unknown>) => {
-    setWidgetParams(prev => mergeConfigPart(prev, data))
+    setWidgetParams((prev) => {
+      const next = mergeConfigPart(prev, data)
+      if (next !== prev) {
+        hasUserEditedRef.current = true
+      }
+      return next
+    })
   }, [])
 
   const handleTransformerReplace = useCallback((data: Record<string, unknown>) => {
-    setTransformerParams(prev => replaceConfigPart(prev, data))
+    setTransformerParams((prev) => {
+      const next = replaceConfigPart(prev, data)
+      if (next !== prev) {
+        hasUserEditedRef.current = true
+      }
+      return next
+    })
   }, [])
 
   const handleWidgetReplace = useCallback((data: Record<string, unknown>) => {
-    setWidgetParams(prev => replaceConfigPart(prev, data))
+    setWidgetParams((prev) => {
+      const next = replaceConfigPart(prev, data)
+      if (next !== prev) {
+        hasUserEditedRef.current = true
+      }
+      return next
+    })
   }, [])
 
   // Handle save
@@ -162,6 +212,12 @@ export function WidgetConfigForm({
       const success = await onSave(currentConfig)
       if (!success) {
         setError(t('form.saveError'))
+      } else {
+        hasUserEditedRef.current = false
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current)
+          debounceRef.current = null
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('form.unknownError'))
@@ -190,7 +246,7 @@ export function WidgetConfigForm({
       <div className="space-y-4 p-4 border-b">
         <LocalizedInput
           value={title}
-          onChange={setTitle}
+          onChange={handleTitleChange}
           placeholder={t('form.titlePlaceholder')}
           languages={languages}
           defaultLang={defaultLang}
@@ -199,7 +255,7 @@ export function WidgetConfigForm({
 
         <LocalizedInput
           value={description}
-          onChange={setDescription}
+          onChange={handleDescriptionChange}
           placeholder={t('form.descriptionPlaceholder')}
           languages={languages}
           defaultLang={defaultLang}

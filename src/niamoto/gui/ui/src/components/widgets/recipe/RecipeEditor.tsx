@@ -1166,7 +1166,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                     <Input
                                       type="color"
                                       className="h-8 w-12 p-1"
-                                      value={String(widgetParams[key] ?? param.default ?? '#1fb99d')}
+                                      value={String(widgetParams[key] ?? param.default ?? '#4f8068')}
                                       onChange={(e) => updateWidgetParam(key, e.target.value)}
                                     />
                                     <Input

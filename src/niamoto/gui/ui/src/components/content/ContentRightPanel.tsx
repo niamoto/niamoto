@@ -17,7 +17,6 @@ interface ContentRightPanelProps {
   availableFields?: string[]
   previewPreference: CollectionsPreviewPreference
   onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
-  hardwareConcurrency: number | null
   detailPreviewAutoRefresh: boolean
   onSelectWidget: (widget: ConfiguredWidget | null) => void
   onBack: () => void
@@ -33,7 +32,6 @@ export function ContentRightPanel({
   availableFields = [],
   previewPreference,
   onPreviewPreferenceChange,
-  hardwareConcurrency,
   detailPreviewAutoRefresh,
   onSelectWidget,
   onBack,
@@ -49,7 +47,6 @@ export function ContentRightPanel({
         groupBy={groupBy}
         previewPreference={previewPreference}
         onPreviewPreferenceChange={onPreviewPreferenceChange}
-        hardwareConcurrency={hardwareConcurrency}
         onSelectWidget={onSelectWidget}
         onLayoutSaved={onLayoutSaved}
       />

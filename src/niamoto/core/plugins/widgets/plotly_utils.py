@@ -5,13 +5,145 @@ This module provides common functionality for all Plotly widgets,
 including consistent configuration and styling.
 """
 
-from typing import Dict, Any, Set
+import colorsys
+from typing import Any, Dict, List, Set
 
 # Plotly bundle paths for the exported site.
 # Core bundle — all chart types except maps (~1.3 MB).
 PLOTLY_CORE_URL = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
 # Maps bundle — core + scattermap/choroplethmap (~2.2 MB).
 PLOTLY_MAPS_URL = "/assets/js/vendor/plotly/plotly-niamoto-maps.min.js"
+
+# Shared palette for automatically generated chart colors. The hues stay varied,
+# but avoid the highly saturated default Plotly/HTML named colors.
+MUTED_CHART_COLORS = [
+    "#4f8068",
+    "#6d8796",
+    "#b07f4f",
+    "#8b6f9b",
+    "#b76f63",
+    "#6c8f45",
+    "#9a8d58",
+    "#5f7f88",
+    "#a36f82",
+    "#7f7f72",
+]
+
+
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert hex color to RGB."""
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """Convert RGB to hex."""
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _mix_hex_colors(hex_color: str, target_color: str, ratio: float) -> str:
+    """Mix a hex color with a target color."""
+    ratio = max(0.0, min(1.0, ratio))
+    source_rgb = hex_to_rgb(hex_color)
+    target_rgb = hex_to_rgb(target_color)
+    mixed_rgb = [
+        round(source * (1 - ratio) + target * ratio)
+        for source, target in zip(source_rgb, target_rgb)
+    ]
+    return rgb_to_hex(*mixed_rgb)
+
+
+def _soften_hex_color(hex_color: str) -> str:
+    """Reduce saturation while keeping the original hue recognizable."""
+    r, g, b = [channel / 255 for channel in hex_to_rgb(hex_color)]
+    h, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    saturation *= 0.68
+    if lightness < 0.5:
+        lightness += (0.5 - lightness) * 0.18
+    softened = colorsys.hls_to_rgb(h, lightness, saturation)
+    return rgb_to_hex(*(round(channel * 255) for channel in softened))
+
+
+def _derive_muted_color(hex_color: str, index: int, cycle: int) -> str:
+    """Create a muted color variation without collapsing to repeated shades."""
+    r, g, b = [channel / 255 for channel in hex_to_rgb(hex_color)]
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+
+    hue = (hue + (0.061 * cycle) + (0.013 * index)) % 1.0
+    lightness_offsets = [-0.12, 0.1, -0.06, 0.06, -0.02, 0.14]
+    lightness = max(0.34, min(0.72, lightness + lightness_offsets[cycle % 6]))
+    saturation = max(0.18, min(0.44, saturation * (0.72 + 0.04 * (cycle % 4))))
+
+    derived = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return rgb_to_hex(*(round(channel * 255) for channel in derived))
+
+
+def _make_unique_color(color: str, seen_colors: Set[str]) -> str:
+    """Return a nearby muted color that has not already been emitted."""
+    if color not in seen_colors:
+        return color
+
+    r, g, b = [channel / 255 for channel in hex_to_rgb(color)]
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    for attempt in range(1, 512):
+        next_hue = (hue + 0.017 * attempt) % 1.0
+        next_lightness = max(0.34, min(0.72, lightness + 0.015 * ((attempt % 9) - 4)))
+        adjusted = colorsys.hls_to_rgb(next_hue, next_lightness, saturation)
+        candidate = rgb_to_hex(*(round(channel * 255) for channel in adjusted))
+        if candidate not in seen_colors:
+            return candidate
+
+    raise ValueError("Unable to generate a unique muted color")
+
+
+def generate_muted_gradient_colors(
+    base_color: str, count: int, mode: str = "luminance"
+) -> List[str]:
+    """Generate a restrained gradient based on a base color."""
+    if count <= 0:
+        return []
+
+    if count == 1:
+        return [base_color]
+
+    muted_base = _soften_hex_color(base_color)
+    colors = []
+
+    if mode == "luminance":
+        for i in range(count):
+            factor = 0.35 + (0.65 * i / (count - 1))
+            colors.append(_mix_hex_colors("#f7f5f0", muted_base, factor))
+    elif mode == "saturation":
+        neutral = "#8f8b84"
+        for i in range(count):
+            factor = 0.92 - (0.52 * i / (count - 1))
+            colors.append(_mix_hex_colors(neutral, muted_base, factor))
+
+    return colors
+
+
+def generate_muted_discrete_colors(count: int) -> List[str]:
+    """Generate varied, low-saturation colors for automatic chart coloring."""
+    if count <= 0:
+        return []
+
+    colors = []
+    seen_colors: Set[str] = set()
+    palette_size = len(MUTED_CHART_COLORS)
+    for i in range(count):
+        base_color = MUTED_CHART_COLORS[i % palette_size]
+        cycle = i // palette_size
+        if cycle == 0:
+            colors.append(base_color)
+            seen_colors.add(base_color)
+            continue
+
+        color = _derive_muted_color(base_color, i % palette_size, cycle)
+        color = _make_unique_color(color, seen_colors)
+        colors.append(color)
+        seen_colors.add(color)
+
+    return colors
 
 
 def get_plotly_config() -> Dict[str, Any]:
@@ -43,6 +175,7 @@ def get_plotly_layout_defaults() -> Dict[str, Any]:
     """
     return {
         "annotations": [],  # Remove "Produced with Plotly" watermark
+        "colorway": MUTED_CHART_COLORS,
         "margin": {"r": 10, "t": 30, "l": 10, "b": 10},
     }
 

@@ -35,7 +35,6 @@ import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import {
-  getCollectionsHardwareConcurrency,
   readStoredCollectionsPreviewPreference,
   shouldAutoRefreshCollectionsDetailPreview,
   writeStoredCollectionsPreviewPreference,
@@ -78,7 +77,6 @@ export function ContentTab({ reference }: ContentTabProps) {
   const [previewPreference, setPreviewPreference] = useState<CollectionsPreviewPreference>(
     () => readStoredCollectionsPreviewPreference(),
   )
-  const hardwareConcurrency = useMemo(() => getCollectionsHardwareConcurrency(), [])
 
   const {
     loading: configuredWidgetsLoading,
@@ -123,13 +121,8 @@ export function ContentTab({ reference }: ContentTabProps) {
   }, [configuredWidgets, searchQuery])
 
   const detailPreviewAutoRefresh = useMemo(
-    () =>
-      shouldAutoRefreshCollectionsDetailPreview({
-        preference: previewPreference,
-        widgetCount: configuredWidgets.length,
-        hardwareConcurrency,
-      }),
-    [configuredWidgets.length, hardwareConcurrency, previewPreference],
+    () => shouldAutoRefreshCollectionsDetailPreview(previewPreference),
+    [previewPreference],
   )
 
   useDevListRenderMetric('collections.content.configuredWidgets', configuredWidgets.length, {
@@ -382,7 +375,6 @@ export function ContentTab({ reference }: ContentTabProps) {
                 availableFields={availableFields}
                 previewPreference={previewPreference}
                 onPreviewPreferenceChange={handlePreviewPreferenceChange}
-                hardwareConcurrency={hardwareConcurrency}
                 detailPreviewAutoRefresh={detailPreviewAutoRefresh}
                 onSelectWidget={handleSelectWidget}
                 onBack={handleBackToLayout}

@@ -203,6 +203,7 @@ class PreviewEngine:
         self._db: Database | None = None
         self._rich_entity_cache: dict[str, Any] = {}
         self._group_ids_cache: dict[str, list[Any]] = {}
+        self._render_lock = threading.RLock()
 
         # Dispatch table for special widget types.
         # Each entry: (matcher, widget_plugin, handler)
@@ -270,7 +271,18 @@ class PreviewEngine:
     # ------------------------------------------------------------------
 
     def render(self, request: PreviewRequest) -> PreviewResult:
-        """Single entry point -- resolve, load, transform, render, wrap."""
+        """Single entry point -- resolve, load, transform, render, wrap.
+
+        Preview iframes are lazy-loaded by the browser and can request several
+        widgets at once while scrolling. DuckDB/duckdb-engine can raise duplicate
+        ATTACH errors when the shared preview engine opens connections to the
+        same database file concurrently, so render work is serialized here while
+        preserving frontend lazy loading.
+        """
+        with self._render_lock:
+            return self._render_locked(request)
+
+    def _render_locked(self, request: PreviewRequest) -> PreviewResult:
         warnings: list[str] = []
         template_id = request.template_id
 

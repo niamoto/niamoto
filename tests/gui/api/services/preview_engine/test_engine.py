@@ -1,5 +1,8 @@
 """Tests for preview engine transformer execution paths and caching."""
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -257,6 +260,36 @@ def test_open_db_returns_same_instance():
     assert db1 is db2
     MockDB.assert_called_once()
     assert MockDB.call_args.kwargs.get("read_only") is None
+
+
+def test_render_serializes_concurrent_preview_work():
+    engine = _make_engine()
+    request = PreviewRequest(template_id="configured_widget", group_by="taxons")
+    active = 0
+    max_active = 0
+    active_lock = threading.Lock()
+
+    def render_standard(*args, **kwargs):
+        nonlocal active, max_active
+        with active_lock:
+            active += 1
+            max_active = max(max_active, active)
+        time.sleep(0.05)
+        with active_lock:
+            active -= 1
+        return "<div>ok</div>"
+
+    with (
+        patch.object(engine, "_open_db", return_value=MagicMock()),
+        patch.object(engine, "_get_transformer_service", return_value=MagicMock()),
+        patch.object(engine, "_render_standard", side_effect=render_standard),
+        patch.object(engine, "_wrap_html", side_effect=lambda html, **kwargs: html),
+    ):
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(lambda _: engine.render(request), range(4)))
+
+    assert [result.html for result in results] == ["<div>ok</div>"] * 4
+    assert max_active == 1
 
 
 def test_open_db_creates_new_after_invalidate():

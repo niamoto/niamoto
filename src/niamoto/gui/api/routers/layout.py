@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from niamoto.common.i18n import LocalizedString
 from niamoto.gui.api.context import get_working_directory
 from niamoto.gui.api.services.preview_utils import (
     error_html,
@@ -38,8 +39,10 @@ class WidgetLayoutInfo(BaseModel):
 
     index: int = Field(..., description="Original index in export.yml")
     plugin: str = Field(..., description="Widget plugin name")
-    title: str = Field(..., description="Widget title")
-    description: Optional[str] = Field(None, description="Widget description")
+    title: LocalizedString = Field(..., description="Widget title")
+    description: Optional[LocalizedString] = Field(
+        None, description="Widget description"
+    )
     data_source: str = Field(..., description="Data source key")
     colspan: int = Field(default=1, ge=1, le=2, description="Column span (1 or 2)")
     order: int = Field(..., description="Display order")
@@ -52,7 +55,7 @@ class NavigationWidgetInfo(BaseModel):
     """Information about the navigation widget."""
 
     plugin: str = Field(default="hierarchical_nav_widget")
-    title: str
+    title: LocalizedString
     params: Dict[str, Any] = Field(default_factory=dict)
     is_hierarchical: bool = Field(default=False)
 
@@ -70,8 +73,8 @@ class WidgetLayoutUpdate(BaseModel):
     """Update for a single widget layout."""
 
     index: int = Field(..., description="Original widget index")
-    title: Optional[str] = Field(None, description="New title (if changed)")
-    description: Optional[str] = Field(None, description="New description")
+    title: Optional[LocalizedString] = Field(None, description="New title (if changed)")
+    description: Optional[LocalizedString] = Field(None, description="New description")
     colspan: Optional[int] = Field(None, ge=1, le=2, description="New colspan")
     order: int = Field(..., description="New display order")
 

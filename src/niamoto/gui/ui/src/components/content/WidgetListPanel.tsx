@@ -8,7 +8,7 @@
  * - Simplified item display (no inline expansion)
  */
 import { useState, useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -44,7 +44,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { LocalizedString } from '@/components/ui/localized-input'
+import { resolveLocalizedString } from '@/components/ui/localized-string'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -91,13 +91,6 @@ const CATEGORY_COLORS: Record<string, { text: string; bg: string; border: string
   table: { text: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
 }
 
-// Helper to resolve LocalizedString for display
-function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
-  if (!value) return ''
-  if (typeof value === 'string') return value
-  return value[defaultLang] || Object.values(value)[0] || ''
-}
-
 interface SortableWidgetItemProps {
   widget: ConfiguredWidget
   isSelected: boolean
@@ -113,7 +106,7 @@ function SortableWidgetItem({
   onDeleteClick,
   onDuplicateClick,
 }: SortableWidgetItemProps) {
-  const { t } = useTranslation(['widgets', 'common'])
+  const { t, i18n } = useTranslation(['widgets', 'common'])
   const {
     attributes,
     listeners,
@@ -166,7 +159,9 @@ function SortableWidgetItem({
 
       {/* Widget info */}
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-xs truncate">{resolveLocalizedString(widget.title)}</div>
+        <div className="font-medium text-xs truncate">
+          {resolveLocalizedString(widget.title, i18n.language)}
+        </div>
         <div className="text-[10px] text-muted-foreground truncate">
           {getPluginLabel(widget.widgetPlugin)}
         </div>
@@ -218,7 +213,7 @@ export function WidgetListPanel({
   onDuplicate,
   onReorder,
 }: WidgetListPanelProps) {
-  const { t } = useTranslation(['widgets', 'common'])
+  const { t, i18n } = useTranslation(['widgets', 'common'])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [targetWidget, setTargetWidget] = useState<ConfiguredWidget | null>(null)
@@ -374,11 +369,14 @@ export function WidgetListPanel({
               <AlertTriangle className="h-5 w-5 text-destructive" />
               {t('listPanel.deleteWidget')}
             </AlertDialogTitle>
-            <AlertDialogDescription
-              dangerouslySetInnerHTML={{
-                __html: t('listPanel.deleteDescription', { title: targetWidget?.title })
-              }}
-            />
+            <AlertDialogDescription>
+              <Trans
+                i18nKey="listPanel.deleteDescription"
+                t={t}
+                values={{ title: resolveLocalizedString(targetWidget?.title, i18n.language) }}
+                components={{ strong: <strong /> }}
+              />
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{t('common:actions.cancel')}</AlertDialogCancel>
@@ -406,7 +404,9 @@ export function WidgetListPanel({
           <DialogHeader>
             <DialogTitle>{t('listPanel.duplicateWidget')}</DialogTitle>
             <DialogDescription>
-              {t('listPanel.duplicateDescription', { title: targetWidget?.title })}
+              {t('listPanel.duplicateDescription', {
+                title: resolveLocalizedString(targetWidget?.title, i18n.language),
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

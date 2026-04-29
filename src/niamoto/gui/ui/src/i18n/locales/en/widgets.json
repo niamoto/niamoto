@@ -398,7 +398,6 @@
     "previews": "Previews",
     "hidePreviews": "Hide previews",
     "showPreviews": "Show previews",
-    "performanceModeLow": "Performance mode",
     "refresh": "Refresh",
     "save": "Save",
     "saving": "Saving...",
@@ -421,7 +420,6 @@
     "previewDisabled": "Preview disabled",
     "previewOnDemand": "Hover to preview",
     "previewMode": {
-      "auto": "Auto",
       "thumbnail": "Thumbnails",
       "focused": "Focused",
       "off": "Off"

@@ -8,7 +8,7 @@
  */
 import { useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LocalizedString } from '@/components/ui/localized-input'
+import type { LocalizedString } from '@/components/ui/localized-string'
 
 const API_BASE = '/api/config'
 
@@ -62,6 +62,16 @@ function getExportWidgetId(groupBy: string, widget: ExportWidgetConfig): string 
   if (widget.data_source) return widget.data_source
   if (widget.plugin === 'hierarchical_nav_widget') return getNavigationWidgetId(groupBy)
   return null
+}
+
+function appendCopySuffix(title: LocalizedString): LocalizedString {
+  if (typeof title === 'string') {
+    return `${title} (copie)`
+  }
+
+  return Object.fromEntries(
+    Object.entries(title).map(([lang, value]) => [lang, `${value} (copie)`]),
+  )
 }
 
 interface ExportGroupConfig {
@@ -387,23 +397,31 @@ async function performDuplicate(
     throw new Error(errorData.detail || 'Failed to create transform config')
   }
 
-  const exportRes = await fetch(
-    `${API_BASE}/export/${groupBy}/widgets/${newId}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        plugin: sourceWidget.widgetPlugin,
-        data_source: newId,
-        title: `${sourceWidget.title} (copie)`,
-        description: sourceWidget.description,
-        params: { ...sourceWidget.widgetParams }
-      })
+  try {
+    const exportRes = await fetch(
+      `${API_BASE}/export/${groupBy}/widgets/${newId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plugin: sourceWidget.widgetPlugin,
+          data_source: newId,
+          title: appendCopySuffix(sourceWidget.title),
+          description: sourceWidget.description,
+          params: { ...sourceWidget.widgetParams }
+        })
+      }
+    )
+    if (!exportRes.ok) {
+      const errorData = await exportRes.json().catch(() => ({}))
+      throw new Error(errorData.detail || 'Failed to create export config')
     }
-  )
-  if (!exportRes.ok) {
-    const errorData = await exportRes.json().catch(() => ({}))
-    throw new Error(errorData.detail || 'Failed to create export config')
+  } catch (error) {
+    await fetch(
+      `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
+      { method: 'DELETE' },
+    ).catch(() => undefined)
+    throw error
   }
 }
 

@@ -16,6 +16,14 @@ from niamoto.core.plugins.widgets.plotly_utils import (
 
 logger = logging.getLogger(__name__)
 
+GAUGE_DEFAULT_COLOR = "#6d8796"
+GAUGE_CONTEXTUAL_LOW_COLOR = "#b76f63"
+GAUGE_CONTEXTUAL_MEDIUM_COLOR = "#b07f4f"
+GAUGE_CONTEXTUAL_HIGH_COLOR = "#4f8068"
+GAUGE_RANGE_BACKGROUND = "#f0f0ed"
+GAUGE_RANGE_HIGHLIGHT = "#e5ece6"
+GAUGE_THRESHOLD_COLOR = "#5f7f88"
+
 
 # Pydantic model for Radial Gauge parameters validation
 class RadialGaugeParams(BasePluginParams):
@@ -109,7 +117,7 @@ class RadialGaugeParams(BasePluginParams):
         json_schema_extra={"ui:widget": "json"},
     )
     bar_color: Optional[str] = Field(
-        default="cornflowerblue",
+        default=GAUGE_DEFAULT_COLOR,
         description="Color of the gauge's value bar",
         json_schema_extra={"ui:widget": "color"},
     )
@@ -332,11 +340,11 @@ class RadialGaugeWidget(WidgetPlugin):
             # Determine color based on value position in range
             value_ratio = (numeric_value - min_value) / (gauge_max - min_value)
             if value_ratio < 0.33:
-                bar_color = "#f02828"  # Red for low values
+                bar_color = GAUGE_CONTEXTUAL_LOW_COLOR
             elif value_ratio < 0.66:
-                bar_color = "#fe6a00"  # Orange for medium values
+                bar_color = GAUGE_CONTEXTUAL_MEDIUM_COLOR
             else:
-                bar_color = "#049f50"  # Green for high values
+                bar_color = GAUGE_CONTEXTUAL_HIGH_COLOR
             # Use same thickness as minimal style
             bar_thickness = 0.8
 
@@ -383,26 +391,38 @@ class RadialGaugeWidget(WidgetPlugin):
                     steps = [
                         {
                             "range": [min_value, range_min],
-                            "color": "#f0f0f0",
+                            "color": GAUGE_RANGE_BACKGROUND,
                         },  # Below min
                         {
                             "range": [range_min, range_max],
-                            "color": "#e3f2fd",
+                            "color": GAUGE_RANGE_HIGHLIGHT,
                         },  # Data range
                         {
                             "range": [range_max, gauge_max],
-                            "color": "#f0f0f0",
+                            "color": GAUGE_RANGE_BACKGROUND,
                         },  # Above max
                     ]
                 elif range_min is not None:
                     steps = [
-                        {"range": [min_value, range_min], "color": "#f0f0f0"},
-                        {"range": [range_min, gauge_max], "color": "#e3f2fd"},
+                        {
+                            "range": [min_value, range_min],
+                            "color": GAUGE_RANGE_BACKGROUND,
+                        },
+                        {
+                            "range": [range_min, gauge_max],
+                            "color": GAUGE_RANGE_HIGHLIGHT,
+                        },
                     ]
                 elif range_max is not None:
                     steps = [
-                        {"range": [min_value, range_max], "color": "#e3f2fd"},
-                        {"range": [range_max, gauge_max], "color": "#f0f0f0"},
+                        {
+                            "range": [min_value, range_max],
+                            "color": GAUGE_RANGE_HIGHLIGHT,
+                        },
+                        {
+                            "range": [range_max, gauge_max],
+                            "color": GAUGE_RANGE_BACKGROUND,
+                        },
                     ]
 
                 if steps:
@@ -411,7 +431,7 @@ class RadialGaugeWidget(WidgetPlugin):
                 # Add threshold marker for the max value
                 if range_max is not None and effective_field != "max":
                     gauge_args["gauge"]["threshold"] = {
-                        "line": {"color": "#1976d2", "width": 2},
+                        "line": {"color": GAUGE_THRESHOLD_COLOR, "width": 2},
                         "thickness": 0.75,
                         "value": range_max,
                     }
@@ -448,7 +468,7 @@ class RadialGaugeWidget(WidgetPlugin):
                 gauge_args["gauge"]["bar"]["color"] = params.bar_color
             else:
                 # Default gradient color
-                gauge_args["gauge"]["bar"]["color"] = "#1fb99d"
+                gauge_args["gauge"]["bar"]["color"] = GAUGE_CONTEXTUAL_HIGH_COLOR
 
         elif params.style_mode == "classic" and params.steps:
             # Classic style with defined color steps
