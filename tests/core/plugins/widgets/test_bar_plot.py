@@ -53,6 +53,7 @@ class TestBarPlotWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertNotIn("<p class='info'>", result)
         self.assertIn("plotly-graph-div", result)
+        self.assertIn("#4f8068", result)
 
     def test_render_basic_dataframe_avoids_plotly_express(self):
         """Simple single-trace charts should use the faster graph_objects path."""

@@ -6,6 +6,7 @@ from niamoto.core.plugins.widgets.donut_chart import (
     DonutChartParams,
     SubplotConfig,
 )
+from niamoto.core.plugins.widgets.plotly_utils import MUTED_CHART_COLORS
 from tests.common.base_test import NiamotoTestCase
 
 
@@ -55,6 +56,7 @@ class TestDonutChartWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-chart-widget", result)
         self.assertIn("donut-chart-widget", result)
+        self.assertIn(MUTED_CHART_COLORS[0], result)
 
     def test_render_dataframe_missing_columns(self):
         """Test DataFrame with missing required columns."""

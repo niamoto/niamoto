@@ -70,6 +70,7 @@ def test_generate_widget_params_for_binned_distribution_uses_transform_labels():
     assert params["x_axis"] == "bin"
     assert params["y_axis"] == "count"
     assert params["labels"] == {"bin": "DBH class", "count": "Trees"}
+    assert params["gradient_color"] == "#4f8068"
 
 
 def test_generate_widget_params_for_series_extractor_respects_overrides():
