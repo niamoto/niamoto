@@ -64,10 +64,14 @@ export function applyApiExportAutoConfigProposal(
   }
 
   if (selected.has(SECTION_DWC_MAPPING)) {
-    next.transformer_plugin = proposalConfig.transformer_plugin
+    if (proposalConfig.transformer_plugin) {
+      next.transformer_plugin = proposalConfig.transformer_plugin
+    }
+
+    const proposalMapping = proposalConfig.transformer_params?.mapping
     next.transformer_params = {
       ...(currentConfig.transformer_params ?? {}),
-      ...(proposalConfig.transformer_params ?? {}),
+      ...(proposalMapping !== undefined ? { mapping: proposalMapping } : {}),
     }
   }
 

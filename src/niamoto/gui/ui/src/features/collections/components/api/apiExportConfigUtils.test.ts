@@ -123,6 +123,8 @@ describe('apiExportConfigUtils', () => {
       transformer_plugin: 'niamoto_to_dwc_occurrence',
       transformer_params: {
         occurrence_table: 'custom_occurrences',
+        taxonomy_entity: 'custom_taxons',
+        taxon_id_field: 'custom_taxon_id',
         mapping: { scientificName: '@taxon.name' },
       },
     }
@@ -132,6 +134,9 @@ describe('apiExportConfigUtils', () => {
         group_by: 'taxons',
         transformer_plugin: 'niamoto_to_dwc_occurrence',
         transformer_params: {
+          occurrence_table: 'saved_occurrences',
+          taxonomy_entity: 'saved_taxons',
+          taxon_id_field: 'saved_taxon_id',
           mapping: { occurrenceID: { generator: 'unique_occurrence_id' } },
         },
       },
@@ -149,6 +154,8 @@ describe('apiExportConfigUtils', () => {
 
     expect(next.transformer_params).toEqual({
       occurrence_table: 'custom_occurrences',
+      taxonomy_entity: 'custom_taxons',
+      taxon_id_field: 'custom_taxon_id',
       mapping: { occurrenceID: { generator: 'unique_occurrence_id' } },
     })
   })
