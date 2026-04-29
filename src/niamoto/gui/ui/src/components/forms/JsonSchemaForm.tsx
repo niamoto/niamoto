@@ -615,14 +615,15 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               resolvedFieldSchema,
               'ui:transform_schemas'
             );
-            if (transformSchemas) {
+            const selectedTransform = typeof formData.transform === 'string' ? formData.transform : undefined;
+            if (selectedTransform && transformSchemas?.[selectedTransform]) {
               return (
                 <TransformParamsField
                   key={fieldName}
                   {...commonProps}
                   value={isFormValues(fieldValue) ? fieldValue : undefined}
                   onChange={(value) => handleFieldChange(fieldName, value as unknown as FormValue)}
-                  selectedTransform={typeof formData.transform === 'string' ? formData.transform : undefined}
+                  selectedTransform={selectedTransform}
                   transformSchemas={transformSchemas}
                 />
               );
