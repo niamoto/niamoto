@@ -66,6 +66,75 @@ def test_update_export_widget_preserves_layout_and_accepts_localized_metadata(
     assert widget["template"] == "custom.html"
 
 
+def test_update_export_widget_can_clear_metadata(gui_duckdb_client, gui_duckdb_context):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "bar_plot",
+                                        "data_source": "richness",
+                                        "title": {"fr": "Richesse", "en": "Richness"},
+                                        "description": {
+                                            "fr": "Description",
+                                            "en": "Description",
+                                        },
+                                        "params": {"x_axis": "name"},
+                                        "layout": {"order": 3, "colspan": 2},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.put(
+        "/api/config/export/taxons/widgets/richness",
+        json={
+            "plugin": "bar_plot",
+            "data_source": "richness",
+            "params": {"x_axis": "name"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    widget = saved["exports"][0]["groups"][0]["widgets"][0]
+    assert widget["title"] == {"fr": "Richesse", "en": "Richness"}
+    assert widget["description"] == {"fr": "Description", "en": "Description"}
+
+    response = gui_duckdb_client.put(
+        "/api/config/export/taxons/widgets/richness",
+        json={
+            "plugin": "bar_plot",
+            "data_source": "richness",
+            "title": None,
+            "description": None,
+            "params": {"x_axis": "name"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    widget = saved["exports"][0]["groups"][0]["widgets"][0]
+    assert "title" not in widget
+    assert "description" not in widget
+    assert widget["layout"] == {"order": 3, "colspan": 2}
+
+
 def test_api_export_suggestions_route_serializes_response(monkeypatch):
     monkeypatch.setattr(
         config_router,

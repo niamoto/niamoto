@@ -1772,10 +1772,14 @@ async def update_export_widget(
                 "params": update.params,
             }
         )
-        if update.title is not None:
-            new_widget["title"] = update.title
-        if update.description is not None:
-            new_widget["description"] = update.description
+        for metadata_field in ("title", "description"):
+            if metadata_field not in update.model_fields_set:
+                continue
+            metadata_value = getattr(update, metadata_field)
+            if metadata_value is None:
+                new_widget.pop(metadata_field, None)
+            else:
+                new_widget[metadata_field] = metadata_value
 
         if existing_idx is not None:
             target_group["widgets"][existing_idx] = new_widget
