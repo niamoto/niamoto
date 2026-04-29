@@ -244,6 +244,9 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
               <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <input
                 type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder={t('imagePicker.searchPlaceholder', { defaultValue: 'Filtrer par nom...' })}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

@@ -529,6 +529,9 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                   <label className="text-sm font-medium">URL</label>
                   <input
                     type="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
                     value={linkItem.url ?? ''}
                     onChange={(e) => state.updateExternalLink(linkItem.id, linkItem.label, e.target.value)}

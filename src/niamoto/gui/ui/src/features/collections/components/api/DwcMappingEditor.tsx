@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +24,7 @@ interface DwcMappingEditorProps {
 }
 
 interface DwcMappingRow {
+  id: string
   term: string
   mode: DwcMappingMode
   staticValue: string
@@ -55,8 +56,16 @@ const KNOWN_GENERATORS = [
   'count_total_occurrences',
 ]
 
+let nextRowId = 0
+
+function createRowId() {
+  nextRowId += 1
+  return `dwc-mapping-${nextRowId}`
+}
+
 function createEmptyRow(): DwcMappingRow {
   return {
+    id: createRowId(),
     term: '',
     mode: 'source',
     staticValue: '',
@@ -79,7 +88,7 @@ function stringifyStaticValue(value: unknown): string {
 }
 
 function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
-  const rows: DwcMappingRow[] = Object.entries(value).map(([term, rawConfig]) => {
+  return Object.entries(value).map(([term, rawConfig]) => {
     if (
       rawConfig &&
       typeof rawConfig === 'object' &&
@@ -92,6 +101,7 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
       }
 
       return {
+        id: createRowId(),
         term,
         mode: 'generator' as const,
         staticValue: '',
@@ -110,6 +120,7 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
       typeof rawConfig.source === 'string'
     ) {
       return {
+        id: createRowId(),
         term,
         mode: 'source' as const,
         staticValue: '',
@@ -121,6 +132,7 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
 
     if (typeof rawConfig === 'string' && rawConfig.startsWith('@')) {
       return {
+        id: createRowId(),
         term,
         mode: 'source',
         staticValue: '',
@@ -131,6 +143,7 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
     }
 
     return {
+      id: createRowId(),
       term,
       mode: 'static',
       staticValue: stringifyStaticValue(rawConfig),
@@ -139,8 +152,6 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
       paramsText: '',
     }
   })
-
-  return rows.length > 0 ? rows : [createEmptyRow()]
 }
 
 function serializeRows(
@@ -223,13 +234,7 @@ export function DwcMappingEditor({
   value = {},
   onChange,
 }: DwcMappingEditorProps) {
-  return (
-    <DwcMappingEditorForm
-      key={JSON.stringify(value)}
-      value={value}
-      onChange={onChange}
-    />
-  )
+  return <DwcMappingEditorForm value={value} onChange={onChange} />
 }
 
 function DwcMappingEditorForm({
@@ -239,6 +244,20 @@ function DwcMappingEditorForm({
   const { t } = useTranslation(['sources', 'common'])
   const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
   const [error, setError] = useState<string | null>(null)
+  const externalValueKey = useMemo(() => JSON.stringify(value), [value])
+  const lastExternalValueKeyRef = useRef(externalValueKey)
+
+  useEffect(() => {
+    if (externalValueKey === lastExternalValueKeyRef.current) {
+      return
+    }
+
+    // The editor keeps local draft rows so invalid intermediate input can stay editable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRows(parseRows(value))
+    setError(null)
+    lastExternalValueKeyRef.current = externalValueKey
+  }, [externalValueKey, value])
 
   const generatorOptions = useMemo(() => {
     const extraGenerators = rows
@@ -252,10 +271,9 @@ function DwcMappingEditorForm({
     setRows(nextRows)
     const serialized = serializeRows(nextRows, t)
     setError(serialized.error)
-    if (
-      !serialized.error &&
-      JSON.stringify(serialized.value) !== JSON.stringify(value)
-    ) {
+    const serializedKey = JSON.stringify(serialized.value)
+    if (!serialized.error && serializedKey !== externalValueKey) {
+      lastExternalValueKeyRef.current = serializedKey
       onChange(serialized.value)
     }
   }
@@ -276,7 +294,7 @@ function DwcMappingEditorForm({
 
   const removeRow = (index: number) => {
     const nextRows = rows.filter((_, currentIndex) => currentIndex !== index)
-    commit(nextRows.length > 0 ? nextRows : [createEmptyRow()])
+    commit(nextRows)
   }
 
   const moveRow = (index: number, direction: -1 | 1) => {
@@ -310,8 +328,13 @@ function DwcMappingEditorForm({
       </p>
 
       <div className="space-y-4">
+        {rows.length === 0 && (
+          <div className="rounded-md border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+            {t('collectionPanel.api.dwcMappingEmpty')}
+          </div>
+        )}
         {rows.map((row, index) => (
-          <div key={`${index}-${row.term}-${row.generator}`} className="rounded-md border p-3">
+          <div key={row.id} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <Badge variant="outline">
                 {row.term || t('collectionPanel.api.mappingTermFallback', { index: index + 1 })}

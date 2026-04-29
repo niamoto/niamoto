@@ -113,14 +113,11 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 and "mapping" in config
             ):
                 # Old format: wrap in params for compatibility
+                params = dict(config)
+                params.setdefault("occurrence_list_source", "occurrences")
                 config = {
                     "plugin": "niamoto_to_dwc_occurrence",
-                    "params": {
-                        "occurrence_list_source": config.get(
-                            "occurrence_list_source", "occurrences"
-                        ),
-                        "mapping": config["mapping"],
-                    },
+                    "params": params,
                 }
             return self.config_model.model_validate(config)
         except Exception as e:
@@ -146,10 +143,15 @@ class NiamotoDwCTransformer(TransformerPlugin):
             self._configure_from_config(config)
             mapping = self._active_compiled_mapping or []
 
-            # Get taxon ID from configured field
-            taxon_id = data.get(self._taxon_id_field)
-            if not taxon_id:
-                logger.warning(f"Taxon data missing '{self._taxon_id_field}' field")
+            # Get taxon ID from the configured field, with a fallback for
+            # transformed collection rows that expose "<entity>_id".
+            taxon_id = self._get_taxon_id_from_data(data)
+            if taxon_id in (None, ""):
+                logger.warning(
+                    "Taxon data missing identifier field. Tried '%s' and '%s_id'",
+                    self._taxon_id_field,
+                    self._taxonomy_entity,
+                )
                 return []
 
             # Reuse batch-preloaded occurrences when available for the current group.
@@ -195,7 +197,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
         taxon_ids = [
             taxon_id
-            for taxon_id in (item.get(self._taxon_id_field) for item in items)
+            for taxon_id in (self._get_taxon_id_from_data(item) for item in items)
             if taxon_id is not None
         ]
         unique_taxon_ids = list(dict.fromkeys(taxon_ids))
@@ -413,6 +415,24 @@ class NiamotoDwCTransformer(TransformerPlugin):
         # Last resort: assume <entity>_id naming convention
         entity_name = self._taxonomy_entity or "taxonomy"
         return f"{entity_name}_id"
+
+    def _get_taxon_id_from_data(self, data: Dict[str, Any]) -> Any:
+        """Return the taxon identifier from configured or conventional fields."""
+        candidate_fields = [
+            self._taxon_id_field,
+            f"{self._taxonomy_entity}_id" if self._taxonomy_entity else None,
+        ]
+
+        seen: Set[str] = set()
+        for field in candidate_fields:
+            if not field or field in seen:
+                continue
+            seen.add(field)
+            value = data.get(field)
+            if value is not None:
+                return value
+
+        return None
 
     def _map_occurrence(
         self, occurrence: Dict[str, Any], mapping: Any
@@ -984,7 +1004,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
     ) -> int:
         """Count occurrences for the current taxon (for index generation)."""
         # Get taxon ID from the current taxon data using configured field
-        taxon_id = self._current_taxon.get(self._taxon_id_field)
+        taxon_id = self._get_taxon_id_from_data(self._current_taxon)
         if not taxon_id:
             return 0
 

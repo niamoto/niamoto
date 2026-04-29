@@ -9,12 +9,12 @@ import {
   RotateCcw,
   Save,
   Settings,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { JsonSchemaForm } from '@/components/forms'
 import type { FormValues } from '@/components/forms/formSchemaTypes'
-import JsonField from '@/components/forms/fields/JsonField'
 import {
   Accordion,
   AccordionContent,
@@ -27,16 +27,28 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 import {
+  useApiExportAutoConfig,
   useApiExportGroupConfig,
+  useApiExportPreview,
   useApiExportSuggestions,
   useUpdateApiExportGroupConfig,
   type ApiExportGroupConfig,
   type ApiExportTargetSummary,
 } from '@/features/collections/hooks/useApiExportConfigs'
 
+import {
+  applyApiExportAutoConfigProposal,
+  isJsonArray,
+  isJsonObject,
+  normalizeApiExportGroupConfig,
+} from './apiExportConfigUtils'
 import { ApiFieldMappingsEditor } from './ApiFieldMappingsEditor'
+import { AutoConfigReviewDialog } from './AutoConfigReviewDialog'
 import { DwcMappingEditor } from './DwcMappingEditor'
+import { JsonOptionsEditor } from './JsonOptionsEditor'
+import { SynchronizedJsonConfigSection } from './SynchronizedJsonConfigSection'
 
 interface ExportCardProps {
   exportTarget: ApiExportTargetSummary
@@ -47,7 +59,8 @@ function buildAvailableFields(
   suggestions: ReturnType<typeof useApiExportSuggestions>['data']
 ) {
   const values = new Set<string>(['occurrences'])
-  suggestions?.display_fields.forEach((field) => {
+  const fields = suggestions?.available_fields ?? suggestions?.display_fields ?? []
+  fields.forEach((field) => {
     values.add(field.source)
     values.add(field.name)
   })
@@ -55,11 +68,11 @@ function buildAvailableFields(
 }
 
 function buildDefaultLocalConfig(config: ApiExportGroupConfig): ApiExportGroupConfig {
-  return {
-    ...config,
-    detail: config.detail ?? { pass_through: true },
-    index: config.index ?? { fields: [] },
-  }
+  return normalizeApiExportGroupConfig(config)
+}
+
+function omitEmptyJsonOptions(value: Record<string, unknown>) {
+  return Object.keys(value).length > 0 ? value : undefined
 }
 
 /** Generate a natural language summary for this export. */
@@ -151,10 +164,12 @@ function ExportCardForm({
 }: ExportCardFormProps) {
   const { t } = useTranslation(['sources', 'common'])
   const saveMutation = useUpdateApiExportGroupConfig(exportTarget.name, groupBy)
+  const autoConfigQuery = useApiExportAutoConfig(exportTarget.name, groupBy, false)
   const [localConfig, setLocalConfig] = useState<ApiExportGroupConfig>(
     buildDefaultLocalConfig(serverConfig)
   )
   const [resetCounter, setResetCounter] = useState(0)
+  const [autoConfigOpen, setAutoConfigOpen] = useState(false)
 
   const availableFields = useMemo(
     () => buildAvailableFields(suggestions),
@@ -166,6 +181,26 @@ function ExportCardForm({
 
   const isDwcTransformer =
     localConfig.transformer_plugin === 'niamoto_to_dwc_occurrence'
+  const isPassThrough = localConfig.detail?.pass_through !== false
+  const dwcMapping =
+    (localConfig.transformer_params?.mapping as Record<string, unknown> | undefined) ??
+    {}
+  const hasDwcMapping = Object.keys(dwcMapping).length > 0
+
+  const indexPreviewQuery = useApiExportPreview(
+    exportTarget.name,
+    groupBy,
+    'index',
+    localConfig,
+    localConfig.enabled
+  )
+  const detailPreviewQuery = useApiExportPreview(
+    exportTarget.name,
+    groupBy,
+    'detail',
+    localConfig,
+    localConfig.enabled && (isDwcTransformer ? hasDwcMapping : !isPassThrough)
+  )
 
   const summary = formatExportSummary(localConfig, suggestions, t)
 
@@ -196,16 +231,26 @@ function ExportCardForm({
     setResetCounter((c) => c + 1)
   }
 
+  const handleOpenAutoConfig = () => {
+    setAutoConfigOpen(true)
+    void autoConfigQuery.refetch()
+  }
+
+  const handleApplyAutoConfig = (sectionKeys: string[]) => {
+    if (!autoConfigQuery.data) return
+    setLocalConfig((current) =>
+      applyApiExportAutoConfigProposal(current, autoConfigQuery.data, sectionKeys)
+    )
+    setAutoConfigOpen(false)
+  }
+
   const indexFieldCount = localConfig.index?.fields?.length ?? 0
-  const dwcTermCount = Object.keys(
-    (localConfig.transformer_params?.mapping as Record<string, unknown>) ?? {}
-  ).length
-  const isPassThrough = localConfig.detail?.pass_through !== false
+  const dwcTermCount = Object.keys(dwcMapping).length
 
   return (
-    <Card>
+    <Card className="gap-0 py-0">
       {/* ── Header: name + summary + toggle ── */}
-      <CardHeader className="pb-3">
+      <CardHeader className="sticky top-0 z-20 rounded-t-theme-lg border-b bg-card/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/90">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
@@ -244,7 +289,7 @@ function ExportCardForm({
 
         {/* Save / Cancel — only when dirty */}
         {isDirty && (
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button
               variant="outline"
               size="sm"
@@ -254,7 +299,16 @@ function ExportCardForm({
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
               {t('common:actions.reset')}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className={cn(
+                'relative',
+                !saveMutation.isPending &&
+                  'animate-pulse bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 focus-visible:ring-amber-300'
+              )}
+            >
               {saveMutation.isPending ? (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -264,11 +318,29 @@ function ExportCardForm({
             </Button>
           </div>
         )}
+        {localConfig.enabled && (
+          <div className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenAutoConfig}
+              disabled={autoConfigQuery.isFetching}
+            >
+              {autoConfigQuery.isFetching ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {t('collectionPanel.api.autoConfig.button')}
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
       {/* ── Body: collapsible sections ── */}
       {localConfig.enabled && (
-        <CardContent className="pt-0 pb-4">
+        <CardContent className="px-4 py-4">
           <Accordion type="multiple" className="space-y-2">
             {/* ── Main: Index fields ── */}
             <AccordionItem value="index" className="rounded-lg border">
@@ -291,16 +363,40 @@ function ExportCardForm({
                     groupBy,
                   })}
                 </p>
-                <ApiFieldMappingsEditor
+                <SynchronizedJsonConfigSection
+                  name={`${exportTarget.name}-${groupBy}-index-fields`}
                   value={localConfig.index?.fields ?? []}
-                  suggestions={suggestions?.display_fields ?? []}
+                  validate={isJsonArray}
+                  jsonLabel={t('collectionPanel.api.indexFields')}
+                  showJsonPreview
+                  jsonPreviewValue={indexPreviewQuery.data?.preview}
+                  jsonPreviewLoading={indexPreviewQuery.isFetching}
+                  jsonPreviewError={
+                    indexPreviewQuery.error instanceof Error
+                      ? indexPreviewQuery.error.message
+                      : null
+                  }
                   onChange={(fields) =>
                     updateLocalConfig((current) => ({
                       ...current,
-                      index: { fields },
+                      index: { fields: fields as Array<string | Record<string, unknown>> },
                     }))
                   }
-                />
+                >
+                  <ApiFieldMappingsEditor
+                    value={localConfig.index?.fields ?? []}
+                    suggestions={suggestions?.display_fields ?? []}
+                    sourceFields={
+                      suggestions?.available_fields ?? suggestions?.display_fields ?? []
+                    }
+                    onChange={(fields) =>
+                      updateLocalConfig((current) => ({
+                        ...current,
+                        index: { fields },
+                      }))
+                    }
+                  />
+                </SynchronizedJsonConfigSection>
               </AccordionContent>
             </AccordionItem>
 
@@ -339,22 +435,46 @@ function ExportCardForm({
                     />
                   </div>
                   {!isPassThrough && (
-                    <JsonField
+                    <SynchronizedJsonConfigSection
                       name={`${exportTarget.name}-${groupBy}-detail-fields`}
-                      label={t('collectionPanel.api.detailFields')}
-                      value={localConfig.detail?.fields}
-                      onChange={(value) =>
+                      value={localConfig.detail?.fields ?? []}
+                      validate={isJsonArray}
+                      jsonLabel={t('collectionPanel.api.detailFields')}
+                      showJsonPreview
+                      jsonPreviewValue={detailPreviewQuery.data?.preview}
+                      jsonPreviewLoading={detailPreviewQuery.isFetching}
+                      jsonPreviewError={
+                        detailPreviewQuery.error instanceof Error
+                          ? detailPreviewQuery.error.message
+                          : null
+                      }
+                      onChange={(fields) =>
                         updateLocalConfig((current) => ({
                           ...current,
                           detail: {
                             ...current.detail,
-                            fields: Array.isArray(value)
-                              ? (value as Array<string | Record<string, unknown>>)
-                              : [],
+                            fields: fields as Array<string | Record<string, unknown>>,
                           },
                         }))
                       }
-                    />
+                    >
+                      <ApiFieldMappingsEditor
+                        value={localConfig.detail?.fields ?? []}
+                        suggestions={suggestions?.display_fields ?? []}
+                        sourceFields={
+                          suggestions?.available_fields ?? suggestions?.display_fields ?? []
+                        }
+                        onChange={(fields) =>
+                          updateLocalConfig((current) => ({
+                            ...current,
+                            detail: {
+                              ...current.detail,
+                              fields,
+                            },
+                          }))
+                        }
+                      />
+                    </SynchronizedJsonConfigSection>
                   )}
                 </AccordionContent>
               </AccordionItem>
@@ -380,11 +500,23 @@ function ExportCardForm({
                   <p className="mb-3 text-xs text-muted-foreground">
                     {t('collectionPanel.api.sectionHelp.dwcMapping')}
                   </p>
-                  <DwcMappingEditor
+                  <SynchronizedJsonConfigSection
+                    name={`${exportTarget.name}-${groupBy}-dwc-mapping`}
                     value={
-                      (localConfig.transformer_params?.mapping as
-                        | Record<string, unknown>
-                        | undefined) ?? {}
+                      dwcMapping
+                    }
+                    validate={isJsonObject}
+                    jsonLabel={t('collectionPanel.api.dwcMapping')}
+                    showJsonPreview
+                    jsonPreviewLabel={t('collectionPanel.api.dwcJsonPreview')}
+                    jsonPreviewValue={
+                      hasDwcMapping ? detailPreviewQuery.data?.preview : []
+                    }
+                    jsonPreviewLoading={detailPreviewQuery.isFetching}
+                    jsonPreviewError={
+                      detailPreviewQuery.error instanceof Error
+                        ? detailPreviewQuery.error.message
+                        : null
                     }
                     onChange={(mapping) =>
                       updateLocalConfig((current) => ({
@@ -393,11 +525,26 @@ function ExportCardForm({
                           current.transformer_plugin || 'niamoto_to_dwc_occurrence',
                         transformer_params: {
                           ...(current.transformer_params ?? {}),
-                          mapping,
+                          mapping: mapping as Record<string, unknown>,
                         },
                       }))
                     }
-                  />
+                  >
+                    <DwcMappingEditor
+                      value={dwcMapping}
+                      onChange={(mapping) =>
+                        updateLocalConfig((current) => ({
+                          ...current,
+                          transformer_plugin:
+                            current.transformer_plugin || 'niamoto_to_dwc_occurrence',
+                          transformer_params: {
+                            ...(current.transformer_params ?? {}),
+                            mapping,
+                          },
+                        }))
+                      }
+                    />
+                  </SynchronizedJsonConfigSection>
                 </AccordionContent>
               </AccordionItem>
             )}
@@ -474,26 +621,44 @@ function ExportCardForm({
                     {t('collectionPanel.api.dataSourceHelp')}
                   </p>
                 </div>
-                <JsonField
+                <SynchronizedJsonConfigSection
                   name={`${exportTarget.name}-${groupBy}-json-options`}
-                  label={t('collectionPanel.api.jsonOverrides')}
-                  description={t('collectionPanel.api.jsonOverridesHelp')}
-                  value={localConfig.json_options}
+                  value={localConfig.json_options ?? {}}
+                  validate={isJsonObject}
+                  jsonLabel={t('collectionPanel.api.jsonOverrides')}
+                  jsonDescription={t('collectionPanel.api.jsonOverridesHelp')}
                   onChange={(value) =>
                     updateLocalConfig((current) => ({
                       ...current,
-                      json_options:
-                        value && typeof value === 'object'
-                          ? (value as Record<string, unknown>)
-                          : undefined,
+                      json_options: omitEmptyJsonOptions(
+                        value as Record<string, unknown>
+                      ),
                     }))
                   }
-                />
+                >
+                  <JsonOptionsEditor
+                    value={localConfig.json_options ?? {}}
+                    onChange={(value) =>
+                      updateLocalConfig((current) => ({
+                        ...current,
+                        json_options: omitEmptyJsonOptions(value),
+                      }))
+                    }
+                  />
+                </SynchronizedJsonConfigSection>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
         </CardContent>
       )}
+      <AutoConfigReviewDialog
+        open={autoConfigOpen}
+        onOpenChange={setAutoConfigOpen}
+        proposal={autoConfigQuery.data}
+        isLoading={autoConfigQuery.isFetching}
+        error={autoConfigQuery.error instanceof Error ? autoConfigQuery.error : null}
+        onApply={handleApplyAutoConfig}
+      />
     </Card>
   )
 }
