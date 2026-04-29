@@ -1475,8 +1475,8 @@ class ExportWidgetUpdate(BaseModel):
 
     plugin: str
     data_source: str
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[LocalizedString] = None
+    description: Optional[LocalizedString] = None
     params: Dict[str, Any] = {}
 
 
@@ -1755,16 +1755,26 @@ async def update_export_widget(
                 existing_idx = idx
                 break
 
-        new_widget = {
-            "plugin": update.plugin,
-            "data_source": (
-                "" if update.plugin == "hierarchical_nav_widget" else update.data_source
-            ),
-            "params": update.params,
-        }
-        if update.title:
+        new_widget: Dict[str, Any] = {}
+        if existing_idx is not None and isinstance(
+            target_group["widgets"][existing_idx], dict
+        ):
+            new_widget.update(target_group["widgets"][existing_idx])
+
+        new_widget.update(
+            {
+                "plugin": update.plugin,
+                "data_source": (
+                    ""
+                    if update.plugin == "hierarchical_nav_widget"
+                    else update.data_source
+                ),
+                "params": update.params,
+            }
+        )
+        if update.title is not None:
             new_widget["title"] = update.title
-        if update.description:
+        if update.description is not None:
             new_widget["description"] = update.description
 
         if existing_idx is not None:

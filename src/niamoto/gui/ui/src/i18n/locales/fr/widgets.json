@@ -398,7 +398,6 @@
     "previews": "Aperçus",
     "hidePreviews": "Masquer les previews",
     "showPreviews": "Afficher les previews",
-    "performanceModeLow": "Mode performance",
     "refresh": "Actualiser",
     "save": "Sauvegarder",
     "saving": "Sauvegarde...",
@@ -421,7 +420,6 @@
     "previewDisabled": "Preview désactivée",
     "previewOnDemand": "Survolez pour prévisualiser",
     "previewMode": {
-      "auto": "Automatique",
       "thumbnail": "Miniatures",
       "focused": "Ciblé",
       "off": "Désactivé"
