@@ -9,6 +9,16 @@ import { AddExportWizard } from './AddExportWizard'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const invalidateQueries = vi.fn(async () => undefined)
+const apiExportTargetsMock = vi.hoisted(() => ({
+  data: [] as Array<{
+    name: string
+    enabled: boolean
+    exporter: string
+    group_names: string[]
+    groups: Array<{ group_by: string; enabled: boolean }>
+    params: Record<string, unknown>
+  }>,
+}))
 
 const translations: Record<string, string> = {
   'collectionPanel.api.wizard.title': 'Add an export format',
@@ -17,8 +27,15 @@ const translations: Record<string, string> = {
   'collectionPanel.api.wizard.stepContent': 'Content',
   'collectionPanel.api.wizard.stepConfirm': 'Confirm',
   'collectionPanel.api.wizard.createNew': 'Create a new format',
+  'collectionPanel.api.wizard.existingTargets':
+    'Existing targets (not yet active for this collection)',
+  'collectionPanel.api.wizard.activateDwcDescription':
+    'Darwin Core export already configured. Activate it for this collection',
   'collectionPanel.api.wizard.simpleTitle': 'Simple JSON export',
   'collectionPanel.api.wizard.simpleDescription': 'Publish all your transformed data as-is',
+  'collectionPanel.api.wizard.dwcTitle': 'Darwin Core Occurrence',
+  'collectionPanel.api.wizard.dwcDescription':
+    'Occurrence-oriented biodiversity exchange format',
   'collectionPanel.api.wizard.targetName': 'Export name',
   'collectionPanel.api.wizard.targetNamePlaceholder': 'my_export',
   'collectionPanel.api.wizard.targetNameHelp':
@@ -62,7 +79,7 @@ vi.mock('@/components/ui/dialog', () => ({
 }))
 
 vi.mock('@/features/collections/hooks/useApiExportConfigs', () => ({
-  useApiExportTargets: () => ({ data: [] }),
+  useApiExportTargets: () => ({ data: apiExportTargetsMock.data }),
   useCreateApiExportTarget: () => ({
     isPending: false,
     mutateAsync: vi.fn(),
@@ -93,6 +110,7 @@ describe('AddExportWizard', () => {
 
   afterEach(async () => {
     invalidateQueries.mockClear()
+    apiExportTargetsMock.data = []
     if (root && container) {
       await act(async () => {
         root?.unmount()
@@ -117,7 +135,10 @@ describe('AddExportWizard', () => {
         />
       )
     })
+  }
 
+  async function renderWizardAndSelectSimple() {
+    await renderWizard()
     await act(async () => {
       click(
         Array.from(container!.querySelectorAll('button')).find(
@@ -128,7 +149,7 @@ describe('AddExportWizard', () => {
   }
 
   it('disables browser auto-capitalization and correction for export names', async () => {
-    await renderWizard()
+    await renderWizardAndSelectSimple()
 
     const input = container?.querySelector('input')
     expect(input).toBeInstanceOf(HTMLInputElement)
@@ -138,7 +159,7 @@ describe('AddExportWizard', () => {
   })
 
   it('shows the name guidance only once when validation fails', async () => {
-    await renderWizard()
+    await renderWizardAndSelectSimple()
 
     const input = container?.querySelector('input') as HTMLInputElement
     await act(async () => {
@@ -158,5 +179,32 @@ describe('AddExportWizard', () => {
       new RegExp(helpText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
     )
     expect(matches).toHaveLength(1)
+  })
+
+  it('hides Darwin Core creation when an existing Darwin Core target is available', async () => {
+    apiExportTargetsMock.data = [
+      {
+        name: 'dwc_occurrence_json',
+        enabled: true,
+        exporter: 'json_api_exporter',
+        group_names: ['occurrences'],
+        groups: [{ group_by: 'occurrences', enabled: true }],
+        params: {
+          detail_output_pattern: '{group}/{id}_dwc.json',
+          index_output_pattern: 'all_{group}_dwc.json',
+        },
+      },
+    ]
+
+    await renderWizard()
+
+    expect(container?.textContent).toContain('dwc_occurrence_json')
+    expect(container?.textContent).toContain(
+      'Darwin Core export already configured. Activate it for this collection'
+    )
+    const buttons = Array.from(container!.querySelectorAll('button')).map(
+      (button) => button.textContent ?? ''
+    )
+    expect(buttons.some((text) => text.includes('Darwin Core Occurrence'))).toBe(false)
   })
 })

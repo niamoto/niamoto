@@ -14,6 +14,44 @@ implementation lives in the exporter layer.
 - `exports[*].params`: exporter-specific settings
 - `exports[*].groups`: exported group targets
 
+## GUI workflow
+
+Open **Collections > Export** to manage static API targets for one collection.
+Each export card keeps the saved `export.yml` configuration separate from the
+local draft shown in the interface.
+
+Use **Auto-configure** to ask Niamoto for a suggested configuration. The
+proposal is review-only: it analyzes the current transformed data and prepares
+sections for index fields, detail fields, JSON options, and Darwin Core mapping
+when relevant. Nothing is written to `export.yml` until the proposal is applied
+to the card and the card is saved.
+
+Simple JSON exports always keep **Export all transformed data** available for
+detail files. This is the low-friction API mode: the listing can stay compact
+through index fields while individual detail files continue to expose the full
+transformed payload. Applying the **Detail JSON fields** auto-configuration
+section switches pass-through off automatically because the card is now using a
+curated detail payload. Re-enable pass-through from the card toggle to return to
+the full transformed detail output.
+
+Static API index rows always include a `detail_url` generated from the detail
+file pattern. A client can load the index JSON first, then follow each
+`detail_url` to fetch the complete individual JSON file.
+
+Index fields, curated detail fields, Darwin Core mappings, and JSON output
+options use visual editors by default. Source paths in field mappings are
+selected from detected transformed fields to avoid invalid paths. Field
+sections show a read-only JSON preview generated from a representative
+transformed entity next to the form, and every synchronized section also
+provides a JSON view for advanced edits. Invalid JSON remains in the editor as
+a visible error and does not replace the last valid visual configuration.
+
+Darwin Core auto-configuration is conservative. Niamoto pre-fills safe
+identifiers and generated values, but uncertain terms are surfaced as items to
+review before publishing to external biodiversity networks. This is not a
+Darwin Core or GBIF validator: users must still map the relevant occurrence
+terms and controlled values for their source data.
+
 ## Related docs
 
 - [Publish](../02-user-guide/publish.md): user-facing publication flow

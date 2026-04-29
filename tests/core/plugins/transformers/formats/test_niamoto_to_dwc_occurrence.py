@@ -192,6 +192,38 @@ class TestNiamotoDwCTransformer:
 
         assert result == []
 
+    def test_transform_uses_taxonomy_entity_id_fallback(
+        self, transformer, sample_occurrence_data
+    ):
+        """Transformed rows can expose taxon IDs as <taxonomy_entity>_id."""
+        data = {
+            "taxons_id": 123,
+            "full_name": "Araucaria columnaris (Forster) Hook.",
+        }
+        config = {
+            "occurrence_list_source": "occurrences",
+            "taxonomy_entity": "taxons",
+            "mapping": {
+                "occurrenceID": "@source.id",
+                "scientificName": "@taxon.full_name",
+            },
+        }
+
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_from_db",
+            return_value=[sample_occurrence_data],
+        ) as mock_fetch:
+            result = transformer.transform(data, config)
+
+        assert result == [
+            {
+                "occurrenceID": 1,
+                "scientificName": "Araucaria columnaris (Forster) Hook.",
+            }
+        ]
+        assert mock_fetch.call_args.args[0] == 123
+
     def test_transform_no_occurrences(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config
     ):

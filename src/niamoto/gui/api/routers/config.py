@@ -27,6 +27,12 @@ from niamoto.common.hierarchy_context import (
     normalize_hierarchy_key,
 )
 from niamoto.common.i18n import LocalizedString
+from niamoto.core.plugins.exporters.json_api_exporter import (
+    DataMapper as JsonApiDataMapper,
+    GroupConfig as JsonApiGroupConfig,
+    JsonApiExporter,
+    JsonApiExporterParams,
+)
 
 router = APIRouter()
 
@@ -2102,6 +2108,42 @@ class ApiExportGroupConfigUpdate(BaseModel):
     transformer_params: Optional[Dict[str, Any]] = None
 
 
+class ApiExportAutoConfigSection(BaseModel):
+    """Reviewable auto-configuration proposal section."""
+
+    confidence: Literal["high", "medium", "low"] = "low"
+    config: Optional[Dict[str, Any]] = None
+    notes: List[str] = Field(default_factory=list)
+    unresolved: List[str] = Field(default_factory=list)
+
+
+class ApiExportAutoConfigProposal(BaseModel):
+    """Read-only proposal for a static API export group."""
+
+    export_name: str
+    group_by: str
+    total_entities: int
+    proposal: Dict[str, Any]
+    sections: Dict[str, ApiExportAutoConfigSection]
+
+
+class ApiExportPreviewRequest(ApiExportGroupConfigUpdate):
+    """Draft group configuration used to render a representative JSON preview."""
+
+    section: Literal["index", "detail"] = "index"
+
+
+class ApiExportPreviewResponse(BaseModel):
+    """Representative JSON output for a static API export section."""
+
+    export_name: str
+    group_by: str
+    section: Literal["index", "detail"]
+    item_id: Optional[Any] = None
+    preview: Any
+    source: Dict[str, Any] = Field(default_factory=dict)
+
+
 @router.get("/export/api-targets", response_model=List[ApiExportTargetSummary])
 async def list_api_export_targets() -> List[ApiExportTargetSummary]:
     """List all configured static API export targets."""
@@ -2286,6 +2328,7 @@ async def get_api_export_group_config(
         payload.setdefault("group_by", group_by)
         payload.setdefault("detail", {"pass_through": True})
         payload.setdefault("index", {"fields": []})
+        payload = _ensure_api_export_index_detail_url(payload, export_target)
         return payload
     except HTTPException:
         raise
@@ -2371,6 +2414,336 @@ async def update_api_export_group_config(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error updating API group config: {str(e)}"
+        )
+
+
+def _parse_api_export_preview_value(value: Any) -> Any:
+    """Parse JSON-like database cell values for preview mapping."""
+    import json
+
+    if not isinstance(value, str):
+        return value
+
+    stripped = value.strip()
+    if not stripped.startswith(("{", "[")):
+        return value
+
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        return value
+
+
+def _normalize_api_export_preview_item(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a DB record shaped like exporter input data."""
+    return {
+        key: _parse_api_export_preview_value(value) for key, value in record.items()
+    }
+
+
+def _extract_api_export_mapping_paths(
+    field_configs: Optional[List[Union[str, Dict[str, Any]]]],
+) -> List[str]:
+    """Extract source paths from export field mappings for representative selection."""
+    paths: List[str] = []
+
+    for field_config in field_configs or []:
+        if isinstance(field_config, str):
+            _, source = (
+                field_config.split(":", 1)
+                if ":" in field_config
+                else ("", field_config)
+            )
+            paths.append(source.strip())
+            continue
+
+        if not isinstance(field_config, dict):
+            continue
+
+        for config in field_config.values():
+            if isinstance(config, str):
+                paths.append(config)
+            elif isinstance(config, dict):
+                source = config.get("source") or config.get("field")
+                if isinstance(source, str):
+                    paths.append(source)
+
+    return [
+        path
+        for path in _deduplicate_columns(paths)
+        if path and not path.startswith("@") and "." in path
+    ]
+
+
+def _api_export_preview_value_is_populated(value: Any) -> bool:
+    """Return whether a preview field value is meaningful enough to score."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (dict, list)):
+        return bool(value)
+    return True
+
+
+def _score_api_export_preview_item(item: Dict[str, Any], paths: List[str]) -> int:
+    """Score a candidate preview item from configured field coverage."""
+    if not paths:
+        return 0
+
+    return sum(
+        1
+        for path in paths
+        if _api_export_preview_value_is_populated(
+            _extract_path_value_from_record(item, path)
+        )
+    )
+
+
+def _load_api_export_preview_item(
+    group_by: str,
+    data_source: Optional[str],
+    paths: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Load a representative transformed entity for static API preview."""
+    items = _load_api_export_preview_items(group_by, data_source, paths)
+    return items[0] if items else None
+
+
+def _load_api_export_preview_items(
+    group_by: str,
+    data_source: Optional[str],
+    paths: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Load representative transformed entities for static API preview."""
+    from niamoto.common.database import Database
+    from niamoto.common.table_resolver import quote_identifier
+    from sqlalchemy import text
+
+    db_path = get_working_directory() / "db" / "niamoto.duckdb"
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    table_candidates = [data_source] if data_source else [group_by, f"{group_by}_stats"]
+
+    db = Database(str(db_path), read_only=True)
+    try:
+        table_name = next(
+            (candidate for candidate in table_candidates if db.has_table(candidate)),
+            None,
+        )
+        if not table_name:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No transformed data table found for '{group_by}'",
+            )
+
+        quoted_table = quote_identifier(db, table_name)
+        rows = (
+            db.session.execute(text(f"SELECT * FROM {quoted_table} LIMIT 100"))
+            .mappings()
+            .all()
+        )
+    finally:
+        db.close_db_session()
+
+    if not rows:
+        return []
+
+    items = [_normalize_api_export_preview_item(dict(row)) for row in rows]
+    if not paths:
+        return items
+
+    return sorted(
+        items,
+        key=lambda item: _score_api_export_preview_item(item, paths),
+        reverse=True,
+    )
+
+
+def _apply_api_export_preview_transformer(
+    group_config: JsonApiGroupConfig,
+    items: List[Dict[str, Any]],
+) -> tuple[Dict[str, Any], Any]:
+    """Apply an export transformer to preview candidates and keep a populated result."""
+    from niamoto.common.database import Database
+
+    mapping = (group_config.transformer_params or {}).get("mapping")
+    if not isinstance(mapping, dict) or not mapping:
+        return items[0], []
+
+    db_path = get_working_directory() / "db" / "niamoto.duckdb"
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    db = Database(str(db_path), read_only=True)
+    try:
+        exporter = JsonApiExporter(db)
+        exporter._prepare_transformer_batch(items, group_config)
+
+        fallback_item = items[0]
+        fallback_preview: Any = []
+        for index, item in enumerate(items):
+            preview = exporter._apply_transformer(item, group_config)
+            if index == 0:
+                fallback_preview = preview
+            if _api_export_preview_value_is_populated(preview):
+                return item, preview
+
+        return fallback_item, fallback_preview
+    finally:
+        db.close_db_session()
+
+
+def _build_api_export_preview_group_config(
+    export_target: Dict[str, Any],
+    group_by: str,
+    request: ApiExportPreviewRequest,
+) -> JsonApiGroupConfig:
+    """Build exporter group config from the current unsaved UI draft."""
+    existing_group = deepcopy(_find_target_group(export_target, group_by) or {})
+    draft = request.model_dump(exclude_none=True)
+    draft.pop("section", None)
+
+    group_payload = {**existing_group, **draft, "group_by": group_by}
+    group_payload.setdefault("detail", {"pass_through": True})
+    group_payload.setdefault("index", {"fields": []})
+
+    try:
+        return JsonApiGroupConfig.model_validate(group_payload)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid API export preview configuration: {str(exc)}",
+        ) from exc
+
+
+def _build_api_export_preview_params(
+    export_name: str, export_target: Dict[str, Any]
+) -> JsonApiExporterParams:
+    """Build exporter params with a safe output_dir fallback for preview only."""
+    params_payload = {
+        "output_dir": f"exports/{export_name}",
+        **deepcopy(export_target.get("params", {}) or {}),
+    }
+    return JsonApiExporterParams.model_validate(params_payload)
+
+
+def _build_api_export_preview(
+    export_name: str,
+    export_target: Dict[str, Any],
+    group_by: str,
+    request: ApiExportPreviewRequest,
+) -> ApiExportPreviewResponse:
+    """Render the JSON output for one representative entity."""
+    group_config = _build_api_export_preview_group_config(
+        export_target, group_by, request
+    )
+    params = _build_api_export_preview_params(export_name, export_target)
+
+    if request.section == "index":
+        configured_paths = _extract_api_export_mapping_paths(
+            group_config.index.fields if group_config.index else []
+        )
+    else:
+        configured_paths = _extract_api_export_mapping_paths(
+            group_config.detail.fields if group_config.detail else []
+        )
+
+    if request.section == "detail" and group_config.transformer_plugin:
+        items = _load_api_export_preview_items(
+            group_by, group_config.data_source, configured_paths
+        )
+        item = items[0] if items else None
+    else:
+        item = _load_api_export_preview_item(
+            group_by, group_config.data_source, configured_paths
+        )
+    if not item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data found for collection '{group_by}'",
+        )
+
+    mapper = JsonApiDataMapper(group_config, params)
+    if request.section == "index":
+        preview = mapper.map_index_data(item, group_by, params)
+    elif group_config.transformer_plugin:
+        item, preview = _apply_api_export_preview_transformer(group_config, items)
+    elif group_config.detail and not group_config.detail.pass_through:
+        preview = mapper.map_detail_data(item)
+    else:
+        preview = item
+
+    item_id = item.get(f"{group_by}_id") or item.get("id")
+    return ApiExportPreviewResponse(
+        export_name=export_name,
+        group_by=group_by,
+        section=request.section,
+        item_id=item_id,
+        preview=preview,
+        source=item,
+    )
+
+
+@router.post(
+    "/export/api-targets/{export_name}/groups/{group_by}/preview",
+    response_model=ApiExportPreviewResponse,
+)
+async def preview_api_export_group_config(
+    export_name: str, group_by: str, request: ApiExportPreviewRequest
+) -> ApiExportPreviewResponse:
+    """Preview static API JSON output from the current unsaved group draft."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API export target '{export_name}' not found",
+            )
+
+        return _build_api_export_preview(export_name, export_target, group_by, request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error building API export preview: {str(e)}"
+        )
+
+
+@router.get(
+    "/export/api-targets/{export_name}/groups/{group_by}/preview",
+    response_model=ApiExportPreviewResponse,
+)
+async def preview_saved_api_export_group_config(
+    export_name: str,
+    group_by: str,
+    section: Literal["index", "detail"] = "index",
+) -> ApiExportPreviewResponse:
+    """Preview static API JSON output from the saved group configuration."""
+    try:
+        export_config = _load_export_config()
+        export_target = _find_api_export_target(export_config, export_name)
+        if not export_target:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API export target '{export_name}' not found",
+            )
+
+        saved_group = deepcopy(_find_target_group(export_target, group_by))
+        group_payload = saved_group or _build_default_api_group_config(
+            export_name, group_by
+        )
+        request = ApiExportPreviewRequest.model_validate(
+            {**group_payload, "section": section}
+        )
+        return _build_api_export_preview(export_name, export_target, group_by, request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error building API export preview: {str(e)}"
         )
 
 
@@ -2716,6 +3089,212 @@ async def suggest_api_export_index_fields(
             status_code=404, detail=f"API export target '{export_name}' not found"
         )
     return await suggest_index_fields(group_by)
+
+
+def _api_export_target_uses_dwc(export_target: Dict[str, Any], group_by: str) -> bool:
+    """Return whether this target/group should be treated as a DwC API export."""
+    group = _find_target_group(export_target, group_by)
+    if group and group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
+        return True
+
+    return any(
+        sibling.get("group_by") != group_by
+        and sibling.get("transformer_plugin") == "niamoto_to_dwc_occurrence"
+        for sibling in export_target.get("groups", []) or []
+    )
+
+
+def _api_export_mapping_from_suggestions(
+    suggestions: IndexFieldSuggestions, limit: int = 6
+) -> List[Dict[str, str]]:
+    """Build API field mappings from index suggestions."""
+    candidates = suggestions.display_fields or suggestions.available_fields
+    ordered = sorted(
+        candidates,
+        key=lambda field: (
+            0 if getattr(field, "priority", "low") == "high" else 1,
+            field.name,
+        ),
+    )
+    return [
+        {field.name: field.source}
+        for field in ordered[:limit]
+        if field.name and field.source
+    ]
+
+
+def _api_export_fields_include_endpoint_url(
+    fields: Optional[List[Union[str, Dict[str, Any]]]],
+) -> bool:
+    """Return whether field mappings already include a generated detail URL."""
+    for field in fields or []:
+        if not isinstance(field, dict):
+            continue
+        for config in field.values():
+            if isinstance(config, dict) and config.get("generator") == "endpoint_url":
+                return True
+    return False
+
+
+def _api_export_detail_url_field(export_target: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the navigational link field every static index should expose."""
+    base_path = export_target.get("params", {}).get("base_path", "/api")
+    return {
+        "detail_url": {
+            "generator": "endpoint_url",
+            "params": {"base_path": base_path},
+        }
+    }
+
+
+def _ensure_api_export_index_detail_url(
+    payload: Dict[str, Any], export_target: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Expose the mandatory index-to-detail link in editable group payloads."""
+    next_payload = deepcopy(payload)
+    index = next_payload.setdefault("index", {"fields": []})
+    fields = index.get("fields") if isinstance(index, dict) else []
+    if not isinstance(fields, list):
+        fields = []
+
+    if not _api_export_fields_include_endpoint_url(fields):
+        index["fields"] = [_api_export_detail_url_field(export_target), *fields]
+
+    return next_payload
+
+
+def _default_dwc_mapping_proposal() -> tuple[Dict[str, Any], List[str]]:
+    """Build conservative DwC defaults and explicitly list uncertain terms."""
+    mapping: Dict[str, Any] = {
+        "occurrenceID": {
+            "generator": "unique_occurrence_id",
+            "params": {"prefix": "NIAOCC-", "source_field": "@source.id"},
+        },
+        "scientificName": "@taxon.full_name",
+        "modified": {"generator": "current_date"},
+    }
+    unresolved = [
+        "decimalLatitude",
+        "decimalLongitude",
+        "eventDate",
+        "basisOfRecord",
+    ]
+    return mapping, unresolved
+
+
+def _build_api_export_auto_config_proposal(
+    export_name: str,
+    export_target: Dict[str, Any],
+    group_by: str,
+    suggestions: IndexFieldSuggestions,
+) -> ApiExportAutoConfigProposal:
+    """Build a read-only auto-configuration proposal for review in the UI."""
+    existing_group = _find_target_group(export_target, group_by) or {}
+    fields = _api_export_mapping_from_suggestions(suggestions)
+    index_fields: List[Dict[str, Any]] = _ensure_api_export_index_detail_url(
+        {"index": {"fields": deepcopy(fields)}}, export_target
+    )["index"]["fields"]
+    has_fields = bool(fields)
+    json_options = deepcopy(
+        existing_group.get("json_options")
+        or export_target.get("params", {}).get("json_options", {})
+        or {}
+    )
+
+    proposal: Dict[str, Any] = {
+        "enabled": True,
+        "group_by": group_by,
+        "detail": {"pass_through": False, "fields": deepcopy(fields)},
+        "index": {"fields": deepcopy(index_fields)},
+    }
+    if existing_group.get("data_source"):
+        proposal["data_source"] = existing_group["data_source"]
+    if existing_group.get("json_options") is not None:
+        proposal["json_options"] = deepcopy(existing_group["json_options"])
+
+    sections: Dict[str, ApiExportAutoConfigSection] = {
+        "index": ApiExportAutoConfigSection(
+            confidence="high" if has_fields else "low",
+            config={"fields": deepcopy(index_fields)},
+            notes=(
+                [
+                    "Includes a detail_url so API clients can fetch each detail JSON file.",
+                    "Uses high-priority fields detected from transformed data.",
+                ]
+                if has_fields
+                else [
+                    "Includes a detail_url so API clients can fetch each detail JSON file.",
+                    "No index fields were detected; keep or add fields manually.",
+                ]
+            ),
+        ),
+        "detail": ApiExportAutoConfigSection(
+            confidence="medium" if has_fields else "low",
+            config={"pass_through": False, "fields": deepcopy(fields)},
+            notes=[
+                "Applies a curated detail payload from the suggested fields.",
+                "The full transformed data option remains available from the card toggle.",
+            ],
+        ),
+        "json_options": ApiExportAutoConfigSection(
+            confidence="medium",
+            config=json_options,
+            notes=(
+                ["Keeps the current collection JSON options override."]
+                if existing_group.get("json_options") is not None
+                else ["Uses the target-level JSON formatting options."]
+            ),
+        ),
+    }
+
+    if _api_export_target_uses_dwc(export_target, group_by):
+        transformer_params = deepcopy(
+            existing_group.get("transformer_params")
+            or _default_dwc_transformer_params(group_by)
+        )
+        mapping, unresolved = _default_dwc_mapping_proposal()
+        existing_mapping = transformer_params.get("mapping") or {}
+        transformer_params["mapping"] = {**mapping, **existing_mapping}
+        proposal["transformer_plugin"] = "niamoto_to_dwc_occurrence"
+        proposal["transformer_params"] = transformer_params
+        sections["dwc_mapping"] = ApiExportAutoConfigSection(
+            confidence="medium" if existing_mapping else "low",
+            config=deepcopy(transformer_params["mapping"]),
+            notes=[
+                "Prefills only safe Darwin Core identifiers and generated values.",
+                "Review unresolved terms before publishing to external networks.",
+            ],
+            unresolved=unresolved,
+        )
+
+    return ApiExportAutoConfigProposal(
+        export_name=export_name,
+        group_by=group_by,
+        total_entities=suggestions.total_entities,
+        proposal=proposal,
+        sections=sections,
+    )
+
+
+@router.get(
+    "/export/api-targets/{export_name}/groups/{group_by}/auto-config",
+    response_model=ApiExportAutoConfigProposal,
+)
+async def suggest_api_export_auto_config(
+    export_name: str, group_by: str
+) -> ApiExportAutoConfigProposal:
+    """Build a reviewable static API export auto-configuration proposal."""
+    export_config = _load_export_config()
+    export_target = _find_api_export_target(export_config, export_name)
+    if not export_target:
+        raise HTTPException(
+            status_code=404, detail=f"API export target '{export_name}' not found"
+        )
+
+    suggestions = await suggest_index_fields(group_by)
+    return _build_api_export_auto_config_proposal(
+        export_name, export_target, group_by, suggestions
+    )
 
 
 def _extract_json_paths(

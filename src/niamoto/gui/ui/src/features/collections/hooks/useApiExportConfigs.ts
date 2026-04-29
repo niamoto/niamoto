@@ -30,6 +30,7 @@ export interface ApiExportFieldSuggestion {
 
 export interface ApiExportSuggestions {
   display_fields: ApiExportFieldSuggestion[]
+  available_fields?: ApiExportFieldSuggestion[]
   total_entities: number
 }
 
@@ -42,11 +43,39 @@ export interface ApiExportGroupConfig {
     fields?: Array<string | Record<string, unknown>>
   }
   index?: {
-    fields: Array<Record<string, unknown>>
+    fields: Array<string | Record<string, unknown>>
   }
   json_options?: Record<string, unknown>
   transformer_plugin?: string
   transformer_params?: Record<string, unknown>
+}
+
+export type ApiExportAutoConfigConfidence = 'high' | 'medium' | 'low'
+
+export interface ApiExportAutoConfigSection {
+  confidence: ApiExportAutoConfigConfidence
+  config?: Record<string, unknown>
+  notes: string[]
+  unresolved: string[]
+}
+
+export interface ApiExportAutoConfigProposal {
+  export_name: string
+  group_by: string
+  total_entities: number
+  proposal: ApiExportGroupConfig
+  sections: Record<string, ApiExportAutoConfigSection>
+}
+
+export type ApiExportPreviewSection = 'index' | 'detail'
+
+export interface ApiExportPreviewResponse {
+  export_name: string
+  group_by: string
+  section: ApiExportPreviewSection
+  item_id?: string | number | null
+  preview: unknown
+  source: Record<string, unknown>
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -117,6 +146,33 @@ async function fetchApiExportSuggestions(
     `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}/suggestions`
   )
   return readJson<ApiExportSuggestions>(response)
+}
+
+async function fetchApiExportAutoConfig(
+  exportName: string,
+  groupBy: string
+): Promise<ApiExportAutoConfigProposal> {
+  const response = await fetch(
+    `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}/auto-config`
+  )
+  return readJson<ApiExportAutoConfigProposal>(response)
+}
+
+async function fetchApiExportPreview(
+  exportName: string,
+  groupBy: string,
+  section: ApiExportPreviewSection,
+  config: ApiExportGroupConfig
+): Promise<ApiExportPreviewResponse> {
+  const response = await fetch(
+    `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}/preview`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...config, section }),
+    }
+  )
+  return readJson<ApiExportPreviewResponse>(response)
 }
 
 export interface ApiExportTargetCreate {
@@ -205,5 +261,33 @@ export function useApiExportSuggestions(exportName: string, groupBy: string) {
     queryFn: () => fetchApiExportSuggestions(exportName, groupBy),
     enabled: !!exportName && !!groupBy,
     staleTime: 30000,
+  })
+}
+
+export function useApiExportAutoConfig(
+  exportName: string,
+  groupBy: string,
+  enabled = false
+) {
+  return useQuery({
+    queryKey: ['api-export-auto-config', exportName, groupBy],
+    queryFn: () => fetchApiExportAutoConfig(exportName, groupBy),
+    enabled: enabled && !!exportName && !!groupBy,
+    staleTime: 0,
+  })
+}
+
+export function useApiExportPreview(
+  exportName: string,
+  groupBy: string,
+  section: ApiExportPreviewSection,
+  config: ApiExportGroupConfig,
+  enabled = false
+) {
+  return useQuery({
+    queryKey: ['api-export-preview', exportName, groupBy, section, config],
+    queryFn: () => fetchApiExportPreview(exportName, groupBy, section, config),
+    enabled: enabled && !!exportName && !!groupBy,
+    staleTime: 5000,
   })
 }

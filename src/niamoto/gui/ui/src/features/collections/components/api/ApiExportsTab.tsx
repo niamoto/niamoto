@@ -61,7 +61,7 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-auto space-y-4 p-4">
+      <div className="flex-1 min-h-0 overflow-auto space-y-4 px-4 pb-4 pt-0">
         {/* Export cards */}
         {groupTargets.map((target) => (
           <ExportCard
