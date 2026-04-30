@@ -16,6 +16,7 @@ from niamoto.gui.startup_logging import log_desktop_startup
 
 from .routers import (
     config,
+    collections,
     database,
     files,
     health,
@@ -38,6 +39,7 @@ from .routers import (
     sources,
     layout,
     recipes,
+    standard_profiles,
     preview,
     pipeline,
 )
@@ -131,6 +133,9 @@ def create_app() -> FastAPI:
     app.include_router(health.router)  # Health check endpoint for Tauri
     app.include_router(help.router, prefix="/api", tags=["help"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
+    app.include_router(
+        collections.router, prefix="/api/collections", tags=["collections"]
+    )
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])
     app.include_router(
@@ -158,6 +163,11 @@ def create_app() -> FastAPI:
     app.include_router(sources.router, prefix="/api")  # Pre-calculated sources API
     app.include_router(layout.router, prefix="/api")  # Layout editor API
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
+    app.include_router(
+        standard_profiles.router,
+        prefix="/api/standard-profiles",
+        tags=["standard-profiles"],
+    )
     app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
     work_dir = get_valid_optional_working_directory()

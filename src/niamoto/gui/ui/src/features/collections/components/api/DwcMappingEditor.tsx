@@ -21,6 +21,9 @@ type DwcMappingMode = 'static' | 'source' | 'generator'
 interface DwcMappingEditorProps {
   value?: Record<string, unknown>
   onChange: (value: Record<string, unknown>) => void
+  title?: string
+  description?: string
+  referenceHelp?: string
 }
 
 interface DwcMappingRow {
@@ -233,13 +236,27 @@ function serializeRows(
 export function DwcMappingEditor({
   value = {},
   onChange,
+  title,
+  description,
+  referenceHelp,
 }: DwcMappingEditorProps) {
-  return <DwcMappingEditorForm value={value} onChange={onChange} />
+  return (
+    <DwcMappingEditorForm
+      value={value}
+      onChange={onChange}
+      title={title}
+      description={description}
+      referenceHelp={referenceHelp}
+    />
+  )
 }
 
 function DwcMappingEditorForm({
   value = {},
   onChange,
+  title,
+  description,
+  referenceHelp,
 }: DwcMappingEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
@@ -312,9 +329,11 @@ function DwcMappingEditorForm({
     <div className="space-y-4 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold">{t('collectionPanel.api.dwcMapping')}</h3>
+          <h3 className="text-sm font-semibold">
+            {title ?? t('collectionPanel.api.dwcMapping')}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            {t('collectionPanel.api.dwcMappingHelp')}
+            {description ?? t('collectionPanel.api.dwcMappingHelp')}
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addRow}>
@@ -324,7 +343,7 @@ function DwcMappingEditorForm({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {t('collectionPanel.api.dwcReferenceHelp')}
+        {referenceHelp ?? t('collectionPanel.api.dwcReferenceHelp')}
       </p>
 
       <div className="space-y-4">

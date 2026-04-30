@@ -386,6 +386,32 @@ class DwcArchiveExporter(ExporterPlugin):
         archive_path = output_dir / params.archive_name
         self._create_zip_archive(archive_path, [csv_path, meta_path, eml_path])
 
+    def generate_archive_from_occurrences(
+        self,
+        occurrences: List[Dict[str, Any]],
+        output_dir: Path,
+        params: DwcArchiveExporterParams,
+    ) -> List[Path]:
+        """Generate a DwC-A archive from already mapped occurrence records."""
+        output_dir.mkdir(parents=True, exist_ok=True)
+        dwc_terms = {term for occurrence in occurrences for term in occurrence.keys()}
+        if not occurrences or not dwc_terms:
+            logger.warning("No mapped occurrences found to export")
+            return []
+
+        self.stats["start_time"] = datetime.now()
+        self.stats["total_occurrences"] = len(occurrences)
+        self._generate_archive(occurrences, dwc_terms, output_dir, params)
+        self.stats["end_time"] = datetime.now()
+
+        csv_filename = "occurrence.csv.gz" if params.compress_csv else "occurrence.csv"
+        return [
+            output_dir / csv_filename,
+            output_dir / "meta.xml",
+            output_dir / "eml.xml",
+            output_dir / params.archive_name,
+        ]
+
     def _generate_occurrence_csv(
         self,
         occurrences: List[Dict[str, Any]],

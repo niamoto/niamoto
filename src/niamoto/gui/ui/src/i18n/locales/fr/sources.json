@@ -422,7 +422,146 @@
     "noIndex": "Aucun index configuré",
     "noCollectionsConfigured": "Aucune collection configurée",
     "configureInExport": "Configurer dans les paramètres d'export",
-    "collectionsDefinedInExport": "Collections définies dans la configuration d'export"
+    "collectionsDefinedInExport": "Collections définies dans la configuration d'export",
+    "review": {
+      "title": "Revue des collections",
+      "shortTitle": "Revue",
+      "description": "{{count}} collection(s) attendent encore une décision.",
+      "calloutTitle": "Revue des collections",
+      "calloutDescription": "{{count}} collection(s) détectée(s) ou manuelles sont disponibles pour les workflows de publication.",
+      "pendingCallout": "{{count}} collection(s) restent à vérifier avant de configurer la publication.",
+      "pendingCount": "{{count}} à vérifier",
+      "open": "Revoir les collections",
+      "addCollection": "Ajouter une collection",
+      "addTitle": "Ajouter une collection",
+      "addDescription": "Créez une collection adossée à une source de données existante.",
+      "addFailed": "Impossible de créer la collection.",
+      "loadFailed": "Impossible de charger la revue des collections.",
+      "saveFailed": "Impossible d'enregistrer la collection.",
+      "name": "Nom de la collection",
+      "label": "Nom affiché",
+      "labelPlaceholder": "Occurrences publication",
+      "source": "Source de données",
+      "grain": "Grain",
+      "roles": "Rôles",
+      "visiblePage": "Visible comme page du site",
+      "create": "Créer la collection",
+      "accept": "Accepter",
+      "defer": "Différer",
+      "hide": "Masquer",
+      "show": "Afficher",
+      "saveLabel": "Enregistrer le nom",
+      "visible": "Visible",
+      "hidden": "Masquée",
+      "status": {
+        "pending": "En attente",
+        "accepted": "Acceptée",
+        "deferred": "Différée",
+        "rejected": "Rejetée"
+      },
+      "rolesList": {
+        "site": "Site",
+        "api": "API",
+        "standard": "Standard",
+        "technical": "Technique"
+      },
+      "sourceTypes": {
+        "reference": "Référence",
+        "dataset": "Dataset",
+        "transform_group": "Groupe transformé"
+      },
+      "grains": {
+        "taxon": "Taxon",
+        "site": "Site",
+        "hierarchy": "Hiérarchie",
+        "reference": "Référence",
+        "aggregate": "Agrégat",
+        "occurrence": "Occurrence",
+        "event": "Événement",
+        "inventory": "Inventaire",
+        "unknown": "Inconnu"
+      },
+      "evidence": {
+        "import_reference": "Import",
+        "transform_group": "Transformation",
+        "manual_collection": "Manuelle"
+      }
+    },
+    "standards": {
+      "title": "Profils standard",
+      "description": "Configurez les profils de publication séparément des exports API JSON simples.",
+      "loadFailed": "Impossible de charger les profils standard.",
+      "empty": "Aucun profil standard n'est encore configuré.",
+      "newProfile": "Nouveau profil",
+      "editProfile": "Paramètres du profil",
+      "profileEditorHelp": "Les mappings et sorties appartiennent au profil standard, pas à l'API simple de la collection.",
+      "profileName": "Nom du profil",
+      "standard": "Standard",
+      "source": "Source de données",
+      "targetGrain": "Grain cible",
+      "mappingTitle": "Mappings des termes standard",
+      "mappingHelp": "Mappez chaque terme standard vers un champ source, une valeur statique ou un générateur.",
+      "mappingReferenceHelp": "Darwin Core Occurrence doit mapper des données au grain occurrence. Humboldt/Event doit mapper des termes événement ou inventaire.",
+      "outputs": "Sorties",
+      "saveProfile": "Enregistrer le profil",
+      "saveFailed": "Impossible d'enregistrer le profil.",
+      "hiddenSource": "masquée ou technique",
+      "currentCollection": "Collection courante",
+      "legacyHintsTitle": "Exports existants proches des standards",
+      "legacyHintDescription": "L'export existant \"{{exportName}}\" ressemble à une sortie {{standard}}. Créez un profil standard quand vous êtes prêt à le migrer.",
+      "sourceSummary": "{{type}} · {{name}}",
+      "compatibility": "Compatibilité",
+      "compatibilityLoadFailed": "Impossible de charger la compatibilité.",
+      "validation": "Validation",
+      "validationLoadFailed": "Impossible de charger la validation.",
+      "grainSummary": "Grain source : {{source}} · grain cible : {{target}}",
+      "criticalCount": "{{count}} critique(s)",
+      "issues": "Problèmes",
+      "publicationBlocked": "Les fichiers de publication sont désactivés tant que des problèmes critiques restent ouverts. Le JSON API brouillon peut toujours être généré.",
+      "noOutputs": "Aucune sortie n'est configurée pour ce profil.",
+      "outputFailed": "Impossible de générer la sortie.",
+      "outputEnabled": "Activée",
+      "outputDisabled": "Désactivée",
+      "generateDraftJson": "Générer le JSON brouillon",
+      "generatePublicationFile": "Générer les fichiers",
+      "lastOutput": "Dernière sortie",
+      "standardTypes": {
+        "darwin_core_occurrence": "Darwin Core Occurrence",
+        "humboldt_event": "Humboldt/Event"
+      },
+      "compatibilityStatus": {
+        "compatible": "Compatible",
+        "plausible": "Plausible",
+        "blocked": "Bloquée"
+      },
+      "validationStatus": {
+        "draft": "Brouillon",
+        "partial": "Partiel",
+        "invalid": "Invalide",
+        "conformant": "Conforme"
+      },
+      "checklistStatus": {
+        "pass": "OK",
+        "warn": "À vérifier",
+        "fail": "Échec"
+      },
+      "severity": {
+        "critical": "Critique",
+        "warning": "Avertissement",
+        "recommended": "Recommandé",
+        "info": "Info"
+      },
+      "outputTypes": {
+        "api_json": "JSON API du profil",
+        "dwc_archive": "Archive Darwin Core",
+        "standard_files": "Fichiers standard Event"
+      },
+      "evidence": {
+        "source_grain": "Grain source",
+        "occurrence_relation": "Relation occurrence",
+        "site_context": "Contexte site"
+      }
+    }
   },
   "tree": {
     "datasets": "Jeux de données",
@@ -936,7 +1075,8 @@
       "sources": "Sources",
       "blocks": "Blocs",
       "list": "Liste",
-      "export": "Export"
+      "export": "Export",
+      "standards": "Standards"
     },
     "kinds": {
       "hierarchical": "Hiérarchique",

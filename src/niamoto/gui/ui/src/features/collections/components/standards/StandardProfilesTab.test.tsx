@@ -1,0 +1,225 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { StandardProfilesTab } from './StandardProfilesTab'
+
+const profilesState = vi.hoisted(() => ({
+  profiles: [
+    {
+      name: 'dwc_taxon_context',
+      enabled: true,
+      standard: 'darwin_core_occurrence',
+      target_grain: 'occurrence',
+      source: { type: 'collection', name: 'taxons' },
+      mappings: { occurrenceID: { source: 'id' } },
+      outputs: [{ type: 'api_json', enabled: true, params: {} }],
+      validation_status: 'partial',
+      metadata: {},
+    },
+  ],
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'collections.standards.title': 'Standard profiles',
+        'collections.standards.description': 'Configure publication profiles.',
+        'collections.standards.newProfile': 'New profile',
+        'collections.standards.empty': 'No standard profile is configured yet.',
+        'collections.standards.standardTypes.darwin_core_occurrence':
+          'Darwin Core Occurrence',
+        'collections.standards.validationStatus.partial': 'Partial',
+        'collections.standards.currentCollection': 'Current collection',
+        'collections.standards.sourceSummary': '{{type}} · {{name}}',
+        'collections.standards.compatibility': 'Compatibility',
+        'collections.standards.compatibilityStatus.compatible': 'Compatible',
+        'collections.standards.grainSummary':
+          'Source grain: {{source}} · Target grain: {{target}}',
+        'collections.standards.validation': 'Validation',
+        'collections.standards.validationStatus.conformant': 'Conformant',
+        'collections.standards.outputs': 'Outputs',
+        'collections.standards.outputTypes.api_json': 'Profile API JSON',
+        'collections.standards.outputEnabled': 'Enabled',
+        'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.hiddenSource': 'hidden or technical',
+        'collections.standards.legacyHintsTitle': 'Existing standard-like exports',
+        'collections.standards.legacyHintDescription':
+          'Existing export "{{exportName}}" looks like {{standard}} output.',
+        'collections.standards.editProfile': 'Profile settings',
+        'collections.standards.profileEditorHelp': 'Profile help',
+        'collections.standards.profileName': 'Profile name',
+        'collections.standards.standard': 'Standard',
+        'collections.standards.source': 'Source data',
+        'collections.standards.targetGrain': 'Target grain',
+        'collections.standards.mappingTitle': 'Standard term mappings',
+        'collections.standards.mappingHelp': 'Map terms.',
+        'collections.standards.mappingReferenceHelp': 'Mapping help.',
+        'collections.standards.saveProfile': 'Save profile',
+      }
+      return (labels[key] ?? key)
+        .replace('{{type}}', String(options?.type ?? ''))
+        .replace('{{name}}', String(options?.name ?? ''))
+        .replace('{{source}}', String(options?.source ?? ''))
+        .replace('{{target}}', String(options?.target ?? ''))
+        .replace('{{exportName}}', String(options?.exportName ?? ''))
+        .replace('{{standard}}', String(options?.standard ?? ''))
+    },
+  }),
+}))
+
+vi.mock('@/features/collections/components/api/DwcMappingEditor', () => ({
+  DwcMappingEditor: () => <div>Standard term mappings</div>,
+}))
+
+vi.mock('@/features/collections/hooks/useCollectionsCatalog', () => ({
+  useCollectionsCatalog: () => ({
+    data: {
+      collections: [
+        {
+          name: 'taxons',
+          label: 'taxons',
+          roles: ['site', 'api'],
+          visible: true,
+        },
+        {
+          name: 'technical_occurrences',
+          label: 'technical_occurrences',
+          roles: ['technical', 'standard'],
+          visible: false,
+        },
+      ],
+      sources: [{ type: 'dataset', name: 'occurrences', label: 'occurrences' }],
+      total: 2,
+    },
+  }),
+}))
+
+vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
+  useStandardProfiles: () => ({
+    data: {
+      profiles: profilesState.profiles,
+      legacy_hints: [
+        {
+          export_name: 'legacy_json_api',
+          standard: 'darwin_core_occurrence',
+          message: 'Legacy Darwin Core-like output.',
+        },
+      ],
+      total: profilesState.profiles.length,
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useStandardProfileCompatibility: () => ({
+    data: {
+      standard: 'darwin_core_occurrence',
+      target_grain: 'occurrence',
+      source: { type: 'collection', name: 'taxons' },
+      source_grain: 'taxon',
+      status: 'compatible',
+      confidence: 0.82,
+      evidence: [],
+      warnings: [],
+      blockers: [],
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useStandardProfileValidation: () => ({
+    data: {
+      profile_name: 'dwc_taxon_context',
+      standard: 'darwin_core_occurrence',
+      status: 'conformant',
+      summary: { critical: 0, warning: 0, recommended: 0, info: 0 },
+      compatibility: {
+        standard: 'darwin_core_occurrence',
+        target_grain: 'occurrence',
+        source: { type: 'collection', name: 'taxons' },
+        source_grain: 'taxon',
+        status: 'compatible',
+        confidence: 0.82,
+        evidence: [],
+        warnings: [],
+        blockers: [],
+      },
+      checklist: [],
+      issues: [],
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useCreateStandardProfile: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
+  useUpdateStandardProfile: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
+  useExecuteStandardProfileOutput: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
+}))
+
+function click(element: Element | null) {
+  if (!element) {
+    throw new Error('Expected element to exist')
+  }
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+describe('StandardProfilesTab', () => {
+  let container: HTMLDivElement | null = null
+  let root: Root | null = null
+
+  afterEach(async () => {
+    if (root) {
+      await act(async () => {
+        root?.unmount()
+      })
+    }
+    container?.remove()
+    root = null
+    container = null
+  })
+
+  async function renderTab() {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<StandardProfilesTab collectionName="taxons" />)
+    })
+  }
+
+  it('shows Darwin Core Occurrence as an occurrence-grain profile contextualized by taxons', async () => {
+    await renderTab()
+
+    expect(container?.textContent).toContain('dwc_taxon_context')
+    expect(container?.textContent).toContain('Darwin Core Occurrence')
+    expect(container?.textContent).toContain('Source grain: taxon · Target grain: occurrence')
+    expect(container?.textContent).not.toContain('Static API exports')
+    expect(container?.textContent).toContain('Existing standard-like exports')
+    expect(container?.textContent).toContain('legacy_json_api')
+    expect(container?.textContent).toContain(
+      'Existing export "legacy_json_api" looks like Darwin Core Occurrence output.',
+    )
+  })
+
+  it('keeps hidden technical collections available as profile sources', async () => {
+    await renderTab()
+
+    await act(async () => {
+      click(container!.querySelector('button[title="New profile"]'))
+    })
+
+    expect(container?.textContent).toContain('technical_occurrences · collection')
+    expect(container?.textContent).toContain('hidden or technical')
+  })
+})

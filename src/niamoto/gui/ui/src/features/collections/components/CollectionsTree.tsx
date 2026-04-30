@@ -7,7 +7,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { Layers, Loader2 } from 'lucide-react'
+import { Layers, Loader2, SlidersHorizontal } from 'lucide-react'
 import { usePipelineStatus, type EntityStatus } from '@/hooks/usePipelineStatus'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
@@ -19,12 +19,14 @@ import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 export type CollectionsSelection =
   | { type: 'overview' }
   | { type: 'api-settings' }
+  | { type: 'review' }
   | { type: 'collection'; name: string }
 
 interface CollectionsTreeProps {
   references: ReferenceInfo[]
   referencesLoading: boolean
   selection: CollectionsSelection
+  pendingReviewCount?: number
   onSelect: (selection: CollectionsSelection) => void
 }
 
@@ -36,6 +38,7 @@ export function CollectionsTree({
   references,
   referencesLoading,
   selection,
+  pendingReviewCount = 0,
   onSelect,
 }: CollectionsTreeProps) {
   const { t } = useTranslation(['sources', 'common'])
@@ -81,6 +84,25 @@ export function CollectionsTree({
         >
           <Layers className="h-4 w-4" />
           {t('collections.overview', 'Overview')}
+        </button>
+        <button
+          className={cn(
+            'mt-1 flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors',
+            isSelected('review')
+              ? 'bg-primary/10 font-medium text-primary'
+              : 'hover:bg-muted/50',
+          )}
+          onClick={() => onSelect({ type: 'review' })}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span className="flex-1 text-left">
+            {t('collections.review.shortTitle')}
+          </span>
+          {pendingReviewCount > 0 && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              {pendingReviewCount}
+            </span>
+          )}
         </button>
       </div>
 

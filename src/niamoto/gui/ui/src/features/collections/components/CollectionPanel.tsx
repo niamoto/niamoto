@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
-import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle } from 'lucide-react'
+import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle, FileBadge2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
+import { StandardProfilesTab } from '@/features/collections/components/standards/StandardProfilesTab'
 import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
@@ -45,15 +46,18 @@ import {
 } from '@/features/collections/routing'
 import { markCollectionsContentSwitch } from '@/features/collections/performance/collectionsPerf'
 import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
+import type { CollectionCatalogEntry } from '@/features/collections/hooks/useCollectionsCatalog'
 
 interface CollectionPanelProps {
   reference: ReferenceInfo
   initialTab?: string
+  collectionMetadata?: CollectionCatalogEntry
 }
 
 export function CollectionPanel({
   reference,
   initialTab,
+  collectionMetadata,
 }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const location = useLocation()
@@ -250,6 +254,13 @@ export function CollectionPanel({
               <FileCode className="mr-1.5 h-3.5 w-3.5" />
               {t('collectionPanel.tabs.export')}
             </TabsTrigger>
+            <TabsTrigger
+              value="standards"
+              className={tabsTriggerClassName}
+            >
+              <FileBadge2 className="mr-1.5 h-3.5 w-3.5" />
+              {t('collectionPanel.tabs.standards')}
+            </TabsTrigger>
           </TabsList>
 
           {/* Spacer */}
@@ -262,6 +273,22 @@ export function CollectionPanel({
             <Badge variant="outline" className="text-[10px] py-0">
               {kindLabels[reference.kind] || reference.kind}
             </Badge>
+            {collectionMetadata && (
+              <>
+                <span>·</span>
+                <Badge variant="secondary" className="text-[10px] py-0">
+                  {t(
+                    `collections.review.grains.${collectionMetadata.grain}`,
+                    collectionMetadata.grain,
+                  )}
+                </Badge>
+                {collectionMetadata.roles.slice(0, 3).map((role) => (
+                  <Badge key={role} variant="outline" className="text-[10px] py-0">
+                    {t(`collections.review.rolesList.${role}`)}
+                  </Badge>
+                ))}
+              </>
+            )}
           </span>
 
           {/* Last run status */}
@@ -339,6 +366,12 @@ function getTabContent(activeTab: string, reference: ReferenceInfo) {
       return (
         <div className="h-full overflow-hidden">
           <ApiExportsTab groupBy={reference.name} />
+        </div>
+      )
+    case 'standards':
+      return (
+        <div className="h-full overflow-hidden">
+          <StandardProfilesTab collectionName={reference.name} />
         </div>
       )
     case 'content':

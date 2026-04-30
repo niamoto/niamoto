@@ -71,6 +71,50 @@ def save_transform_config(
         )
 
 
+def load_import_config(work_dir: Path) -> Dict[str, Any]:
+    """Load import.yml configuration."""
+    import_path = work_dir / "config" / "import.yml"
+    if not import_path.exists():
+        return {"entities": {"references": {}, "datasets": {}}}
+
+    with open(import_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    if not isinstance(config, dict):
+        return {"entities": {"references": {}, "datasets": {}}}
+
+    entities = config.setdefault("entities", {})
+    if isinstance(entities, dict):
+        entities.setdefault("references", {})
+        entities.setdefault("datasets", {})
+    return config
+
+
+def save_import_config(
+    work_dir: Path,
+    config: Dict[str, Any],
+    create_backup: bool = False,
+) -> None:
+    """Save import.yml configuration."""
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    import_path = config_dir / "import.yml"
+
+    if create_backup and import_path.exists():
+        _create_backup_file(import_path)
+
+    with open(import_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            config,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            width=120,
+        )
+
+
 def load_export_config(work_dir: Path) -> Dict[str, Any]:
     """Load export.yml configuration.
 

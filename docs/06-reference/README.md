@@ -11,6 +11,7 @@ boundaries, database shape, or preview API.
 - [configuration-guide.md](configuration-guide.md): boundaries between `config.yml`, `import.yml`, `transform.yml`, `export.yml`, and `deploy.yml`
 - [database-schema.md](database-schema.md): persisted tables and metadata registries
 - [gui-preview-api.md](gui-preview-api.md): desktop preview endpoints
+- [standard-profiles.md](standard-profiles.md): biodiversity standard profile configuration
 - [transform-plugins.md](transform-plugins.md): how the GUI reads transformer schemas
 - [widgets-and-transform-workflow.md](widgets-and-transform-workflow.md): how widgets connect data, transforms, and rendering
 
@@ -23,6 +24,7 @@ boundaries, database shape, or preview API.
 - [gui-preview-api.md](gui-preview-api.md)
 - [external-apis.md](external-apis.md)
 - [api-export-guide.md](api-export-guide.md)
+- [standard-profiles.md](standard-profiles.md)
 
 ### Configuration and data
 - [configuration-guide.md](configuration-guide.md)
@@ -51,6 +53,7 @@ database-schema
 plugin-api
 external-apis
 api-export-guide
+standard-profiles
 configuration-guide
 configuration-analysis
 yaml-strategies

@@ -1,0 +1,121 @@
+"""Collection catalog API endpoints."""
+
+from __future__ import annotations
+
+from typing import Any, NoReturn
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
+
+from niamoto.core.collections import CollectionCatalogService
+from niamoto.core.collections.models import (
+    CollectionCatalog,
+    CollectionCatalogEntry,
+    CollectionRole,
+    CollectionSourceType,
+)
+from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.services.templates.config_service import (
+    load_export_config,
+    load_import_config,
+    load_transform_config,
+    save_import_config,
+)
+
+router = APIRouter()
+
+
+class CollectionUpdateRequest(BaseModel):
+    """Payload for updating collection review metadata."""
+
+    label: str | None = None
+    roles: list[CollectionRole] | None = None
+    visible: bool | None = None
+    review_status: str | None = None
+    grain: str | None = None
+    description: str | None = None
+
+
+class CollectionCreateRequest(BaseModel):
+    """Payload for creating a manual collection."""
+
+    name: str = Field(min_length=1)
+    source_type: CollectionSourceType
+    source_name: str = Field(min_length=1)
+    grain: str = Field(min_length=1)
+    roles: list[CollectionRole] = Field(min_length=1)
+    visible: bool = True
+    label: str | None = None
+
+
+class CollectionMutationResponse(BaseModel):
+    """Response for collection mutations."""
+
+    collection: CollectionCatalogEntry
+
+
+def _catalog_service() -> CollectionCatalogService:
+    work_dir = get_working_directory()
+    return CollectionCatalogService(
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+        export_config=load_export_config(work_dir),
+    )
+
+
+def _save_service_config(service: CollectionCatalogService) -> None:
+    save_import_config(
+        get_working_directory(), service.import_config, create_backup=True
+    )
+
+
+def _raise_catalog_error(exc: ValueError) -> NoReturn:
+    message = str(exc)
+    if message.startswith("Unknown "):
+        raise HTTPException(status_code=404, detail=message) from exc
+    if "already exists" in message:
+        raise HTTPException(status_code=409, detail=message) from exc
+    raise HTTPException(status_code=400, detail=message) from exc
+
+
+@router.get("", response_model=CollectionCatalog)
+async def list_collections() -> CollectionCatalog:
+    """List reviewable collection candidates and manual source options."""
+    return _catalog_service().list_collections()
+
+
+@router.patch("/{collection_name}", response_model=CollectionMutationResponse)
+async def update_collection(
+    collection_name: str,
+    update: CollectionUpdateRequest,
+) -> dict[str, Any]:
+    """Update review metadata for an inferred or explicit collection."""
+    service = _catalog_service()
+    try:
+        collection = service.update_collection(
+            collection_name, **update.model_dump(exclude_unset=True)
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        _raise_catalog_error(exc)
+    _save_service_config(service)
+    return {"collection": collection}
+
+
+@router.post(
+    "",
+    response_model=CollectionMutationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_collection(
+    request: CollectionCreateRequest,
+) -> dict[str, Any]:
+    """Create a manual collection backed by a known source."""
+    service = _catalog_service()
+    try:
+        collection = service.create_collection(**request.model_dump())
+    except ValueError as exc:
+        _raise_catalog_error(exc)
+    _save_service_config(service)
+    return {"collection": collection}

@@ -29,8 +29,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SquareCascadeLoader } from '@/components/ui/square-cascade-loader'
-import { Layers, LayoutGrid, ListOrdered, FileCode, CheckCircle, AlertTriangle, Clock, Minus, Play } from 'lucide-react'
+import { Layers, LayoutGrid, ListOrdered, FileCode, CheckCircle, AlertTriangle, Clock, Minus, Play, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
+import type { CollectionCatalog } from '../hooks/useCollectionsCatalog'
 
 // =============================================================================
 // COLLECTION CARD
@@ -256,10 +257,17 @@ function CounterBox({ value, label }: { value: number; label: string }) {
 
 interface CollectionsOverviewProps {
   references: ReferenceInfo[]
+  catalog?: CollectionCatalog
+  pendingReviewCount?: number
   onSelect: (selection: CollectionsSelection, tab?: string) => void
 }
 
-export function CollectionsOverview({ references, onSelect }: CollectionsOverviewProps) {
+export function CollectionsOverview({
+  references,
+  catalog,
+  pendingReviewCount = 0,
+  onSelect,
+}: CollectionsOverviewProps) {
   const { t } = useTranslation(['sources', 'common'])
   const { data: pipelineStatus } = usePipelineStatus()
   const trackedJobs = useNotificationStore((state) => state.trackedJobs)
@@ -387,6 +395,36 @@ export function CollectionsOverview({ references, onSelect }: CollectionsOvervie
               : t('collections.overviewRunVisibleFallback', { count: targetReferences.length })}
         </Button>
       </div>
+      {catalog && (
+        <div className="flex flex-col gap-3 rounded-md border bg-muted/20 px-3 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                {t('collections.review.calloutTitle')}
+              </span>
+              {pendingReviewCount > 0 && (
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  {t('collections.review.pendingCount', { count: pendingReviewCount })}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('collections.review.calloutDescription', {
+                count: catalog.total,
+              })}
+            </p>
+          </div>
+          <Button
+            variant={pendingReviewCount > 0 ? 'default' : 'outline'}
+            size="sm"
+            className="shrink-0"
+            onClick={() => onSelect({ type: 'review' })}
+          >
+            {t('collections.review.open')}
+          </Button>
+        </div>
+      )}
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {references.map((ref) => {
           const activityState = activityStateByGroup.get(ref.name)

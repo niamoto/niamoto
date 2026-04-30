@@ -18,8 +18,10 @@ import type { CollectionsSelection } from './CollectionsTree'
 import { CollectionPanel } from './CollectionPanel'
 import { CollectionsOverview } from './CollectionsOverview'
 import { ApiSettingsPanel } from './api/ApiSettingsPanel'
+import { CollectionReviewPanel } from './review/CollectionReviewPanel'
 import { Layers } from 'lucide-react'
 import { buildCollectionsPath, normalizeCollectionTab, selectionFromPath } from '../routing'
+import { useCollectionsCatalog } from '../hooks/useCollectionsCatalog'
 
 // =============================================================================
 // COMPONENT
@@ -32,8 +34,13 @@ export function CollectionsModule() {
   const setBreadcrumbs = useNavigationStore((s) => s.setBreadcrumbs)
 
   const { data: referencesData, isLoading } = useReferences()
+  const { data: catalogData, isLoading: catalogLoading } = useCollectionsCatalog()
   const references = referencesData?.references ?? []
-  const isInitialLoading = isLoading && !referencesData
+  const catalogCollections = catalogData?.collections ?? []
+  const isInitialLoading = (isLoading && !referencesData) || (catalogLoading && !catalogData)
+  const pendingReviewCount = catalogCollections.filter(
+    (collection) => collection.review_status === 'pending',
+  ).length
 
   const selection = useMemo(() => selectionFromPath(pathname), [pathname])
   const initialTab = useMemo(
@@ -83,8 +90,12 @@ export function CollectionsModule() {
       return <ApiSettingsPanel />
     }
 
+    if (selection.type === 'review') {
+      return <CollectionReviewPanel />
+    }
+
     // Empty state
-    if (references.length === 0) {
+    if (references.length === 0 && catalogCollections.length === 0) {
       return (
         <div className="flex h-full items-center justify-center">
           <div className="max-w-md text-center">
@@ -111,6 +122,8 @@ export function CollectionsModule() {
       return (
         <CollectionsOverview
           references={references}
+          catalog={catalogData}
+          pendingReviewCount={pendingReviewCount}
           onSelect={handleSelect}
         />
       )
@@ -122,6 +135,9 @@ export function CollectionsModule() {
         <CollectionPanel
           reference={reference}
           initialTab={initialTab}
+          collectionMetadata={catalogCollections.find(
+            (collection) => collection.name === reference.name,
+          )}
         />
       )
     }
@@ -154,7 +170,7 @@ export function CollectionsModule() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className={selection.type === 'overview' ? 'h-full overflow-y-auto' : 'h-full overflow-hidden'}>
+    <div className={selection.type === 'overview' || selection.type === 'review' ? 'h-full overflow-y-auto' : 'h-full overflow-hidden'}>
       {renderContent()}
     </div>
   )

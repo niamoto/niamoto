@@ -26,6 +26,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.models import ExportConfig
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.gui.api import context
 from niamoto.gui.api.app import create_app
@@ -701,6 +702,63 @@ class TestExportConfigGeneration:
         with open(export_path) as f:
             export_config = yaml.safe_load(f)
         assert export_config is not None
+
+    def test_save_preserves_standard_profiles(
+        self, test_client, working_directory, reference_transform
+    ):
+        """POST /save-config must not drop profile-owned standard outputs."""
+        group = "taxons"
+        ref_config = reference_transform[group]
+        export_path = working_directory / "config" / "export.yml"
+
+        with open(export_path, encoding="utf-8") as f:
+            export_config = yaml.safe_load(f) or {}
+
+        standard_profiles = [
+            {
+                "name": "dwc_occurrences_reference",
+                "enabled": False,
+                "standard": "darwin_core_occurrence",
+                "target_grain": "occurrence",
+                "source": {"type": "dataset", "name": "occurrences"},
+                "context": {"type": "collection", "name": "taxons"},
+                "validation_status": "draft",
+                "metadata": {"legacy_export_name": "dwc_occurrence_json"},
+                "mappings": {
+                    "occurrenceID": {
+                        "generator": "unique_occurrence_id",
+                        "params": {"prefix": "niaocc_"},
+                    }
+                },
+                "outputs": [
+                    {
+                        "type": "api_json",
+                        "enabled": True,
+                        "params": {
+                            "output_dir": "exports/profiles/dwc_occurrences_reference"
+                        },
+                    }
+                ],
+            }
+        ]
+        export_config["standard_profiles"] = standard_profiles
+        with open(export_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(export_config, f, sort_keys=False, allow_unicode=True)
+
+        save_request = {
+            "group_by": group,
+            "sources": ref_config["sources"],
+            "widgets_data": ref_config["widgets_data"],
+            "mode": "replace",
+        }
+        response = test_client.post("/api/templates/save-config", json=save_request)
+        assert response.status_code == 200, response.text
+
+        with open(export_path, encoding="utf-8") as f:
+            saved_export_config = yaml.safe_load(f) or {}
+
+        assert saved_export_config["standard_profiles"] == standard_profiles
+        ExportConfig.model_validate(saved_export_config)
 
     def test_export_only_widgets_routed_to_export_yml(
         self, test_client, working_directory, reference_transform

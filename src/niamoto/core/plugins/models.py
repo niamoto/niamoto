@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, List, Union
 from pydantic import BaseModel, Field, model_validator, ValidationError, ConfigDict
 
 from niamoto.common.i18n import LocalizedString
+from niamoto.core.standards.models import StandardProfileConfig
 
 # --- Base Models ---
 
@@ -565,3 +566,4 @@ class ExportConfig(BaseModel):
     """Root model for the entire export.yml configuration file."""
 
     exports: List[TargetConfig]
+    standard_profiles: List[StandardProfileConfig] = Field(default_factory=list)
