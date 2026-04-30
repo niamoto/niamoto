@@ -1,0 +1,133 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { ProfileOutputsPanel } from './ProfileOutputsPanel'
+
+const executeOutput = vi.fn()
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const labels: Record<string, string> = {
+        'collections.standards.outputs': 'Outputs',
+        'collections.standards.validationStatus.invalid': 'Invalid',
+        'collections.standards.publicationBlocked': 'Publication blocked',
+        'collections.standards.outputTypes.api_json': 'Profile API JSON',
+        'collections.standards.outputTypes.dwc_archive': 'Darwin Core Archive',
+        'collections.standards.outputEnabled': 'Enabled',
+        'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.generatePublicationFile': 'Generate files',
+        'collections.standards.lastOutput': 'Last output',
+        'collections.standards.outputFailed': 'Could not generate the output.',
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
+vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
+  useExecuteStandardProfileOutput: () => ({
+    isPending: false,
+    mutateAsync: executeOutput,
+  }),
+}))
+
+function click(element: Element | null) {
+  if (!element) {
+    throw new Error('Expected element to exist')
+  }
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+describe('ProfileOutputsPanel', () => {
+  let container: HTMLDivElement | null = null
+  let root: Root | null = null
+
+  afterEach(async () => {
+    executeOutput.mockReset()
+    if (root) {
+      await act(async () => {
+        root?.unmount()
+      })
+    }
+    container?.remove()
+    root = null
+    container = null
+  })
+
+  async function renderPanel() {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(
+        <ProfileOutputsPanel
+          profile={{
+            name: 'dwc_occurrences',
+            enabled: true,
+            standard: 'darwin_core_occurrence',
+            target_grain: 'occurrence',
+            source: { type: 'dataset', name: 'occurrences' },
+            mappings: {},
+            outputs: [
+              { type: 'api_json', enabled: true, params: {} },
+              { type: 'dwc_archive', enabled: true, params: {} },
+            ],
+            validation_status: 'invalid',
+            metadata: {},
+          }}
+          validation={{
+            profile_name: 'dwc_occurrences',
+            standard: 'darwin_core_occurrence',
+            status: 'invalid',
+            summary: { critical: 1, warning: 0, recommended: 0, info: 0 },
+            compatibility: {
+              standard: 'darwin_core_occurrence',
+              target_grain: 'occurrence',
+              source: { type: 'dataset', name: 'occurrences' },
+              source_grain: 'occurrence',
+              status: 'compatible',
+              confidence: 0.9,
+              evidence: [],
+              warnings: [],
+              blockers: [],
+            },
+            checklist: [],
+            issues: [],
+          }}
+        />,
+      )
+    })
+  }
+
+  it('allows draft API JSON but disables publication files on critical validation', async () => {
+    executeOutput.mockResolvedValue({
+      output_path: '/tmp/dwc_occurrences.json',
+    })
+    await renderPanel()
+
+    const buttons = Array.from(container!.querySelectorAll('button'))
+    const draftButton = buttons.find((button) =>
+      button.textContent?.includes('Generate draft JSON'),
+    )
+    const publicationButton = buttons.find((button) =>
+      button.textContent?.includes('Generate files'),
+    )
+
+    expect(draftButton).toBeTruthy()
+    expect(draftButton?.hasAttribute('disabled')).toBe(false)
+    expect(publicationButton?.hasAttribute('disabled')).toBe(true)
+    expect(container?.textContent).toContain('Publication blocked')
+
+    await act(async () => {
+      click(draftButton ?? null)
+    })
+
+    expect(executeOutput).toHaveBeenCalledWith('api_json')
+    expect(container?.textContent).toContain('/tmp/dwc_occurrences.json')
+  })
+})

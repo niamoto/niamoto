@@ -7,6 +7,52 @@ from pathlib import Path
 from niamoto.core.imports.auto_config_service import AutoConfigService
 
 
+def test_build_collection_candidates_exposes_reviewable_reference_metadata(
+    tmp_path: Path,
+):
+    service = AutoConfigService(tmp_path)
+
+    candidates = service._build_collection_candidates(
+        {
+            "references": {
+                "taxons": {
+                    "kind": "hierarchical",
+                    "description": "Taxonomic hierarchy",
+                    "schema": {"fields": [{"name": "species", "type": "string"}]},
+                }
+            },
+            "datasets": {
+                "occurrences": {
+                    "schema": {"fields": [{"name": "taxon_id", "type": "integer"}]}
+                }
+            },
+        }
+    )
+
+    assert candidates == [
+        {
+            "name": "taxons",
+            "label": "taxons",
+            "source_type": "reference",
+            "source_name": "taxons",
+            "grain": "taxon",
+            "roles": ["site", "api"],
+            "visible": True,
+            "review_status": "pending",
+            "confidence": 0.85,
+            "description": "Taxonomic hierarchy",
+            "evidence": [
+                {
+                    "kind": "import_reference",
+                    "message": "Declared reference entity 'taxons' in import.yml",
+                    "confidence": 0.85,
+                    "details": {"kind": "hierarchical"},
+                }
+            ],
+        }
+    ]
+
+
 def test_build_simple_reference_config_sets_schema_name_field(tmp_path: Path):
     service = AutoConfigService(tmp_path)
 

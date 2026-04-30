@@ -422,7 +422,146 @@
     "noIndex": "No index configured",
     "noCollectionsConfigured": "No collections configured",
     "configureInExport": "Configure in export settings",
-    "collectionsDefinedInExport": "Collections defined in export configuration"
+    "collectionsDefinedInExport": "Collections defined in export configuration",
+    "review": {
+      "title": "Review collections",
+      "shortTitle": "Review",
+      "description": "{{count}} collection(s) still need a decision.",
+      "calloutTitle": "Collection review",
+      "calloutDescription": "{{count}} detected or manual collection(s) are available for publication workflows.",
+      "pendingCallout": "{{count}} collection(s) still need review before publication setup.",
+      "pendingCount": "{{count}} to review",
+      "open": "Review collections",
+      "addCollection": "Add collection",
+      "addTitle": "Add a collection",
+      "addDescription": "Create a collection backed by existing source data.",
+      "addFailed": "Could not create the collection.",
+      "loadFailed": "Could not load collection review.",
+      "saveFailed": "Could not save the collection.",
+      "name": "Collection name",
+      "label": "Display name",
+      "labelPlaceholder": "Publication occurrences",
+      "source": "Source data",
+      "grain": "Grain",
+      "roles": "Roles",
+      "visiblePage": "Visible as a website page",
+      "create": "Create collection",
+      "accept": "Accept",
+      "defer": "Defer",
+      "hide": "Hide",
+      "show": "Show",
+      "saveLabel": "Save name",
+      "visible": "Visible",
+      "hidden": "Hidden",
+      "status": {
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "deferred": "Deferred",
+        "rejected": "Rejected"
+      },
+      "rolesList": {
+        "site": "Site",
+        "api": "API",
+        "standard": "Standard",
+        "technical": "Technical"
+      },
+      "sourceTypes": {
+        "reference": "Reference",
+        "dataset": "Dataset",
+        "transform_group": "Transform group"
+      },
+      "grains": {
+        "taxon": "Taxon",
+        "site": "Site",
+        "hierarchy": "Hierarchy",
+        "reference": "Reference",
+        "aggregate": "Aggregate",
+        "occurrence": "Occurrence",
+        "event": "Event",
+        "inventory": "Inventory",
+        "unknown": "Unknown"
+      },
+      "evidence": {
+        "import_reference": "Import",
+        "transform_group": "Transform",
+        "manual_collection": "Manual"
+      }
+    },
+    "standards": {
+      "title": "Standard profiles",
+      "description": "Configure publication profiles separately from simple JSON API exports.",
+      "loadFailed": "Could not load standard profiles.",
+      "empty": "No standard profile is configured yet.",
+      "newProfile": "New profile",
+      "editProfile": "Profile settings",
+      "profileEditorHelp": "Mappings and outputs belong to the standard profile, not to the simple collection API.",
+      "profileName": "Profile name",
+      "standard": "Standard",
+      "source": "Source data",
+      "targetGrain": "Target grain",
+      "mappingTitle": "Standard term mappings",
+      "mappingHelp": "Map each standard term to a source field, static value, or generator.",
+      "mappingReferenceHelp": "Darwin Core Occurrence must map occurrence-grain data. Humboldt/Event should map event or inventory terms.",
+      "outputs": "Outputs",
+      "saveProfile": "Save profile",
+      "saveFailed": "Could not save the profile.",
+      "hiddenSource": "hidden or technical",
+      "currentCollection": "Current collection",
+      "legacyHintsTitle": "Existing standard-like exports",
+      "legacyHintDescription": "Existing export \"{{exportName}}\" looks like {{standard}} output. Create a standard profile when you are ready to migrate it.",
+      "sourceSummary": "{{type}} · {{name}}",
+      "compatibility": "Compatibility",
+      "compatibilityLoadFailed": "Could not load compatibility.",
+      "validation": "Validation",
+      "validationLoadFailed": "Could not load validation.",
+      "grainSummary": "Source grain: {{source}} · Target grain: {{target}}",
+      "criticalCount": "{{count}} critical",
+      "issues": "Issues",
+      "publicationBlocked": "Publication files are disabled until critical validation issues are resolved. Draft API JSON can still be generated.",
+      "noOutputs": "No output is configured for this profile.",
+      "outputFailed": "Could not generate the output.",
+      "outputEnabled": "Enabled",
+      "outputDisabled": "Disabled",
+      "generateDraftJson": "Generate draft JSON",
+      "generatePublicationFile": "Generate files",
+      "lastOutput": "Last output",
+      "standardTypes": {
+        "darwin_core_occurrence": "Darwin Core Occurrence",
+        "humboldt_event": "Humboldt/Event"
+      },
+      "compatibilityStatus": {
+        "compatible": "Compatible",
+        "plausible": "Plausible",
+        "blocked": "Blocked"
+      },
+      "validationStatus": {
+        "draft": "Draft",
+        "partial": "Partial",
+        "invalid": "Invalid",
+        "conformant": "Conformant"
+      },
+      "checklistStatus": {
+        "pass": "Pass",
+        "warn": "Review",
+        "fail": "Fail"
+      },
+      "severity": {
+        "critical": "Critical",
+        "warning": "Warning",
+        "recommended": "Recommended",
+        "info": "Info"
+      },
+      "outputTypes": {
+        "api_json": "Profile API JSON",
+        "dwc_archive": "Darwin Core Archive",
+        "standard_files": "Event standard files"
+      },
+      "evidence": {
+        "source_grain": "Source grain",
+        "occurrence_relation": "Occurrence relation",
+        "site_context": "Site context"
+      }
+    }
   },
   "tree": {
     "datasets": "Datasets",
@@ -936,7 +1075,8 @@
       "sources": "Sources",
       "blocks": "Blocks",
       "list": "List",
-      "export": "Export"
+      "export": "Export",
+      "standards": "Standards"
     },
     "kinds": {
       "hierarchical": "Hierarchical",

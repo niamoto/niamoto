@@ -13,6 +13,7 @@ describe('collections routing helpers', () => {
     expect(selectionFromPath('/groups/api-settings')).toEqual({
       type: 'api-settings',
     })
+    expect(selectionFromPath('/groups/review')).toEqual({ type: 'review' })
     expect(selectionFromPath('/groups/taxons')).toEqual({
       type: 'collection',
       name: 'taxons',
@@ -23,6 +24,7 @@ describe('collections routing helpers', () => {
     expect(normalizeCollectionTab('content')).toBe('content')
     expect(normalizeCollectionTab('index')).toBe('index')
     expect(normalizeCollectionTab('api')).toBe('api')
+    expect(normalizeCollectionTab('standards')).toBe('standards')
     expect(normalizeCollectionTab('unknown')).toBeUndefined()
     expect(normalizeCollectionTab(null)).toBeUndefined()
   })
@@ -32,9 +34,13 @@ describe('collections routing helpers', () => {
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'content')
     ).toBe('/groups/taxons')
+    expect(buildCollectionsPath({ type: 'review' }, 'api')).toBe('/groups/review')
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'index')
     ).toBe('/groups/taxons?tab=index')
+    expect(
+      buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'standards')
+    ).toBe('/groups/taxons?tab=standards')
     expect(
       buildCollectionsPath({ type: 'collection', name: 'plots hierarchy' }, 'api')
     ).toBe('/groups/plots%20hierarchy?tab=api')

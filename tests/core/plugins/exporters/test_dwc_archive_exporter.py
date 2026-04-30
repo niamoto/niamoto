@@ -688,6 +688,25 @@ class TestCollectOccurrences:
 class TestGenerateArchive:
     """Test complete archive generation."""
 
+    def test_generate_archive_from_occurrences_returns_generated_files(
+        self, exporter, sample_occurrences
+    ):
+        """Test public generation helper for pre-mapped occurrence records."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            params = DwcArchiveExporterParams(
+                output_dir=str(output_dir), archive_name="profile-dwc.zip"
+            )
+
+            generated_files = exporter.generate_archive_from_occurrences(
+                sample_occurrences, output_dir, params
+            )
+
+            assert output_dir / "profile-dwc.zip" in generated_files
+            assert (output_dir / "occurrence.csv").exists()
+            assert (output_dir / "meta.xml").exists()
+            assert (output_dir / "eml.xml").exists()
+
     def test_generate_archive_creates_all_files(self, exporter, sample_occurrences):
         """Test that generate_archive creates all required files."""
         with tempfile.TemporaryDirectory() as tmpdir:

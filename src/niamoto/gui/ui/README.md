@@ -4,7 +4,7 @@ Frontend React/TypeScript/Vite for the Niamoto desktop and web interface.
 
 This UI powers:
 - data import and auto-configuration
-- group configuration
+- collection review, API export, and standard profile configuration
 - site configuration
 - publish workflows
 - desktop onboarding and project switching
@@ -70,6 +70,7 @@ Current feature folders:
 
 - [src/features/dashboard](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/dashboard)
 - [src/features/import](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import)
+- [src/features/collections](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections)
 - [src/features/groups](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/groups)
 - [src/features/site](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/site)
 - [src/features/publish](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/publish)
@@ -132,6 +133,16 @@ Job orchestration lives in:
 The `/` route is implemented in:
 
 - [src/features/dashboard/views/ProjectHub.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/dashboard/views/ProjectHub.tsx)
+
+### Collections workflow
+
+Collection review, collection-scoped API exports, and standard publication
+profiles live under:
+
+- [src/features/collections](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections)
+- [src/features/collections/components/CollectionPanel.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/components/CollectionPanel.tsx)
+- [src/features/collections/hooks/useCollectionsCatalog.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/hooks/useCollectionsCatalog.ts)
+- [src/features/collections/hooks/useStandardProfiles.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/hooks/useStandardProfiles.ts)
 
 ### Site builder
 

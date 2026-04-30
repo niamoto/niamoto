@@ -26,6 +26,7 @@ from niamoto.core.imports.auto_config_review import (
     build_auto_config_warnings,
     build_entity_review,
 )
+from niamoto.core.collections import CollectionCatalogService
 from niamoto.core.utils.column_detector import ColumnDetector, GeoPackageAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -447,6 +448,7 @@ class AutoConfigService:
         return {
             "success": True,
             "entities": entities,
+            "collection_candidates": self._build_collection_candidates(entities),
             "auxiliary_sources": list(auxiliary_sources.values()),
             "detected_columns": detected_columns,
             "ml_predictions": ml_predictions,
@@ -455,6 +457,22 @@ class AutoConfigService:
             "confidence": overall_confidence,
             "warnings": warnings,
         }
+
+    def _build_collection_candidates(
+        self, entities: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Build reviewable collection candidates from inferred import entities."""
+        catalog = CollectionCatalogService(
+            import_config={
+                "entities": {
+                    "references": entities.get("references", {}),
+                    "datasets": entities.get("datasets", {}),
+                }
+            }
+        ).list_collections()
+        return [
+            collection.model_dump(mode="json") for collection in catalog.collections
+        ]
 
     def _detect_auxiliary_sources(
         self,

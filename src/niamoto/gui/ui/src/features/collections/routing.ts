@@ -1,12 +1,22 @@
 import type { CollectionsSelection } from './components/CollectionsTree'
 
-export const COLLECTION_TABS = ['sources', 'content', 'index', 'api'] as const
+export const COLLECTION_TABS = [
+  'sources',
+  'content',
+  'index',
+  'api',
+  'standards',
+] as const
 
 export type CollectionTab = (typeof COLLECTION_TABS)[number]
 
 export function selectionFromPath(pathname: string): CollectionsSelection {
   if (pathname === '/groups/api-settings') {
     return { type: 'api-settings' }
+  }
+
+  if (pathname === '/groups/review') {
+    return { type: 'review' }
   }
 
   const match = pathname.match(/^\/groups\/(.+)$/)
@@ -41,6 +51,10 @@ export function buildCollectionsPath(
 
   if (selection.type === 'api-settings') {
     return '/groups/api-settings'
+  }
+
+  if (selection.type === 'review') {
+    return '/groups/review'
   }
 
   const basePath = `/groups/${encodeURIComponent(selection.name)}`

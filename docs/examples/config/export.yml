@@ -1601,3 +1601,56 @@ exports:
                 endemic_field: "@taxon.general_info.endemic.value"
 
 # --------------------- Fin Groupe: Taxon (DwC) -------------------------
+
+
+# ------------------------------------------------------------
+# Profils standardisés de publication
+# ------------------------------------------------------------
+# Les profils standardisés sont au même niveau que `exports`.
+# Ils décrivent le standard, le grain attendu, la source, les mappings
+# et les sorties à générer explicitement depuis l'onglet Standards.
+# Le bloc `dwc_occurrence_json` ci-dessus reste un export historique valide ;
+# ce profil documente l'interprétation Darwin Core Occurrence sans imposer
+# de migration automatique aux anciens projets.
+standard_profiles:
+  - name: dwc_occurrences_reference
+    enabled: false
+    standard: darwin_core_occurrence
+    target_grain: occurrence
+    source:
+      type: dataset
+      name: occurrences
+    context:
+      type: collection
+      name: taxons
+    validation_status: draft
+    metadata:
+      legacy_export_name: dwc_occurrence_json
+      note: "Exemple de profil standardisé pour préparer une migration contrôlée."
+    mappings:
+      occurrenceID:
+        generator: unique_occurrence_id
+        params:
+          prefix: "niaocc_"
+      scientificName:
+        source: "@source.taxonref"
+      eventDate:
+        source: "@source.month_obs"
+      country:
+        generator: constant
+        params:
+          value: "New Caledonia"
+      countryCode:
+        generator: constant
+        params:
+          value: "NC"
+    outputs:
+      - type: api_json
+        enabled: true
+        params:
+          output_dir: "exports/profiles/dwc_occurrences_reference"
+      - type: dwc_archive
+        enabled: false
+        params:
+          output_dir: "exports/dwc/archive"
+          archive_name: "dwc-occurrences.zip"

@@ -36,6 +36,41 @@ def test_save_and_load_transform_config_round_trip(tmp_path):
     assert config_service.load_transform_config(tmp_path) == config
 
 
+def test_load_import_config_defaults_missing_entities(tmp_path):
+    assert config_service.load_import_config(tmp_path) == {
+        "entities": {"references": {}, "datasets": {}}
+    }
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text("metadata:\n  collections: {}\n")
+
+    loaded = config_service.load_import_config(tmp_path)
+
+    assert loaded == {
+        "metadata": {"collections": {}},
+        "entities": {"references": {}, "datasets": {}},
+    }
+
+
+def test_save_and_load_import_config_round_trip(tmp_path):
+    config = {
+        "entities": {"references": {"taxons": {}}, "datasets": {}},
+        "metadata": {
+            "collections": {
+                "taxons": {
+                    "label": "Taxons",
+                    "review_status": "accepted",
+                }
+            }
+        },
+    }
+
+    config_service.save_import_config(tmp_path, config)
+
+    assert config_service.load_import_config(tmp_path) == config
+
+
 def test_load_export_config_normalizes_missing_or_invalid_payloads(tmp_path):
     assert config_service.load_export_config(tmp_path) == {"exports": []}
 

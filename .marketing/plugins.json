@@ -264,6 +264,12 @@
     "version": "0.18.1"
   },
   {
+    "name": "niamoto_to_humboldt_event",
+    "type": "transformer",
+    "body": "Transform one Niamoto event or inventory row to Humboldt/Event terms.",
+    "version": "0.18.1"
+  },
+  {
     "name": "raster_stats",
     "type": "transformer",
     "body": "Plugin for extracting statistics from raster data.",
