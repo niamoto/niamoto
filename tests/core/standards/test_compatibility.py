@@ -62,6 +62,26 @@ def test_darwin_core_occurrence_from_taxon_context_uses_occurrence_relation():
     assert report.evidence[0].details["occurrence_dataset"] == "occurrences"
 
 
+def test_darwin_core_occurrence_source_has_exact_grain_confidence():
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+        }
+    )
+    service = StandardCompatibilityService(import_config=_import_config())
+
+    report = service.evaluate(profile)
+
+    assert report.status == "compatible"
+    assert report.source_grain == "occurrence"
+    assert report.confidence == 1.0
+    assert report.evidence[0].kind == "source_grain"
+    assert report.evidence[0].confidence == 1.0
+
+
 def test_humboldt_event_from_plot_collection_is_plausible_with_warnings():
     profile = StandardProfileConfig.model_validate(
         {

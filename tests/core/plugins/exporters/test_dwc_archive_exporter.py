@@ -130,6 +130,17 @@ class TestDwcArchiveExporterParams:
         )
         assert params.output_dir == "test"
 
+    @pytest.mark.parametrize(
+        "archive_name",
+        ["../escape.zip", "/tmp/escape.zip", "nested/archive.zip", "archive.txt"],
+    )
+    def test_params_reject_unsafe_archive_name(self, archive_name):
+        """Test archive names must stay within the output directory."""
+        with pytest.raises(ValueError, match="archive_name"):
+            DwcArchiveExporterParams.model_validate(
+                {"output_dir": "test", "archive_name": archive_name}
+            )
+
 
 class TestDwcArchiveExporterInit:
     """Test DwcArchiveExporter initialization."""

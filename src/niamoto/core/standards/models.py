@@ -131,3 +131,19 @@ class StandardProfileOutputResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class StandardProfileOutputPreviewResult(BaseModel):
+    """Representative JSON preview for one profile-owned standard output."""
+
+    profile_name: str
+    standard: StandardProfileType
+    output_type: StandardProfileOutputType
+    validation_status: StandardProfileValidationStatus
+    source_grain: str
+    item_id: Any | None = None
+    preview: Any
+    source: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)

@@ -13,6 +13,12 @@ import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
 import { ProjectSwitcher } from '@/components/common'
 import { useReferences } from '@/hooks/useReferences'
+import { useCollectionsCatalog } from '@/features/collections/hooks/useCollectionsCatalog'
+import {
+  buildCollectionDisplayItems,
+  defaultCollectionTab,
+} from '@/features/collections/utils/collectionDisplay'
+import { buildCollectionsPath } from '@/features/collections/routing'
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 interface NavigationSidebarProps {
@@ -34,6 +40,13 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
     location.pathname === '/groups' || location.pathname.startsWith('/groups/')
   const { data: referencesData } = useReferences()
   const references = referencesData?.references ?? []
+  const { data: catalogData } = useCollectionsCatalog({
+    enabled: collectionsRouteActive,
+  })
+  const collections = buildCollectionDisplayItems(
+    references,
+    catalogData?.collections ?? [],
+  )
   const activeCollectionName = collectionsRouteActive
     ? decodeURIComponent(location.pathname.replace(/^\/groups\/?/, '').split('/')[0] ?? '')
     : ''
@@ -115,7 +128,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
             const Icon = item.icon
             const active = isActive(item.matchPrefix)
             const showCollectionsChildren =
-              item.id === 'groups' && collectionsRouteActive && !isCompact && references.length > 0
+              item.id === 'groups' && collectionsRouteActive && !isCompact && collections.length > 0
 
             return (
               <div key={item.id}>
@@ -139,12 +152,15 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
 
                 {showCollectionsChildren && (
                   <ul className="mt-1 ml-4 border-l border-border/60 pl-2 space-y-0.5">
-                    {references.map((ref) => {
+                    {collections.map((ref) => {
                       const isCurrent = ref.name === activeCollectionName
                       return (
                         <li key={ref.name}>
                           <NavLink
-                            to={`/groups/${encodeURIComponent(ref.name)}`}
+                            to={buildCollectionsPath(
+                              { type: 'collection', name: ref.name },
+                              defaultCollectionTab(ref),
+                            )}
                             className={cn(
                               'flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
                               'hover:bg-background/80 hover:text-foreground',
@@ -160,7 +176,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                                 isCurrent ? 'bg-primary' : 'bg-muted-foreground/40'
                               )}
                             />
-                            <span className="truncate">{ref.name}</span>
+                            <span className="truncate">{ref.displayName}</span>
                           </NavLink>
                         </li>
                       )

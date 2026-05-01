@@ -2,25 +2,44 @@
 
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { StandardProfilesTab } from './StandardProfilesTab'
 
 const profilesState = vi.hoisted(() => ({
-  profiles: [
-    {
-      name: 'dwc_taxon_context',
-      enabled: true,
-      standard: 'darwin_core_occurrence',
-      target_grain: 'occurrence',
-      source: { type: 'collection', name: 'taxons' },
-      mappings: { occurrenceID: { source: 'id' } },
-      outputs: [{ type: 'api_json', enabled: true, params: {} }],
-      validation_status: 'partial',
-      metadata: {},
-    },
-  ],
+  profiles: [] as Array<{
+    name: string
+    enabled: boolean
+    standard: string
+    target_grain: string
+    source: { type: string; name: string }
+    mappings: Record<string, unknown>
+    outputs: Array<{ type: string; enabled: boolean; params: Record<string, unknown> }>
+    validation_status: string
+    metadata: Record<string, unknown>
+  }>,
 }))
+
+const mutations = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(),
+}))
+
+const defaultProfiles = [
+  {
+    name: 'dwc_taxon_context',
+    enabled: true,
+    standard: 'darwin_core_occurrence',
+    target_grain: 'occurrence',
+    source: { type: 'collection', name: 'taxons' },
+    mappings: { occurrenceID: { source: 'id' } },
+    outputs: [{ type: 'api_json', enabled: true, params: {} }],
+    validation_status: 'partial',
+    metadata: {},
+  },
+]
+
+profilesState.profiles = defaultProfiles
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -30,10 +49,16 @@ vi.mock('react-i18next', () => ({
         'collections.standards.description': 'Configure publication profiles.',
         'collections.standards.newProfile': 'New profile',
         'collections.standards.empty': 'No standard profile is configured yet.',
+        'collections.standards.editProfileAction': 'Edit profile',
+        'collections.standards.profileOverview': 'Profile overview',
+        'collections.standards.profileOverviewHelp': 'Profile is saved.',
+        'collections.standards.mappedTermsCount': '{{count}} mapped terms',
+        'collections.standards.enabledOutputsCount': '{{count}} enabled outputs',
         'collections.standards.standardTypes.darwin_core_occurrence':
           'Darwin Core Occurrence',
         'collections.standards.validationStatus.partial': 'Partial',
         'collections.standards.currentCollection': 'Current collection',
+        'collections.standards.selectedProfileStatus': 'Selected profile status',
         'collections.standards.sourceSummary': '{{type}} · {{name}}',
         'collections.standards.compatibility': 'Compatibility',
         'collections.standards.compatibilityStatus.compatible': 'Compatible',
@@ -45,6 +70,10 @@ vi.mock('react-i18next', () => ({
         'collections.standards.outputTypes.api_json': 'Profile API JSON',
         'collections.standards.outputEnabled': 'Enabled',
         'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.outputJsonPreview': 'Representative JSON preview',
+        'collections.standards.outputJsonPreviewItem': 'Source record {{id}}',
+        'collections.standards.outputJsonPreviewLoading': 'Loading preview',
+        'collections.standards.outputJsonPreviewFailed': 'Could not load preview.',
         'collections.standards.hiddenSource': 'hidden or technical',
         'collections.standards.legacyHintsTitle': 'Existing standard-like exports',
         'collections.standards.legacyHintDescription':
@@ -58,6 +87,8 @@ vi.mock('react-i18next', () => ({
         'collections.standards.mappingTitle': 'Standard term mappings',
         'collections.standards.mappingHelp': 'Map terms.',
         'collections.standards.mappingReferenceHelp': 'Mapping help.',
+        'collections.standards.autoConfigure': 'Auto-configure',
+        'collections.standards.autoConfigureHelp': 'Build a draft.',
         'collections.standards.saveProfile': 'Save profile',
       }
       return (labels[key] ?? key)
@@ -67,6 +98,8 @@ vi.mock('react-i18next', () => ({
         .replace('{{target}}', String(options?.target ?? ''))
         .replace('{{exportName}}', String(options?.exportName ?? ''))
         .replace('{{standard}}', String(options?.standard ?? ''))
+        .replace('{{count}}', String(options?.count ?? ''))
+        .replace('{{id}}', String(options?.id ?? ''))
     },
   }),
 }))
@@ -154,15 +187,36 @@ vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
   }),
   useCreateStandardProfile: () => ({
     isPending: false,
+    mutateAsync: mutations.create,
+  }),
+  useAutoConfigureStandardProfile: () => ({
+    isPending: false,
     mutateAsync: vi.fn(),
+  }),
+  useStandardProfileSourceFields: () => ({
+    data: {
+      fields: [{ name: 'id' }, { name: 'taxon_id' }],
+    },
   }),
   useUpdateStandardProfile: () => ({
     isPending: false,
-    mutateAsync: vi.fn(),
+    mutateAsync: mutations.update,
   }),
   useExecuteStandardProfileOutput: () => ({
     isPending: false,
     mutateAsync: vi.fn(),
+  }),
+  useStandardProfileOutputPreview: () => ({
+    data: {
+      item_id: 1,
+      preview: {
+        metadata: { profile_name: 'dwc_taxon_context' },
+        records: [{ occurrenceID: 1 }],
+      },
+    },
+    isLoading: false,
+    isFetching: false,
+    error: null,
   }),
 }))
 
@@ -176,6 +230,12 @@ function click(element: Element | null) {
 describe('StandardProfilesTab', () => {
   let container: HTMLDivElement | null = null
   let root: Root | null = null
+
+  beforeEach(() => {
+    profilesState.profiles = defaultProfiles
+    mutations.create.mockReset()
+    mutations.update.mockReset()
+  })
 
   afterEach(async () => {
     if (root) {
@@ -204,6 +264,8 @@ describe('StandardProfilesTab', () => {
     expect(container?.textContent).toContain('dwc_taxon_context')
     expect(container?.textContent).toContain('Darwin Core Occurrence')
     expect(container?.textContent).toContain('Source grain: taxon · Target grain: occurrence')
+    expect(container?.textContent).toContain('Profile overview')
+    expect(container?.textContent).toContain('Edit profile')
     expect(container?.textContent).not.toContain('Static API exports')
     expect(container?.textContent).toContain('Existing standard-like exports')
     expect(container?.textContent).toContain('legacy_json_api')
@@ -221,5 +283,43 @@ describe('StandardProfilesTab', () => {
 
     expect(container?.textContent).toContain('technical_occurrences · collection')
     expect(container?.textContent).toContain('hidden or technical')
+  })
+
+  it('disables the new profile button while the new profile form is already open', async () => {
+    profilesState.profiles = []
+    await renderTab()
+
+    const newProfileButton = container!.querySelector(
+      'button[title="New profile"]',
+    ) as HTMLButtonElement | null
+
+    expect(newProfileButton?.disabled).toBe(true)
+    expect(container?.textContent).toContain('New profile')
+  })
+
+  it('returns to the saved profile overview after editing an existing profile', async () => {
+    mutations.update.mockResolvedValue({ profile: defaultProfiles[0] })
+
+    await renderTab()
+
+    await act(async () => {
+      click(
+        Array.from(container!.querySelectorAll('button')).find((button) =>
+          button.textContent?.includes('Edit profile'),
+        ) ?? null,
+      )
+    })
+
+    expect(container?.textContent).toContain('Profile settings')
+    expect(container?.textContent).not.toContain('Profile overview')
+
+    await act(async () => {
+      const form = container!.querySelector('form')
+      form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+
+    expect(mutations.update).toHaveBeenCalled()
+    expect(container?.textContent).toContain('Profile overview')
+    expect(container?.textContent).not.toContain('Profile settings')
   })
 })

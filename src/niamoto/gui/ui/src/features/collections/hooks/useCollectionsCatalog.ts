@@ -105,11 +105,12 @@ async function createCollection(
   return readJson<CollectionMutationResponse>(response)
 }
 
-export function useCollectionsCatalog() {
+export function useCollectionsCatalog(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: collectionsCatalogQueryKey,
     queryFn: fetchCollectionsCatalog,
     staleTime: 30000,
+    enabled: options.enabled ?? true,
   })
 }
 
@@ -124,7 +125,24 @@ export function useUpdateCollection() {
       collectionName: string
       update: CollectionUpdate
     }) => updateCollection(collectionName, update),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      queryClient.setQueryData<CollectionCatalog>(
+        collectionsCatalogQueryKey,
+        (current) => {
+          if (!current) {
+            return current
+          }
+
+          return {
+            ...current,
+            collections: current.collections.map((collection) =>
+              collection.name === result.collection.name
+                ? result.collection
+                : collection,
+            ),
+          }
+        },
+      )
       queryClient.invalidateQueries({ queryKey: collectionsCatalogQueryKey })
     },
   })

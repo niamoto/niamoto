@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { FolderOpen, Loader2 } from 'lucide-react'
-import { useProjectInfo } from '@/hooks/useProjectInfo'
+import { getProjectDisplayName, useProjectInfo } from '@/hooks/useProjectInfo'
 import {
   usePipelineStatus,
   type FreshnessStatus,
@@ -99,7 +99,8 @@ export function DesktopStatusBar() {
 
   const currentLabel =
     breadcrumbs[breadcrumbs.length - 1]?.label ?? t('sidebar.nav.home', 'Home')
-  const projectLabel = projectInfo?.name ?? t('project.none_selected', 'No project')
+  const projectLabel =
+    getProjectDisplayName(projectInfo) ?? t('project.none_selected', 'No project')
 
   const matchedPrefix =
     Object.keys(routeToStage).find(
@@ -163,7 +164,10 @@ export function DesktopStatusBar() {
       <div className="flex min-w-0 items-center gap-2.5">
         <div className="inline-flex min-w-0 items-center gap-1.5 rounded-theme-sm bg-background/80 px-2 py-1 text-foreground/90 shadow-none">
           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-foreground/55" />
-          <span className="max-w-36 truncate font-medium lg:max-w-52">
+          <span
+            className="max-w-36 truncate font-medium lg:max-w-52"
+            title={projectInfo?.working_directory ?? projectLabel}
+          >
             {projectLabel}
           </span>
         </div>

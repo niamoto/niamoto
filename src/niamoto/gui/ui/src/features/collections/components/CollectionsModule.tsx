@@ -22,6 +22,10 @@ import { CollectionReviewPanel } from './review/CollectionReviewPanel'
 import { Layers } from 'lucide-react'
 import { buildCollectionsPath, normalizeCollectionTab, selectionFromPath } from '../routing'
 import { useCollectionsCatalog } from '../hooks/useCollectionsCatalog'
+import {
+  buildCollectionDisplayItems,
+  defaultCollectionTab,
+} from '../utils/collectionDisplay'
 
 // =============================================================================
 // COMPONENT
@@ -37,6 +41,10 @@ export function CollectionsModule() {
   const { data: catalogData, isLoading: catalogLoading } = useCollectionsCatalog()
   const references = referencesData?.references ?? []
   const catalogCollections = catalogData?.collections ?? []
+  const collectionItems = useMemo(
+    () => buildCollectionDisplayItems(references, catalogCollections),
+    [catalogCollections, references],
+  )
   const isInitialLoading = (isLoading && !referencesData) || (catalogLoading && !catalogData)
   const pendingReviewCount = catalogCollections.filter(
     (collection) => collection.review_status === 'pending',
@@ -50,7 +58,16 @@ export function CollectionsModule() {
 
   // Update URL when selection changes
   const handleSelect = (newSelection: CollectionsSelection, tab?: string) => {
-    navigate(buildCollectionsPath(newSelection, tab))
+    const selectedCollection = newSelection.type === 'collection'
+      ? collectionItems.find((item) => item.name === newSelection.name)
+      : undefined
+    navigate(
+      buildCollectionsPath(newSelection, tab, {
+        defaultTab: selectedCollection
+          ? defaultCollectionTab(selectedCollection)
+          : undefined,
+      })
+    )
   }
 
   // Update breadcrumbs
@@ -95,7 +112,7 @@ export function CollectionsModule() {
     }
 
     // Empty state
-    if (references.length === 0 && catalogCollections.length === 0) {
+    if (collectionItems.length === 0 && catalogCollections.length === 0) {
       return (
         <div className="flex h-full items-center justify-center">
           <div className="max-w-md text-center">
@@ -122,6 +139,7 @@ export function CollectionsModule() {
       return (
         <CollectionsOverview
           references={references}
+          collectionItems={collectionItems}
           catalog={catalogData}
           pendingReviewCount={pendingReviewCount}
           onSelect={handleSelect}
@@ -129,15 +147,15 @@ export function CollectionsModule() {
       )
     }
 
-    const reference = references.find((r) => r.name === selection.name)
+    const reference = collectionItems.find((r) => r.name === selection.name)
     if (reference) {
+      const defaultTab = defaultCollectionTab(reference)
       return (
         <CollectionPanel
           reference={reference}
-          initialTab={initialTab}
-          collectionMetadata={catalogCollections.find(
-            (collection) => collection.name === reference.name,
-          )}
+          initialTab={initialTab ?? defaultTab}
+          collectionOptions={collectionItems}
+          collectionMetadata={reference.collectionMetadata}
         />
       )
     }

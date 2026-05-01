@@ -55,12 +55,12 @@ class StandardCompatibilityService:
                 StandardProfileEvidence(
                     kind="source_grain",
                     message="Source is occurrence-grain data.",
-                    confidence=0.9,
+                    confidence=1.0,
                     details={"source": profile.source.model_dump(mode="json")},
                 )
             )
             status: StandardCompatibilityStatus = "compatible"
-            confidence = 0.9
+            confidence = 1.0
         else:
             relation = self._find_occurrence_relation(profile.source, profile.context)
             if relation:

@@ -32,20 +32,26 @@ import { SquareCascadeLoader } from '@/components/ui/square-cascade-loader'
 import { Layers, LayoutGrid, ListOrdered, FileCode, CheckCircle, AlertTriangle, Clock, Minus, Play, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CollectionCatalog } from '../hooks/useCollectionsCatalog'
+import {
+  canRunCollectionTransform,
+  defaultCollectionTab,
+  type CollectionDisplayItem,
+} from '../utils/collectionDisplay'
 
 // =============================================================================
 // COLLECTION CARD
 // =============================================================================
 
 interface CollectionCardProps {
-  reference: ReferenceInfo
+  reference: CollectionDisplayItem
   entityStatus?: EntityStatus
   activityState?: 'running' | 'completed'
   isRunning?: boolean
   isSubmitting?: boolean
   isDisabled?: boolean
+  canTransform?: boolean
   onSelect: (selection: CollectionsSelection, tab?: string) => void
-  onRun: (reference: ReferenceInfo) => void
+  onRun: (reference: CollectionDisplayItem) => void
 }
 
 function CollectionCard({
@@ -55,6 +61,7 @@ function CollectionCard({
   isRunning = false,
   isSubmitting = false,
   isDisabled = false,
+  canTransform = true,
   onSelect,
   onRun,
 }: CollectionCardProps) {
@@ -77,7 +84,8 @@ function CollectionCard({
   const canRun = configuredIds.length > 0
   const isBusy = isRunning || isSubmitting
   const isCompletedInCurrentBatch = activityState === 'completed'
-  const showRunButton = !isBusy && !isCompletedInCurrentBatch
+  const showRunButton = canTransform && !isBusy && !isCompletedInCurrentBatch
+  const defaultTab = defaultCollectionTab(reference)
 
   // Kind labels
   const kindLabels: Record<string, string> = {
@@ -92,13 +100,13 @@ function CollectionCard({
   return (
     <Card
       className="flex h-full min-w-0 cursor-pointer flex-col overflow-hidden transition-all hover:border-primary hover:shadow-sm"
-      onClick={() => onSelect({ type: 'collection', name: reference.name })}
+      onClick={() => onSelect({ type: 'collection', name: reference.name }, defaultTab)}
     >
       <CardHeader className="pb-3">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Layers className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate text-lg font-semibold">{reference.name}</span>
+            <span className="truncate text-lg font-semibold">{reference.displayName}</span>
           </div>
           {isBusy ? (
             <Badge variant="outline" className="shrink-0 gap-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">
@@ -159,6 +167,14 @@ function CollectionCard({
             {kindLabels[reference.kind] || reference.kind}
           </Badge>
           <span>{reference.entity_count ?? '?'} {t('reference.entities', 'entities')}</span>
+          {reference.catalogOnly && reference.collectionMetadata && (
+            <Badge variant="outline" className="text-[10px]">
+              {t(
+                `collections.review.sourceTypes.${reference.collectionMetadata.source_type}`,
+                reference.collectionMetadata.source_type,
+              )}
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
@@ -257,6 +273,7 @@ function CounterBox({ value, label }: { value: number; label: string }) {
 
 interface CollectionsOverviewProps {
   references: ReferenceInfo[]
+  collectionItems?: CollectionDisplayItem[]
   catalog?: CollectionCatalog
   pendingReviewCount?: number
   onSelect: (selection: CollectionsSelection, tab?: string) => void
@@ -264,6 +281,7 @@ interface CollectionsOverviewProps {
 
 export function CollectionsOverview({
   references,
+  collectionItems,
   catalog,
   pendingReviewCount = 0,
   onSelect,
@@ -285,7 +303,16 @@ export function CollectionsOverview({
   }
 
   const eligibleStatuses = new Set(['stale', 'never_run', 'error'])
-  const runnableReferences = references.filter((ref) => {
+  const displayItems = collectionItems ?? references.map((reference) => ({
+    ...reference,
+    catalogOnly: false,
+    displayName: reference.name,
+  }))
+
+  const runnableReferences = displayItems.filter((ref) => {
+    if (!canRunCollectionTransform(ref)) {
+      return false
+    }
     const status = statusByName.get(ref.name)?.status ?? fallbackStatus
     return status !== 'unconfigured' && status !== 'running'
   })
@@ -353,7 +380,7 @@ export function CollectionsOverview({
     )
   }
 
-  const handleRunSingleCollection = async (reference: ReferenceInfo) => {
+  const handleRunSingleCollection = async (reference: CollectionDisplayItem) => {
     await startTransform([reference.name], 1)
   }
 
@@ -426,12 +453,13 @@ export function CollectionsOverview({
         </div>
       )}
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {references.map((ref) => {
+        {displayItems.map((ref) => {
           const activityState = activityStateByGroup.get(ref.name)
           return (
           <CollectionCard
             key={ref.name}
             reference={ref}
+            canTransform={canRunCollectionTransform(ref)}
             activityState={activityState}
             isRunning={activityState === 'running'}
             isSubmitting={pendingGroups.includes(ref.name)}

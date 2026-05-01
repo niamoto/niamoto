@@ -12,9 +12,15 @@ from niamoto.core.plugins.models import ExportConfig as ExportConfigModel
 from niamoto.core.standards import (
     StandardCompatibilityReport,
     StandardProfileConfig,
+    StandardProfileOutputPreviewResult,
     StandardProfileOutputResult,
     StandardProfileStore,
     StandardValidationReport,
+)
+from niamoto.core.standards.auto_config import (
+    StandardProfileAutoConfigResult,
+    StandardProfileAutoConfigService,
+    StandardProfileSourceFieldsResult,
 )
 from niamoto.core.standards.compatibility import StandardCompatibilityService
 from niamoto.core.standards.models import (
@@ -80,6 +86,23 @@ class StandardProfileMutationResponse(BaseModel):
     profile: StandardProfileConfig
 
 
+class StandardProfileAutoConfigRequest(BaseModel):
+    """Payload for building a reviewable standard profile proposal."""
+
+    name: str | None = None
+    standard: StandardProfileType
+    target_grain: str | None = None
+    source: StandardProfileSource
+
+
+class StandardProfileSourceFieldsRequest(BaseModel):
+    """Payload for listing fields available to standard mappings."""
+
+    standard: StandardProfileType
+    target_grain: str | None = None
+    source: StandardProfileSource
+
+
 def _known_sources() -> list[dict[str, str]]:
     work_dir = get_working_directory()
     catalog = CollectionCatalogService(
@@ -129,6 +152,16 @@ def _output_service() -> StandardProfileOutputService:
     )
 
 
+def _auto_config_service() -> StandardProfileAutoConfigService:
+    work_dir = get_working_directory()
+    return StandardProfileAutoConfigService(
+        work_dir,
+        db_path=get_database_path(),
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+    )
+
+
 def _save_store_config(store: StandardProfileStore) -> None:
     try:
         ExportConfigModel.model_validate(store.export_config)
@@ -149,16 +182,85 @@ def _raise_profile_error(exc: ValueError) -> NoReturn:
     raise HTTPException(status_code=400, detail=message) from exc
 
 
+def _ensure_known_source(source: StandardProfileSource) -> None:
+    known_sources = _known_sources()
+    requested_source = source.model_dump(mode="json")
+    if requested_source not in known_sources:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown {source.type} source '{source.name}'",
+        )
+
+
+def _profile_with_current_validation_status(
+    profile: StandardProfileConfig,
+    validation_service: StandardProfileValidationService | None = None,
+) -> StandardProfileConfig:
+    service = validation_service or _validation_service()
+    validation = service.validate(profile)
+    return profile.model_copy(update={"validation_status": validation.status})
+
+
+def _persist_current_validation_status(
+    store: StandardProfileStore,
+    profile: StandardProfileConfig,
+) -> StandardProfileConfig:
+    refreshed_profile = _profile_with_current_validation_status(profile)
+    if refreshed_profile.validation_status == profile.validation_status:
+        return refreshed_profile
+    return store.update_profile(
+        profile.name,
+        {"validation_status": refreshed_profile.validation_status},
+    )
+
+
 @router.get("", response_model=StandardProfileListResponse)
 async def list_standard_profiles() -> StandardProfileListResponse:
     """List standard publication profiles and legacy profile hints."""
     store = _profile_store()
-    profiles = store.list_profiles()
+    validation_service = _validation_service()
+    profiles = [
+        _profile_with_current_validation_status(profile, validation_service)
+        for profile in store.list_profiles()
+    ]
     return StandardProfileListResponse(
         profiles=profiles,
         legacy_hints=store.list_legacy_hints(),
         total=len(profiles),
     )
+
+
+@router.post("/auto-config", response_model=StandardProfileAutoConfigResult)
+async def auto_configure_standard_profile(
+    request: StandardProfileAutoConfigRequest,
+) -> StandardProfileAutoConfigResult:
+    """Build a reviewable profile proposal from imported source columns."""
+    _ensure_known_source(request.source)
+    try:
+        return _auto_config_service().propose(
+            name=request.name,
+            standard=request.standard,
+            source=request.source,
+            target_grain=request.target_grain,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/source-fields", response_model=StandardProfileSourceFieldsResult)
+async def list_standard_profile_source_fields(
+    request: StandardProfileSourceFieldsRequest,
+) -> StandardProfileSourceFieldsResult:
+    """List imported fields available to manual standard term mappings."""
+    _ensure_known_source(request.source)
+    try:
+        return _auto_config_service().source_fields(
+            standard=request.standard,
+            source=request.source,
+            target_grain=request.target_grain,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{profile_name}", response_model=StandardProfileMutationResponse)
@@ -222,6 +324,25 @@ async def execute_standard_profile_output(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get(
+    "/{profile_name}/outputs/{output_type}/preview",
+    response_model=StandardProfileOutputPreviewResult,
+)
+async def preview_standard_profile_output(
+    profile_name: str,
+    output_type: StandardProfileOutputType,
+) -> StandardProfileOutputPreviewResult:
+    """Return a representative JSON preview for one configured output."""
+    store = _profile_store()
+    try:
+        profile = store.get_profile(profile_name)
+        return _output_service().preview_profile(profile, output_type=output_type)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post(
     "",
     response_model=StandardProfileMutationResponse,
@@ -234,6 +355,7 @@ async def create_standard_profile(
     store = _profile_store()
     try:
         profile = store.create_profile(request.model_dump(mode="json"))
+        profile = _persist_current_validation_status(store, profile)
     except ValueError as exc:
         _raise_profile_error(exc)
     _save_store_config(store)
@@ -251,6 +373,7 @@ async def update_standard_profile(
         profile = store.update_profile(
             profile_name, update.model_dump(mode="json", exclude_unset=True)
         )
+        profile = _persist_current_validation_status(store, profile)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

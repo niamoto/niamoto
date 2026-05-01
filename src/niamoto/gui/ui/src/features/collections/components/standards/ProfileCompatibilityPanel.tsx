@@ -53,6 +53,7 @@ export function ProfileCompatibilityPanel({
 
   const Icon = statusIcon[report.status]
   const confidence = Math.round(report.confidence * 100)
+  const explanation = buildCompatibilityExplanation(report, confidence, t)
 
   return (
     <Card>
@@ -65,7 +66,9 @@ export function ProfileCompatibilityPanel({
           <Badge variant={report.status === 'compatible' ? 'success' : 'outline'}>
             {t(`collections.standards.compatibilityStatus.${report.status}`)}
           </Badge>
-          <Badge variant="secondary">{confidence}%</Badge>
+          <Badge variant="secondary">
+            {t('collections.standards.compatibilityConfidence', { confidence })}
+          </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
           {t('collections.standards.grainSummary', {
@@ -73,6 +76,7 @@ export function ProfileCompatibilityPanel({
             target: report.target_grain,
           })}
         </p>
+        {explanation && <p className="text-xs text-muted-foreground">{explanation}</p>}
       </CardHeader>
       <CardContent className="space-y-3">
         {report.warnings.length > 0 && (
@@ -96,8 +100,18 @@ export function ProfileCompatibilityPanel({
                 key={`${evidence.kind}-${evidence.message}`}
                 className="rounded-md border p-2 text-xs"
               >
-                <div className="font-medium">
-                  {t(`collections.standards.evidence.${evidence.kind}`, evidence.kind)}
+                <div className="flex items-center justify-between gap-2 font-medium">
+                  <span>
+                    {t(
+                      `collections.standards.evidence.${evidence.kind}`,
+                      evidence.kind,
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t('collections.standards.compatibilityConfidence', {
+                      confidence: Math.round(evidence.confidence * 100),
+                    })}
+                  </Badge>
                 </div>
                 <div className="mt-0.5 text-muted-foreground">
                   {evidence.message}
@@ -109,4 +123,45 @@ export function ProfileCompatibilityPanel({
       </CardContent>
     </Card>
   )
+}
+
+function buildCompatibilityExplanation(
+  report: StandardCompatibilityReport,
+  confidence: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
+  const primaryEvidence = report.evidence[0]
+  if (report.status === 'blocked') {
+    return t('collections.standards.compatibilityExplanation.blocked')
+  }
+
+  if (primaryEvidence?.kind === 'source_grain' && confidence === 100) {
+    return t('collections.standards.compatibilityExplanation.exactSourceGrain', {
+      grain: report.source_grain,
+    })
+  }
+
+  if (primaryEvidence?.kind === 'occurrence_relation') {
+    return t('collections.standards.compatibilityExplanation.occurrenceRelation', {
+      dataset: stringifyEvidenceDetail(primaryEvidence.details.occurrence_dataset),
+      foreignKey: stringifyEvidenceDetail(primaryEvidence.details.foreign_key),
+      targetField: stringifyEvidenceDetail(primaryEvidence.details.target_field),
+      target: report.target_grain,
+    })
+  }
+
+  if (report.status === 'plausible') {
+    return t('collections.standards.compatibilityExplanation.plausible', {
+      source: report.source_grain,
+      target: report.target_grain,
+    })
+  }
+
+  return t('collections.standards.compatibilityExplanation.inferred', {
+    confidence,
+  })
+}
+
+function stringifyEvidenceDetail(value: unknown) {
+  return typeof value === 'string' && value ? value : 'unknown'
 }

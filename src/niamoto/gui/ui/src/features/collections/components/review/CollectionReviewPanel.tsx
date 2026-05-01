@@ -134,6 +134,8 @@ interface ReviewCardProps {
 function ReviewCard({ collection, pending, onPatch }: ReviewCardProps) {
   const { t } = useTranslation(['sources'])
   const [label, setLabel] = useState(collection.label)
+  const isAccepted = collection.review_status === 'accepted'
+  const isDeferred = collection.review_status === 'deferred'
 
   const toggleRole = (role: CollectionRole) => {
     const nextRoles = collection.roles.includes(role)
@@ -174,7 +176,7 @@ function ReviewCard({ collection, pending, onPatch }: ReviewCardProps) {
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               size="sm"
-              disabled={pending}
+              disabled={pending || isAccepted}
               onClick={() => onPatch({ review_status: 'accepted' })}
             >
               <Check className="h-3.5 w-3.5" />
@@ -183,7 +185,7 @@ function ReviewCard({ collection, pending, onPatch }: ReviewCardProps) {
             <Button
               size="sm"
               variant="outline"
-              disabled={pending}
+              disabled={pending || isDeferred}
               onClick={() => onPatch({ review_status: 'deferred' })}
             >
               <Pause className="h-3.5 w-3.5" />

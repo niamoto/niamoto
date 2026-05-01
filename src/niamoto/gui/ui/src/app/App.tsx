@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useProjectInfo } from '@/hooks/useProjectInfo'
+import { getProjectDisplayName, useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/features/welcome/hooks/useWelcomeScreen'
 import WelcomeScreen from '@/features/welcome/views/WelcomeScreen'
 import { hasDesktopBridge, isDesktopTauri } from '@/shared/desktop/bridge'
@@ -116,12 +116,14 @@ function App() {
   }, [initialized, isDesktopMode, refetchProjectInfo, showWelcome, welcomeLoading])
 
   useEffect(() => {
-    if (projectInfo?.name) {
-      document.title = `Niamoto - ${projectInfo.name}`
+    const projectDisplayName = getProjectDisplayName(projectInfo)
+
+    if (projectDisplayName) {
+      document.title = `Niamoto - ${projectDisplayName}`
     } else {
       document.title = 'Niamoto'
     }
-  }, [projectInfo?.name])
+  }, [projectInfo])
 
   useEffect(() => {
     if (!isDesktopTauri()) {

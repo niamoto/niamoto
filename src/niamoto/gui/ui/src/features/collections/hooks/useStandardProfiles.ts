@@ -126,6 +126,64 @@ export interface StandardProfileOutputResult {
   metadata: Record<string, unknown>
 }
 
+export interface StandardProfileOutputPreviewResult {
+  profile_name: string
+  standard: StandardProfileType
+  output_type: StandardProfileOutputType
+  validation_status: StandardProfileValidationStatus
+  source_grain: string
+  item_id?: string | number | null
+  preview: unknown
+  source: Record<string, unknown>
+  warnings: string[]
+  errors: string[]
+  metadata: Record<string, unknown>
+}
+
+export interface StandardProfileAutoConfigTerm {
+  term: string
+  status: 'mapped' | 'unresolved'
+  mapping?: Record<string, unknown> | null
+  confidence: number
+  source_column?: string | null
+  evidence: string[]
+}
+
+export interface StandardProfileAutoConfigResponse {
+  profile: StandardProfileConfig
+  terms: StandardProfileAutoConfigTerm[]
+  unresolved: string[]
+  notes: string[]
+  record_source?: StandardProfileSource | null
+  rows_sampled: number
+  columns_inspected: number
+}
+
+export interface StandardProfileAutoConfigRequest {
+  name?: string
+  standard: StandardProfileType
+  target_grain?: string
+  source: StandardProfileSource
+}
+
+export interface StandardProfileSourceField {
+  name: string
+  type?: string | null
+}
+
+export interface StandardProfileSourceFieldsResponse {
+  source: StandardProfileSource
+  record_source: StandardProfileSource
+  fields: StandardProfileSourceField[]
+  total: number
+}
+
+export interface StandardProfileSourceFieldsRequest {
+  standard: StandardProfileType
+  target_grain?: string
+  source: StandardProfileSource
+}
+
 export type StandardProfileCreate = Omit<
   StandardProfileConfig,
   'validation_status' | 'metadata'
@@ -162,6 +220,28 @@ async function createStandardProfile(
     body: JSON.stringify(payload),
   })
   return readJson<StandardProfileMutationResponse>(response)
+}
+
+async function autoConfigureStandardProfile(
+  payload: StandardProfileAutoConfigRequest,
+): Promise<StandardProfileAutoConfigResponse> {
+  const response = await fetch(`${API_BASE}/auto-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return readJson<StandardProfileAutoConfigResponse>(response)
+}
+
+async function fetchStandardProfileSourceFields(
+  payload: StandardProfileSourceFieldsRequest,
+): Promise<StandardProfileSourceFieldsResponse> {
+  const response = await fetch(`${API_BASE}/source-fields`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return readJson<StandardProfileSourceFieldsResponse>(response)
 }
 
 async function updateStandardProfile(
@@ -205,6 +285,16 @@ async function executeStandardProfileOutput(
   return readJson<StandardProfileOutputResult>(response)
 }
 
+async function fetchStandardProfileOutputPreview(
+  profileName: string,
+  outputType: StandardProfileOutputType,
+): Promise<StandardProfileOutputPreviewResult> {
+  const response = await fetch(
+    `${API_BASE}/${encodeURIComponent(profileName)}/outputs/${outputType}/preview`,
+  )
+  return readJson<StandardProfileOutputPreviewResult>(response)
+}
+
 export function useStandardProfiles() {
   return useQuery({
     queryKey: standardProfilesQueryKey,
@@ -221,6 +311,24 @@ export function useCreateStandardProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: standardProfilesQueryKey })
     },
+  })
+}
+
+export function useAutoConfigureStandardProfile() {
+  return useMutation({
+    mutationFn: autoConfigureStandardProfile,
+  })
+}
+
+export function useStandardProfileSourceFields(
+  payload?: StandardProfileSourceFieldsRequest | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...standardProfilesQueryKey, 'source-fields', payload],
+    queryFn: () => fetchStandardProfileSourceFields(payload!),
+    enabled: Boolean(payload) && enabled,
+    staleTime: 30000,
   })
 }
 
@@ -268,5 +376,24 @@ export function useExecuteStandardProfileOutput(profileName: string) {
         queryKey: [...standardProfilesQueryKey, profileName, 'validation'],
       })
     },
+  })
+}
+
+export function useStandardProfileOutputPreview(
+  profileName: string,
+  outputType: StandardProfileOutputType,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [
+      ...standardProfilesQueryKey,
+      profileName,
+      'outputs',
+      outputType,
+      'preview',
+    ],
+    queryFn: () => fetchStandardProfileOutputPreview(profileName, outputType),
+    enabled: enabled && Boolean(profileName) && Boolean(outputType),
+    staleTime: 5000,
   })
 }

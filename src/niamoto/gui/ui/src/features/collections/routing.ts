@@ -10,6 +10,10 @@ export const COLLECTION_TABS = [
 
 export type CollectionTab = (typeof COLLECTION_TABS)[number]
 
+interface BuildCollectionPathOptions {
+  defaultTab?: CollectionTab | null
+}
+
 export function selectionFromPath(pathname: string): CollectionsSelection {
   if (pathname === '/groups/api-settings') {
     return { type: 'api-settings' }
@@ -41,7 +45,8 @@ export function normalizeCollectionTab(
 
 export function buildCollectionsPath(
   selection: CollectionsSelection,
-  tab?: string
+  tab?: string,
+  options: BuildCollectionPathOptions = {},
 ): string {
   const normalizedTab = normalizeCollectionTab(tab)
 
@@ -58,7 +63,7 @@ export function buildCollectionsPath(
   }
 
   const basePath = `/groups/${encodeURIComponent(selection.name)}`
-  if (!normalizedTab || normalizedTab === 'content') {
+  if (!normalizedTab || shouldOmitCollectionTab(normalizedTab, options.defaultTab)) {
     return basePath
   }
 
@@ -68,16 +73,17 @@ export function buildCollectionsPath(
 export function buildCollectionTabPath(
   selection: CollectionsSelection,
   tab: string,
-  currentSearch = ''
+  currentSearch = '',
+  options: BuildCollectionPathOptions = {},
 ): string {
   if (selection.type !== 'collection') {
-    return buildCollectionsPath(selection, tab)
+    return buildCollectionsPath(selection, tab, options)
   }
 
   const normalizedTab = normalizeCollectionTab(tab)
   const searchParams = new URLSearchParams(currentSearch)
 
-  if (!normalizedTab || normalizedTab === 'content') {
+  if (!normalizedTab || shouldOmitCollectionTab(normalizedTab, options.defaultTab)) {
     searchParams.delete('tab')
   } else {
     searchParams.set('tab', normalizedTab)
@@ -85,4 +91,12 @@ export function buildCollectionTabPath(
 
   const search = searchParams.toString()
   return `${buildCollectionsPath(selection)}${search ? `?${search}` : ''}`
+}
+
+function shouldOmitCollectionTab(
+  tab: CollectionTab,
+  defaultTab?: CollectionTab | null,
+) {
+  const effectiveDefaultTab = defaultTab ?? 'content'
+  return tab === 'content' && effectiveDefaultTab === 'content'
 }

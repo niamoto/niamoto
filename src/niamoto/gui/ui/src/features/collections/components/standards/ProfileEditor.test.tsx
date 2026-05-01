@@ -12,6 +12,7 @@ import { ProfileEditor } from './ProfileEditor'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const mutations = vi.hoisted(() => ({
+  autoConfig: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
 }))
@@ -27,6 +28,11 @@ const translations: Record<string, string> = {
   'collections.standards.mappingTitle': 'Standard term mappings',
   'collections.standards.mappingHelp': 'Map terms.',
   'collections.standards.mappingReferenceHelp': 'Mapping help.',
+  'collections.standards.autoConfigure': 'Auto-configure',
+  'collections.standards.autoConfigureHelp': 'Build a draft.',
+  'collections.standards.autoConfigured': 'Draft updated.',
+  'collections.standards.autoConfigUnresolved': 'Still unresolved: eventDate',
+  'collections.standards.autoConfigFailed': 'Auto-config failed.',
   'collections.standards.outputs': 'Outputs',
   'collections.standards.saveProfile': 'Save profile',
   'collections.standards.saveFailed': 'Could not save the profile.',
@@ -69,9 +75,18 @@ vi.mock('@/features/collections/components/api/DwcMappingEditor', () => ({
 }))
 
 vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
+  useAutoConfigureStandardProfile: () => ({
+    isPending: false,
+    mutateAsync: mutations.autoConfig,
+  }),
   useCreateStandardProfile: () => ({
     isPending: false,
     mutateAsync: mutations.create,
+  }),
+  useStandardProfileSourceFields: () => ({
+    data: {
+      fields: [{ name: 'id' }, { name: 'taxon_id' }, { name: 'locality' }],
+    },
   }),
   useUpdateStandardProfile: () => ({
     isPending: false,
@@ -96,11 +111,19 @@ function submit(form: HTMLFormElement | null) {
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 }
 
+function click(element: HTMLElement | null) {
+  if (!element) {
+    throw new Error('Expected element to exist')
+  }
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+}
+
 describe('ProfileEditor', () => {
   let container: HTMLDivElement | null = null
   let root: Root | null = null
 
   afterEach(async () => {
+    mutations.autoConfig.mockReset()
     mutations.create.mockReset()
     mutations.update.mockReset()
     if (root) {
@@ -218,6 +241,76 @@ describe('ProfileEditor', () => {
         name: 'dwc_taxon_context',
         enabled: true,
         source: { type: 'collection', name: 'taxons' },
+      }),
+    )
+  })
+
+  it('applies an auto-configured standard profile draft before saving', async () => {
+    const createdProfile: StandardProfileConfig = {
+      name: 'dwc_taxons',
+      enabled: true,
+      standard: 'darwin_core_occurrence',
+      target_grain: 'occurrence',
+      source: { type: 'collection', name: 'taxons' },
+      mappings: { occurrenceID: { source: 'id' } },
+      outputs: [
+        {
+          type: 'api_json',
+          enabled: true,
+          params: { output_dir: 'exports/profiles/dwc_taxons' },
+        },
+        {
+          type: 'dwc_archive',
+          enabled: true,
+          params: {
+            output_dir: 'exports/profiles/dwc_taxons',
+            archive_name: 'dwc_taxons-dwc.zip',
+          },
+        },
+      ],
+      validation_status: 'draft',
+      metadata: {},
+    }
+    mutations.autoConfig.mockResolvedValue({
+      profile: createdProfile,
+      terms: [
+        {
+          term: 'occurrenceID',
+          status: 'mapped',
+          mapping: { source: 'id' },
+          confidence: 0.96,
+          source_column: 'id',
+          evidence: [],
+        },
+      ],
+      unresolved: ['eventDate'],
+      notes: ['Mapped 1 Darwin Core term.'],
+      record_source: { type: 'dataset', name: 'occurrences' },
+      rows_sampled: 3,
+      columns_inspected: 4,
+    })
+    mutations.create.mockResolvedValue({ profile: createdProfile })
+
+    await renderEditor(<ProfileEditor catalog={catalog} currentCollectionName="taxons" />)
+
+    await act(async () => {
+      click(container!.querySelector('button[title="Build a draft."]'))
+    })
+    await act(async () => {
+      submit(container!.querySelector('form'))
+    })
+
+    expect(mutations.autoConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        standard: 'darwin_core_occurrence',
+        source: { type: 'collection', name: 'taxons' },
+      }),
+    )
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'dwc_taxons',
+        mappings: { occurrenceID: { source: 'id' } },
+        outputs: createdProfile.outputs,
       }),
     )
   })
