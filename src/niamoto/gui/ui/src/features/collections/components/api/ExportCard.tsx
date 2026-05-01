@@ -532,6 +532,7 @@ function ExportCardForm({
                   >
                     <DwcMappingEditor
                       value={dwcMapping}
+                      sourceFields={availableFields}
                       onChange={(mapping) =>
                         updateLocalConfig((current) => ({
                           ...current,

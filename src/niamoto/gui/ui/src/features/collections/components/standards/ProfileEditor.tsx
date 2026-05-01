@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Loader2, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -14,7 +15,9 @@ import {
   type StandardProfileSource,
   type StandardProfileSourceType,
   type StandardProfileType,
+  useAutoConfigureStandardProfile,
   useCreateStandardProfile,
+  useStandardProfileSourceFields,
   useUpdateStandardProfile,
 } from '@/features/collections/hooks/useStandardProfiles'
 
@@ -30,6 +33,13 @@ interface SourceOption {
   name: string
   label: string
   hidden?: boolean
+}
+
+interface AutoConfigSummary {
+  mappedCount: number
+  columnsInspected: number
+  unresolved: string[]
+  notes: string[]
 }
 
 const STANDARD_OPTIONS: StandardProfileType[] = [
@@ -54,6 +64,7 @@ export function ProfileEditor({
     sourceOptions.find(
       (source) => source.type === 'collection' && source.name === currentCollectionName,
     ) ?? sourceOptions[0]
+  const autoConfigureProfile = useAutoConfigureStandardProfile()
   const createProfile = useCreateStandardProfile()
   const updateProfile = useUpdateStandardProfile(profile?.name ?? '')
   const [name, setName] = useState(profile?.name ?? '')
@@ -74,6 +85,8 @@ export function ProfileEditor({
       OUTPUT_TYPES_BY_STANDARD[standard],
   )
   const [error, setError] = useState<string | null>(null)
+  const [autoConfigSummary, setAutoConfigSummary] =
+    useState<AutoConfigSummary | null>(null)
   const effectiveSourceValue =
     sourceValue ||
     (profile ? sourceValueFromSource(profile.source) : sourceValueFromOption(defaultSource))
@@ -85,8 +98,38 @@ export function ProfileEditor({
       ),
     [effectiveSourceValue, sourceOptions],
   )
+  const selectedProfileSource = useMemo<StandardProfileSource | null>(
+    () =>
+      selectedSource
+        ? {
+            type: selectedSource.type,
+            name: selectedSource.name,
+          }
+        : null,
+    [selectedSource],
+  )
+  const sourceFieldsRequest = useMemo(
+    () =>
+      selectedProfileSource
+        ? {
+            standard,
+            target_grain: targetGrain.trim() || undefined,
+            source: selectedProfileSource,
+          }
+        : null,
+    [selectedProfileSource, standard, targetGrain],
+  )
+  const sourceFieldsQuery = useStandardProfileSourceFields(
+    sourceFieldsRequest,
+    Boolean(selectedProfileSource),
+  )
+  const sourceFields = useMemo(
+    () => sourceFieldsQuery.data?.fields.map((field) => field.name) ?? [],
+    [sourceFieldsQuery.data],
+  )
   const outputTypes = OUTPUT_TYPES_BY_STANDARD[standard]
-  const isPending = createProfile.isPending || updateProfile.isPending
+  const isSaving = createProfile.isPending || updateProfile.isPending
+  const isBusy = isSaving || autoConfigureProfile.isPending
 
   const toggleOutput = (outputType: StandardProfileOutputType) => {
     setEnabledOutputs((current) => {
@@ -110,22 +153,60 @@ export function ProfileEditor({
     })
   }
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!selectedSource) {
+  const handleAutoConfigure = async () => {
+    if (!selectedProfileSource) {
       return
     }
 
-    const source: StandardProfileSource = {
-      type: selectedSource.type,
-      name: selectedSource.name,
+    const source = selectedProfileSource
+
+    setError(null)
+    setAutoConfigSummary(null)
+    try {
+      const result = await autoConfigureProfile.mutateAsync({
+        name: name.trim() || undefined,
+        standard,
+        target_grain: targetGrain.trim() || undefined,
+        source,
+      })
+      const proposedProfile = result.profile
+      setName((current) => current || proposedProfile.name)
+      setStandard(proposedProfile.standard)
+      setTargetGrain(proposedProfile.target_grain)
+      setSourceValue(sourceValueFromSource(proposedProfile.source))
+      setMappings(proposedProfile.mappings)
+      setEnabledOutputs(
+        proposedProfile.outputs
+          .filter((output) => output.enabled)
+          .map((output) => output.type),
+      )
+      setAutoConfigSummary({
+        mappedCount: result.terms.filter((term) => term.status === 'mapped').length,
+        columnsInspected: result.columns_inspected,
+        unresolved: result.unresolved,
+        notes: result.notes,
+      })
+    } catch (autoConfigError) {
+      setError(
+        autoConfigError instanceof Error
+          ? autoConfigError.message
+          : t('collections.standards.autoConfigFailed'),
+      )
     }
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!selectedProfileSource) {
+      return
+    }
+
     const payload: StandardProfileCreate = {
       name: name.trim(),
       enabled: true,
       standard,
       target_grain: targetGrain.trim(),
-      source,
+      source: selectedProfileSource,
       mappings,
       outputs: buildProfileOutputs(profile, outputTypes, enabledOutputs, name.trim()),
     }
@@ -153,21 +234,63 @@ export function ProfileEditor({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <h3 className="text-sm font-semibold">
-          {profile
-            ? t('collections.standards.editProfile')
-            : t('collections.standards.newProfile')}
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          {t('collections.standards.profileEditorHelp')}
-        </p>
+      <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold">
+            {profile
+              ? t('collections.standards.editProfile')
+              : t('collections.standards.newProfile')}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {t('collections.standards.profileEditorHelp')}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleAutoConfigure}
+          disabled={!selectedProfileSource || isBusy}
+          title={t('collections.standards.autoConfigureHelp')}
+        >
+          {autoConfigureProfile.isPending ? (
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-3.5 w-3.5" />
+          )}
+          {t('collections.standards.autoConfigure')}
+        </Button>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               {error}
+            </div>
+          )}
+
+          {autoConfigSummary && (
+            <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+              <p>
+                {t('collections.standards.autoConfigured', {
+                  count: autoConfigSummary.mappedCount,
+                  columns: autoConfigSummary.columnsInspected,
+                })}
+              </p>
+              {autoConfigSummary.notes.length > 0 && (
+                <ul className="list-disc space-y-1 pl-5 text-xs">
+                  {autoConfigSummary.notes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              )}
+              {autoConfigSummary.unresolved.length > 0 && (
+                <p className="text-xs">
+                  {t('collections.standards.autoConfigUnresolved', {
+                    terms: autoConfigSummary.unresolved.join(', '),
+                  })}
+                </p>
+              )}
             </div>
           )}
 
@@ -244,6 +367,7 @@ export function ProfileEditor({
             title={t('collections.standards.mappingTitle')}
             description={t('collections.standards.mappingHelp')}
             referenceHelp={t('collections.standards.mappingReferenceHelp')}
+            sourceFields={sourceFields}
           />
 
           <div className="space-y-2">
@@ -267,7 +391,7 @@ export function ProfileEditor({
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={isPending || !name.trim()}>
+            <Button type="submit" disabled={isBusy || !name.trim()}>
               {t('collections.standards.saveProfile')}
             </Button>
           </div>

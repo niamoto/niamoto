@@ -34,6 +34,13 @@ describe('collections routing helpers', () => {
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'content')
     ).toBe('/groups/taxons')
+    expect(
+      buildCollectionsPath(
+        { type: 'collection', name: 'occurrences_publication' },
+        'content',
+        { defaultTab: 'standards' },
+      )
+    ).toBe('/groups/occurrences_publication?tab=content')
     expect(buildCollectionsPath({ type: 'review' }, 'api')).toBe('/groups/review')
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'index')
@@ -61,5 +68,13 @@ describe('collections routing helpers', () => {
         '?foo=bar&tab=api',
       ),
     ).toBe('/groups/taxons?foo=bar')
+    expect(
+      buildCollectionTabPath(
+        { type: 'collection', name: 'occurrences_publication' },
+        'content',
+        '?foo=bar&tab=sources',
+        { defaultTab: 'standards' },
+      ),
+    ).toBe('/groups/occurrences_publication?foo=bar&tab=content')
   })
 })

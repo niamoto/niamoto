@@ -196,11 +196,20 @@ async def get_project_info() -> Dict[str, Any]:
     Returns:
         Project information including name, version, etc.
     """
-    config_path = get_working_directory() / "config" / "config.yml"
+    work_dir = get_working_directory()
+    config_path = work_dir / "config" / "config.yml"
+    instance_info = {
+        "working_directory": str(work_dir),
+        "instance_name": work_dir.name,
+    }
 
     if not config_path.exists():
         # Return default project info
-        return {"name": "Niamoto Project", "version": "1.0.0"}
+        return {
+            "name": "Niamoto Project",
+            "version": "1.0.0",
+            **instance_info,
+        }
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
@@ -213,6 +222,7 @@ async def get_project_info() -> Dict[str, Any]:
             "version": project_info.get("version", "1.0.0"),
             "niamoto_version": project_info.get("niamoto_version"),
             "created_at": project_info.get("created_at"),
+            **instance_info,
         }
     except Exception as e:
         raise HTTPException(

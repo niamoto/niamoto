@@ -7,10 +7,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProfileOutputsPanel } from './ProfileOutputsPanel'
 
 const executeOutput = vi.fn()
+const outputPreview = vi.fn()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'collections.standards.outputs': 'Outputs',
         'collections.standards.validationStatus.invalid': 'Invalid',
@@ -22,8 +23,18 @@ vi.mock('react-i18next', () => ({
         'collections.standards.generatePublicationFile': 'Generate files',
         'collections.standards.lastOutput': 'Last output',
         'collections.standards.outputFailed': 'Could not generate the output.',
+        'collections.standards.outputJsonPreview': 'Representative JSON preview',
+        'collections.standards.outputJsonPreviewItem': 'Source record {{id}}',
+        'collections.standards.outputJsonPreviewLoading': 'Loading preview',
+        'collections.standards.outputJsonPreviewFailed': 'Could not load preview.',
       }
-      return labels[key] ?? key
+      let value = labels[key] ?? key
+      if (typeof value === 'string') {
+        Object.entries(options ?? {}).forEach(([optionKey, optionValue]) => {
+          value = value.replace(`{{${optionKey}}}`, String(optionValue))
+        })
+      }
+      return value
     },
   }),
 }))
@@ -33,6 +44,7 @@ vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
     isPending: false,
     mutateAsync: executeOutput,
   }),
+  useStandardProfileOutputPreview: () => outputPreview(),
 }))
 
 function click(element: Element | null) {
@@ -48,6 +60,7 @@ describe('ProfileOutputsPanel', () => {
 
   afterEach(async () => {
     executeOutput.mockReset()
+    outputPreview.mockReset()
     if (root) {
       await act(async () => {
         root?.unmount()
@@ -59,6 +72,18 @@ describe('ProfileOutputsPanel', () => {
   })
 
   async function renderPanel() {
+    outputPreview.mockReturnValue({
+      data: {
+        item_id: 1,
+        preview: {
+          metadata: { profile_name: 'dwc_occurrences' },
+          records: [{ occurrenceID: 1, locality: 'Aoupinié' }],
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    })
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -129,5 +154,13 @@ describe('ProfileOutputsPanel', () => {
 
     expect(executeOutput).toHaveBeenCalledWith('api_json')
     expect(container?.textContent).toContain('/tmp/dwc_occurrences.json')
+  })
+
+  it('shows a representative API JSON preview for the profile output', async () => {
+    await renderPanel()
+
+    expect(container?.textContent).toContain('Representative JSON preview')
+    expect(container?.textContent).toContain('Source record 1')
+    expect(container?.textContent).toContain('Aoupinié')
   })
 })

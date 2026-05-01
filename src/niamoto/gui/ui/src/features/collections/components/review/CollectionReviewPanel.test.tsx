@@ -2,7 +2,7 @@
 
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CollectionReviewPanel } from './CollectionReviewPanel'
 
@@ -108,6 +108,13 @@ describe('CollectionReviewPanel', () => {
   let container: HTMLDivElement | null = null
   let root: Root | null = null
 
+  beforeEach(() => {
+    catalogState.data.collections[0] = {
+      ...catalogState.data.collections[0],
+      review_status: 'pending',
+    }
+  })
+
   afterEach(async () => {
     updateCollection.mockReset()
     if (root) {
@@ -168,5 +175,19 @@ describe('CollectionReviewPanel', () => {
       collectionName: 'taxons',
       update: { roles: ['site', 'api', 'standard'] },
     })
+  })
+
+  it('does not offer accepting a collection that is already accepted', async () => {
+    catalogState.data.collections[0] = {
+      ...catalogState.data.collections[0],
+      review_status: 'accepted',
+    }
+    await renderPanel()
+
+    const acceptButton = Array.from(container!.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Accept'),
+    ) as HTMLButtonElement | undefined
+
+    expect(acceptButton?.disabled).toBe(true)
   })
 })

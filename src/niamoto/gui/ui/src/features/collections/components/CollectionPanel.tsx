@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useReferences, type ReferenceInfo } from '@/hooks/useReferences'
+import type { ReferenceInfo } from '@/hooks/useReferences'
 import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle, FileBadge2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -47,23 +47,29 @@ import {
 import { markCollectionsContentSwitch } from '@/features/collections/performance/collectionsPerf'
 import { useProjectDesktopViewPreference } from '@/shared/hooks/useProjectDesktopViewPreference'
 import type { CollectionCatalogEntry } from '@/features/collections/hooks/useCollectionsCatalog'
+import {
+  defaultCollectionTab,
+  type CollectionDisplayItem,
+} from '@/features/collections/utils/collectionDisplay'
 
 interface CollectionPanelProps {
-  reference: ReferenceInfo
+  reference: CollectionDisplayItem
   initialTab?: string
+  collectionOptions?: CollectionDisplayItem[]
   collectionMetadata?: CollectionCatalogEntry
 }
 
 export function CollectionPanel({
   reference,
   initialTab,
+  collectionOptions,
   collectionMetadata,
 }: CollectionPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const location = useLocation()
   const navigate = useNavigate()
-  const { data: referencesData } = useReferences()
-  const references = referencesData?.references ?? []
+  const collections = collectionOptions ?? [reference]
+  const referenceDefaultTab = defaultCollectionTab(reference)
   const initialCollectionTab = normalizeCollectionTab(initialTab) ?? null
   const [activeTab, setActiveTab] =
     useProjectDesktopViewPreference<CollectionTab>({
@@ -103,6 +109,7 @@ export function CollectionPanel({
         { type: 'collection', name: reference.name },
         nextTab,
         location.search,
+        { defaultTab: referenceDefaultTab },
       ),
       { replace: true },
     )
@@ -191,12 +198,12 @@ export function CollectionPanel({
                 className="group flex items-center gap-1.5 -ml-1 rounded-theme-sm px-2 py-1 text-base font-semibold tracking-tight text-foreground transition-theme-fast hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={reference.name}
               >
-                <span className="max-w-[240px] truncate">{reference.name}</span>
+                <span className="max-w-[240px] truncate">{reference.displayName}</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[220px]">
-              {references.map((item) => {
+              {collections.map((item) => {
                 const isCurrent = item.name === reference.name
                 return (
                   <DropdownMenuItem
@@ -206,7 +213,8 @@ export function CollectionPanel({
                         navigate(
                           buildCollectionsPath(
                             { type: 'collection', name: item.name },
-                            activeTab
+                            activeTab,
+                            { defaultTab: defaultCollectionTab(item) },
                           )
                         )
                       }
@@ -216,7 +224,7 @@ export function CollectionPanel({
                       isCurrent && 'bg-accent/60'
                     )}
                   >
-                    <span className="truncate text-sm">{item.name}</span>
+                    <span className="truncate text-sm">{item.displayName}</span>
                     {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
                   </DropdownMenuItem>
                 )

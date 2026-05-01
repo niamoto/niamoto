@@ -26,7 +26,7 @@ def test_create_standard_profile_persists_under_standard_profiles(
     assert response.status_code == 201, response.text
     payload = response.json()
     assert payload["profile"]["name"] == "dwc_occurrences"
-    assert payload["profile"]["validation_status"] == "draft"
+    assert payload["profile"]["validation_status"] == "invalid"
 
     saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
     assert saved["exports"] == []
@@ -35,6 +35,7 @@ def test_create_standard_profile_persists_under_standard_profiles(
         "type": "dataset",
         "name": "occurrences",
     }
+    assert saved["standard_profiles"][0]["validation_status"] == "invalid"
 
 
 def test_list_standard_profiles_includes_legacy_hints(
@@ -87,6 +88,175 @@ def test_list_standard_profiles_includes_legacy_hints(
     assert payload["legacy_hints"][0]["export_name"] == "dwc_occurrence_json"
 
 
+def test_list_standard_profiles_returns_current_validation_status(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {"occurrenceID": {"source": "id"}},
+                        "validation_status": "draft",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/standard-profiles")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profiles"][0]["validation_status"] == "conformant"
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    assert saved["standard_profiles"][0]["validation_status"] == "draft"
+
+
+def test_auto_config_standard_profile_returns_reviewable_dwc_proposal(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text("exports: []\n", encoding="utf-8")
+    before = export_path.read_text(encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/auto-config",
+        json={
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile"]["name"] == "dwc_occurrences"
+    assert payload["profile"]["target_grain"] == "occurrence"
+    assert payload["profile"]["mappings"]["occurrenceID"] == {"source": "id"}
+    assert payload["profile"]["mappings"]["locality"] == {"source": "locality"}
+    assert payload["profile"]["mappings"]["basisOfRecord"] == {
+        "generator": "constant",
+        "params": {"value": "HumanObservation"},
+    }
+    assert payload["profile"]["outputs"][1]["type"] == "dwc_archive"
+    assert "scientificName" in payload["unresolved"]
+    assert "basisOfRecord" not in payload["unresolved"]
+    assert payload["rows_sampled"] == 3
+    assert payload["columns_inspected"] == 4
+    assert export_path.read_text(encoding="utf-8") == before
+
+
+def test_auto_config_standard_profile_resolves_related_occurrence_source(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "kind": "hierarchical",
+                        }
+                    },
+                    "datasets": {
+                        "occurrences": {
+                            "links": [
+                                {
+                                    "entity": "taxons",
+                                    "field": "taxon_id",
+                                    "target_field": "id",
+                                }
+                            ]
+                        }
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/auto-config",
+        json={
+            "name": "dwc_taxons",
+            "standard": "darwin_core_occurrence",
+            "source": {"type": "collection", "name": "taxons"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile"]["source"] == {"type": "collection", "name": "taxons"}
+    assert payload["record_source"] == {"type": "dataset", "name": "occurrences"}
+    assert payload["profile"]["mappings"]["occurrenceID"] == {"source": "id"}
+    assert payload["profile"]["metadata"]["auto_config"]["record_source"] == {
+        "type": "dataset",
+        "name": "occurrences",
+    }
+
+
+def test_standard_profile_source_fields_resolve_effective_record_source(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "kind": "hierarchical",
+                        }
+                    },
+                    "datasets": {
+                        "occurrences": {
+                            "links": [
+                                {
+                                    "entity": "taxons",
+                                    "field": "taxon_id",
+                                    "target_field": "id",
+                                }
+                            ]
+                        }
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/source-fields",
+        json={
+            "standard": "darwin_core_occurrence",
+            "source": {"type": "collection", "name": "taxons"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["source"] == {"type": "collection", "name": "taxons"}
+    assert payload["record_source"] == {"type": "dataset", "name": "occurrences"}
+    assert [field["name"] for field in payload["fields"]] == [
+        "id",
+        "taxon_id",
+        "count",
+        "locality",
+    ]
+
+
 def test_update_and_delete_standard_profile(gui_duckdb_client, gui_duckdb_context):
     export_path = gui_duckdb_context / "config" / "export.yml"
     export_path.write_text(
@@ -111,6 +281,7 @@ def test_update_and_delete_standard_profile(gui_duckdb_client, gui_duckdb_contex
         "/api/standard-profiles/dwc_occurrences",
         json={
             "enabled": False,
+            "mappings": {"occurrenceID": {"source": "id"}},
             "outputs": [
                 {"type": "dwc_archive", "params": {"output_dir": "exports/dwc"}}
             ],
@@ -119,7 +290,10 @@ def test_update_and_delete_standard_profile(gui_duckdb_client, gui_duckdb_contex
 
     assert response.status_code == 200, response.text
     assert response.json()["profile"]["enabled"] is False
+    assert response.json()["profile"]["validation_status"] == "conformant"
     assert response.json()["profile"]["outputs"][0]["type"] == "dwc_archive"
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    assert saved["standard_profiles"][0]["validation_status"] == "conformant"
 
     response = gui_duckdb_client.delete("/api/standard-profiles/dwc_occurrences")
 
@@ -326,3 +500,138 @@ def test_execute_standard_profile_api_json_output(
     assert payload["status"] == "success"
     assert payload["output_path"] == str(output_path)
     assert output_path.exists()
+
+
+def test_preview_standard_profile_api_json_output(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {
+                            "occurrenceID": {"source": "id"},
+                            "locality": {"source": "locality"},
+                        },
+                        "outputs": [{"type": "api_json"}],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get(
+        "/api/standard-profiles/dwc_occurrences/outputs/api_json/preview"
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile_name"] == "dwc_occurrences"
+    assert payload["output_type"] == "api_json"
+    assert payload["item_id"] == 1
+    assert payload["preview"]["metadata"]["profile_name"] == "dwc_occurrences"
+    assert payload["preview"]["records"] == [
+        {"occurrenceID": 1, "locality": "Aoupinié"}
+    ]
+    assert not (
+        gui_duckdb_context
+        / "exports"
+        / "profiles"
+        / "dwc_occurrences"
+        / "dwc_occurrences.json"
+    ).exists()
+
+
+def test_execute_standard_profile_publication_output_blocks_invalid_profile(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {},
+                        "outputs": [{"type": "dwc_archive"}],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/dwc_occurrences/outputs/dwc_archive"
+    )
+
+    assert response.status_code == 400, response.text
+    assert "Publication outputs require" in response.json()["detail"]
+
+
+def test_execute_standard_profile_rejects_unsafe_output_dir(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "schema": {"fields": [{"name": "id", "type": "integer"}]}
+                        }
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {"occurrenceID": {"source": "id"}},
+                        "outputs": [
+                            {
+                                "type": "api_json",
+                                "params": {"output_dir": "../outside"},
+                            }
+                        ],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/dwc_occurrences/outputs/api_json"
+    )
+
+    assert response.status_code == 400, response.text
+    assert "output_dir must not contain parent" in response.json()["detail"]
+    assert not (gui_duckdb_context.parent / "outside").exists()

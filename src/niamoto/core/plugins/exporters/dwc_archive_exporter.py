@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ProcessError
@@ -85,6 +85,19 @@ class DwcArchiveExporterParams(BasePluginParams):
         default="\t", description="CSV field delimiter (tab by default)"
     )
     encoding: str = Field(default="utf-8", description="Character encoding")
+
+    @field_validator("archive_name")
+    @classmethod
+    def validate_archive_name(cls, value: str) -> str:
+        """Require archive names to be safe leaf filenames."""
+        archive_name = value.strip()
+        if not archive_name:
+            raise ValueError("archive_name must not be empty")
+        if archive_name in {".", ".."} or "/" in archive_name or "\\" in archive_name:
+            raise ValueError("archive_name must be a filename, not a path")
+        if not archive_name.endswith(".zip"):
+            raise ValueError("archive_name must end with .zip")
+        return archive_name
 
 
 @register("dwc_archive_exporter", PluginType.EXPORTER)
@@ -383,7 +396,7 @@ class DwcArchiveExporter(ExporterPlugin):
         self._generate_eml_xml(eml_path, params.metadata)
 
         # Create ZIP archive
-        archive_path = output_dir / params.archive_name
+        archive_path = _safe_archive_path(output_dir, params.archive_name)
         self._create_zip_archive(archive_path, [csv_path, meta_path, eml_path])
 
     def generate_archive_from_occurrences(
@@ -409,7 +422,7 @@ class DwcArchiveExporter(ExporterPlugin):
             output_dir / csv_filename,
             output_dir / "meta.xml",
             output_dir / "eml.xml",
-            output_dir / params.archive_name,
+            _safe_archive_path(output_dir, params.archive_name),
         ]
 
     def _generate_occurrence_csv(
@@ -587,3 +600,13 @@ class DwcArchiveExporter(ExporterPlugin):
                     zipf.write(file_path, file_path.name)
 
         logger.info(f"Archive created successfully: {archive_path}")
+
+
+def _safe_archive_path(output_dir: Path, archive_name: str) -> Path:
+    """Return a confined archive path inside ``output_dir``."""
+    archive_path = output_dir / archive_name
+    resolved_archive_path = archive_path.resolve()
+    output_root = output_dir.resolve()
+    if resolved_archive_path.parent != output_root:
+        raise ValueError("archive_name must stay within output_dir")
+    return archive_path

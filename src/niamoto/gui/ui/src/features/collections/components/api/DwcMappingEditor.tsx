@@ -24,6 +24,7 @@ interface DwcMappingEditorProps {
   title?: string
   description?: string
   referenceHelp?: string
+  sourceFields?: string[]
 }
 
 interface DwcMappingRow {
@@ -40,6 +41,8 @@ const KNOWN_GENERATORS = [
   'unique_occurrence_id',
   'unique_event_id',
   'unique_identification_id',
+  'constant',
+  'extract_geometry_coordinate',
   'extract_specific_epithet',
   'extract_infraspecific_epithet',
   'format_event_date',
@@ -58,6 +61,27 @@ const KNOWN_GENERATORS = [
   'count_processed_taxa',
   'count_total_occurrences',
 ]
+
+const MEASUREMENT_FIELD_HINTS = new Set([
+  'dbh',
+  'diameter',
+  'diameter_at_breast_height',
+  'height',
+  'tree_height',
+  'strata',
+  'flower',
+  'fruit',
+  'bark_thickness',
+  'leaf_area',
+  'leaf_ldmc',
+  'leaf_sla',
+  'leaf_thickness',
+  'wood_density',
+  'rainfall',
+  'holdridge',
+  'in_forest',
+  'in_um',
+])
 
 let nextRowId = 0
 
@@ -233,12 +257,113 @@ function serializeRows(
   return { value: serialized, error: null }
 }
 
+function uniqueSourceFields(sourceFields: string[] = []) {
+  const fields = sourceFields
+    .map((field) => field.trim())
+    .filter((field) => field.length > 0)
+  return Array.from(new Set(fields))
+}
+
+function normalizeFieldName(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[\s.:-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+}
+
+function normalizeSourceReference(reference: string) {
+  const trimmed = reference.trim()
+  if (trimmed.startsWith('@source.')) {
+    return trimmed.replace(/^@source\./, '')
+  }
+  if (trimmed.startsWith('@') && trimmed.includes('.')) {
+    return trimmed.replace(/^@[^.]+\./, '')
+  }
+  if (trimmed.startsWith('@')) {
+    return trimmed.replace(/^@/, '')
+  }
+  return trimmed
+}
+
+function sourceFieldSelectValue(reference: string, sourceFields: string[]) {
+  const normalizedReference = normalizeSourceReference(reference)
+  return sourceFields.includes(normalizedReference) ? normalizedReference : undefined
+}
+
+function guessGeometryField(sourceFields: string[]) {
+  const preferred = ['geo_pt', 'geometry', 'geom', 'point', 'coordinates', 'geo_pt_geom']
+  for (const candidate of preferred) {
+    const match = sourceFields.find(
+      (field) => normalizeFieldName(field) === candidate,
+    )
+    if (match) {
+      return match
+    }
+  }
+  return sourceFields.find((field) => {
+    const normalized = normalizeFieldName(field)
+    return normalized.includes('geom') || normalized.startsWith('geo_')
+  })
+}
+
+function guessMeasurementFields(sourceFields: string[]) {
+  return sourceFields.filter((field) =>
+    MEASUREMENT_FIELD_HINTS.has(normalizeFieldName(field)),
+  )
+}
+
+function suggestedGeneratorParamsText(
+  row: DwcMappingRow,
+  sourceFields: string[],
+): string | null {
+  const generator = row.generator.trim()
+  if (!generator) {
+    return null
+  }
+
+  if (generator === 'constant') {
+    return JSON.stringify({ value: '' }, null, 2)
+  }
+
+  if (generator === 'unique_occurrence_id') {
+    return JSON.stringify({ prefix: 'occurrence_' }, null, 2)
+  }
+
+  if (generator === 'extract_geometry_coordinate') {
+    const source = guessGeometryField(sourceFields)
+    if (!source) {
+      return null
+    }
+    const normalizedTerm = normalizeFieldName(row.term)
+    return JSON.stringify(
+      {
+        source,
+        coordinate: normalizedTerm.includes('longitude') ? 'longitude' : 'latitude',
+      },
+      null,
+      2,
+    )
+  }
+
+  if (generator === 'format_measurements') {
+    const fields = guessMeasurementFields(sourceFields)
+    if (fields.length === 0) {
+      return null
+    }
+    return JSON.stringify({ fields }, null, 2)
+  }
+
+  return null
+}
+
 export function DwcMappingEditor({
   value = {},
   onChange,
   title,
   description,
   referenceHelp,
+  sourceFields = [],
 }: DwcMappingEditorProps) {
   return (
     <DwcMappingEditorForm
@@ -247,6 +372,7 @@ export function DwcMappingEditor({
       title={title}
       description={description}
       referenceHelp={referenceHelp}
+      sourceFields={sourceFields}
     />
   )
 }
@@ -257,12 +383,17 @@ function DwcMappingEditorForm({
   title,
   description,
   referenceHelp,
+  sourceFields = [],
 }: DwcMappingEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
   const [error, setError] = useState<string | null>(null)
   const externalValueKey = useMemo(() => JSON.stringify(value), [value])
   const lastExternalValueKeyRef = useRef(externalValueKey)
+  const sourceFieldOptions = useMemo(
+    () => uniqueSourceFields(sourceFields),
+    [sourceFields],
+  )
 
   useEffect(() => {
     if (externalValueKey === lastExternalValueKeyRef.current) {
@@ -302,6 +433,20 @@ function DwcMappingEditorForm({
   ) => {
     const nextRows = [...rows]
     nextRows[index] = { ...nextRows[index], [key]: nextValue }
+    commit(nextRows)
+  }
+
+  const updateGenerator = (index: number, generator: string) => {
+    const nextRows = [...rows]
+    const nextRow = {
+      ...nextRows[index],
+      generator,
+    }
+    if (!nextRow.paramsText.trim()) {
+      nextRow.paramsText =
+        suggestedGeneratorParamsText(nextRow, sourceFieldOptions) ?? ''
+    }
+    nextRows[index] = nextRow
     commit(nextRows)
   }
 
@@ -352,7 +497,13 @@ function DwcMappingEditorForm({
             {t('collectionPanel.api.dwcMappingEmpty')}
           </div>
         )}
-        {rows.map((row, index) => (
+        {rows.map((row, index) => {
+          const suggestedParamsText = suggestedGeneratorParamsText(
+            row,
+            sourceFieldOptions,
+          )
+
+          return (
           <div key={row.id} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <Badge variant="outline">
@@ -429,13 +580,41 @@ function DwcMappingEditorForm({
             </div>
 
             {row.mode === 'source' && (
-              <div className="mt-3 space-y-2">
-                <Label>{t('collectionPanel.api.sourceReference')}</Label>
-                <Input
-                  value={row.reference}
-                  onChange={(event) => updateRow(index, 'reference', event.target.value)}
-                  placeholder={t('collectionPanel.api.sourceReferencePlaceholder')}
-                />
+              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+                {sourceFieldOptions.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>{t('collectionPanel.api.sourceField')}</Label>
+                    <Select
+                      value={sourceFieldSelectValue(row.reference, sourceFieldOptions)}
+                      onValueChange={(field) => updateRow(index, 'reference', field)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={t('collectionPanel.api.sourceFieldPlaceholder')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sourceFieldOptions.map((field) => (
+                          <SelectItem key={field} value={field}>
+                            {field}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>
+                    {sourceFieldOptions.length > 0
+                      ? t('collectionPanel.api.customSourceReference')
+                      : t('collectionPanel.api.sourceReference')}
+                  </Label>
+                  <Input
+                    value={row.reference}
+                    onChange={(event) => updateRow(index, 'reference', event.target.value)}
+                    placeholder={t('collectionPanel.api.sourceReferencePlaceholder')}
+                  />
+                </div>
               </div>
             )}
 
@@ -456,7 +635,7 @@ function DwcMappingEditorForm({
                   <Label>{t('collectionPanel.api.generator')}</Label>
                   <Select
                     value={row.generator || undefined}
-                    onValueChange={(generator) => updateRow(index, 'generator', generator)}
+                    onValueChange={(generator) => updateGenerator(index, generator)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t('collectionPanel.api.generatorPlaceholder')} />
@@ -472,7 +651,22 @@ function DwcMappingEditorForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t('collectionPanel.api.generatorParams')}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>{t('collectionPanel.api.generatorParams')}</Label>
+                    {suggestedParamsText && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          updateRow(index, 'paramsText', suggestedParamsText)
+                        }
+                      >
+                        {t('collectionPanel.api.useSuggestedGeneratorParams')}
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
                     value={row.paramsText}
                     onChange={(event) => updateRow(index, 'paramsText', event.target.value)}
@@ -483,7 +677,8 @@ function DwcMappingEditorForm({
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {error && (

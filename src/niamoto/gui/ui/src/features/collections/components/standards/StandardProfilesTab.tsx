@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, FileBadge2, Loader2, Plus } from 'lucide-react'
+import { AlertTriangle, FileBadge2, Loader2, Pencil, Plus } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useCollectionsCatalog } from '@/features/collections/hooks/useCollectionsCatalog'
 import {
@@ -35,6 +35,7 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
   const legacyHints = data?.legacy_hints ?? EMPTY_LEGACY_HINTS
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [editingName, setEditingName] = useState<string | null>(null)
 
   const selectedProfile = useMemo(() => {
     if (creating) {
@@ -48,6 +49,9 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
       profiles[0]
     )
   }, [collectionName, creating, profiles, selectedName])
+  const showingCreateForm = creating || !selectedProfile
+  const isEditingSelectedProfile =
+    Boolean(selectedProfile) && editingName === selectedProfile?.name
 
   const compatibility = useStandardProfileCompatibility(selectedProfile?.name)
   const validation = useStandardProfileValidation(selectedProfile?.name)
@@ -88,7 +92,10 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
               onClick={() => {
                 setCreating(true)
                 setSelectedName(null)
+                setEditingName(null)
               }}
+              disabled={showingCreateForm}
+              aria-label={t('collections.standards.newProfile')}
               title={t('collections.standards.newProfile')}
             >
               <Plus className="h-4 w-4" />
@@ -112,6 +119,7 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
               onClick={() => {
                 setCreating(false)
                 setSelectedName(profile.name)
+                setEditingName(null)
               }}
             />
           ))}
@@ -129,7 +137,7 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
       </aside>
 
       <main className="min-h-0 overflow-auto p-4">
-        {creating || !selectedProfile ? (
+        {showingCreateForm ? (
           <ProfileEditor
             key="new-profile"
             catalog={catalog}
@@ -137,6 +145,7 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
             onSaved={(profile) => {
               setCreating(false)
               setSelectedName(profile.name)
+              setEditingName(null)
             }}
           />
         ) : (
@@ -154,18 +163,50 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
                     name: selectedProfile.source.name,
                   })}
                 </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() =>
+                    setEditingName(
+                      isEditingSelectedProfile ? null : selectedProfile.name,
+                    )
+                  }
+                >
+                  {isEditingSelectedProfile ? (
+                    t('common:actions.cancel')
+                  ) : (
+                    <>
+                      <Pencil className="mr-2 h-3.5 w-3.5" />
+                      {t('collections.standards.editProfileAction')}
+                    </>
+                  )}
+                </Button>
               </div>
 
-              <ProfileEditor
-                key={selectedProfile.name}
+              {isEditingSelectedProfile ? (
+                <ProfileEditor
+                  key={selectedProfile.name}
+                  profile={selectedProfile}
+                  catalog={catalog}
+                  currentCollectionName={collectionName}
+                  onSaved={(profile) => {
+                    setSelectedName(profile.name)
+                    setEditingName(null)
+                  }}
+                />
+              ) : (
+                <ProfileOverviewCard profile={selectedProfile} />
+              )}
+              <ProfileOutputsPanel
                 profile={selectedProfile}
-                catalog={catalog}
-                currentCollectionName={collectionName}
-                onSaved={(profile) => setSelectedName(profile.name)}
+                validation={validation.data}
               />
             </div>
 
-            <div className="space-y-4">
+            <aside className="space-y-4">
+              <SelectedProfileStatusCard profile={selectedProfile} />
               <ProfileCompatibilityPanel
                 report={compatibility.data}
                 isLoading={compatibility.isLoading}
@@ -176,14 +217,107 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
                 isLoading={validation.isLoading}
                 error={validation.error}
               />
-              <ProfileOutputsPanel
-                profile={selectedProfile}
-                validation={validation.data}
-              />
-            </div>
+            </aside>
           </div>
         )}
       </main>
+    </div>
+  )
+}
+
+interface SelectedProfileStatusCardProps {
+  profile: StandardProfileConfig
+}
+
+function SelectedProfileStatusCard({ profile }: SelectedProfileStatusCardProps) {
+  const { t } = useTranslation(['sources'])
+
+  return (
+    <Card>
+      <CardHeader className="space-y-2 pb-3">
+        <div className="flex items-center gap-2">
+          <FileBadge2 className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">
+            {t('collections.standards.selectedProfileStatus')}
+          </h3>
+        </div>
+        <div className="min-w-0 space-y-2">
+          <p className="truncate text-sm font-medium">{profile.name}</p>
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="secondary" className="text-[10px]">
+              {t(`collections.standards.standardTypes.${profile.standard}`)}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              {t('collections.standards.sourceSummary', {
+                type: profile.source.type,
+                name: profile.source.name,
+              })}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
+  )
+}
+
+interface ProfileOverviewCardProps {
+  profile: StandardProfileConfig
+}
+
+function ProfileOverviewCard({ profile }: ProfileOverviewCardProps) {
+  const { t } = useTranslation(['sources'])
+  const mappingCount = Object.keys(profile.mappings).length
+  const enabledOutputCount = profile.outputs.filter((output) => output.enabled).length
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <h3 className="text-sm font-semibold">
+          {t('collections.standards.profileOverview')}
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          {t('collections.standards.profileOverviewHelp')}
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ProfileOverviewMetric
+          label={t('collections.standards.mappingTitle')}
+          value={t('collections.standards.mappedTermsCount', {
+            count: mappingCount,
+          })}
+        />
+        <ProfileOverviewMetric
+          label={t('collections.standards.outputs')}
+          value={t('collections.standards.enabledOutputsCount', {
+            count: enabledOutputCount,
+          })}
+        />
+        <ProfileOverviewMetric
+          label={t('collections.standards.source')}
+          value={t('collections.standards.sourceSummary', {
+            type: profile.source.type,
+            name: profile.source.name,
+          })}
+        />
+        <ProfileOverviewMetric
+          label={t('collections.standards.targetGrain')}
+          value={profile.target_grain}
+        />
+      </CardContent>
+    </Card>
+  )
+}
+
+interface ProfileOverviewMetricProps {
+  label: string
+  value: string
+}
+
+function ProfileOverviewMetric({ label, value }: ProfileOverviewMetricProps) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium">{value}</p>
     </div>
   )
 }

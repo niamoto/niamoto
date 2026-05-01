@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import csv
 import json
+import math
+import re
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable, cast
 
 from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.core.collections import CollectionCatalogService
 from niamoto.core.plugins.exporters.dwc_archive_exporter import (
     DwcArchiveExporter,
     DwcArchiveExporterParams,
@@ -22,6 +26,7 @@ from niamoto.core.standards.models import (
     StandardCompatibilityReport,
     StandardProfileConfig,
     StandardProfileOutput,
+    StandardProfileOutputPreviewResult,
     StandardProfileOutputResult,
     StandardProfileOutputType,
     StandardProfileSource,
@@ -44,6 +49,10 @@ class StandardProfileOutputService:
         self.db_path = Path(db_path) if db_path is not None else None
         self.import_config = import_config or {}
         self.transform_config = transform_config or []
+        self.collection_catalog = CollectionCatalogService(
+            import_config=self.import_config,
+            transform_config=self.transform_config,
+        ).list_collections()
         self.validation_service = StandardProfileValidationService(
             import_config=self.import_config,
             transform_config=self.transform_config,
@@ -62,9 +71,11 @@ class StandardProfileOutputService:
 
         output = self._select_output(profile, output_type)
         validation = self.validation_service.validate(profile)
+        self._ensure_publication_output_allowed(output, validation)
         record_source = self._record_source_for_profile(
             profile, validation.compatibility
         )
+        self._reject_unsupported_context_mappings(profile, record_source)
         output_source_grain = self._output_source_grain(
             profile, validation.compatibility, record_source
         )
@@ -124,6 +135,74 @@ class StandardProfileOutputService:
             metadata=metadata,
         )
 
+    def preview_profile(
+        self,
+        profile: StandardProfileConfig,
+        *,
+        output_type: StandardProfileOutputType = "api_json",
+    ) -> StandardProfileOutputPreviewResult:
+        """Build a representative JSON preview without writing output files."""
+        if not profile.enabled:
+            raise ValueError(f"Profile '{profile.name}' is disabled")
+
+        output = self._select_output(profile, output_type)
+        validation = self.validation_service.validate(profile)
+        record_source = self._record_source_for_profile(
+            profile, validation.compatibility
+        )
+        self._reject_unsupported_context_mappings(profile, record_source)
+        output_source_grain = self._output_source_grain(
+            profile, validation.compatibility, record_source
+        )
+        raw_records = self._load_records(record_source, limit=100)
+        if not raw_records:
+            raise ValueError(f"No data found for source '{record_source.name}'")
+
+        source_record, mapped_record = self._select_preview_record(profile, raw_records)
+        mapped_records = [mapped_record]
+
+        metadata = self._build_metadata(
+            profile=profile,
+            output=output,
+            validation_status=validation.status,
+            source_grain=output_source_grain,
+            records_count=len(mapped_records),
+            record_source=record_source
+            if not _same_source(profile.source, record_source)
+            else None,
+        )
+        preview: Any
+        if output.type == "api_json":
+            preview = {"metadata": metadata, "records": mapped_records}
+        else:
+            preview = mapped_records
+
+        warnings = [
+            *validation.compatibility.warnings,
+            *(
+                issue.message
+                for issue in validation.issues
+                if issue.severity in {"warning", "recommended"}
+            ),
+        ]
+        errors = [
+            issue.message for issue in validation.issues if issue.severity == "critical"
+        ]
+
+        return StandardProfileOutputPreviewResult(
+            profile_name=profile.name,
+            standard=profile.standard,
+            output_type=output.type,
+            validation_status=validation.status,
+            source_grain=output_source_grain,
+            item_id=_record_item_id(source_record, record_source),
+            preview=_json_safe_value(preview),
+            source=cast(dict[str, Any], _json_safe_value(source_record)),
+            warnings=warnings,
+            errors=errors,
+            metadata=cast(dict[str, Any], _json_safe_value(metadata)),
+        )
+
     def _select_output(
         self,
         profile: StandardProfileConfig,
@@ -148,25 +227,79 @@ class StandardProfileOutputService:
             f"Output '{output_type}' is not configured for profile '{profile.name}'"
         )
 
+    def _ensure_publication_output_allowed(
+        self,
+        output: StandardProfileOutput,
+        validation: Any,
+    ) -> None:
+        if output.type == "api_json":
+            return
+
+        critical_count = validation.summary.get("critical", 0)
+        if validation.status == "invalid" or critical_count > 0:
+            raise ValueError(
+                "Publication outputs require a profile without critical validation issues"
+            )
+
     def _record_source_for_profile(
         self,
         profile: StandardProfileConfig,
         compatibility: StandardCompatibilityReport,
     ) -> StandardProfileSource:
-        if profile.standard != "darwin_core_occurrence":
-            return profile.source
+        occurrence_dataset = self._occurrence_dataset_from_compatibility(compatibility)
+        if profile.standard == "darwin_core_occurrence" and occurrence_dataset:
+            return StandardProfileSource(
+                type="dataset",
+                name=occurrence_dataset,
+            )
 
+        return self._backing_source_for_profile_source(profile.source)
+
+    def _occurrence_dataset_from_compatibility(
+        self, compatibility: StandardCompatibilityReport
+    ) -> str | None:
         for evidence in compatibility.evidence:
             if evidence.kind != "occurrence_relation":
                 continue
             occurrence_dataset = evidence.details.get("occurrence_dataset")
             if isinstance(occurrence_dataset, str) and occurrence_dataset:
-                return StandardProfileSource(
-                    type="dataset",
-                    name=occurrence_dataset,
-                )
+                return occurrence_dataset
+        return None
 
-        return profile.source
+    def _backing_source_for_profile_source(
+        self,
+        source: StandardProfileSource,
+    ) -> StandardProfileSource:
+        if source.type != "collection":
+            return source
+
+        for collection in self.collection_catalog.collections:
+            if collection.name != source.name:
+                continue
+            return StandardProfileSource(
+                type=collection.source_type,
+                name=collection.source_name,
+            )
+
+        return source
+
+    def _reject_unsupported_context_mappings(
+        self,
+        profile: StandardProfileConfig,
+        record_source: StandardProfileSource,
+    ) -> None:
+        if profile.standard != "darwin_core_occurrence":
+            return
+        if _same_source(profile.source, record_source):
+            return
+
+        for term, mapping in profile.mappings.items():
+            source = _mapping_source(mapping)
+            if source is None or not _is_context_reference(source):
+                continue
+            raise ValueError(
+                f"Context mapping for term '{term}' is not supported by profile output generation yet"
+            )
 
     def _output_source_grain(
         self,
@@ -174,11 +307,21 @@ class StandardProfileOutputService:
         compatibility: StandardCompatibilityReport,
         record_source: StandardProfileSource,
     ) -> str:
-        if not _same_source(profile.source, record_source):
+        occurrence_dataset = self._occurrence_dataset_from_compatibility(compatibility)
+        if (
+            occurrence_dataset
+            and record_source.type == "dataset"
+            and record_source.name == occurrence_dataset
+        ):
             return "occurrence"
         return compatibility.source_grain
 
-    def _load_records(self, source: StandardProfileSource) -> list[dict[str, Any]]:
+    def _load_records(
+        self,
+        source: StandardProfileSource,
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         if self.db_path is None or not self.db_path.exists():
             return []
 
@@ -188,8 +331,14 @@ class StandardProfileOutputService:
             if table_name is None:
                 return []
             escaped_table = table_name.replace('"', '""')
+            limit_clause = ""
+            if limit is not None:
+                safe_limit = max(1, int(limit))
+                limit_clause = f" LIMIT {safe_limit}"
             with database.connection() as connection:
-                result = connection.execute(text(f'SELECT * FROM "{escaped_table}"'))
+                result = connection.execute(
+                    text(f'SELECT * FROM "{escaped_table}"{limit_clause}')
+                )
                 columns = list(result.keys())
                 return [dict(zip(columns, row)) for row in result.fetchall()]
         finally:
@@ -233,6 +382,26 @@ class StandardProfileOutputService:
             for index, record in enumerate(records, start=1)
         ]
 
+    def _select_preview_record(
+        self,
+        profile: StandardProfileConfig,
+        records: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Choose the candidate with the most populated mapped standard terms."""
+        best_source = records[0]
+        best_mapped = self._map_records(profile, [best_source])[0]
+        best_score = _score_preview_record(best_mapped)
+
+        for source_record in records[1:]:
+            mapped_record = self._map_records(profile, [source_record])[0]
+            score = _score_preview_record(mapped_record)
+            if score > best_score:
+                best_source = source_record
+                best_mapped = mapped_record
+                best_score = score
+
+        return best_source, best_mapped
+
     def _build_metadata(
         self,
         *,
@@ -267,7 +436,8 @@ class StandardProfileOutputService:
     ) -> tuple[list[Path], Path]:
         output_dir = self._resolve_output_dir(output, profile)
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"{profile.name}.json"
+        profile_filename = _safe_path_segment(profile.name, "profile name")
+        output_path = output_dir / f"{profile_filename}.json"
         output_path.write_text(
             json.dumps(
                 {"metadata": metadata, "records": records},
@@ -293,7 +463,10 @@ class StandardProfileOutputService:
         params = DwcArchiveExporterParams.model_validate(params_payload)
         exporter = DwcArchiveExporter(db=cast(Any, None))
         files = exporter.generate_archive_from_occurrences(records, output_dir, params)
-        return files, output_dir / params.archive_name
+        archive_path = output_dir / params.archive_name
+        if not files or not archive_path.exists():
+            raise ValueError("DwC-A output generated no archive files")
+        return files, archive_path
 
     def _write_standard_files(
         self,
@@ -337,13 +510,24 @@ class StandardProfileOutputService:
         output: StandardProfileOutput,
         profile: StandardProfileConfig,
     ) -> Path:
+        profile_name = _safe_path_segment(profile.name, "profile name")
         output_dir = output.params.get(
-            "output_dir", f"exports/profiles/{profile.name}/{output.type}"
+            "output_dir", f"exports/profiles/{profile_name}/{output.type}"
         )
-        path = Path(str(output_dir))
+        raw_path = str(output_dir).strip()
+        if not raw_path:
+            raise ValueError("output_dir must not be empty")
+        path = Path(raw_path)
         if path.is_absolute():
-            return path
-        return self.work_dir / path
+            raise ValueError("output_dir must be relative to the project directory")
+        if ".." in path.parts:
+            raise ValueError("output_dir must not contain parent directory segments")
+
+        work_dir = self.work_dir.resolve()
+        resolved = (work_dir / path).resolve()
+        if not resolved.is_relative_to(work_dir):
+            raise ValueError("output_dir must stay within the project directory")
+        return resolved
 
 
 def _resolve_mapping_value(
@@ -363,10 +547,22 @@ def _resolve_mapping_value(
 
     if mapping.get("generator"):
         return _generate_value(
-            str(mapping["generator"]), mapping.get("params") or {}, index
+            str(mapping["generator"]), mapping.get("params") or {}, record, index
         )
 
     raise ValueError(f"Unsupported mapping shape: {mapping!r}")
+
+
+def _mapping_source(mapping: Any) -> str | None:
+    if isinstance(mapping, str):
+        return mapping
+    if isinstance(mapping, dict) and mapping.get("source"):
+        return str(mapping["source"])
+    return None
+
+
+def _is_context_reference(source: str) -> bool:
+    return source.startswith("@") and not source.startswith("@source.")
 
 
 def _normalize_source_path(source: str) -> str:
@@ -390,7 +586,12 @@ def _read_path(record: dict[str, Any], path: str) -> Any:
     return value
 
 
-def _generate_value(generator: str, params: dict[str, Any], index: int) -> Any:
+def _generate_value(
+    generator: str,
+    params: dict[str, Any],
+    record: dict[str, Any],
+    index: int,
+) -> Any:
     if generator == "constant":
         return params.get("value")
     if generator == "current_date":
@@ -398,7 +599,129 @@ def _generate_value(generator: str, params: dict[str, Any], index: int) -> Any:
     if generator == "unique_occurrence_id":
         prefix = str(params.get("prefix", "occurrence_"))
         return f"{prefix}{index}"
+    if generator == "extract_geometry_coordinate":
+        return _extract_geometry_coordinate(record, params)
+    if generator in {"format_measurements", "dynamic_properties"}:
+        return _format_dynamic_properties(record, params)
     raise ValueError(f"Unknown generator '{generator}'")
+
+
+def _extract_geometry_coordinate(
+    record: dict[str, Any],
+    params: dict[str, Any],
+) -> float | None:
+    source = params.get("source") or params.get("source_field")
+    if not source:
+        return None
+    value = _read_path(record, _normalize_source_path(str(source)))
+    coordinate = str(params.get("coordinate") or params.get("axis") or "").lower()
+    parsed = _parse_point_geometry(value)
+    if parsed is None:
+        return None
+    longitude, latitude = parsed
+    if coordinate in {"latitude", "lat", "y"}:
+        return latitude
+    if coordinate in {"longitude", "lon", "lng", "x"}:
+        return longitude
+    return None
+
+
+def _parse_point_geometry(value: Any) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        coordinates = value.get("coordinates")
+        if (
+            isinstance(coordinates, list)
+            and len(coordinates) >= 2
+            and _is_number(coordinates[0])
+            and _is_number(coordinates[1])
+        ):
+            return float(coordinates[0]), float(coordinates[1])
+        return None
+    text_value = str(value).strip()
+    match = re.search(
+        r"POINT\s*(?:Z|M|ZM)?\s*\(\s*([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        return float(match.group(1)), float(match.group(2))
+    return None
+
+
+def _format_dynamic_properties(
+    record: dict[str, Any],
+    params: dict[str, Any],
+) -> str | None:
+    raw_fields = params.get("fields")
+    if not isinstance(raw_fields, list):
+        return None
+    properties: dict[str, Any] = {}
+    for raw_field in raw_fields:
+        field = str(raw_field)
+        value = _read_path(record, _normalize_source_path(field))
+        if value is not None:
+            properties[field] = value
+    if not properties:
+        return None
+    return json.dumps(properties, ensure_ascii=False, default=str, sort_keys=True)
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _score_preview_record(record: dict[str, Any]) -> int:
+    return sum(1 for value in record.values() if _value_is_populated(value))
+
+
+def _value_is_populated(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (dict, list)):
+        return bool(value)
+    return True
+
+
+def _record_item_id(record: dict[str, Any], source: StandardProfileSource) -> Any:
+    source_id_key = f"{source.name}_id"
+    for key in ("id", source_id_key, "entity_id", "record_id"):
+        value = record.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _json_safe_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, Decimal):
+        return float(value) if value.is_finite() else None
+    if isinstance(value, bytes):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(nested) for key, nested in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe_value(nested) for nested in value]
+    return str(value)
+
+
+def _safe_path_segment(value: str, label: str) -> str:
+    segment = value.strip()
+    if not segment:
+        raise ValueError(f"{label} must not be empty")
+    if segment in {".", ".."} or "/" in segment or "\\" in segment:
+        raise ValueError(f"{label} must be a safe path segment")
+    return segment
 
 
 def _same_source(

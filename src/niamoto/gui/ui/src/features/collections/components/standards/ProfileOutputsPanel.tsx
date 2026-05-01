@@ -10,6 +10,7 @@ import {
   type StandardProfileOutputType,
   type StandardValidationReport,
   useExecuteStandardProfileOutput,
+  useStandardProfileOutputPreview,
 } from '@/features/collections/hooks/useStandardProfiles'
 
 interface ProfileOutputsPanelProps {
@@ -83,34 +84,39 @@ export function ProfileOutputsPanel({
               return (
                 <div
                   key={output.type}
-                  className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="space-y-3 rounded-md border p-3"
                 >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">
-                        {t(`collections.standards.outputTypes.${output.type}`)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {output.enabled
-                          ? t('collections.standards.outputEnabled')
-                          : t('collections.standards.outputDisabled')}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">
+                          {t(`collections.standards.outputTypes.${output.type}`)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {output.enabled
+                            ? t('collections.standards.outputEnabled')
+                            : t('collections.standards.outputDisabled')}
+                        </div>
                       </div>
                     </div>
+                    <Button
+                      size="sm"
+                      variant={publicationFile ? 'default' : 'outline'}
+                      disabled={disabled}
+                      onClick={() => runOutput(output.type)}
+                    >
+                      {executeOutput.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      {publicationFile
+                        ? t('collections.standards.generatePublicationFile')
+                        : t('collections.standards.generateDraftJson')}
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={publicationFile ? 'default' : 'outline'}
-                    disabled={disabled}
-                    onClick={() => runOutput(output.type)}
-                  >
-                    {executeOutput.isPending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    {publicationFile
-                      ? t('collections.standards.generatePublicationFile')
-                      : t('collections.standards.generateDraftJson')}
-                  </Button>
+                  {output.type === 'api_json' && output.enabled && (
+                    <ProfileJsonOutputPreview profileName={profile.name} />
+                  )}
                 </div>
               )
             })}
@@ -129,5 +135,51 @@ export function ProfileOutputsPanel({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function ProfileJsonOutputPreview({ profileName }: { profileName: string }) {
+  const { t } = useTranslation(['sources'])
+  const preview = useStandardProfileOutputPreview(profileName, 'api_json')
+  const previewLabel = t('collections.standards.outputJsonPreview')
+  const previewText = JSON.stringify(preview.data?.preview ?? null, null, 2)
+
+  if (preview.isLoading || preview.isFetching) {
+    return (
+      <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+        {t('collections.standards.outputJsonPreviewLoading')}
+      </div>
+    )
+  }
+
+  if (preview.error) {
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+        {preview.error instanceof Error
+          ? preview.error.message
+          : t('collections.standards.outputJsonPreviewFailed')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-w-0 rounded-md border bg-muted/20 p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="font-medium">{previewLabel}</span>
+        {preview.data?.item_id !== null && preview.data?.item_id !== undefined && (
+          <span>
+            {t('collections.standards.outputJsonPreviewItem', {
+              id: preview.data.item_id,
+            })}
+          </span>
+        )}
+      </div>
+      <pre
+        aria-label={previewLabel}
+        className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-words rounded bg-background p-3 font-mono text-xs leading-relaxed text-foreground"
+      >
+        {previewText}
+      </pre>
+    </div>
   )
 }

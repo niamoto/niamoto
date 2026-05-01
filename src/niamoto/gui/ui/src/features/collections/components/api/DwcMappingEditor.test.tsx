@@ -52,13 +52,22 @@ describe('DwcMappingEditor', () => {
     root = null
   })
 
-  async function renderEditor(value: Record<string, unknown> = {}) {
+  async function renderEditor(
+    value: Record<string, unknown> = {},
+    sourceFields: string[] = [],
+  ) {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     await act(async () => {
-      root?.render(<DwcMappingEditor value={value} onChange={vi.fn()} />)
+      root?.render(
+        <DwcMappingEditor
+          value={value}
+          sourceFields={sourceFields}
+          onChange={vi.fn()}
+        />,
+      )
     })
   }
 
@@ -101,5 +110,36 @@ describe('DwcMappingEditor', () => {
     const nextTermInput = container!.querySelector('input') as HTMLInputElement
     expect(nextTermInput).toBe(termInput)
     expect(document.activeElement).toBe(termInput)
+  })
+
+  it('shows source field options while preserving a manual reference input', async () => {
+    await renderEditor({ occurrenceID: { source: 'id' } }, ['id', 'taxon_id'])
+
+    expect(container!.textContent).toContain('collectionPanel.api.sourceField')
+    expect(container!.textContent).toContain('id')
+    expect(container!.textContent).toContain('taxon_id')
+    expect(container!.textContent).toContain('collectionPanel.api.customSourceReference')
+    expect((container!.querySelectorAll('input')[1] as HTMLInputElement).value).toBe(
+      'id',
+    )
+  })
+
+  it('can fill suggested generator params from available source fields', async () => {
+    await renderEditor(
+      { decimalLatitude: { generator: 'extract_geometry_coordinate' } },
+      ['id', 'geo_pt'],
+    )
+
+    await act(async () => {
+      click(
+        Array.from(container!.querySelectorAll('button')).find((button) =>
+          button.textContent?.includes('collectionPanel.api.useSuggestedGeneratorParams'),
+        ) ?? null,
+      )
+    })
+
+    const params = container!.querySelector('textarea') as HTMLTextAreaElement
+    expect(params.value).toContain('"source": "geo_pt"')
+    expect(params.value).toContain('"coordinate": "latitude"')
   })
 })

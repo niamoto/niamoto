@@ -58,6 +58,7 @@ export function usePipelineStatus(enabled = true) {
   return useQuery<PipelineStatus>({
     queryKey: [
       'pipeline-status',
+      projectInfo?.working_directory ?? null,
       projectInfo?.name ?? null,
       projectInfo?.created_at ?? null,
     ],
