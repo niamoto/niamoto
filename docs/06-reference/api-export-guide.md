@@ -1,14 +1,14 @@
 # API Export Guide
 
-Niamoto can publish machine-readable outputs alongside the website export. There
-are now two configuration surfaces:
+Niamoto can publish machine-readable outputs alongside the website export. The
+collection UI presents these under the collection **Data** tab:
 
 - simple static JSON APIs, stored as ordinary `json_api_exporter` targets under
   `exports`
 - standard publication profiles, stored under the top-level
   `standard_profiles` section in `config/export.yml`
 
-Keep these workflows separate. A JSON API exposes transformed collection data.
+Keep the underlying workflows separate. A JSON API exposes transformed collection data.
 A standard profile describes a biodiversity publication standard, a target
 grain, validation rules, and profile-owned outputs.
 
@@ -29,9 +29,36 @@ API export jobs. `standard_profiles` is a sibling top-level section. It is read
 by the standard profile API and UI, and its outputs are generated explicitly
 from profile actions.
 
+## Collection Data workflow
+
+Open **Collections > Data** on a collection to see configured reusable data
+outputs first. The Data workspace reads the collection catalog, existing JSON
+API exports, standard profiles, compatibility reports, validation reports, and
+legacy Darwin Core-like hints through
+`GET /api/collections/{collection_name}/data-options`.
+
+When no output is configured, the workspace shows evidence-backed options:
+simple reusable JSON, Darwin Core Occurrence, and Humboldt/Event. It only shows
+a primary recommendation when the collection grain, available fields, and
+compatibility evidence are strong enough. Otherwise it shows missing evidence
+and lets the user choose an intent.
+
+Configured outputs open a scoped detail panel:
+
+- JSON outputs reuse the existing API export card and representative preview.
+- Standard profiles reuse the profile editor, compatibility report, validation
+  report, and profile output panel.
+- Legacy standard-like exports are shown as discovery or migration hints, not
+  active profiles.
+
+Advanced shared JSON defaults remain available from **Advanced data defaults**
+and the `/groups/api-settings` route. Normal collection-level work should start
+from **Data** rather than from the advanced defaults screen.
+
 ## Simple JSON API workflow
 
-Open **Collections > API** to manage static API targets for one collection.
+Use the JSON output detail inside **Collections > Data** to manage static API
+targets for one collection.
 Each export card keeps the saved `export.yml` configuration separate from the
 local draft shown in the interface.
 
@@ -69,8 +96,10 @@ terms and controlled values for their source data.
 
 ## Standard profile workflow
 
-Open **Collections > Standards** to configure publication profiles for Darwin
-Core Occurrence and Humboldt/Event outputs.
+Use a standard output detail inside **Collections > Data** to configure
+publication profiles for Darwin Core Occurrence and Humboldt/Event outputs. The
+legacy Standards route remains available as a compatibility and technical entry
+point during the rollout.
 
 A profile has:
 

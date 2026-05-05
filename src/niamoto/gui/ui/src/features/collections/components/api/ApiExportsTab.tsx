@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Plus, Settings2 } from 'lucide-react'
 
@@ -15,9 +15,18 @@ interface ApiExportsTabProps {
 
 export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { t } = useTranslation(['sources', 'common'])
   const { data: targets, isLoading, error } = useApiExportTargets()
-  const [wizardOpen, setWizardOpen] = useState(false)
+  const requestedCreate = searchParams.get('data_action') === 'create_api_output'
+  const requestedTemplate = parseApiTemplate(searchParams.get('template'))
+  const [wizardOpen, setWizardOpen] = useState(requestedCreate)
+
+  useEffect(() => {
+    if (requestedCreate) {
+      setWizardOpen(true)
+    }
+  }, [requestedCreate, requestedTemplate])
 
   // Filter targets that have this group (active OR enabled:false)
   const groupTargets = (targets ?? []).filter((target) =>
@@ -93,8 +102,16 @@ export function ApiExportsTab({ groupBy }: ApiExportsTabProps) {
           open={wizardOpen}
           onOpenChange={setWizardOpen}
           groupBy={groupBy}
+          initialTemplate={requestedCreate ? requestedTemplate : null}
         />
       </div>
     </div>
   )
+}
+
+function parseApiTemplate(value: string | null) {
+  if (value === 'simple' || value === 'dwc') {
+    return value
+  }
+  return null
 }

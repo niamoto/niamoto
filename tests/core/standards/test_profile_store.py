@@ -156,6 +156,7 @@ def test_legacy_dwc_occurrence_json_export_is_reported_as_hint_only():
             "export_name": "dwc_occurrence_json",
             "standard": "darwin_core_occurrence",
             "message": "Legacy JSON API target can be reviewed as a Darwin Core Occurrence profile.",
+            "source": {"type": "collection", "name": "taxons"},
         }
     ]
     assert "standard_profiles" not in export_config

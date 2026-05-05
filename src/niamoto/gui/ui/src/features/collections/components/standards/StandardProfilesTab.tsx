@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, FileBadge2, Loader2, Pencil, Plus } from 'lucide-react'
 
@@ -6,10 +7,15 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useCollectionsCatalog } from '@/features/collections/hooks/useCollectionsCatalog'
+import {
+  type CollectionCatalogEntry,
+  useCollectionsCatalog,
+} from '@/features/collections/hooks/useCollectionsCatalog'
 import {
   type LegacyStandardProfileHint,
   type StandardProfileConfig,
+  type StandardProfileSource,
+  type StandardProfileType,
   useStandardProfileCompatibility,
   useStandardProfiles,
   useStandardProfileValidation,
@@ -29,27 +35,47 @@ const EMPTY_LEGACY_HINTS: LegacyStandardProfileHint[] = []
 
 export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps) {
   const { t } = useTranslation(['sources', 'common'])
+  const [searchParams] = useSearchParams()
   const { data, isLoading, error } = useStandardProfiles()
   const { data: catalog } = useCollectionsCatalog()
   const profiles = data?.profiles ?? EMPTY_PROFILES
   const legacyHints = data?.legacy_hints ?? EMPTY_LEGACY_HINTS
+  const collectionMetadata = useMemo(
+    () =>
+      catalog?.collections.find((collection) => collection.name === collectionName),
+    [catalog, collectionName],
+  )
+  const requestedCreate =
+    searchParams.get('data_action') === 'create_standard_profile'
+  const requestedStandard = parseStandardProfileType(searchParams.get('standard'))
+  const requestedTargetGrain = searchParams.get('target_grain') ?? undefined
+  const [selectedName, setSelectedName] = useState<string | null>(null)
+  const [creating, setCreating] = useState(requestedCreate)
+  const [editingName, setEditingName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!requestedCreate) {
+      return
+    }
+    setCreating(true)
+    setSelectedName(null)
+    setEditingName(null)
+  }, [requestedCreate, requestedStandard, requestedTargetGrain])
+
   const collectionProfiles = useMemo(
     () =>
       profiles.filter((profile) =>
-        profileBelongsToCollection(profile, collectionName),
+        profileBelongsToCollection(profile, collectionName, collectionMetadata),
       ),
-    [collectionName, profiles],
+    [collectionMetadata, collectionName, profiles],
   )
   const collectionLegacyHints = useMemo(
     () =>
       legacyHints.filter((hint) =>
-        hint.source ? hint.source.name === collectionName : false,
+        sourceBelongsToCollection(hint.source, collectionName, collectionMetadata),
       ),
-    [collectionName, legacyHints],
+    [collectionMetadata, collectionName, legacyHints],
   )
-  const [selectedName, setSelectedName] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [editingName, setEditingName] = useState<string | null>(null)
 
   const selectedProfile = useMemo(() => {
     if (creating) {
@@ -158,6 +184,8 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
             key="new-profile"
             catalog={catalog}
             currentCollectionName={collectionName}
+            initialStandard={requestedStandard}
+            initialTargetGrain={requestedTargetGrain}
             onSaved={(profile) => {
               setCreating(false)
               setSelectedName(profile.name)
@@ -244,8 +272,36 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
 function profileBelongsToCollection(
   profile: StandardProfileConfig,
   collectionName: string,
+  collection?: CollectionCatalogEntry,
 ) {
-  return profile.source.name === collectionName
+  return sourceBelongsToCollection(profile.source, collectionName, collection)
+}
+
+function sourceBelongsToCollection(
+  source: StandardProfileSource | null | undefined,
+  collectionName: string,
+  collection?: CollectionCatalogEntry,
+) {
+  if (!source) {
+    return false
+  }
+  if (source.type === 'collection' && source.name === collectionName) {
+    return true
+  }
+  return Boolean(
+    collection &&
+      source.type === collection.source_type &&
+      source.name === collection.source_name,
+  )
+}
+
+function parseStandardProfileType(
+  value: string | null,
+): StandardProfileType | undefined {
+  if (value === 'darwin_core_occurrence' || value === 'humboldt_event') {
+    return value
+  }
+  return undefined
 }
 
 interface SelectedProfileStatusCardProps {

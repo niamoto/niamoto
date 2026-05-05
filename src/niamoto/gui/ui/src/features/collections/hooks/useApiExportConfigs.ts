@@ -76,6 +76,9 @@ export interface ApiExportPreviewResponse {
   item_id?: string | number | null
   preview: unknown
   source: Record<string, unknown>
+  warnings: string[]
+  errors: string[]
+  metadata: Record<string, unknown>
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -177,7 +180,7 @@ async function fetchApiExportPreview(
 
 export interface ApiExportTargetCreate {
   name: string
-  template: 'simple' | 'dwc' | 'manual'
+  template: 'simple' | 'dwc'
   params?: Record<string, unknown>
 }
 
@@ -199,6 +202,7 @@ export function useCreateApiExportTarget() {
     mutationFn: (body: ApiExportTargetCreate) => createApiExportTarget(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-export-targets'] })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
@@ -229,6 +233,7 @@ export function useUpdateApiExportTargetSettings(exportName: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-export-targets'] })
       queryClient.invalidateQueries({ queryKey: ['api-export-target', exportName] })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
@@ -251,6 +256,7 @@ export function useUpdateApiExportGroupConfig(exportName: string, groupBy: strin
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-export-targets'] })
       queryClient.invalidateQueries({ queryKey: ['api-export-group', exportName, groupBy] })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }

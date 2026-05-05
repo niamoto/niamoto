@@ -8,6 +8,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DwcMappingEditor } from './DwcMappingEditor'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+Element.prototype.scrollIntoView = vi.fn()
+HTMLElement.prototype.hasPointerCapture = vi.fn(() => false)
+HTMLElement.prototype.releasePointerCapture = vi.fn()
+HTMLElement.prototype.setPointerCapture = vi.fn()
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -55,6 +67,8 @@ describe('DwcMappingEditor', () => {
   async function renderEditor(
     value: Record<string, unknown> = {},
     sourceFields: string[] = [],
+    onChange = vi.fn(),
+    generatorOptions?: string[],
   ) {
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -65,10 +79,12 @@ describe('DwcMappingEditor', () => {
         <DwcMappingEditor
           value={value}
           sourceFields={sourceFields}
-          onChange={vi.fn()}
+          onChange={onChange}
+          generatorOptions={generatorOptions}
         />,
       )
     })
+    return { onChange }
   }
 
   it('shows an empty state instead of a placeholder row for empty mappings', async () => {
@@ -117,11 +133,35 @@ describe('DwcMappingEditor', () => {
 
     expect(container!.textContent).toContain('collectionPanel.api.sourceField')
     expect(container!.textContent).toContain('id')
-    expect(container!.textContent).toContain('taxon_id')
+    await act(async () => {
+      click(container!.querySelector('button[aria-label="collectionPanel.api.sourceField"]'))
+    })
+
+    expect(document.body.textContent).toContain('taxon_id')
     expect(container!.textContent).toContain('collectionPanel.api.customSourceReference')
     expect((container!.querySelectorAll('input')[1] as HTMLInputElement).value).toBe(
       'id',
     )
+  })
+
+  it('serializes source references explicitly for DwC exporters', async () => {
+    const onChange = vi.fn()
+    await renderEditor({ occurrenceID: { source: 'id' } }, ['id', 'taxon_id'], onChange)
+
+    const manualReferenceInput = container!.querySelectorAll('input')[1] as HTMLInputElement
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set?.call(manualReferenceInput, 'taxon_id')
+      manualReferenceInput.dispatchEvent(new Event('input', { bubbles: true }))
+      manualReferenceInput.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      occurrenceID: { source: '@source.taxon_id' },
+    })
   })
 
   it('can fill suggested generator params from available source fields', async () => {
@@ -141,5 +181,17 @@ describe('DwcMappingEditor', () => {
     const params = container!.querySelector('textarea') as HTMLTextAreaElement
     expect(params.value).toContain('"source": "geo_pt"')
     expect(params.value).toContain('"coordinate": "latitude"')
+  })
+
+  it('can limit generator options for standard profile mappings', async () => {
+    await renderEditor(
+      { eventDate: { generator: 'current_date' } },
+      [],
+      vi.fn(),
+      ['current_date'],
+    )
+
+    expect(container!.textContent).toContain('current_date')
+    expect(container!.textContent).not.toContain('format_event_date')
   })
 })

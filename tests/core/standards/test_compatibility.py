@@ -103,12 +103,39 @@ def test_humboldt_event_from_plot_collection_is_plausible_with_warnings():
     ]
 
 
-def test_occurrence_named_collection_without_relation_is_blocked():
+def test_occurrence_named_collection_uses_backing_source_relation():
     import_config = _import_config()
     import_config["metadata"] = {
         "collections": {
             "occurrence_summary": {
                 "source": {"type": "reference", "name": "taxons"},
+                "grain": "reference",
+                "roles": ["standard"],
+            }
+        }
+    }
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "bad_occurrence",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "collection", "name": "occurrence_summary"},
+        }
+    )
+    service = StandardCompatibilityService(import_config=import_config)
+
+    report = service.evaluate(profile)
+
+    assert report.status == "compatible"
+    assert report.evidence[0].details["relation_entity"] == "taxons"
+
+
+def test_occurrence_named_collection_without_backing_relation_is_blocked():
+    import_config = _import_config()
+    import_config["metadata"] = {
+        "collections": {
+            "occurrence_summary": {
+                "source": {"type": "reference", "name": "plots"},
                 "grain": "reference",
                 "roles": ["standard"],
             }

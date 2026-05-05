@@ -10,6 +10,21 @@ from niamoto.core.standards.models import (
     StandardValidationIssue,
 )
 
+SUPPORTED_STANDARD_PROFILE_GENERATORS = {
+    "darwin_core_occurrence": {
+        "constant",
+        "current_date",
+        "dynamic_properties",
+        "extract_geometry_coordinate",
+        "format_measurements",
+        "unique_occurrence_id",
+    },
+    "humboldt_event": {
+        "constant",
+        "current_date",
+    },
+}
+
 
 def validate_mapping_shape(
     profile: StandardProfileConfig,
@@ -22,6 +37,23 @@ def validate_mapping_shape(
             has_source = bool(mapping.get("source"))
             has_generator = bool(mapping.get("generator"))
             if has_source != has_generator:
+                if has_generator:
+                    generator = str(mapping["generator"])
+                    supported = SUPPORTED_STANDARD_PROFILE_GENERATORS.get(
+                        profile.standard, set()
+                    )
+                    if generator not in supported:
+                        return [
+                            StandardValidationIssue(
+                                code="mapping_unsupported_generator",
+                                severity="critical",
+                                message=(
+                                    f"Generator '{generator}' is not supported for "
+                                    f"{profile.standard} profile outputs."
+                                ),
+                                path=f"mappings.{term}.generator",
+                            )
+                        ]
                 continue
         return [
             StandardValidationIssue(

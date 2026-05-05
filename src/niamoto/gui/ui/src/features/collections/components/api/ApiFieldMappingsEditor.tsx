@@ -9,15 +9,17 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 import type { ApiExportFieldSuggestion } from '@/features/collections/hooks/useApiExportConfigs'
+import {
+  FieldSelector,
+  type FieldSelectorOption,
+} from '@/features/collections/components/data/FieldSelector'
 
 export type ApiFieldMappingValue = string | Record<string, unknown>
 
@@ -405,6 +407,20 @@ export function ApiFieldMappingsEditor({
       )
   }, [sourceOptions, t])
 
+  const fieldSelectorOptions = useMemo<FieldSelectorOption[]>(
+    () =>
+      sourceGroups.flatMap((group) =>
+        group.options.map((option) => ({
+          value: option.source,
+          label: option.label,
+          description: option.source,
+          groupKey: group.key,
+          groupLabel: group.label,
+        })),
+      ),
+    [sourceGroups],
+  )
+
   const availableSuggestions = useMemo(
     () => {
       const byOutputName = new Map<string, SourceFieldOption>()
@@ -636,40 +652,20 @@ export function ApiFieldMappingsEditor({
               {row.mode === 'source' ? (
                 <div className="space-y-1">
                   <Label>{t('collectionPanel.api.fieldMappings.sourcePath')}</Label>
-                  <Select
+                  <FieldSelector
                     value={row.source}
-                    onValueChange={(source) => updateSourcePath(index, source)}
+                    onChange={(source) => updateSourcePath(index, source)}
+                    options={fieldSelectorOptions}
+                    placeholder={t(
+                      sourceOptions.length > 0
+                        ? 'collectionPanel.api.fieldMappings.selectSourcePath'
+                        : 'collectionPanel.api.fieldMappings.noSourcePaths'
+                    )}
+                    emptyLabel={t('collectionPanel.api.fieldMappings.noSourcePaths')}
+                    searchPlaceholder={t('collectionPanel.api.fieldMappings.searchSourcePath')}
                     disabled={sourceOptions.length === 0}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={t(
-                          sourceOptions.length > 0
-                            ? 'collectionPanel.api.fieldMappings.selectSourcePath'
-                            : 'collectionPanel.api.fieldMappings.noSourcePaths'
-                        )}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sourceGroups.map((group) => (
-                        <SelectGroup key={group.key}>
-                          <SelectLabel className="sticky top-0 z-10 -mx-1 mb-1 border-y bg-popover px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-foreground shadow-sm first:border-t-0">
-                            {group.label}
-                          </SelectLabel>
-                          {group.options.map((option) => (
-                            <SelectItem key={option.source} value={option.source}>
-                              <span className="flex min-w-0 flex-col items-start">
-                                <span className="truncate">{option.label}</span>
-                                <span className="truncate font-mono text-xs text-muted-foreground">
-                                  {option.source}
-                                </span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    ariaLabel={t('collectionPanel.api.fieldMappings.sourcePath')}
+                  />
                 </div>
               ) : (
                 <div className="space-y-1">

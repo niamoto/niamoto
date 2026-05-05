@@ -1,7 +1,7 @@
 # Collections
 
 Collections is the reader-facing name for the desktop area that manages grouped
-outputs, static APIs, and standard publication profiles. Behind the interface,
+outputs, reusable data outputs, and standard publication profiles. Behind the interface,
 this stage spans `config/transform.yml`, collection metadata in
 `config/import.yml`, and the collection-facing parts of `config/export.yml`.
 
@@ -10,7 +10,7 @@ Use Collections to:
 - inspect the collections created from imported data
 - review inferred collection metadata before publishing it
 - configure widgets and other computed outputs
-- configure simple JSON APIs and standard biodiversity profiles
+- configure reusable JSON data outputs and standard biodiversity profiles
 - preview a collection before recomputing everything
 - recompute and validate the generated collection content
 
@@ -74,31 +74,42 @@ The gallery helps you discover:
 For a more focused view of widget selection, list pages, and API outputs, see
 [widget-catalogue.md](widget-catalogue.md).
 
-## 5. Configure APIs and standard profiles
+## 5. Configure data outputs
 
-Collections can produce two different kinds of machine-readable output.
+Open a collection and use the **Data** tab to configure machine-readable
+outputs. This tab is collection-scoped: it shows what is already configured for
+the active collection before suggesting new output types.
 
-Use the API export view for a simple static JSON API for a collection. This
-workflow writes ordinary `json_api_exporter` targets under `exports` in
-`config/export.yml`. It is appropriate when the goal is to expose Niamoto's
-transformed collection data as index and detail JSON files.
+The Data tab can show:
 
-Use the Standards view for biodiversity standard publication profiles. Standard
-profiles are stored under the top-level `standard_profiles` section in
-`config/export.yml`. They describe a standard, a target grain, a source, a field
-mapping, validation status, and profile-owned outputs. The first supported
-standards are Darwin Core Occurrence and Humboldt/Event.
+- simple reusable JSON outputs backed by ordinary `json_api_exporter` targets
+  under `exports` in `config/export.yml`
+- biodiversity standard profiles stored under the top-level
+  `standard_profiles` section in `config/export.yml`
+- legacy standard-like exports, such as existing Darwin Core JSON targets, as
+  migration hints
+
+Simple JSON is the low-friction option when the goal is to expose Niamoto's
+transformed collection data as index and detail JSON files. Standard profiles
+are used when the output must follow a biodiversity publication standard. A
+standard profile describes a standard, target grain, source, field mapping,
+validation status, and profile-owned outputs.
 
 Standard profiles are not generic collection exports. For example, Darwin Core
 Occurrence requires occurrence-grain records, or an explicit relation from a
 collection such as taxa to occurrence data. Niamoto shows compatibility and
 validation reports before generating API JSON, Darwin Core Archive, or standard
-files.
+files. Test or draft outputs are written separately from final publication
+outputs.
 
 Legacy `dwc_occurrence_json` targets remain supported as ordinary JSON API
-exports. The Standards view can surface them as Darwin Core Occurrence-like
-hints, but the first implementation does not rewrite existing projects
+exports. The Data tab can surface them as Darwin Core Occurrence-like hints,
+but the first implementation does not rewrite existing projects
 automatically.
+
+Advanced project defaults for JSON API targets remain available from the Data
+tab and from the dedicated advanced settings route. Use them when you need to
+change shared exporter defaults rather than one collection output.
 
 For configuration details, see
 [../06-reference/api-export-guide.md](../06-reference/api-export-guide.md) and

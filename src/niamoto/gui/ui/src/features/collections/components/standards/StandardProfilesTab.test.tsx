@@ -2,6 +2,7 @@
 
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { StandardProfilesTab } from './StandardProfilesTab'
@@ -42,7 +43,7 @@ const defaultProfiles = [
     enabled: true,
     standard: 'darwin_core_occurrence',
     target_grain: 'occurrence',
-    source: { type: 'collection', name: 'occurrences' },
+    source: { type: 'dataset', name: 'occurrences' },
     mappings: { occurrenceID: { source: 'id' } },
     outputs: [{ type: 'api_json', enabled: true, params: {} }],
     validation_status: 'conformant',
@@ -81,6 +82,10 @@ vi.mock('react-i18next', () => ({
         'collections.standards.outputTypes.api_json': 'Profile API JSON',
         'collections.standards.outputEnabled': 'Enabled',
         'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.generateDraftOutput': 'Generate test files',
+        'collections.standards.testOutput': 'Test output',
+        'collections.standards.publicationOutput': 'Publication output',
+        'collections.standards.draftRetention': 'Draft retention {{location}}',
         'collections.standards.outputJsonPreview': 'Representative JSON preview',
         'collections.standards.outputJsonPreviewItem': 'Source record {{id}}',
         'collections.standards.outputJsonPreviewLoading': 'Loading preview',
@@ -126,14 +131,26 @@ vi.mock('@/features/collections/hooks/useCollectionsCatalog', () => ({
         {
           name: 'taxons',
           label: 'taxons',
+          source_type: 'reference',
+          source_name: 'taxons',
           roles: ['site', 'api'],
           visible: true,
         },
         {
           name: 'technical_occurrences',
           label: 'technical_occurrences',
+          source_type: 'dataset',
+          source_name: 'occurrences',
           roles: ['technical', 'standard'],
           visible: false,
+        },
+        {
+          name: 'occurrences_publication',
+          label: 'Occurrences publication',
+          source_type: 'dataset',
+          source_name: 'occurrences',
+          roles: ['standard'],
+          visible: true,
         },
       ],
       sources: [{ type: 'dataset', name: 'occurrences', label: 'occurrences' }],
@@ -157,7 +174,7 @@ vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
           export_name: 'legacy_occurrences_json_api',
           standard: 'darwin_core_occurrence',
           message: 'Legacy Darwin Core-like output.',
-          source: { type: 'collection', name: 'occurrences' },
+          source: { type: 'dataset', name: 'occurrences' },
         },
       ],
       total: profilesState.profiles.length,
@@ -224,6 +241,10 @@ vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
     isPending: false,
     mutateAsync: vi.fn(),
   }),
+  useExecuteStandardProfileOutputDraft: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
   useStandardProfileOutputPreview: () => ({
     data: {
       item_id: 1,
@@ -266,13 +287,20 @@ describe('StandardProfilesTab', () => {
     container = null
   })
 
-  async function renderTab(collectionName = 'taxons') {
+  async function renderTab(
+    collectionName = 'taxons',
+    initialEntry = '/groups/taxons?tab=standards',
+  ) {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     await act(async () => {
-      root?.render(<StandardProfilesTab collectionName={collectionName} />)
+      root?.render(
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <StandardProfilesTab collectionName={collectionName} />
+        </MemoryRouter>,
+      )
     })
   }
 
@@ -302,6 +330,36 @@ describe('StandardProfilesTab', () => {
     expect(container?.textContent).not.toContain('dwc_taxon_context')
     expect(container?.textContent).not.toContain('dwc_occurrences')
     expect(container?.textContent).not.toContain('legacy_json_api')
+  })
+
+  it('shows profiles scoped to a manual collection backing source', async () => {
+    await renderTab(
+      'occurrences_publication',
+      '/groups/occurrences_publication?tab=standards',
+    )
+
+    const profileList = container!.querySelector('aside')?.textContent
+    expect(profileList).toContain('dwc_occurrences')
+    expect(profileList).not.toContain('dwc_taxon_context')
+    expect(profileList).toContain('legacy_occurrences_json_api')
+  })
+
+  it('opens a requested standard profile draft from data recommendations', async () => {
+    profilesState.profiles = []
+    await renderTab(
+      'occurrences_publication',
+      '/groups/occurrences_publication?tab=standards&data_action=create_standard_profile&standard=humboldt_event&target_grain=inventory',
+    )
+
+    const standardSelect = container!.querySelector(
+      '#standard-profile-standard',
+    ) as HTMLSelectElement
+    const targetGrainInput = container!.querySelector(
+      '#standard-profile-grain',
+    ) as HTMLInputElement
+
+    expect(standardSelect.value).toBe('humboldt_event')
+    expect(targetGrainInput.value).toBe('inventory')
   })
 
   it('keeps hidden technical collections available as profile sources', async () => {

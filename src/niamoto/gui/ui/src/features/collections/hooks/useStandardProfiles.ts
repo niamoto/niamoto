@@ -286,6 +286,17 @@ async function executeStandardProfileOutput(
   return readJson<StandardProfileOutputResult>(response)
 }
 
+async function executeStandardProfileOutputDraft(
+  profileName: string,
+  outputType: StandardProfileOutputType,
+): Promise<StandardProfileOutputResult> {
+  const response = await fetch(
+    `${API_BASE}/${encodeURIComponent(profileName)}/outputs/${outputType}/draft`,
+    { method: 'POST' },
+  )
+  return readJson<StandardProfileOutputResult>(response)
+}
+
 async function fetchStandardProfileOutputPreview(
   profileName: string,
   outputType: StandardProfileOutputType,
@@ -311,6 +322,7 @@ export function useCreateStandardProfile() {
     mutationFn: createStandardProfile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: standardProfilesQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
@@ -344,6 +356,7 @@ export function useUpdateStandardProfile(profileName: string) {
       queryClient.invalidateQueries({
         queryKey: [...standardProfilesQueryKey, profileName],
       })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
@@ -372,6 +385,20 @@ export function useExecuteStandardProfileOutput(profileName: string) {
   return useMutation({
     mutationFn: (outputType: StandardProfileOutputType) =>
       executeStandardProfileOutput(profileName, outputType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...standardProfilesQueryKey, profileName, 'validation'],
+      })
+    },
+  })
+}
+
+export function useExecuteStandardProfileOutputDraft(profileName: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (outputType: StandardProfileOutputType) =>
+      executeStandardProfileOutputDraft(profileName, outputType),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [...standardProfilesQueryKey, profileName, 'validation'],

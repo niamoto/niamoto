@@ -184,9 +184,10 @@ class StandardCompatibilityService:
         source: StandardProfileSource,
         context: StandardProfileSource | None,
     ) -> dict[str, Any] | None:
-        candidate_names = [source.name]
+        candidate_names = self._relation_candidate_names(source)
         if context is not None:
-            candidate_names.append(context.name)
+            candidate_names.extend(self._relation_candidate_names(context))
+        candidate_names = list(dict.fromkeys(candidate_names))
 
         for dataset_name, dataset_config in self._datasets().items():
             if self._infer_dataset_grain(dataset_name, dataset_config) != "occurrence":
@@ -226,6 +227,16 @@ class StandardCompatibilityService:
                     "target_field": relation.get("reference_key"),
                 }
         return None
+
+    def _relation_candidate_names(self, source: StandardProfileSource) -> list[str]:
+        candidate_names = [source.name]
+        if source.type != "collection":
+            return candidate_names
+
+        collection = self._find_collection(source.name)
+        if collection and collection.source_name:
+            candidate_names.append(collection.source_name)
+        return candidate_names
 
     def _infer_dataset_grain(self, name: str, config: Any) -> str:
         haystack = [name]

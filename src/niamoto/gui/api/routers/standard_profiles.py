@@ -324,6 +324,29 @@ async def execute_standard_profile_output(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post(
+    "/{profile_name}/outputs/{output_type}/draft",
+    response_model=StandardProfileOutputResult,
+)
+async def execute_standard_profile_output_draft(
+    profile_name: str,
+    output_type: StandardProfileOutputType,
+) -> StandardProfileOutputResult:
+    """Generate one draft/test output in an isolated preview location."""
+    store = _profile_store()
+    try:
+        profile = store.get_profile(profile_name)
+        return _output_service().execute_profile(
+            profile,
+            output_type=output_type,
+            draft=True,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get(
     "/{profile_name}/outputs/{output_type}/preview",
     response_model=StandardProfileOutputPreviewResult,

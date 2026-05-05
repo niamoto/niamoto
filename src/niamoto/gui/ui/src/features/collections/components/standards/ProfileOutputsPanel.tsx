@@ -7,15 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   type StandardProfileConfig,
+  type StandardProfileOutputResult,
   type StandardProfileOutputType,
   type StandardValidationReport,
   useExecuteStandardProfileOutput,
+  useExecuteStandardProfileOutputDraft,
   useStandardProfileOutputPreview,
 } from '@/features/collections/hooks/useStandardProfiles'
 
 interface ProfileOutputsPanelProps {
   profile: StandardProfileConfig
   validation?: StandardValidationReport
+  draftMode?: boolean
 }
 
 const outputIcon = {
@@ -27,19 +30,26 @@ const outputIcon = {
 export function ProfileOutputsPanel({
   profile,
   validation,
+  draftMode = false,
 }: ProfileOutputsPanelProps) {
   const { t } = useTranslation(['sources'])
-  const executeOutput = useExecuteStandardProfileOutput(profile.name)
-  const [lastOutputPath, setLastOutputPath] = useState<string | null>(null)
+  const executePublicationOutput = useExecuteStandardProfileOutput(profile.name)
+  const executeDraftOutput = useExecuteStandardProfileOutputDraft(profile.name)
+  const executeOutput = draftMode ? executeDraftOutput : executePublicationOutput
+  const [lastOutput, setLastOutput] =
+    useState<StandardProfileOutputResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const validationStatus = validation?.status ?? profile.validation_status
   const hasCritical = (validation?.summary.critical ?? 0) > 0
+  const retentionLocation = lastOutput
+    ? draftRetentionLocation(lastOutput)
+    : null
 
   const runOutput = async (outputType: StandardProfileOutputType) => {
     setError(null)
     try {
       const result = await executeOutput.mutateAsync(outputType)
-      setLastOutputPath(result.output_path ?? null)
+      setLastOutput(result)
     } catch (runError) {
       setError(
         runError instanceof Error
@@ -79,7 +89,14 @@ export function ProfileOutputsPanel({
               const disabled =
                 !output.enabled ||
                 executeOutput.isPending ||
-                (publicationFile && hasCritical)
+                (!draftMode && publicationFile && hasCritical)
+              const actionLabel = draftMode
+                ? publicationFile
+                  ? t('collections.standards.generateDraftOutput')
+                  : t('collections.standards.generateDraftJson')
+                : publicationFile
+                  ? t('collections.standards.generatePublicationFile')
+                  : t('collections.standards.generateDraftJson')
 
               return (
                 <div
@@ -109,9 +126,7 @@ export function ProfileOutputsPanel({
                       {executeOutput.isPending ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : null}
-                      {publicationFile
-                        ? t('collections.standards.generatePublicationFile')
-                        : t('collections.standards.generateDraftJson')}
+                      {actionLabel}
                     </Button>
                   </div>
                   {output.type === 'api_json' && output.enabled && (
@@ -123,9 +138,25 @@ export function ProfileOutputsPanel({
           </div>
         )}
 
-        {lastOutputPath && (
-          <div className="rounded-md border bg-muted/20 p-3 text-xs">
-            {t('collections.standards.lastOutput')}: {lastOutputPath}
+        {lastOutput?.output_path && (
+          <div className="space-y-2 rounded-md border bg-muted/20 p-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={draftMode ? 'outline' : 'success'}>
+                {draftMode
+                  ? t('collections.standards.testOutput')
+                  : t('collections.standards.publicationOutput')}
+              </Badge>
+              <span>
+                {t('collections.standards.lastOutput')}: {lastOutput.output_path}
+              </span>
+            </div>
+            {retentionLocation && (
+              <p className="text-muted-foreground">
+                {t('collections.standards.draftRetention', {
+                  location: retentionLocation,
+                })}
+              </p>
+            )}
           </div>
         )}
         {error && (
@@ -136,6 +167,18 @@ export function ProfileOutputsPanel({
       </CardContent>
     </Card>
   )
+}
+
+function draftRetentionLocation(result: StandardProfileOutputResult) {
+  const retentionPolicy = result.metadata?.retention_policy
+  if (
+    typeof retentionPolicy === 'object' &&
+    retentionPolicy !== null &&
+    'location' in retentionPolicy
+  ) {
+    return String(retentionPolicy.location)
+  }
+  return null
 }
 
 function ProfileJsonOutputPreview({ profileName }: { profileName: string }) {

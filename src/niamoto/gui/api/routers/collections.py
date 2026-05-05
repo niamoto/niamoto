@@ -14,7 +14,11 @@ from niamoto.core.collections.models import (
     CollectionRole,
     CollectionSourceType,
 )
-from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.services.collection_data_options import (
+    CollectionDataOptionsResponse,
+    CollectionDataOptionsService,
+)
 from niamoto.gui.api.services.templates.config_service import (
     load_export_config,
     load_import_config,
@@ -63,6 +67,17 @@ def _catalog_service() -> CollectionCatalogService:
     )
 
 
+def _data_options_service() -> CollectionDataOptionsService:
+    work_dir = get_working_directory()
+    return CollectionDataOptionsService(
+        work_dir=work_dir,
+        db_path=get_database_path(),
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+        export_config=load_export_config(work_dir),
+    )
+
+
 def _save_service_config(service: CollectionCatalogService) -> None:
     save_import_config(
         get_working_directory(), service.import_config, create_backup=True
@@ -82,6 +97,20 @@ def _raise_catalog_error(exc: ValueError) -> NoReturn:
 async def list_collections() -> CollectionCatalog:
     """List reviewable collection candidates and manual source options."""
     return _catalog_service().list_collections()
+
+
+@router.get(
+    "/{collection_name}/data-options",
+    response_model=CollectionDataOptionsResponse,
+)
+async def get_collection_data_options(
+    collection_name: str,
+) -> CollectionDataOptionsResponse:
+    """Return configured and available reusable data outputs for a collection."""
+    try:
+        return _data_options_service().get_options(collection_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.patch("/{collection_name}", response_model=CollectionMutationResponse)

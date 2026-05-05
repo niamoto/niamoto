@@ -15,6 +15,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  FieldSelector,
+  type FieldSelectorOption,
+} from '@/features/collections/components/data/FieldSelector'
 
 type DwcMappingMode = 'static' | 'source' | 'generator'
 
@@ -25,6 +29,7 @@ interface DwcMappingEditorProps {
   description?: string
   referenceHelp?: string
   sourceFields?: string[]
+  generatorOptions?: string[]
 }
 
 interface DwcMappingRow {
@@ -37,12 +42,10 @@ interface DwcMappingRow {
   paramsText: string
 }
 
-const KNOWN_GENERATORS = [
+const LEGACY_DWC_GENERATORS = [
   'unique_occurrence_id',
   'unique_event_id',
   'unique_identification_id',
-  'constant',
-  'extract_geometry_coordinate',
   'extract_specific_epithet',
   'extract_infraspecific_epithet',
   'format_event_date',
@@ -240,7 +243,7 @@ function serializeRows(
         }
       }
 
-      serialized[term] = reference
+      serialized[term] = { source: toSourceReference(reference) }
       continue
     }
 
@@ -286,9 +289,30 @@ function normalizeSourceReference(reference: string) {
   return trimmed
 }
 
+function toSourceReference(reference: string) {
+  const trimmed = reference.trim()
+  if (!trimmed || trimmed.startsWith('@')) {
+    return trimmed
+  }
+  return `@source.${trimmed}`
+}
+
 function sourceFieldSelectValue(reference: string, sourceFields: string[]) {
   const normalizedReference = normalizeSourceReference(reference)
   return sourceFields.includes(normalizedReference) ? normalizedReference : undefined
+}
+
+function sourceFieldGroup(field: string) {
+  const [root] = field.split('.').filter(Boolean)
+  if (!root) {
+    return { key: 'fields', label: 'Fields' }
+  }
+  return {
+    key: root,
+    label: root
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+  }
 }
 
 function guessGeometryField(sourceFields: string[]) {
@@ -346,7 +370,7 @@ function suggestedGeneratorParamsText(
     )
   }
 
-  if (generator === 'format_measurements') {
+  if (generator === 'format_measurements' || generator === 'dynamic_properties') {
     const fields = guessMeasurementFields(sourceFields)
     if (fields.length === 0) {
       return null
@@ -364,6 +388,7 @@ export function DwcMappingEditor({
   description,
   referenceHelp,
   sourceFields = [],
+  generatorOptions,
 }: DwcMappingEditorProps) {
   return (
     <DwcMappingEditorForm
@@ -373,6 +398,7 @@ export function DwcMappingEditor({
       description={description}
       referenceHelp={referenceHelp}
       sourceFields={sourceFields}
+      generatorOptions={generatorOptions}
     />
   )
 }
@@ -384,6 +410,7 @@ function DwcMappingEditorForm({
   description,
   referenceHelp,
   sourceFields = [],
+  generatorOptions = LEGACY_DWC_GENERATORS,
 }: DwcMappingEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
@@ -393,6 +420,20 @@ function DwcMappingEditorForm({
   const sourceFieldOptions = useMemo(
     () => uniqueSourceFields(sourceFields),
     [sourceFields],
+  )
+  const fieldSelectorOptions = useMemo<FieldSelectorOption[]>(
+    () =>
+      sourceFieldOptions.map((field) => {
+        const group = sourceFieldGroup(field)
+        return {
+          value: field,
+          label: field,
+          description: field,
+          groupKey: group.key,
+          groupLabel: group.label,
+        }
+      }),
+    [sourceFieldOptions],
   )
 
   useEffect(() => {
@@ -407,13 +448,13 @@ function DwcMappingEditorForm({
     lastExternalValueKeyRef.current = externalValueKey
   }, [externalValueKey, value])
 
-  const generatorOptions = useMemo(() => {
+  const availableGeneratorOptions = useMemo(() => {
     const extraGenerators = rows
       .map((row) => row.generator.trim())
-      .filter((generator) => generator && !KNOWN_GENERATORS.includes(generator))
+      .filter((generator) => generator && !generatorOptions.includes(generator))
 
-    return [...KNOWN_GENERATORS, ...extraGenerators]
-  }, [rows])
+    return [...generatorOptions, ...extraGenerators]
+  }, [generatorOptions, rows])
 
   const commit = (nextRows: DwcMappingRow[]) => {
     setRows(nextRows)
@@ -584,23 +625,15 @@ function DwcMappingEditorForm({
                 {sourceFieldOptions.length > 0 && (
                   <div className="space-y-2">
                     <Label>{t('collectionPanel.api.sourceField')}</Label>
-                    <Select
+                    <FieldSelector
                       value={sourceFieldSelectValue(row.reference, sourceFieldOptions)}
-                      onValueChange={(field) => updateRow(index, 'reference', field)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={t('collectionPanel.api.sourceFieldPlaceholder')}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sourceFieldOptions.map((field) => (
-                          <SelectItem key={field} value={field}>
-                            {field}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(field) => updateRow(index, 'reference', field)}
+                      options={fieldSelectorOptions}
+                      placeholder={t('collectionPanel.api.sourceFieldPlaceholder')}
+                      searchPlaceholder={t('collectionPanel.api.fieldMappings.searchSourcePath')}
+                      emptyLabel={t('collectionPanel.api.fieldMappings.noSourcePaths')}
+                      ariaLabel={t('collectionPanel.api.sourceField')}
+                    />
                   </div>
                 )}
                 <div className="space-y-2">
@@ -641,7 +674,7 @@ function DwcMappingEditorForm({
                       <SelectValue placeholder={t('collectionPanel.api.generatorPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {generatorOptions.map((generator) => (
+                      {availableGeneratorOptions.map((generator) => (
                         <SelectItem key={generator} value={generator}>
                           {generator}
                         </SelectItem>

@@ -144,6 +144,7 @@ export function useUpdateCollection() {
         },
       )
       queryClient.invalidateQueries({ queryKey: collectionsCatalogQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
@@ -155,6 +156,7 @@ export function useCreateCollection() {
     mutationFn: createCollection,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: collectionsCatalogQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['collection-data-options'] })
     },
   })
 }
