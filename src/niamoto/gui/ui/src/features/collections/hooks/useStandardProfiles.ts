@@ -54,6 +54,7 @@ export interface LegacyStandardProfileHint {
   export_name: string
   standard: StandardProfileType
   message: string
+  source?: StandardProfileSource | null
 }
 
 export interface StandardProfileListResponse {

@@ -93,6 +93,7 @@ class StandardProfileStore:
                         "Legacy JSON API target can be reviewed as a "
                         "Darwin Core Occurrence profile."
                     ),
+                    source=self._legacy_source(export_entry),
                 )
             )
         return [hint.model_dump(mode="json") for hint in hints]
@@ -126,6 +127,17 @@ class StandardProfileStore:
             ):
                 return True
         return False
+
+    def _legacy_source(
+        self, export_entry: dict[str, Any]
+    ) -> StandardProfileSource | None:
+        for group in export_entry.get("groups", []) or []:
+            if not isinstance(group, dict):
+                continue
+            group_by = group.get("group_by")
+            if isinstance(group_by, str) and group_by:
+                return StandardProfileSource(type="collection", name=group_by)
+        return None
 
     def _raw_profiles(self) -> list[Any]:
         profiles = self.export_config.get("standard_profiles")

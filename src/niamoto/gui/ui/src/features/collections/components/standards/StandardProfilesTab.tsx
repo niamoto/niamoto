@@ -33,6 +33,20 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
   const { data: catalog } = useCollectionsCatalog()
   const profiles = data?.profiles ?? EMPTY_PROFILES
   const legacyHints = data?.legacy_hints ?? EMPTY_LEGACY_HINTS
+  const collectionProfiles = useMemo(
+    () =>
+      profiles.filter((profile) =>
+        profileBelongsToCollection(profile, collectionName),
+      ),
+    [collectionName, profiles],
+  )
+  const collectionLegacyHints = useMemo(
+    () =>
+      legacyHints.filter((hint) =>
+        hint.source ? hint.source.name === collectionName : false,
+      ),
+    [collectionName, legacyHints],
+  )
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -42,13 +56,15 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
       return undefined
     }
     if (selectedName) {
-      return profiles.find((profile) => profile.name === selectedName)
+      const selected = collectionProfiles.find(
+        (profile) => profile.name === selectedName,
+      )
+      if (selected) {
+        return selected
+      }
     }
-    return (
-      profiles.find((profile) => profile.source.name === collectionName) ??
-      profiles[0]
-    )
-  }, [collectionName, creating, profiles, selectedName])
+    return collectionProfiles[0]
+  }, [collectionProfiles, creating, selectedName])
   const showingCreateForm = creating || !selectedProfile
   const isEditingSelectedProfile =
     Boolean(selectedProfile) && editingName === selectedProfile?.name
@@ -103,19 +119,19 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
           </div>
         </div>
         <div className="space-y-2 p-3">
-          {profiles.length === 0 && (
+          {collectionProfiles.length === 0 && (
             <Card>
               <CardContent className="p-3 text-xs text-muted-foreground">
                 {t('collections.standards.empty')}
               </CardContent>
             </Card>
           )}
-          {profiles.map((profile) => (
+          {collectionProfiles.map((profile) => (
             <ProfileListButton
               key={profile.name}
               profile={profile}
               selected={!creating && selectedProfile?.name === profile.name}
-              contextual={profile.source.name === collectionName}
+              contextual
               onClick={() => {
                 setCreating(false)
                 setSelectedName(profile.name)
@@ -123,12 +139,12 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
               }}
             />
           ))}
-          {legacyHints.length > 0 && (
-            <div className={cn('space-y-2', profiles.length > 0 && 'border-t pt-3')}>
+          {collectionLegacyHints.length > 0 && (
+            <div className={cn('space-y-2', collectionProfiles.length > 0 && 'border-t pt-3')}>
               <p className="px-1 text-xs font-medium text-muted-foreground">
                 {t('collections.standards.legacyHintsTitle')}
               </p>
-              {legacyHints.map((hint) => (
+              {collectionLegacyHints.map((hint) => (
                 <LegacyHintCard key={hint.export_name} hint={hint} />
               ))}
             </div>
@@ -223,6 +239,13 @@ export function StandardProfilesTab({ collectionName }: StandardProfilesTabProps
       </main>
     </div>
   )
+}
+
+function profileBelongsToCollection(
+  profile: StandardProfileConfig,
+  collectionName: string,
+) {
+  return profile.source.name === collectionName
 }
 
 interface SelectedProfileStatusCardProps {
