@@ -4,7 +4,8 @@ Frontend React/TypeScript/Vite for the Niamoto desktop and web interface.
 
 This UI powers:
 - data import and auto-configuration
-- collection review, API export, and standard profile configuration
+- collection review and collection Data output configuration, including JSON
+  exports and standard profiles
 - site configuration
 - publish workflows
 - desktop onboarding and project switching
@@ -136,13 +137,19 @@ The `/` route is implemented in:
 
 ### Collections workflow
 
-Collection review, collection-scoped API exports, and standard publication
-profiles live under:
+Collection review and collection-scoped Data outputs live under:
 
 - [src/features/collections](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections)
 - [src/features/collections/components/CollectionPanel.tsx](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/components/CollectionPanel.tsx)
+- [src/features/collections/components/data](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/components/data)
 - [src/features/collections/hooks/useCollectionsCatalog.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/hooks/useCollectionsCatalog.ts)
+- [src/features/collections/hooks/useCollectionDataOptions.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/hooks/useCollectionDataOptions.ts)
 - [src/features/collections/hooks/useStandardProfiles.ts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections/hooks/useStandardProfiles.ts)
+
+The collection tab model is `Sources`, `Blocks`, `List`, and `Data` for normal
+work. `Export`, `Standards`, and `/groups/api-settings` remain as technical or
+compatibility entry points while the Data workspace absorbs the common JSON and
+standard-profile flows.
 
 ### Site builder
 

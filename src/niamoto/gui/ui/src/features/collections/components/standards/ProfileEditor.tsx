@@ -25,6 +25,8 @@ interface ProfileEditorProps {
   profile?: StandardProfileConfig
   catalog?: CollectionCatalog
   currentCollectionName?: string
+  initialStandard?: StandardProfileType
+  initialTargetGrain?: string
   onSaved?: (profile: StandardProfileConfig) => void
 }
 
@@ -52,10 +54,24 @@ const OUTPUT_TYPES_BY_STANDARD: Record<StandardProfileType, StandardProfileOutpu
   humboldt_event: ['api_json', 'standard_files'],
 }
 
+const STANDARD_GENERATORS_BY_STANDARD: Record<StandardProfileType, string[]> = {
+  darwin_core_occurrence: [
+    'unique_occurrence_id',
+    'constant',
+    'current_date',
+    'extract_geometry_coordinate',
+    'format_measurements',
+    'dynamic_properties',
+  ],
+  humboldt_event: ['constant', 'current_date'],
+}
+
 export function ProfileEditor({
   profile,
   catalog,
   currentCollectionName,
+  initialStandard,
+  initialTargetGrain,
   onSaved,
 }: ProfileEditorProps) {
   const { t } = useTranslation(['sources'])
@@ -67,12 +83,11 @@ export function ProfileEditor({
   const autoConfigureProfile = useAutoConfigureStandardProfile()
   const createProfile = useCreateStandardProfile()
   const updateProfile = useUpdateStandardProfile(profile?.name ?? '')
+  const defaultStandard = profile?.standard ?? initialStandard ?? 'darwin_core_occurrence'
   const [name, setName] = useState(profile?.name ?? '')
-  const [standard, setStandard] = useState<StandardProfileType>(
-    profile?.standard ?? 'darwin_core_occurrence',
-  )
+  const [standard, setStandard] = useState<StandardProfileType>(defaultStandard)
   const [targetGrain, setTargetGrain] = useState(
-    profile?.target_grain ?? defaultTargetGrain(standard),
+    profile?.target_grain ?? initialTargetGrain ?? defaultTargetGrain(defaultStandard),
   )
   const [sourceValue, setSourceValue] = useState(
     profile ? sourceValueFromSource(profile.source) : sourceValueFromOption(defaultSource),
@@ -368,6 +383,7 @@ export function ProfileEditor({
             description={t('collections.standards.mappingHelp')}
             referenceHelp={t('collections.standards.mappingReferenceHelp')}
             sourceFields={sourceFields}
+            generatorOptions={STANDARD_GENERATORS_BY_STANDARD[standard]}
           />
 
           <div className="space-y-2">

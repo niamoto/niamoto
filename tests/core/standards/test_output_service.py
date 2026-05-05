@@ -165,14 +165,22 @@ def test_darwin_core_profile_preview_uses_representative_mapped_record(
     assert result.output_type == "api_json"
     assert result.item_id == 2
     assert result.preview["metadata"]["profile_name"] == "dwc_occurrences"
+    assert result.metadata["draft"] is True
+    assert result.metadata["sample_basis"] == "representative_record"
+    assert result.metadata["rows_sampled"] == 2
+    assert result.metadata["source_record_id"] == 2
+    assert result.metadata["retention_policy"] == {
+        "type": "manual_cleanup",
+        "location": "exports/.draft/profiles",
+    }
     assert result.preview["records"] == [
         {"occurrenceID": 2, "scientificName": "Araucaria columnaris"}
     ]
     assert result.source == {
         "id": 2,
         "scientific_name": "Araucaria columnaris",
-        "geo_pt_geom": "b'\\x01\\x01\\x00\\x00\\x00\\xef\\x1b'",
     }
+    assert "geo_pt_geom" not in result.source
     assert "Araucaria columnaris" in result.model_dump_json()
 
 
@@ -387,6 +395,54 @@ def test_darwin_core_archive_output_creates_archive(tmp_path):
         assert {"occurrence.csv", "meta.xml", "eml.xml"}.issubset(
             set(archive.namelist())
         )
+
+
+def test_darwin_core_archive_draft_output_uses_isolated_location(tmp_path):
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {"occurrenceID": {"source": "id"}},
+            "outputs": [
+                {
+                    "type": "dwc_archive",
+                    "params": {
+                        "output_dir": "exports/profiles/final_archive",
+                        "archive_name": "profile-dwc.zip",
+                    },
+                }
+            ],
+        }
+    )
+    service = StandardProfileOutputService(
+        tmp_path, import_config=_occurrence_import_config()
+    )
+
+    result = service.execute_profile(
+        profile,
+        output_type="dwc_archive",
+        records=[{"id": "occ-1"}],
+        draft=True,
+    )
+
+    archive_path = (
+        tmp_path
+        / "exports"
+        / ".draft"
+        / "profiles"
+        / "dwc_occurrences"
+        / "dwc_archive"
+        / "profile-dwc.zip"
+    )
+    assert result.status == "success"
+    assert result.output_path == str(archive_path)
+    assert result.metadata["draft"] is True
+    assert result.metadata["publication_output"] is False
+    assert result.metadata["retention_policy"]["location"] == "exports/.draft/profiles"
+    assert archive_path.exists()
+    assert not (tmp_path / "exports" / "profiles" / "final_archive").exists()
 
 
 def test_publication_output_with_critical_validation_errors_is_blocked(tmp_path):

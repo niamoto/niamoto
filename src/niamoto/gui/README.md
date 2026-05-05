@@ -128,7 +128,7 @@ The GUI backend is responsible for:
 
 - instance resolution and context management
 - serving configuration and data APIs
-- collection catalog review and standard profile APIs
+- collection catalog review, collection Data options, and standard profile APIs
 - file operations and import orchestration
 - serving the built frontend in packaged mode
 
@@ -137,6 +137,7 @@ Main entry points:
 - [api/app.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/app.py)
 - [api/context.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/context.py)
 - [api/routers/collections.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/routers/collections.py)
+- [api/services/collection_data_options.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/services/collection_data_options.py)
 - [api/routers/standard_profiles.py](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api/routers/standard_profiles.py)
 
 ## Frontend responsibilities
@@ -145,7 +146,8 @@ The frontend is responsible for:
 
 - interactive import and review flows
 - dashboard and navigation
-- collection review, API export, and standard profile configuration
+- collection review and collection Data output configuration, including JSON
+  exports and standard profiles
 - site configuration
 - publish workflows
 - desktop onboarding UX

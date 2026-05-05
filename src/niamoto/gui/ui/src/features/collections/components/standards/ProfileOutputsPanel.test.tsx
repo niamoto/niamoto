@@ -20,8 +20,12 @@ vi.mock('react-i18next', () => ({
         'collections.standards.outputTypes.dwc_archive': 'Darwin Core Archive',
         'collections.standards.outputEnabled': 'Enabled',
         'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.generateDraftOutput': 'Generate test files',
         'collections.standards.generatePublicationFile': 'Generate files',
         'collections.standards.lastOutput': 'Last output',
+        'collections.standards.testOutput': 'Test output',
+        'collections.standards.publicationOutput': 'Publication output',
+        'collections.standards.draftRetention': 'Draft retention {{location}}',
         'collections.standards.outputFailed': 'Could not generate the output.',
         'collections.standards.outputJsonPreview': 'Representative JSON preview',
         'collections.standards.outputJsonPreviewItem': 'Source record {{id}}',
@@ -41,6 +45,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
   useExecuteStandardProfileOutput: () => ({
+    isPending: false,
+    mutateAsync: executeOutput,
+  }),
+  useExecuteStandardProfileOutputDraft: () => ({
     isPending: false,
     mutateAsync: executeOutput,
   }),
@@ -71,7 +79,7 @@ describe('ProfileOutputsPanel', () => {
     container = null
   })
 
-  async function renderPanel() {
+  async function renderPanel(draftMode = false) {
     outputPreview.mockReturnValue({
       data: {
         item_id: 1,
@@ -124,6 +132,7 @@ describe('ProfileOutputsPanel', () => {
             checklist: [],
             issues: [],
           }}
+          draftMode={draftMode}
         />,
       )
     })
@@ -162,5 +171,33 @@ describe('ProfileOutputsPanel', () => {
     expect(container?.textContent).toContain('Representative JSON preview')
     expect(container?.textContent).toContain('Source record 1')
     expect(container?.textContent).toContain('Aoupinié')
+  })
+
+  it('labels draft mode outputs as test artifacts with retention metadata', async () => {
+    executeOutput.mockResolvedValue({
+      output_path: '/tmp/.draft/profile-dwc.zip',
+      metadata: {
+        retention_policy: {
+          location: 'exports/.draft/profiles',
+        },
+      },
+    })
+    await renderPanel(true)
+
+    const buttons = Array.from(container!.querySelectorAll('button'))
+    const testFileButton = buttons.find((button) =>
+      button.textContent?.includes('Generate test files'),
+    )
+
+    expect(testFileButton).toBeTruthy()
+    expect(testFileButton?.hasAttribute('disabled')).toBe(false)
+
+    await act(async () => {
+      click(testFileButton ?? null)
+    })
+
+    expect(executeOutput).toHaveBeenCalledWith('dwc_archive')
+    expect(container?.textContent).toContain('Test output')
+    expect(container?.textContent).toContain('Draft retention exports/.draft/profiles')
   })
 })

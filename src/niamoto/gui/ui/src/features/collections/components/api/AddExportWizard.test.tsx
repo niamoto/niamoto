@@ -121,7 +121,7 @@ describe('AddExportWizard', () => {
     container = null
   })
 
-  async function renderWizard() {
+  async function renderWizard(initialTemplate?: 'simple' | 'dwc') {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -132,6 +132,7 @@ describe('AddExportWizard', () => {
           open
           onOpenChange={vi.fn()}
           groupBy="taxons"
+          initialTemplate={initialTemplate}
         />
       )
     })
@@ -156,6 +157,14 @@ describe('AddExportWizard', () => {
     expect(input?.getAttribute('autocapitalize')).toBe('none')
     expect(input?.getAttribute('autocorrect')).toBe('off')
     expect(input?.getAttribute('spellcheck')).toBe('false')
+  })
+
+  it('opens directly on the requested template from data recommendations', async () => {
+    await renderWizard('simple')
+
+    const input = container?.querySelector('input') as HTMLInputElement
+    expect(container?.textContent).toContain('Content')
+    expect(input.value).toBe('taxons_simple')
   })
 
   it('shows the name guidance only once when validation fails', async () => {

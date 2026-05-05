@@ -64,14 +64,18 @@ class StandardProfileOutputService:
         *,
         output_type: StandardProfileOutputType | None = None,
         records: Iterable[dict[str, Any]] | None = None,
+        draft: bool = False,
     ) -> StandardProfileOutputResult:
         """Generate one configured output for a standard profile."""
         if not profile.enabled:
             raise ValueError(f"Profile '{profile.name}' is disabled")
 
         output = self._select_output(profile, output_type)
+        if draft:
+            output = self._draft_output(output, profile)
         validation = self.validation_service.validate(profile)
-        self._ensure_publication_output_allowed(output, validation)
+        if not draft:
+            self._ensure_publication_output_allowed(output, validation)
         record_source = self._record_source_for_profile(
             profile, validation.compatibility
         )
@@ -93,6 +97,7 @@ class StandardProfileOutputService:
             record_source=record_source
             if not _same_source(profile.source, record_source)
             else None,
+            draft=draft,
         )
 
         if output.type == "api_json":
@@ -170,6 +175,10 @@ class StandardProfileOutputService:
             record_source=record_source
             if not _same_source(profile.source, record_source)
             else None,
+            draft=True,
+            sample_basis="representative_record",
+            rows_sampled=len(raw_records),
+            source_record_id=_record_item_id(source_record, record_source),
         )
         preview: Any
         if output.type == "api_json":
@@ -197,7 +206,10 @@ class StandardProfileOutputService:
             source_grain=output_source_grain,
             item_id=_record_item_id(source_record, record_source),
             preview=_json_safe_value(preview),
-            source=cast(dict[str, Any], _json_safe_value(source_record)),
+            source=cast(
+                dict[str, Any],
+                _json_safe_value(_preview_source_values(profile, source_record)),
+            ),
             warnings=warnings,
             errors=errors,
             metadata=cast(dict[str, Any], _json_safe_value(metadata)),
@@ -226,6 +238,18 @@ class StandardProfileOutputService:
         raise ValueError(
             f"Output '{output_type}' is not configured for profile '{profile.name}'"
         )
+
+    def _draft_output(
+        self,
+        output: StandardProfileOutput,
+        profile: StandardProfileConfig,
+    ) -> StandardProfileOutput:
+        profile_name = _safe_path_segment(profile.name, "profile name")
+        draft_params = {
+            **output.params,
+            "output_dir": f"exports/.draft/profiles/{profile_name}/{output.type}",
+        }
+        return output.model_copy(update={"params": draft_params})
 
     def _ensure_publication_output_allowed(
         self,
@@ -411,6 +435,10 @@ class StandardProfileOutputService:
         source_grain: str,
         records_count: int,
         record_source: StandardProfileSource | None = None,
+        draft: bool = False,
+        sample_basis: str | None = None,
+        rows_sampled: int | None = None,
+        source_record_id: Any | None = None,
     ) -> dict[str, Any]:
         metadata = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -422,9 +450,22 @@ class StandardProfileOutputService:
             "validation_status": validation_status,
             "conformant": validation_status == "conformant",
             "records_count": records_count,
+            "draft": draft,
+            "publication_output": not draft,
         }
         if record_source is not None:
             metadata["record_source"] = record_source.model_dump(mode="json")
+        if sample_basis is not None:
+            metadata["sample_basis"] = sample_basis
+        if rows_sampled is not None:
+            metadata["rows_sampled"] = rows_sampled
+        if source_record_id is not None:
+            metadata["source_record_id"] = source_record_id
+        if draft:
+            metadata["retention_policy"] = {
+                "type": "manual_cleanup",
+                "location": "exports/.draft/profiles",
+            }
         return metadata
 
     def _write_api_json(
@@ -559,6 +600,55 @@ def _mapping_source(mapping: Any) -> str | None:
     if isinstance(mapping, dict) and mapping.get("source"):
         return str(mapping["source"])
     return None
+
+
+def _preview_source_values(
+    profile: StandardProfileConfig,
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Return only source values that participate in the preview mapping."""
+    values: dict[str, Any] = {}
+    for reference in _mapping_source_references(profile.mappings.values()):
+        path = _normalize_source_path(reference)
+        if not path or path in values:
+            continue
+        values[path] = _read_path(record, path)
+    return values
+
+
+def _mapping_source_references(mappings: Iterable[Any]) -> list[str]:
+    references: list[str] = []
+    for mapping in mappings:
+        if isinstance(mapping, str):
+            references.append(mapping)
+            continue
+        if not isinstance(mapping, dict):
+            continue
+        source = mapping.get("source")
+        if isinstance(source, str):
+            references.append(source)
+        params = mapping.get("params")
+        if mapping.get("generator") and isinstance(params, dict):
+            references.extend(_generator_param_source_references(params))
+    return references
+
+
+def _generator_param_source_references(params: dict[str, Any]) -> list[str]:
+    references: list[str] = []
+    for key in ("source", "source_field", "source_list"):
+        value = params.get(key)
+        if isinstance(value, str):
+            references.append(value)
+
+    fields = params.get("fields")
+    if isinstance(fields, list):
+        for field in fields:
+            if isinstance(field, str):
+                references.append(field)
+            elif isinstance(field, dict) and isinstance(field.get("field"), str):
+                references.append(str(field["field"]))
+
+    return references
 
 
 def _is_context_reference(source: str) -> bool:

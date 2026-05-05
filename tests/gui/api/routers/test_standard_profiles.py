@@ -261,6 +261,57 @@ def test_standard_profile_source_fields_resolve_effective_record_source(
     ]
 
 
+def test_execute_standard_profile_output_draft_writes_isolated_artifact(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {"occurrenceID": {"source": "id"}},
+                        "outputs": [
+                            {
+                                "type": "dwc_archive",
+                                "params": {
+                                    "output_dir": "exports/final/dwc",
+                                    "archive_name": "draft-dwc.zip",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/dwc_occurrences/outputs/dwc_archive/draft"
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["metadata"]["draft"] is True
+    assert payload["metadata"]["publication_output"] is False
+    assert payload["metadata"]["retention_policy"] == {
+        "type": "manual_cleanup",
+        "location": "exports/.draft/profiles",
+    }
+    assert (
+        "exports/.draft/profiles/dwc_occurrences/dwc_archive" in payload["output_path"]
+    )
+    assert not (gui_duckdb_context / "exports" / "final" / "dwc").exists()
+
+
 def test_update_and_delete_standard_profile(gui_duckdb_client, gui_duckdb_context):
     export_path = gui_duckdb_context / "config" / "export.yml"
     export_path.write_text(

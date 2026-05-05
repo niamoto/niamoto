@@ -4,6 +4,7 @@ export const COLLECTION_TABS = [
   'sources',
   'content',
   'index',
+  'data',
   'api',
   'standards',
 ] as const

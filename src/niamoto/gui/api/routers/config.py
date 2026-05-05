@@ -2166,6 +2166,9 @@ class ApiExportPreviewResponse(BaseModel):
     item_id: Optional[Any] = None
     preview: Any
     source: Dict[str, Any] = Field(default_factory=dict)
+    warnings: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 @router.get("/export/api-targets", response_model=List[ApiExportTargetSummary])
@@ -2679,10 +2682,12 @@ def _build_api_export_preview(
             group_by, group_config.data_source, configured_paths
         )
         item = items[0] if items else None
+        rows_sampled = len(items)
     else:
         item = _load_api_export_preview_item(
             group_by, group_config.data_source, configured_paths
         )
+        rows_sampled = 1 if item else 0
     if not item:
         raise HTTPException(
             status_code=404,
@@ -2707,6 +2712,13 @@ def _build_api_export_preview(
         item_id=item_id,
         preview=preview,
         source=item,
+        metadata={
+            "sample_basis": "representative_record",
+            "rows_sampled": rows_sampled,
+            "source": group_config.data_source or group_by,
+            "source_record_id": item_id,
+            "illustrative": True,
+        },
     )
 
 

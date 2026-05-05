@@ -23,6 +23,7 @@ describe('collections routing helpers', () => {
   it('accepts only known collection tabs', () => {
     expect(normalizeCollectionTab('content')).toBe('content')
     expect(normalizeCollectionTab('index')).toBe('index')
+    expect(normalizeCollectionTab('data')).toBe('data')
     expect(normalizeCollectionTab('api')).toBe('api')
     expect(normalizeCollectionTab('standards')).toBe('standards')
     expect(normalizeCollectionTab('unknown')).toBeUndefined()
@@ -45,6 +46,9 @@ describe('collections routing helpers', () => {
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'index')
     ).toBe('/groups/taxons?tab=index')
+    expect(
+      buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'data')
+    ).toBe('/groups/taxons?tab=data')
     expect(
       buildCollectionsPath({ type: 'collection', name: 'taxons' }, 'standards')
     ).toBe('/groups/taxons?tab=standards')

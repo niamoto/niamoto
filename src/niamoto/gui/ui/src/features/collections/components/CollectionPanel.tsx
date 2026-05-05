@@ -1,17 +1,19 @@
 /**
  * Collection Panel - Configuration for a Reference
  *
- * Three tabs:
- * - Blocs: Widget management with contextual panel (list + layout/details)
- * - Liste: Index/listing page configuration
- * - Export: API export configuration
+ * Collection tabs:
+ * - Sources: Imported source metadata
+ * - Blocks: Widget management with contextual panel (list + layout/details)
+ * - List: Index/listing page configuration
+ * - Data: Collection-scoped reusable data outputs
+ * - Export / Standards: Legacy technical editors kept accessible during migration
  */
 
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, Database, ChevronDown, Check, AlertTriangle, FileBadge2 } from 'lucide-react'
+import { ListOrdered, LayoutGrid, Play, CheckCircle, XCircle, FileCode, FileJson, Database, ChevronDown, Check, AlertTriangle, FileBadge2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +27,7 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ApiExportsTab } from '@/features/collections/components/api/ApiExportsTab'
+import { DataWorkspace } from '@/features/collections/components/data/DataWorkspace'
 import { StandardProfilesTab } from '@/features/collections/components/standards/StandardProfilesTab'
 import { SourcesPanel } from '@/features/collections/components/sources/SourcesPanel'
 import { IndexConfigEditor } from '@/components/index-config'
@@ -256,6 +259,13 @@ export function CollectionPanel({
               {t('collectionPanel.tabs.list')}
             </TabsTrigger>
             <TabsTrigger
+              value="data"
+              className={tabsTriggerClassName}
+            >
+              <FileJson className="mr-1.5 h-3.5 w-3.5" />
+              {t('collectionPanel.tabs.data')}
+            </TabsTrigger>
+            <TabsTrigger
               value="api"
               className={tabsTriggerClassName}
             >
@@ -374,6 +384,12 @@ function getTabContent(activeTab: string, reference: ReferenceInfo) {
       return (
         <div className="h-full overflow-hidden">
           <ApiExportsTab groupBy={reference.name} />
+        </div>
+      )
+    case 'data':
+      return (
+        <div className="h-full overflow-hidden">
+          <DataWorkspace collectionName={reference.name} />
         </div>
       )
     case 'standards':

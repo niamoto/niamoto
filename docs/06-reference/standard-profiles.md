@@ -9,6 +9,10 @@ standard, such as Darwin Core Occurrence or Humboldt/Event. Use a simple JSON
 API export when the output should expose Niamoto's transformed collection data
 without a standard-specific grain or mapping contract.
 
+In the GUI, standard profiles are normally configured from a collection's
+**Data** tab. The older Standards route remains available as a technical
+compatibility entry point during rollout.
+
 ## Configuration Shape
 
 ```yaml
@@ -146,8 +150,9 @@ Profile output types are configured in `outputs`.
 - `standard_files`: Humboldt/Event only. Generates `event.csv` and
   `metadata.json`.
 
-The GUI lets draft JSON be generated even when validation has critical issues.
-Publication files are blocked when critical validation issues are present.
+The GUI lets draft or test outputs be generated separately from final
+publication paths. Publication files are blocked when critical validation
+issues are present.
 
 ## API Surface
 
@@ -161,6 +166,7 @@ The GUI backend exposes:
 - `GET /api/standard-profiles/{profile_name}/compatibility`
 - `GET /api/standard-profiles/{profile_name}/validation`
 - `POST /api/standard-profiles/{profile_name}/outputs/{output_type}`
+- `POST /api/standard-profiles/{profile_name}/outputs/{output_type}/draft`
 
 The list endpoint also returns `legacy_hints` for existing
 `dwc_occurrence_json` targets.

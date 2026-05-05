@@ -18,6 +18,7 @@ import {
   type ApiExportTargetSummary,
   type ApiExportTargetSettings,
 } from '@/features/collections/hooks/useApiExportConfigs'
+import { buildCollectionsPath } from '@/features/collections/routing'
 
 function ApiTargetSettingsCard({ target }: { target: ApiExportTargetSummary }) {
   const { t } = useTranslation(['sources', 'common'])
@@ -198,7 +199,14 @@ function ApiTargetSettingsCardForm({
                   variant="outline"
                   size="sm"
                   className="h-6 gap-1 px-2 text-xs"
-                  onClick={() => onNavigate(`/groups/${g.group_by}`)}
+                  onClick={() =>
+                    onNavigate(
+                      buildCollectionsPath(
+                        { type: 'collection', name: g.group_by },
+                        'data',
+                      ),
+                    )
+                  }
                 >
                   {g.group_by}
                   <ExternalLink className="h-3 w-3" />

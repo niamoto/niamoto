@@ -65,6 +65,27 @@ def test_malformed_mapping_returns_critical_issue_without_exception():
     assert [issue.code for issue in report.issues] == ["mapping_invalid"]
 
 
+def test_unsupported_standard_generator_returns_critical_issue():
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {
+                "occurrenceID": {"source": "occurrence_id"},
+                "eventDate": {"generator": "format_event_date"},
+            },
+        }
+    )
+    service = StandardProfileValidationService(import_config=_import_config())
+
+    report = service.validate(profile)
+
+    assert report.status == "invalid"
+    assert "mapping_unsupported_generator" in {issue.code for issue in report.issues}
+
+
 def test_darwin_core_occurrence_with_required_mapping_can_be_conformant():
     profile = StandardProfileConfig.model_validate(
         {

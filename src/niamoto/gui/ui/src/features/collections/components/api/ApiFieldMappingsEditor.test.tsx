@@ -14,6 +14,14 @@ Element.prototype.scrollIntoView = vi.fn()
 HTMLElement.prototype.hasPointerCapture = vi.fn(() => false)
 HTMLElement.prototype.releasePointerCapture = vi.fn()
 HTMLElement.prototype.setPointerCapture = vi.fn()
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -207,11 +215,9 @@ describe('ApiFieldMappingsEditor', () => {
 
     await act(async () => {
       click(
-        Array.from(container!.querySelectorAll('button')).find((button) =>
-          button.textContent?.includes(
-            'collectionPanel.api.fieldMappings.selectSourcePath'
-          )
-        ) ?? null
+        container!.querySelector(
+          'button[aria-label="collectionPanel.api.fieldMappings.sourcePath"]',
+        )
       )
     })
 
@@ -248,11 +254,9 @@ describe('ApiFieldMappingsEditor', () => {
 
     await act(async () => {
       click(
-        Array.from(container!.querySelectorAll('button')).find((button) =>
-          button.textContent?.includes(
-            'collectionPanel.api.fieldMappings.selectSourcePath'
-          )
-        ) ?? null
+        container!.querySelector(
+          'button[aria-label="collectionPanel.api.fieldMappings.sourcePath"]',
+        )
       )
     })
 

@@ -627,6 +627,15 @@ def test_api_export_preview_route_maps_representative_index_data(monkeypatch):
         "name": "Araucaria columnaris",
         "detail_url": "/api/taxons/42.json",
     }
+    assert payload["metadata"] == {
+        "sample_basis": "representative_record",
+        "rows_sampled": 1,
+        "source": "taxons",
+        "source_record_id": 42,
+        "illustrative": True,
+    }
+    assert payload["warnings"] == []
+    assert payload["errors"] == []
     assert payload["source"]["general_info"]["name"]["value"] == (
         "Araucaria columnaris"
     )
@@ -682,6 +691,8 @@ def test_api_export_preview_get_route_uses_saved_group_config(monkeypatch):
         "plot_name": "Plot A",
         "detail_url": "/api/plots/7.json",
     }
+    assert payload["metadata"]["rows_sampled"] == 1
+    assert payload["metadata"]["source_record_id"] == 7
 
 
 def test_api_export_preview_route_applies_dwc_transformer_for_detail(monkeypatch):
@@ -773,6 +784,8 @@ def test_api_export_preview_route_applies_dwc_transformer_for_detail(monkeypatch
             "scientificName": "Araucaria columnaris",
         }
     ]
+    assert payload["metadata"]["rows_sampled"] == 2
+    assert payload["metadata"]["illustrative"] is True
     assert payload["source"]["general_info"]["name"]["value"] == (
         "Araucaria columnaris"
     )

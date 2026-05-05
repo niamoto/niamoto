@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FileJson, Leaf, Loader2, Zap } from 'lucide-react'
 import { toast } from 'sonner'
@@ -30,6 +30,7 @@ interface AddExportWizardProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupBy: string
+  initialTemplate?: Template | null
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9_]{2,30}$/
@@ -89,7 +90,12 @@ function Stepper({ step }: { step: WizardStep }) {
   )
 }
 
-export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizardProps) {
+export function AddExportWizard({
+  open,
+  onOpenChange,
+  groupBy,
+  initialTemplate = null,
+}: AddExportWizardProps) {
   const { t } = useTranslation(['sources', 'common'])
   const queryClient = useQueryClient()
   const { data: targets } = useApiExportTargets()
@@ -112,6 +118,17 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
     (target) => !target.groups.some((g) => g.group_by === groupBy)
   )
   const hasExistingDarwinCoreTarget = (targets ?? []).some(isDarwinCoreTarget)
+
+  useEffect(() => {
+    if (!open || !initialTemplate) {
+      return
+    }
+    setSelectedTemplate(initialTemplate)
+    setSelectedExisting(null)
+    setTargetName((current) => current || defaultTargetName(groupBy, initialTemplate))
+    setNameError(null)
+    setStep('content')
+  }, [groupBy, initialTemplate, open])
 
   const resetWizard = () => {
     setStep('type')
@@ -377,4 +394,14 @@ export function AddExportWizard({ open, onOpenChange, groupBy }: AddExportWizard
       </DialogContent>
     </Dialog>
   )
+}
+
+function defaultTargetName(groupBy: string, template: Template) {
+  const base = `${groupBy}_${template}`
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  const prefixed = /^[a-z]/.test(base) ? base : `api_${base}`
+  const candidate = prefixed.slice(0, 31)
+  return NAME_PATTERN.test(candidate) ? candidate : 'api_output'
 }
