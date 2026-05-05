@@ -86,6 +86,10 @@ def test_list_standard_profiles_includes_legacy_hints(
     assert payload["total"] == 1
     assert payload["profiles"][0]["name"] == "inventory_events"
     assert payload["legacy_hints"][0]["export_name"] == "dwc_occurrence_json"
+    assert payload["legacy_hints"][0]["source"] == {
+        "type": "collection",
+        "name": "taxons",
+    }
 
 
 def test_list_standard_profiles_returns_current_validation_status(

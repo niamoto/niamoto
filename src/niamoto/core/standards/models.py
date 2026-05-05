@@ -59,6 +59,7 @@ class LegacyStandardProfileHint(BaseModel):
     export_name: str
     standard: StandardProfileType
     message: str
+    source: StandardProfileSource | None = None
 
 
 class StandardProfileEvidence(BaseModel):

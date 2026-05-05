@@ -187,8 +187,13 @@ export function CollectionsModule() {
   // Render
   // ---------------------------------------------------------------------------
 
+  const isScrollablePage =
+    selection.type === 'overview'
+    || selection.type === 'review'
+    || selection.type === 'api-settings'
+
   return (
-    <div className={selection.type === 'overview' || selection.type === 'review' ? 'h-full overflow-y-auto' : 'h-full overflow-hidden'}>
+    <div className={isScrollablePage ? 'h-full overflow-y-auto' : 'h-full overflow-hidden'}>
       {renderContent()}
     </div>
   )

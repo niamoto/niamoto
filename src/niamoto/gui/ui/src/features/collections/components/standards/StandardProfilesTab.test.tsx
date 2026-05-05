@@ -37,6 +37,17 @@ const defaultProfiles = [
     validation_status: 'partial',
     metadata: {},
   },
+  {
+    name: 'dwc_occurrences',
+    enabled: true,
+    standard: 'darwin_core_occurrence',
+    target_grain: 'occurrence',
+    source: { type: 'collection', name: 'occurrences' },
+    mappings: { occurrenceID: { source: 'id' } },
+    outputs: [{ type: 'api_json', enabled: true, params: {} }],
+    validation_status: 'conformant',
+    metadata: {},
+  },
 ]
 
 profilesState.profiles = defaultProfiles
@@ -140,6 +151,13 @@ vi.mock('@/features/collections/hooks/useStandardProfiles', () => ({
           export_name: 'legacy_json_api',
           standard: 'darwin_core_occurrence',
           message: 'Legacy Darwin Core-like output.',
+          source: { type: 'collection', name: 'taxons' },
+        },
+        {
+          export_name: 'legacy_occurrences_json_api',
+          standard: 'darwin_core_occurrence',
+          message: 'Legacy Darwin Core-like output.',
+          source: { type: 'collection', name: 'occurrences' },
         },
       ],
       total: profilesState.profiles.length,
@@ -248,13 +266,13 @@ describe('StandardProfilesTab', () => {
     container = null
   })
 
-  async function renderTab() {
+  async function renderTab(collectionName = 'taxons') {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     await act(async () => {
-      root?.render(<StandardProfilesTab collectionName="taxons" />)
+      root?.render(<StandardProfilesTab collectionName={collectionName} />)
     })
   }
 
@@ -262,6 +280,7 @@ describe('StandardProfilesTab', () => {
     await renderTab()
 
     expect(container?.textContent).toContain('dwc_taxon_context')
+    expect(container?.textContent).not.toContain('dwc_occurrences')
     expect(container?.textContent).toContain('Darwin Core Occurrence')
     expect(container?.textContent).toContain('Source grain: taxon · Target grain: occurrence')
     expect(container?.textContent).toContain('Profile overview')
@@ -272,6 +291,17 @@ describe('StandardProfilesTab', () => {
     expect(container?.textContent).toContain(
       'Existing export "legacy_json_api" looks like Darwin Core Occurrence output.',
     )
+    expect(container?.textContent).not.toContain('legacy_occurrences_json_api')
+  })
+
+  it('does not fall back to another collection profile when the current collection has none', async () => {
+    await renderTab('plots')
+
+    expect(container?.textContent).toContain('No standard profile is configured yet.')
+    expect(container?.textContent).toContain('New profile')
+    expect(container?.textContent).not.toContain('dwc_taxon_context')
+    expect(container?.textContent).not.toContain('dwc_occurrences')
+    expect(container?.textContent).not.toContain('legacy_json_api')
   })
 
   it('keeps hidden technical collections available as profile sources', async () => {
