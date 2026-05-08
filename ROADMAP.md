@@ -55,7 +55,7 @@ In flight or imminent. Excludes GBIF-specific deliverables listed above.
 
 - Desktop-first documentation overhaul — user guide, in-app docs, public docs, team/partners page
 
-**Marketing site**
+**Institutional site**
 
 - Landing page refresh + hybrid teaser video
 
