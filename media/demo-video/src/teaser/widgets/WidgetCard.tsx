@@ -15,7 +15,7 @@ interface WidgetCardProps {
 
 /**
  * Card Niamoto signature : header gradient vert + body blanc + ombre triple-couche.
- * Référence visuelle : `docs/plans/caps/*.png` (bandeau vert en haut de chaque widget)
+ * Référence visuelle : `media/demo-video/captures/*.png` (bandeau vert en haut de chaque widget)
  * et `src/niamoto/publish/assets/css/niamoto.css:313`.
  */
 export const WidgetCard = memo<WidgetCardProps>(({ title, actions, headerOpacity = 1, style, bodyStyle, children }) => {

@@ -6,34 +6,34 @@ Règle d'or : **avant d'écrire un composant**, ouvre sa PNG de référence côt
 
 ## Correspondance composant ↔ PNG / URL live
 
-Les PNG sont dans `docs/plans/caps/`. Les URLs `http://localhost:5173/...` nécessitent que la GUI Niamoto tourne sur le projet `test-instance/nouvelle-caledonie`.
+Les PNG sont dans `media/demo-video/captures/`. Les URLs `http://localhost:5173/...` nécessitent que la GUI Niamoto tourne sur le projet `test-instance/nouvelle-caledonie`.
 
 ### GUI Tauri (Actes 1 à 5)
 
 | Composant teaser | PNG référence | URL preview live |
 |------------------|---------------|------------------|
-| Splash / loading | [`01.splash-loading.png`](../../../../docs/plans/caps/01.splash-loading.png) | — |
-| Welcome / project picker | [`02.welcome-project-picker.png`](../../../../docs/plans/caps/02.welcome-project-picker.png) | — |
-| Project create form (empty) | [`03.project-create-empty.png`](../../../../docs/plans/caps/03.project-create-empty.png) | — |
-| Project create (typing name) | [`04.project-create-name.png`](../../../../docs/plans/caps/04.project-create-name.png) | — |
-| Project create (ready) | [`05.project-create-ready.png`](../../../../docs/plans/caps/05.project-create-ready.png) | — |
-| **Dashboard** (entry point Acte 2) | [`06.dashboard-get-started.png`](../../../../docs/plans/caps/06.dashboard-get-started.png) | GUI Tauri |
-| Import sources review | [`08.import-sources-review.png`](../../../../docs/plans/caps/08.import-sources-review.png) | GUI Tauri |
-| Import analysis progress | [`10.import-analysis-progress.png`](../../../../docs/plans/caps/10.import-analysis-progress.png) | — |
-| Import config detected | [`11.import-config-detected.png`](../../../../docs/plans/caps/11.import-config-detected.png) | — |
-| **Data dashboard summary** | [`13.data-dashboard-summary.png`](../../../../docs/plans/caps/13.data-dashboard-summary.png) | GUI Tauri |
-| Collections overview | [`15.collections-overview.png`](../../../../docs/plans/caps/15.collections-overview.png) | GUI Tauri |
-| **Add widget modal** | [`16.collections-add-widget-modal.png`](../../../../docs/plans/caps/16.collections-add-widget-modal.png) | — |
-| Widget catalog | [`17.collections-widget-catalog.png`](../../../../docs/plans/caps/17.collections-widget-catalog.png) | — |
-| Collection page | [`16.collection-page.png`](../../../../docs/plans/caps/16.collection-page.png) | — |
-| Collection computation | [`19.collection-computation.png`](../../../../docs/plans/caps/19.collection-computation.png) | — |
-| Site builder home | [`21.site-builder-home-page.png`](../../../../docs/plans/caps/21.site-builder-home-page.png) | GUI Tauri |
-| Site builder methodology | [`22.site-builder-methodology-page.png`](../../../../docs/plans/caps/22.site-builder-methodology-page.png) | — |
-| Publish generation preview | [`25.publish-generation-preview.png`](../../../../docs/plans/caps/25.publish-generation-preview.png) | — |
-| Deploy provider picker | [`26.deploy-provider-picker.png`](../../../../docs/plans/caps/26.deploy-provider-picker.png) | — |
-| Deploy GitHub Pages config | [`27.deploy-github-pages-config.png`](../../../../docs/plans/caps/27.deploy-github-pages-config.png) | — |
-| Deploy build log | [`28.deploy-build-log.png`](../../../../docs/plans/caps/28.deploy-build-log.png) | — |
-| Deploy success | [`29.deploy-success.png`](../../../../docs/plans/caps/29.deploy-success.png) | — |
+| Splash / loading | [`01.splash-loading.png`](../../captures/01.splash-loading.png) | — |
+| Welcome / project picker | [`02.welcome-project-picker.png`](../../captures/02.welcome-project-picker.png) | — |
+| Project create form (empty) | [`03.project-create-empty.png`](../../captures/03.project-create-empty.png) | — |
+| Project create (typing name) | [`04.project-create-name.png`](../../captures/04.project-create-name.png) | — |
+| Project create (ready) | [`05.project-create-ready.png`](../../captures/05.project-create-ready.png) | — |
+| **Dashboard** (entry point Acte 2) | [`06.dashboard-get-started.png`](../../captures/06.dashboard-get-started.png) | GUI Tauri |
+| Import sources review | [`08.import-sources-review.png`](../../captures/08.import-sources-review.png) | GUI Tauri |
+| Import analysis progress | [`10.import-analysis-progress.png`](../../captures/10.import-analysis-progress.png) | — |
+| Import config detected | [`11.import-config-detected.png`](../../captures/11.import-config-detected.png) | — |
+| **Data dashboard summary** | [`13.data-dashboard-summary.png`](../../captures/13.data-dashboard-summary.png) | GUI Tauri |
+| Collections overview | [`15.collections-overview.png`](../../captures/15.collections-overview.png) | GUI Tauri |
+| **Add widget modal** | [`16.collections-add-widget-modal.png`](../../captures/16.collections-add-widget-modal.png) | — |
+| Widget catalog | [`17.collections-widget-catalog.png`](../../captures/17.collections-widget-catalog.png) | — |
+| Collection page | [`16.collection-page.png`](../../captures/16.collection-page.png) | — |
+| Collection computation | [`19.collection-computation.png`](../../captures/19.collection-computation.png) | — |
+| Site builder home | [`21.site-builder-home-page.png`](../../captures/21.site-builder-home-page.png) | GUI Tauri |
+| Site builder methodology | [`22.site-builder-methodology-page.png`](../../captures/22.site-builder-methodology-page.png) | — |
+| Publish generation preview | [`25.publish-generation-preview.png`](../../captures/25.publish-generation-preview.png) | — |
+| Deploy provider picker | [`26.deploy-provider-picker.png`](../../captures/26.deploy-provider-picker.png) | — |
+| Deploy GitHub Pages config | [`27.deploy-github-pages-config.png`](../../captures/27.deploy-github-pages-config.png) | — |
+| Deploy build log | [`28.deploy-build-log.png`](../../captures/28.deploy-build-log.png) | — |
+| Deploy success | [`29.deploy-success.png`](../../captures/29.deploy-success.png) | — |
 
 ### Site publié (Acte 3 — payoff)
 

@@ -19,7 +19,6 @@ implementation.
 - Current architecture: [../branch-architecture.md](../branch-architecture.md)
 - Current training/eval workflow: [../training-guide.md](../training-guide.md)
 - Current source inventory used by the code: [../current-training-sources.md](../current-training-sources.md)
-- Current dated plans: `docs/plans/`
 
 ```{toctree}
 :hidden:

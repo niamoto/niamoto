@@ -62,7 +62,6 @@ not the recommended entry point for new readers.
 
 - [../04-plugin-development/README.md](../04-plugin-development/README.md): plugin authoring guides
 - [../08-roadmaps/README.md](../08-roadmaps/README.md): roadmaps, target architecture, and longer design proposals
-- `docs/plans/`: dated implementation plans and research notes
 
 ```{toctree}
 :hidden:

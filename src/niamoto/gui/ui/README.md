@@ -178,5 +178,3 @@ Keep it in sync with the actual UI structure if shadcn tooling is still used.
 
 - `dist/` is build output from Vite and is ignored by Git
 - `.ruff_cache/` and `.DS_Store` should not be committed
-- Large frontend refactor notes live in:
-  - [docs/plans/2026-03-25-refactor-frontend-feature-architecture-plan.md](/Users/julienbarbe/Dev/clients/niamoto/docs/plans/2026-03-25-refactor-frontend-feature-architecture-plan.md)

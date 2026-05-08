@@ -31,8 +31,7 @@ the same portal inside the repository.
 - **Look at the architecture** — see
   [07-architecture](07-architecture/README.md). The ADRs under
   `docs/07-architecture/adr/` are background notes, not required reading.
-- **Track planning work** — see the dated plan files in `docs/plans/` first,
-  then [08-roadmaps](08-roadmaps/README.md) for the slim public landing page.
+- **See current direction** — [08-roadmaps](08-roadmaps/README.md).
 
 ## Structure
 
@@ -56,9 +55,6 @@ the same portal inside the repository.
 - [09-troubleshooting/](09-troubleshooting/README.md)
 
 ### Internal (not rendered in the live site)
-- `docs/plans/` — dated feature plans
-- `docs/brainstorms/` — exploratory sessions
-- `docs/ideation/` — open idea notes
 - `docs/_archive/` — historical pages kept for reference
 
 ## Style and contributions

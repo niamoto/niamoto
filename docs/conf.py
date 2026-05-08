@@ -150,7 +150,7 @@ redirects = {
     "99-troubleshooting/common-issues": "../09-troubleshooting/common-issues.html",
     "99-troubleshooting/desktop-smoke-tests": "../09-troubleshooting/desktop-smoke-tests.html",
     # 06-gui -> split across 02-user-guide, 06-reference, 07-architecture,
-    # 09-troubleshooting (see docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md).
+    # 09-troubleshooting.
     "06-gui/index": "../02-user-guide/README.html",
     "06-gui/README": "../02-user-guide/README.html",
     "06-gui/operations/import": "../../02-user-guide/import.html",

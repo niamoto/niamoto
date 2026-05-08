@@ -137,10 +137,11 @@ tailwindcss-windows-x64.exe
 node_modules/
 .pnpm-store/
 
-# Claude Code configuration files (local only)
-CLAUDE.md
-AGENTS.md
+# AI agent local state (CLAUDE.md and AGENTS.md are tracked, see project root)
 .claude/
+
+# Local-only archive for plans, brainstorms, specs, ideation
+_archive/
 
 # Tauri Desktop App
 src-tauri/target/
