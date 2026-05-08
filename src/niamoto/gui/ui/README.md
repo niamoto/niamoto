@@ -43,7 +43,7 @@ application code.
 The frontend runs in two contexts:
 
 - Web mode: standard Vite app in the browser
-- Desktop mode: embedded in a native shell, currently Tauri in production and Electron as an experimental parallel shell
+- Desktop mode: embedded in a native shell, currently Tauri in production
 
 Some behavior differs by runtime. Example: theme fonts are loaded from Google Fonts in web mode, but from local files in desktop mode for offline support.
 
@@ -70,9 +70,10 @@ Main source layout:
 Current feature folders:
 
 - [src/features/dashboard](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/dashboard)
-- [src/features/import](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import)
 - [src/features/collections](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/collections)
-- [src/features/groups](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/groups)
+- [src/features/feedback](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/feedback)
+- [src/features/help](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/help)
+- [src/features/import](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/import)
 - [src/features/site](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/site)
 - [src/features/publish](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/publish)
 - [src/features/tools](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/src/features/tools)

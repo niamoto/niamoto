@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T07:07:05.354469+00:00",
+  "generated_at": "2026-05-08T07:54:13.419077+00:00",
   "sections": [
     {
       "slug": "01-getting-started",
@@ -411,7 +411,7 @@
           "slug": "02-user-guide/collections",
           "path": "/help/02-user-guide/collections",
           "title": "Collections",
-          "description": "Collections is the reader facing name for the desktop area that manages grouped outputs. Behind the interface, this stage spans config/transform.yml and the collection facing parts of config/export.yml.",
+          "description": "Collections is the reader facing name for the desktop area that manages grouped outputs, reusable data outputs, and standard publication profiles. Behind the interface, this stage spans config/transform.yml, collection m",
           "page_type": "markdown",
           "is_section_index": false,
           "headings": [
@@ -421,19 +421,29 @@
               "id": "1-start-from-the-collections-overview"
             },
             {
-              "title": "2. Configure collection content",
+              "title": "2. Review collection metadata",
               "level": 2,
-              "id": "2-configure-collection-content"
+              "id": "2-review-collection-metadata"
             },
             {
-              "title": "3. Add widgets from the gallery",
+              "title": "3. Configure collection content",
               "level": 2,
-              "id": "3-add-widgets-from-the-gallery"
+              "id": "3-configure-collection-content"
             },
             {
-              "title": "4. Recompute and validate the result",
+              "title": "4. Add widgets from the gallery",
               "level": 2,
-              "id": "4-recompute-and-validate-the-result"
+              "id": "4-add-widgets-from-the-gallery"
+            },
+            {
+              "title": "5. Configure data outputs",
+              "level": 2,
+              "id": "5-configure-data-outputs"
+            },
+            {
+              "title": "6. Recompute and validate the result",
+              "level": 2,
+              "id": "6-recompute-and-validate-the-result"
             },
             {
               "title": "How this stage fits the full flow",
@@ -2905,7 +2915,7 @@
       "title": "Reference",
       "description": "This section collects source level and configuration references for Niamoto. Use it when you need the current command surface, plugin contracts, YAML boundaries, database shape, or preview API.",
       "path": "/help/06-reference",
-      "article_count": 14,
+      "article_count": 15,
       "pages": [
         {
           "slug": "06-reference",
@@ -3113,6 +3123,61 @@
           ]
         },
         {
+          "slug": "06-reference/standard-profiles",
+          "path": "/help/06-reference/standard-profiles",
+          "title": "Standard Profiles",
+          "description": "Standard profiles describe publication ready biodiversity outputs separately from ordinary collection JSON APIs. They live in config/export.yml under the top level standard profiles key.",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Configuration Shape",
+              "level": 2,
+              "id": "configuration-shape"
+            },
+            {
+              "title": "Supported Standards",
+              "level": 2,
+              "id": "supported-standards"
+            },
+            {
+              "title": "Sources and Grain Compatibility",
+              "level": 2,
+              "id": "sources-and-grain-compatibility"
+            },
+            {
+              "title": "Validation States",
+              "level": 2,
+              "id": "validation-states"
+            },
+            {
+              "title": "Mapping Values",
+              "level": 2,
+              "id": "mapping-values"
+            },
+            {
+              "title": "Outputs",
+              "level": 2,
+              "id": "outputs"
+            },
+            {
+              "title": "API Surface",
+              "level": 2,
+              "id": "api-surface"
+            },
+            {
+              "title": "Legacy Darwin Core JSON",
+              "level": 2,
+              "id": "legacy-darwin-core-json"
+            },
+            {
+              "title": "Related",
+              "level": 2,
+              "id": "related"
+            }
+          ]
+        },
+        {
           "slug": "06-reference/transform-plugins",
           "path": "/help/06-reference/transform-plugins",
           "title": "Transform Plugins Reference",
@@ -3216,7 +3281,7 @@
           "slug": "06-reference/api-export-guide",
           "path": "/help/06-reference/api-export-guide",
           "title": "API Export Guide",
-          "description": "Niamoto can publish machine readable outputs alongside the website export. The implementation lives in the exporter layer.",
+          "description": "Niamoto can publish machine readable outputs alongside the website export. The collection UI presents these under the collection Data tab:",
           "page_type": "markdown",
           "is_section_index": false,
           "headings": [
@@ -3231,9 +3296,24 @@
               "id": "export-configuration-surface"
             },
             {
-              "title": "GUI workflow",
+              "title": "Collection Data workflow",
               "level": 2,
-              "id": "gui-workflow"
+              "id": "collection-data-workflow"
+            },
+            {
+              "title": "Simple JSON API workflow",
+              "level": 2,
+              "id": "simple-json-api-workflow"
+            },
+            {
+              "title": "Standard profile workflow",
+              "level": 2,
+              "id": "standard-profile-workflow"
+            },
+            {
+              "title": "Legacy Darwin Core JSON targets",
+              "level": 2,
+              "id": "legacy-darwin-core-json-targets"
             },
             {
               "title": "Related docs",

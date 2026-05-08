@@ -96,8 +96,10 @@ When tempted to hardcode, ask: "Would this work for a forest inventory in Madaga
 ## References
 
 - Plugin development: `docs/04-plugin-development/`
-- Architecture decisions: `docs/09-architecture/`
-- GUI documentation: `docs/06-gui/`
+- Architecture decisions: `docs/07-architecture/adr/`
+- GUI documentation:
+  - `docs/07-architecture/gui-overview.md`
+  - `docs/07-architecture/gui-runtime.md`
 - GUI code-level docs:
   - `src/niamoto/gui/README.md`
   - `src/niamoto/gui/ui/README.md`
