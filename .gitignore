@@ -143,6 +143,13 @@ node_modules/
 # Local-only archive for plans, brainstorms, specs, ideation
 _archive/
 
+# Skill working dirs — kept on disk for Claude/Codex, never committed
+# (recreated by superpowers/compound-engineering skills as needed)
+docs/plans/
+docs/brainstorms/
+docs/superpowers/
+docs/ideation/
+
 # Tauri Desktop App
 src-tauri/target/
 src-tauri/gen/
