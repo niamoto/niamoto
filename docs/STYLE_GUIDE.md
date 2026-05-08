@@ -166,4 +166,3 @@ After drafting any README or doc page:
 ## References
 
 - `CONTRIBUTING.md`
-- `docs/plans/2026-04-17-refactor-documentation-desktop-first-plan.md`

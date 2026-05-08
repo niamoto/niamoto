@@ -4,7 +4,6 @@
 > Audience: Team, AI agents
 > Purpose: Preserve the earlier acquisition strategy and candidate-source
 > reasoning that informed the current ML dataset expansion work
-> Canonical current plans: `docs/plans/`
 
 ## Why this document is archived
 
@@ -20,8 +19,8 @@ It is kept for context because it explains the original reasoning behind:
 - the distinction between product-close data and broader robustness data
 - the desired long-term shape of `ml/data/silver/`
 
-For current planning decisions, use `docs/plans/`. For the source list actually
-used by the code today, use [../current-training-sources.md](../current-training-sources.md).
+For the source list actually used by the code today, see
+[../current-training-sources.md](../current-training-sources.md).
 
 ## Historical acquisition principles
 

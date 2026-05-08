@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Compose the README hero split-view from two source screenshots:
-# - docs/plans/caps/21.site-builder-home-page.png  (desktop app)
+# - media/demo-video/captures/21.site-builder-home-page.png  (desktop app)
 # - docs/assets/portal-nc/home.png                 (generated portal)
 #
 # Output: assets/screenshots/hero-split.png
@@ -11,7 +11,7 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-APP_SHOT="docs/plans/caps/21.site-builder-home-page.png"
+APP_SHOT="media/demo-video/captures/21.site-builder-home-page.png"
 PORTAL_SHOT="docs/assets/portal-nc/home.png"
 OUT="assets/screenshots/hero-split.png"
 

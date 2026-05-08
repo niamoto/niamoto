@@ -34,8 +34,6 @@ experiments, and dated planning material.
 - **Review exploratory ideas or older planning docs**
   - [Research notes](research/README.md)
   - [Archive](archive/README.md)
-- **Find the latest dated plans**
-  - `docs/plans/`
 
 ## Structure
 
