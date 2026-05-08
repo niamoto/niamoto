@@ -33,7 +33,8 @@ cd ../../../..
 - `docs/` holds the public docs, internal plans, and reference material.
 - `scripts/` holds build, release, and development helpers.
 
-Use `examples/` and `tests/data/` when you need fixtures or sample datasets.
+Use `tests/fixtures/`, `test-instance/`, and `docs/examples/` when you need
+fixtures, local project instances, or sample configuration.
 
 ## Work on one change at a time
 

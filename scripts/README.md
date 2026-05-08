@@ -18,7 +18,7 @@ Build, release, and asset generation scripts.
 
 | Script | Description |
 |--------|-------------|
-| `build_gui.sh` | Build React GUI with pnpm |
+| `build/build_gui.sh` | Build React GUI with pnpm |
 | `niamoto_release.py` | Inspect and execute the consolidated Niamoto release flow |
 | `generate_changelog.py` | Generate CHANGELOG.md from git tags |
 | `generate_requirements.py` | Generate requirements.txt from pyproject.toml |

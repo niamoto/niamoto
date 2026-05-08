@@ -50,7 +50,7 @@ From the repository root:
 cd src/niamoto/gui/ui
 pnpm install
 cd ../../../..
-./scripts/dev_gui.sh test-instance/niamoto-nc
+./scripts/dev/dev_web.sh test-instance/niamoto-nc
 ```
 
 This starts:
@@ -91,12 +91,6 @@ The GUI needs a Niamoto instance path. Resolution order:
 ## Build and distribution
 
 To build the frontend bundle used by the Python GUI server:
-
-```bash
-bash scripts/build_gui.sh
-```
-
-Or through the build script:
 
 ```bash
 bash scripts/build/build_gui.sh
@@ -199,7 +193,6 @@ exports/
 
 - `NIAMOTO_HOME`: path to the active instance
 - `VITE_API_BASE_URL`: override frontend API base URL when needed
-- `NIAMOTO_DESKTOP_CONFIG`: override the shared project-selection config path used by the Tauri or Electron shell and the FastAPI sidecar
+- `NIAMOTO_DESKTOP_CONFIG`: override the shared project-selection config path used by the active desktop shell and the FastAPI sidecar
 - `NIAMOTO_DESKTOP_LOG_DIR`: override the native desktop startup log directory
 - `NIAMOTO_DESKTOP_API_PORT`: fix the FastAPI loopback port used by desktop hot-reload shells
-- `NIAMOTO_ELECTRON_RENDERER_URL`: override the Electron dev renderer URL when the experimental shell runs against a non-default Vite host

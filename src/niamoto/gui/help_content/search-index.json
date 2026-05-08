@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T07:07:05.354469+00:00",
+  "generated_at": "2026-05-08T07:54:13.419077+00:00",
   "entries": [
     {
       "slug": "01-getting-started",
@@ -215,14 +215,16 @@
       "section_slug": "02-user-guide",
       "section_title": "Desktop App Tour",
       "title": "Collections",
-      "description": "Collections is the reader facing name for the desktop area that manages grouped outputs. Behind the interface, this stage spans config/transform.yml and the collection facing parts of config/export.yml.",
+      "description": "Collections is the reader facing name for the desktop area that manages grouped outputs, reusable data outputs, and standard publication profiles. Behind the interface, this stage spans config/transform.yml, collection m",
       "page_type": "markdown",
       "is_section_index": false,
       "headings": [
         "1. Start from the collections overview",
-        "2. Configure collection content",
-        "3. Add widgets from the gallery",
-        "4. Recompute and validate the result",
+        "2. Review collection metadata",
+        "3. Configure collection content",
+        "4. Add widgets from the gallery",
+        "5. Configure data outputs",
+        "6. Recompute and validate the result",
         "How this stage fits the full flow",
         "Related"
       ],
@@ -230,9 +232,11 @@
         "Desktop App Tour",
         "Collections",
         "1. Start from the collections overview",
-        "2. Configure collection content",
-        "3. Add widgets from the gallery",
-        "4. Recompute and validate the result",
+        "2. Review collection metadata",
+        "3. Configure collection content",
+        "4. Add widgets from the gallery",
+        "5. Configure data outputs",
+        "6. Recompute and validate the result",
         "How this stage fits the full flow",
         "Related"
       ]
@@ -1610,13 +1614,16 @@
       "section_slug": "06-reference",
       "section_title": "Reference",
       "title": "API Export Guide",
-      "description": "Niamoto can publish machine readable outputs alongside the website export. The implementation lives in the exporter layer.",
+      "description": "Niamoto can publish machine readable outputs alongside the website export. The collection UI presents these under the collection Data tab:",
       "page_type": "markdown",
       "is_section_index": false,
       "headings": [
         "Main exporters",
         "Export configuration surface",
-        "GUI workflow",
+        "Collection Data workflow",
+        "Simple JSON API workflow",
+        "Standard profile workflow",
+        "Legacy Darwin Core JSON targets",
         "Related docs"
       ],
       "keywords": [
@@ -1624,7 +1631,10 @@
         "API Export Guide",
         "Main exporters",
         "Export configuration surface",
-        "GUI workflow",
+        "Collection Data workflow",
+        "Simple JSON API workflow",
+        "Standard profile workflow",
+        "Legacy Darwin Core JSON targets",
         "Related docs"
       ]
     },
@@ -1820,6 +1830,40 @@
         "Frontend cache",
         "Frontend usage",
         "Related docs"
+      ]
+    },
+    {
+      "slug": "06-reference/standard-profiles",
+      "path": "/help/06-reference/standard-profiles",
+      "section_slug": "06-reference",
+      "section_title": "Reference",
+      "title": "Standard Profiles",
+      "description": "Standard profiles describe publication ready biodiversity outputs separately from ordinary collection JSON APIs. They live in config/export.yml under the top level standard profiles key.",
+      "page_type": "markdown",
+      "is_section_index": false,
+      "headings": [
+        "Configuration Shape",
+        "Supported Standards",
+        "Sources and Grain Compatibility",
+        "Validation States",
+        "Mapping Values",
+        "Outputs",
+        "API Surface",
+        "Legacy Darwin Core JSON",
+        "Related"
+      ],
+      "keywords": [
+        "Reference",
+        "Standard Profiles",
+        "Configuration Shape",
+        "Supported Standards",
+        "Sources and Grain Compatibility",
+        "Validation States",
+        "Mapping Values",
+        "Outputs",
+        "API Surface",
+        "Legacy Darwin Core JSON",
+        "Related"
       ]
     },
     {

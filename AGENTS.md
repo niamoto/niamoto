@@ -10,7 +10,7 @@ Niamoto is a Python-first project with:
 - documentation in [docs](/Users/julienbarbe/Dev/clients/niamoto/docs)
 - the GUI stack in [src/niamoto/gui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui)
 
-Use [examples](/Users/julienbarbe/Dev/clients/niamoto/examples) and `tests/data/` for sample datasets and regression fixtures.
+Use [tests/fixtures](/Users/julienbarbe/Dev/clients/niamoto/tests/fixtures), [test-instance](/Users/julienbarbe/Dev/clients/niamoto/test-instance), and [docs/examples](/Users/julienbarbe/Dev/clients/niamoto/docs/examples) for sample datasets, local project instances, and regression fixtures.
 
 Product model:
 
@@ -28,7 +28,10 @@ Important areas:
 - [src/niamoto/core](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core): import, transform, export, plugins
 - [src/niamoto/gui/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api): FastAPI GUI backend
 - [src/niamoto/gui/ui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui): React/Vite frontend
-- [docs/06-gui](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui): GUI architecture and operations docs
+- [src-tauri](/Users/julienbarbe/Dev/clients/niamoto/src-tauri): production Tauri desktop shell
+- [ml](/Users/julienbarbe/Dev/clients/niamoto/ml): ML auto-detection training and evaluation support
+- [docs/07-architecture](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture): architecture notes, including GUI overview and runtime docs
+- [docs/06-reference](/Users/julienbarbe/Dev/clients/niamoto/docs/06-reference): public reference docs, including GUI/API reference material
 
 Frontend architecture now follows:
 
@@ -57,6 +60,9 @@ uv run niamoto --help
 uv run --group dev pytest
 uv run --group dev pytest -m "not integration"
 uv run tox -e py312
+uv run --group dev mypy src/niamoto
+uv run --group dev ruff check src/ tests/
+uv run --group dev ruff format src/ tests/
 ```
 
 GUI development:
@@ -66,6 +72,8 @@ GUI development:
 uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 cd src/niamoto/gui/ui && pnpm dev
 cd src/niamoto/gui/ui && pnpm build
+cd src/niamoto/gui/ui && pnpm test
+cd src/niamoto/gui/ui && pnpm lint
 ```
 
 If you change GUI styling that depends on the standalone Tailwind bundle, run:
@@ -81,6 +89,7 @@ uv run python scripts/build/build_tailwind_standalone.py
 - Use lowercase underscore module names, CapWords classes, and imperative CLI handler names.
 - Prefer small, explicit refactors over broad file churn.
 - Keep documentation in English unless a file is explicitly meant to stay otherwise.
+- Follow [docs/STYLE_GUIDE.md](/Users/julienbarbe/Dev/clients/niamoto/docs/STYLE_GUIDE.md) for public documentation voice and terminology.
 
 ## Modeling and Architecture Rules
 
@@ -114,8 +123,10 @@ When unsure, ask: would this still work for a different ecology project with dif
 
 - Pytest is the main test harness.
 - Put tests beside the code they exercise under [tests](/Users/julienbarbe/Dev/clients/niamoto/tests).
-- Mark slow scenarios with `@pytest.mark.integration`.
+- Mark integration scenarios with `@pytest.mark.integration`.
+- Mark slow scenarios with `@pytest.mark.slow`.
 - For GUI work, run `pnpm build` at minimum.
+- For GUI work that touches behavior, also run the relevant `pnpm test` or `pnpm lint` target.
 - For backend/API changes, run the most targeted pytest module possible, then broaden if needed.
 - Prefer checking the relevant code and config first before asking the user clarifying questions.
 
@@ -126,13 +137,14 @@ When unsure, ask: would this still work for a different ecology project with dif
 - Avoid adding new feature logic to root `src/hooks` or root `src/lib/api` unless it is genuinely shared.
 - Keep feature docs aligned with:
   - [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
-  - [docs/06-gui](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui)
+  - [docs/07-architecture/gui-overview.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-overview.md)
+  - [docs/07-architecture/gui-runtime.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-runtime.md)
 
 ## Documentation Rules
 
 - Update docs when workflows, architecture, or commands materially change.
 - Prefer documenting the current implementation over aspirational designs.
-- Treat [docs/06-gui](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui) as the GUI architecture/operations reference.
+- Treat [docs/07-architecture/gui-overview.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-overview.md) and [docs/07-architecture/gui-runtime.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-runtime.md) as the GUI architecture/operations reference.
 - Keep [src/niamoto/gui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/README.md) and [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md) consistent with code moves.
 
 ## Git and Commit Rules
@@ -148,4 +160,4 @@ When unsure, ask: would this still work for a different ecology project with dif
 - `.DS_Store` and `.ruff_cache` should never be committed.
 - [src/niamoto/gui/ui/public/fonts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/public/fonts) is intentionally kept because desktop mode uses local fonts.
 - [src/niamoto/gui/ui/components.json](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/components.json) is the shadcn/ui config file and should stay in sync with the UI structure if shadcn tooling is used.
-- The GUI docs live in [docs/06-gui](/Users/julienbarbe/Dev/clients/niamoto/docs/06-gui) and should describe the current implementation, not old plans.
+- The GUI docs live mainly in [docs/07-architecture](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture) and [docs/06-reference](/Users/julienbarbe/Dev/clients/niamoto/docs/06-reference), and should describe the current implementation, not old plans.

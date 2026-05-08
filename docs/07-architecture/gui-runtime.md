@@ -54,8 +54,8 @@ When running through a desktop shell:
 
 Current shells:
 
-- Tauri remains the production desktop shell
-- Electron exists as a parallel experimental shell under `electron/`
+- Tauri is the production desktop shell
+- the renderer keeps a shell-neutral bridge so additional desktop shells can be added without rewriting feature code
 
 The shell-neutral desktop contract now includes:
 
@@ -69,10 +69,9 @@ Development entry points:
 
 ```bash
 ./scripts/dev/dev_desktop.sh test-instance/niamoto-nc
-./scripts/dev/dev_electron.sh test-instance/niamoto-nc
 ```
 
-Both shells follow the same high-level startup model:
+The desktop shell follows this high-level startup model:
 
 1. show a lightweight native loading state
 2. launch the Python sidecar on loopback
