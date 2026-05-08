@@ -3,8 +3,6 @@
 Ecological data platform: **Import → Transform → Export** via plugins.
 Test instance: `test-instance/niamoto-test/`
 
-**Golden Rule**: If a field botanist understands it in 2 minutes, it's the right solution.
-
 ## Ask Before Implementing When It Changes Semantics
 
 Clarify with the user when the change affects one of these boundaries:
