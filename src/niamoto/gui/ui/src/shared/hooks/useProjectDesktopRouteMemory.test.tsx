@@ -63,11 +63,11 @@ async function renderRouteMemoryProbe({
 
   function Probe() {
     useProjectDesktopRouteMemory({ enabled, storage, nativeStorage })
-    const location = useLocation()
+    const { hash, pathname, search } = useLocation()
 
     useLayoutEffect(() => {
-      latestLocation.current = `${location.pathname}${location.search}${location.hash}`
-    }, [location.hash, location.pathname, location.search])
+      latestLocation.current = `${pathname}${search}${hash}`
+    }, [hash, pathname, search])
 
     return null
   }

@@ -27,7 +27,7 @@ import { buildCollectionsPath, normalizeCollectionTab, selectionFromPath } from 
 
 export function CollectionsModule() {
   const { t } = useTranslation(['sources', 'common'])
-  const location = useLocation()
+  const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const setBreadcrumbs = useNavigationStore((s) => s.setBreadcrumbs)
 
@@ -35,10 +35,10 @@ export function CollectionsModule() {
   const references = referencesData?.references ?? []
   const isInitialLoading = isLoading && !referencesData
 
-  const selection = useMemo(() => selectionFromPath(location.pathname), [location.pathname])
+  const selection = useMemo(() => selectionFromPath(pathname), [pathname])
   const initialTab = useMemo(
-    () => normalizeCollectionTab(new URLSearchParams(location.search).get('tab')),
-    [location.search]
+    () => normalizeCollectionTab(new URLSearchParams(search).get('tab')),
+    [search]
   )
 
   // Update URL when selection changes

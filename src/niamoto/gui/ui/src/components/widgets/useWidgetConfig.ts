@@ -461,37 +461,44 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     return mergeWidgetData(transformWidgets, exportWidgets)
   }, [data, groupBy])
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ['widget-config'] }),
-    [queryClient]
-  )
-
-  const invalidateAll = useCallback(() => {
-    invalidate()
+  const refetchWidgetConfig = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['widget-config'] })
     queryClient.invalidateQueries({ queryKey: ['layout'] })
-  }, [invalidate, queryClient])
+  }, [queryClient])
 
   // Mutations
   const updateMutation = useMutation({
     mutationFn: ({ widgetId, config }: { widgetId: string; config: Partial<ConfiguredWidget> }) =>
       performUpdate(widgetId, config, configuredWidgets, groupBy),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] })
+      queryClient.invalidateQueries({ queryKey: ['layout'] })
+    },
   })
 
   const deleteMutation = useMutation({
     mutationFn: (widgetId: string) => performDelete(widgetId, groupBy),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] })
+      queryClient.invalidateQueries({ queryKey: ['layout'] })
+    },
   })
 
   const duplicateMutation = useMutation({
     mutationFn: ({ widgetId, newId }: { widgetId: string; newId: string }) =>
       performDuplicate(widgetId, newId, configuredWidgets, groupBy),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] })
+      queryClient.invalidateQueries({ queryKey: ['layout'] })
+    },
   })
 
   const reorderMutation = useMutation({
     mutationFn: (widgetIds: string[]) => performReorder(widgetIds, groupBy),
-    onSuccess: invalidateAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] })
+      queryClient.invalidateQueries({ queryKey: ['layout'] })
+    },
   })
 
   // Wrappers conservant l'interface Promise<boolean>
@@ -545,6 +552,6 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     deleteWidget,
     duplicateWidget,
     reorderWidgets,
-    refetch: invalidateAll
+    refetch: refetchWidgetConfig
   }
 }

@@ -56,6 +56,16 @@ describe('formSchemaUtils', () => {
     ).toBe(false)
   })
 
+  it('does not execute arbitrary condition code', () => {
+    const marker = '__niamotoConditionExecuted'
+    delete (globalThis as Record<string, unknown>)[marker]
+
+    expect(
+      evaluateUiCondition(`globalThis.${marker} = true`, {})
+    ).toBe(true)
+    expect((globalThis as Record<string, unknown>)[marker]).toBeUndefined()
+  })
+
   it('keeps the persisted select value visible when missing from options', () => {
     expect(mergeOptionValue(['height', 'dbh'], 'id_taxonref')).toEqual([
       'id_taxonref',

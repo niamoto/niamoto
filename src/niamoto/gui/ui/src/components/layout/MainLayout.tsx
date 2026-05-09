@@ -41,14 +41,14 @@ function syncSidebarModeToViewport() {
 }
 
 export function MainLayout() {
-  const location = useLocation()
+  const { pathname } = useLocation()
   const { setBreadcrumbs } = useNavigationStore()
   const { isDesktop, isTauri, project } = useRuntimeMode()
   const desktopProjectScope = buildDesktopProjectScope(project)
-  const routeSurfaceKey = location.pathname.startsWith('/help/')
-    || location.pathname === '/help'
+  const routeSurfaceKey = pathname.startsWith('/help/')
+    || pathname === '/help'
     ? '/help'
-    : location.pathname
+    : pathname
 
   useJobPolling()
   useShellBindings({ isDesktop, isTauri })
@@ -59,7 +59,7 @@ export function MainLayout() {
 
   // Build breadcrumbs from route path using routeLabels map
   useEffect(() => {
-    const pathParts = location.pathname.split('/').filter(Boolean)
+    const pathParts = pathname.split('/').filter(Boolean)
     const breadcrumbs: { label: string; path?: string }[] = []
 
     let currentPath = ''
@@ -77,8 +77,8 @@ export function MainLayout() {
     })
 
     setBreadcrumbs(breadcrumbs)
-    recordNavigation(location.pathname)
-  }, [location.pathname, setBreadcrumbs])
+    recordNavigation(pathname)
+  }, [pathname, setBreadcrumbs])
 
   // Handle responsive sidebar
   useLayoutEffect(() => {

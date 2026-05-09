@@ -153,10 +153,14 @@ export function useSources(referenceName: string) {
  * Hook to upload and validate a pre-calculated CSV file.
  */
 export function useUploadSource(referenceName: string) {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: ({ file, sourceName }: { file: File; sourceName: string }) =>
       uploadSource(referenceName, file, sourceName),
-    // Don't invalidate on success - user needs to confirm save first
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sources', referenceName] })
+    },
   })
 }
 

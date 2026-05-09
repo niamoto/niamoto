@@ -44,7 +44,8 @@ export function FeedbackModal() {
   // Focus title field when modal opens
   useEffect(() => {
     if (feedback.isOpen) {
-      setTimeout(() => titleRef.current?.focus(), 100)
+      const focusTimeout = window.setTimeout(() => titleRef.current?.focus(), 100)
+      return () => window.clearTimeout(focusTimeout)
     }
   }, [feedback.isOpen])
 

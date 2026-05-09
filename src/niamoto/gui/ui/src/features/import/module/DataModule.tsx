@@ -55,7 +55,7 @@ function selectionFromLocation(pathname: string): DataSelection {
 
 export function DataModule() {
   const { t } = useTranslation(['sources', 'common'])
-  const location = useLocation()
+  const { pathname } = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const setBreadcrumbs = useNavigationStore((s) => s.setBreadcrumbs)
@@ -69,7 +69,7 @@ export function DataModule() {
   const layerCount = importSummary?.layer_count ?? 0
   const hasImportedData = datasets.length > 0 || references.length > 0 || layerCount > 0
 
-  const selection = useMemo(() => selectionFromLocation(location.pathname), [location.pathname])
+  const selection = useMemo(() => selectionFromLocation(pathname), [pathname])
 
   // Update URL when selection changes via sidebar
   const handleSelect = (sel: DataSelection) => {

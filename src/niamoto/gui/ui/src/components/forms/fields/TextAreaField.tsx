@@ -62,7 +62,7 @@ const TextAreaField: React.FC<TextAreaFieldProps> = ({
             <FormMessage className="text-red-500">{error}</FormMessage>
           )}
         </div>
-        {maxLength && (
+        {maxLength !== undefined && (
           <span className="text-xs text-gray-500">
             {value.length}/{maxLength}
           </span>

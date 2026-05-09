@@ -1,0 +1,7 @@
+{
+  "ignore": {
+    "rules": [
+      "react-doctor/design-no-redundant-size-axes"
+    ]
+  }
+}

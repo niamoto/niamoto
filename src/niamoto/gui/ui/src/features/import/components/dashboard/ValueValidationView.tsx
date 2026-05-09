@@ -52,6 +52,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { SafeHtmlContent } from '@/components/html/SafeHtmlContent'
 
 interface EntityInfo {
   name: string
@@ -216,9 +217,9 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                       <Info className="h-4 w-4 text-blue-600" />
                       {t('validation.outlierTitle')}
                     </h4>
-                    <p
+                    <SafeHtmlContent
+                      html={t('validation.outlierDescription')}
                       className="text-muted-foreground mt-1"
-                      dangerouslySetInnerHTML={{ __html: t('validation.outlierDescription') }}
                     />
                   </div>
 

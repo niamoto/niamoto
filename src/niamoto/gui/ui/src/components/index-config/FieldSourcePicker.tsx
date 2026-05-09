@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'
 
@@ -51,6 +51,7 @@ export function FieldSourcePicker({
 }: FieldSourcePickerProps) {
   const { t, i18n } = useTranslation('indexConfig')
   const [open, setOpen] = useState(false)
+  const listId = useId()
 
   const selectedOption = useMemo(
     () => options.find((option) => option.source === value),
@@ -77,6 +78,7 @@ export function FieldSourcePicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-controls={listId}
           className="h-auto min-h-11 w-full justify-between px-3 py-2 text-left font-normal"
         >
           <span className="min-w-0">
@@ -96,7 +98,7 @@ export function FieldSourcePicker({
       >
         <Command>
           <CommandInput placeholder={t('fieldEditor.fieldPickerPlaceholder')} />
-          <CommandList className="max-h-80">
+          <CommandList id={listId} className="max-h-80">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />

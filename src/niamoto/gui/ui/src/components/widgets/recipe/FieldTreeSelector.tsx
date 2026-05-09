@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, ChevronDown, Search, ChevronsUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -138,6 +138,7 @@ export function FieldTreeSelector({
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const listId = useId()
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     // Auto-expand parent nodes if value is nested
     const expanded = new Set<string>()
@@ -197,6 +198,7 @@ export function FieldTreeSelector({
         variant="outline"
         role="combobox"
         aria-expanded={open}
+        aria-controls={listId}
         disabled={disabled || loading}
         onClick={() => setOpen(!open)}
         className={cn(
@@ -211,7 +213,7 @@ export function FieldTreeSelector({
       </Button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-[300px] rounded-md border bg-popover shadow-md">
+        <div id={listId} className="absolute z-50 mt-1 w-[300px] rounded-md border bg-popover shadow-md">
           {/* Search input */}
           <div className="p-2 border-b">
             <div className="relative">

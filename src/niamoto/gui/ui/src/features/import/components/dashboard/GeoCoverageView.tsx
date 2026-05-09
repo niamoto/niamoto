@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ import { importQueryKeys } from '@/features/import/queryKeys'
 
 export function GeoCoverageView() {
   const { t } = useTranslation(['sources', 'common'])
+  const queryClient = useQueryClient()
   const [showDistribution, setShowDistribution] = useState(false)
   const {
     data: quickData,
@@ -46,30 +47,40 @@ export function GeoCoverageView() {
   })
   const analysisMutation = useMutation({
     mutationFn: runGeoCoverageAnalysis,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: importQueryKeys.dashboard.geoCoverage() })
+    },
   })
-  const distributionMutation = useMutation({
-    mutationFn: getGeoCoverageDistribution,
+  const {
+    data: distributionData,
+    error: distributionError,
+    isFetching: loadingDistribution,
+    refetch: refetchDistribution,
+  } = useQuery({
+    queryKey: [...importQueryKeys.dashboard.geoCoverage(), 'distribution'],
+    queryFn: getGeoCoverageDistribution,
+    enabled: false,
   })
 
   const analysisResult = analysisMutation.data ?? null
-  const distribution = distributionMutation.data ?? null
+  const distribution = distributionData ?? null
   const analyzing = analysisMutation.isPending
-  const loadingDistribution = distributionMutation.isPending
   const error =
     analysisMutation.error?.message ??
-    distributionMutation.error?.message ??
+    distributionError?.message ??
     quickDataError?.message ??
     null
 
   const runAnalysis = async () => {
     setShowDistribution(false)
-    distributionMutation.reset()
     await analysisMutation.mutateAsync()
   }
 
   const fetchDistribution = async () => {
-    await distributionMutation.mutateAsync()
-    setShowDistribution(true)
+    const result = await refetchDistribution()
+    if (!result.error) {
+      setShowDistribution(true)
+    }
   }
 
   if (loading) {
