@@ -361,6 +361,39 @@ def test_update_api_export_group_config_inherits_dwc_sibling_defaults(monkeypatc
     assert payload["transformer_params"]["taxonomy_entity"] == "plots"
 
 
+def test_update_api_export_group_config_applies_dwc_defaults_for_empty_target(
+    monkeypatch,
+):
+    export_config = {
+        "exports": [
+            {
+                "name": "occurrence_json",
+                "exporter": "json_api_exporter",
+                "params": {
+                    "detail_output_pattern": "{group}/{id}_dwc.json",
+                    "index_output_pattern": "all_{group}_dwc.json",
+                },
+                "groups": [],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: export_config)
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", Mock())
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/config/export/api-targets/occurrence_json/groups/plots",
+        json={"enabled": True, "detail": {"pass_through": True}},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["transformer_plugin"] == "niamoto_to_dwc_occurrence"
+    assert payload["transformer_params"]["taxonomy_entity"] == "plots"
+
+
 def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypatch):
     export_config = {
         "exports": [
@@ -943,6 +976,55 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
     assert items[0]["general_info"]["name"]["value"] == "Plot B"
 
 
+def test_load_api_export_preview_items_falls_back_to_legacy_data_table(
+    monkeypatch, tmp_path
+):
+    db_path = tmp_path / "db" / "niamoto.duckdb"
+    db_path.parent.mkdir()
+    db_path.touch()
+    checked_tables: list[str] = []
+
+    class FakeRows:
+        def all(self):
+            return [{"plots_id": 3, "general_info": '{"name":{"value":"Plot C"}}'}]
+
+    class FakeResult:
+        def mappings(self):
+            return FakeRows()
+
+    class FakeSession:
+        def execute(self, query):
+            assert '"plots_data"' in str(query)
+            return FakeResult()
+
+    class FakeDatabase:
+        def __init__(self, path, read_only=False):
+            assert path == str(db_path)
+            assert read_only is True
+            self.session = FakeSession()
+
+        def has_table(self, table_name):
+            checked_tables.append(table_name)
+            return table_name == "plots_data"
+
+        def close_db_session(self):
+            pass
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr("niamoto.common.database.Database", FakeDatabase)
+    monkeypatch.setattr(
+        "niamoto.common.table_resolver.quote_identifier",
+        lambda _db, table_name: f'"{table_name}"',
+    )
+
+    items = config_router._load_api_export_preview_items(
+        "plots", None, ["general_info.name.value"]
+    )
+
+    assert checked_tables == ["plots", "plots_stats", "plots_data"]
+    assert items[0]["plots_id"] == 3
+
+
 def test_load_api_export_preview_items_requires_database(monkeypatch, tmp_path):
     monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
 
@@ -1061,6 +1143,30 @@ def test_api_export_auto_config_helpers_cover_low_confidence_and_dwc_detection()
         ],
     }
     assert config_router._api_export_target_uses_dwc(export_target, "plots") is True
+
+    empty_dwc_target = {
+        "name": "occurrence_json",
+        "params": {
+            "detail_output_pattern": "{group}/{id}_dwc.json",
+            "index_output_pattern": "all_{group}_dwc.json",
+        },
+        "groups": [],
+    }
+    assert config_router._api_export_target_uses_dwc(empty_dwc_target, "plots") is True
+
+    dwc_proposal = config_router._build_api_export_auto_config_proposal(
+        "occurrence_json",
+        empty_dwc_target,
+        "plots",
+        config_router.IndexFieldSuggestions(
+            display_fields=[],
+            available_fields=[],
+            filters=[],
+            total_entities=0,
+        ),
+    )
+    assert dwc_proposal.proposal["transformer_plugin"] == ("niamoto_to_dwc_occurrence")
+    assert dwc_proposal.proposal["transformer_params"]["taxonomy_entity"] == "plots"
 
     empty_proposal = config_router._build_api_export_auto_config_proposal(
         "json_api",

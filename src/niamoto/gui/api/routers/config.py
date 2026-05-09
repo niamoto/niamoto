@@ -35,6 +35,7 @@ from niamoto.core.plugins.exporters.json_api_exporter import (
 )
 
 router = APIRouter()
+DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 
 
 # Wrapper functions for backward compatibility (use get_working_directory)
@@ -111,6 +112,32 @@ def _default_dwc_transformer_params(group_by: str) -> Dict[str, Any]:
         "taxon_id_field": "id",
         "mapping": {},
     }
+
+
+def _api_export_table_candidates(
+    group_by: str, data_source: Optional[str]
+) -> List[str]:
+    """Return transformed table candidates for a static API group."""
+    if data_source:
+        return [data_source]
+    return [group_by, f"{group_by}_stats", f"{group_by}_data"]
+
+
+def _api_export_target_name_values(export_target: Dict[str, Any]) -> List[Any]:
+    params = export_target.get("params", {}) or {}
+    return [
+        export_target.get("name"),
+        params.get("output_dir"),
+        params.get("detail_output_pattern"),
+        params.get("index_output_pattern"),
+    ]
+
+
+def _api_export_target_looks_like_dwc(export_target: Dict[str, Any]) -> bool:
+    return any(
+        isinstance(value, str) and DWC_TARGET_PATTERN.search(value)
+        for value in _api_export_target_name_values(export_target)
+    )
 
 
 def _build_default_api_group_config(export_name: str, group_by: str) -> Dict[str, Any]:
@@ -2418,6 +2445,10 @@ async def update_api_export_group_config(
                 if sibling_plugin and sibling.get("group_by") != group_by:
                     next_group["transformer_plugin"] = sibling_plugin
                     break
+            if "transformer_plugin" not in next_group and _api_export_target_uses_dwc(
+                export_target, group_by
+            ):
+                next_group["transformer_plugin"] = "niamoto_to_dwc_occurrence"
 
         if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
             next_group.setdefault(
@@ -2551,7 +2582,7 @@ def _load_api_export_preview_items(
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    table_candidates = [data_source] if data_source else [group_by, f"{group_by}_stats"]
+    table_candidates = _api_export_table_candidates(group_by, data_source)
 
     db = Database(str(db_path), read_only=True)
     try:
@@ -3133,11 +3164,14 @@ def _api_export_target_uses_dwc(export_target: Dict[str, Any], group_by: str) ->
     if group and group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
         return True
 
-    return any(
+    if any(
         sibling.get("group_by") != group_by
         and sibling.get("transformer_plugin") == "niamoto_to_dwc_occurrence"
         for sibling in export_target.get("groups", []) or []
-    )
+    ):
+        return True
+
+    return _api_export_target_looks_like_dwc(export_target)
 
 
 def _api_export_auto_field_is_useful(

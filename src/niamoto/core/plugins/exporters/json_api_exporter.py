@@ -44,6 +44,31 @@ logger = logging.getLogger(__name__)
 JSON_NUMBER_RE = re.compile(r"^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$")
 
 
+def _group_data_table_candidates(
+    data_source: Optional[str], group_name: str
+) -> List[str]:
+    """Return table candidates for a JSON API group in lookup order."""
+    if data_source:
+        return [data_source]
+    return [group_name, f"{group_name}_stats", f"{group_name}_data"]
+
+
+def _quote_table_identifier(repository: Database, table_name: str) -> str:
+    """Quote a table identifier using the active SQL dialect."""
+    try:
+        from sqlalchemy import inspect
+
+        preparer = inspect(repository.engine).dialect.identifier_preparer
+        quoted = preparer.quote(table_name)
+        if isinstance(quoted, str):
+            return quoted
+    except Exception:
+        pass
+
+    escaped = table_name.replace('"', '""')
+    return f'"{escaped}"'
+
+
 # Pydantic models for configuration validation
 class JsonOptions(BaseModel):
     """Options for JSON file generation."""
@@ -349,8 +374,9 @@ class JsonApiExporter(ExporterPlugin):
         logger.info(f"Processing group: {group_name}")
 
         # Get data for this group
-        data_source = group_config.data_source or f"{group_name}_data"
-        group_data = self._fetch_group_data(repository, data_source, group_name)
+        group_data = self._fetch_group_data(
+            repository, group_config.data_source, group_name
+        )
 
         if not group_data:
             logger.warning(f"No data found for group: {group_name}")
@@ -472,8 +498,9 @@ class JsonApiExporter(ExporterPlugin):
         logger.info(f"Processing group: {group_name}")
 
         # Get data for this group
-        data_source = group_config.data_source or f"{group_name}_data"
-        group_data = self._fetch_group_data(repository, data_source, group_name)
+        group_data = self._fetch_group_data(
+            repository, group_config.data_source, group_name
+        )
 
         if not group_data:
             logger.warning(f"No data found for group: {group_name}")
@@ -753,17 +780,30 @@ class JsonApiExporter(ExporterPlugin):
         return JsonOptions.model_validate(merged)
 
     def _fetch_group_data(
-        self, repository: Database, data_source: str, group_name: str
+        self, repository: Database, data_source: Optional[str], group_name: str
     ) -> List[Dict[str, Any]]:
         """Fetch data for a group from the repository."""
         try:
-            # Use data_source as table name (falls back to group_name for compat)
-            table_name = data_source or group_name
+            table_name = next(
+                (
+                    candidate
+                    for candidate in _group_data_table_candidates(
+                        data_source, group_name
+                    )
+                    if repository.has_table(candidate)
+                ),
+                None,
+            )
+            if not table_name:
+                logger.warning(f"No data table found for group: {group_name}")
+                return []
 
             # Query all data from the table
             from sqlalchemy import text
 
-            query = text(f"SELECT * FROM {table_name}")
+            query = text(
+                f"SELECT * FROM {_quote_table_identifier(repository, table_name)}"
+            )
 
             with repository.engine.connect() as connection:
                 result_proxy = connection.execute(query)

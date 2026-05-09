@@ -985,12 +985,300 @@ def _compute_wkt_geometry_stats_fallback(
     return count, bbox
 
 
+def _normalize_wkt_text(value: Any) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+    if ";" in text_value and text_value.upper().startswith("SRID="):
+        text_value = text_value.split(";", 1)[1].strip()
+    return text_value or None
+
+
+def _wkt_geometry_to_geojson(
+    value: Any, simplify_tolerance: Optional[float]
+) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """Convert WKT to a GeoJSON geometry without DuckDB spatial functions."""
+    text_value = _normalize_wkt_text(value)
+    if not text_value:
+        return None
+
+    try:
+        from shapely import wkt as shapely_wkt
+        from shapely.geometry import mapping as geometry_mapping
+
+        geometry = shapely_wkt.loads(text_value)
+        if simplify_tolerance and simplify_tolerance > 0:
+            geometry = geometry.simplify(
+                float(simplify_tolerance), preserve_topology=True
+            )
+        if geometry.is_empty:
+            return None
+        return geometry.geom_type, dict(geometry_mapping(geometry))
+    except Exception as exc:
+        logger.debug("Failed to parse WKT geometry for map fallback: %s", exc)
+        return None
+
+
+def _resolve_wkt_spatial_layer_column(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    column_names: List[str],
+    preferred_column: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve a layer column without relying on DuckDB spatial functions."""
+    quoted_table = quote_identifier(db, table_name)
+    geometry_col = quote_identifier(db, geometry_column)
+
+    for candidate in _spatial_layer_candidates(column_names, preferred_column):
+        layer_col = quote_identifier(db, candidate)
+        try:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT COUNT(DISTINCT TRY_CAST({layer_col} AS VARCHAR))
+                    FROM {quoted_table}
+                    WHERE {geometry_col} IS NOT NULL
+                      AND TRY_CAST({layer_col} AS VARCHAR) IS NOT NULL
+                      AND TRY_CAST({layer_col} AS VARCHAR) <> ''
+                    """
+                )
+            ).fetchone()
+        except Exception as exc:
+            logger.debug(
+                "Failed to inspect fallback layer column '%s' for table '%s': %s",
+                candidate,
+                table_name,
+                exc,
+            )
+            continue
+
+        distinct_count = int(row[0] or 0) if row else 0
+        if 1 < distinct_count <= 80:
+            return candidate
+
+    return None
+
+
+def _fetch_wkt_spatial_layers(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    layer_column: Optional[str],
+) -> List[SpatialMapLayer]:
+    """Return layer counts using Python WKT parsing as the validity check."""
+    if not layer_column:
+        return []
+
+    quoted_table = quote_identifier(db, table_name)
+    geometry_col = quote_identifier(db, geometry_column)
+    layer_col = quote_identifier(db, layer_column)
+    rows = conn.execute(
+        text(
+            f"""
+            SELECT
+                TRY_CAST({layer_col} AS VARCHAR) AS layer_value,
+                {geometry_col} AS geometry_value
+            FROM {quoted_table}
+            WHERE TRY_CAST({layer_col} AS VARCHAR) IS NOT NULL
+              AND TRY_CAST({layer_col} AS VARCHAR) <> ''
+            """
+        )
+    ).fetchall()
+
+    layer_counts: Dict[str, Dict[str, int]] = {}
+    for row in rows:
+        layer_value = str(row[0])
+        counts = layer_counts.setdefault(layer_value, {"feature_count": 0, "valid": 0})
+        counts["feature_count"] += 1
+        if _extract_wkt_bbox(row[1]):
+            counts["valid"] += 1
+
+    return [
+        SpatialMapLayer(
+            value=layer_value,
+            label=layer_value,
+            feature_count=counts["feature_count"],
+            with_geometry=counts["valid"],
+        )
+        for layer_value, counts in sorted(
+            layer_counts.items(),
+            key=lambda item: (-item[1]["valid"], -item[1]["feature_count"], item[0]),
+        )
+    ]
+
+
+def _row_value(row: Any, key: str, index: int) -> Any:
+    mapping = row._mapping if hasattr(row, "_mapping") else None
+    if mapping is not None:
+        return mapping[key]
+    return row[index]
+
+
+def _build_wkt_spatial_map_inspection(
+    db: Database,
+    reference_name: str,
+    table_name: str,
+    geometry_column: str,
+    geometry_storage: str,
+    column_names: List[str],
+    id_column: Optional[str],
+    name_column: Optional[str],
+    type_column: Optional[str],
+    selected_layer: Optional[str],
+    limit: int,
+    offset: int,
+    simplify_tolerance: Optional[float],
+) -> SpatialMapInspection:
+    """Build spatial map payload for WKT columns without DuckDB spatial."""
+    quoted_table = quote_identifier(db, table_name)
+    geometry_col = quote_identifier(db, geometry_column)
+    id_expr = (
+        f"TRY_CAST({quote_identifier(db, id_column)} AS VARCHAR)"
+        if id_column
+        else "NULL"
+    )
+    name_expr = (
+        f"TRY_CAST({quote_identifier(db, name_column)} AS VARCHAR)"
+        if name_column
+        else id_expr
+    )
+    type_expr = (
+        f"TRY_CAST({quote_identifier(db, type_column)} AS VARCHAR)"
+        if type_column
+        else "NULL"
+    )
+
+    with db.engine.connect() as conn:
+        layer_column = _resolve_wkt_spatial_layer_column(
+            conn,
+            db,
+            table_name,
+            geometry_column,
+            column_names,
+            preferred_column=type_column,
+        )
+        if selected_layer is not None and not layer_column:
+            raise HTTPException(
+                status_code=400,
+                detail="Layer filtering is not available for this reference",
+            )
+
+        layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+        layer_expr = (
+            f"TRY_CAST({quote_identifier(db, layer_column)} AS VARCHAR)"
+            if layer_column
+            else "NULL"
+        )
+        params = (
+            {"selected_layer": selected_layer} if selected_layer is not None else {}
+        )
+        layers = _fetch_wkt_spatial_layers(
+            conn, db, table_name, geometry_column, layer_column
+        )
+        total_features = _count_spatial_features(
+            conn, db, table_name, layer_column, selected_layer
+        )
+        with_geometry, bbox = _compute_wkt_geometry_stats_fallback(
+            conn, db, table_name, geometry_column, layer_column, selected_layer
+        )
+        rows = conn.execute(
+            text(
+                f"""
+                SELECT
+                    {id_expr} AS id_value,
+                    {name_expr} AS name_value,
+                    {type_expr} AS type_value,
+                    {layer_expr} AS layer_value,
+                    {geometry_col} AS geometry_value
+                FROM {quoted_table}
+                WHERE {geometry_col} IS NOT NULL
+                {layer_filter}
+                ORDER BY id_value NULLS LAST
+                """
+            ),
+            params,
+        ).fetchall()
+
+    features: List[Dict[str, Any]] = []
+    geometry_types: List[str] = []
+    for row in rows:
+        parsed = _wkt_geometry_to_geojson(
+            _row_value(row, "geometry_value", 4), simplify_tolerance
+        )
+        if not parsed:
+            continue
+
+        geometry_type, geometry = parsed
+        if geometry_type not in geometry_types:
+            geometry_types.append(geometry_type)
+        feature_id = _row_value(row, "id_value", 0)
+        feature_name = _row_value(row, "name_value", 1) or feature_id
+        feature_type = _row_value(row, "type_value", 2)
+        feature_layer = _row_value(row, "layer_value", 3)
+        features.append(
+            {
+                "type": "Feature",
+                "id": feature_id,
+                "geometry": geometry,
+                "properties": {
+                    "id": feature_id,
+                    "label": str(feature_name) if feature_name else None,
+                    "name": str(feature_name) if feature_name else None,
+                    "type": str(feature_type) if feature_type else None,
+                    "layer": str(feature_layer) if feature_layer else None,
+                    "geometry_type": geometry_type,
+                },
+            }
+        )
+
+    visible_features = features[offset : offset + limit] if limit > 0 else []
+    has_more = limit > 0 and len(features) > offset + limit
+    return SpatialMapInspection(
+        reference_name=reference_name,
+        table_name=table_name,
+        is_mappable=True,
+        geometry_column=geometry_column,
+        geometry_storage=geometry_storage,
+        geometry_kind=_classify_geometry_kind(geometry_types),
+        geometry_types=geometry_types,
+        id_column=id_column,
+        name_column=name_column,
+        type_column=type_column,
+        layer_column=layer_column,
+        selected_layer=selected_layer,
+        layers=layers,
+        total_features=total_features,
+        with_geometry=with_geometry,
+        without_geometry=max(total_features - with_geometry, 0),
+        bounding_box=bbox,
+        feature_collection={
+            "type": "FeatureCollection",
+            "features": visible_features,
+        },
+        limit=limit,
+        offset=offset,
+        result_count=with_geometry,
+        has_more=has_more,
+        next_offset=offset + limit if has_more else None,
+    )
+
+
 def _load_spatial_extension_best_effort(conn: Any) -> None:
     """Load DuckDB spatial functions for short-lived API connections."""
     try:
         conn.execute(text("LOAD spatial"))
     except Exception as exc:
         logger.debug("Could not load spatial extension: %s", exc)
+
+
+def _ensure_spatial_functions_available(conn: Any) -> None:
+    """Raise if DuckDB spatial functions are unavailable on this connection."""
+    conn.execute(text("SELECT ST_GeomFromText('POINT (0 0)')")).fetchone()
 
 
 def _compute_geometry_bbox(
@@ -2157,113 +2445,140 @@ def _build_spatial_map_inspection(
         else "NULL"
     )
 
-    with db.engine.connect() as conn:
-        _load_spatial_extension_best_effort(conn)
-        layer_column = _resolve_spatial_layer_column(
-            conn,
-            db,
-            table_name,
-            geometry_column,
-            is_native,
-            column_names,
-            preferred_column=type_column,
-        )
-        if selected_layer is not None and not layer_column:
-            raise HTTPException(
-                status_code=400,
-                detail="Layer filtering is not available for this reference",
+    try:
+        with db.engine.connect() as conn:
+            _load_spatial_extension_best_effort(conn)
+            _ensure_spatial_functions_available(conn)
+            layer_column = _resolve_spatial_layer_column(
+                conn,
+                db,
+                table_name,
+                geometry_column,
+                is_native,
+                column_names,
+                preferred_column=type_column,
+            )
+            if selected_layer is not None and not layer_column:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Layer filtering is not available for this reference",
+                )
+
+            layers = _fetch_spatial_layers(
+                conn, db, table_name, geometry_column, is_native, layer_column
+            )
+            layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
+            layer_expr = (
+                f"TRY_CAST({quote_identifier(db, layer_column)} AS VARCHAR)"
+                if layer_column
+                else "NULL"
+            )
+            params = (
+                {"selected_layer": selected_layer} if selected_layer is not None else {}
             )
 
-        layers = _fetch_spatial_layers(
-            conn, db, table_name, geometry_column, is_native, layer_column
-        )
-        layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
-        layer_expr = (
-            f"TRY_CAST({quote_identifier(db, layer_column)} AS VARCHAR)"
-            if layer_column
-            else "NULL"
-        )
-        params = (
-            {"selected_layer": selected_layer} if selected_layer is not None else {}
-        )
-
-        total_features = _count_spatial_features(
-            conn, db, table_name, layer_column, selected_layer
-        )
-        with_geometry = _count_valid_geometries_for_scope(
-            conn,
-            db,
-            table_name,
-            geometry_column,
-            is_native,
-            layer_column,
-            selected_layer,
-        )
-        bbox = _compute_geometry_bbox_for_scope(
-            conn,
-            db,
-            table_name,
-            geometry_column,
-            is_native,
-            layer_column,
-            selected_layer,
-        )
-        geometry_rows = conn.execute(
-            text(
-                f"""
-                WITH mapped AS (
-                    SELECT {geom_expr} AS geom
-                    FROM {quoted_table}
-                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
-                    {layer_filter}
-                )
-                SELECT DISTINCT CAST(ST_GeometryType(geom) AS VARCHAR)
-                FROM mapped
-                WHERE geom IS NOT NULL
-                ORDER BY 1
-                """
-            ),
-            params,
-        ).fetchall()
-        geometry_types = [str(row[0]) for row in geometry_rows if row[0]]
-
-        rows = []
-        if limit > 0:
-            feature_params = {**params, "limit": limit + 1, "offset": offset}
-            if simplify_tolerance and simplify_tolerance > 0:
-                geometry_json_expr = "ST_Simplify(geom, :simplify_tolerance)"
-                feature_params["simplify_tolerance"] = simplify_tolerance
-            else:
-                geometry_json_expr = "geom"
-            rows = conn.execute(
+            total_features = _count_spatial_features(
+                conn, db, table_name, layer_column, selected_layer
+            )
+            with_geometry = _count_valid_geometries_for_scope(
+                conn,
+                db,
+                table_name,
+                geometry_column,
+                is_native,
+                layer_column,
+                selected_layer,
+            )
+            bbox = _compute_geometry_bbox_for_scope(
+                conn,
+                db,
+                table_name,
+                geometry_column,
+                is_native,
+                layer_column,
+                selected_layer,
+            )
+            geometry_rows = conn.execute(
                 text(
                     f"""
                     WITH mapped AS (
-                        SELECT
-                            {id_expr} AS id_value,
-                            {name_expr} AS name_value,
-                            {type_expr} AS type_value,
-                            {layer_expr} AS layer_value,
-                            {geom_expr} AS geom
+                        SELECT {geom_expr} AS geom
                         FROM {quoted_table}
                         WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
                         {layer_filter}
                     )
-                    SELECT
-                        id_value,
-                        name_value,
-                        type_value,
-                        layer_value,
-                        CAST(ST_GeometryType(geom) AS VARCHAR) AS geometry_type,
-                        CAST(ST_AsGeoJSON({geometry_json_expr}) AS VARCHAR) AS geometry_json
+                    SELECT DISTINCT CAST(ST_GeometryType(geom) AS VARCHAR)
                     FROM mapped
                     WHERE geom IS NOT NULL
-                    ORDER BY id_value NULLS LAST
-                    LIMIT :limit OFFSET :offset
+                    ORDER BY 1
                     """
                 ),
-                feature_params,
+                params,
             ).fetchall()
+            geometry_types = [str(row[0]) for row in geometry_rows if row[0]]
+
+            rows = []
+            if limit > 0:
+                feature_params = {**params, "limit": limit + 1, "offset": offset}
+                if simplify_tolerance and simplify_tolerance > 0:
+                    geometry_json_expr = "ST_Simplify(geom, :simplify_tolerance)"
+                    feature_params["simplify_tolerance"] = simplify_tolerance
+                else:
+                    geometry_json_expr = "geom"
+                rows = conn.execute(
+                    text(
+                        f"""
+                        WITH mapped AS (
+                            SELECT
+                                {id_expr} AS id_value,
+                                {name_expr} AS name_value,
+                                {type_expr} AS type_value,
+                                {layer_expr} AS layer_value,
+                                {geom_expr} AS geom
+                            FROM {quoted_table}
+                            WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                            {layer_filter}
+                        )
+                        SELECT
+                            id_value,
+                            name_value,
+                            type_value,
+                            layer_value,
+                            CAST(ST_GeometryType(geom) AS VARCHAR) AS geometry_type,
+                            CAST(ST_AsGeoJSON({geometry_json_expr}) AS VARCHAR) AS geometry_json
+                        FROM mapped
+                        WHERE geom IS NOT NULL
+                        ORDER BY id_value NULLS LAST
+                        LIMIT :limit OFFSET :offset
+                        """
+                    ),
+                    feature_params,
+                ).fetchall()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if is_native:
+            raise
+        logger.debug(
+            "Falling back to Python WKT spatial map for reference '%s': %s",
+            reference_name,
+            exc,
+        )
+        return _build_wkt_spatial_map_inspection(
+            db,
+            reference_name,
+            table_name,
+            geometry_column,
+            geometry_storage,
+            column_names,
+            id_column,
+            name_column,
+            type_column,
+            selected_layer,
+            limit,
+            offset,
+            simplify_tolerance,
+        )
 
     visible_rows = rows[:limit]
     features: List[Dict[str, Any]] = []
