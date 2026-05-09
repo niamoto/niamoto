@@ -252,5 +252,3 @@ export function TemplateSelect({ value, onChange, templates, disabled }: Templat
     </Popover>
   )
 }
-
-export default TemplateSelect

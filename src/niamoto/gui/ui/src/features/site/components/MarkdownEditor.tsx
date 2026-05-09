@@ -976,5 +976,3 @@ export function MarkdownEditor({
     </>
   )
 }
-
-export default MarkdownEditor

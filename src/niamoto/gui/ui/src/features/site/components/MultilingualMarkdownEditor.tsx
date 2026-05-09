@@ -367,5 +367,3 @@ export function MultilingualMarkdownEditor({
     </div>
   )
 }
-
-export default MultilingualMarkdownEditor

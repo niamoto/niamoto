@@ -236,5 +236,3 @@ export function FilePickerField({
     </div>
   )
 }
-
-export default FilePickerField

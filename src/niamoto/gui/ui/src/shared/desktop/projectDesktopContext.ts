@@ -134,7 +134,7 @@ function isSafePreferenceValue(value: string): boolean {
   return value.length > 0 && value.length <= 80 && !/[\r\n]/.test(value)
 }
 
-export function normalizeProjectDesktopViewPreferences(
+function normalizeProjectDesktopViewPreferences(
   value: unknown,
 ): Record<string, string> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

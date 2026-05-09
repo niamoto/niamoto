@@ -1,4 +1,4 @@
-import apiClient from '@/shared/lib/api/client'
+import { apiClient } from '@/shared/lib/api/client'
 
 export interface HelpHeading {
   title: string

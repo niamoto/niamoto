@@ -410,5 +410,3 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
     </Dialog>
   )
 }
-
-export default ImagePickerDialog

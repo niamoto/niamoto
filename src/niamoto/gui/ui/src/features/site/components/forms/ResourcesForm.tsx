@@ -270,5 +270,3 @@ export function ResourcesForm({
     </div>
   )
 }
-
-export default ResourcesForm

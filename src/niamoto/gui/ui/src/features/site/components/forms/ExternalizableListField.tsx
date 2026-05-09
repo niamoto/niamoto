@@ -480,5 +480,3 @@ export function ExternalizableListField<T>({
     </div>
   )
 }
-
-export default ExternalizableListField

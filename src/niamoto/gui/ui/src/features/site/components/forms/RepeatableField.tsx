@@ -155,5 +155,3 @@ export function RepeatableField<T>({
     </div>
   )
 }
-
-export default RepeatableField

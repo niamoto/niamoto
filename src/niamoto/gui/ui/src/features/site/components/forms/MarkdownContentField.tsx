@@ -613,5 +613,3 @@ export function MarkdownContentField({
     </div>
   )
 }
-
-export default MarkdownContentField

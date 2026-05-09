@@ -549,5 +549,3 @@ export function StaticPageEditor({
     </div>
   )
 }
-
-export default StaticPageEditor
