@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { SafeHtmlContent } from '@/components/html/SafeHtmlContent'
 import type { HelpPage, HelpSection } from '../api'
 import { buildHelpPath } from '../routing'
 
@@ -163,11 +164,11 @@ export function DocumentationArticle({
                   </div>
                 )
               ) : (
-                <div
+                <SafeHtmlContent
                   ref={articleRef}
+                  html={page.html}
                   onClick={handleContentClick}
                   className="documentation-prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: page.html }}
                 />
               )}
             </CardContent>

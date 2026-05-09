@@ -65,7 +65,7 @@ const MAX_FEEDBACK_DESCRIPTION_LENGTH = 5000
 export function ImportWizard() {
   const { t } = useTranslation(['sources', 'common', 'feedback'])
   const navigate = useNavigate()
-  const location = useLocation()
+  const { pathname, state: locationState } = useLocation()
   const queryClient = useQueryClient()
   const autoStartedRef = useRef(false)
 
@@ -84,7 +84,7 @@ export function ImportWizard() {
   const hasExistingImportConfig =
     (datasetsData?.datasets?.length ?? 0) > 0 || (referencesData?.references?.length ?? 0) > 0
 
-  const incomingState = location.state as
+  const incomingState = locationState as
     | {
         autoStart?: boolean
         filePaths?: string[]
@@ -311,9 +311,9 @@ export function ImportWizard() {
       autoStartedRef.current = true
       setUploadedFiles(incomingState.uploadedFiles ?? [])
       void runAutoConfigure(incomingState.filePaths)
-      navigate(location.pathname, { replace: true, state: null })
+      navigate(pathname, { replace: true, state: null })
     }
-  }, [incomingState, location.pathname, navigate, phase, runAutoConfigure])
+  }, [incomingState, navigate, pathname, phase, runAutoConfigure])
 
   useEffect(() => {
     if (phase === 'importing' && configResult && importJob.state.status === 'idle') {

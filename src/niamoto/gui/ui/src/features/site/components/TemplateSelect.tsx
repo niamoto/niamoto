@@ -5,7 +5,7 @@
  * More compact than TemplateList, designed for form integration
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -178,6 +178,7 @@ interface TemplateSelectProps {
 
 export function TemplateSelect({ value, onChange, templates, disabled }: TemplateSelectProps) {
   const [open, setOpen] = useState(false)
+  const listId = useId()
   const groupedTemplates = groupTemplatesByCategory(templates)
   const selectedConfig = getTemplateConfig(value)
   const SelectedIcon = selectedConfig.icon
@@ -189,6 +190,7 @@ export function TemplateSelect({ value, onChange, templates, disabled }: Templat
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-controls={listId}
           className="w-full justify-between font-normal"
           disabled={disabled}
         >
@@ -203,7 +205,7 @@ export function TemplateSelect({ value, onChange, templates, disabled }: Templat
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
         <ScrollArea className="h-[300px]">
-          <div className="p-2">
+          <div id={listId} className="p-2">
             {Array.from(groupedTemplates.entries()).map(([category, items]) => (
               <div key={category} className="mb-3 last:mb-0">
                 {/* Category header */}
