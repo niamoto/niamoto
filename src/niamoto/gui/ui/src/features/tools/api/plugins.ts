@@ -3,7 +3,7 @@ import { getApiErrorMessage } from '@/shared/lib/api/errors'
 
 export type PluginType = 'loader' | 'transformer' | 'exporter' | 'widget'
 
-export interface ParameterSchema {
+interface ParameterSchema {
   name: string
   type: string
   required?: boolean
@@ -28,10 +28,6 @@ export interface Plugin {
   example_config?: Record<string, unknown>
 }
 
-export interface PluginCategoriesResponse {
-  categories: string[]
-}
-
 export async function listPlugins(
   type?: PluginType,
   category?: string
@@ -46,25 +42,5 @@ export async function listPlugins(
     return response.data
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to fetch plugins'))
-  }
-}
-
-export async function getPlugin(pluginId: string): Promise<Plugin> {
-  try {
-    const response = await apiClient.get<Plugin>(`/plugins/${pluginId}/`)
-    return response.data
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to fetch plugin'))
-  }
-}
-
-export async function listPluginCategories(): Promise<string[]> {
-  try {
-    const response = await apiClient.get<PluginCategoriesResponse>(
-      '/plugins/categories/list'
-    )
-    return response.data.categories || []
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to fetch categories'))
   }
 }

@@ -12,7 +12,7 @@
 // TYPES
 // ============================================================================
 
-export interface ThemeTokens {
+interface ThemeTokens {
   // Core UI
   background: string
   foreground: string
@@ -113,7 +113,7 @@ export interface ThemeTokens {
   transitionEasing: string  // Easing function
 }
 
-export interface ThemeMetadata {
+interface ThemeMetadata {
   id: string
   name: string
   description: string
@@ -153,11 +153,6 @@ export interface Theme extends ThemeMetadata {
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export interface ThemeState {
-  themeId: string
-  mode: ThemeMode
-}
-
 // ============================================================================
 // REGISTRY
 // ============================================================================
@@ -174,10 +169,6 @@ export function getTheme(id: string): Theme | undefined {
 
 export function getAllThemes(): Theme[] {
   return Array.from(themeRegistry.values())
-}
-
-export function getThemeIds(): string[] {
-  return Array.from(themeRegistry.keys())
 }
 
 // ============================================================================

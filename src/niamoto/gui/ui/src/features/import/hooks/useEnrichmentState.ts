@@ -155,7 +155,7 @@ function normalizeReferenceConfigPayload(
   return payload as ReferenceConfigPayload
 }
 
-export function referenceHasGeometry(config: ReferenceConfigPayload | null | undefined): boolean {
+function referenceHasGeometry(config: ReferenceConfigPayload | null | undefined): boolean {
   if (!config || typeof config !== 'object') {
     return false
   }

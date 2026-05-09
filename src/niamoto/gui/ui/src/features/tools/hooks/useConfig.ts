@@ -170,23 +170,3 @@ export function useConfig(configName: ConfigType) {
     restoreBackup,
   };
 }
-
-// Hook for managing all pipeline configurations
-export function usePipelineConfigs() {
-  const importConfig = useConfig('import');
-  const transformConfig = useConfig('transform');
-  const exportConfig = useConfig('export');
-  const mainConfig = useConfig('config');
-
-  const loading = importConfig.loading || transformConfig.loading || exportConfig.loading || mainConfig.loading;
-  const error = importConfig.error || transformConfig.error || exportConfig.error || mainConfig.error;
-
-  return {
-    import: importConfig,
-    transform: transformConfig,
-    export: exportConfig,
-    config: mainConfig,
-    loading,
-    error,
-  };
-}

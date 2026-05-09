@@ -4,7 +4,7 @@ import { apiClient } from '@/shared/lib/api/client'
 /**
  * Source types
  */
-export type SourceType = 'reference' | 'dataset' | 'csv_stats'
+type SourceType = 'reference' | 'dataset' | 'csv_stats'
 
 /**
  * Information about an available data source
@@ -114,7 +114,7 @@ export interface WidgetInfo {
 /**
  * Configuration for a transformer in a recipe
  */
-export interface TransformerConfig {
+interface TransformerConfig {
   plugin: string
   params: Record<string, unknown>
 }
@@ -122,7 +122,7 @@ export interface TransformerConfig {
 /**
  * Layout configuration for a widget
  */
-export interface WidgetLayoutConfig {
+interface WidgetLayoutConfig {
   colspan: number
   order: number
 }
@@ -130,7 +130,7 @@ export interface WidgetLayoutConfig {
 /**
  * Configuration for widget output in a recipe
  */
-export interface WidgetOutputConfig {
+interface WidgetOutputConfig {
   plugin: string
   title?: string
   params: Record<string, unknown>
@@ -167,7 +167,7 @@ export interface SaveRecipeResponse {
 /**
  * Validation error
  */
-export interface ValidationError {
+interface ValidationError {
   field: string
   message: string
 }
@@ -188,7 +188,7 @@ export interface ValidateRecipeResponse {
 /**
  * Get available sources for a group
  */
-export async function getAvailableSources(groupBy: string): Promise<SourcesResponse> {
+async function getAvailableSources(groupBy: string): Promise<SourcesResponse> {
   const response = await apiClient.get(`/recipes/sources/${groupBy}`)
   return response.data
 }
@@ -196,7 +196,7 @@ export async function getAvailableSources(groupBy: string): Promise<SourcesRespo
 /**
  * Get columns for a specific source with tree structure
  */
-export async function getSourceColumns(
+async function getSourceColumns(
   groupBy: string,
   sourceName: string
 ): Promise<SourceColumnsResponse> {
@@ -207,7 +207,7 @@ export async function getSourceColumns(
 /**
  * Get transformer schema
  */
-export async function getTransformerSchema(pluginName: string): Promise<TransformerSchema> {
+async function getTransformerSchema(pluginName: string): Promise<TransformerSchema> {
   const response = await apiClient.get(`/recipes/transformer-schema/${pluginName}`)
   return response.data
 }
@@ -215,7 +215,7 @@ export async function getTransformerSchema(pluginName: string): Promise<Transfor
 /**
  * List all transformers
  */
-export async function listTransformers(): Promise<string[]> {
+async function listTransformers(): Promise<string[]> {
   const response = await apiClient.get('/recipes/transformers')
   return response.data
 }
@@ -223,7 +223,7 @@ export async function listTransformers(): Promise<string[]> {
 /**
  * List all widgets with labels and descriptions
  */
-export async function listWidgets(): Promise<WidgetInfo[]> {
+async function listWidgets(): Promise<WidgetInfo[]> {
   const response = await apiClient.get('/recipes/widgets')
   return response.data
 }
@@ -231,7 +231,7 @@ export async function listWidgets(): Promise<WidgetInfo[]> {
 /**
  * Get widget schema
  */
-export async function getWidgetSchema(pluginName: string): Promise<WidgetSchema> {
+async function getWidgetSchema(pluginName: string): Promise<WidgetSchema> {
   const response = await apiClient.get(`/recipes/widget-schema/${pluginName}`)
   return response.data
 }
@@ -239,7 +239,7 @@ export async function getWidgetSchema(pluginName: string): Promise<WidgetSchema>
 /**
  * Validate a recipe without saving
  */
-export async function validateRecipe(request: SaveRecipeRequest): Promise<ValidateRecipeResponse> {
+async function validateRecipe(request: SaveRecipeRequest): Promise<ValidateRecipeResponse> {
   const response = await apiClient.post('/recipes/validate', request)
   return response.data
 }
@@ -247,23 +247,15 @@ export async function validateRecipe(request: SaveRecipeRequest): Promise<Valida
 /**
  * Save a widget recipe
  */
-export async function saveRecipe(request: SaveRecipeRequest): Promise<SaveRecipeResponse> {
+async function saveRecipe(request: SaveRecipeRequest): Promise<SaveRecipeResponse> {
   const response = await apiClient.post('/recipes/save', request)
-  return response.data
-}
-
-/**
- * Delete a widget recipe
- */
-export async function deleteRecipe(groupBy: string, widgetId: string): Promise<{ success: boolean; message: string }> {
-  const response = await apiClient.delete(`/recipes/${groupBy}/${widgetId}`)
   return response.data
 }
 
 /**
  * Preview a recipe without saving - returns HTML blob URL
  */
-export async function previewRecipe(request: SaveRecipeRequest): Promise<string> {
+async function previewRecipe(request: SaveRecipeRequest): Promise<string> {
   const response = await apiClient.post('/recipes/preview', request, {
     responseType: 'text',
   })

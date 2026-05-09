@@ -39,37 +39,6 @@ export interface ScanResult {
   }
 }
 
-export interface HierarchyInfo {
-  detected: boolean
-  levels: string[]
-  column_mapping: Record<string, string>
-  is_valid: boolean
-  confidence: number
-  level_count: number
-  stats_per_level?: Record<string, {
-    column: string
-    unique_count: number
-    sample_values: string[]
-  }>
-}
-
-export interface FileAnalysis {
-  filename: string
-  filepath: string
-  row_count: number
-  columns: string[]
-  column_count: number
-  hierarchy: HierarchyInfo
-  id_columns: string[]
-  geometry_columns: string[]
-  name_columns: string[]
-  date_columns: string[]
-  suggested_entity_type: string
-  suggested_connector_type: string
-  confidence: number
-  extract_hierarchy_as_reference?: boolean
-}
-
 export interface AutoConfigureRequest {
   files: string[]
 }
@@ -219,36 +188,6 @@ export interface AutoConfigureResponse {
  */
 export async function scanImportsDirectory(): Promise<ScanResult> {
   const response = await apiClient.get<ScanResult>('/files/scan')
-  return response.data
-}
-
-/**
- * Analyze a single file with smart pattern detection
- */
-export async function analyzeFile(filepath: string): Promise<FileAnalysis> {
-  const response = await apiClient.post<FileAnalysis>('/smart/analyze-file', {
-    filepath
-  })
-  return response.data
-}
-
-/**
- * Detect hierarchy in a file
- */
-export async function detectHierarchy(filepath: string): Promise<HierarchyInfo> {
-  const response = await apiClient.post<HierarchyInfo>('/smart/detect-hierarchy', {
-    filepath
-  })
-  return response.data
-}
-
-/**
- * Auto-configure entities from multiple files
- */
-export async function autoConfigureEntities(
-  request: AutoConfigureRequest
-): Promise<AutoConfigureResponse> {
-  const response = await apiClient.post<AutoConfigureResponse>('/smart/auto-configure', request)
   return response.data
 }
 

@@ -1,9 +1,7 @@
 import { aboutContent } from './aboutContent.generated'
 import type { AboutLocale, AboutLocaleContent } from './aboutContent.types'
 
-export { aboutContent }
 export type {
-  AboutContentBundle,
   AboutLocale,
   AboutLocaleContent,
   AboutOrganization,

@@ -35,32 +35,32 @@ export interface DeployJob {
 }
 
 // Platform configurations
-export interface CloudflareConfig {
+interface CloudflareConfig {
   projectName: string
   defaultBranch?: string
 }
 
-export interface GithubConfig {
+interface GithubConfig {
   repo: string
   branch: string
   name?: string
   email?: string
 }
 
-export interface NetlifyConfig {
+interface NetlifyConfig {
   siteId: string
 }
 
-export interface VercelConfig {
+interface VercelConfig {
   projectName: string
 }
 
-export interface RenderConfig {
+interface RenderConfig {
   serviceId?: string
   deployHookUrl?: string
 }
 
-export interface SshConfig {
+interface SshConfig {
   host: string
   path: string
   port: number
@@ -372,9 +372,3 @@ export const selectIsDeploying = (state: PublishState) =>
 
 export const selectHasSuccessfulBuild = (state: PublishState) =>
   state.buildHistory.some(b => b.status === 'completed')
-
-export const selectLastBuildStatus = (state: PublishState) =>
-  state.buildHistory[0]?.status || null
-
-export const selectLastDeployStatus = (state: PublishState) =>
-  state.deployHistory[0]?.status || null

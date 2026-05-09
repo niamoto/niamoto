@@ -1,7 +1,7 @@
 import { isDesktopTauri } from '@/shared/desktop/bridge'
 
-export const DESKTOP_MENU_ACTION_EVENT = 'desktop://menu-action'
-export const DESKTOP_PROJECT_SELECTED_EVENT = 'desktop://project-selected'
+const DESKTOP_MENU_ACTION_EVENT = 'desktop://menu-action'
+const DESKTOP_PROJECT_SELECTED_EVENT = 'desktop://project-selected'
 
 type UnlistenFn = () => void
 

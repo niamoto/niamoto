@@ -34,7 +34,7 @@ async function loadDesktopBridge(): Promise<DesktopBridge | null> {
   return null
 }
 
-export async function getDesktopBridge(): Promise<DesktopBridge | null> {
+async function getDesktopBridge(): Promise<DesktopBridge | null> {
   if (!cachedBridgePromise) {
     const shell = getDesktopShell()
     if (!shell) {
@@ -65,12 +65,4 @@ export async function invokeDesktop<T>(
 
 export function isDesktopTauri(): boolean {
   return getDesktopShell() === 'tauri'
-}
-
-export function isDesktopElectron(): boolean {
-  return getDesktopShell() === 'electron'
-}
-
-export function resetDesktopBridgeForTests(): void {
-  cachedBridgePromise = null
 }

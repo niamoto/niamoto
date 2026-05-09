@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/lib/api/client'
 
-export interface ExportFile {
+interface ExportFile {
   name: string
   path: string
   full_path: string
@@ -39,29 +39,5 @@ export async function readExportFile(filePath: string): Promise<ExportFileConten
   const response = await apiClient.get<ExportFileContent>('/files/exports/read', {
     params: { file_path: filePath }
   })
-  return response.data
-}
-
-export interface ExportTreeItem {
-  name: string
-  type: 'directory' | 'file'
-  path: string
-  size?: number
-  extension?: string
-  count?: number
-  children?: ExportTreeItem[]
-}
-
-export interface ExportsStructure {
-  exists: boolean
-  path: string
-  tree: ExportTreeItem[]
-}
-
-/**
- * Get the directory structure of exports folder
- */
-export async function getExportsStructure(): Promise<ExportsStructure> {
-  const response = await apiClient.get<ExportsStructure>('/files/exports/structure')
   return response.data
 }
