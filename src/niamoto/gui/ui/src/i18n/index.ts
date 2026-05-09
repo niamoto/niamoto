@@ -28,24 +28,10 @@ import enPublish from './locales/en/publish.json';
 import frFeedback from './locales/fr/feedback.json';
 import enFeedback from './locales/en/feedback.json';
 
-export const SUPPORTED_UI_LANGUAGES = ['fr', 'en'] as const;
+const SUPPORTED_UI_LANGUAGES = ['fr', 'en'] as const;
 
 export type UiLanguage = (typeof SUPPORTED_UI_LANGUAGES)[number];
 export type UiLanguagePreference = UiLanguage | 'auto';
-
-export function normalizeUiLanguage(value?: string | null): UiLanguage {
-  const normalized = value?.toLowerCase();
-
-  if (normalized?.startsWith('fr')) {
-    return 'fr';
-  }
-
-  if (normalized?.startsWith('en')) {
-    return 'en';
-  }
-
-  return 'en';
-}
 
 export function getBestSupportedLanguage(
   candidates?: readonly string[] | string | null

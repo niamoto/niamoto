@@ -1,7 +1,7 @@
 import type { DeviceSize } from '@/components/ui/preview-frame'
 
 const SITE_WORKBENCH_STORAGE_KEY_PREFIX = 'niamoto.siteWorkbench'
-export const MIN_SITE_WORKBENCH_TREE_SIZE = 20
+const MIN_SITE_WORKBENCH_TREE_SIZE = 20
 
 export type SiteWorkbenchPreviewState = 'unset' | 'open' | 'closed'
 export type SiteWorkbenchLayout = Record<string, number>

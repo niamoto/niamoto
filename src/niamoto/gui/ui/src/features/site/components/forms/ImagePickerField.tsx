@@ -238,5 +238,3 @@ export function ImagePickerField({
     </div>
   )
 }
-
-export default ImagePickerField

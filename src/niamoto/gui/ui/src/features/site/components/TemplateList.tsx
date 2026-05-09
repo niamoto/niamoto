@@ -277,5 +277,3 @@ export function TemplateList({ templates, onSelect, onBack }: TemplateListProps)
     </div>
   )
 }
-
-export default TemplateList

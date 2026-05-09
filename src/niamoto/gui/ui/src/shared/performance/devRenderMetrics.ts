@@ -21,7 +21,7 @@ declare global {
   }
 }
 
-export function isDevRenderMetricsEnabled(): boolean {
+function isDevRenderMetricsEnabled(): boolean {
   return (import.meta.env.DEV || import.meta.env.MODE === 'test')
     && typeof window !== 'undefined'
     && typeof performance !== 'undefined'
@@ -56,7 +56,7 @@ export function createDevRenderMetric({
   }
 }
 
-export function getDevRenderMetricsStore(): DevRenderMetricsStore | null {
+function getDevRenderMetricsStore(): DevRenderMetricsStore | null {
   if (!isDevRenderMetricsEnabled()) {
     return null
   }

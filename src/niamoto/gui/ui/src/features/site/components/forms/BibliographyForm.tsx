@@ -387,5 +387,3 @@ export function BibliographyForm({
     </div>
   )
 }
-
-export default BibliographyForm

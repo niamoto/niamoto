@@ -284,5 +284,3 @@ export function GlossaryForm({
     </div>
   )
 }
-
-export default GlossaryForm

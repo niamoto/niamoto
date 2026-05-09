@@ -439,5 +439,3 @@ export function TeamForm({
     </div>
   )
 }
-
-export default TeamForm

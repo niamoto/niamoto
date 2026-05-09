@@ -25,22 +25,21 @@ export interface EntityConfigResponse<TConfig = unknown> {
   config: TConfig
 }
 
-export const IMPORT_DETAIL_PAGE_SIZE = 20
-export const IMPORT_DETAIL_PREVIEW_MAX_COLUMNS = 6
-export const HIERARCHY_INSPECTION_PAGE_SIZE = 100
-export const SPATIAL_MAP_PAGE_SIZE = 250
+const IMPORT_DETAIL_PAGE_SIZE = 20
+const HIERARCHY_INSPECTION_PAGE_SIZE = 100
+const SPATIAL_MAP_PAGE_SIZE = 250
 
 export function getPreviewColumnNames(columnNames: string[], maxColumns: number): string[] {
   return columnNames.slice(0, Math.max(1, maxColumns))
 }
 
-export function fetchDatasetConfig(name: string): Promise<EntityConfigResponse> {
+function fetchDatasetConfig(name: string): Promise<EntityConfigResponse> {
   return apiClient
     .get<EntityConfigResponse>(`/config/datasets/${encodeURIComponent(name)}/config`)
     .then((response) => response.data)
 }
 
-export function fetchReferenceConfig(name: string): Promise<EntityConfigResponse> {
+function fetchReferenceConfig(name: string): Promise<EntityConfigResponse> {
   return apiClient
     .get<EntityConfigResponse>(`/config/references/${encodeURIComponent(name)}/config`)
     .then((response) => response.data)

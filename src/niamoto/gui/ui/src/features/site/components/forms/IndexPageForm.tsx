@@ -269,5 +269,3 @@ export function IndexPageForm({
     </div>
   )
 }
-
-export default IndexPageForm

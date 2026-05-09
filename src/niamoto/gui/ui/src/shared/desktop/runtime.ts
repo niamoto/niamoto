@@ -49,10 +49,6 @@ export function getDesktopShell(): DesktopShell | null {
   return detectDesktopShellFromWindow()
 }
 
-export function hasDesktopShell(): boolean {
-  return getDesktopShell() !== null
-}
-
 export function getBootstrappedRuntimeMode(): RuntimeModeState {
   const shell = getDesktopShell()
   const bootstrappedMode = getDocumentAttribute('data-runtime-mode')

@@ -19,7 +19,7 @@ export function buildDesktopProjectScope(
   return normalizedProjectPath ? `desktop:${normalizedProjectPath}` : null
 }
 
-export function buildFallbackProjectScope(
+function buildFallbackProjectScope(
   projectInfo?: { name?: string; created_at?: string } | null,
 ): string | null {
   const name = normalizeProjectToken(projectInfo?.name)

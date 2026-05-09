@@ -743,5 +743,3 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     </LanguageProvider>
   )
 }
-
-export default SiteBuilder

@@ -5,7 +5,6 @@
  * that require structured data rather than markdown content.
  */
 
-export { RepeatableField } from './RepeatableField'
 export { MarkdownContentField } from './MarkdownContentField'
 export { IndexPageForm, type IndexPageContext } from './IndexPageForm'
 export { BibliographyForm, type BibliographyPageContext } from './BibliographyForm'
@@ -17,7 +16,7 @@ export { GlossaryForm, type GlossaryPageContext } from './GlossaryForm'
 /**
  * Map of templates that have dedicated forms
  */
-export const TEMPLATE_FORMS = {
+const TEMPLATE_FORMS = {
   'index.html': 'IndexPageForm',
   'bibliography.html': 'BibliographyForm',
   'team.html': 'TeamForm',
@@ -31,11 +30,4 @@ export const TEMPLATE_FORMS = {
  */
 export function hasTemplateForm(template: string): boolean {
   return template in TEMPLATE_FORMS
-}
-
-/**
- * Get the form name for a template
- */
-export function getTemplateFormName(template: string): string | null {
-  return (TEMPLATE_FORMS as Record<string, string>)[template] || null
 }

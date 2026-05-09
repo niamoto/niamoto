@@ -114,5 +114,3 @@ export function LucideIconPicker({ value, onChange, className }: LucideIconPicke
     </Popover>
   )
 }
-
-export default LucideIconPicker
