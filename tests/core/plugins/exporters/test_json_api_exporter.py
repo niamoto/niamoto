@@ -435,6 +435,48 @@ class TestDataMapper:
         assert result["selected_metadata"] == {"field1": "value1", "field3": "value3"}
 
 
+def test_process_group_resolves_default_table_inside_fetcher(tmp_path):
+    exporter = JsonApiExporter(Mock())
+    repository = Mock()
+    params = JsonApiExporterParams(output_dir="api")
+    progress = Mock()
+
+    exporter._fetch_group_data = Mock(return_value=[])
+
+    exporter._process_group(
+        GroupConfig(group_by="plots"),
+        params,
+        repository,
+        tmp_path,
+        progress,
+    )
+
+    exporter._fetch_group_data.assert_called_once_with(repository, None, "plots")
+
+
+def test_fetch_group_data_uses_first_existing_default_table():
+    exporter = JsonApiExporter(Mock())
+    repository = Mock()
+    repository.has_table.side_effect = lambda table_name: table_name == "plots"
+    connection = Mock()
+    repository.engine.connect.return_value.__enter__ = Mock(return_value=connection)
+    repository.engine.connect.return_value.__exit__ = Mock(return_value=None)
+    result = Mock()
+    result.fetchall.return_value = [(1, "Plot A")]
+    result.keys.return_value = ["plots_id", "name"]
+
+    def execute(query):
+        assert str(query) == 'SELECT * FROM "plots"'
+        return result
+
+    connection.execute.side_effect = execute
+
+    rows = exporter._fetch_group_data(repository, None, "plots")
+
+    assert rows == [{"plots_id": 1, "name": "Plot A"}]
+    repository.has_table.assert_any_call("plots")
+
+
 class TestJsonApiExporterSecurity:
     """Security tests for JSON API Exporter."""
 
