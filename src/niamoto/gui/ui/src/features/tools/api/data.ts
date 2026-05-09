@@ -1,12 +1,11 @@
 import { apiClient } from '@/shared/lib/api/client'
 import type {
-  ColumnInfo,
   QueryRequest,
   QueryResponse,
   TableInfo,
 } from '@/shared/lib/api/data-types'
 
-export type { ColumnInfo, QueryRequest, QueryResponse, TableInfo }
+export type { QueryRequest, QueryResponse, TableInfo }
 
 /**
  * Get list of all database tables with metadata
@@ -21,14 +20,6 @@ export async function getTables(): Promise<TableInfo[]> {
  */
 export async function queryTable(request: QueryRequest): Promise<QueryResponse> {
   const response = await apiClient.post<QueryResponse>('/data/query', request)
-  return response.data
-}
-
-/**
- * Get column information for a specific table
- */
-export async function getTableColumns(tableName: string): Promise<{ table: string; columns: ColumnInfo[] }> {
-  const response = await apiClient.get<{ table: string; columns: ColumnInfo[] }>(`/data/tables/${tableName}/columns`)
   return response.data
 }
 

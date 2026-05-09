@@ -6,7 +6,3 @@
  */
 
 export { ContentTab } from './ContentTab'
-export { WidgetListPanel } from './WidgetListPanel'
-export { ContentRightPanel } from './ContentRightPanel'
-export { LayoutOverview } from './LayoutOverview'
-export { WidgetDetailPanel } from './WidgetDetailPanel'

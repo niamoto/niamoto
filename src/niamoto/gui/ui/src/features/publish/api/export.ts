@@ -1,19 +1,19 @@
 import { apiClient } from '@/shared/lib/api/client'
 
-export interface ExportRequest {
+interface ExportRequest {
   config_path?: string
   export_types?: string[]
   include_transform?: boolean
 }
 
-export interface ExportResponse {
+interface ExportResponse {
   job_id: string
   status: string
   message: string
   started_at: string
 }
 
-export interface ExportMetrics {
+interface ExportMetrics {
   total_exports: number
   completed_exports: number
   failed_exports: number
@@ -51,23 +51,14 @@ export interface ExportJobListItem {
   error?: string | null
 }
 
-export interface ExportConfig {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  config: any
-  summary: {
-    total_exports: number
-    export_types: Record<string, number>
-  }
-}
-
-export async function executeExport(
+async function executeExport(
   request: ExportRequest = {}
 ): Promise<ExportResponse> {
   const response = await apiClient.post('/export/execute', request)
   return response.data
 }
 
-export async function getExportStatus(jobId: string): Promise<ExportStatus> {
+async function getExportStatus(jobId: string): Promise<ExportStatus> {
   const response = await apiClient.get(`/export/status/${jobId}`)
   return response.data
 }
@@ -82,36 +73,8 @@ export async function clearExportHistory(): Promise<{ removed: number }> {
   return response.data
 }
 
-export async function cancelExportJob(jobId: string): Promise<{ message: string }> {
-  const response = await apiClient.delete(`/export/jobs/${jobId}`)
-  return response.data
-}
-
-export async function getExportConfig(): Promise<ExportConfig> {
-  const response = await apiClient.get('/export/config')
-  return response.data
-}
-
-export async function getExportMetrics(): Promise<{
-  metrics: ExportMetrics
-  last_run?: string | null
-  job_id?: string
-}> {
-  const response = await apiClient.get('/export/metrics')
-  return response.data
-}
-
 export async function getActiveExportJob(): Promise<ExportStatus | null> {
   const response = await apiClient.get('/export/active')
-  return response.data
-}
-
-export async function executeExportCLI(): Promise<{
-  job_id: string
-  status: string
-  message: string
-}> {
-  const response = await apiClient.post('/export/execute-cli')
   return response.data
 }
 

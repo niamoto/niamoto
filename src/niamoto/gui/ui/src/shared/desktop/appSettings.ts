@@ -19,11 +19,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
 const UI_LANGUAGE_PREFERENCE_STORAGE_KEY = 'niamoto.uiLanguagePreference'
 
-export function isDesktopApp() {
+function isDesktopApp() {
   return hasDesktopBridge()
 }
 
-export function normalizeUiLanguagePreference(
+function normalizeUiLanguagePreference(
   value?: string | null
 ): UiLanguagePreference {
   if (value === 'fr' || value === 'en' || value === 'auto') {

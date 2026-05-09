@@ -8,37 +8,37 @@
 /**
  * Entity type classification
  */
-export type EntityType = 'reference' | 'dataset'
+type EntityType = 'reference' | 'dataset'
 
 /**
  * Entity kind classification (for references)
  */
-export type EntityKind = 'hierarchical' | 'spatial' | 'categorical' | 'generic'
+type EntityKind = 'hierarchical' | 'spatial' | 'categorical' | 'generic'
 
 /**
  * Import mode
  */
-export type ImportMode = 'replace' | 'append'
+type ImportMode = 'replace' | 'append'
 
 /**
  * Hierarchy strategy
  */
-export type HierarchyStrategy = 'adjacency_list' | 'nested_set' | 'hybrid'
+type HierarchyStrategy = 'adjacency_list' | 'nested_set' | 'hybrid'
 
 /**
  * Incomplete rows handling
  */
-export type IncompleteRowsStrategy = 'skip' | 'fill_unknown' | 'error'
+type IncompleteRowsStrategy = 'skip' | 'fill_unknown' | 'error'
 
 /**
  * ID generation strategy
  */
-export type IdStrategy = 'hash' | 'sequence' | 'external'
+type IdStrategy = 'hash' | 'sequence' | 'external'
 
 /**
  * Connector type
  */
-export type ConnectorType =
+type ConnectorType =
   | 'file'
   | 'duckdb_csv'
   | 'vector'
@@ -50,12 +50,12 @@ export type ConnectorType =
 /**
  * File format
  */
-export type FileFormat = 'csv' | 'excel' | 'json' | 'geojson'
+type FileFormat = 'csv' | 'excel' | 'json' | 'geojson'
 
 /**
  * Field mapping from source to target
  */
-export interface FieldMapping {
+interface FieldMapping {
   source: string
   target: string
   type?: string
@@ -65,7 +65,7 @@ export interface FieldMapping {
 /**
  * File analysis result
  */
-export interface FileAnalysis {
+interface FileAnalysis {
   columns: string[]
   rowCount?: number
   sampleData?: Record<string, unknown>[]
@@ -78,7 +78,7 @@ export interface FileAnalysis {
 /**
  * Multi-feature source for spatial entities
  */
-export interface MultiFeatureSource {
+interface MultiFeatureSource {
   name: string
   path: string
   name_field: string
@@ -87,7 +87,7 @@ export interface MultiFeatureSource {
 /**
  * Extraction configuration for derived entities
  */
-export interface ExtractionConfig {
+interface ExtractionConfig {
   method?: string
   fields?: string[]
   transform?: Record<string, unknown>
@@ -130,7 +130,7 @@ export interface HierarchyConfig {
 /**
  * Spatial configuration for spatial references
  */
-export interface SpatialConfig {
+interface SpatialConfig {
   sources: Array<{
     name: string
     path: string
@@ -141,7 +141,7 @@ export interface SpatialConfig {
 /**
  * API enrichment configuration
  */
-export interface EnrichmentConfig {
+interface EnrichmentConfig {
   id?: string
   label?: string
   plugin: string
@@ -152,7 +152,7 @@ export interface EnrichmentConfig {
 /**
  * Entity link to another entity
  */
-export interface EntityLink {
+interface EntityLink {
   entity: string
   field: string
   target_field: string
@@ -161,7 +161,7 @@ export interface EntityLink {
 /**
  * Entity schema definition
  */
-export interface EntitySchema {
+interface EntitySchema {
   id_field?: string
   fields: FieldMapping[]
   geometry_field?: string
@@ -170,7 +170,7 @@ export interface EntitySchema {
 /**
  * Import options
  */
-export interface ImportOptions {
+interface ImportOptions {
   mode?: ImportMode
   chunk_size?: number
   validate?: boolean
@@ -299,62 +299,3 @@ export interface EntityConfigContextValue {
   state: EntityConfigState
   actions: EntityConfigActions
 }
-
-/**
- * Predefined entity template
- */
-export interface EntityTemplate {
-  id: string
-  label: string
-  description: string
-  type: EntityType
-  kind?: EntityKind
-  icon?: string
-  defaultName: string
-  suggestedFields?: string[]
-}
-
-/**
- * Available entity templates
- */
-export const ENTITY_TEMPLATES: EntityTemplate[] = [
-  {
-    id: 'occurrences',
-    label: 'Occurrences / Observations',
-    description: 'Species occurrence data with coordinates',
-    type: 'dataset',
-    icon: 'database',
-    defaultName: 'occurrences',
-    suggestedFields: ['taxon', 'location', 'date']
-  },
-  {
-    id: 'taxonomy',
-    label: 'Taxonomie Hiérarchique',
-    description: 'Hierarchical taxonomy (family, genus, species)',
-    type: 'reference',
-    kind: 'hierarchical',
-    icon: 'hierarchy',
-    defaultName: 'taxonomy',
-    suggestedFields: ['family', 'genus', 'species']
-  },
-  {
-    id: 'plots',
-    label: 'Sites / Parcelles',
-    description: 'Study sites or plots',
-    type: 'reference',
-    kind: 'generic',
-    icon: 'map-pin',
-    defaultName: 'plots',
-    suggestedFields: ['name', 'location', 'area']
-  },
-  {
-    id: 'shapes',
-    label: 'Formes Spatiales',
-    description: 'Spatial polygons (provinces, watersheds, etc.)',
-    type: 'reference',
-    kind: 'spatial',
-    icon: 'map',
-    defaultName: 'shapes',
-    suggestedFields: ['name', 'geometry']
-  }
-]

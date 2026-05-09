@@ -28,7 +28,7 @@ function shouldPrompt(key: string): boolean {
   return true
 }
 
-export function normalizeApiErrorPath(url?: string): string {
+function normalizeApiErrorPath(url?: string): string {
   if (!url) return '/api'
 
   if (url.startsWith('/')) return url

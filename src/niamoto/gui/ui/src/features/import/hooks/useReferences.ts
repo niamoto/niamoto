@@ -11,15 +11,3 @@ export function useReferences() {
     staleTime: 30000,
   })
 }
-
-export function useReference(name: string | null) {
-  const { data, ...rest } = useReferences()
-
-  const reference = name ? data?.references.find((item) => item.name === name) : undefined
-
-  return {
-    ...rest,
-    data: reference,
-    allReferences: data?.references ?? [],
-  }
-}

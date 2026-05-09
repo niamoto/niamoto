@@ -11,15 +11,3 @@ export function useDatasets() {
     staleTime: 30000,
   })
 }
-
-export function useDataset(name: string | null) {
-  const { data, ...rest } = useDatasets()
-
-  const dataset = name ? data?.datasets.find((item) => item.name === name) : undefined
-
-  return {
-    ...rest,
-    data: dataset,
-    allDatasets: data?.datasets ?? [],
-  }
-}

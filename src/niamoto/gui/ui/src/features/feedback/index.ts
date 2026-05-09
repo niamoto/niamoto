@@ -1,7 +1,5 @@
 export { FeedbackProvider } from './context/FeedbackProvider'
 export { useFeedback } from './context/useFeedback'
 export { FeedbackModal } from './components/FeedbackModal'
-export { initErrorBuffer } from './lib/error-buffer'
-export { initApiTracker } from './lib/api-tracker'
 export { useBrowserOnline } from './hooks/useBrowserOnline'
 export { requestBugReport } from './lib/bug-report-bridge'

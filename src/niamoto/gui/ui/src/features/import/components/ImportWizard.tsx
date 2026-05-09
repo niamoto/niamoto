@@ -32,12 +32,10 @@ import { PanelTransition } from '@/components/motion/PanelTransition'
 import { Textarea } from '@/components/ui/textarea'
 import { type AutoConfigureResponse } from '@/features/import/api/smart-config'
 import { apiClient } from '@/shared/lib/api/client'
-import {
-  FileUploadZone,
-  ExistingFilesSection,
-  AutoConfigDisplay,
-  YamlPreview,
-} from '@/features/import/components'
+import { FileUploadZone } from '@/features/import/components/upload/FileUploadZone'
+import { ExistingFilesSection } from '@/features/import/components/upload/ExistingFilesSection'
+import { AutoConfigDisplay } from '@/features/import/components/review/AutoConfigDisplay'
+import { YamlPreview } from '@/features/import/components/review/YamlPreview'
 import type { FileAnalysisStatus } from '@/features/import/components/upload/FileUploadZone'
 import { useAutoConfigureJob } from '@/features/import/hooks/useAutoConfigureJob'
 import { useImportJob } from '@/features/import/hooks/useImportJob'

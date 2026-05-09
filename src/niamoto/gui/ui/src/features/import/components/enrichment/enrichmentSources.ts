@@ -151,7 +151,7 @@ function isLegacyGeoNamesEnrichment(enrichment: ReferenceEnrichmentConfig | unde
   return label.startsWith('geonames')
 }
 
-export function slugifyEnrichmentSourceId(value: string, fallback: string): string {
+function slugifyEnrichmentSourceId(value: string, fallback: string): string {
   const slug = value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -181,7 +181,7 @@ function inferSourceLabel(enrichment: ReferenceEnrichmentConfig, index: number):
   return `Source ${index + 1}`
 }
 
-export function enrichmentToApiConfig(
+function enrichmentToApiConfig(
   enrichment: ReferenceEnrichmentConfig | undefined,
   category: ApiCategory = 'taxonomy'
 ): ApiConfig {

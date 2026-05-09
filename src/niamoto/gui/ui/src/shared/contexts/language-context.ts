@@ -6,7 +6,7 @@ export interface LanguageContextValue {
   isMultilingual: boolean
 }
 
-export const defaultLanguageContextValue: LanguageContextValue = {
+const defaultLanguageContextValue: LanguageContextValue = {
   languages: ['fr'],
   defaultLang: 'fr',
   isMultilingual: false,

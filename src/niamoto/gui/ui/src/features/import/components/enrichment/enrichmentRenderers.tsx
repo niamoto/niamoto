@@ -1623,7 +1623,6 @@ const renderStructuredSummary = (
 }
 
 export {
-  ImageWithLoader,
   isStructuredSourceSummary,
   renderValue,
   renderMappedPreview,
