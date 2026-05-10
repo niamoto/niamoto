@@ -61,4 +61,19 @@ describe('SafeHtmlContent', () => {
     expect(links[2].getAttribute('href')).toBe('/help/start')
     expect(links[2].getAttribute('target')).toBeNull()
   })
+
+  it('renders image tags from documentation html without passing children to img', () => {
+    expect(() => {
+      render(
+        <SafeHtmlContent
+          html={'<p><a href="https://example.org"><img src="https://example.org/logo.png" alt="Logo" height="52" /></a></p>'}
+        />
+      )
+    }).not.toThrow()
+
+    const image = container?.querySelector('img')
+    expect(image?.getAttribute('src')).toBe('https://example.org/logo.png')
+    expect(image?.getAttribute('alt')).toBe('Logo')
+    expect(image?.getAttribute('height')).toBe('52')
+  })
 })

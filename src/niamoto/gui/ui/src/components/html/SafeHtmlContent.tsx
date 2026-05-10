@@ -32,6 +32,7 @@ const ALLOWED_TAGS = new Set([
 ])
 
 const DROPPED_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed'])
+const VOID_TAGS = new Set(['br', 'hr', 'img'])
 
 function isSafeUrl(value: string): boolean {
   return (
@@ -111,6 +112,10 @@ function renderNode(node: Node, key: string): ReactNode {
     const rowSpan = Number(node.getAttribute('rowspan'))
     if (Number.isInteger(colSpan) && colSpan > 0) props.colSpan = colSpan
     if (Number.isInteger(rowSpan) && rowSpan > 0) props.rowSpan = rowSpan
+  }
+
+  if (VOID_TAGS.has(tagName)) {
+    return React.createElement(tagName, props)
   }
 
   return React.createElement(tagName, props, children)
