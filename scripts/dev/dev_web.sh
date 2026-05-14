@@ -15,7 +15,7 @@
 #
 # Requirements:
 #   - Python with niamoto installed
-#   - Node.js and pnpm
+#   - Node.js 22.13+ and pnpm 11
 #   - Frontend dependencies installed (cd src/niamoto/gui/ui && pnpm install)
 
 set -e  # Exit on error

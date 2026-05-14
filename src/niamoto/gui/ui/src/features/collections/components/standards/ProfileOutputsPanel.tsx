@@ -1,5 +1,5 @@
 import { FileCode, Loader2, Package } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -36,26 +36,52 @@ export function ProfileOutputsPanel({
   const executePublicationOutput = useExecuteStandardProfileOutput(profile.name)
   const executeDraftOutput = useExecuteStandardProfileOutputDraft(profile.name)
   const executeOutput = draftMode ? executeDraftOutput : executePublicationOutput
-  const [lastOutput, setLastOutput] =
-    useState<StandardProfileOutputResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const outputContextKey = `${profile.name}:${draftMode ? 'draft' : 'publication'}`
+  const [lastOutputState, setLastOutputState] = useState<{
+    contextKey: string
+    result: StandardProfileOutputResult
+  } | null>(null)
+  const [errorState, setErrorState] = useState<{
+    contextKey: string
+    message: string
+  } | null>(null)
+  const runRequestRef = useRef(0)
   const validationStatus = validation?.status ?? profile.validation_status
   const hasCritical = (validation?.summary.critical ?? 0) > 0
+  const lastOutput =
+    lastOutputState?.contextKey === outputContextKey ? lastOutputState.result : null
+  const error = errorState?.contextKey === outputContextKey ? errorState.message : null
   const retentionLocation = lastOutput
     ? draftRetentionLocation(lastOutput)
     : null
 
   const runOutput = async (outputType: StandardProfileOutputType) => {
-    setError(null)
+    const requestId = runRequestRef.current + 1
+    runRequestRef.current = requestId
+    const profileName = profile.name
+    const contextKey = outputContextKey
+    setErrorState(null)
+    setLastOutputState(null)
     try {
       const result = await executeOutput.mutateAsync(outputType)
-      setLastOutput(result)
+      if (
+        requestId !== runRequestRef.current ||
+        (result.profile_name && result.profile_name !== profileName)
+      ) {
+        return
+      }
+      setLastOutputState({ contextKey, result })
     } catch (runError) {
-      setError(
-        runError instanceof Error
-          ? runError.message
-          : t('collections.standards.outputFailed'),
-      )
+      if (requestId !== runRequestRef.current) {
+        return
+      }
+      setErrorState({
+        contextKey,
+        message:
+          runError instanceof Error
+            ? runError.message
+            : t('collections.standards.outputFailed'),
+      })
     }
   }
 
@@ -96,7 +122,7 @@ export function ProfileOutputsPanel({
                   : t('collections.standards.generateDraftJson')
                 : publicationFile
                   ? t('collections.standards.generatePublicationFile')
-                  : t('collections.standards.generateDraftJson')
+                  : t('collections.standards.generatePublicationJson')
 
               return (
                 <div

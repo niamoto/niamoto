@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Check,
@@ -134,14 +134,21 @@ interface ReviewCardProps {
 function ReviewCard({ collection, pending, onPatch }: ReviewCardProps) {
   const { t } = useTranslation(['sources'])
   const [label, setLabel] = useState(collection.label)
+  const [roles, setRoles] = useState(collection.roles)
   const isAccepted = collection.review_status === 'accepted'
   const isDeferred = collection.review_status === 'deferred'
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRoles(collection.roles)
+  }, [collection.roles])
+
   const toggleRole = (role: CollectionRole) => {
-    const nextRoles = collection.roles.includes(role)
-      ? collection.roles.filter((item) => item !== role)
-      : [...collection.roles, role]
+    const nextRoles = roles.includes(role)
+      ? roles.filter((item) => item !== role)
+      : [...roles, role]
     if (nextRoles.length > 0) {
+      setRoles(nextRoles)
       onPatch({ roles: nextRoles })
     }
   }
@@ -228,7 +235,7 @@ function ReviewCard({ collection, pending, onPatch }: ReviewCardProps) {
 
         <div className="flex flex-wrap gap-2">
           {ROLE_OPTIONS.map((role) => {
-            const active = collection.roles.includes(role)
+            const active = roles.includes(role)
             return (
               <button
                 key={role}

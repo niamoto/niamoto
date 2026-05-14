@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, NoReturn
+import hashlib
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+from threading import Lock
+from typing import Any, Iterator, NoReturn
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -41,6 +46,7 @@ from niamoto.gui.api.services.templates.config_service import (
 )
 
 router = APIRouter()
+_standard_profile_write_lock = Lock()
 
 
 class StandardProfileListResponse(BaseModel):
@@ -171,6 +177,35 @@ def _save_store_config(store: StandardProfileStore) -> None:
             detail=f"Invalid export configuration: {str(exc)}",
         ) from exc
     save_export_config(get_working_directory(), store.export_config, create_backup=True)
+
+
+@contextmanager
+def _standard_profile_config_lock() -> Iterator[None]:
+    """Serialize export.yml profile mutations across threads and processes."""
+    with _standard_profile_write_lock:
+        lock_path = _standard_profile_lock_path(get_working_directory())
+        with lock_path.open("w", encoding="utf-8") as lock_file:
+            fcntl_module = _fcntl_module()
+            if fcntl_module is not None:
+                fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_EX)
+            try:
+                yield
+            finally:
+                if fcntl_module is not None:
+                    fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_UN)
+
+
+def _standard_profile_lock_path(work_dir: Path) -> Path:
+    lock_key = hashlib.sha256(str(work_dir.resolve()).encode("utf-8")).hexdigest()
+    return Path(tempfile.gettempdir()) / f"niamoto-export-{lock_key}.lock"
+
+
+def _fcntl_module() -> Any | None:
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - Windows fallback keeps the API usable.
+        return None
+    return fcntl
 
 
 def _raise_profile_error(exc: ValueError) -> NoReturn:
@@ -375,13 +410,14 @@ async def create_standard_profile(
     request: StandardProfileCreateRequest,
 ) -> dict[str, Any]:
     """Create a standard profile in export.yml."""
-    store = _profile_store()
-    try:
-        profile = store.create_profile(request.model_dump(mode="json"))
-        profile = _persist_current_validation_status(store, profile)
-    except ValueError as exc:
-        _raise_profile_error(exc)
-    _save_store_config(store)
+    with _standard_profile_config_lock():
+        store = _profile_store()
+        try:
+            profile = store.create_profile(request.model_dump(mode="json"))
+            profile = _persist_current_validation_status(store, profile)
+        except ValueError as exc:
+            _raise_profile_error(exc)
+        _save_store_config(store)
     return {"profile": profile}
 
 
@@ -391,27 +427,29 @@ async def update_standard_profile(
     update: StandardProfileUpdateRequest,
 ) -> dict[str, Any]:
     """Update a standard profile in export.yml."""
-    store = _profile_store()
-    try:
-        profile = store.update_profile(
-            profile_name, update.model_dump(mode="json", exclude_unset=True)
-        )
-        profile = _persist_current_validation_status(store, profile)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        _raise_profile_error(exc)
-    _save_store_config(store)
+    with _standard_profile_config_lock():
+        store = _profile_store()
+        try:
+            profile = store.update_profile(
+                profile_name, update.model_dump(mode="json", exclude_unset=True)
+            )
+            profile = _persist_current_validation_status(store, profile)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            _raise_profile_error(exc)
+        _save_store_config(store)
     return {"profile": profile}
 
 
 @router.delete("/{profile_name}")
 async def delete_standard_profile(profile_name: str) -> dict[str, Any]:
     """Delete a standard profile from export.yml."""
-    store = _profile_store()
-    try:
-        store.delete_profile(profile_name)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _save_store_config(store)
+    with _standard_profile_config_lock():
+        store = _profile_store()
+        try:
+            store.delete_profile(profile_name)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _save_store_config(store)
     return {"success": True, "deleted": profile_name}

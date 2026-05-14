@@ -2,6 +2,11 @@
   "name": "niamoto-feedback-proxy",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=11 <12"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

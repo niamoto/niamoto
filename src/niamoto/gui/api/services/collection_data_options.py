@@ -255,7 +255,25 @@ class CollectionDataOptionsService:
         for profile in self.profile_store.list_profiles():
             if not self._profile_belongs_to_collection(profile, collection):
                 continue
-            validation = self._safe_validation(profile)
+            validation, validation_error = self._safe_validation_result(profile)
+            evidence = [
+                CollectionDataEvidence(
+                    kind="configured_standard_profile",
+                    message=(
+                        "A standard publication profile uses this collection as its source."
+                    ),
+                    details={"profile_name": profile.name},
+                )
+            ]
+            if validation_error:
+                evidence.append(
+                    CollectionDataEvidence(
+                        kind="validation_error",
+                        message=f"Profile validation could not be evaluated: {validation_error}",
+                        confidence=0.0,
+                        details={"profile_name": profile.name},
+                    )
+                )
             outputs.append(
                 CollectionDataConfiguredOutput(
                     id=f"standard_profile:{profile.name}",
@@ -288,15 +306,7 @@ class CollectionDataOptionsService:
                             target={"profile_name": profile.name},
                         ),
                     ],
-                    evidence=[
-                        CollectionDataEvidence(
-                            kind="configured_standard_profile",
-                            message=(
-                                "A standard publication profile uses this collection as its source."
-                            ),
-                            details={"profile_name": profile.name},
-                        )
-                    ],
+                    evidence=evidence,
                     summary={
                         "mapped_terms": len(profile.mappings),
                         "enabled_outputs": sum(
@@ -436,8 +446,8 @@ class CollectionDataOptionsService:
             mappings={},
             outputs=[],
         )
-        compatibility = self._safe_compatibility(profile)
-        source_fields_total = self._source_fields_total(
+        compatibility, compatibility_error = self._safe_compatibility_result(profile)
+        source_fields_total, source_fields_error = self._source_fields_total_result(
             standard=standard,
             target_grain=target_grain,
             source=source,
@@ -447,7 +457,7 @@ class CollectionDataOptionsService:
                 collection,
                 standard,
                 target_grain,
-                "Compatibility could not be evaluated.",
+                f"Compatibility could not be evaluated: {compatibility_error}",
             )
 
         missing_evidence: list[str] = []
@@ -460,7 +470,11 @@ class CollectionDataOptionsService:
             missing_evidence.append("Standard compatibility still needs review.")
         elif source_fields_total <= 0:
             suitability = "possible"
-            missing_evidence.append("No source fields were available for mapping.")
+            missing_evidence.append(
+                f"Source fields could not be inspected: {source_fields_error}"
+                if source_fields_error
+                else "No source fields were available for mapping."
+            )
         elif compatibility.confidence >= 0.8:
             suitability = "recommended"
         else:
@@ -488,10 +502,23 @@ class CollectionDataOptionsService:
                     message=(
                         f"{source_fields_total} source field(s) are available for mapping."
                         if source_fields_total > 0
+                        else f"Source fields could not be inspected: {source_fields_error}"
+                        if source_fields_error
                         else "No source fields are available for mapping."
                     ),
-                    confidence=1.0 if source_fields_total > 0 else 0.3,
-                    details={"total": source_fields_total},
+                    confidence=1.0
+                    if source_fields_total > 0
+                    else 0.0
+                    if source_fields_error
+                    else 0.3,
+                    details={
+                        "total": source_fields_total,
+                        **(
+                            {"error": source_fields_error}
+                            if source_fields_error
+                            else {}
+                        ),
+                    },
                 )
             ],
             action=CollectionDataAction(
@@ -566,18 +593,30 @@ class CollectionDataOptionsService:
     def _safe_compatibility(
         self, profile: StandardProfileConfig
     ) -> StandardCompatibilityReport | None:
+        report, _error = self._safe_compatibility_result(profile)
+        return report
+
+    def _safe_compatibility_result(
+        self, profile: StandardProfileConfig
+    ) -> tuple[StandardCompatibilityReport | None, str | None]:
         try:
-            return self.compatibility_service.evaluate(profile)
-        except Exception:
-            return None
+            return self.compatibility_service.evaluate(profile), None
+        except Exception as exc:
+            return None, str(exc)
 
     def _safe_validation(
         self, profile: StandardProfileConfig
     ) -> StandardValidationReport | None:
+        report, _error = self._safe_validation_result(profile)
+        return report
+
+    def _safe_validation_result(
+        self, profile: StandardProfileConfig
+    ) -> tuple[StandardValidationReport | None, str | None]:
         try:
-            return self.validation_service.validate(profile)
-        except Exception:
-            return None
+            return self.validation_service.validate(profile), None
+        except Exception as exc:
+            return None, str(exc)
 
     def _source_fields_total(
         self,
@@ -586,14 +625,29 @@ class CollectionDataOptionsService:
         target_grain: str,
         source: StandardProfileSource,
     ) -> int:
+        total, _error = self._source_fields_total_result(
+            standard=standard,
+            target_grain=target_grain,
+            source=source,
+        )
+        return total
+
+    def _source_fields_total_result(
+        self,
+        *,
+        standard: StandardProfileType,
+        target_grain: str,
+        source: StandardProfileSource,
+    ) -> tuple[int, str | None]:
         try:
-            return self.auto_config_service.source_fields(
+            result = self.auto_config_service.source_fields(
                 standard=standard,
                 target_grain=target_grain,
                 source=source,
-            ).total
-        except Exception:
-            return 0
+            )
+            return result.total, None
+        except Exception as exc:
+            return 0, str(exc)
 
     def _api_export_targets(self) -> list[dict[str, Any]]:
         return [

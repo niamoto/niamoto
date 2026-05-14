@@ -31,11 +31,15 @@ class StandardProfileStore:
 
     def list_profiles(self) -> list[StandardProfileConfig]:
         """Return all configured standard profiles."""
-        return [
-            StandardProfileConfig.model_validate(profile)
-            for profile in self._raw_profiles()
-            if isinstance(profile, dict)
-        ]
+        profiles: list[StandardProfileConfig] = []
+        for profile in self._raw_profiles():
+            if not isinstance(profile, dict):
+                continue
+            try:
+                profiles.append(StandardProfileConfig.model_validate(profile))
+            except ValidationError:
+                continue
+        return profiles
 
     def get_profile(self, name: str) -> StandardProfileConfig:
         """Return one configured standard profile by name."""

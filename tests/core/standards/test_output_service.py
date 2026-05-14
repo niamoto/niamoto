@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import zipfile
 
+import duckdb
 import pytest
 
 from niamoto.core.standards.models import StandardProfileConfig
@@ -242,6 +243,39 @@ def test_darwin_core_profile_generators_extract_coordinates_and_properties(tmp_p
     ]
 
 
+def test_darwin_core_unique_occurrence_id_uses_source_field_when_available(tmp_path):
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {
+                "occurrenceID": {
+                    "generator": "unique_occurrence_id",
+                    "params": {
+                        "prefix": "dwc-",
+                        "source_field": "source_occurrence_id",
+                    },
+                }
+            },
+            "outputs": [{"type": "api_json"}],
+        }
+    )
+    service = StandardProfileOutputService(
+        tmp_path, import_config=_occurrence_import_config()
+    )
+
+    result = service.execute_profile(
+        profile,
+        output_type="api_json",
+        records=[{"source_occurrence_id": "occ-42"}],
+    )
+
+    payload = json.loads(result.files[0].read_text(encoding="utf-8"))
+    assert payload["records"] == [{"occurrenceID": "dwc-occ-42"}]
+
+
 def test_darwin_core_taxon_context_output_loads_related_occurrences(
     tmp_path, monkeypatch
 ):
@@ -268,11 +302,11 @@ def test_darwin_core_taxon_context_output_loads_related_occurrences(
     )
     loaded_sources: list[dict[str, str]] = []
 
-    def fake_load_records(source):
+    def fake_iter_records(source):
         loaded_sources.append(source.model_dump(mode="json"))
-        return [{"occurrence_id": "occ-1", "taxon_id": 42}]
+        yield {"occurrence_id": "occ-1", "taxon_id": 42}
 
-    monkeypatch.setattr(service, "_load_records", fake_load_records)
+    monkeypatch.setattr(service, "_iter_records", fake_iter_records)
 
     result = service.execute_profile(profile, output_type="api_json")
 
@@ -331,16 +365,14 @@ def test_manual_collection_output_loads_backing_source(tmp_path, monkeypatch):
     )
     loaded_sources: list[dict[str, str]] = []
 
-    def fake_load_records(source):
+    def fake_iter_records(source):
         loaded_sources.append(source.model_dump(mode="json"))
-        return [
-            {
-                "occurrence_id": "occ-1",
-                "scientific_name": "Araucaria columnaris",
-            }
-        ]
+        yield {
+            "occurrence_id": "occ-1",
+            "scientific_name": "Araucaria columnaris",
+        }
 
-    monkeypatch.setattr(service, "_load_records", fake_load_records)
+    monkeypatch.setattr(service, "_iter_records", fake_iter_records)
 
     result = service.execute_profile(profile, output_type="api_json")
 
@@ -355,6 +387,51 @@ def test_manual_collection_output_loads_backing_source(tmp_path, monkeypatch):
             "occurrenceID": "occ-1",
             "scientificName": "Araucaria columnaris",
         }
+    ]
+
+
+def test_profile_output_streams_database_records_without_materialized_loader(
+    tmp_path, monkeypatch
+):
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {
+                "occurrenceID": {"source": "id"},
+                "scientificName": {"source": "scientific_name"},
+            },
+            "outputs": [{"type": "api_json"}],
+        }
+    )
+    service = StandardProfileOutputService(
+        tmp_path, import_config=_occurrence_import_config()
+    )
+
+    def fail_load_records(_source, *, limit=None):
+        raise AssertionError("_load_records should only be used for previews")
+
+    def fake_iter_records(source):
+        assert source.model_dump(mode="json") == {
+            "type": "dataset",
+            "name": "occurrences",
+        }
+        yield {"id": 1, "scientific_name": "Araucaria columnaris"}
+        yield {"id": 2, "scientific_name": "Pancheria elegans"}
+
+    monkeypatch.setattr(service, "_load_records", fail_load_records)
+    monkeypatch.setattr(service, "_iter_records", fake_iter_records)
+
+    result = service.execute_profile(profile, output_type="api_json")
+
+    payload = json.loads(result.files[0].read_text(encoding="utf-8"))
+    assert result.metadata["records_count"] == 2
+    assert payload["metadata"]["records_count"] == 2
+    assert payload["records"] == [
+        {"occurrenceID": 1, "scientificName": "Araucaria columnaris"},
+        {"occurrenceID": 2, "scientificName": "Pancheria elegans"},
     ]
 
 
@@ -391,6 +468,7 @@ def test_darwin_core_archive_output_creates_archive(tmp_path):
     assert result.status == "success"
     assert result.output_path == str(archive_path)
     assert archive_path.exists()
+    assert not (archive_path.parent / ".profile-dwc.zip.tmp").exists()
     with zipfile.ZipFile(archive_path, "r") as archive:
         assert {"occurrence.csv", "meta.xml", "eml.xml"}.issubset(
             set(archive.namelist())
@@ -590,6 +668,88 @@ def test_disabled_output_request_returns_clear_error(tmp_path):
 
     with pytest.raises(ValueError, match="Output 'api_json' is disabled"):
         service.execute_profile(profile, output_type="api_json", records=[{"id": 1}])
+
+
+def test_profile_output_errors_when_database_source_is_missing(tmp_path):
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {"occurrenceID": {"source": "id"}},
+            "outputs": [{"type": "api_json"}],
+        }
+    )
+    service = StandardProfileOutputService(
+        tmp_path,
+        db_path=tmp_path / "missing.duckdb",
+        import_config=_occurrence_import_config(),
+    )
+
+    with pytest.raises(ValueError, match="project database was not found"):
+        service.execute_profile(profile, output_type="api_json")
+
+
+def test_profile_output_resolves_source_table_from_entity_registry(tmp_path):
+    db_path = tmp_path / "niamoto.duckdb"
+    connection = duckdb.connect(str(db_path))
+    try:
+        connection.execute(
+            """
+            CREATE TABLE occurrence_rows (
+                id INTEGER,
+                scientific_name VARCHAR
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO occurrence_rows VALUES (7, 'Araucaria columnaris')"
+        )
+        connection.execute(
+            """
+            CREATE TABLE niamoto_metadata_entities (
+                name TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                table_name TEXT NOT NULL,
+                config TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO niamoto_metadata_entities
+            VALUES ('occurrences', 'dataset', 'occurrence_rows', '{}')
+            """
+        )
+    finally:
+        connection.close()
+
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {
+                "occurrenceID": {"source": "id"},
+                "scientificName": {"source": "scientific_name"},
+            },
+            "outputs": [{"type": "api_json"}],
+        }
+    )
+    service = StandardProfileOutputService(
+        tmp_path,
+        db_path=db_path,
+        import_config=_occurrence_import_config(),
+    )
+
+    result = service.execute_profile(profile, output_type="api_json")
+
+    payload = json.loads(result.files[0].read_text(encoding="utf-8"))
+    assert payload["records"] == [
+        {"occurrenceID": 7, "scientificName": "Araucaria columnaris"}
+    ]
 
 
 def test_humboldt_event_profile_writes_partial_standard_files(tmp_path):

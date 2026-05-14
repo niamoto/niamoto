@@ -2,6 +2,11 @@
   "name": "niamoto-plotly-bundles",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=11 <12"
+  },
   "description": "Custom Plotly.js bundles for Niamoto — core (no maps) and maps (with maplibre-gl)",
   "scripts": {
     "build": "node build.mjs"

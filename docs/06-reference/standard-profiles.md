@@ -1,4 +1,4 @@
-# Standard Profiles
+# Standard profiles
 
 Standard profiles describe publication-ready biodiversity outputs separately
 from ordinary collection JSON APIs. They live in `config/export.yml` under the
@@ -13,7 +13,7 @@ In the GUI, standard profiles are normally configured from a collection's
 **Data** tab. The older Standards route remains available as a technical
 compatibility entry point during rollout.
 
-## Configuration Shape
+## Configuration shape
 
 ```yaml
 exports:
@@ -59,14 +59,14 @@ standard_profiles:
 `exports`. Regular export jobs still read `exports`; profile outputs are
 generated through the standard profile API and UI.
 
-## Supported Standards
+## Supported standards
 
 | Standard | `standard` value | Expected target grain | Current outputs |
 | --- | --- | --- | --- |
 | Darwin Core Occurrence | `darwin_core_occurrence` | `occurrence` | `api_json`, `dwc_archive` |
 | Humboldt/Event | `humboldt_event` | `event` or `inventory` | `api_json`, `standard_files` |
 
-## Sources and Grain Compatibility
+## Sources and grain compatibility
 
 A profile source can be:
 
@@ -86,7 +86,7 @@ Compatibility is computed before validation:
 
 The compatibility report can return `compatible`, `plausible`, or `blocked`.
 
-## Validation States
+## Validation states
 
 Validation is report-based. The stored `validation_status` is only the
 last-known display value; the API recomputes a full report from the current
@@ -107,7 +107,7 @@ Current validation checks include:
 - Humboldt/Event requires `eventID`
 - Humboldt/Event recommends `eventDate`, `samplingProtocol`, and `locationID`
 
-## Mapping Values
+## Mapping values
 
 Mappings can point to a source path:
 
@@ -135,7 +135,8 @@ mappings:
 ```
 
 Generators available through profile output generation are `constant`,
-`current_date`, and `unique_occurrence_id`. The legacy
+`current_date`, `unique_occurrence_id`, `extract_geometry_coordinate`,
+`format_measurements`, and `dynamic_properties`. The legacy
 `niamoto_to_dwc_occurrence` transformer supports additional Darwin Core
 generators inside legacy `exports` targets.
 
@@ -154,17 +155,20 @@ The GUI lets draft or test outputs be generated separately from final
 publication paths. Publication files are blocked when critical validation
 issues are present.
 
-## API Surface
+## API surface
 
 The GUI backend exposes:
 
 - `GET /api/standard-profiles`
+- `POST /api/standard-profiles/auto-config`
+- `POST /api/standard-profiles/source-fields`
 - `GET /api/standard-profiles/{profile_name}`
 - `POST /api/standard-profiles`
 - `PATCH /api/standard-profiles/{profile_name}`
 - `DELETE /api/standard-profiles/{profile_name}`
 - `GET /api/standard-profiles/{profile_name}/compatibility`
 - `GET /api/standard-profiles/{profile_name}/validation`
+- `GET /api/standard-profiles/{profile_name}/outputs/{output_type}/preview`
 - `POST /api/standard-profiles/{profile_name}/outputs/{output_type}`
 - `POST /api/standard-profiles/{profile_name}/outputs/{output_type}/draft`
 

@@ -21,6 +21,7 @@ import {
 } from '@/features/collections/components/data/FieldSelector'
 
 type DwcMappingMode = 'static' | 'source' | 'generator'
+type DwcMappingDialect = 'legacy_dwc' | 'standard_profile'
 
 interface DwcMappingEditorProps {
   value?: Record<string, unknown>
@@ -30,6 +31,7 @@ interface DwcMappingEditorProps {
   referenceHelp?: string
   sourceFields?: string[]
   generatorOptions?: string[]
+  dialect?: DwcMappingDialect
 }
 
 interface DwcMappingRow {
@@ -117,7 +119,10 @@ function stringifyStaticValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
+function parseRows(
+  value: Record<string, unknown> = {},
+  dialect: DwcMappingDialect = 'legacy_dwc',
+): DwcMappingRow[] {
   return Object.entries(value).map(([term, rawConfig]) => {
     if (
       rawConfig &&
@@ -160,7 +165,10 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
       }
     }
 
-    if (typeof rawConfig === 'string' && rawConfig.startsWith('@')) {
+    if (
+      typeof rawConfig === 'string' &&
+      (rawConfig.startsWith('@') || dialect === 'standard_profile')
+    ) {
       return {
         id: createRowId(),
         term,
@@ -186,7 +194,8 @@ function parseRows(value: Record<string, unknown> = {}): DwcMappingRow[] {
 
 function serializeRows(
   rows: DwcMappingRow[],
-  t: (key: string, options?: Record<string, unknown>) => string
+  t: (key: string, options?: Record<string, unknown>) => string,
+  dialect: DwcMappingDialect = 'legacy_dwc',
 ): {
   value: Record<string, unknown>
   error: string | null
@@ -254,7 +263,10 @@ function serializeRows(
       }
     }
 
-    serialized[term] = row.staticValue
+    serialized[term] =
+      dialect === 'standard_profile'
+        ? { generator: 'constant', params: { value: row.staticValue } }
+        : row.staticValue
   }
 
   return { value: serialized, error: null }
@@ -389,6 +401,7 @@ export function DwcMappingEditor({
   referenceHelp,
   sourceFields = [],
   generatorOptions,
+  dialect = 'legacy_dwc',
 }: DwcMappingEditorProps) {
   return (
     <DwcMappingEditorForm
@@ -399,6 +412,7 @@ export function DwcMappingEditor({
       referenceHelp={referenceHelp}
       sourceFields={sourceFields}
       generatorOptions={generatorOptions}
+      dialect={dialect}
     />
   )
 }
@@ -411,12 +425,19 @@ function DwcMappingEditorForm({
   referenceHelp,
   sourceFields = [],
   generatorOptions = LEGACY_DWC_GENERATORS,
+  dialect = 'legacy_dwc',
 }: DwcMappingEditorProps) {
   const { t } = useTranslation(['sources', 'common'])
-  const [rows, setRows] = useState<DwcMappingRow[]>(() => parseRows(value))
+  const [rows, setRows] = useState<DwcMappingRow[]>(() =>
+    parseRows(value, dialect),
+  )
   const [error, setError] = useState<string | null>(null)
   const externalValueKey = useMemo(() => JSON.stringify(value), [value])
-  const lastExternalValueKeyRef = useRef(externalValueKey)
+  const externalParseKey = useMemo(
+    () => `${dialect}:${externalValueKey}`,
+    [dialect, externalValueKey],
+  )
+  const lastExternalValueKeyRef = useRef(externalParseKey)
   const sourceFieldOptions = useMemo(
     () => uniqueSourceFields(sourceFields),
     [sourceFields],
@@ -437,16 +458,16 @@ function DwcMappingEditorForm({
   )
 
   useEffect(() => {
-    if (externalValueKey === lastExternalValueKeyRef.current) {
+    if (externalParseKey === lastExternalValueKeyRef.current) {
       return
     }
 
     // The editor keeps local draft rows so invalid intermediate input can stay editable.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRows(parseRows(value))
+    setRows(parseRows(value, dialect))
     setError(null)
-    lastExternalValueKeyRef.current = externalValueKey
-  }, [externalValueKey, value])
+    lastExternalValueKeyRef.current = externalParseKey
+  }, [dialect, externalParseKey, value])
 
   const availableGeneratorOptions = useMemo(() => {
     const extraGenerators = rows
@@ -458,11 +479,11 @@ function DwcMappingEditorForm({
 
   const commit = (nextRows: DwcMappingRow[]) => {
     setRows(nextRows)
-    const serialized = serializeRows(nextRows, t)
+    const serialized = serializeRows(nextRows, t, dialect)
     setError(serialized.error)
     const serializedKey = JSON.stringify(serialized.value)
     if (!serialized.error && serializedKey !== externalValueKey) {
-      lastExternalValueKeyRef.current = serializedKey
+      lastExternalValueKeyRef.current = `${dialect}:${serializedKey}`
       onChange(serialized.value)
     }
   }

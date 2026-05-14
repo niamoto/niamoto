@@ -127,6 +127,55 @@ DWC_REVIEW_TERMS = [
     "basisOfRecord",
 ]
 
+HUMBOLDT_EVENT_TERM_ALIASES: dict[str, set[str]] = {
+    "eventID": {
+        "eventid",
+        "event_id",
+        "inventoryid",
+        "inventory_id",
+        "surveyid",
+        "survey_id",
+        "id",
+    },
+    "eventDate": DWC_TERM_ALIASES["eventDate"]
+    | {
+        "inventorydate",
+        "inventory_date",
+        "samplingdate",
+        "sampling_date",
+        "surveydate",
+        "survey_date",
+        "start_date",
+    },
+    "samplingProtocol": {
+        "samplingprotocol",
+        "sampling_protocol",
+        "protocol",
+        "method",
+        "samplingmethod",
+        "sampling_method",
+        "inventorymethod",
+        "inventory_method",
+    },
+    "locationID": DWC_TERM_ALIASES["locationID"]
+    | {
+        "site",
+        "siteid",
+        "site_id",
+        "station",
+        "stationid",
+        "station_id",
+        "plot_code",
+    },
+}
+
+HUMBOLDT_EVENT_REVIEW_TERMS = [
+    "eventID",
+    "eventDate",
+    "samplingProtocol",
+    "locationID",
+]
+
 DWC_TERM_ORDER = [
     "occurrenceID",
     "scientificName",
@@ -399,58 +448,80 @@ class StandardProfileAutoConfigService:
         self,
         profile: StandardProfileConfig,
     ) -> StandardProfileAutoConfigResult:
-        records, loaded_columns = self._load_record_sample(profile.source, [])
+        notes: list[str] = []
+        records, loaded_columns = self._load_record_sample(profile.source, notes)
         columns = loaded_columns or self._schema_columns(profile.source)
-        event_id_column = _best_direct_column(columns, {"eventid", "event_id", "id"})
-        mapping = (
-            {"source": event_id_column}
-            if event_id_column
-            else {
-                "generator": "constant",
-                "params": {"value": profile.name},
-            }
-        )
-        term = StandardProfileAutoConfigTerm(
-            term="eventID",
-            status="mapped",
-            mapping=mapping,
-            confidence=0.8 if event_id_column else 0.55,
-            source_column=event_id_column,
-            evidence=[
-                "Mapped from an event identifier column."
-                if event_id_column
-                else "Generated as a placeholder event identifier."
-            ],
-        )
+
+        mapped_terms: dict[str, StandardProfileAutoConfigTerm] = {}
+        for term_name, aliases in HUMBOLDT_EVENT_TERM_ALIASES.items():
+            column = _best_direct_column(columns, aliases)
+            if column is None:
+                continue
+            mapped_terms[term_name] = StandardProfileAutoConfigTerm(
+                term=term_name,
+                status="mapped",
+                mapping={"source": column},
+                confidence=0.8,
+                source_column=column,
+                evidence=[f"Mapped from a {term_name} column."],
+            )
+
+        if "eventID" not in mapped_terms:
+            mapped_terms["eventID"] = StandardProfileAutoConfigTerm(
+                term="eventID",
+                status="mapped",
+                mapping={
+                    "generator": "constant",
+                    "params": {"value": profile.name},
+                },
+                confidence=0.55,
+                evidence=["Generated as a placeholder event identifier."],
+            )
+
+        unresolved = [
+            term_name
+            for term_name in HUMBOLDT_EVENT_REVIEW_TERMS
+            if term_name not in mapped_terms
+        ]
+        terms = [
+            mapped_terms.get(term_name)
+            or StandardProfileAutoConfigTerm(
+                term=term_name,
+                status="unresolved",
+                confidence=0.0,
+            )
+            for term_name in HUMBOLDT_EVENT_REVIEW_TERMS
+        ]
+
         proposal = profile.model_copy(
             update={
-                "mappings": {"eventID": mapping},
+                "mappings": {
+                    term.term: term.mapping
+                    for term in terms
+                    if term.status == "mapped" and term.mapping is not None
+                },
                 "metadata": {
                     "auto_config": {
                         "record_source": profile.source.model_dump(mode="json"),
                         "rows_sampled": len(records),
-                        "unresolved": ["eventDate", "samplingProtocol", "locationID"],
+                        "unresolved": unresolved,
                     }
                 },
             }
         )
+        notes.append(
+            f"Mapped {sum(1 for term in terms if term.status == 'mapped')} Humboldt/Event term(s)."
+        )
+        if unresolved:
+            notes.append(
+                "Humboldt/Event auto-configuration is conservative; review inventory context before saving."
+            )
+
         return StandardProfileAutoConfigResult(
             profile=proposal,
-            terms=[
-                term,
-                *[
-                    StandardProfileAutoConfigTerm(
-                        term=term_name,
-                        status="unresolved",
-                        confidence=0.0,
-                    )
-                    for term_name in ("eventDate", "samplingProtocol", "locationID")
-                ],
-            ],
-            unresolved=["eventDate", "samplingProtocol", "locationID"],
-            notes=[
-                "Humboldt/Event auto-configuration is conservative; review inventory context before saving."
-            ],
+            terms=terms,
+            unresolved=unresolved,
+            notes=notes,
             record_source=profile.source,
             rows_sampled=len(records),
             columns_inspected=len(columns),
@@ -879,6 +950,6 @@ def _safe_alias_registry() -> AliasRegistry | None:
 
 def _safe_column_classifier() -> ColumnClassifier | None:
     try:
-        return ColumnClassifier()
+        return ColumnClassifier()  # type: ignore[no-untyped-call]
     except Exception:
         return None

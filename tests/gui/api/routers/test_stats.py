@@ -1041,6 +1041,82 @@ def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     }
 
 
+def test_spatial_map_wkt_fallback_filters_layers_before_pagination(
+    gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [
+                {"name": "shape_id", "type": "string"},
+                {"name": "name", "type": "string"},
+                {"name": "type", "type": "string"},
+                {"name": "location", "type": "geometry"},
+            ],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                type VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES
+                ('north-a', 'North A', 'province',
+                 'POLYGON ((164 -22, 165 -22, 165 -21, 164 -21, 164 -22))'),
+                ('north-b', 'North B', 'province',
+                 'POLYGON ((165 -22, 166 -22, 166 -21, 165 -21, 165 -22))'),
+                ('south', 'South', 'protected_area',
+                 'POLYGON ((166 -21, 167 -21, 167 -20, 166 -20, 166 -21))')
+            """
+        )
+    finally:
+        conn.close()
+
+    def fail_spatial_extension(_conn):
+        raise RuntimeError("spatial extension unavailable")
+
+    monkeypatch.setattr(
+        stats_router, "_load_spatial_extension_best_effort", fail_spatial_extension
+    )
+
+    response = gui_duckdb_client.get(
+        "/api/stats/spatial-map/shapes?layer=province&limit=1"
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["selected_layer"] == "province"
+    assert payload["layer_column"] == "type"
+    assert payload["total_features"] == 2
+    assert payload["with_geometry"] == 2
+    assert payload["has_more"] is True
+    assert payload["next_offset"] == 1
+    features = payload["feature_collection"]["features"]
+    assert len(features) == 1
+    assert features[0]["id"] == "north-a"
+    assert features[0]["properties"]["layer"] == "province"
+    assert {layer["value"] for layer in payload["layers"]} == {
+        "province",
+        "protected_area",
+    }
+
+
 def test_validation_rules_default_and_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
 
