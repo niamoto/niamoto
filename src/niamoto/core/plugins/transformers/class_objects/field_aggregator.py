@@ -4,7 +4,7 @@ Supports single fields, ranges (min/max), and multiple fields.
 """
 
 from typing import Dict, Any, List, Union, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
@@ -65,8 +65,26 @@ class FieldAggregatorParams(BasePluginParams):
         ...,
         min_length=1,
         description="List of field configurations",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={"ui:widget": "field-list-editor"},
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_scalar_config(cls, data: Any) -> Any:
+        """Accept configs generated before scalar class_object fields used fields[]."""
+        if (
+            not isinstance(data, dict)
+            or data.get("fields")
+            or not data.get("class_object")
+        ):
+            return data
+
+        migrated = dict(data)
+        class_object = migrated.pop("class_object")
+        target = migrated.pop("output_field", class_object)
+        migrated.pop("max_value", None)
+        migrated["fields"] = [{"class_object": class_object, "target": target}]
+        return migrated
 
     @field_validator("fields")
     @classmethod

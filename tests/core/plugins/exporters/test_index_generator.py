@@ -258,6 +258,114 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         shape_ids = [item["shape_id"] for item in result]
         self.assertEqual(shape_ids, ["1", "2", "3"])
 
+    def test_get_group_data_uses_entity_leaf_fallback_for_legacy_filter_paths(self):
+        """Legacy nested filter paths should resolve to matching entity columns."""
+        self.mock_db.has_table.return_value = True
+        self.mock_db.get_table_columns.return_value = ["id", "locality_name"]
+        self.mock_db.fetch_all.side_effect = [
+            [{"plots_id": 1}, {"plots_id": 2}],
+            [
+                {"id": 1, "locality_name": "Pic Ningua"},
+                {"id": 2, "locality_name": "Kouakoue"},
+            ],
+        ]
+
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="locality_name",
+                    source="general_info_plots_field_aggregator_info_grid.locality_name.value",
+                    label="Locality",
+                    type="text",
+                    fallback="locality_name",
+                )
+            ],
+            filters=[
+                IndexGeneratorFilterConfig(
+                    field="general_info_plots_field_aggregator_info_grid.locality_name.value",
+                    operator="in",
+                    values=["Pic Ningua"],
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        with patch(
+            "niamoto.core.plugins.exporters.index_generator.resolve_entity_table",
+            return_value="entity_plots",
+        ):
+            with patch.object(
+                self.plugin, "_resolve_entity_join_column", return_value="id"
+            ):
+                result = self.plugin._get_group_data("plots", config)
+
+        self.assertEqual(result, [{"plots_id": "1", "locality_name": "Pic Ningua"}])
+
+    def test_get_group_data_ignores_unresolved_legacy_filters(self):
+        """A stale filter path should not make the generated index disappear."""
+        self.mock_db.has_table.return_value = True
+        self.mock_db.fetch_all.return_value = [
+            {"plots_id": 1, "name": "Plot 1"},
+            {"plots_id": 2, "name": "Plot 2"},
+        ]
+
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="name", source="name", label="Name", type="text"
+                )
+            ],
+            filters=[
+                IndexGeneratorFilterConfig(
+                    field="missing_legacy_widget.locality.value",
+                    operator="in",
+                    values=["Pic Ningua"],
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        result = self.plugin._get_group_data("plots", config)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual([item["plots_id"] for item in result], ["1", "2"])
+
+    def test_get_group_data_ignores_legacy_filters_with_no_matching_values(self):
+        """Old auto-generated filter values from another dataset should be ignored."""
+        self.mock_db.has_table.return_value = True
+        self.mock_db.fetch_all.return_value = [
+            {"plots_id": 1, "country": "NEW CALEDONIA"},
+            {"plots_id": 2, "country": "NEW CALEDONIA"},
+        ]
+
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="country",
+                    source="general_info_plots_field_aggregator_info_grid.country.value",
+                    label="Country",
+                    type="text",
+                    fallback="country",
+                )
+            ],
+            filters=[
+                IndexGeneratorFilterConfig(
+                    field="general_info_plots_field_aggregator_info_grid.country.value",
+                    operator="in",
+                    values=["GABON"],
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        result = self.plugin._get_group_data("plots", config)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual([item["country"] for item in result], ["NEW CALEDONIA"] * 2)
+
     def test_get_group_data_with_boolean_filter_values_as_strings(self):
         """Boolean JSON values should match string filters from config files."""
         self.mock_db.has_table.return_value = True
@@ -537,9 +645,17 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
     @patch("builtins.open", create=True)
     def test_generate_index_no_data(self, mock_open):
         """Test index generation with no data."""
-        # Mock jinja environment
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        mock_template = Mock()
+        mock_template.render.return_value = "<html>Empty Index Page</html>"
         mock_jinja_env = Mock()
+        mock_jinja_env.get_template.return_value = mock_template
         mock_html_params = Mock()
+        mock_html_params.site = None
+        mock_html_params.navigation = []
+        mock_html_params.footer_navigation = []
 
         config = IndexGeneratorConfig(
             template="group_index.html",
@@ -555,8 +671,10 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
                 "taxon", config, self.test_output_dir, mock_jinja_env, mock_html_params
             )
 
-        # Verify no file operations occurred
-        mock_open.assert_not_called()
+        mock_template.render.assert_called_once()
+        context = mock_template.render.call_args[0][0]
+        self.assertEqual(context["items_data"], [])
+        mock_file.write.assert_called_once_with("<html>Empty Index Page</html>")
 
     def test_generate_index_exception(self):
         """Test exception handling in index generation."""

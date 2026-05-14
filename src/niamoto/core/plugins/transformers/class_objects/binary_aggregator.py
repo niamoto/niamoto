@@ -5,7 +5,7 @@ Specifically handles data where distributions are represented as binary choices
 """
 
 from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
@@ -106,6 +106,33 @@ class ClassObjectBinaryParams(BasePluginParams):
         },
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_binary_config(cls, data: Any) -> Any:
+        """Accept configs generated before binary class_object fields used groups[]."""
+        if (
+            not isinstance(data, dict)
+            or data.get("groups")
+            or not data.get("class_object")
+        ):
+            return data
+
+        migrated = dict(data)
+        class_object = migrated.pop("class_object")
+        labels = [
+            migrated.pop("true_label", None) or "A",
+            migrated.pop("false_label", None) or "Other",
+        ]
+        migrated["groups"] = [
+            {
+                "label": class_object,
+                "field": class_object,
+                "classes": labels,
+                "class_mapping": {label: label for label in labels},
+            }
+        ]
+        return migrated
+
     @field_validator("groups")
     @classmethod
     def validate_groups(cls, v: List[GroupConfig]) -> List[GroupConfig]:
@@ -166,6 +193,12 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
         try:
             # Check specific items that tests expect
             params = config.get("params", {})
+            migrated_params = ClassObjectBinaryParams.migrate_legacy_binary_config(
+                params
+            )
+            if migrated_params is not params:
+                config = {**config, "params": migrated_params}
+                params = migrated_params
 
             # Check for source
             if not params.get("source"):

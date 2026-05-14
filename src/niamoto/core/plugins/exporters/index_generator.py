@@ -45,6 +45,13 @@ class IndexGeneratorPlugin(ExporterPlugin):
         Returns:
             Value at the path or None if not found
         """
+        found, value = self._resolve_nested_value(data, path)
+        return value if found else None
+
+    def _resolve_nested_value(
+        self, data: Dict[str, Any], path: str
+    ) -> tuple[bool, Any]:
+        """Resolve a dot-notated path and distinguish missing paths from null values."""
         keys = path.split(".")
         current = data
 
@@ -52,9 +59,57 @@ class IndexGeneratorPlugin(ExporterPlugin):
             if isinstance(current, dict) and key in current:
                 current = current[key]
             else:
-                return None
+                return False, None
 
-        return current
+        return True, current
+
+    def _candidate_entity_field_names(self, path: str) -> list[str]:
+        """Return entity column candidates for legacy nested export paths."""
+        parts = [part for part in path.split(".") if part]
+        if not parts:
+            return []
+
+        candidates = [parts[0]]
+        if len(parts) >= 2 and parts[-1] == "value":
+            candidates.append(parts[-2])
+        candidates.append(parts[-1])
+
+        unique_candidates = []
+        seen = set()
+        for candidate in candidates:
+            if candidate and candidate not in seen:
+                unique_candidates.append(candidate)
+                seen.add(candidate)
+        return unique_candidates
+
+    def _resolve_filter_value(
+        self, item: Dict[str, Any], path: str
+    ) -> tuple[bool, Any]:
+        """Resolve a filter value, falling back from legacy nested paths to entity fields."""
+        found, value = self._resolve_nested_value(item, path)
+        if found:
+            return True, value
+
+        for candidate in self._candidate_entity_field_names(path):
+            if candidate in item:
+                return True, item.get(candidate)
+
+        return False, None
+
+    def _is_legacy_nested_filter_path(self, path: str) -> bool:
+        """Return True for old auto-generated widget value paths."""
+        return "." in path and path.endswith(".value")
+
+    def _filter_matches(
+        self, value: Any, operator: str, normalized_values: list[Any]
+    ) -> bool:
+        """Evaluate an index filter against already-normalized values."""
+        if operator == "in":
+            return value in normalized_values
+        if operator == "equals":
+            expected = normalized_values[0] if normalized_values else None
+            return value == expected
+        return True
 
     def _parse_json_field(self, field_value: Any) -> Optional[Any]:
         """
@@ -224,17 +279,17 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 selected_columns.add(hierarchy_metadata.right_field)
 
         for field in config.display_fields:
-            field_root = field.source.split(".", 1)[0]
-            if field_root in entity_columns:
-                selected_columns.add(field_root)
+            for field_name in self._candidate_entity_field_names(field.source):
+                if field_name in entity_columns:
+                    selected_columns.add(field_name)
 
             if field.fallback and field.fallback in entity_columns:
                 selected_columns.add(field.fallback)
 
         for filter_config in config.filters or []:
-            field_root = filter_config.field.split(".", 1)[0]
-            if field_root in entity_columns:
-                selected_columns.add(field_root)
+            for field_name in self._candidate_entity_field_names(filter_config.field):
+                if field_name in entity_columns:
+                    selected_columns.add(field_name)
 
         if len(selected_columns) == 1:
             return {}
@@ -305,8 +360,9 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 group_by, id_column, config, item_ids
             )
 
-            # Process each item
-            processed_items = []
+            # Merge entity rows and parse JSON before evaluating filters.
+            prepared_items = []
+            missing_filter_fields: set[str] = set()
             for item in items:
                 entity_row = entity_rows.get(item.get(id_column))
                 if entity_row:
@@ -325,28 +381,72 @@ class IndexGeneratorPlugin(ExporterPlugin):
                         # Already a dict, no need to parse
                         item[key] = value
 
+                prepared_items.append(item)
+
+            active_filters = []
+            for filter_config in config.filters or []:
+                normalized_values = [
+                    self._normalize_filter_value(v) for v in filter_config.values
+                ]
+                resolved_any = False
+                matched_any = False
+
+                for item in prepared_items:
+                    found_filter, raw_filter_value = self._resolve_filter_value(
+                        item, filter_config.field
+                    )
+                    if not found_filter:
+                        continue
+
+                    resolved_any = True
+                    filter_value = self._normalize_filter_value(raw_filter_value)
+                    if self._filter_matches(
+                        filter_value, filter_config.operator, normalized_values
+                    ):
+                        matched_any = True
+                        break
+
+                if not resolved_any:
+                    missing_filter_fields.add(filter_config.field)
+                    continue
+
+                if not matched_any and self._is_legacy_nested_filter_path(
+                    filter_config.field
+                ):
+                    logger.warning(
+                        "Ignoring stale legacy index filter '%s' for group '%s': "
+                        "no items match configured values",
+                        filter_config.field,
+                        group_by,
+                    )
+                    continue
+
+                active_filters.append(filter_config)
+
+            # Process each item
+            processed_items = []
+            for item in prepared_items:
                 # Apply filters if configured
-                if config.filters:
+                if active_filters:
                     include_item = True
-                    for filter_config in config.filters:
-                        filter_value = self._normalize_filter_value(
-                            self._get_nested_value(item, filter_config.field)
+                    for filter_config in active_filters:
+                        found_filter, raw_filter_value = self._resolve_filter_value(
+                            item, filter_config.field
                         )
+                        if not found_filter:
+                            include_item = False
+                            break
+
+                        filter_value = self._normalize_filter_value(raw_filter_value)
                         normalized_values = [
                             self._normalize_filter_value(v)
                             for v in filter_config.values
                         ]
-                        if filter_config.operator == "in":
-                            if filter_value not in normalized_values:
-                                include_item = False
-                                break
-                        elif filter_config.operator == "equals":
-                            expected = (
-                                normalized_values[0] if normalized_values else None
-                            )
-                            if filter_value != expected:
-                                include_item = False
-                                break
+                        if not self._filter_matches(
+                            filter_value, filter_config.operator, normalized_values
+                        ):
+                            include_item = False
+                            break
 
                     if not include_item:
                         continue
@@ -363,6 +463,13 @@ class IndexGeneratorPlugin(ExporterPlugin):
                     processed_item[field.name] = field_value
 
                 processed_items.append(processed_item)
+
+            for filter_field in sorted(missing_filter_fields):
+                logger.warning(
+                    "Ignoring unresolved index filter field '%s' for group '%s'",
+                    filter_field,
+                    group_by,
+                )
 
             logger.info(f"Processed {len(processed_items)} items after filtering")
             return processed_items
@@ -404,8 +511,10 @@ class IndexGeneratorPlugin(ExporterPlugin):
             items_data = self._get_group_data(group_by, config)
 
             if not items_data:
-                logger.warning(f"No data to generate index for group '{group_by}'")
-                return
+                logger.warning(
+                    "Generating empty index for group '%s' because no items matched",
+                    group_by,
+                )
 
             output_file = output_dir / f"{group_by}" / "index.html"
             nav_depth = max(len(output_file.relative_to(output_dir).parts) - 1, 0)

@@ -93,6 +93,23 @@ def test_single_group_aggregation(plugin, sample_data):
     assert dist["Hors-forêt"] == 700
 
 
+def test_legacy_binary_config_is_migrated(plugin, sample_data):
+    """Legacy generated binary config should still transform successfully."""
+    config = {
+        "plugin": "class_object_binary_aggregator",
+        "params": {
+            "source": "shape_stats",
+            "class_object": "cover_forest",
+            "true_label": "Forêt",
+            "false_label": "Hors-forêt",
+        },
+    }
+
+    result = plugin.transform(sample_data, config)
+
+    assert result["cover_forest"] == {"Forêt": 300.0, "Hors-forêt": 700.0}
+
+
 def test_multiple_groups_aggregation(plugin, sample_data):
     """Test aggregation with multiple groups."""
 

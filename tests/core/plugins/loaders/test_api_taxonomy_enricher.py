@@ -656,6 +656,113 @@ def test_load_data_gbif_rich_parses_nested_v2_match_payload(
     assert enriched["api_response_raw"]["match"] == raw_match
 
 
+def test_gbif_match_prefers_numeric_usage_key_over_checklist_identifier(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """GBIF v1 links and occurrence requests need the numeric GBIF usage key."""
+    raw_match = {
+        "taxonID": "CK9",
+        "usage": {
+            "key": "2685484",
+            "name": "Alphitonia neocaledonica (Schltr.) Guillaumin",
+            "canonicalName": "Alphitonia neocaledonica",
+            "rank": "SPECIES",
+            "status": "ACCEPTED",
+        },
+        "diagnostics": {
+            "matchType": "EXACT",
+            "confidence": 100,
+        },
+    }
+
+    monkeypatch.setattr(enricher, "_request_json", lambda url, params=None: raw_match)
+
+    config = ApiTaxonomyEnricherConfig(
+        plugin="api_taxonomy_enricher",
+        params={
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "response_mapping": {},
+        },
+    )
+
+    summary, _ = enricher._gbif_match("Alphitonia neocaledonica", config.params)
+
+    assert summary["usage_key"] == "2685484"
+    assert enricher._gbif_build_links(summary["usage_key"]) == {
+        "species": "https://www.gbif.org/species/2685484",
+        "occurrences": "https://www.gbif.org/occurrence/search?taxon_key=2685484",
+    }
+
+
+def test_load_data_gbif_rich_does_not_query_occurrences_with_checklist_key(
+    enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
+):
+    """ChecklistBank-style keys are not valid GBIF occurrence taxon_key values."""
+    occurrence_called = False
+
+    monkeypatch.setattr(
+        enricher,
+        "_gbif_match",
+        lambda query, params: (
+            {
+                "usage_key": "CK9",
+                "scientific_name": query,
+                "canonical_name": query,
+                "rank": "SPECIES",
+                "status": "ACCEPTED",
+                "confidence": 98,
+                "match_type": "EXACT",
+                "taxonomy_source": "COL_XR",
+            },
+            {
+                "usage": {"key": "CK9", "name": query, "rank": "SPECIES"},
+                "classification": [
+                    {"key": "P", "name": "Plantae", "rank": "KINGDOM"},
+                    {"key": "R", "name": "Rhamnaceae", "rank": "FAMILY"},
+                ],
+            },
+        ),
+    )
+
+    def fake_occurrence_summary(usage_key: str):
+        nonlocal occurrence_called
+        occurrence_called = True
+        raise AssertionError(f"Unexpected occurrence query for {usage_key}")
+
+    monkeypatch.setattr(enricher, "_gbif_occurrence_summary", fake_occurrence_summary)
+
+    config_dict = {
+        "plugin": "api_taxonomy_enricher",
+        "params": {
+            "api_url": "https://api.gbif.org/v2/species/match",
+            "profile": "gbif_rich",
+            "query_field": "full_name",
+            "query_param_name": "scientificName",
+            "include_taxonomy": True,
+            "include_occurrences": True,
+            "include_media": False,
+            "response_mapping": {},
+            "cache_results": False,
+        },
+    }
+    valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
+
+    enriched = enricher.load_data(
+        {"id": 1, "full_name": "Alphitonia neocaledonica"},
+        valid_config,
+    )
+
+    assert occurrence_called is False
+    assert enriched["api_enrichment"]["links"] == {}
+    assert enriched["api_enrichment"]["taxonomy"]["family"] == "Rhamnaceae"
+    assert enriched["api_enrichment"]["block_status"]["occurrence_summary"] == "error"
+    assert (
+        "numeric usage key"
+        in enriched["api_enrichment"]["block_errors"]["occurrence_summary"]
+    )
+
+
 def test_resolve_name_with_verifier_uses_profile_default_source(
     enricher: ApiTaxonomyEnricher, monkeypatch: pytest.MonkeyPatch
 ):

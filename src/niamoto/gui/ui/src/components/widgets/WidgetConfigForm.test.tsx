@@ -146,4 +146,23 @@ describe('WidgetConfigForm', () => {
       }),
     )
   })
+
+  it('shows transformation settings before visualization settings', () => {
+    render(
+      <WidgetConfigForm
+        widget={baseWidget}
+        groupBy="taxons"
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const text = container?.textContent ?? ''
+
+    expect(text.indexOf('widgets:form.dataTransformationSection')).toBeGreaterThanOrEqual(0)
+    expect(text.indexOf('widgets:form.visualizationSection')).toBeGreaterThanOrEqual(0)
+    expect(text.indexOf('widgets:form.dataTransformationSection')).toBeLessThan(
+      text.indexOf('widgets:form.visualizationSection'),
+    )
+  })
 })
