@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '22.13.0'
           cache: 'pnpm'
           cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
 
@@ -433,7 +433,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '22.13.0'
 
       - uses: dtolnay/rust-toolchain@stable
 

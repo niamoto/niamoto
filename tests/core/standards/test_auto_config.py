@@ -94,3 +94,54 @@ def test_darwin_core_auto_config_proposes_enriched_occurrence_terms(tmp_path):
     assert result.unresolved == ["eventDate"]
     assert result.columns_inspected == 13
     assert result.rows_sampled == 1
+
+
+def test_humboldt_event_auto_config_maps_obvious_event_terms(tmp_path):
+    db_path = tmp_path / "niamoto.duckdb"
+    connection = duckdb.connect(str(db_path))
+    try:
+        connection.execute(
+            """
+            CREATE TABLE dataset_events (
+                event_id VARCHAR,
+                event_date DATE,
+                sampling_protocol VARCHAR,
+                plot_id VARCHAR
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO dataset_events VALUES (
+                'evt-1',
+                DATE '2025-03-12',
+                'transect',
+                'plot-1'
+            )
+            """
+        )
+    finally:
+        connection.close()
+
+    service = StandardProfileAutoConfigService(
+        tmp_path,
+        db_path=db_path,
+        import_config={"entities": {"datasets": {"events": {}}}},
+    )
+
+    result = service.propose(
+        name="humboldt_events",
+        standard="humboldt_event",
+        source=StandardProfileSource(type="dataset", name="events"),
+    )
+
+    assert result.profile.mappings == {
+        "eventID": {"source": "event_id"},
+        "eventDate": {"source": "event_date"},
+        "samplingProtocol": {"source": "sampling_protocol"},
+        "locationID": {"source": "plot_id"},
+    }
+    assert result.unresolved == []
+    assert result.rows_sampled == 1
+    assert result.columns_inspected == 4
+    assert result.profile.metadata["auto_config"]["unresolved"] == []

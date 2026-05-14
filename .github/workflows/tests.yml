@@ -43,7 +43,7 @@ jobs:
       if: matrix.python-version == '3.12'
       uses: pnpm/action-setup@v6
       with:
-        version: 10.17.1
+        version: 11.0.9
 
     - name: Set up Node.js
       if: matrix.python-version == '3.12'

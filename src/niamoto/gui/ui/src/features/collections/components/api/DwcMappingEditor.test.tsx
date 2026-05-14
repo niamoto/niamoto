@@ -69,6 +69,7 @@ describe('DwcMappingEditor', () => {
     sourceFields: string[] = [],
     onChange = vi.fn(),
     generatorOptions?: string[],
+    dialect?: 'legacy_dwc' | 'standard_profile',
   ) {
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -81,6 +82,7 @@ describe('DwcMappingEditor', () => {
           sourceFields={sourceFields}
           onChange={onChange}
           generatorOptions={generatorOptions}
+          dialect={dialect}
         />,
       )
     })
@@ -189,9 +191,17 @@ describe('DwcMappingEditor', () => {
       [],
       vi.fn(),
       ['current_date'],
+      'standard_profile',
     )
 
     expect(container!.textContent).toContain('current_date')
     expect(container!.textContent).not.toContain('format_event_date')
+  })
+
+  it('treats bare strings as source references for standard profile mappings', async () => {
+    await renderEditor({ eventDate: 'event.date' }, [], vi.fn(), undefined, 'standard_profile')
+
+    const inputs = Array.from(container!.querySelectorAll('input'))
+    expect((inputs[1] as HTMLInputElement).value).toBe('event.date')
   })
 })

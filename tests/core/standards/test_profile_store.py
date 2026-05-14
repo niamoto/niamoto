@@ -126,6 +126,29 @@ def test_store_rejects_unknown_profile_source_without_mutating_config():
     assert "standard_profiles" not in export_config
 
 
+def test_list_profiles_skips_malformed_entries_without_blocking_valid_profiles():
+    export_config = {
+        "exports": [],
+        "standard_profiles": [
+            {
+                "name": "broken_profile",
+                "standard": "not_a_standard",
+                "target_grain": "occurrence",
+                "source": {"type": "dataset", "name": "occurrences"},
+            },
+            {
+                "name": "dwc_occurrences",
+                "standard": "darwin_core_occurrence",
+                "target_grain": "occurrence",
+                "source": {"type": "dataset", "name": "occurrences"},
+            },
+        ],
+    }
+    store = StandardProfileStore(export_config, known_sources=KNOWN_SOURCES)
+
+    assert [profile.name for profile in store.list_profiles()] == ["dwc_occurrences"]
+
+
 def test_legacy_dwc_occurrence_json_export_is_reported_as_hint_only():
     export_config = {
         "exports": [

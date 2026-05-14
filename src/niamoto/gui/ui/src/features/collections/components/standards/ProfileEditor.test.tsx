@@ -104,6 +104,16 @@ function changeInput(element: HTMLInputElement, value: string) {
   element.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
+function changeSelect(element: HTMLSelectElement, value: string) {
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    HTMLSelectElement.prototype,
+    'value',
+  )?.set
+  valueSetter?.call(element, value)
+  element.dispatchEvent(new Event('input', { bubbles: true }))
+  element.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 function submit(form: HTMLFormElement | null) {
   if (!form) {
     throw new Error('Expected form to exist')
@@ -311,6 +321,123 @@ describe('ProfileEditor', () => {
         name: 'dwc_taxons',
         mappings: { occurrenceID: { source: 'id' } },
         outputs: createdProfile.outputs,
+      }),
+    )
+  })
+
+  it('resets mappings and outputs when switching standards', async () => {
+    const createdProfile: StandardProfileConfig = {
+      name: 'humboldt_taxons',
+      enabled: true,
+      standard: 'humboldt_event',
+      target_grain: 'event',
+      source: { type: 'collection', name: 'taxons' },
+      mappings: { eventID: { source: 'id' } },
+      outputs: [],
+      validation_status: 'draft',
+      metadata: {},
+    }
+    mutations.create.mockResolvedValue({ profile: createdProfile })
+
+    await renderEditor(<ProfileEditor catalog={catalog} currentCollectionName="taxons" />)
+
+    await act(async () => {
+      changeInput(container!.querySelector('#standard-profile-name')!, 'humboldt_taxons')
+    })
+    await act(async () => {
+      changeSelect(
+        container!.querySelector('#standard-profile-standard')!,
+        'humboldt_event',
+      )
+    })
+    await act(async () => {
+      submit(container!.querySelector('form'))
+    })
+
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        standard: 'humboldt_event',
+        target_grain: 'event',
+        mappings: { eventID: { source: 'id' } },
+        outputs: [
+          {
+            type: 'api_json',
+            enabled: true,
+            params: { output_dir: 'exports/profiles/humboldt_taxons' },
+          },
+          {
+            type: 'standard_files',
+            enabled: true,
+            params: { output_dir: 'exports/profiles/humboldt_taxons' },
+          },
+        ],
+      }),
+    )
+  })
+
+  it('ignores auto-config results after the user edits the draft', async () => {
+    const autoConfiguredProfile: StandardProfileConfig = {
+      name: 'dwc_auto',
+      enabled: true,
+      standard: 'darwin_core_occurrence',
+      target_grain: 'occurrence',
+      source: { type: 'collection', name: 'taxons' },
+      mappings: { occurrenceID: { source: 'auto_id' } },
+      outputs: [{ type: 'api_json', enabled: true, params: {} }],
+      validation_status: 'draft',
+      metadata: {},
+    }
+    let resolveAutoConfig:
+      | ((value: {
+          profile: StandardProfileConfig
+          terms: never[]
+          unresolved: never[]
+          notes: never[]
+          record_source: { type: 'collection'; name: 'taxons' }
+          rows_sampled: number
+          columns_inspected: number
+        }) => void)
+      | undefined
+    mutations.autoConfig.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAutoConfig = resolve
+        }),
+    )
+    mutations.create.mockResolvedValue({ profile: autoConfiguredProfile })
+
+    await renderEditor(<ProfileEditor catalog={catalog} currentCollectionName="taxons" />)
+
+    await act(async () => {
+      changeInput(container!.querySelector('#standard-profile-name')!, 'manual_profile')
+    })
+    await act(async () => {
+      click(container!.querySelector('button[title="Build a draft."]'))
+    })
+    await act(async () => {
+      changeInput(container!.querySelector('#standard-profile-grain')!, 'manual_grain')
+    })
+    await act(async () => {
+      resolveAutoConfig?.({
+        profile: autoConfiguredProfile,
+        terms: [],
+        unresolved: [],
+        notes: [],
+        record_source: { type: 'collection', name: 'taxons' },
+        rows_sampled: 1,
+        columns_inspected: 1,
+      })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      submit(container!.querySelector('form'))
+    })
+
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'manual_profile',
+        target_grain: 'manual_grain',
+        mappings: { occurrenceID: { source: 'id' } },
       }),
     )
   })

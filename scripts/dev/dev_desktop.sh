@@ -17,10 +17,13 @@ API_PORT="${NIAMOTO_DESKTOP_API_PORT:-8080}"
 VITE_HOST="${NIAMOTO_DESKTOP_VITE_HOST:-127.0.0.1}"
 VITE_URL="http://${VITE_HOST}:${VITE_PORT}"
 VITE_VERSION_MODULE_URL="${VITE_URL}/src/shared/desktop/updater/useAppUpdater.ts"
+REQUIRED_NODE_VERSION="${NIAMOTO_DESKTOP_REQUIRED_NODE_VERSION:-22.13.0}"
+REQUIRED_PNPM_MAJOR="${NIAMOTO_DESKTOP_REQUIRED_PNPM_MAJOR:-11}"
 STARTED_VITE=0
 VITE_PID=""
 RESET_USER_CONFIG=0
 INSTANCE_ARG=""
+ORIGINAL_ARGS=("$@")
 
 case "$(uname -s)" in
     Darwin)
@@ -55,6 +58,7 @@ print_usage() {
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Parse arguments
@@ -149,6 +153,82 @@ detect_running_vite_version() {
         | head -n 1
 }
 
+version_ge() {
+    local have="${1#v}"
+    local need="${2#v}"
+    local IFS=.
+    local have_parts=($have)
+    local need_parts=($need)
+
+    for i in 0 1 2; do
+        local have_part="${have_parts[$i]:-0}"
+        local need_part="${need_parts[$i]:-0}"
+
+        if ((10#$have_part > 10#$need_part)); then
+            return 0
+        fi
+        if ((10#$have_part < 10#$need_part)); then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+find_compatible_fnm_node() {
+    local candidate
+
+    while read -r candidate; do
+        if version_ge "$candidate" "$REQUIRED_NODE_VERSION"; then
+            echo "$candidate"
+            return 0
+        fi
+    done < <(fnm list 2>/dev/null | sed -n 's/.*v\([0-9][0-9.]*\).*/\1/p')
+
+    return 1
+}
+
+check_frontend_tooling() {
+    if ! command -v node >/dev/null 2>&1; then
+        echo -e "${RED}❌ Node.js is required to start the Vite dev server.${NC}"
+        exit 1
+    fi
+
+    local node_version
+    node_version="$(node -v | sed 's/^v//')"
+    if ! version_ge "$node_version" "$REQUIRED_NODE_VERSION"; then
+        if command -v fnm >/dev/null 2>&1 && [[ "${NIAMOTO_DESKTOP_FNM_REEXEC:-0}" != "1" ]]; then
+            local fnm_node_version
+            fnm_node_version="$(find_compatible_fnm_node || true)"
+            if [[ -n "$fnm_node_version" ]]; then
+                echo -e "${YELLOW}ℹ️  Switching to Node.js ${fnm_node_version} with fnm for pnpm ${REQUIRED_PNPM_MAJOR}.${NC}"
+                export NIAMOTO_DESKTOP_FNM_REEXEC=1
+                exec fnm exec --using "$fnm_node_version" "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+            fi
+        fi
+
+        echo -e "${RED}❌ Node.js ${REQUIRED_NODE_VERSION}+ is required for pnpm ${REQUIRED_PNPM_MAJOR}.${NC}"
+        echo -e "${YELLOW}Current Node.js version: ${node_version}${NC}"
+        if command -v fnm >/dev/null 2>&1; then
+            echo -e "${YELLOW}Try: fnm install ${REQUIRED_NODE_VERSION} && fnm use ${REQUIRED_NODE_VERSION}${NC}"
+        fi
+        exit 1
+    fi
+
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo -e "${RED}❌ pnpm ${REQUIRED_PNPM_MAJOR} is required to start the Vite dev server.${NC}"
+        exit 1
+    fi
+
+    local pnpm_version
+    pnpm_version="$(pnpm -v)"
+    if [[ "${pnpm_version%%.*}" != "$REQUIRED_PNPM_MAJOR" ]]; then
+        echo -e "${RED}❌ pnpm ${REQUIRED_PNPM_MAJOR}.x is required.${NC}"
+        echo -e "${YELLOW}Current pnpm version: ${pnpm_version}${NC}"
+        exit 1
+    fi
+}
+
 stop_vite_on_port() {
     local pids
     pids="$(lsof -ti tcp:"$VITE_PORT" -sTCP:LISTEN 2>/dev/null || true)"
@@ -180,6 +260,7 @@ stop_api_on_port() {
 echo ""
 echo -e "${BLUE}⚛️  Step 1: Checking Vite dev server...${NC}"
 cd src/niamoto/gui/ui
+check_frontend_tooling
 
 REUSE_VITE=0
 if curl -sf "$VITE_URL" > /dev/null; then

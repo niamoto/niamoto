@@ -4,7 +4,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import Mock, call, patch, MagicMock, mock_open
 from unittest import mock
 from datetime import datetime
 import tempfile
@@ -475,6 +475,38 @@ def test_fetch_group_data_uses_first_existing_default_table():
 
     assert rows == [{"plots_id": 1, "name": "Plot A"}]
     repository.has_table.assert_any_call("plots")
+
+
+def test_fetch_group_data_falls_back_to_stats_table_when_base_table_is_missing():
+    exporter = JsonApiExporter(Mock())
+    repository = Mock()
+    repository.has_table.side_effect = lambda table_name: table_name == "plots_stats"
+    connection = Mock()
+    repository.engine.connect.return_value.__enter__ = Mock(return_value=connection)
+    repository.engine.connect.return_value.__exit__ = Mock(return_value=None)
+    result = Mock()
+    result.fetchall.return_value = [(1, '{"name":{"value":"Plot A"}}')]
+    result.keys.return_value = ["plots_id", "general_info"]
+
+    def execute(query):
+        assert str(query) == 'SELECT * FROM "plots_stats"'
+        return result
+
+    connection.execute.side_effect = execute
+
+    rows = exporter._fetch_group_data(repository, None, "plots")
+
+    assert rows == [
+        {
+            "plots_id": 1,
+            "general_info": {"name": {"value": "Plot A"}},
+            "name": {"value": "Plot A"},
+        }
+    ]
+    assert repository.has_table.call_args_list[:2] == [
+        call("plots"),
+        call("plots_stats"),
+    ]
 
 
 class TestJsonApiExporterSecurity:

@@ -5,7 +5,9 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
+import shutil
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -14,7 +16,9 @@ from typing import Any, Iterable, cast
 from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.common.table_resolver import resolve_entity_table
 from niamoto.core.collections import CollectionCatalogService
+from niamoto.core.imports.registry import EntityKind, EntityRegistry
 from niamoto.core.plugins.exporters.dwc_archive_exporter import (
     DwcArchiveExporter,
     DwcArchiveExporterParams,
@@ -83,35 +87,35 @@ class StandardProfileOutputService:
         output_source_grain = self._output_source_grain(
             profile, validation.compatibility, record_source
         )
-        raw_records = (
-            list(records) if records is not None else self._load_records(record_source)
-        )
-        mapped_records = self._map_records(profile, raw_records)
-
         metadata = self._build_metadata(
             profile=profile,
             output=output,
             validation_status=validation.status,
             source_grain=output_source_grain,
-            records_count=len(mapped_records),
+            records_count=0,
             record_source=record_source
             if not _same_source(profile.source, record_source)
             else None,
             draft=draft,
         )
+        source_records = (
+            records if records is not None else self._iter_records(record_source)
+        )
+        mapped_records = self._iter_mapped_records(profile, source_records)
 
         if output.type == "api_json":
-            files, output_path = self._write_api_json(
+            files, output_path, records_count = self._write_api_json(
                 profile, output, mapped_records, metadata
             )
         elif output.type == "dwc_archive":
-            files, output_path = self._write_dwc_archive(
+            files, output_path, records_count = self._write_dwc_archive(
                 profile, output, mapped_records
             )
         else:
-            files, output_path = self._write_standard_files(
+            files, output_path, records_count = self._write_standard_files(
                 profile, output, mapped_records, metadata
             )
+        metadata["records_count"] = records_count
 
         warnings = [
             *validation.compatibility.warnings,
@@ -346,14 +350,27 @@ class StandardProfileOutputService:
         *,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
+        return list(self._iter_records(source, limit=limit))
+
+    def _iter_records(
+        self,
+        source: StandardProfileSource,
+        *,
+        limit: int | None = None,
+        batch_size: int = 1000,
+    ) -> Iterable[dict[str, Any]]:
         if self.db_path is None or not self.db_path.exists():
-            return []
+            raise ValueError(
+                f"Cannot load source '{source.type}:{source.name}': project database was not found"
+            )
 
         database = Database(str(self.db_path), optimize=False, read_only=True)
         try:
             table_name = self._resolve_source_table(database, source)
             if table_name is None:
-                return []
+                raise ValueError(
+                    f"Cannot load source '{source.type}:{source.name}': no imported table was found"
+                )
             escaped_table = table_name.replace('"', '""')
             limit_clause = ""
             if limit is not None:
@@ -364,7 +381,9 @@ class StandardProfileOutputService:
                     text(f'SELECT * FROM "{escaped_table}"{limit_clause}')
                 )
                 columns = list(result.keys())
-                return [dict(zip(columns, row)) for row in result.fetchall()]
+                while rows := result.fetchmany(batch_size):
+                    for row in rows:
+                        yield dict(zip(columns, row))
         finally:
             database.close_db_session()
             database.engine.dispose()
@@ -374,37 +393,41 @@ class StandardProfileOutputService:
         database: Database,
         source: StandardProfileSource,
     ) -> str | None:
-        for candidate in self._source_table_candidates(source):
-            if database.has_table(candidate):
-                return candidate
-        return None
+        return resolve_entity_table(
+            database,
+            source.name,
+            registry=self._entity_registry(database),
+            kind=_entity_kind_for_source(source),
+        )
 
-    def _source_table_candidates(self, source: StandardProfileSource) -> list[str]:
-        if source.type == "dataset":
-            return [f"dataset_{source.name}", source.name]
-        if source.type in {"collection", "reference"}:
-            return [f"entity_{source.name}", f"reference_{source.name}", source.name]
-        return [source.name]
+    def _entity_registry(self, database: Database) -> EntityRegistry | None:
+        if not database.has_table(EntityRegistry.ENTITIES_TABLE):
+            return None
+        return EntityRegistry(database)
 
     def _map_records(
         self,
         profile: StandardProfileConfig,
         records: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
+        return list(self._iter_mapped_records(profile, records))
+
+    def _iter_mapped_records(
+        self,
+        profile: StandardProfileConfig,
+        records: Iterable[dict[str, Any]],
+    ) -> Iterable[dict[str, Any]]:
         if profile.standard == "humboldt_event":
             transformer = NiamotoHumboldtEventTransformer(cast(Any, None))
-            return [
-                transformer.transform(record, {"mapping": profile.mappings})
-                for record in records
-            ]
+            for record in records:
+                yield transformer.transform(record, {"mapping": profile.mappings})
+            return
 
-        return [
-            {
+        for index, record in enumerate(records, start=1):
+            yield {
                 term: _resolve_mapping_value(record, mapping, index=index)
                 for term, mapping in profile.mappings.items()
             }
-            for index, record in enumerate(records, start=1)
-        ]
 
     def _select_preview_record(
         self,
@@ -472,50 +495,100 @@ class StandardProfileOutputService:
         self,
         profile: StandardProfileConfig,
         output: StandardProfileOutput,
-        records: list[dict[str, Any]],
+        records: Iterable[dict[str, Any]],
         metadata: dict[str, Any],
-    ) -> tuple[list[Path], Path]:
+    ) -> tuple[list[Path], Path, int]:
         output_dir = self._resolve_output_dir(output, profile)
         output_dir.mkdir(parents=True, exist_ok=True)
         profile_filename = _safe_path_segment(profile.name, "profile name")
         output_path = output_dir / f"{profile_filename}.json"
-        output_path.write_text(
-            json.dumps(
-                {"metadata": metadata, "records": records},
-                ensure_ascii=False,
-                indent=2,
-                default=str,
-            ),
-            encoding="utf-8",
-        )
-        return [output_path], output_path
+        records_tmp_path = output_path.with_name(f".{output_path.stem}.records.tmp")
+        output_tmp_path = output_path.with_name(f".{output_path.name}.tmp")
+        records_count = 0
+        try:
+            with records_tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write("[")
+                for record in records:
+                    if records_count > 0:
+                        handle.write(",")
+                    handle.write("\n  ")
+                    json.dump(record, handle, ensure_ascii=False, default=str)
+                    records_count += 1
+                if records_count > 0:
+                    handle.write("\n")
+                handle.write("]")
+
+            metadata["records_count"] = records_count
+            with output_tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write('{\n  "metadata": ')
+                json.dump(metadata, handle, ensure_ascii=False, indent=2, default=str)
+                handle.write(',\n  "records": ')
+                with records_tmp_path.open("r", encoding="utf-8") as records_handle:
+                    while chunk := records_handle.read(1024 * 1024):
+                        handle.write(chunk)
+                handle.write("\n}\n")
+            os.replace(output_tmp_path, output_path)
+        finally:
+            for tmp_path in (records_tmp_path, output_tmp_path):
+                if tmp_path.exists():
+                    tmp_path.unlink()
+
+        return [output_path], output_path, records_count
 
     def _write_dwc_archive(
         self,
         profile: StandardProfileConfig,
         output: StandardProfileOutput,
-        records: list[dict[str, Any]],
-    ) -> tuple[list[Path], Path]:
+        records: Iterable[dict[str, Any]],
+    ) -> tuple[list[Path], Path, int]:
         if profile.standard != "darwin_core_occurrence":
             raise ValueError("DwC-A output requires a Darwin Core Occurrence profile")
 
+        mapped_records = list(records)
         output_dir = self._resolve_output_dir(output, profile)
         params_payload = {**output.params, "output_dir": str(output_dir)}
         params = DwcArchiveExporterParams.model_validate(params_payload)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        staging_dir = output_dir / f".{params.archive_name}.tmp"
+        if staging_dir.exists():
+            if staging_dir.is_dir():
+                shutil.rmtree(staging_dir)
+            else:
+                staging_dir.unlink()
+        staging_dir.mkdir(parents=True)
+
         exporter = DwcArchiveExporter(db=cast(Any, None))
-        files = exporter.generate_archive_from_occurrences(records, output_dir, params)
-        archive_path = output_dir / params.archive_name
-        if not files or not archive_path.exists():
-            raise ValueError("DwC-A output generated no archive files")
-        return files, archive_path
+        try:
+            staging_params = params.model_copy(update={"output_dir": str(staging_dir)})
+            staging_files = exporter.generate_archive_from_occurrences(
+                mapped_records,
+                staging_dir,
+                staging_params,
+            )
+            staging_archive_path = staging_dir / params.archive_name
+            if not staging_files or not staging_archive_path.exists():
+                raise ValueError("DwC-A output generated no archive files")
+
+            final_files: list[Path] = []
+            for staging_file in staging_files:
+                final_path = output_dir / staging_file.name
+                os.replace(staging_file, final_path)
+                final_files.append(final_path)
+
+            archive_path = output_dir / params.archive_name
+            return final_files, archive_path, len(mapped_records)
+        finally:
+            if staging_dir.exists():
+                shutil.rmtree(staging_dir)
 
     def _write_standard_files(
         self,
         profile: StandardProfileConfig,
         output: StandardProfileOutput,
-        records: list[dict[str, Any]],
+        records: Iterable[dict[str, Any]],
         metadata: dict[str, Any],
-    ) -> tuple[list[Path], Path]:
+    ) -> tuple[list[Path], Path, int]:
         if profile.standard != "humboldt_event":
             raise ValueError(
                 "Standard files output currently supports Humboldt/Event profiles"
@@ -524,27 +597,34 @@ class StandardProfileOutputService:
         output_dir = self._resolve_output_dir(output, profile)
         output_dir.mkdir(parents=True, exist_ok=True)
         event_path = output_dir / "event.csv"
-        terms = sorted({term for record in records for term in record.keys()})
-        if not terms:
-            terms = sorted(profile.mappings.keys())
+        terms = sorted(profile.mappings.keys())
 
-        with event_path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=terms, extrasaction="ignore")
-            writer.writeheader()
-            for record in records:
-                writer.writerow(
-                    {
-                        term: "" if record.get(term) is None else record.get(term)
-                        for term in terms
-                    }
-                )
+        event_tmp_path = event_path.with_name(f".{event_path.name}.tmp")
+        records_count = 0
+        try:
+            with event_tmp_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=terms, extrasaction="ignore")
+                writer.writeheader()
+                for record in records:
+                    records_count += 1
+                    writer.writerow(
+                        {
+                            term: "" if record.get(term) is None else record.get(term)
+                            for term in terms
+                        }
+                    )
+            os.replace(event_tmp_path, event_path)
+        finally:
+            if event_tmp_path.exists():
+                event_tmp_path.unlink()
 
         metadata_path = output_dir / "metadata.json"
-        metadata_path.write_text(
+        metadata["records_count"] = records_count
+        _atomic_write_text(
+            metadata_path,
             json.dumps(metadata, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
         )
-        return [event_path, metadata_path], event_path
+        return [event_path, metadata_path], event_path, records_count
 
     def _resolve_output_dir(
         self,
@@ -687,6 +767,12 @@ def _generate_value(
     if generator == "current_date":
         return date.today().isoformat()
     if generator == "unique_occurrence_id":
+        source = params.get("source") or params.get("source_field")
+        if isinstance(source, str) and source.strip():
+            source_value = _read_path(record, _normalize_source_path(source))
+            if source_value not in (None, ""):
+                prefix = params.get("prefix")
+                return f"{prefix}{source_value}" if prefix is not None else source_value
         prefix = str(params.get("prefix", "occurrence_"))
         return f"{prefix}{index}"
     if generator == "extract_geometry_coordinate":
@@ -812,6 +898,24 @@ def _safe_path_segment(value: str, label: str) -> str:
     if segment in {".", ".."} or "/" in segment or "\\" in segment:
         raise ValueError(f"{label} must be a safe path segment")
     return segment
+
+
+def _entity_kind_for_source(source: StandardProfileSource) -> str | None:
+    if source.type == "dataset":
+        return EntityKind.DATASET.value
+    if source.type == "reference":
+        return EntityKind.REFERENCE.value
+    return None
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
 
 
 def _same_source(

@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles } from 'lucide-react'
 
@@ -102,6 +102,8 @@ export function ProfileEditor({
   const [error, setError] = useState<string | null>(null)
   const [autoConfigSummary, setAutoConfigSummary] =
     useState<AutoConfigSummary | null>(null)
+  const editRevisionRef = useRef(0)
+  const autoConfigRequestRef = useRef(0)
   const effectiveSourceValue =
     sourceValue ||
     (profile ? sourceValueFromSource(profile.source) : sourceValueFromOption(defaultSource))
@@ -146,7 +148,13 @@ export function ProfileEditor({
   const isSaving = createProfile.isPending || updateProfile.isPending
   const isBusy = isSaving || autoConfigureProfile.isPending
 
+  const markEdited = () => {
+    editRevisionRef.current += 1
+    setAutoConfigSummary(null)
+  }
+
   const toggleOutput = (outputType: StandardProfileOutputType) => {
+    markEdited()
     setEnabledOutputs((current) => {
       if (current.includes(outputType)) {
         return current.filter((item) => item !== outputType)
@@ -156,16 +164,11 @@ export function ProfileEditor({
   }
 
   const handleStandardChange = (nextStandard: StandardProfileType) => {
+    markEdited()
     setStandard(nextStandard)
     setTargetGrain(defaultTargetGrain(nextStandard))
-    setMappings((current) =>
-      Object.keys(current).length > 0 ? current : defaultMappings(nextStandard),
-    )
-    setEnabledOutputs((current) => {
-      const allowed = OUTPUT_TYPES_BY_STANDARD[nextStandard]
-      const retained = current.filter((outputType) => allowed.includes(outputType))
-      return retained.length > 0 ? retained : allowed
-    })
+    setMappings(defaultMappings(nextStandard))
+    setEnabledOutputs(OUTPUT_TYPES_BY_STANDARD[nextStandard])
   }
 
   const handleAutoConfigure = async () => {
@@ -174,6 +177,9 @@ export function ProfileEditor({
     }
 
     const source = selectedProfileSource
+    const requestId = autoConfigRequestRef.current + 1
+    autoConfigRequestRef.current = requestId
+    const requestRevision = editRevisionRef.current
 
     setError(null)
     setAutoConfigSummary(null)
@@ -184,6 +190,12 @@ export function ProfileEditor({
         target_grain: targetGrain.trim() || undefined,
         source,
       })
+      if (
+        requestId !== autoConfigRequestRef.current ||
+        requestRevision !== editRevisionRef.current
+      ) {
+        return
+      }
       const proposedProfile = result.profile
       setName((current) => current || proposedProfile.name)
       setStandard(proposedProfile.standard)
@@ -202,6 +214,12 @@ export function ProfileEditor({
         notes: result.notes,
       })
     } catch (autoConfigError) {
+      if (
+        requestId !== autoConfigRequestRef.current ||
+        requestRevision !== editRevisionRef.current
+      ) {
+        return
+      }
       setError(
         autoConfigError instanceof Error
           ? autoConfigError.message
@@ -317,7 +335,10 @@ export function ProfileEditor({
               <Input
                 id="standard-profile-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  markEdited()
+                  setName(event.target.value)
+                }}
                 disabled={Boolean(profile)}
                 required
               />
@@ -351,7 +372,10 @@ export function ProfileEditor({
               <select
                 id="standard-profile-source"
                 value={effectiveSourceValue}
-                onChange={(event) => setSourceValue(event.target.value)}
+                onChange={(event) => {
+                  markEdited()
+                  setSourceValue(event.target.value)
+                }}
                 className="h-8 w-full rounded-theme-sm border border-input bg-background px-3 text-sm outline-none transition-theme-fast focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
@@ -370,7 +394,10 @@ export function ProfileEditor({
               <Input
                 id="standard-profile-grain"
                 value={targetGrain}
-                onChange={(event) => setTargetGrain(event.target.value)}
+                onChange={(event) => {
+                  markEdited()
+                  setTargetGrain(event.target.value)
+                }}
                 required
               />
             </div>
@@ -378,12 +405,16 @@ export function ProfileEditor({
 
           <DwcMappingEditor
             value={mappings}
-            onChange={setMappings}
             title={t('collections.standards.mappingTitle')}
             description={t('collections.standards.mappingHelp')}
             referenceHelp={t('collections.standards.mappingReferenceHelp')}
             sourceFields={sourceFields}
             generatorOptions={STANDARD_GENERATORS_BY_STANDARD[standard]}
+            dialect="standard_profile"
+            onChange={(nextMappings) => {
+              markEdited()
+              setMappings(nextMappings)
+            }}
           />
 
           <div className="space-y-2">

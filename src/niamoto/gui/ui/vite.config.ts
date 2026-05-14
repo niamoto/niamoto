@@ -18,6 +18,12 @@ export default defineConfig({
   },
   plugins: [react()],
   test: {
+    setupFiles: ['./src/test/setupDomStorage.ts'],
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost/',
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary', 'lcov'],

@@ -20,6 +20,7 @@ vi.mock('react-i18next', () => ({
         'collections.standards.outputTypes.dwc_archive': 'Darwin Core Archive',
         'collections.standards.outputEnabled': 'Enabled',
         'collections.standards.generateDraftJson': 'Generate draft JSON',
+        'collections.standards.generatePublicationJson': 'Generate JSON',
         'collections.standards.generateDraftOutput': 'Generate test files',
         'collections.standards.generatePublicationFile': 'Generate files',
         'collections.standards.lastOutput': 'Last output',
@@ -138,27 +139,27 @@ describe('ProfileOutputsPanel', () => {
     })
   }
 
-  it('allows draft API JSON but disables publication files on critical validation', async () => {
+  it('allows API JSON but disables publication files on critical validation', async () => {
     executeOutput.mockResolvedValue({
       output_path: '/tmp/dwc_occurrences.json',
     })
     await renderPanel()
 
     const buttons = Array.from(container!.querySelectorAll('button'))
-    const draftButton = buttons.find((button) =>
-      button.textContent?.includes('Generate draft JSON'),
+    const jsonButton = buttons.find((button) =>
+      button.textContent?.includes('Generate JSON'),
     )
     const publicationButton = buttons.find((button) =>
       button.textContent?.includes('Generate files'),
     )
 
-    expect(draftButton).toBeTruthy()
-    expect(draftButton?.hasAttribute('disabled')).toBe(false)
+    expect(jsonButton).toBeTruthy()
+    expect(jsonButton?.hasAttribute('disabled')).toBe(false)
     expect(publicationButton?.hasAttribute('disabled')).toBe(true)
     expect(container?.textContent).toContain('Publication blocked')
 
     await act(async () => {
-      click(draftButton ?? null)
+      click(jsonButton ?? null)
     })
 
     expect(executeOutput).toHaveBeenCalledWith('api_json')

@@ -21,6 +21,8 @@ pnpm install
 pnpm dev
 ```
 
+Requires Node.js 22.13 or newer and pnpm 11.
+
 Useful commands:
 
 ```bash
