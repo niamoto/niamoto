@@ -56,12 +56,21 @@ def test_numeric_series_distribution_uses_bar_plot_with_distribution_config():
     assert suggestion.category == "chart"
     assert suggestion.icon == "bar-chart"
     assert suggestion.config["source"] == "plot_stats"
-    assert suggestion.config["x_axis"] == "tops"
-    assert suggestion.config["y_axis"] == "counts"
-    assert suggestion.config["orientation"] == "v"
-    assert suggestion.config["x_label"] == "DBH_BINS"
-    assert suggestion.config["y_label"] == "%"
-    assert suggestion.to_dict()["is_recommended"] is True
+    assert suggestion.config["class_object"] == "dbh_bins"
+    assert suggestion.widget_params == {
+        "orientation": "v",
+        "x_axis": "tops",
+        "y_axis": "counts",
+        "sort_order": "descending",
+        "gradient_color": "#8B4513",
+        "gradient_mode": "luminance",
+        "show_legend": False,
+        "labels": {"tops": "DBH_BINS", "counts": "%"},
+    }
+    suggestion_dict = suggestion.to_dict()
+    assert suggestion_dict["is_recommended"] is True
+    assert suggestion_dict["widget_plugin"] == "bar_plot"
+    assert suggestion_dict["widget_params"] == suggestion.widget_params
 
 
 def test_small_categorical_series_prefers_donut_chart():
@@ -85,7 +94,11 @@ def test_small_categorical_series_prefers_donut_chart():
     assert suggestion.category == "donut"
     assert suggestion.icon == "pie-chart"
     assert suggestion.config["class_object"] == "top10_family"
-    assert "orientation" not in suggestion.config
+    assert suggestion.widget_params == {
+        "labels_field": "tops",
+        "values_field": "counts",
+        "show_legend": False,
+    }
 
 
 def test_binary_class_object_preserves_detected_labels_in_config():
@@ -108,9 +121,21 @@ def test_binary_class_object_preserves_detected_labels_in_config():
     assert suggestion.widget_plugin == "donut_chart"
     assert suggestion.config == {
         "source": "plot_stats",
-        "class_object": "fertility",
-        "true_label": "Fertile",
-        "false_label": "Sterile",
+        "groups": [
+            {
+                "label": "fertility",
+                "field": "fertility",
+                "classes": ["Fertile", "Sterile"],
+                "class_mapping": {
+                    "Fertile": "Fertile",
+                    "Sterile": "Sterile",
+                },
+            }
+        ],
+    }
+    assert suggestion.widget_params == {
+        "subplots": [{"name": "Fertility", "data_key": "fertility"}],
+        "show_legend": False,
     }
     assert suggestion.to_dict()["is_recommended"] is False
 
@@ -133,8 +158,14 @@ def test_field_aggregator_uses_safe_default_when_samples_are_missing():
 
     assert suggestion is not None
     assert suggestion.widget_plugin == "radial_gauge"
-    assert suggestion.config["output_field"] == "species_count"
-    assert suggestion.config["max_value"] == 100
+    assert suggestion.config == {
+        "source": "plot_stats",
+        "fields": [{"class_object": "species_count", "target": "species_count"}],
+    }
+    assert suggestion.widget_params == {
+        "value_field": "species_count.value",
+        "max_value": 100,
+    }
 
 
 def test_suggest_from_source_returns_sorted_suggestions(monkeypatch):

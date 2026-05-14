@@ -800,24 +800,45 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             }
 
         summary["block_status"]["match"] = "complete"
-        summary["links"] = self._gbif_build_links(str(usage_key))
+        public_usage_key = self._gbif_extract_public_usage_key(match_raw)
+        if not public_usage_key and self._gbif_is_numeric_key(usage_key):
+            public_usage_key = str(usage_key)
+        summary["links"] = self._gbif_build_links(public_usage_key)
 
         if params.include_taxonomy:
-            try:
-                taxonomy_summary, taxonomy_raw = self._gbif_taxonomy(str(usage_key))
-                summary["taxonomy"] = taxonomy_summary
-                summary["block_status"]["taxonomy"] = "complete"
-                raw_payload["taxonomy"] = taxonomy_raw
-                processed_payload["taxonomy"] = taxonomy_summary
-                summary["provenance"]["endpoints"].extend(
-                    [
-                        "v1/species/{usageKey}",
-                        "v1/species/{usageKey}/vernacularNames",
-                        "v1/species/{usageKey}/synonyms",
-                        "v1/species/{usageKey}/iucnRedListCategory",
-                    ]
-                )
-            except Exception as exc:
+            if public_usage_key:
+                try:
+                    taxonomy_summary, taxonomy_raw = self._gbif_taxonomy(
+                        public_usage_key
+                    )
+                    summary["taxonomy"] = taxonomy_summary
+                    summary["block_status"]["taxonomy"] = "complete"
+                    raw_payload["taxonomy"] = taxonomy_raw
+                    processed_payload["taxonomy"] = taxonomy_summary
+                    summary["provenance"]["endpoints"].extend(
+                        [
+                            "v1/species/{usageKey}",
+                            "v1/species/{usageKey}/vernacularNames",
+                            "v1/species/{usageKey}/synonyms",
+                            "v1/species/{usageKey}/iucnRedListCategory",
+                        ]
+                    )
+                except Exception as exc:
+                    taxonomy_summary, taxonomy_raw = self._gbif_taxonomy_from_match(
+                        match_raw
+                    )
+                    if taxonomy_summary:
+                        summary["taxonomy"] = taxonomy_summary
+                        summary["block_status"]["taxonomy"] = "complete"
+                        raw_payload["taxonomy"] = taxonomy_raw
+                        processed_payload["taxonomy"] = taxonomy_summary
+                        summary["provenance"]["endpoints"].append(
+                            "v2/species/match:classification"
+                        )
+                    else:
+                        summary["block_status"]["taxonomy"] = "error"
+                        summary["block_errors"]["taxonomy"] = str(exc)
+            else:
                 taxonomy_summary, taxonomy_raw = self._gbif_taxonomy_from_match(
                     match_raw
                 )
@@ -831,35 +852,51 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     )
                 else:
                     summary["block_status"]["taxonomy"] = "error"
-                    summary["block_errors"]["taxonomy"] = str(exc)
+                    summary["block_errors"]["taxonomy"] = (
+                        "GBIF match did not include a numeric usage key."
+                    )
 
         if params.include_occurrences:
-            try:
-                occurrence_summary, occurrence_raw = self._gbif_occurrence_summary(
-                    str(usage_key)
-                )
-                summary["occurrence_summary"] = occurrence_summary
-                summary["block_status"]["occurrence_summary"] = "complete"
-                raw_payload["occurrence_summary"] = occurrence_raw
-                processed_payload["occurrence_summary"] = occurrence_summary
-                summary["provenance"]["endpoints"].append("v1/occurrence/search")
-            except Exception as exc:
+            if public_usage_key:
+                try:
+                    occurrence_summary, occurrence_raw = self._gbif_occurrence_summary(
+                        public_usage_key
+                    )
+                    summary["occurrence_summary"] = occurrence_summary
+                    summary["block_status"]["occurrence_summary"] = "complete"
+                    raw_payload["occurrence_summary"] = occurrence_raw
+                    processed_payload["occurrence_summary"] = occurrence_summary
+                    summary["provenance"]["endpoints"].append("v1/occurrence/search")
+                except Exception as exc:
+                    summary["block_status"]["occurrence_summary"] = "error"
+                    summary["block_errors"]["occurrence_summary"] = str(exc)
+            else:
                 summary["block_status"]["occurrence_summary"] = "error"
-                summary["block_errors"]["occurrence_summary"] = str(exc)
+                summary["block_errors"]["occurrence_summary"] = (
+                    "GBIF match did not include a numeric usage key."
+                )
 
         if params.include_media:
-            try:
-                media_summary, media_raw = self._gbif_media_summary(
-                    str(usage_key), params.media_limit
-                )
-                summary["media_summary"] = media_summary
-                summary["block_status"]["media_summary"] = "complete"
-                raw_payload["media_summary"] = media_raw
-                processed_payload["media_summary"] = media_summary
-                summary["provenance"]["endpoints"].append("v1/species/{usageKey}/media")
-            except Exception as exc:
+            if public_usage_key:
+                try:
+                    media_summary, media_raw = self._gbif_media_summary(
+                        public_usage_key, params.media_limit
+                    )
+                    summary["media_summary"] = media_summary
+                    summary["block_status"]["media_summary"] = "complete"
+                    raw_payload["media_summary"] = media_raw
+                    processed_payload["media_summary"] = media_summary
+                    summary["provenance"]["endpoints"].append(
+                        "v1/species/{usageKey}/media"
+                    )
+                except Exception as exc:
+                    summary["block_status"]["media_summary"] = "error"
+                    summary["block_errors"]["media_summary"] = str(exc)
+            else:
                 summary["block_status"]["media_summary"] = "error"
-                summary["block_errors"]["media_summary"] = str(exc)
+                summary["block_errors"]["media_summary"] = (
+                    "GBIF match did not include a numeric usage key."
+                )
 
         summary["provenance"]["outcome"] = (
             "partial" if summary["block_errors"] else "complete"
@@ -2267,7 +2304,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         return (params.taxonomy_source or "GBIF").strip().upper().replace(" ", "_")
 
     def _gbif_extract_usage_key(self, raw: Dict[str, Any]) -> str:
-        """Extract a stable GBIF or checklist identifier as a string."""
+        """Extract a stable usage key, preferring public numeric GBIF keys."""
+
+        public_key = self._gbif_extract_public_usage_key(raw)
+        if public_key:
+            return public_key
 
         for candidate in (
             raw.get("usageKey"),
@@ -2293,6 +2334,33 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             if value:
                 return value
         return ""
+
+    def _gbif_extract_public_usage_key(self, raw: Dict[str, Any]) -> str:
+        """Extract a numeric GBIF usage key suitable for GBIF v1 public endpoints."""
+        usage = self._gbif_extract_usage_payload(raw)
+        candidates = (
+            usage.get("usageKey"),
+            usage.get("acceptedUsageKey"),
+            usage.get("gbifKey"),
+            usage.get("nubKey"),
+            usage.get("key"),
+            raw.get("usageKey"),
+            raw.get("acceptedUsageKey"),
+            raw.get("gbifKey"),
+            raw.get("nubKey"),
+            raw.get("key"),
+            raw.get("taxonID"),
+        )
+
+        for candidate in candidates:
+            if self._gbif_is_numeric_key(candidate):
+                return str(candidate).strip()
+
+        return ""
+
+    def _gbif_is_numeric_key(self, value: Any) -> bool:
+        """Return True when a value can be used as a GBIF numeric taxon key."""
+        return value is not None and str(value).strip().isdigit()
 
     def _gbif_extract_usage_payload(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         """Extract the nested GBIF v2 usage payload when present."""
@@ -2383,6 +2451,9 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
     def _gbif_build_links(self, usage_key: str) -> Dict[str, str]:
         """Build public GBIF links for a matched taxon."""
+
+        if not self._gbif_is_numeric_key(usage_key):
+            return {}
 
         return {
             "species": f"https://www.gbif.org/species/{usage_key}",

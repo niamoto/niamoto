@@ -63,6 +63,28 @@ def test_single_field(mock_db, sample_data):
     assert result["land_area"]["units"] == "ha"
 
 
+def test_legacy_scalar_config_is_migrated(mock_db, sample_data):
+    """Legacy generated scalar config should still transform successfully."""
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
+    config = {
+        "plugin": "class_object_field_aggregator",
+        "params": {
+            "source": "shape_stats",
+            "class_object": "land_area_ha",
+            "output_field": "land_area",
+            "max_value": 1000000,
+        },
+    }
+
+    result = plugin.transform(sample_data, config)
+
+    assert result["land_area"]["value"] == 941252.41
+
+
 def test_range_field(mock_db, sample_data):
     """Test range field extraction"""
     with patch(

@@ -171,25 +171,6 @@ export const PRESET_APIS_ALL: PresetAPIWithCategory[] = [
     },
   },
   {
-    name: 'IPNI',
-    iconSrc: '/provider-logos/ipni.png',
-    websiteUrl: 'https://www.ipni.org/',
-    category: 'taxonomy',
-    descriptionKey: 'apiEnrichment.presets.ipni.description',
-    config: {
-      api_url: 'https://www.ipni.org/api/1/search',
-      auth_method: 'none',
-      query_params: { perPage: '1' },
-      response_mapping: {
-        ipni_id: 'id',
-        ipni_authors: 'authors',
-        ipni_publication: 'publishedIn',
-        ipni_year: 'publicationYear',
-        ipni_family: 'family',
-      },
-    },
-  },
-  {
     name: 'iNaturalist',
     iconSrc: '/provider-logos/inaturalist.png',
     websiteUrl: 'https://www.inaturalist.org/',

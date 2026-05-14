@@ -278,38 +278,9 @@ export function WidgetConfigForm({
         ) : (
           <Accordion
             type="multiple"
-            defaultValue={widget.hasTransformConfig ? ['widget', 'transformer'] : ['widget']}
+            defaultValue={widget.hasTransformConfig ? ['transformer', 'widget'] : ['widget']}
             className="space-y-2"
           >
-            {/* Widget params */}
-            <AccordionItem value="widget" className="border rounded-lg">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
-                    <Palette className="h-4 w-4 text-emerald-600" />
-                  </div>
-                  <div className="text-left">
-                    <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
-                    <p className="text-xs text-muted-foreground font-normal">
-                      Plugin: {widget.widgetPlugin}
-                    </p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4">
-                <JsonSchemaForm
-                  pluginId={widget.widgetPlugin}
-                  groupBy={groupBy}
-                  onChange={handleWidgetChange}
-                  availableFields={availableFields}
-                  hiddenFields={['title', 'description']}
-                  showTitle={false}
-                  className="border-0 shadow-none p-0"
-                  initialValues={widgetParams as FormValues}
-                />
-              </AccordionContent>
-            </AccordionItem>
-
             {/* Transformer params */}
             {widget.hasTransformConfig && (
               <AccordionItem value="transformer" className="border rounded-lg">
@@ -339,6 +310,35 @@ export function WidgetConfigForm({
                 </AccordionContent>
               </AccordionItem>
             )}
+
+            {/* Widget params */}
+            <AccordionItem value="widget" className="border rounded-lg">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
+                    <Palette className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div className="text-left">
+                    <span className="font-medium">{t('widgets:form.visualizationSection')}</span>
+                    <p className="text-xs text-muted-foreground font-normal">
+                      Plugin: {widget.widgetPlugin}
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <JsonSchemaForm
+                  pluginId={widget.widgetPlugin}
+                  groupBy={groupBy}
+                  onChange={handleWidgetChange}
+                  availableFields={availableFields}
+                  hiddenFields={['title', 'description']}
+                  showTitle={false}
+                  className="border-0 shadow-none p-0"
+                  initialValues={widgetParams as FormValues}
+                />
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
         )}
       </div>

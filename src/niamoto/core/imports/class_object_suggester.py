@@ -42,6 +42,7 @@ class ClassObjectWidgetSuggestion:
     source_name: str
     class_object: str
     config: dict[str, Any]
+    widget_params: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to API response format."""
@@ -59,6 +60,8 @@ class ClassObjectWidgetSuggestion:
             "match_reason": f"Source: {self.source_name}",
             "is_recommended": self.confidence >= 0.8,
             "config": self.config,
+            "widget_plugin": self.widget_plugin,
+            "widget_params": self.widget_params or {},
             "alternatives": [],
         }
 
@@ -129,7 +132,9 @@ class ClassObjectWidgetSuggester:
             return None
 
         # Determine widget based on transformer and characteristics
-        widget, config = self._build_widget_config(co, plugin, source_name)
+        widget, config, widget_params = self._build_widget_config(
+            co, plugin, source_name
+        )
         if not widget:
             return None
 
@@ -150,12 +155,13 @@ class ClassObjectWidgetSuggester:
             source_name=source_name,
             class_object=co.name,
             config=config,
+            widget_params=widget_params,
         )
 
     def _build_widget_config(
         self, co: ClassObjectStats, plugin: str, source_name: str
-    ) -> tuple[Optional[str], dict[str, Any]]:
-        """Build widget type and transformer config for a class_object.
+    ) -> tuple[Optional[str], dict[str, Any], dict[str, Any]]:
+        """Build widget type, transformer config, and widget params.
 
         Widget selection logic (generic, based on data not names):
         - series_extractor (all multi-value) → bar_plot with tops/counts
@@ -188,64 +194,106 @@ class ClassObjectWidgetSuggester:
             # Choose widget based on value type and cardinality
             if co.cardinality <= 5 and not is_numeric:
                 # Small categorical → donut chart
-                return "donut_chart", transformer_config
+                return (
+                    "donut_chart",
+                    transformer_config,
+                    {
+                        "labels_field": "tops",
+                        "values_field": "counts",
+                        "show_legend": False,
+                    },
+                )
 
             if is_numeric:
                 # Numeric bins (like dbh, elevation) → vertical bar chart with gradient
                 # No count limit - show all bins for distribution
-                transformer_config["orientation"] = "v"
-                transformer_config["x_axis"] = "tops"  # bins on x-axis
-                transformer_config["y_axis"] = "counts"
-                transformer_config["sort_order"] = "descending"  # largest bins first
-                transformer_config["gradient_color"] = (
-                    "#8B4513"  # brown for distributions
-                )
-                transformer_config["gradient_mode"] = "luminance"
-                transformer_config["show_legend"] = False  # no legend for distributions
-
                 # Detect if values are percentages (sum ≈ 100)
                 total = sum(co.sample_values) if co.sample_values else 0
                 is_percentage = 95 <= total <= 105
 
-                # Add axis labels using class_object name (quick_edit fields)
-                transformer_config["x_label"] = co.name.upper()
-                transformer_config["y_label"] = "%" if is_percentage else "Count"
-
-                return "bar_plot", transformer_config
+                return (
+                    "bar_plot",
+                    transformer_config,
+                    {
+                        "orientation": "v",
+                        "x_axis": "tops",
+                        "y_axis": "counts",
+                        "sort_order": "descending",
+                        "gradient_color": "#8B4513",
+                        "gradient_mode": "luminance",
+                        "show_legend": False,
+                        "labels": {
+                            "tops": co.name.upper(),
+                            "counts": "%" if is_percentage else "Count",
+                        },
+                    },
+                )
             else:
                 # Categorical (like top10_family) → horizontal bar chart with auto_color
                 # Add count limit for large datasets
                 transformer_config["count"] = 10
-                transformer_config["orientation"] = "h"
-                transformer_config["x_axis"] = "counts"
-                transformer_config["y_axis"] = "tops"
-                transformer_config["sort_order"] = "descending"
-                transformer_config["auto_color"] = True
-                return "bar_plot", transformer_config
+                return (
+                    "bar_plot",
+                    transformer_config,
+                    {
+                        "orientation": "h",
+                        "x_axis": "counts",
+                        "y_axis": "tops",
+                        "sort_order": "descending",
+                        "auto_color": True,
+                    },
+                )
 
         # Binary (exactly 2 categories) → donut_chart
         if plugin in ("binary_aggregator", "class_object_binary_aggregator"):
             # Use actual class_names from data if available
             labels = co.class_names[:2] if len(co.class_names) >= 2 else ["A", "B"]
-            return "donut_chart", {
-                "source": source_name,
-                "class_object": co.name,
-                "true_label": labels[0],
-                "false_label": labels[1] if len(labels) > 1 else "Other",
-            }
+            normalized_labels = labels if len(labels) > 1 else [labels[0], "Other"]
+            label = _humanize_name(co.name)
+            return (
+                "donut_chart",
+                {
+                    "source": source_name,
+                    "groups": [
+                        {
+                            "label": co.name,
+                            "field": co.name,
+                            "classes": normalized_labels,
+                            "class_mapping": {
+                                class_name: class_name
+                                for class_name in normalized_labels
+                            },
+                        }
+                    ],
+                },
+                {
+                    "subplots": [{"name": label, "data_key": co.name}],
+                    "show_legend": False,
+                },
+            )
 
         # Scalar (field_aggregator) → radial_gauge
         if plugin in ("field_aggregator", "class_object_field_aggregator"):
             # Use sample values to estimate max_value if available
             max_value = self._estimate_max_value(co)
-            return "radial_gauge", {
-                "source": source_name,
-                "class_object": co.name,
-                "output_field": co.name,
-                "max_value": max_value,
-            }
+            return (
+                "radial_gauge",
+                {
+                    "source": source_name,
+                    "fields": [
+                        {
+                            "class_object": co.name,
+                            "target": co.name,
+                        }
+                    ],
+                },
+                {
+                    "value_field": f"{co.name}.value",
+                    "max_value": max_value,
+                },
+            )
 
-        return None, {}
+        return None, {}, {}
 
     def _estimate_max_value(self, co: ClassObjectStats) -> float:
         """Estimate appropriate max_value for gauge from actual data.
