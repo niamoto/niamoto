@@ -135,7 +135,7 @@ dependencies = [
     "Unidecode>=1.3.8",
     # duckdb - DuckDB is an in-process SQL OLAP database management system
     # Documentation: https://duckdb.org/
-    "duckdb>=1.5.0",
+    "duckdb>=1.5.2",
     # duckdb-engine - SQLAlchemy driver for DuckDB
     "duckdb-engine>=0.17.0",
     "markdown>=3.10.2",

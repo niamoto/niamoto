@@ -34,7 +34,7 @@ click==8.3.1
     #   uvicorn
 cligj==0.7.2
     # via rasterio
-duckdb==1.5.1
+duckdb==1.5.2
     # via
     #   niamoto (pyproject.toml)
     #   duckdb-engine
