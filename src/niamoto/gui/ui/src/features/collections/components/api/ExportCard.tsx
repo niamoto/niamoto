@@ -24,9 +24,16 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useAvailableSources } from '@/lib/api/recipes'
 import { cn } from '@/lib/utils'
 import {
   useApiExportAutoConfig,
@@ -47,6 +54,10 @@ import {
 import { ApiFieldMappingsEditor } from './ApiFieldMappingsEditor'
 import { AutoConfigReviewDialog } from './AutoConfigReviewDialog'
 import { DwcMappingEditor } from './DwcMappingEditor'
+import {
+  buildDataSourceOptions,
+  CURRENT_COLLECTION_SOURCE,
+} from './exportCardSourceOptions'
 import { JsonOptionsEditor } from './JsonOptionsEditor'
 import { SynchronizedJsonConfigSection } from './SynchronizedJsonConfigSection'
 
@@ -165,6 +176,7 @@ function ExportCardForm({
   const { t } = useTranslation(['sources', 'common'])
   const saveMutation = useUpdateApiExportGroupConfig(exportTarget.name, groupBy)
   const autoConfigQuery = useApiExportAutoConfig(exportTarget.name, groupBy, false)
+  const sourcesQuery = useAvailableSources(groupBy)
   const [localConfig, setLocalConfig] = useState<ApiExportGroupConfig>(
     buildDefaultLocalConfig(serverConfig)
   )
@@ -174,6 +186,16 @@ function ExportCardForm({
   const availableFields = useMemo(
     () => buildAvailableFields(suggestions),
     [suggestions]
+  )
+  const dataSourceOptions = useMemo(
+    () =>
+      buildDataSourceOptions(
+        groupBy,
+        sourcesQuery.sources.map((source) => source.name),
+        localConfig.data_source,
+        exportTarget.group_names
+      ),
+    [exportTarget.group_names, groupBy, localConfig.data_source, sourcesQuery.sources]
   )
 
   const isDirty =
@@ -608,16 +630,34 @@ function ExportCardForm({
                 </p>
                 <div className="space-y-2">
                   <Label>{t('collectionPanel.api.dataSource')}</Label>
-                  <Input
-                    value={localConfig.data_source || ''}
-                    onChange={(event) =>
+                  <Select
+                    value={localConfig.data_source || CURRENT_COLLECTION_SOURCE}
+                    onValueChange={(value) =>
                       updateLocalConfig((current) => ({
                         ...current,
-                        data_source: event.target.value || undefined,
+                        data_source:
+                          value === CURRENT_COLLECTION_SOURCE ? undefined : value,
                       }))
                     }
-                    placeholder={t('collectionPanel.api.dataSourcePlaceholder')}
-                  />
+                  >
+                    <SelectTrigger aria-label={t('collectionPanel.api.dataSource')}>
+                      <SelectValue
+                        placeholder={t('collectionPanel.api.dataSourcePlaceholder')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={CURRENT_COLLECTION_SOURCE}>
+                        {t('collectionPanel.api.dataSourceCurrentCollection', {
+                          groupBy,
+                        })}
+                      </SelectItem>
+                      {dataSourceOptions.map((sourceName) => (
+                        <SelectItem key={sourceName} value={sourceName}>
+                          {sourceName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
                     {t('collectionPanel.api.dataSourceHelp')}
                   </p>

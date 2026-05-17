@@ -11,6 +11,7 @@ import type {
 } from '@/features/collections/hooks/useApiExportConfigs'
 
 import { ExportCard } from './ExportCard'
+import { buildDataSourceOptions } from './exportCardSourceOptions'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -95,6 +96,39 @@ vi.mock('@/components/ui/switch', () => ({
       {String(props.checked)}
     </button>
   ),
+}))
+
+vi.mock('@/components/ui/select', () => ({
+  Select: (props: {
+    value?: string
+    onValueChange?: (value: string) => void
+    children: ReactNode
+  }) => (
+    <select
+      data-testid="data-source-select"
+      value={props.value ?? ''}
+      onChange={(event) => props.onValueChange?.(event.target.value)}
+    >
+      {props.children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: (props: { children: ReactNode }) => <>{props.children}</>,
+  SelectItem: (props: { value: string; children: ReactNode }) => (
+    <option value={props.value}>{props.children}</option>
+  ),
+}))
+
+vi.mock('@/lib/api/recipes', () => ({
+  useAvailableSources: () => ({
+    sources: [
+      { type: 'dataset', name: 'occurrences', columns: [], transformers: [] },
+      { type: 'reference', name: 'plots', columns: [], transformers: [] },
+    ],
+    loading: false,
+    error: null,
+  }),
 }))
 
 vi.mock('./ApiFieldMappingsEditor', () => ({
@@ -213,6 +247,14 @@ describe('ExportCard auto-configuration', () => {
     })
   }
 
+  it('builds source override options from the current collection and available sources', () => {
+    expect(
+      buildDataSourceOptions('plots', ['occurrences', 'plots'], 'custom_source', [
+        'taxons',
+      ])
+    ).toEqual(['plots', 'custom_source', 'occurrences', 'taxons'])
+  })
+
   it('does not fetch auto-configuration on mount', async () => {
     await renderCard()
 
@@ -249,6 +291,47 @@ describe('ExportCard auto-configuration', () => {
     expect(saveButton?.className).toContain('animate-pulse')
     expect(saveButton?.className).toContain('bg-amber-500')
     expect(saveMutation).not.toHaveBeenCalled()
+  })
+
+  it('uses a dropdown for the data source override', async () => {
+    serverConfig = {
+      enabled: true,
+      group_by: 'taxons',
+      data_source: 'occurrences',
+      detail: { pass_through: true },
+      index: { fields: [] },
+    }
+
+    await renderCard()
+
+    const select = container!.querySelector(
+      '[data-testid="data-source-select"]'
+    ) as HTMLSelectElement
+
+    expect(select).toBeTruthy()
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(
+      expect.arrayContaining(['__current_collection__', 'occurrences', 'plots'])
+    )
+    expect(select.value).toBe('occurrences')
+
+    await act(async () => {
+      select.value = 'plots'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    const saveButton = Array.from(container!.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('common:actions.save')
+    )
+
+    await act(async () => {
+      click(saveButton ?? null)
+      await Promise.resolve()
+    })
+
+    expect(saveMutation).toHaveBeenCalledWith(
+      expect.objectContaining({ data_source: 'plots' })
+    )
   })
 
   it('shows a Darwin Core JSON preview next to the mapping editor', async () => {
