@@ -240,3 +240,100 @@ def test_generate_index_exposes_hierarchy_context_from_reference_table(
     assert generated_index.read_text(encoding="utf-8") == (
         "1|Abebaia dissecta|Sapotaceae|Abebaia"
     )
+
+
+def test_generate_index_joins_entity_rows_with_business_identifier(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE plots (
+                plots_id BIGINT,
+                general_info JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO plots VALUES
+                (179, '{"country":{"value":"GABON"}}'),
+                (180, '{"country":{"value":"GABON"}}')
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE entity_plots (
+                id_liste_plots BIGINT,
+                plot_name VARCHAR,
+                locality_name VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_plots VALUES
+                (179, 'mabou001', 'Mabounié'),
+                (180, 'mabou002', 'Mabounié')
+            """
+        )
+    finally:
+        conn.close()
+
+    db = Database(str(db_path), read_only=True)
+    try:
+        plugin = IndexGeneratorPlugin(db)
+        config = IndexGeneratorConfig(
+            page_config={"title": "Plots"},
+            display_fields=[
+                {
+                    "name": "plot_name",
+                    "source": "plot_name",
+                    "type": "text",
+                    "searchable": True,
+                    "is_title": True,
+                },
+                {
+                    "name": "country",
+                    "source": "general_info.country.value",
+                    "type": "text",
+                    "searchable": False,
+                },
+            ],
+        )
+
+        jinja_env = Environment(
+            loader=DictLoader(
+                {
+                    "_group_index.html": (
+                        "{{ items_data|length }}|"
+                        "{{ items_data[0]['plot_name'] }}|"
+                        "{{ items_data[0]['country'] }}"
+                    )
+                }
+            )
+        )
+
+        plugin.generate_index(
+            group_by="plots",
+            config=config,
+            output_dir=tmp_path,
+            jinja_env=jinja_env,
+            html_params=SimpleNamespace(
+                site=None,
+                navigation=None,
+                footer_navigation=None,
+            ),
+            site_context={"title": "Niamoto"},
+            navigation=[],
+            footer_navigation=[],
+        )
+    finally:
+        db.close_db_session()
+
+    generated_index = tmp_path / "plots" / "index.html"
+    assert generated_index.exists()
+    assert generated_index.read_text(encoding="utf-8") == "2|mabou001|GABON"

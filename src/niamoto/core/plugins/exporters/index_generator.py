@@ -205,8 +205,27 @@ class IndexGeneratorPlugin(ExporterPlugin):
         """Pick the entity-side join column that matches the transformed IDs best."""
         best_column: Optional[str] = None
         best_overlap = 0
+        item_id_strings = {str(item_id) for item_id in item_ids}
 
-        for candidate in [id_column, "id"]:
+        candidate_columns: list[str] = []
+
+        def add_candidate(candidate: str) -> None:
+            if candidate in entity_columns and candidate not in candidate_columns:
+                candidate_columns.append(candidate)
+
+        add_candidate(id_column)
+        add_candidate("id")
+
+        for candidate in sorted(entity_columns):
+            lower_candidate = candidate.lower()
+            if (
+                lower_candidate.startswith("id_")
+                or lower_candidate.endswith("_id")
+                or lower_candidate.endswith("_key")
+            ):
+                add_candidate(candidate)
+
+        for candidate in candidate_columns:
             if candidate not in entity_columns:
                 continue
 
@@ -215,7 +234,11 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 f'WHERE "{candidate}" IS NOT NULL'
             )
             rows = self.db.fetch_all(query)
-            overlap = sum(1 for row in rows if row[candidate] in item_ids)
+            overlap = sum(
+                1
+                for row in rows
+                if row[candidate] in item_ids or str(row[candidate]) in item_id_strings
+            )
 
             if overlap > best_overlap:
                 best_column = candidate
@@ -413,7 +436,7 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 if not matched_any and self._is_legacy_nested_filter_path(
                     filter_config.field
                 ):
-                    logger.warning(
+                    logger.debug(
                         "Ignoring stale legacy index filter '%s' for group '%s': "
                         "no items match configured values",
                         filter_config.field,

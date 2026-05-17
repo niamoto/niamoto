@@ -3764,14 +3764,33 @@ def _singularize_identifier(identifier: str) -> str:
 
 def _is_title_candidate_field(path: str, group_by: Optional[str] = None) -> bool:
     """Check whether a field is a good generic title candidate."""
-    if _is_name_field(path):
-        return True
-    if not group_by:
+    if path.startswith("hierarchy_context.") or _is_rank_field(path):
         return False
 
     leaf = _get_field_leaf_name(path).lower()
+    if leaf in {
+        "name",
+        "full_name",
+        "display_name",
+        "label",
+        "title",
+        "scientific_name",
+        "vernacular_name",
+        "canonical_name",
+    }:
+        return True
+
+    if not group_by:
+        return False
+
     group_name = re.sub(r"[^a-z0-9_]+", "_", group_by.lower()).strip("_")
-    return leaf in {group_name, _singularize_identifier(group_name)}
+    singular_group_name = _singularize_identifier(group_name)
+    return leaf in {
+        group_name,
+        singular_group_name,
+        f"{group_name}_name",
+        f"{singular_group_name}_name",
+    }
 
 
 def _merge_direct_source_field_analysis(

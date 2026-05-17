@@ -2496,7 +2496,18 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Build resilient defaults for legacy/traditional index rendering.
             first_item = normalized_items[0] if normalized_items else {}
-            preferred_name_fields = ["name", "full_name", "label", "title"]
+            preferred_name_fields = [
+                "name",
+                "full_name",
+                "display_name",
+                "plot_name",
+                "taxon_name",
+                "scientific_name",
+                "vernacular_name",
+                "canonical_name",
+                "label",
+                "title",
+            ]
             name_field = next(
                 (f for f in preferred_name_fields if f in first_item), None
             )
