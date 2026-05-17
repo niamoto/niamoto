@@ -1229,6 +1229,7 @@
       "collectionsCount_other": "{{count}} collections",
       "dataSource": "Data source",
       "dataSourcePlaceholder": "Leave empty to use the current collection",
+      "dataSourceCurrentCollection": "Current collection ({{groupBy}})",
       "dataSourceHelp": "Optional. Overrides the logical source used by this export.",
       "passThrough": "Export all transformed data",
       "passThroughHelp": "When enabled, the detail JSON files reuse the collection's transformed payload directly.",
