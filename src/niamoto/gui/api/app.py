@@ -1,5 +1,7 @@
 """FastAPI application for Niamoto GUI."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
@@ -54,6 +56,12 @@ log_desktop_startup("app.py import started")
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    log_desktop_startup("FastAPI startup event fired")
+    yield
+
+
 def _resolve_gui_log_directory() -> Path:
     configured = os.getenv("NIAMOTO_LOGS")
     if configured:
@@ -92,6 +100,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
         docs_url="/api/docs",
         redoc_url="/api/redoc",
+        lifespan=_lifespan,
     )
 
     configured_origins = os.getenv("NIAMOTO_CORS_ORIGINS")
@@ -119,10 +128,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.on_event("startup")
-    async def _log_startup_event() -> None:
-        log_desktop_startup("FastAPI startup event fired")
 
     @app.get("/openapi.json", include_in_schema=False)
     async def openapi_compat() -> JSONResponse:

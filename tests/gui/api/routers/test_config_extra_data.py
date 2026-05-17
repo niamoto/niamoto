@@ -1163,6 +1163,211 @@ def test_index_suggestions_use_singular_group_field_as_title(tmp_path: Path):
     assert title_field["searchable"] is True
 
 
+def test_index_suggestions_prefer_taxon_full_name_over_rank_name(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "source": "taxons",
+                    "widgets_data": {
+                        "general_info": {
+                            "plugin": "field_aggregator",
+                            "params": {
+                                "fields": [
+                                    {
+                                        "source": "taxons",
+                                        "field": "rank_name",
+                                        "target": "rank_name",
+                                    },
+                                    {
+                                        "source": "taxons",
+                                        "field": "full_name",
+                                        "target": "full_name",
+                                    },
+                                ]
+                            },
+                        }
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE taxons (
+                taxons_id BIGINT,
+                general_info JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO taxons VALUES
+                (1, '{"rank_name":{"value":"species"},"full_name":{"value":"Araucaria columnaris"}}'),
+                (2, '{"rank_name":{"value":"species"},"full_name":{"value":"Agathis lanceolata"}}')
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id BIGINT,
+                taxons_id BIGINT,
+                full_name VARCHAR,
+                rank_name VARCHAR,
+                parent_id BIGINT,
+                level BIGINT,
+                lft BIGINT,
+                rght BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (1, 1, 'Araucaria columnaris', 'species', NULL, 1, 1, 2),
+                (2, 2, 'Agathis lanceolata', 'species', NULL, 1, 3, 4)
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/taxons/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    title_field = next(
+        field for field in payload["display_fields"] if field["is_title"]
+    )
+
+    assert title_field["source"] == "general_info.full_name.value"
+    assert title_field["searchable"] is True
+
+
+def test_index_suggestions_prefer_plot_name_over_identifiers_and_context(
+    tmp_path: Path,
+):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    db_dir = project_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "db/niamoto.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "plots",
+                    "source": "plots",
+                    "widgets_data": {
+                        "general_info": {
+                            "plugin": "field_aggregator",
+                            "params": {
+                                "fields": [
+                                    {
+                                        "source": "plots",
+                                        "field": "locality_name",
+                                        "target": "locality_name",
+                                    },
+                                    {
+                                        "source": "plots",
+                                        "field": "plot_name",
+                                        "target": "plot_name",
+                                    },
+                                ]
+                            },
+                        }
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE plots (
+                plots_id BIGINT,
+                general_info JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO plots VALUES
+                (101, '{"locality_name":{"value":"Mabounié"},"plot_name":{"value":"MBN-001"}}'),
+                (102, '{"locality_name":{"value":"Korup"},"plot_name":{"value":"KRP-002"}}')
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_plots (
+                id_liste_plots BIGINT,
+                plots_id BIGINT,
+                locality_name VARCHAR,
+                plot_name VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_plots VALUES
+                (101, 101, 'Mabounié', 'MBN-001'),
+                (102, 102, 'Korup', 'KRP-002')
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get("/api/config/export/plots/index-generator/suggestions")
+
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    title_field = next(
+        field for field in payload["display_fields"] if field["is_title"]
+    )
+
+    assert title_field["source"] == "general_info.plot_name.value"
+    assert title_field["searchable"] is True
+    assert all(
+        "id" not in field["source"].lower() for field in payload["display_fields"]
+    )
+
+
 def test_index_suggestions_promote_external_links_and_inline_badges(
     tmp_path: Path,
 ):

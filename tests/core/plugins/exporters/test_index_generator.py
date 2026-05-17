@@ -361,7 +361,10 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
             page_config=IndexGeneratorPageConfig(title="Test Index"),
         )
 
-        result = self.plugin._get_group_data("plots", config)
+        with self.assertNoLogs(
+            "niamoto.core.plugins.exporters.index_generator", level="WARNING"
+        ):
+            result = self.plugin._get_group_data("plots", config)
 
         self.assertEqual(len(result), 2)
         self.assertEqual([item["country"] for item in result], ["NEW CALEDONIA"] * 2)
