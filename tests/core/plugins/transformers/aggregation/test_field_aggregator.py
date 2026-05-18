@@ -14,6 +14,7 @@ from niamoto.core.plugins.transformers.aggregation.field_aggregator import (
     FieldAggregatorConfig,
     FieldConfig,
 )
+from niamoto.common.exceptions import DatabaseError
 from niamoto.common.database import Database
 
 
@@ -791,3 +792,25 @@ class TestFieldAggregator:
 
         assert "units" in result["area"]
         assert result["area"]["units"] == "hectares"
+
+    def test_get_field_from_table_quotes_safe_identifiers(self):
+        """Database lookups quote dynamic identifiers before query construction."""
+        self.db_mock.fetch_one.return_value = {"field_name": "value"}
+
+        result = self.plugin._get_field_from_table(
+            "source_table", "field_name", 1, "entity_id"
+        )
+
+        query = self.db_mock.fetch_one.call_args[0][0]
+        assert 'SELECT "field_name" FROM "source_table"' in query
+        assert 'WHERE "entity_id" = :id_value' in query
+        assert result == "value"
+
+    def test_get_field_from_table_rejects_unsafe_identifiers(self):
+        """Malformed configured identifiers are rejected before SQL execution."""
+        with pytest.raises(DatabaseError):
+            self.plugin._get_field_from_table(
+                "source_table; DROP TABLE source_table", "field_name", 1
+            )
+
+        self.db_mock.fetch_one.assert_not_called()

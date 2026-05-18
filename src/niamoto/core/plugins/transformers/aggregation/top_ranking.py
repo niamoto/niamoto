@@ -2,6 +2,7 @@
 Plugin for getting top N items from a dataset with support for hierarchical data.
 """
 
+import re
 from typing import Dict, Any, List, Optional, Literal
 from pydantic import BaseModel, Field, field_validator, ConfigDict, model_validator
 
@@ -9,6 +10,20 @@ import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+
+_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Validate and quote a single SQL identifier."""
+    if not _SQL_IDENTIFIER_RE.fullmatch(identifier):
+        raise ValueError(f"Invalid SQL identifier: {identifier}")
+    return f'"{identifier}"'
+
+
+def _quote_literal(value: str) -> str:
+    """Quote a SQL string literal."""
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 class HierarchyColumns(BaseModel):
@@ -170,10 +185,7 @@ class TopRankingParams(BasePluginParams):
     @staticmethod
     def _is_safe_identifier(identifier: str) -> bool:
         """Check that an identifier is made of safe SQL characters."""
-
-        import re
-
-        return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", identifier))
+        return bool(_SQL_IDENTIFIER_RE.fullmatch(identifier))
 
     @field_validator("mode")
     @classmethod
@@ -289,9 +301,11 @@ class TopRanking(TransformerPlugin):
             # Resolve table name
             hierarchy_table = self._resolve_table_name(params.hierarchy_table)
             cols = params.hierarchy_columns
+            quoted_hierarchy_table = _quote_identifier(hierarchy_table)
 
             # Get name column (default to "full_name" if not specified)
             name_col = cols.name if cols and cols.name else "full_name"
+            quoted_name_col = _quote_identifier(name_col)
 
             # Build query to get names
             ids_str = ",".join(str(int(id)) for id in ids)
@@ -300,12 +314,13 @@ class TopRanking(TransformerPlugin):
             # IMPORTANT: The IDs we receive are from the source data (e.g., id_taxonref)
             # These correspond to taxon_id in entity_taxonomy, NOT to the hash-based id field
             id_field = cols.id if (cols and cols.id) else "id"
+            quoted_id_field = _quote_identifier(id_field)
 
             # Use the specified id field from config, or default to "id"
             query = f"""
-                SELECT {id_field}, {name_col}
-                FROM {hierarchy_table}
-                WHERE {id_field} IN ({ids_str})
+                SELECT {quoted_id_field}, {quoted_name_col}
+                FROM {quoted_hierarchy_table}
+                WHERE {quoted_id_field} IN ({ids_str})
             """
 
             with self.db.connection() as fresh_conn:
@@ -434,6 +449,22 @@ class TopRanking(TransformerPlugin):
         aggregate_func = params.aggregate_function
         aggregate_column = params.aggregate_field
         metric_alias = "metric_value" if aggregate_column else None
+        quoted_join_table = _quote_identifier(join_table)
+        quoted_hierarchy_table = _quote_identifier(hierarchy_table)
+        quoted_source_col = _quote_identifier(source_col)
+        quoted_hierarchy_ref_col = _quote_identifier(hierarchy_ref_col)
+        quoted_hierarchy_id_col = _quote_identifier(hierarchy_id_col)
+        quoted_hierarchy_name_col = _quote_identifier(hierarchy_name_col)
+        quoted_hierarchy_rank_col = _quote_identifier(hierarchy_rank_col)
+        quoted_hierarchy_parent_col = _quote_identifier(hierarchy_parent_col)
+        quoted_hierarchy_left_col = _quote_identifier(hierarchy_left_col)
+        quoted_hierarchy_right_col = _quote_identifier(hierarchy_right_col)
+        quoted_target_ranks = ",".join(_quote_literal(rank) for rank in target_ranks)
+        quoted_metric_base_select = (
+            f", j.{_quote_identifier(aggregate_column)} as {metric_alias}"
+            if aggregate_column
+            else ""
+        )
 
         # Build query dynamically
         ids_str = ",".join(str(int(id)) for id in unique_ids)
@@ -447,57 +478,52 @@ class TopRanking(TransformerPlugin):
         if has_nested_sets:
             # Use nested sets query (legacy)
             query = f"""
-                SELECT h_target.{hierarchy_name_col}, {self._get_aggregate_sql(aggregate_func, "j", aggregate_column)}
-                FROM {join_table} j
-                JOIN {hierarchy_table} h_source ON j.{hierarchy_ref_col} = h_source.{hierarchy_id_col}
-                JOIN {hierarchy_table} h_target ON (
-                    h_target.{hierarchy_left_col} <= h_source.{hierarchy_left_col}
-                    AND h_target.{hierarchy_right_col} >= h_source.{hierarchy_right_col}
-                    AND h_target.{hierarchy_rank_col} IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+                SELECT h_target.{quoted_hierarchy_name_col}, {self._get_aggregate_sql(aggregate_func, "j", aggregate_column)}
+                FROM {quoted_join_table} j
+                JOIN {quoted_hierarchy_table} h_source ON j.{quoted_hierarchy_ref_col} = h_source.{quoted_hierarchy_id_col}
+                JOIN {quoted_hierarchy_table} h_target ON (
+                    h_target.{quoted_hierarchy_left_col} <= h_source.{quoted_hierarchy_left_col}
+                    AND h_target.{quoted_hierarchy_right_col} >= h_source.{quoted_hierarchy_right_col}
+                    AND h_target.{quoted_hierarchy_rank_col} IN ({quoted_target_ranks})
                 )
-                WHERE j.{source_col} IN ({ids_str})
-                GROUP BY h_target.{hierarchy_name_col}
+                WHERE j.{quoted_source_col} IN ({ids_str})
+                GROUP BY h_target.{quoted_hierarchy_name_col}
                 ORDER BY {self._get_aggregate_sql(aggregate_func, "j", aggregate_column)} DESC
                 LIMIT {params.count}
             """
         else:
             # Use adjacency list query with recursive CTE
-            metric_base_select = (
-                f', j."{aggregate_column}" as {metric_alias}'
-                if aggregate_column
-                else ""
-            )
             metric_recursive_select = f", hp.{metric_alias}" if aggregate_column else ""
             query = f"""
                 WITH RECURSIVE hierarchy_path AS (
                     -- Base case: source nodes
                     SELECT
-                        h_source.{hierarchy_id_col} as source_id,
-                        h_source.{hierarchy_id_col} as current_id,
-                        h_source.{hierarchy_name_col} as current_name,
-                        h_source.{hierarchy_rank_col} as current_rank,
-                        h_source.{hierarchy_parent_col} as parent_id
-                        {metric_base_select}
-                    FROM {hierarchy_table} h_source
-                    JOIN {join_table} j ON j.{hierarchy_ref_col} = h_source.{hierarchy_id_col}
-                    WHERE j.{source_col} IN ({ids_str})
+                        h_source.{quoted_hierarchy_id_col} as source_id,
+                        h_source.{quoted_hierarchy_id_col} as current_id,
+                        h_source.{quoted_hierarchy_name_col} as current_name,
+                        h_source.{quoted_hierarchy_rank_col} as current_rank,
+                        h_source.{quoted_hierarchy_parent_col} as parent_id
+                        {quoted_metric_base_select}
+                    FROM {quoted_hierarchy_table} h_source
+                    JOIN {quoted_join_table} j ON j.{quoted_hierarchy_ref_col} = h_source.{quoted_hierarchy_id_col}
+                    WHERE j.{quoted_source_col} IN ({ids_str})
 
                     UNION ALL
 
                     -- Recursive case: traverse up to parents
                     SELECT
                         hp.source_id,
-                        h_parent.{hierarchy_id_col},
-                        h_parent.{hierarchy_name_col},
-                        h_parent.{hierarchy_rank_col},
-                        h_parent.{hierarchy_parent_col}
+                        h_parent.{quoted_hierarchy_id_col},
+                        h_parent.{quoted_hierarchy_name_col},
+                        h_parent.{quoted_hierarchy_rank_col},
+                        h_parent.{quoted_hierarchy_parent_col}
                         {metric_recursive_select}
                     FROM hierarchy_path hp
-                    JOIN {hierarchy_table} h_parent ON hp.parent_id = h_parent.{hierarchy_id_col}
+                    JOIN {quoted_hierarchy_table} h_parent ON hp.parent_id = h_parent.{quoted_hierarchy_id_col}
                 )
                 SELECT current_name, {self._get_aggregate_sql(aggregate_func, "hierarchy_path", metric_alias)}
                 FROM hierarchy_path
-                WHERE current_rank IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+                WHERE current_rank IN ({quoted_target_ranks})
                 GROUP BY current_name
                 ORDER BY {self._get_aggregate_sql(aggregate_func, "hierarchy_path", metric_alias)} DESC
                 LIMIT {params.count}
@@ -527,13 +553,18 @@ class TopRanking(TransformerPlugin):
     ) -> Dict[int, Dict[str, Any]]:
         """Build hierarchy dictionary from database."""
         hierarchy_dict = {}
+        quoted_table = _quote_identifier(table)
+        quoted_id_col = _quote_identifier(id_col)
+        quoted_name_col = _quote_identifier(name_col)
+        quoted_rank_col = _quote_identifier(rank_col)
+        quoted_parent_col = _quote_identifier(parent_col)
 
         # Query initial items
         ids_str = ",".join(str(int(id)) for id in ids)
         query = f"""
-            SELECT {id_col}, {name_col}, {rank_col}, {parent_col}
-            FROM {table}
-            WHERE {id_col} IN ({ids_str})
+            SELECT {quoted_id_col}, {quoted_name_col}, {quoted_rank_col}, {quoted_parent_col}
+            FROM {quoted_table}
+            WHERE {quoted_id_col} IN ({ids_str})
         """
 
         result = self.db.execute_select(query)
@@ -559,9 +590,9 @@ class TopRanking(TransformerPlugin):
         while parent_ids:
             parent_ids_str = ",".join(str(id) for id in parent_ids)
             query = f"""
-                SELECT {id_col}, {name_col}, {rank_col}, {parent_col}
-                FROM {table}
-                WHERE {id_col} IN ({parent_ids_str})
+                SELECT {quoted_id_col}, {quoted_name_col}, {quoted_rank_col}, {quoted_parent_col}
+                FROM {quoted_table}
+                WHERE {quoted_id_col} IN ({parent_ids_str})
             """
 
             result = self.db.execute_select(query)
