@@ -356,6 +356,34 @@ class TestUploadFiles:
         uploaded_names = {f["filename"] for f in data["uploaded_files"]}
         assert uploaded_names == {"plots.dbf"}
 
+    def test_upload_zip_rejects_oversized_extracted_content(
+        self,
+        test_client: TestClient,
+        tmp_path: Path,
+        working_directory: Path,
+        monkeypatch,
+    ):
+        """ZIP uploads should enforce the size cap after decompression."""
+        monkeypatch.setattr(smart_config, "MAX_UPLOAD_SIZE_BYTES", 128)
+        zip_path = tmp_path / "data.zip"
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("large.csv", b"a" * 129)
+
+        assert zip_path.stat().st_size <= smart_config.MAX_UPLOAD_SIZE_BYTES
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["uploaded_files"] == []
+        assert data["errors"]
+        assert "maximum upload size" in data["errors"][0]
+        assert not (working_directory / "imports" / "data" / "large.csv").exists()
+
     def test_upload_empty_filename_returns_error(self, test_client: TestClient):
         """Test uploading a file with empty filename should return error."""
         # Create a file with no filename

@@ -404,6 +404,8 @@ async def _handle_zip_upload(
         try:
             with zipfile.ZipFile(tmp_path, "r") as zip_ref:
                 extracted_names = set()
+                declared_uncompressed_size = 0
+                extracted_size = 0
                 for member in zip_ref.infolist():
                     if member.is_dir():
                         continue
@@ -413,12 +415,22 @@ async def _handle_zip_upload(
                         raise ValueError(f"Duplicate file name in archive: {safe_name}")
 
                     extracted_names.add(safe_name)
+                    declared_uncompressed_size += member.file_size
+                    if declared_uncompressed_size > MAX_UPLOAD_SIZE_BYTES:
+                        raise ValueError("Archive exceeds maximum upload size (100 MB)")
+
                     dest_path = Path(tmp_dir) / safe_name
                     with (
                         zip_ref.open(member, "r") as source,
                         open(dest_path, "wb") as dest,
                     ):
-                        shutil.copyfileobj(source, dest)
+                        while chunk := source.read(1024 * 1024):
+                            extracted_size += len(chunk)
+                            if extracted_size > MAX_UPLOAD_SIZE_BYTES:
+                                raise ValueError(
+                                    "Archive exceeds maximum upload size (100 MB)"
+                                )
+                            dest.write(chunk)
 
             # Find extracted files
             extracted_files = list(Path(tmp_dir).glob("*"))
