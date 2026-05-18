@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
+import time
+
 import yaml
 
+from niamoto.gui.api.routers import config as config_router
+from niamoto.gui.api.services.templates import config_scaffold
 from niamoto.gui.api.services.templates.config_scaffold import (
     build_relation_config,
     scaffold_configs,
@@ -112,6 +118,103 @@ def test_scaffold_configs_adds_missing_transform_and_export_groups(
     }
     assert second_changed is False
     assert second_message == "Rien à ajouter"
+
+
+def test_scaffold_configs_shares_transform_write_lock_with_widget_updates(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {"occurrences": {}},
+                    "references": {
+                        "taxons": {"kind": "generic", "schema": {"id_field": "id"}},
+                        "plots": {
+                            "kind": "generic",
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "plot_id",
+                                "reference_key": "id_plot",
+                            },
+                        },
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [{"group_by": "taxons", "sources": [], "widgets_data": {}}],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        config_scaffold, "find_stats_sources_for_reference", lambda *_args: []
+    )
+
+    original_save_transform_config = config_scaffold.save_transform_config
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def delayed_save_transform_config(work_dir, groups, create_backup=False):
+        if any(group.get("group_by") == "plots" for group in groups):
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        original_save_transform_config(work_dir, groups, create_backup=create_backup)
+
+    monkeypatch.setattr(
+        config_scaffold, "save_transform_config", delayed_save_transform_config
+    )
+
+    def run_scaffold():
+        try:
+            config_scaffold.scaffold_configs(tmp_path)
+        except BaseException as exc:
+            errors.append(exc)
+
+    def update_widget():
+        try:
+            asyncio.run(
+                config_router.update_transform_widget(
+                    "taxons",
+                    "summary_widget",
+                    config_router.TransformWidgetUpdate(
+                        plugin="field_aggregator",
+                        params={"field": "id"},
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=run_scaffold)
+    second = threading.Thread(target=update_widget)
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+
+    transform_config = yaml.safe_load((config_dir / "transform.yml").read_text())
+    groups = {group["group_by"]: group for group in transform_config}
+    assert "plots" in groups
+    assert "summary_widget" in groups["taxons"]["widgets_data"]
 
 
 def test_scaffold_configs_returns_false_when_no_references_exist(tmp_path):
