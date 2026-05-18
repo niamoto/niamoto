@@ -710,7 +710,7 @@ async def save_transform_config(request: SaveConfigRequest):
             group_config["sources"] = request.sources
 
         transform_widgets_data = {
-            widget_id: widget_config
+            widget_id: dict(widget_config)
             for widget_id, widget_config in request.widgets_data.items()
             if isinstance(widget_config, dict)
             and not _is_export_only_widget_config(widget_config)
@@ -756,7 +756,16 @@ async def save_transform_config(request: SaveConfigRequest):
         # Update the group in the list
         existing_groups[group_index] = group_config
 
-        # Generate export.yml BEFORE cleaning export_override (shared references)
+        # Clean export_override from widgets_data before writing to transform.yml
+        for wid, wcfg in group_config.get("widgets_data", {}).items():
+            if isinstance(wcfg, dict):
+                wcfg.pop("export_override", None)
+
+        validated_groups = validate_transform_config(existing_groups)
+
+        # Generate export.yml only after transform.yml data validates, so an
+        # invalid save request cannot leave export widgets pointing at unsaved
+        # transform data.
         _generate_export_config(
             work_dir,
             group_name,
@@ -765,15 +774,10 @@ async def save_transform_config(request: SaveConfigRequest):
             mode=request.mode,
         )
 
-        # Clean export_override from widgets_data before writing to transform.yml
-        for wid, wcfg in group_config.get("widgets_data", {}).items():
-            if isinstance(wcfg, dict):
-                wcfg.pop("export_override", None)
-
         # Write updated config as list
         with open(transform_path, "w", encoding="utf-8") as f:
             yaml.dump(
-                validate_transform_config(existing_groups),
+                validated_groups,
                 f,
                 default_flow_style=False,
                 sort_keys=False,
@@ -805,6 +809,8 @@ async def save_transform_config(request: SaveConfigRequest):
             widgets_updated=widgets_updated,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error saving transform config: {e}")
         raise HTTPException(
