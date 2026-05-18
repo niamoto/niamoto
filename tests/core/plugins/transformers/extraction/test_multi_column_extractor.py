@@ -229,6 +229,43 @@ class TestMultiColumnExtractorTransform:
             # Check results
             assert result["counts"] == [10, 20, 30]  # 30 is the derived value (10 + 20)
 
+    def test_transform_rejects_unsafe_derived_column_formulas(
+        self, multi_column_extractor_plugin
+    ):
+        """Derived column formulas should not execute arbitrary Python syntax."""
+        data = pd.DataFrame()
+        source_data = pd.DataFrame({"id": [1], "col1": [10], "col2": [20]})
+        unsafe_formulas = [
+            "abs(col1)",
+            "(1).__class__",
+            "__import__('os').system('echo unsafe')",
+            "[x for x in col1]",
+            "col1 ** 999",
+        ]
+
+        with patch.object(
+            multi_column_extractor_plugin,
+            "_get_data_from_source",
+            return_value=source_data,
+        ):
+            for formula in unsafe_formulas:
+                config = {
+                    "plugin": "multi_column_extractor",
+                    "params": {
+                        "source": "test_table",
+                        "columns": ["derived_col"],
+                        "derived_columns": [
+                            {
+                                "name": "derived_col",
+                                "formula": formula,
+                            }
+                        ],
+                    },
+                }
+
+                with pytest.raises(ValueError):
+                    multi_column_extractor_plugin.transform(data, config)
+
     def test_transform_with_named_fields(self, multi_column_extractor_plugin):
         """Test transformation with named fields."""
         # Mock input data

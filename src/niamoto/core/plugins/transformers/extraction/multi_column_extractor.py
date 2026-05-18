@@ -2,16 +2,35 @@
 Plugin for extracting values from multiple columns and transforming them into a categorical distribution.
 """
 
+import ast
+import operator
 from typing import Dict, Any, List, Optional, Literal, Union
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import pandas as pd
-import re
 from sqlalchemy import text
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
 from niamoto.core.imports.registry import EntityRegistry
+
+
+DERIVED_FORMULA_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+
+DERIVED_FORMULA_UNARY_OPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+MAX_DERIVED_FORMULA_EXPONENT = 10
 
 
 class DerivedColumnConfig(BaseModel):
@@ -143,6 +162,66 @@ class MultiColumnExtractor(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
+    def _evaluate_derived_formula(
+        self, formula: str, row_values: Dict[str, Any]
+    ) -> Any:
+        """Evaluate a derived-column arithmetic formula without Python eval."""
+        for name in row_values:
+            if "__" in name:
+                raise ValueError(f"Unsafe column name in formula context: {name}")
+
+        try:
+            expression = ast.parse(formula, mode="eval")
+        except SyntaxError as e:
+            raise ValueError(f"Invalid formula syntax: {e.msg}") from e
+
+        return self._evaluate_derived_formula_node(expression, row_values)
+
+    def _evaluate_derived_formula_node(
+        self,
+        node: ast.AST,
+        row_values: Dict[str, Any],
+    ) -> Any:
+        if isinstance(node, ast.Expression):
+            return self._evaluate_derived_formula_node(node.body, row_values)
+
+        if isinstance(node, ast.Constant):
+            if type(node.value) in (int, float):
+                return node.value
+            raise ValueError("Only numeric constants are allowed in derived formulas")
+
+        if isinstance(node, ast.Name):
+            if "__" in node.id:
+                raise ValueError(f"Unsafe formula name: {node.id}")
+            if node.id not in row_values:
+                raise ValueError(
+                    f"Column '{node.id}' referenced in formula but not found"
+                )
+            return row_values[node.id]
+
+        if isinstance(node, ast.BinOp):
+            op = DERIVED_FORMULA_BIN_OPS.get(type(node.op))
+            if op is None:
+                raise ValueError("Unsupported formula operator")
+            left = self._evaluate_derived_formula_node(node.left, row_values)
+            right = self._evaluate_derived_formula_node(node.right, row_values)
+            if (
+                isinstance(node.op, ast.Pow)
+                and type(right) in (int, float)
+                and abs(right) > MAX_DERIVED_FORMULA_EXPONENT
+            ):
+                raise ValueError("Formula exponent is too large")
+            return op(left, right)
+
+        if isinstance(node, ast.UnaryOp):
+            op = DERIVED_FORMULA_UNARY_OPS.get(type(node.op))
+            if op is None:
+                raise ValueError("Unsupported formula operator")
+            operand = self._evaluate_derived_formula_node(node.operand, row_values)
+            return op(operand)
+
+        raise ValueError(f"Unsupported formula expression: {type(node).__name__}")
+
     def _get_data_from_source(self, source: str, id_value: int = None) -> pd.DataFrame:
         """Get data from a source using registry."""
         try:
@@ -201,46 +280,15 @@ class MultiColumnExtractor(TransformerPlugin):
                 formula = derived.formula
                 derived_name = derived.name
 
-                # Find potential variable names used in the formula
-                potential_vars = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", formula))
-                # Check if these exist in the DataFrame columns
-                missing_cols = [var for var in potential_vars if var not in df.columns]
-                # Note: Basic check, might flag built-ins. Refine if needed.
-                if missing_cols:
-                    # Filter out known non-columns before raising error - basic example
-                    known_non_cols = {
-                        "True",
-                        "False",
-                        "None",
-                        "abs",
-                        "round",
-                        "min",
-                        "max",
-                        "pow",
-                        "len",
-                    }  # Add more if needed
-                    truly_missing = [m for m in missing_cols if m not in known_non_cols]
-                    if truly_missing:
-                        raise ValueError(
-                            f"Column(s) '{', '.join(truly_missing)}' referenced in formula '{formula}' but not found in dataframe columns: {list(df.columns)}"
-                        )
-
-                # Replace column names with actual values from dataframe (iloc[0] logic)
-                # Warning: This logic likely calculates based only on the first row.
-                temp_formula = formula
-                for col in df.columns:
-                    if col in temp_formula:  # Simple substring check
-                        # Using str() might have issues depending on data types
-                        temp_formula = temp_formula.replace(col, str(df[col].iloc[0]))
                 try:
-                    # Evaluate the formula
-                    value = eval(temp_formula)
+                    row_values = df.iloc[0].to_dict()
+                    value = self._evaluate_derived_formula(formula, row_values)
                     # Add the derived column to the dataframe
                     df = df.assign(**{derived_name: value})
                 except Exception as e:
                     # Catch runtime evaluation errors
                     raise ValueError(
-                        f"Error evaluating formula '{formula}' (evaluated as '{temp_formula}'): {str(e)}"
+                        f"Error evaluating formula '{formula}': {str(e)}"
                     ) from e
 
             # Extract values from columns
