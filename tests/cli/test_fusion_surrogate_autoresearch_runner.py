@@ -1,6 +1,10 @@
+import subprocess
+
+from ml.scripts.research import run_fusion_surrogate_autoresearch as runner
 from ml.scripts.research.run_fusion_surrogate_autoresearch import (
     DEFAULT_ALLOWED_PATHS,
     build_codex_prompt,
+    restore_paths,
     summarize_recent_iterations,
 )
 
@@ -69,3 +73,31 @@ def test_summarize_recent_iterations_reports_recent_rejects(tmp_path):
     assert "iter 2: no_candidate, note=No file changes produced by Codex" in summary
     assert "55.5192" in summary
     assert "55.5850" in summary
+
+
+def test_restore_paths_removes_untracked_files_and_directories(
+    tmp_path,
+    monkeypatch,
+):
+    untracked_file = tmp_path / "candidate.txt"
+    untracked_dir = tmp_path / "candidate_dir"
+    untracked_file.write_text("temporary candidate", encoding="utf-8")
+    untracked_dir.mkdir()
+    (untracked_dir / "nested.txt").write_text("nested", encoding="utf-8")
+
+    def fake_run(args, **_kwargs):
+        assert args == ["git", "status", "--short"]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout="?? candidate.txt\n?? candidate_dir/\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(runner, "ROOT", tmp_path)
+    monkeypatch.setattr(runner, "_run", fake_run)
+
+    restore_paths(["candidate.txt", "candidate_dir/"])
+
+    assert not untracked_file.exists()
+    assert not untracked_dir.exists()
