@@ -1,9 +1,12 @@
 """File management API endpoints."""
 
 import csv
+import errno
 import ipaddress
 import json
+import os
 import socket
+import stat
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -48,6 +51,60 @@ def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid path") from exc
 
     return resolved_path
+
+
+def _open_regular_file_under_root(
+    root_dir: Path, relative_path: str
+) -> tuple[int, int]:
+    """Open a regular file below root_dir without following path symlinks."""
+    requested_path = Path(relative_path)
+    if requested_path.is_absolute():
+        raise HTTPException(
+            status_code=403, detail="Access denied: file outside exports directory"
+        )
+
+    parts = requested_path.parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory_flag = getattr(os, "O_DIRECTORY", 0)
+    root_fd: int | None = None
+    current_fd: int | None = None
+
+    try:
+        root_fd = os.open(root_dir.resolve(strict=True), os.O_RDONLY | directory_flag)
+        current_fd = root_fd
+        root_fd = None
+
+        for part in parts[:-1]:
+            next_fd = os.open(
+                part,
+                os.O_RDONLY | directory_flag | nofollow,
+                dir_fd=current_fd,
+            )
+            os.close(current_fd)
+            current_fd = next_fd
+
+        file_fd = os.open(parts[-1], os.O_RDONLY | nofollow, dir_fd=current_fd)
+        file_stat = os.fstat(file_fd)
+        if not stat.S_ISREG(file_stat.st_mode):
+            os.close(file_fd)
+            raise HTTPException(status_code=400, detail="Path is not a file")
+        return file_fd, file_stat.st_size
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {relative_path}")
+    except OSError as e:
+        if e.errno == errno.ELOOP:
+            raise HTTPException(status_code=400, detail="Symlinks are not allowed")
+        if e.errno in {errno.ENOTDIR, errno.EISDIR}:
+            raise HTTPException(status_code=400, detail="Path is not a file")
+        raise
+    finally:
+        if current_fd is not None:
+            os.close(current_fd)
+        if root_fd is not None:
+            os.close(root_fd)
 
 
 class ApiTestRequest(BaseModel):
@@ -785,19 +842,15 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
         cwd = get_working_directory()
         exports_dir = cwd / "exports"
 
-        full_path = _resolve_path_under_root(
-            exports_dir,
-            file_path,
-            detail="Access denied: file outside exports directory",
-        )
-
-        # Check if file exists
-        if not full_path.exists():
-            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
-
-        # Read file content
-        with open(full_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        fd: int | None = None
+        try:
+            fd, file_size = _open_regular_file_under_root(exports_dir, file_path)
+            with os.fdopen(fd, "r", encoding="utf-8") as f:
+                fd = None
+                content = f.read()
+        finally:
+            if fd is not None:
+                os.close(fd)
 
         # Parse JSON if it's a JSON file
         if file_path.endswith(".json"):
@@ -809,14 +862,14 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
                     "path": file_path,
                     "content": content,
                     "parsed": parsed_content,
-                    "size": full_path.stat().st_size,
+                    "size": file_size,
                 }
             except json.JSONDecodeError:
                 # If JSON parsing fails, return raw content
                 return {
                     "path": file_path,
                     "content": content,
-                    "size": full_path.stat().st_size,
+                    "size": file_size,
                     "error": "Invalid JSON format",
                 }
 
@@ -824,7 +877,7 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
         return {
             "path": file_path,
             "content": content,
-            "size": full_path.stat().st_size,
+            "size": file_size,
         }
 
     except HTTPException:
