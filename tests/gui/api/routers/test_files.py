@@ -1,3 +1,4 @@
+import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -5,6 +6,7 @@ import requests
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import files as files_router
 
 
 @pytest.mark.parametrize(
@@ -174,3 +176,79 @@ def test_test_api_connection_rejects_redirects_to_internal_targets():
         timeout=10.0,
         allow_redirects=False,
     )
+
+
+def test_read_export_file_rejects_symlink_outside_exports(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    exports_dir = work_dir / "exports"
+    exports_dir.mkdir(parents=True)
+    secret_path = tmp_path / "secret.txt"
+    secret_path.write_text("secret", encoding="utf-8")
+    link_path = exports_dir / "linked-secret.txt"
+    try:
+        os.symlink(secret_path, link_path)
+    except OSError as exc:
+        pytest.skip(f"symlink creation is not available: {exc}")
+
+    monkeypatch.setattr(files_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/files/exports/read", params={"file_path": "linked-secret.txt"}
+    )
+
+    assert response.status_code in {400, 403}
+    assert response.json()["detail"] in {
+        "Access denied: file outside exports directory",
+        "Symlinks are not allowed",
+    }
+
+
+def test_read_export_file_rejects_intermediate_symlink(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    exports_dir = work_dir / "exports"
+    exports_dir.mkdir(parents=True)
+    external_dir = tmp_path / "external"
+    external_dir.mkdir()
+    (external_dir / "secret.txt").write_text("secret", encoding="utf-8")
+    link_path = exports_dir / "linked-dir"
+    try:
+        os.symlink(external_dir, link_path)
+    except OSError as exc:
+        pytest.skip(f"symlink creation is not available: {exc}")
+
+    monkeypatch.setattr(files_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/files/exports/read", params={"file_path": "linked-dir/secret.txt"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] in {
+        "Path is not a file",
+        "Symlinks are not allowed",
+    }
+
+
+def test_read_export_file_reads_regular_export(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    exports_dir = work_dir / "exports" / "api"
+    exports_dir.mkdir(parents=True)
+    export_path = exports_dir / "taxon.json"
+    export_path.write_text('{"name": "Myrtaceae"}', encoding="utf-8")
+
+    monkeypatch.setattr(files_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/files/exports/read", params={"file_path": "api/taxon.json"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "path": "api/taxon.json",
+        "content": '{"name": "Myrtaceae"}',
+        "parsed": {"name": "Myrtaceae"},
+        "size": export_path.stat().st_size,
+    }
