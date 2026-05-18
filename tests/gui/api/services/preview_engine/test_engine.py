@@ -664,3 +664,55 @@ def test_render_entity_map_falls_back_to_descendants_when_parent_has_no_geometry
 
     assert result == "<div>map</div>"
     mock_render.assert_called_once()
+
+
+def test_render_entity_map_preserves_underscored_reference_names():
+    engine = _make_engine()
+    db = MagicMock()
+    parent_df = pd.DataFrame([{"id": 1, "name": "Plot 1", "geom": "POINT (0 0)"}])
+
+    def resolve_reference(_db, reference_name):
+        return "entity_forest_plots" if reference_name == "forest_plots" else None
+
+    with (
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.resolve_reference_table",
+            side_effect=resolve_reference,
+        ) as mock_resolve,
+        patch.object(
+            engine,
+            "_get_column_names",
+            return_value=["id", "name", "location"],
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_identifier_column",
+            return_value="id",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_name_column",
+            return_value="name",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.pd.read_sql",
+            return_value=parent_df,
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.parse_wkt_to_geojson",
+            return_value={"type": "Point", "coordinates": [0, 0]},
+        ),
+        patch(
+            "niamoto.gui.api.services.map_renderer.MapRenderer.render",
+            return_value="<div>map</div>",
+        ) as mock_render,
+    ):
+        result = engine._render_entity_map(
+            "forest_plots_location_entity_map",
+            "1",
+            db,
+            [],
+        )
+
+    assert result == "<div>map</div>"
+    resolved_references = [call.args[1] for call in mock_resolve.call_args_list]
+    assert resolved_references == ["forest_plots"]
+    mock_render.assert_called_once()
