@@ -289,6 +289,7 @@ _job_work_dir_context: ContextVar[Optional[Path]] = ContextVar(
     "enrichment_job_work_dir",
     default=None,
 )
+_MISSING_EXTRA_DATA_ROW = object()
 
 
 def _resolve_work_dir() -> Optional[Path]:
@@ -1505,6 +1506,31 @@ def _load_reference_row(
         return None
 
 
+def _load_current_extra_data_for_update(
+    connection: Any,
+    quoted_table_name: str,
+    quoted_id_field: str,
+    entity_id: Any,
+) -> Any:
+    """Read the latest extra_data value immediately before an enrichment update."""
+
+    row = connection.execute(
+        text(
+            f"SELECT extra_data FROM {quoted_table_name} "
+            f"WHERE {quoted_id_field} = :entity_id LIMIT 1"
+        ),
+        {"entity_id": entity_id},
+    ).fetchone()
+    if row is None:
+        return _MISSING_EXTRA_DATA_ROW
+
+    if hasattr(row, "_mapping"):
+        return row._mapping.get("extra_data")
+    if isinstance(row, dict):
+        return row.get("extra_data")
+    return row[0]
+
+
 def _save_source_enrichment_to_db(
     reference_name: str,
     entity_id: Any,
@@ -1534,10 +1560,19 @@ def _save_source_enrichment_to_db(
             ).columns.tolist()
             id_field = _reference_id_field(reference_name, table_columns)
             quoted_id_field = quote_identifier(db, id_field)
-            merged = _replace_source_enrichment_data(
-                existing_extra_data, source, source_data
-            )
             with db.engine.connect() as connection:
+                current_extra_data = _load_current_extra_data_for_update(
+                    connection,
+                    quoted_table_name,
+                    quoted_id_field,
+                    entity_id,
+                )
+                if current_extra_data is _MISSING_EXTRA_DATA_ROW:
+                    return None
+
+                merged = _replace_source_enrichment_data(
+                    current_extra_data, source, source_data
+                )
                 connection.execute(
                     text(
                         f"UPDATE {quoted_table_name} "
@@ -1591,13 +1626,22 @@ def _delete_source_enrichment_from_db(
             ).columns.tolist()
             id_field = _reference_id_field(reference_name, table_columns)
             quoted_id_field = quote_identifier(db, id_field)
-            updated = _delete_source_enrichment_data(
-                existing_extra_data,
-                source_id,
-                allow_legacy_payload=True,
-            )
-            serialized = json.dumps(updated) if updated else None
             with db.engine.connect() as connection:
+                current_extra_data = _load_current_extra_data_for_update(
+                    connection,
+                    quoted_table_name,
+                    quoted_id_field,
+                    entity_id,
+                )
+                if current_extra_data is _MISSING_EXTRA_DATA_ROW:
+                    return None
+
+                updated = _delete_source_enrichment_data(
+                    current_extra_data,
+                    source_id,
+                    allow_legacy_payload=True,
+                )
+                serialized = json.dumps(updated) if updated else None
                 connection.execute(
                     text(
                         f"UPDATE {quoted_table_name} "
