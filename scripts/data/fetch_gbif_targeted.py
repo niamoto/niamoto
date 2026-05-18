@@ -27,6 +27,7 @@ DEFAULT_TARGETS = (
 DEFAULT_PAGE_SIZE = 300
 DEFAULT_MAX_RECORDS = 5000
 DEFAULT_MAX_SCAN_MULTIPLIER = 20
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
 INSTITUTIONAL_BASIS_OF_RECORD = {
     "PRESERVED_SPECIMEN",
     "MATERIAL_SAMPLE",
@@ -109,9 +110,11 @@ def build_request(params: dict[str, Any]) -> Request:
     )
 
 
-def fetch_page(params: dict[str, Any]) -> dict[str, Any]:
+def fetch_page(
+    params: dict[str, Any], *, timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
+) -> dict[str, Any]:
     request = build_request(params)
-    with urlopen(request) as response:
+    with urlopen(request, timeout=timeout_seconds) as response:
         return json.load(response)
 
 
@@ -153,6 +156,7 @@ def fetch_occurrences(
     page_size: int,
     pause_seconds: float,
     profile: str,
+    timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
 ) -> tuple[list[dict[str, Any]], int]:
     records: list[dict[str, Any]] = []
     offset = 0
@@ -161,14 +165,21 @@ def fetch_occurrences(
 
     while len(records) < max_records and scanned_records < max_scan_records:
         limit = min(page_size, max_scan_records - scanned_records)
-        payload = fetch_page(
-            {
-                "country": country_code,
-                "kingdomKey": kingdom_key,
-                "limit": limit,
-                "offset": offset,
-            }
-        )
+        try:
+            payload = fetch_page(
+                {
+                    "country": country_code,
+                    "kingdomKey": kingdom_key,
+                    "limit": limit,
+                    "offset": offset,
+                },
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Failed to fetch GBIF page "
+                f"for country={country_code} offset={offset} limit={limit}"
+            ) from exc
         total_count = int(payload.get("count", 0))
         page_results = payload.get("results", [])
         if not page_results:
@@ -323,6 +334,12 @@ def main() -> None:
         help="Pause between GBIF API calls.",
     )
     parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        help="Per-request GBIF API timeout in seconds.",
+    )
+    parser.add_argument(
         "--profile",
         choices=("general", "institutional"),
         default="general",
@@ -349,6 +366,7 @@ def main() -> None:
             page_size=args.page_size,
             pause_seconds=args.pause_seconds,
             profile=args.profile,
+            timeout_seconds=args.timeout_seconds,
         )
         output_dir = args.out_dir / slug
         csv_path = output_dir / "occurrences.csv"
