@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -143,97 +145,137 @@ def build_cache(gold_path: Path, output_dir: Path, n_splits: int) -> Path:
     if splits < 2:
         raise ValueError("Need at least 2 dataset groups to build surrogate cache")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for old_fold in output_dir.glob("fold_*.npz"):
-        old_fold.unlink()
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output_dir.name}.",
+            suffix=".tmp",
+            dir=output_dir.parent,
+        )
+    )
 
     kfold = GroupKFold(n_splits=splits)
     fold_summaries = []
     started_at = time.monotonic()
 
-    for fold_idx, (train_idx, test_idx) in enumerate(
-        kfold.split(np.arange(len(real_records)), groups=groups),
-        start=1,
-    ):
-        fold_started_at = time.monotonic()
-        real_train = [real_records[i] for i in train_idx]
-        real_test = [real_records[i] for i in test_idx]
-        train_records = synthetic_records + real_train
-        logger.info(
-            "Building fold %s/%s (train=%s test=%s)",
-            fold_idx,
-            splits,
-            len(train_records),
-            len(real_test),
-        )
-        header_model, value_model = _train_branch_models(train_records)
+    try:
+        for fold_idx, (train_idx, test_idx) in enumerate(
+            kfold.split(np.arange(len(real_records)), groups=groups),
+            start=1,
+        ):
+            fold_started_at = time.monotonic()
+            real_train = [real_records[i] for i in train_idx]
+            real_test = [real_records[i] for i in test_idx]
+            train_records = synthetic_records + real_train
+            logger.info(
+                "Building fold %s/%s (train=%s test=%s)",
+                fold_idx,
+                splits,
+                len(train_records),
+                len(real_test),
+            )
+            header_model, value_model = _train_branch_models(train_records)
 
-        train_payload = _build_payload(
-            train_records,
-            header_model=header_model,
-            value_model=value_model,
-            all_concepts=all_concepts,
-            include_buckets=False,
-        )
-        test_payload = _build_payload(
-            real_test,
-            header_model=header_model,
-            value_model=value_model,
-            all_concepts=all_concepts,
-            include_buckets=True,
-        )
+            train_payload = _build_payload(
+                train_records,
+                header_model=header_model,
+                value_model=value_model,
+                all_concepts=all_concepts,
+                include_buckets=False,
+            )
+            test_payload = _build_payload(
+                real_test,
+                header_model=header_model,
+                value_model=value_model,
+                all_concepts=all_concepts,
+                include_buckets=True,
+            )
 
-        fold_path = output_dir / f"fold_{fold_idx:02d}.npz"
-        np.savez_compressed(
-            fold_path,
-            train_header_proba=train_payload["header_proba"],
-            train_value_proba=train_payload["value_proba"],
-            train_metadata=train_payload["metadata"],
-            train_labels=train_payload["labels"],
-            test_header_proba=test_payload["header_proba"],
-            test_value_proba=test_payload["value_proba"],
-            test_metadata=test_payload["metadata"],
-            test_labels=test_payload["labels"],
-            **{
-                f"test_bucket_{name}": test_payload[f"bucket_{name}"]
-                for name in SURROGATE_BUCKETS
-            },
-        )
-        fold_summaries.append(
-            {
-                "file": fold_path.name,
-                "train_samples": int(len(train_records)),
-                "test_samples": int(len(real_test)),
-                "elapsed_seconds": round(time.monotonic() - fold_started_at, 3),
-            }
-        )
-        logger.info(
-            "Built %s (train=%s test=%s elapsed=%0.1fs)",
-            fold_path.name,
-            len(train_records),
-            len(real_test),
-            time.monotonic() - fold_started_at,
-        )
+            fold_path = staging_dir / f"fold_{fold_idx:02d}.npz"
+            np.savez_compressed(
+                fold_path,
+                train_header_proba=train_payload["header_proba"],
+                train_value_proba=train_payload["value_proba"],
+                train_metadata=train_payload["metadata"],
+                train_labels=train_payload["labels"],
+                test_header_proba=test_payload["header_proba"],
+                test_value_proba=test_payload["value_proba"],
+                test_metadata=test_payload["metadata"],
+                test_labels=test_payload["labels"],
+                **{
+                    f"test_bucket_{name}": test_payload[f"bucket_{name}"]
+                    for name in SURROGATE_BUCKETS
+                },
+            )
+            fold_summaries.append(
+                {
+                    "file": fold_path.name,
+                    "train_samples": int(len(train_records)),
+                    "test_samples": int(len(real_test)),
+                    "elapsed_seconds": round(time.monotonic() - fold_started_at, 3),
+                }
+            )
+            logger.info(
+                "Built %s (train=%s test=%s elapsed=%0.1fs)",
+                fold_path.name,
+                len(train_records),
+                len(real_test),
+                time.monotonic() - fold_started_at,
+            )
 
-    manifest = {
-        "cache_version": CACHE_VERSION,
-        "gold_set": str(gold_path),
-        "gold_sha256": compute_gold_set_sha256(gold_path),
-        "splits": splits,
-        "all_concepts": all_concepts,
-        "metadata_features": list(FUSION_META_FEATURE_NAMES),
-        "test_buckets": list(SURROGATE_BUCKETS),
-        "folds": fold_summaries,
-    }
-    manifest_path = output_dir / "manifest.json"
-    with manifest_path.open("w") as handle:
-        json.dump(manifest, handle, indent=2)
+        manifest = {
+            "cache_version": CACHE_VERSION,
+            "gold_set": str(gold_path),
+            "gold_sha256": compute_gold_set_sha256(gold_path),
+            "splits": splits,
+            "all_concepts": all_concepts,
+            "metadata_features": list(FUSION_META_FEATURE_NAMES),
+            "test_buckets": list(SURROGATE_BUCKETS),
+            "folds": fold_summaries,
+        }
+        manifest_path = staging_dir / "manifest.json"
+        with manifest_path.open("w") as handle:
+            json.dump(manifest, handle, indent=2)
+
+        _replace_cache_dir(staging_dir, output_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
     logger.info(
         "Wrote manifest to %s (elapsed=%0.1fs)",
-        manifest_path,
+        output_dir / "manifest.json",
         time.monotonic() - started_at,
     )
     return output_dir
+
+
+def _replace_cache_dir(staging_dir: Path, output_dir: Path) -> None:
+    if output_dir.exists() and not output_dir.is_dir():
+        raise FileExistsError(f"Cache output path is not a directory: {output_dir}")
+
+    if not output_dir.exists():
+        staging_dir.rename(output_dir)
+        return
+
+    backup_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output_dir.name}.backup.",
+            suffix=".tmp",
+            dir=output_dir.parent,
+        )
+    )
+    backup_dir.rmdir()
+
+    try:
+        output_dir.rename(backup_dir)
+        staging_dir.rename(output_dir)
+    except Exception:
+        if not output_dir.exists() and backup_dir.exists():
+            backup_dir.rename(output_dir)
+        raise
+    else:
+        shutil.rmtree(backup_dir, ignore_errors=True)
 
 
 def main() -> None:
