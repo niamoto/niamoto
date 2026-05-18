@@ -25,6 +25,7 @@ from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
 from niamoto.gui.api.services.preview_utils import error_html, wrap_html_response
 from niamoto.gui.api.services.templates.config_service import (
+    TRANSFORM_CONFIG_WRITE_LOCK,
     load_transform_config,
     save_transform_config,
     load_export_config,
@@ -1286,106 +1287,107 @@ async def save_widget_recipe(request: SaveRecipeRequest):
     # Generate data source ID (for transform.yml)
     data_source_id = f"{recipe.widget_id}"
 
-    # --- Update transform.yml ---
-    transform_config = load_transform_config(work_dir)
+    with TRANSFORM_CONFIG_WRITE_LOCK:
+        # --- Update transform.yml ---
+        transform_config = load_transform_config(work_dir)
 
-    # Find or create group
-    group_config = find_transform_group(transform_config, group_by)
-    if not group_config:
-        group_config = {"group_by": group_by, "sources": [], "widgets_data": {}}
-        transform_config.append(group_config)
+        # Find or create group
+        group_config = find_transform_group(transform_config, group_by)
+        if not group_config:
+            group_config = {"group_by": group_by, "sources": [], "widgets_data": {}}
+            transform_config.append(group_config)
 
-    # Ensure widgets_data exists
-    if "widgets_data" not in group_config:
-        group_config["widgets_data"] = {}
+        # Ensure widgets_data exists
+        if "widgets_data" not in group_config:
+            group_config["widgets_data"] = {}
 
-    # Add/update widget data
-    group_config["widgets_data"][data_source_id] = {
-        "plugin": recipe.transformer.plugin,
-        "params": recipe.transformer.params,
-    }
-
-    # --- Update export.yml ---
-    export_config = load_export_config(work_dir)
-
-    # Find the web_pages export
-    web_export = None
-    for export in export_config.get("exports", []):
-        if export.get("exporter") == "html_page_exporter":
-            web_export = export
-            break
-
-    if not web_export:
-        # Create default web export
-        web_export = {
-            "name": "web_pages",
-            "enabled": True,
-            "exporter": "html_page_exporter",
-            "params": {"template_dir": "templates/", "output_dir": "exports/web"},
-            "groups": [],
+        # Add/update widget data
+        group_config["widgets_data"][data_source_id] = {
+            "plugin": recipe.transformer.plugin,
+            "params": recipe.transformer.params,
         }
-        if "exports" not in export_config:
-            export_config["exports"] = []
-        export_config["exports"].append(web_export)
 
-    # Find or create group in export
-    export_group = None
-    for group in web_export.get("groups", []):
-        if group.get("group_by") == group_by:
-            export_group = group
-            break
+        # --- Update export.yml ---
+        export_config = load_export_config(work_dir)
 
-    if not export_group:
-        export_group = {
-            "group_by": group_by,
-            "output_pattern": f"{group_by}/{{id}}.html",
-            "widgets": [],
-        }
-        if "groups" not in web_export:
-            web_export["groups"] = []
-        web_export["groups"].append(export_group)
+        # Find the web_pages export
+        web_export = None
+        for export in export_config.get("exports", []):
+            if export.get("exporter") == "html_page_exporter":
+                web_export = export
+                break
 
-    # Ensure widgets list exists
-    if "widgets" not in export_group:
-        export_group["widgets"] = []
-
-    # Check if widget already exists (update) or add new
-    widget_found = False
-    for i, widget in enumerate(export_group["widgets"]):
-        if widget.get("data_source") == data_source_id:
-            # Update existing
-            export_group["widgets"][i] = {
-                "plugin": recipe.widget.plugin,
-                "title": recipe.widget.title
-                or recipe.widget_id.replace("_", " ").title(),
-                "data_source": data_source_id,
-                "layout": {
-                    "colspan": recipe.widget.layout.colspan,
-                    "order": recipe.widget.layout.order,
-                },
-                "params": recipe.widget.params,
+        if not web_export:
+            # Create default web export
+            web_export = {
+                "name": "web_pages",
+                "enabled": True,
+                "exporter": "html_page_exporter",
+                "params": {"template_dir": "templates/", "output_dir": "exports/web"},
+                "groups": [],
             }
-            widget_found = True
-            break
+            if "exports" not in export_config:
+                export_config["exports"] = []
+            export_config["exports"].append(web_export)
 
-    if not widget_found:
-        # Add new widget
-        export_group["widgets"].append(
-            {
-                "plugin": recipe.widget.plugin,
-                "title": recipe.widget.title
-                or recipe.widget_id.replace("_", " ").title(),
-                "data_source": data_source_id,
-                "layout": {
-                    "colspan": recipe.widget.layout.colspan,
-                    "order": recipe.widget.layout.order,
-                },
-                "params": recipe.widget.params,
+        # Find or create group in export
+        export_group = None
+        for group in web_export.get("groups", []):
+            if group.get("group_by") == group_by:
+                export_group = group
+                break
+
+        if not export_group:
+            export_group = {
+                "group_by": group_by,
+                "output_pattern": f"{group_by}/{{id}}.html",
+                "widgets": [],
             }
-        )
+            if "groups" not in web_export:
+                web_export["groups"] = []
+            web_export["groups"].append(export_group)
 
-    save_export_config(work_dir, export_config)
-    save_transform_config(work_dir, transform_config)
+        # Ensure widgets list exists
+        if "widgets" not in export_group:
+            export_group["widgets"] = []
+
+        # Check if widget already exists (update) or add new
+        widget_found = False
+        for i, widget in enumerate(export_group["widgets"]):
+            if widget.get("data_source") == data_source_id:
+                # Update existing
+                export_group["widgets"][i] = {
+                    "plugin": recipe.widget.plugin,
+                    "title": recipe.widget.title
+                    or recipe.widget_id.replace("_", " ").title(),
+                    "data_source": data_source_id,
+                    "layout": {
+                        "colspan": recipe.widget.layout.colspan,
+                        "order": recipe.widget.layout.order,
+                    },
+                    "params": recipe.widget.params,
+                }
+                widget_found = True
+                break
+
+        if not widget_found:
+            # Add new widget
+            export_group["widgets"].append(
+                {
+                    "plugin": recipe.widget.plugin,
+                    "title": recipe.widget.title
+                    or recipe.widget_id.replace("_", " ").title(),
+                    "data_source": data_source_id,
+                    "layout": {
+                        "colspan": recipe.widget.layout.colspan,
+                        "order": recipe.widget.layout.order,
+                    },
+                    "params": recipe.widget.params,
+                }
+            )
+
+        save_export_config(work_dir, export_config)
+        save_transform_config(work_dir, transform_config)
 
     return SaveRecipeResponse(
         success=True,
@@ -1486,14 +1488,15 @@ async def delete_widget_recipe(group_by: str, widget_id: str):
 
     work_dir = Path(work_dir)
 
-    # --- Update transform.yml ---
-    transform_config = load_transform_config(work_dir)
-    group_config = find_transform_group(transform_config, group_by)
+    with TRANSFORM_CONFIG_WRITE_LOCK:
+        # --- Update transform.yml ---
+        transform_config = load_transform_config(work_dir)
+        group_config = find_transform_group(transform_config, group_by)
 
-    if group_config and "widgets_data" in group_config:
-        if widget_id in group_config["widgets_data"]:
-            del group_config["widgets_data"][widget_id]
-            save_transform_config(work_dir, transform_config)
+        if group_config and "widgets_data" in group_config:
+            if widget_id in group_config["widgets_data"]:
+                del group_config["widgets_data"][widget_id]
+                save_transform_config(work_dir, transform_config)
 
     # --- Update export.yml ---
     export_config = load_export_config(work_dir)

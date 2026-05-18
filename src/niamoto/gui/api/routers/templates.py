@@ -39,6 +39,9 @@ from niamoto.gui.api.services.templates.utils.widget_utils import (
     generate_widget_title,
     generate_widget_params,
 )
+from niamoto.gui.api.services.templates.config_service import (
+    TRANSFORM_CONFIG_WRITE_LOCK,
+)
 
 from niamoto.gui.api.services.templates.suggestion_service import (  # noqa: E402
     generate_navigation_suggestion,
@@ -663,127 +666,130 @@ async def save_transform_config(request: SaveConfigRequest):
     transform_path = config_dir / "transform.yml"
 
     try:
-        # Ensure config directory exists
-        config_dir.mkdir(parents=True, exist_ok=True)
+        with TRANSFORM_CONFIG_WRITE_LOCK:
+            # Ensure config directory exists
+            config_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load existing config as a list of groups
-        # Format: [{ group_by: taxons, sources: [...], widgets_data: {...} }, ...]
-        existing_groups: List[Dict[str, Any]] = []
-        if transform_path.exists():
-            with open(transform_path, "r", encoding="utf-8") as f:
-                loaded = yaml.safe_load(f) or []
-                if not isinstance(loaded, list):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="transform.yml must be a list of groups",
-                    )
-                existing_groups = [g for g in loaded if isinstance(g, dict)]
+            # Load existing config as a list of groups
+            # Format: [{ group_by: taxons, sources: [...], widgets_data: {...} }, ...]
+            existing_groups: List[Dict[str, Any]] = []
+            if transform_path.exists():
+                with open(transform_path, "r", encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f) or []
+                    if not isinstance(loaded, list):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="transform.yml must be a list of groups",
+                        )
+                    existing_groups = [g for g in loaded if isinstance(g, dict)]
 
-        # Find or create the group config
-        group_name = request.group_by
-        group_config = None
-        group_index = -1
+            # Find or create the group config
+            group_name = request.group_by
+            group_config = None
+            group_index = -1
 
-        for i, group in enumerate(existing_groups):
-            if group.get("group_by") == group_name:
-                group_config = group
-                group_index = i
-                break
+            for i, group in enumerate(existing_groups):
+                if group.get("group_by") == group_name:
+                    group_config = group
+                    group_index = i
+                    break
 
-        if group_config is None:
-            # Create new group
-            group_config = {"group_by": group_name}
-            existing_groups.append(group_config)
-            group_index = len(existing_groups) - 1
+            if group_config is None:
+                # Create new group
+                group_config = {"group_by": group_name}
+                existing_groups.append(group_config)
+                group_index = len(existing_groups) - 1
 
-        # Update sources based on mode
-        if request.mode == "merge":
-            # Merge mode: preserve existing sources, only add new ones
-            existing_sources = group_config.get("sources", [])
-            existing_source_names = {s.get("name") for s in existing_sources}
-            for new_source in request.sources:
-                if new_source.get("name") not in existing_source_names:
-                    existing_sources.append(new_source)
-            group_config["sources"] = existing_sources
-        else:
-            # Replace mode: replace sources entirely
-            group_config["sources"] = request.sources
+            # Update sources based on mode
+            if request.mode == "merge":
+                # Merge mode: preserve existing sources, only add new ones
+                existing_sources = group_config.get("sources", [])
+                existing_source_names = {s.get("name") for s in existing_sources}
+                for new_source in request.sources:
+                    if new_source.get("name") not in existing_source_names:
+                        existing_sources.append(new_source)
+                group_config["sources"] = existing_sources
+            else:
+                # Replace mode: replace sources entirely
+                group_config["sources"] = request.sources
 
-        transform_widgets_data = {
-            widget_id: dict(widget_config)
-            for widget_id, widget_config in request.widgets_data.items()
-            if isinstance(widget_config, dict)
-            and not _is_export_only_widget_config(widget_config)
-        }
+            transform_widgets_data = {
+                widget_id: dict(widget_config)
+                for widget_id, widget_config in request.widgets_data.items()
+                if isinstance(widget_config, dict)
+                and not _is_export_only_widget_config(widget_config)
+            }
 
-        # Track changes on transform.yml only. Export-only widgets like
-        # hierarchical_nav_widget are written exclusively to export.yml.
-        existing_widgets = {
-            widget_id: widget_config
-            for widget_id, widget_config in group_config.get("widgets_data", {}).items()
-            if isinstance(widget_config, dict)
-            and not _is_export_only_widget_config(widget_config)
-        }
-        widgets_added = 0
-        widgets_updated = 0
-        widgets_removed = 0
+            # Track changes on transform.yml only. Export-only widgets like
+            # hierarchical_nav_widget are written exclusively to export.yml.
+            existing_widgets = {
+                widget_id: widget_config
+                for widget_id, widget_config in group_config.get(
+                    "widgets_data", {}
+                ).items()
+                if isinstance(widget_config, dict)
+                and not _is_export_only_widget_config(widget_config)
+            }
+            widgets_added = 0
+            widgets_updated = 0
+            widgets_removed = 0
 
-        if request.mode == "merge":
-            # Merge mode: add new widgets to existing ones, update if exists
-            merged_widgets = dict(existing_widgets)
-            for widget_id, widget_config in transform_widgets_data.items():
-                if widget_id in merged_widgets:
-                    widgets_updated += 1
-                else:
-                    widgets_added += 1
-                merged_widgets[widget_id] = widget_config
-            group_config["widgets_data"] = merged_widgets
-        else:
-            # Replace mode: count changes and replace entirely
-            for widget_id in transform_widgets_data:
-                if widget_id in existing_widgets:
-                    widgets_updated += 1
-                else:
-                    widgets_added += 1
+            if request.mode == "merge":
+                # Merge mode: add new widgets to existing ones, update if exists
+                merged_widgets = dict(existing_widgets)
+                for widget_id, widget_config in transform_widgets_data.items():
+                    if widget_id in merged_widgets:
+                        widgets_updated += 1
+                    else:
+                        widgets_added += 1
+                    merged_widgets[widget_id] = widget_config
+                group_config["widgets_data"] = merged_widgets
+            else:
+                # Replace mode: count changes and replace entirely
+                for widget_id in transform_widgets_data:
+                    if widget_id in existing_widgets:
+                        widgets_updated += 1
+                    else:
+                        widgets_added += 1
 
-            for widget_id in existing_widgets:
-                if widget_id not in transform_widgets_data:
-                    widgets_removed += 1
+                for widget_id in existing_widgets:
+                    if widget_id not in transform_widgets_data:
+                        widgets_removed += 1
 
-            # Replace widgets_data entirely (not merge) to handle deletions
-            group_config["widgets_data"] = dict(transform_widgets_data)
+                # Replace widgets_data entirely (not merge) to handle deletions
+                group_config["widgets_data"] = dict(transform_widgets_data)
 
-        # Update the group in the list
-        existing_groups[group_index] = group_config
+            # Update the group in the list
+            existing_groups[group_index] = group_config
 
-        # Clean export_override from widgets_data before writing to transform.yml
-        for wid, wcfg in group_config.get("widgets_data", {}).items():
-            if isinstance(wcfg, dict):
-                wcfg.pop("export_override", None)
+            # Clean export_override from widgets_data before writing to transform.yml
+            for wid, wcfg in group_config.get("widgets_data", {}).items():
+                if isinstance(wcfg, dict):
+                    wcfg.pop("export_override", None)
 
-        validated_groups = validate_transform_config(existing_groups)
+            validated_groups = validate_transform_config(existing_groups)
 
-        # Generate export.yml only after transform.yml data validates, so an
-        # invalid save request cannot leave export widgets pointing at unsaved
-        # transform data.
-        _generate_export_config(
-            work_dir,
-            group_name,
-            request.widgets_data,
-            group_config.get("sources", []),
-            mode=request.mode,
-        )
-
-        # Write updated config as list
-        with open(transform_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                validated_groups,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-                width=120,
+            # Generate export.yml only after transform.yml data validates, so an
+            # invalid save request cannot leave export widgets pointing at unsaved
+            # transform data.
+            _generate_export_config(
+                work_dir,
+                group_name,
+                request.widgets_data,
+                group_config.get("sources", []),
+                mode=request.mode,
             )
+
+            # Write updated config as list
+            with open(transform_path, "w", encoding="utf-8") as f:
+                yaml.dump(
+                    validated_groups,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                    width=120,
+                )
 
         logger.info(
             f"Saved transform config for group '{group_name}' to {transform_path}"

@@ -6,6 +6,7 @@ Centralizes all config file operations to avoid duplication across routers.
 
 import logging
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -15,6 +16,7 @@ import yaml
 from niamoto.common.transform_config_models import validate_transform_config
 
 logger = logging.getLogger(__name__)
+TRANSFORM_CONFIG_WRITE_LOCK = threading.RLock()
 
 
 def load_transform_config(work_dir: Path) -> List[Dict[str, Any]]:
