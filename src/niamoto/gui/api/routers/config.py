@@ -765,6 +765,7 @@ async def get_datasets():
         if db_path.exists():
             try:
                 from niamoto.common.database import Database
+                from niamoto.common.table_resolver import quote_identifier
                 from niamoto.core.imports.registry import EntityRegistry
                 import pandas as pd
 
@@ -778,8 +779,9 @@ async def get_datasets():
                     for ds_name in datasets_section.keys():
                         actual_table = table_name_map.get(ds_name, f"dataset_{ds_name}")
                         if db.has_table(actual_table):
+                            quoted_table = quote_identifier(db, actual_table)
                             result = pd.read_sql(
-                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                f"SELECT COUNT(*) as cnt FROM {quoted_table}",
                                 db.engine,
                             )
                             entity_counts[ds_name] = int(result.iloc[0]["cnt"])

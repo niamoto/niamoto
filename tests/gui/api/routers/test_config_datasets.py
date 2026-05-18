@@ -1,5 +1,8 @@
 """Regression tests for dataset configuration routes."""
 
+import json
+
+import duckdb
 import yaml
 from fastapi.testclient import TestClient
 
@@ -66,3 +69,76 @@ def test_update_dataset_config_rejects_malformed_datasets_without_writing(
     )
     assert import_path.read_text(encoding="utf-8") == original_text
     assert not (config_dir / "backups").exists()
+
+
+def test_get_datasets_counts_registry_table_names_requiring_quotes(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "observations": {
+                            "description": "Field observations",
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    conn = duckdb.connect(str(db_dir / "niamoto.duckdb"))
+    try:
+        conn.execute('CREATE TABLE "dataset-observations" (id INTEGER)')
+        conn.execute('INSERT INTO "dataset-observations" VALUES (1), (2)')
+        conn.execute(
+            """
+            CREATE TABLE niamoto_metadata_entities (
+                name TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                table_name TEXT NOT NULL,
+                config TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO niamoto_metadata_entities (name, kind, table_name, config)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                "observations",
+                "dataset",
+                "dataset-observations",
+                json.dumps({}),
+            ],
+        )
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/datasets")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "datasets": [
+            {
+                "name": "observations",
+                "table_name": "dataset-observations",
+                "description": "Field observations",
+                "schema_fields": [],
+                "entity_count": 2,
+            }
+        ],
+        "total": 1,
+    }
