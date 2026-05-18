@@ -172,5 +172,5 @@ ROLE_AFFORDANCES: dict[str, set[str]] = {
 def get_affordances(concept: Optional[str], role: str) -> set[str]:
     """Get affordances for a concept, falling back to role defaults."""
     if concept and concept in CONCEPT_AFFORDANCES:
-        return CONCEPT_AFFORDANCES[concept]
-    return ROLE_AFFORDANCES.get(role, set())
+        return set(CONCEPT_AFFORDANCES[concept])
+    return set(ROLE_AFFORDANCES.get(role, set()))
