@@ -226,6 +226,8 @@ def test_find_representative_entity_returns_spatial_geometry(monkeypatch):
         "geometry": "POLYGON ((0 0,1 0,1 1,0 1,0 0))",
         "spatial_query": True,
         "kind": "spatial",
+        "source_dataset": "occurrences",
+        "source_table": "occurrences",
         "shape_type": "province",
     }
 
