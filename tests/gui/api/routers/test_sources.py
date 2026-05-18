@@ -5,6 +5,27 @@ import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import sources as sources_router
+
+
+def test_upload_rejects_files_over_size_limit(
+    monkeypatch,
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    monkeypatch.setattr(sources_router, "MAX_UPLOAD_SIZE_BYTES", 10)
+    monkeypatch.setattr(sources_router, "UPLOAD_CHUNK_SIZE_BYTES", 4)
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "large_stats"},
+        files={
+            "file": ("large.csv", b"class_object,class_name,class_value\n", "text/csv")
+        },
+    )
+
+    assert response.status_code == 413
+    assert not (gui_duckdb_context / "imports" / "raw_large_stats.csv").exists()
 
 
 def test_save_source_uses_selected_entity_column_and_reference_key(

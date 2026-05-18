@@ -31,6 +31,8 @@ from niamoto.gui.api.services.templates.relation_detection import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
 
 # =============================================================================
@@ -277,10 +279,26 @@ async def upload_precalc_source(
 
     # Save uploaded file
     try:
+        bytes_written = 0
         with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+            while chunk := await file.read(UPLOAD_CHUNK_SIZE_BYTES):
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            "Uploaded file exceeds the maximum allowed size "
+                            f"of {MAX_UPLOAD_SIZE_BYTES} bytes"
+                        ),
+                    )
+                f.write(chunk)
+    except HTTPException:
+        if file_path.exists():
+            file_path.unlink()
+        raise
     except Exception as e:
+        if file_path.exists():
+            file_path.unlink()
         logger.exception(f"Error saving uploaded file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
