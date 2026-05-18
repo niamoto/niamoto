@@ -18,6 +18,8 @@ router = APIRouter()
 _LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
 _ROOT_INDEX_TEMPLATE = "index.html"
 _ROOT_INDEX_OUTPUT = "index.html"
+MAX_BIBTEX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
+BIBTEX_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
 
 def _normalize_output_alias(output_file: str | None) -> str | None:
@@ -2339,6 +2341,26 @@ class ImportResponse(BaseModel):
     errors: List[str] = []
 
 
+async def _read_bibtex_upload(file: UploadFile) -> bytes:
+    """Read BibTeX uploads with a hard size cap."""
+    chunks: List[bytes] = []
+    total_size = 0
+
+    while chunk := await file.read(BIBTEX_UPLOAD_CHUNK_SIZE_BYTES):
+        total_size += len(chunk)
+        if total_size > MAX_BIBTEX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "BibTeX file exceeds the maximum allowed size "
+                    f"of {MAX_BIBTEX_UPLOAD_SIZE_BYTES} bytes"
+                ),
+            )
+        chunks.append(chunk)
+
+    return b"".join(chunks)
+
+
 def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
     """
     Parse a single BibTeX entry into a reference dictionary.
@@ -2449,7 +2471,7 @@ async def import_bibtex(file: UploadFile = File(...)):
         )
 
     try:
-        content = await file.read()
+        content = await _read_bibtex_upload(file)
         text = content.decode("utf-8", errors="replace")
 
         # Split into entries (each starts with @)
@@ -2496,6 +2518,8 @@ async def import_bibtex(file: UploadFile = File(...)):
             errors=errors,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error processing BibTeX file: {str(e)}"
