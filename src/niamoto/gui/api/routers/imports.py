@@ -1,9 +1,10 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
 import logging
+import os
 import traceback
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Form
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import uuid
@@ -28,6 +29,17 @@ logger = logging.getLogger(__name__)
 import_jobs: Dict[str, Dict[str, Any]] = {}
 MAX_IMPORT_EVENTS = 40
 ACTIVE_IMPORT_STATUSES = {"pending", "running"}
+DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
+
+
+def _require_import_mutation_auth(request: Request) -> None:
+    expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
+    if not expected_token:
+        return
+
+    provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
+    if provided_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
 
 
 def _now_iso() -> str:
@@ -203,10 +215,13 @@ class ImportJobResponse(BaseModel):
 
 @router.post("/execute/all", response_model=ImportJobResponse)
 async def execute_import_all(
+    request: Request,
     background_tasks: BackgroundTasks,
     reset_table: bool = Form(False),
 ) -> ImportJobResponse:
     """Execute import of all entities from generic configuration."""
+    _require_import_mutation_auth(request)
+
     from ..context import get_working_directory
 
     work_dir = get_working_directory()
@@ -268,11 +283,13 @@ async def execute_import_all(
 
 @router.post("/execute/reference/{entity_name}", response_model=ImportJobResponse)
 async def execute_import_reference(
+    request: Request,
     entity_name: str,
     background_tasks: BackgroundTasks,
     reset_table: bool = Form(False),
 ) -> ImportJobResponse:
     """Execute import of a specific reference entity."""
+    _require_import_mutation_auth(request)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -318,11 +335,13 @@ async def execute_import_reference(
 
 @router.post("/execute/dataset/{entity_name}", response_model=ImportJobResponse)
 async def execute_import_dataset(
+    request: Request,
     entity_name: str,
     background_tasks: BackgroundTasks,
     reset_table: bool = Form(False),
 ) -> ImportJobResponse:
     """Execute import of a specific dataset entity."""
+    _require_import_mutation_auth(request)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
