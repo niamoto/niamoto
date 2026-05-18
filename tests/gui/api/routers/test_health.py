@@ -178,7 +178,17 @@ def test_runtime_mode_reports_shell_metadata(monkeypatch: pytest.MonkeyPatch):
     }
 
 
-def test_debug_test_500_endpoint_returns_intentional_server_error():
+def test_debug_test_500_endpoint_is_hidden_by_default(monkeypatch):
+    monkeypatch.delenv("NIAMOTO_ENABLE_DEBUG_ROUTES", raising=False)
+    client = create_test_client()
+
+    response = client.get("/api/health/debug/test-500")
+
+    assert response.status_code == 404
+
+
+def test_debug_test_500_endpoint_returns_intentional_server_error(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_ENABLE_DEBUG_ROUTES", "1")
     client = create_test_client()
 
     response = client.get("/api/health/debug/test-500")
