@@ -597,6 +597,56 @@ def test_hierarchy_inspection_loads_roots_children_and_search(
     assert second_page["nodes"][0]["label"] == "Araucaria"
 
 
+def test_taxonomy_consistency_counts_dangling_parent_orphans(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DROP TABLE entity_taxons")
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id INTEGER,
+                parent_id INTEGER,
+                level INTEGER,
+                rank_name VARCHAR,
+                rank_value VARCHAR,
+                full_name VARCHAR,
+                full_path VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (101, NULL, 0, 'family', 'Araucariaceae', 'Araucariaceae', 'Araucariaceae'),
+                (102, 101, 1, 'genus', 'Araucaria', 'Araucaria', 'Araucariaceae > Araucaria'),
+                (103, 102, 2, 'species', 'columnaris', 'Araucaria columnaris', 'Araucariaceae > Araucaria > Araucaria columnaris'),
+                (104, 999, 2, 'species', 'missing', 'Missing parent species', 'Missing parent species')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/taxonomy-consistency?entity=taxons")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    species_level = next(
+        level for level in payload["levels"] if level["level"] == "species"
+    )
+    assert species_level["orphan_count"] == 1
+    assert payload["orphan_records"] == [
+        {
+            "id": 104,
+            "parent_id": 999,
+            "rank_name": "species",
+            "name": "Missing parent species",
+        }
+    ]
+
+
 def test_hierarchy_inspection_handles_textual_level_columns(
     gui_duckdb_client: TestClient, gui_duckdb_project
 ):

@@ -2959,7 +2959,8 @@ async def get_taxonomy_consistency(
 
             quoted_table = preparer.quote(target_table)
             columns_info = db.get_columns(target_table)
-            column_names = [c["name"].lower() for c in columns_info]
+            columns_by_lower = {c["name"].lower(): c["name"] for c in columns_info}
+            column_names = list(columns_by_lower)
 
             with db.engine.connect() as conn:
                 # Total count
@@ -2967,37 +2968,86 @@ async def get_taxonomy_consistency(
                 total = result.scalar() or 0
 
                 levels = []
+                orphan_records = []
 
                 # Strategy 1: Check for Niamoto hierarchical structure (rank_name column)
                 if "rank_name" in column_names:
+                    rank_col = preparer.quote(columns_by_lower["rank_name"])
+                    id_col = (
+                        preparer.quote(columns_by_lower["id"])
+                        if "id" in columns_by_lower
+                        else None
+                    )
+                    parent_col = (
+                        preparer.quote(columns_by_lower["parent_id"])
+                        if "parent_id" in columns_by_lower
+                        else None
+                    )
+                    level_col = (
+                        preparer.quote(columns_by_lower["level"])
+                        if "level" in columns_by_lower
+                        else None
+                    )
+                    name_col_for_orphans = next(
+                        (
+                            preparer.quote(columns_by_lower[candidate])
+                            for candidate in ["full_name", "rank_value", "name"]
+                            if candidate in columns_by_lower
+                        ),
+                        None,
+                    )
+                    level_order = (
+                        f"ORDER BY MIN({level_col}) NULLS LAST"
+                        if level_col
+                        else f"ORDER BY {rank_col}"
+                    )
+
                     # Get hierarchy levels from rank_name column
                     result = conn.execute(
                         text(
                             f"""
-                            SELECT rank_name, COUNT(*) as cnt
+                            SELECT {rank_col}, COUNT(*) as cnt
                             FROM {quoted_table}
-                            WHERE rank_name IS NOT NULL
-                            GROUP BY rank_name
-                            ORDER BY MIN(level)
+                            WHERE {rank_col} IS NOT NULL
+                            GROUP BY {rank_col}
+                            {level_order}
                         """
                         )
                     )
                     # Fetch all rows before executing any other query (DuckDB closes cursor on new query)
                     all_rows = result.fetchall()
 
+                    orphan_condition = None
+                    if parent_col:
+                        orphan_parts = []
+                        if id_col:
+                            orphan_parts.append(
+                                f"""
+                                (node.{parent_col} IS NOT NULL AND NOT EXISTS (
+                                    SELECT 1 FROM {quoted_table} parent_lookup
+                                    WHERE parent_lookup.{id_col} = node.{parent_col}
+                                ))
+                                """
+                            )
+                        if level_col:
+                            orphan_parts.append(
+                                f"(node.{level_col} > 0 AND node.{parent_col} IS NULL)"
+                            )
+                        if orphan_parts:
+                            orphan_condition = "(" + " OR ".join(orphan_parts) + ")"
+
                     for row in all_rows:
                         rank_name = row[0]
                         count = row[1]
-                        # Count orphans (records without parent when they should have one)
+                        # Count records missing an expected parent or pointing to a missing parent.
                         orphan_count = 0
-                        if "parent_id" in column_names and "level" in column_names:
+                        if orphan_condition:
                             orphan_result = conn.execute(
                                 text(
                                     f"""
-                                    SELECT COUNT(*) FROM {quoted_table}
-                                    WHERE rank_name = :rank_name
-                                    AND level > 0
-                                    AND parent_id IS NULL
+                                    SELECT COUNT(*) FROM {quoted_table} node
+                                    WHERE node.{rank_col} = :rank_name
+                                    AND {orphan_condition}
                                 """
                                 ),
                                 {"rank_name": rank_name},
@@ -3009,6 +3059,35 @@ async def get_taxonomy_consistency(
                                 level=rank_name, count=count, orphan_count=orphan_count
                             )
                         )
+
+                    if orphan_condition:
+                        orphan_select = [
+                            f"node.{id_col} AS id" if id_col else "NULL AS id",
+                            f"node.{parent_col} AS parent_id",
+                            f"node.{rank_col} AS rank_name",
+                        ]
+                        if name_col_for_orphans:
+                            orphan_select.append(f"node.{name_col_for_orphans} AS name")
+                        orphan_rows = conn.execute(
+                            text(
+                                f"""
+                                SELECT {", ".join(orphan_select)}
+                                FROM {quoted_table} node
+                                WHERE {orphan_condition}
+                                ORDER BY node.{rank_col}, id
+                                LIMIT 10
+                                """
+                            )
+                        ).fetchall()
+                        for row in orphan_rows:
+                            record = {
+                                "id": row[0],
+                                "parent_id": row[1],
+                                "rank_name": row[2],
+                            }
+                            if name_col_for_orphans:
+                                record["name"] = row[3]
+                            orphan_records.append(record)
                 else:
                     # Strategy 2: Detect hierarchy from separate columns
                     rank_patterns = [
@@ -3067,7 +3146,7 @@ async def get_taxonomy_consistency(
             return TaxonomyConsistency(
                 total_taxa=total,
                 levels=levels,
-                orphan_records=[],
+                orphan_records=orphan_records,
                 duplicate_names=duplicates,
                 hierarchy_depth=len(levels),
             )
