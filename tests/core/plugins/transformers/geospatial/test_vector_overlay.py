@@ -393,24 +393,22 @@ class TestBasicOperations:
 
     def test_perform_basic_operation_error(self, plugin):
         """Test basic operation error handling."""
-        # Create GeoDataFrames with mismatched CRS to cause error
         gdf1 = gpd.GeoDataFrame(
             {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
             crs="EPSG:4326",
         )
-        # GDF without CRS
         gdf2 = gpd.GeoDataFrame(
-            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]}
+            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
+            crs="EPSG:4326",
         )
         params = {"area_unit": "ha"}
 
-        # This may or may not raise - geopandas handles this differently
-        # Just test it doesn't crash catastrophically
-        try:
-            result = plugin._perform_basic_operation(gdf1, gdf2, "intersection", params)
-            assert "stats" in result or "error" in str(result).lower()
-        except (DataTransformError, Exception):
-            pass  # Expected
+        with patch(
+            "niamoto.core.plugins.transformers.geospatial.vector_overlay.gpd.overlay",
+            side_effect=RuntimeError("overlay failed"),
+        ):
+            with pytest.raises(DataTransformError, match="overlay failed"):
+                plugin._perform_basic_operation(gdf1, gdf2, "intersection", params)
 
 
 class TestClipOperation:
@@ -485,18 +483,22 @@ class TestCoverageOperation:
 
     def test_perform_coverage_operation_error(self, plugin):
         """Test coverage operation error handling."""
-        # Invalid GeoDataFrames with None geometries
-        gdf1 = gpd.GeoDataFrame({"geometry": [None]}, crs="EPSG:4326")
-        gdf2 = gpd.GeoDataFrame({"geometry": [None]}, crs="EPSG:4326")
+        gdf1 = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
+            crs="EPSG:4326",
+        )
+        gdf2 = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
+            crs="EPSG:4326",
+        )
         params = {"area_unit": "ha"}
 
-        # None geometries should cause an error
-        try:
-            result = plugin._perform_coverage_operation(gdf1, gdf2, params)
-            # If it doesn't raise, check that result indicates error
-            assert "coverage_area" in result
-        except (DataTransformError, Exception):
-            pass  # Expected error
+        with patch(
+            "niamoto.core.plugins.transformers.geospatial.vector_overlay.unary_union",
+            side_effect=RuntimeError("union failed"),
+        ):
+            with pytest.raises(DataTransformError, match="union failed"):
+                plugin._perform_coverage_operation(gdf1, gdf2, params)
 
 
 class TestAggregateOperation:
