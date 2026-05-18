@@ -15,6 +15,7 @@ from datetime import datetime
 
 from ..context import get_working_directory
 from niamoto.gui.api.services.templates.config_service import (
+    TRANSFORM_CONFIG_WRITE_LOCK,
     load_transform_config as _load_transform_config_impl,
     save_transform_config as _save_transform_config_impl,
     load_export_config as _load_export_config_impl,
@@ -41,7 +42,6 @@ from niamoto.core.imports.config_models import GenericImportConfig
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
-TRANSFORM_CONFIG_WRITE_LOCK = threading.RLock()
 EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
 
 
