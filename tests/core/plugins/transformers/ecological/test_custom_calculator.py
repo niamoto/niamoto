@@ -373,6 +373,28 @@ class TestCustomCalculator(unittest.TestCase):
         assert result["description"] == expected_description
         assert result["variables"] == expected_variables
 
+    def test_custom_formula_rejects_unsafe_expressions(self):
+        """Unsafe Python expressions must not be accepted as formulas."""
+        unsafe_formulas = [
+            "np.sqrt(a)",
+            "(1).__class__",
+            "__import__('os').system('echo unsafe')",
+            "[x for x in values]",
+            "lambda x: x + 1",
+        ]
+
+        for formula in unsafe_formulas:
+            config = {
+                "params": {
+                    "operation": "custom_formula",
+                    "formula": formula,
+                    "variables": {"a": 1, "values": [1, 2, 3]},
+                },
+            }
+
+            with pytest.raises(DataTransformError):
+                self.plugin.transform(pd.DataFrame(), config)
+
     def test_invalid_operation(self):
         """Test transform with an invalid operation triggering config validation error."""
         config = {"params": {"operation": "invalid_op"}}
