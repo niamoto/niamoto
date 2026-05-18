@@ -3,7 +3,7 @@
 import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 import yaml
 
@@ -14,6 +14,7 @@ from niamoto.core.plugins.loaders.api_taxonomy_enricher import ApiTaxonomyEnrich
 from ..utils.database import open_database
 
 router = APIRouter()
+MAX_QUERY_LIMIT = 1000
 
 
 class TableInfo(BaseModel):
@@ -32,8 +33,8 @@ class QueryRequest(BaseModel):
     columns: Optional[List[str]] = None
     where: Optional[str] = None
     order_by: Optional[str] = None
-    limit: int = 100
-    offset: int = 0
+    limit: int = Field(default=100, ge=1, le=MAX_QUERY_LIMIT)
+    offset: int = Field(default=0, ge=0)
 
 
 class QueryResponse(BaseModel):
@@ -530,8 +531,8 @@ async def query_table(request: QueryRequest):
             )
             data_params: Dict[str, Any] = {
                 **where_params,
-                "limit": max(1, int(request.limit)),
-                "offset": max(0, int(request.offset)),
+                "limit": request.limit,
+                "offset": request.offset,
             }
 
             with db.session() as session:

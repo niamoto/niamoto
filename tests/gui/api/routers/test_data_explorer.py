@@ -13,6 +13,7 @@ from sqlalchemy import create_engine
 from niamoto.gui.api import context
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers.data_explorer import (
+    MAX_QUERY_LIMIT,
     _build_where_clause,
     _get_default_order_column,
 )
@@ -212,6 +213,18 @@ def test_query_table_applies_default_order_by_when_none_provided(
     assert response.status_code == 200, response.text
     payload = response.json()
     assert [row["id"] for row in payload["rows"]] == [101, 202]
+
+
+def test_query_table_rejects_oversized_limit(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.post(
+        "/api/data/query",
+        json={"table": "entity_taxons", "limit": MAX_QUERY_LIMIT + 1, "offset": 0},
+    )
+
+    assert response.status_code == 422, response.text
+    error = response.json()["detail"][0]
+    assert error["loc"] == ["body", "limit"]
+    assert error["type"] == "less_than_equal"
 
 
 def test_query_table_opens_database_in_read_only_mode(
