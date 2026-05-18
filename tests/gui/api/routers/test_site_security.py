@@ -29,6 +29,59 @@ def test_file_content_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Access denied: path outside project"
 
 
+def test_file_content_allows_site_content_roots(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    content_dir = work_dir / "templates" / "content"
+    files_dir = work_dir / "files"
+    content_dir.mkdir(parents=True)
+    files_dir.mkdir()
+    (content_dir / "about.md").write_text("# About", encoding="utf-8")
+    (files_dir / "page.md").write_text("# Page", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    template_response = client.get(
+        "/api/site/file-content",
+        params={"path": "templates/content/about.md"},
+    )
+    files_response = client.get(
+        "/api/site/file-content",
+        params={"path": "files/page.md"},
+    )
+
+    assert template_response.status_code == 200
+    assert template_response.json()["content"] == "# About"
+    assert files_response.status_code == 200
+    assert files_response.json()["content"] == "# Page"
+
+
+def test_file_content_rejects_project_config_files(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "export.yml").write_text("secret: value", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/site/file-content",
+        params={"path": "config/export.yml"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "File path is not allowed for site content editing"
+    )
+
+
 def test_data_content_update_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     sibling_dir = tmp_path / "project-backup"
