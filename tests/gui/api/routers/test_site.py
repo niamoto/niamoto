@@ -603,6 +603,68 @@ class TestSiteGroups:
                 in html
             )
 
+    def test_preview_template_rejects_content_source_outside_project(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            outside_file = Path(temp_dir) / "secret.md"
+            outside_file.write_text("secret", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "page.html",
+                        "context": {
+                            "title": "Methodology",
+                            "content_source": str(outside_file),
+                        },
+                        "site": {"title": "Niamoto", "lang": "fr"},
+                        "navigation": [],
+                        "footer_navigation": [],
+                    },
+                )
+
+            assert response.status_code == 403
+            assert response.json()["detail"] == "Access denied: path outside project"
+
+    def test_preview_template_rejects_json_source_traversal(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            outside_file = Path(temp_dir) / "team.json"
+            outside_file.write_text('{"name":"secret"}', encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "page.html",
+                        "context": {
+                            "title": "Methodology",
+                            "team_source": "../team.json",
+                        },
+                        "site": {"title": "Niamoto", "lang": "fr"},
+                        "navigation": [],
+                        "footer_navigation": [],
+                    },
+                )
+
+            assert response.status_code == 403
+            assert response.json()["detail"] == "Access denied: path outside project"
+
     def test_preview_group_index_uses_absolute_backend_urls_for_assets(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
