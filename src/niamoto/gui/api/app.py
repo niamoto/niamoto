@@ -184,10 +184,11 @@ def create_app() -> FastAPI:
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():
-        # Mount assets directory
-        app.mount(
-            "/assets", StaticFiles(directory=UI_BUILD_DIR / "assets"), name="assets"
-        )
+        # Mount the Vite assets directory when present. Partial builds can still
+        # serve index.html without crashing at startup.
+        assets_dir = UI_BUILD_DIR / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
         # Mount the entire dist directory for all non-API routes
         # This will serve index.html for any route that doesn't match an API endpoint
