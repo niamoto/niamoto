@@ -9,10 +9,10 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import inspect, text
 import yaml
 
@@ -306,10 +306,23 @@ class ShapeDistributionResult(BaseModel):
 class ValidationRule(BaseModel):
     """A single validation rule."""
 
-    rule_type: str  # 'outlier', 'bounds', 'required'
+    rule_type: Literal["outlier", "bounds", "required"]
     target: str  # Entity or column
-    method: str  # 'iqr', 'zscore', 'percentile', 'manual'
+    method: Literal["iqr", "zscore", "percentile", "manual", "auto"]
     params: Dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_method_for_rule_type(self) -> "ValidationRule":
+        allowed_methods = {
+            "outlier": {"iqr", "zscore", "percentile"},
+            "bounds": {"auto", "manual"},
+            "required": {"manual"},
+        }
+        if self.method not in allowed_methods[self.rule_type]:
+            raise ValueError(
+                f"Method '{self.method}' is not valid for rule type '{self.rule_type}'"
+            )
+        return self
 
 
 class ValidationRules(BaseModel):

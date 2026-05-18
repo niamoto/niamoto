@@ -1618,3 +1618,49 @@ def test_validation_rules_put_accepts_desktop_auth_token(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert (tmp_path / "config" / "validation.yml").exists()
+
+
+def test_validation_rules_put_rejects_invalid_rule_type(tmp_path, monkeypatch):
+    monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.delenv("NIAMOTO_DESKTOP_AUTH_TOKEN", raising=False)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/stats/validation/rules",
+        json={
+            "rules": [
+                {
+                    "rule_type": "typo",
+                    "target": "dataset_occurrences.locality",
+                    "method": "manual",
+                    "params": {"allow_empty": False},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+    assert not (tmp_path / "config" / "validation.yml").exists()
+
+
+def test_validation_rules_put_rejects_invalid_method(tmp_path, monkeypatch):
+    monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.delenv("NIAMOTO_DESKTOP_AUTH_TOKEN", raising=False)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/stats/validation/rules",
+        json={
+            "rules": [
+                {
+                    "rule_type": "required",
+                    "target": "dataset_occurrences.locality",
+                    "method": "iqr",
+                    "params": {"allow_empty": False},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+    assert not (tmp_path / "config" / "validation.yml").exists()
