@@ -139,6 +139,7 @@ node_modules/
 
 # AI agent local state (CLAUDE.md and AGENTS.md are tracked, see project root)
 .claude/
+.clawpatch/
 
 # Local-only archive for plans, brainstorms, specs, ideation
 _archive/
