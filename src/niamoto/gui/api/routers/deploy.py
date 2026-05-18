@@ -181,6 +181,7 @@ async def validate_exports(request: DeployRequest):
         exports_dir=exports_dir,
         project_name=request.project_name,
         branch=request.branch,
+        extra=request.extra,
     )
 
     errors = deployer.validate_exports(config)

@@ -64,7 +64,11 @@ def test_validate_exports_returns_errors_without_starting_deploy(monkeypatch, tm
     client = TestClient(create_app())
     response = client.post(
         "/api/deploy/validate",
-        json={"platform": "vercel", "project_name": "niamoto-site"},
+        json={
+            "platform": "vercel",
+            "project_name": "niamoto-site",
+            "extra": {"service_id": "svc-123"},
+        },
     )
 
     assert response.status_code == 200
@@ -73,6 +77,7 @@ def test_validate_exports_returns_errors_without_starting_deploy(monkeypatch, tm
     assert fake_deployer.received_config.platform == "vercel"
     assert fake_deployer.received_config.project_name == "niamoto-site"
     assert fake_deployer.received_config.exports_dir == exports_dir
+    assert fake_deployer.received_config.extra == {"service_id": "svc-123"}
 
 
 def test_execute_returns_error_stream_for_preflight_failures(monkeypatch, tmp_path):
