@@ -445,6 +445,36 @@ class TestTemplatesEndpoints:
         # Should fail validation
         assert response.status_code == 422
 
+    def test_save_config_does_not_update_export_when_transform_is_invalid(
+        self, client, test_work_dir
+    ):
+        """Invalid transform payloads must not partially update export.yml."""
+        config_dir = Path(test_work_dir) / "config"
+        transform_path = config_dir / "transform.yml"
+        export_path = config_dir / "export.yml"
+        original_transform = transform_path.read_text(encoding="utf-8")
+        original_export = export_path.read_text(encoding="utf-8")
+
+        response = client.post(
+            "/api/templates/save-config",
+            json={
+                "group_by": "taxons",
+                "sources": [{"name": "broken_source"}],
+                "widgets_data": {
+                    "new_widget": {
+                        "plugin": "field_aggregator",
+                        "field": "elevation",
+                        "params": {},
+                    }
+                },
+                "mode": "replace",
+            },
+        )
+
+        assert response.status_code == 500
+        assert transform_path.read_text(encoding="utf-8") == original_transform
+        assert export_path.read_text(encoding="utf-8") == original_export
+
     def test_preview_template_returns_html(self, client):
         """Test GET /api/preview/{template_id} returns HTML."""
         response = client.get("/api/preview/test_template?group_by=taxons")
