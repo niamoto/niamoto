@@ -6,7 +6,7 @@ import json
 import socket
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import pandas as pd
 import requests
@@ -287,7 +287,16 @@ async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
             headers=request.headers,
             params=request.params,
             timeout=10.0,
+            allow_redirects=False,
         )
+
+        if 300 <= response.status_code < 400:
+            redirect_target = response.headers.get("Location")
+            if redirect_target:
+                redirect_url = urljoin(request.url, redirect_target)
+                redirect_error = _validate_api_test_url(redirect_url)
+                if redirect_error:
+                    return ApiTestResponse(success=False, error=redirect_error)
 
         if response.status_code == 200:
             try:
