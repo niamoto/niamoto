@@ -1025,6 +1025,61 @@ def test_spatial_stats_preserves_wkt_counts_without_spatial_extension(
     }
 
 
+def test_spatial_stats_prefers_explicit_xy_columns_over_detected_wkt(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["datasets"]["observations"] = {
+        "connector": {"type": "csv"},
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE dataset_observations (
+                id INTEGER,
+                longitude DOUBLE,
+                latitude DOUBLE,
+                geometry VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO dataset_observations VALUES
+                (1, 164.1, -21.1, NULL),
+                (2, 165.2, -22.2, NULL),
+                (3, NULL, -23.3, 'POINT (1 1)')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get(
+        "/api/stats/spatial?entity=observations&x_column=longitude&y_column=latitude"
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["total_points"] == 3
+    assert payload["with_coordinates"] == 2
+    assert payload["without_coordinates"] == 1
+    assert payload["coordinate_columns"] == {
+        "x_col": "longitude",
+        "y_col": "latitude",
+    }
+    assert payload["bounding_box"] == {
+        "min_x": 164.1,
+        "min_y": -22.2,
+        "max_x": 165.2,
+        "max_y": -21.1,
+    }
+
+
 def test_geo_coverage_analyze_ignores_invalid_wkt_rows(
     gui_duckdb_client: TestClient, gui_duckdb_project
 ):
