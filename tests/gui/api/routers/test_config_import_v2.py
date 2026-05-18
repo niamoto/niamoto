@@ -58,6 +58,31 @@ def test_create_backup_preserves_rapid_successive_backups(monkeypatch, tmp_path)
     )
 
 
+def test_list_backups_does_not_expose_absolute_paths(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    backup_dir = work_dir / "config" / "backups"
+    backup_dir.mkdir(parents=True)
+    backup_path = backup_dir / "import_20260518_171500_123456.yml"
+    backup_path.write_text("version: '2'\n", encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/import/backup/list")
+
+    assert response.status_code == 200, response.text
+    backups = response.json()["backups"]
+    assert backups == [
+        {
+            "filename": backup_path.name,
+            "size": backup_path.stat().st_size,
+            "modified": backups[0]["modified"],
+        }
+    ]
+    assert "path" not in backups[0]
+    assert str(work_dir) not in response.text
+
+
 def test_save_import_v2_rejects_missing_entities_without_writing(
     monkeypatch,
     tmp_path,

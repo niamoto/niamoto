@@ -1023,7 +1023,6 @@ async def list_backups(config_name: str) -> Dict[str, Any]:
         backups.append(
             {
                 "filename": backup_file.name,
-                "path": str(backup_file),
                 "size": stat.st_size,
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             }
