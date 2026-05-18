@@ -18,6 +18,22 @@ from ..context import get_working_directory
 router = APIRouter()
 
 
+def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
+    """Resolve a path below root_dir and reject sibling-prefix escapes."""
+    try:
+        root_dir_resolved = root_dir.resolve()
+        resolved_path = (root_dir / path).resolve()
+        resolved_path.relative_to(root_dir_resolved)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=detail) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid path") from exc
+
+    return resolved_path
+
+
 class ApiTestRequest(BaseModel):
     """Request model for API testing."""
 
@@ -688,14 +704,11 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
         cwd = get_working_directory()
         exports_dir = cwd / "exports"
 
-        # Construct full path
-        full_path = exports_dir / file_path
-
-        # Security check: ensure the file is within exports directory
-        if not str(full_path.resolve()).startswith(str(exports_dir.resolve())):
-            raise HTTPException(
-                status_code=403, detail="Access denied: file outside exports directory"
-            )
+        full_path = _resolve_path_under_root(
+            exports_dir,
+            file_path,
+            detail="Access denied: file outside exports directory",
+        )
 
         # Check if file exists
         if not full_path.exists():
@@ -810,17 +823,11 @@ async def serve_file(file_path: str):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Decode the path and resolve it
-    full_path = work_dir / file_path
-
-    # Security check: ensure the path is within the working directory
-    try:
-        full_path = full_path.resolve()
-        work_dir_resolved = work_dir.resolve()
-        if not str(full_path).startswith(str(work_dir_resolved)):
-            raise HTTPException(status_code=403, detail="Access denied")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    full_path = _resolve_path_under_root(
+        work_dir,
+        file_path,
+        detail="Access denied",
+    )
 
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
