@@ -1065,7 +1065,7 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
 
 @router.post("/{config_name}/validate")
 async def validate_config(
-    config_name: str, content: Dict[str, Any] = Body(...)
+    config_name: str, content: Union[Dict[str, Any], List[Any]] = Body(...)
 ) -> Dict[str, Any]:
     """
     Validate a configuration without saving it.
@@ -1080,6 +1080,14 @@ async def validate_config(
     validation_result = {"valid": True, "errors": [], "warnings": []}
 
     try:
+        _validate_config_name(config_name)
+
+        if config_name == "transform" and isinstance(content, list):
+            return _validate_config_update_content(config_name, content)
+
+        if not isinstance(content, dict):
+            return _validate_config_update_content(config_name, content)
+
         if config_name == "import":
             _validate_import_config_content(content, validation_result)
 
