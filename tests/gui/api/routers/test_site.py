@@ -1014,6 +1014,79 @@ class TestSiteGroups:
             assert '"link_title": "View on Endemia"' in html
             assert "{&#39;fr&#39;" not in html
 
+    def test_preview_group_index_uses_configured_footer_navigation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {
+                                    "title": {"fr": "Niamoto FR", "en": "Niamoto EN"},
+                                    "lang": "fr",
+                                    "languages": ["fr", "en"],
+                                },
+                                "navigation": [],
+                                "footer_navigation": [
+                                    {
+                                        "title": {
+                                            "fr": "Ressources",
+                                            "en": "Resources",
+                                        },
+                                        "links": [
+                                            {
+                                                "text": {
+                                                    "fr": "Documentation",
+                                                    "en": "Docs",
+                                                },
+                                                "url": "resources.html",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.post(
+                    "/api/site/preview-group-index/plots",
+                    json={"gui_lang": "en"},
+                )
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "Resources" in html
+            assert "Docs" in html
+            assert 'href="resources.html"' in html
+            assert "Ressources" not in html
+
     def test_preview_group_index_uses_request_config_before_save(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
