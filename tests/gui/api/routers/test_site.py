@@ -35,6 +35,33 @@ def _write_config(path: Path, data: object) -> None:
         yaml.safe_dump(data, f, sort_keys=False)
 
 
+def test_export_bibtex_handles_blank_and_null_fields():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/site/export-bibtex",
+        json=[
+            {
+                "type": "article",
+                "authors": "",
+                "title": "A",
+                "year": "2024",
+                "journal": None,
+                "pages": None,
+            },
+            {
+                "type": "article",
+                "authors": None,
+                "title": None,
+                "year": None,
+            },
+        ],
+    )
+
+    assert response.status_code == 200, response.text
+    assert "@article{unknown2024a," in response.text
+    assert "@article{unknown0000untitled," in response.text
+
+
 def test_import_csv_rejects_duplicate_normalized_headers():
     client = TestClient(create_app())
 

@@ -2517,46 +2517,50 @@ def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
         "other": "misc",
     }
 
+    def clean_text(value: Any, default: str = "") -> str:
+        if value is None:
+            return default
+        return str(value).strip()
+
     def make_key(ref: Dict[str, Any]) -> str:
-        authors = ref.get("authors", "unknown")
-        first_author = authors.split(",")[0].strip().split()[-1].lower()
-        year = ref.get("year", "0000")
-        title_word = (
-            ref.get("title", "untitled").split()[0].lower()
-            if ref.get("title")
-            else "untitled"
-        )
+        authors = clean_text(ref.get("authors"))
+        author_tokens = authors.split(",")[0].strip().split()
+        first_author = author_tokens[-1].lower() if author_tokens else "unknown"
+        year = clean_text(ref.get("year"), "0000") or "0000"
+        title_tokens = clean_text(ref.get("title")).split()
+        title_word = title_tokens[0].lower() if title_tokens else "untitled"
         return f"{first_author}{year}{title_word}"
 
     lines = []
     for ref in references:
-        bib_type = type_mapping.get(ref.get("type", "other"), "misc")
+        bib_type = type_mapping.get(clean_text(ref.get("type"), "other"), "misc")
         key = make_key(ref)
 
         lines.append(f"@{bib_type}{{{key},")
-        if ref.get("authors"):
+        authors_value = clean_text(ref.get("authors"))
+        if authors_value:
             # Convert "A, B, C" back to "A and B and C"
-            authors = ref["authors"].replace(", ", " and ")
+            authors = authors_value.replace(", ", " and ")
             lines.append(f"  author    = {{{authors}}},")
-        if ref.get("title"):
-            lines.append(f"  title     = {{{ref['title']}}},")
-        if ref.get("year"):
-            lines.append(f"  year      = {{{ref['year']}}},")
-        if ref.get("journal"):
+        if title := clean_text(ref.get("title")):
+            lines.append(f"  title     = {{{title}}},")
+        if year := clean_text(ref.get("year")):
+            lines.append(f"  year      = {{{year}}},")
+        if journal := clean_text(ref.get("journal")):
             if bib_type in ("inproceedings", "incollection"):
-                lines.append(f"  booktitle = {{{ref['journal']}}},")
+                lines.append(f"  booktitle = {{{journal}}},")
             elif bib_type in ("phdthesis", "mastersthesis"):
-                lines.append(f"  school    = {{{ref['journal']}}},")
+                lines.append(f"  school    = {{{journal}}},")
             else:
-                lines.append(f"  journal   = {{{ref['journal']}}},")
-        if ref.get("volume"):
-            lines.append(f"  volume    = {{{ref['volume']}}},")
-        if ref.get("pages"):
-            lines.append(f"  pages     = {{{ref['pages'].replace('-', '--')}}},")
-        if ref.get("doi"):
-            lines.append(f"  doi       = {{{ref['doi']}}},")
-        if ref.get("url"):
-            lines.append(f"  url       = {{{ref['url']}}},")
+                lines.append(f"  journal   = {{{journal}}},")
+        if volume := clean_text(ref.get("volume")):
+            lines.append(f"  volume    = {{{volume}}},")
+        if pages := clean_text(ref.get("pages")):
+            lines.append(f"  pages     = {{{pages.replace('-', '--')}}},")
+        if doi := clean_text(ref.get("doi")):
+            lines.append(f"  doi       = {{{doi}}},")
+        if url := clean_text(ref.get("url")):
+            lines.append(f"  url       = {{{url}}},")
         lines.append("}")
         lines.append("")
 
