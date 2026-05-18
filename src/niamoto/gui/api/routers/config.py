@@ -865,16 +865,22 @@ async def update_dataset_config(dataset_name: str, config: Dict[str, Any] = Body
                 status_code=404, detail=f"Dataset '{dataset_name}' not found"
             )
 
+        candidate_config = deepcopy(import_config)
+        candidate_datasets = candidate_config["entities"]["datasets"]
+        candidate_datasets[dataset_name] = config
+        try:
+            GenericImportConfig.model_validate(candidate_config)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid dataset configuration: {str(exc)}",
+            ) from exc
+
         # Backup before modifying
         create_backup(config_path)
 
-        # Update the dataset config
-        datasets_section[dataset_name] = config
-        import_config["entities"]["datasets"] = datasets_section
-
         # Write back
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+        _write_yaml_atomic(config_path, candidate_config)
 
         return {
             "success": True,

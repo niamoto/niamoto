@@ -7,6 +7,7 @@ import threading
 import time
 
 import duckdb
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
@@ -245,6 +246,54 @@ def test_update_dataset_config_rejects_malformed_datasets_without_writing(
     assert response.json()["detail"] == (
         "Malformed import.yml: entities.datasets must be an object"
     )
+    assert import_path.read_text(encoding="utf-8") == original_text
+    assert not (config_dir / "backups").exists()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"connector": {"type": "file"}, "schema": {"id_field": "id", "fields": []}},
+    ],
+)
+def test_update_dataset_config_rejects_invalid_dataset_without_writing(
+    monkeypatch,
+    tmp_path,
+    payload,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    import_path = config_dir / "import.yml"
+    original_config = {
+        "entities": {
+            "references": {},
+            "datasets": {
+                "observations": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/observations.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                }
+            },
+        }
+    }
+    original_text = yaml.safe_dump(original_config, sort_keys=False)
+    import_path.write_text(original_text, encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/config/datasets/observations/config",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+    assert "Invalid dataset configuration" in response.json()["detail"]
     assert import_path.read_text(encoding="utf-8") == original_text
     assert not (config_dir / "backups").exists()
 
