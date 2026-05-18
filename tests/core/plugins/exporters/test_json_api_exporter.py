@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call, patch, MagicMock, mock_open
 from unittest import mock
 from datetime import datetime
+import json
 import tempfile
 import os
 
@@ -1057,9 +1058,25 @@ class TestJsonApiExporterMetadata:
                 assert metadata["export_name"] == "test_export"
                 assert metadata["exporter"] == "json_api_exporter"
                 assert "statistics" in metadata
-                assert (
-                    metadata["statistics"]["duration_seconds"] == 330.0
-                )  # 5.5 minutes
+        assert metadata["statistics"]["duration_seconds"] == 330.0  # 5.5 minutes
+
+    def test_export_metadata_duration_is_recorded(self, tmp_path):
+        """Successful exports should write a non-null duration."""
+        exporter = JsonApiExporter(Mock())
+        target_config = Mock()
+        target_config.name = "test_export"
+        target_config.params = {
+            "output_dir": str(tmp_path),
+            "metadata": {"generate": True, "include_stats": True},
+        }
+        target_config.groups = []
+
+        exporter.export(target_config, Mock())
+
+        metadata = json.loads((tmp_path / "metadata.json").read_text(encoding="utf-8"))
+        duration = metadata["statistics"]["duration_seconds"]
+        assert isinstance(duration, float)
+        assert duration >= 0
 
     def test_metadata_without_stats(self, exporter, tmp_path):
         """Test metadata generation without statistics."""
