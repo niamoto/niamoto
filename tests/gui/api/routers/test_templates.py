@@ -536,8 +536,22 @@ class TestTemplatesEndpoints:
 
     def test_semantic_groups_endpoint(self, client):
         """Test GET /api/templates/{reference}/semantic-groups."""
-        response = client.get("/api/templates/taxons/semantic-groups")
-        assert response.status_code in [200, 404, 500]
+        db_path = Path("/tmp/test-niamoto.duckdb")
+        with (
+            patch(
+                "niamoto.gui.api.routers.templates.get_database_path",
+                return_value=db_path,
+            ),
+            patch("niamoto.gui.api.routers.templates.Database") as database_cls,
+            patch("niamoto.core.imports.registry.EntityRegistry") as registry_cls,
+        ):
+            registry_cls.return_value.get.side_effect = KeyError("missing")
+            response = client.get("/api/templates/taxons/semantic-groups")
+
+        assert response.status_code == 200
+        assert response.json() == {"groups": []}
+        database_cls.assert_called_once_with(str(db_path), read_only=True)
+        database_cls.return_value.close_db_session.assert_called_once()
 
 
 class TestTemplatesRouterRegistration:

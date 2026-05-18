@@ -1249,7 +1249,7 @@ async def get_combined_widget_suggestions(
             EnrichedColumnProfile,
         )
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             registry = EntityRegistry(db)
 
@@ -1390,7 +1390,7 @@ async def get_semantic_groups(
             EnrichedColumnProfile,
         )
 
-        db = Database(str(db_path))
+        db = Database(str(db_path), read_only=True)
         try:
             registry = EntityRegistry(db)
 
