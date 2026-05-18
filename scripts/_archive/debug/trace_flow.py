@@ -10,16 +10,17 @@ from pathlib import Path
 from typing import Any
 
 # Ajouter src au path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from sqlalchemy import text
+from sqlalchemy import text  # noqa: E402
 
-from niamoto.common.database import Database
-from niamoto.core.plugins.transformers.distribution.binned_distribution import (
+from niamoto.common.database import Database  # noqa: E402
+from niamoto.core.plugins.transformers.distribution.binned_distribution import (  # noqa: E402
     BinnedDistribution,
 )
-from niamoto.core.plugins.widgets.bar_plot import BarPlotWidget
-from niamoto.common.utils.data_access import transform_data
+from niamoto.core.plugins.widgets.bar_plot import BarPlotWidget  # noqa: E402
+from niamoto.common.utils.data_access import transform_data  # noqa: E402
 
 
 def print_section(title: str):
@@ -52,7 +53,7 @@ def main():
     print_section("TRAÇAGE DU FLOW: dbh_distribution -> bar_plot")
 
     # Configuration
-    db_path = Path("test-instance/niamoto-test/db/niamoto.duckdb")
+    db_path = REPO_ROOT / "test-instance" / "niamoto-test" / "db" / "niamoto.duckdb"
 
     if not db_path.exists():
         print(f"❌ Base de données introuvable: {db_path}")

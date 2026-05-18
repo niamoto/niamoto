@@ -8,10 +8,13 @@ import sys
 from pathlib import Path
 import yaml
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+import pytest
 
-from niamoto.core.imports.auto_detector import AutoDetector
+# Add src to path
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from niamoto.core.imports.auto_detector import AutoDetector  # noqa: E402
 
 
 def test_auto_detection():
@@ -22,13 +25,10 @@ def test_auto_detection():
     print()
 
     # Path to test data
-    import_dir = (
-        Path(__file__).parent.parent / "test-instance" / "niamoto-og" / "imports"
-    )
+    import_dir = REPO_ROOT / "test-instance" / "niamoto-og" / "imports"
 
     if not import_dir.exists():
-        print(f"Error: Import directory not found at {import_dir}")
-        return
+        pytest.skip(f"Import fixture directory not found: {import_dir}")
 
     print(f"📁 Analyzing directory: {import_dir}")
     print()
@@ -48,6 +48,7 @@ def test_auto_detection():
     print("-" * 40)
 
     summary = results["summary"]
+    assert summary["total_files"] > 0
     print(f"Total files analyzed: {summary['total_files']}")
     print(f"Total records: {summary['total_records']:,}")
     print(f"Overall confidence: {results['confidence'] * 100:.1f}%")

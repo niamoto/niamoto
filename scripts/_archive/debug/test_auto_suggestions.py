@@ -11,18 +11,19 @@ import sys
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from niamoto.common.database import Database
-from niamoto.core.imports.engine import GenericImporter
-from niamoto.core.imports.registry import EntityRegistry, EntityKind
+from niamoto.common.database import Database  # noqa: E402
+from niamoto.core.imports.engine import GenericImporter  # noqa: E402
+from niamoto.core.imports.registry import EntityRegistry, EntityKind  # noqa: E402
 
 
 def test_auto_suggestions():
     """Test auto-suggestions with test instance data."""
 
     # Use test instance
-    db_path = Path("test-instance/niamoto-nc/db/niamoto.duckdb")
+    db_path = REPO_ROOT / "test-instance" / "niamoto-nc" / "db" / "niamoto.duckdb"
     if not db_path.exists():
         print(f"❌ Database not found: {db_path}")
         return 1
@@ -34,14 +35,14 @@ def test_auto_suggestions():
 
     # Test with a small CSV (use occurrences if available)
     csv_files = [
-        "test-instance/niamoto-nc/imports/occurrences_mini.csv",
-        "test-instance/niamoto-nc/imports/occurrences.csv",
-        "test-instance/niamoto-nc/imports/plots.csv",
+        REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "occurrences_mini.csv",
+        REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "occurrences.csv",
+        REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "plots.csv",
     ]
 
     test_csv = None
     for csv_file in csv_files:
-        if Path(csv_file).exists():
+        if csv_file.exists():
             test_csv = csv_file
             break
 
