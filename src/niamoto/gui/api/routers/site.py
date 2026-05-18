@@ -1777,8 +1777,19 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Validate file type based on target folder
-    file_ext = Path(file.filename).suffix.lower()
+    raw_filename = file.filename or ""
+    safe_filename = Path(raw_filename).name
+    if (
+        not safe_filename
+        or safe_filename in {".", ".."}
+        or safe_filename != raw_filename
+        or "/" in raw_filename
+        or "\\" in raw_filename
+    ):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    safe_filename = safe_filename.replace(" ", "_")
+    file_ext = Path(safe_filename).suffix.lower()
 
     # Base extensions (images + markdown)
     base_extensions = {
@@ -1841,8 +1852,17 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
         ".css",
     }
 
+    target_dir = _resolve_project_file_path(work_dir, folder)
+    relative_target_dir = target_dir.relative_to(work_dir.resolve())
+    if not relative_target_dir.parts or relative_target_dir.parts[0] != "files":
+        raise HTTPException(status_code=403, detail="Upload folder is not allowed")
+
     # Allow extended types for files/data folder
-    if folder.startswith("files/data"):
+    if (
+        len(relative_target_dir.parts) >= 2
+        and relative_target_dir.parts[0] == "files"
+        and relative_target_dir.parts[1] == "data"
+    ):
         allowed_extensions = base_extensions | data_extensions
     else:
         allowed_extensions = base_extensions
@@ -1854,11 +1874,9 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
         )
 
     # Create target directory if it doesn't exist
-    target_dir = work_dir / folder
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate safe filename (avoid overwriting)
-    safe_filename = file.filename.replace(" ", "_")
     target_path = target_dir / safe_filename
 
     # If file exists, add a number suffix
