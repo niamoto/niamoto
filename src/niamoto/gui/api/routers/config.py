@@ -33,6 +33,7 @@ from niamoto.core.plugins.exporters.json_api_exporter import (
     JsonApiExporter,
     JsonApiExporterParams,
 )
+from niamoto.core.imports.config_models import GenericImportConfig
 
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
@@ -138,6 +139,56 @@ def _api_export_target_looks_like_dwc(export_target: Dict[str, Any]) -> bool:
         isinstance(value, str) and DWC_TARGET_PATTERN.search(value)
         for value in _api_export_target_name_values(export_target)
     )
+
+
+def _validate_import_config_content(
+    content: Dict[str, Any], validation_result: Dict[str, Any]
+) -> None:
+    """Validate import config content for current and legacy schemas."""
+    if not content:
+        validation_result["errors"].append("Configuration is empty")
+        validation_result["valid"] = False
+        return
+
+    if "entities" in content:
+        try:
+            import_config = GenericImportConfig.from_dict(content)
+        except Exception as exc:
+            validation_result["errors"].append(str(exc))
+            validation_result["valid"] = False
+            return
+
+        entities = import_config.entities
+        if not entities.references and not entities.datasets:
+            validation_result["errors"].append(
+                "No data sources defined (entities.references or entities.datasets)"
+            )
+            validation_result["valid"] = False
+        return
+
+    has_data_sources = False
+    # Check for legacy import keys.
+    for key in ["taxonomy", "plots", "occurrences", "shapes"]:
+        if key in content:
+            has_data_sources = True
+            value = content[key]
+            if isinstance(value, dict):
+                if "path" not in value and "file" not in value:
+                    validation_result["warnings"].append(
+                        f"{key} has no path or file specified"
+                    )
+            elif key == "shapes" and isinstance(value, list):
+                for idx, shape in enumerate(value):
+                    if "path" not in shape and "file" not in shape:
+                        validation_result["warnings"].append(
+                            f"Shape {idx} has no path or file specified"
+                        )
+
+    if not has_data_sources:
+        validation_result["errors"].append(
+            "No data sources defined (taxonomy, plots, occurrences, shapes, or entities)"
+        )
+        validation_result["valid"] = False
 
 
 def _build_default_api_group_config(export_name: str, group_by: str) -> Dict[str, Any]:
@@ -867,34 +918,7 @@ async def validate_config(
 
     try:
         if config_name == "import":
-            # Validate import configuration (Niamoto format)
-            if not content:
-                validation_result["errors"].append("Configuration is empty")
-                validation_result["valid"] = False
-            else:
-                has_data_sources = False
-                # Check for standard import keys
-                for key in ["taxonomy", "plots", "occurrences", "shapes"]:
-                    if key in content:
-                        has_data_sources = True
-                        value = content[key]
-                        if isinstance(value, dict):
-                            if "path" not in value and "file" not in value:
-                                validation_result["warnings"].append(
-                                    f"{key} has no path or file specified"
-                                )
-                        elif key == "shapes" and isinstance(value, list):
-                            for idx, shape in enumerate(value):
-                                if "path" not in shape and "file" not in shape:
-                                    validation_result["warnings"].append(
-                                        f"Shape {idx} has no path or file specified"
-                                    )
-
-                if not has_data_sources:
-                    validation_result["errors"].append(
-                        "No data sources defined (taxonomy, plots, occurrences, or shapes)"
-                    )
-                    validation_result["valid"] = False
+            _validate_import_config_content(content, validation_result)
 
         elif config_name == "transform":
             # Validate transform configuration

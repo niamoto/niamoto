@@ -102,3 +102,44 @@ entities:
     assert response.status_code == 200
     assert response.json()["success"] is True
     assert (config_dir / "import.yml").read_text(encoding="utf-8") == valid_config
+
+
+def test_validate_import_config_accepts_entities_schema():
+    client = TestClient(create_app())
+    import_config = {
+        "entities": {
+            "references": {
+                "taxonomy": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/taxonomy.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                },
+                "plots": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/plots.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                },
+            },
+            "datasets": {
+                "occurrences": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/occurrences.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                }
+            },
+        }
+    }
+
+    response = client.post("/api/config/import/validate", json=import_config)
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": [], "warnings": []}
