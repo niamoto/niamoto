@@ -63,6 +63,41 @@ def test_single_field(mock_db, sample_data):
     assert result["land_area"]["units"] == "ha"
 
 
+def test_duplicate_field_rows_are_summed(mock_db, sample_data):
+    """Duplicate scalar field rows should be summed before extraction."""
+    duplicate = pd.DataFrame(
+        {
+            "id": [1],
+            "label": ["PROVINCE NORD"],
+            "class_object": ["land_area_ha"],
+            "class_name": [""],
+            "class_value": [10.0],
+        }
+    )
+    data = pd.concat([sample_data, duplicate], ignore_index=True)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
+    config = {
+        "plugin": "class_object_field_aggregator",
+        "params": {
+            "fields": [
+                {
+                    "class_object": "land_area_ha",
+                    "target": "land_area",
+                    "units": "ha",
+                }
+            ]
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert result["land_area"]["value"] == 941262.41
+
+
 def test_legacy_scalar_config_is_migrated(mock_db, sample_data):
     """Legacy generated scalar config should still transform successfully."""
     with patch(

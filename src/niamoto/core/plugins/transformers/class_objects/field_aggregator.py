@@ -11,6 +11,7 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
+from niamoto.core.plugins.transformers.class_objects.utils import aggregate_class_values
 
 
 class FieldConfig(BaseModel):
@@ -137,6 +138,8 @@ class ClassObjectFieldAggregator(TransformerPlugin):
 
     def _get_field_value(self, field: FieldConfig, data: pd.DataFrame) -> Any:
         """Get field value from data"""
+        data = aggregate_class_values(data, ["class_object"])
+
         # Handle empty data (e.g., for hierarchical nodes like countries)
         if data.empty:
             # Return None values for empty data instead of raising error
