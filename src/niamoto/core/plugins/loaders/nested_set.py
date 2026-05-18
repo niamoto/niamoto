@@ -6,6 +6,7 @@ import pandas as pd
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 
 
 class NestedSetParams(BasePluginParams):
@@ -148,12 +149,20 @@ class NestedSetLoader(LoaderPlugin):
         fields = validated_config.params.fields
 
         # Resolve entity names to physical table names via EntityRegistry
-        grouping_table = self._resolve_table_name(config["grouping"])
-        data_table = self._resolve_table_name(config["data"])
+        grouping_table = quote_identifier(
+            self._resolve_table_name(config["grouping"]), "grouping table name"
+        )
+        data_table = quote_identifier(
+            self._resolve_table_name(config["data"]), "data table name"
+        )
+        left_field = quote_identifier(fields["left"], "left field")
+        right_field = quote_identifier(fields["right"], "right field")
+        key_field = quote_identifier(validated_config.params.key, "foreign key field")
+        ref_key = quote_identifier(validated_config.params.ref_key, "reference key")
 
         # Get the left and right values for the target node
         node_query = text(f"""
-            SELECT {fields["left"]}, {fields["right"]}
+            SELECT {left_field}, {right_field}
             FROM {grouping_table}
             WHERE id = :id
         """)
@@ -165,13 +174,12 @@ class NestedSetLoader(LoaderPlugin):
 
             # Get all records that belong to the target node's hierarchy
             # Use ref_key to specify which field in the reference table to match against
-            ref_key = validated_config.params.ref_key
             query = text(f"""
                 SELECT m.*
                 FROM {data_table} m
-                JOIN {grouping_table} ref ON m.{validated_config.params.key} = ref.{ref_key}
-                WHERE ref.{fields["left"]} >= :left
-                AND ref.{fields["right"]} <= :right
+                JOIN {grouping_table} ref ON m.{key_field} = ref.{ref_key}
+                WHERE ref.{left_field} >= :left
+                AND ref.{right_field} <= :right
             """)
 
             return pd.read_sql(query, conn, params={"left": node[0], "right": node[1]})

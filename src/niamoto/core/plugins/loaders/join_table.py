@@ -12,6 +12,7 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError, DatabaseQueryError
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 
 
 class JoinTableParams(BasePluginParams):
@@ -158,12 +159,19 @@ class JoinTableLoader(LoaderPlugin):
         if not self._check_table_exists(physical_join):
             raise DatabaseError(f"Join table '{physical_join}' does not exist")
 
+        quoted_main = quote_identifier(physical_main, "main table name")
+        quoted_join = quote_identifier(physical_join, "join table name")
+        quoted_source_key = quote_identifier(params.keys["source"], "source key field")
+        quoted_reference_key = quote_identifier(
+            params.keys["reference"], "reference key field"
+        )
+
         query = text(f"""
             SELECT m.*
-            FROM {physical_main} m
-            JOIN {physical_join} j
-              ON m.id = j.{params.keys["source"]}
-            WHERE j.{params.keys["reference"]} = :id
+            FROM {quoted_main} m
+            JOIN {quoted_join} j
+              ON m.id = j.{quoted_source_key}
+            WHERE j.{quoted_reference_key} = :id
         """)
 
         with self.db.connection() as conn:
