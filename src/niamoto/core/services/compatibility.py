@@ -1185,7 +1185,7 @@ class CompatibilityService:
             db_rel = cfg.get("database", {}).get("path")
             if not db_rel:
                 return None
-            db_path = Path(db_rel)
+            db_path = Path(db_rel).expanduser()
             if not db_path.is_absolute():
                 db_path = self.working_directory / db_path
             return db_path

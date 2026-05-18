@@ -1,6 +1,50 @@
 """Regression tests for database introspection routes on DuckDB projects."""
 
 from fastapi.testclient import TestClient
+import yaml
+
+from niamoto.gui.api.routers import database as database_router
+
+
+def test_database_router_path_expands_configured_home_path(tmp_path, monkeypatch):
+    """Router-local database lookup should expand ~/ paths from config.yml."""
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    db_file = home_dir / "custom.duckdb"
+    db_file.write_text("fake db")
+
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.yml").write_text(
+        yaml.dump({"database": {"path": "~/custom.duckdb"}})
+    )
+
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setattr(database_router, "get_working_directory", lambda: project_dir)
+
+    assert database_router.get_database_path() == db_file
+
+
+def test_database_router_missing_configured_path_falls_back(
+    tmp_path, monkeypatch, caplog
+):
+    """Router-local database lookup should fall back when config points nowhere."""
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.yml").write_text(
+        yaml.dump({"database": {"path": "missing/custom.duckdb"}})
+    )
+
+    fallback_db = project_dir / "db" / "niamoto.duckdb"
+    fallback_db.parent.mkdir()
+    fallback_db.write_text("fake db")
+
+    monkeypatch.setattr(database_router, "get_working_directory", lambda: project_dir)
+
+    assert database_router.get_database_path() == fallback_db
+    assert "Configured database path not found" in caplog.text
 
 
 def test_database_schema_uses_duckdb_fixture_without_reflection_errors(
