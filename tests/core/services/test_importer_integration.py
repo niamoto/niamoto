@@ -275,6 +275,8 @@ def test_import_phases_order(tmp_path):
     assert "[Dataset]" in result
     assert "[Derived Ref]" in result
     assert "[Direct Ref]" in result
+    assert result.index("[Dataset]") < result.index("[Derived Ref]")
+    assert result.index("[Derived Ref]") < result.index("[Direct Ref]")
 
     # Verify all tables exist
     assert service.db.has_table("dataset_occurrences")
