@@ -243,6 +243,32 @@ class TestConfigGeneration:
         assert config["params"]["count"] > 0
         assert config["params"]["mode"] == "direct"
 
+    def test_top_ranking_config_with_zero_cardinality_has_positive_count(
+        self, suggester
+    ):
+        """Test top_ranking keeps a valid count when cardinality is unknown."""
+        profile = EnrichedColumnProfile(
+            name="species",
+            dtype="object",
+            semantic_type="taxonomy.species",
+            unique_ratio=0.0,
+            null_ratio=0.0,
+            sample_values=[],
+            confidence=0.75,
+            data_category=DataCategory.CATEGORICAL,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            cardinality=0,
+            value_range=None,
+        )
+
+        suggestions = suggester.suggest_transformers(profile, "occurrences")
+        top_suggestion = next(
+            s for s in suggestions if s.transformer_name == "top_ranking"
+        )
+
+        config = top_suggestion.pre_filled_config
+        assert config["params"]["count"] == 1
+
 
 class TestUnitsInference:
     """Tests for units inference."""
