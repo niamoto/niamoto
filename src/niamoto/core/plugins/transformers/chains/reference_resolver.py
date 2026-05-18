@@ -185,11 +185,14 @@ class ReferenceResolver:
         for key, index_str in segments:
             if key:
                 # Dictionary key access
-                if not isinstance(current_value, dict) or key not in current_value:
+                if isinstance(current_value, dict) and key in current_value:
+                    current_value = current_value[key]
+                elif hasattr(current_value, key):
+                    current_value = getattr(current_value, key)
+                else:
                     raise ValueError(
                         f"Field '{key}' not found or not accessible in {type(current_value).__name__}"
                     )
-                current_value = current_value[key]
             elif index_str:
                 # Add check for non-digit index format
                 if not index_str.isdigit():

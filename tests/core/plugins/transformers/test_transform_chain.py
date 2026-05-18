@@ -286,6 +286,55 @@ class TestTransformChain:
                 assert isinstance(count_call_args[0], pd.DataFrame)
                 assert len(count_call_args[0]) == 2  # Filtered to 2 rows
 
+    def test_transform_resolves_indexed_and_functional_references(
+        self, transform_chain, sample_dataframe
+    ):
+        """Test transform chain uses advanced reference resolution."""
+        mock_values_transformer = Mock()
+        mock_values_transformer.transform.return_value = {"values": [10, 20]}
+
+        mock_consumer_transformer = Mock()
+        mock_consumer_transformer.transform.return_value = {"ok": True}
+
+        config = {
+            "plugin": "transform_chain",
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "values_transformer",
+                        "params": {},
+                        "output_key": "first",
+                    },
+                    {
+                        "plugin": "consumer_transformer",
+                        "params": {
+                            "value": "@first.values[0]",
+                            "total": "@first.values|sum",
+                        },
+                        "output_key": "second",
+                    },
+                ]
+            },
+        }
+
+        with patch.object(PluginRegistry, "has_plugin", return_value=True):
+            with patch.object(PluginRegistry, "get_plugin") as mock_get_plugin:
+
+                def get_plugin_side_effect(name, plugin_type):
+                    if name == "values_transformer":
+                        return lambda db: mock_values_transformer
+                    if name == "consumer_transformer":
+                        return lambda db: mock_consumer_transformer
+                    raise AssertionError(f"Unexpected plugin {name}")
+
+                mock_get_plugin.side_effect = get_plugin_side_effect
+
+                transform_chain.transform(sample_dataframe, config)
+
+        consumer_config = mock_consumer_transformer.transform.call_args[0][1]
+        assert consumer_config["params"]["value"] == 10
+        assert consumer_config["params"]["total"] == 30
+
     def test_transform_with_geodataframe(self, transform_chain, sample_geodataframe):
         """Test transformation chain with GeoDataFrame handling."""
         # Mock transformers
