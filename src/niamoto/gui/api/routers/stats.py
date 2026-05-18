@@ -1186,11 +1186,6 @@ def _build_wkt_spatial_map_inspection(
         with_geometry, bbox = _compute_wkt_geometry_stats_fallback(
             conn, db, table_name, geometry_column, layer_column, selected_layer
         )
-        page_params = {
-            **params,
-            "feature_limit": max(limit, 0) + 1,
-            "feature_offset": max(offset, 0),
-        }
         rows = []
         if limit > 0:
             rows = conn.execute(
@@ -1206,10 +1201,9 @@ def _build_wkt_spatial_map_inspection(
                     WHERE {geometry_col} IS NOT NULL
                     {layer_filter}
                     ORDER BY id_value NULLS LAST
-                    LIMIT :feature_limit OFFSET :feature_offset
                     """
                 ),
-                page_params,
+                params,
             ).fetchall()
 
     features: List[Dict[str, Any]] = []
@@ -1244,8 +1238,11 @@ def _build_wkt_spatial_map_inspection(
             }
         )
 
-    visible_features = features[:limit] if limit > 0 else []
-    has_more = limit > 0 and len(rows) > limit
+    requested_offset = max(offset, 0)
+    visible_features = (
+        features[requested_offset : requested_offset + limit] if limit > 0 else []
+    )
+    has_more = limit > 0 and len(features) > requested_offset + limit
     return SpatialMapInspection(
         reference_name=reference_name,
         table_name=table_name,
@@ -1272,7 +1269,7 @@ def _build_wkt_spatial_map_inspection(
         offset=offset,
         result_count=with_geometry,
         has_more=has_more,
-        next_offset=offset + limit if has_more else None,
+        next_offset=requested_offset + limit if has_more else None,
     )
 
 
