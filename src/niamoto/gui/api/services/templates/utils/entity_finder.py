@@ -243,6 +243,8 @@ def find_representative_entity(
                         result_dict["geometry"] = str(geom_wkt)
                         result_dict["spatial_query"] = True
                         result_dict["kind"] = "spatial"
+                        result_dict["source_dataset"] = source_dataset
+                        result_dict["source_table"] = table_name
 
                     for type_candidate in ("shape_type", "type", "entity_type"):
                         if type_candidate in columns:

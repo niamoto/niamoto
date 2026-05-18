@@ -50,7 +50,10 @@ def load_sample_data(
     # For spatial references with geometry, use ST_Contains
     if representative.get("spatial_query") and representative.get("geometry"):
         geometry = representative["geometry"]
-        occurrences_table = resolve_dataset_table(db, "occurrences")
+        occurrences_table = representative.get("source_table")
+        if not occurrences_table:
+            source_dataset = representative.get("source_dataset", "occurrences")
+            occurrences_table = resolve_dataset_table(db, source_dataset)
 
         # Check if occurrences table exists
         if not occurrences_table:

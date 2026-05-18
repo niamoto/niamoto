@@ -25,6 +25,22 @@ class _DummyDatabase:
         return table_name in self._existing_tables
 
 
+class _DummyConnection:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, _query):
+        return None
+
+
+class _DummyEngine:
+    def connect(self):
+        return _DummyConnection()
+
+
 def test_load_sample_data_returns_entity_dataframe_without_sql():
     result = data_loader.load_sample_data(
         db=_DummyDatabase(),
@@ -83,6 +99,47 @@ def test_load_sample_data_rejects_unknown_table():
         )
 
     assert exc.value.status_code == 400
+
+
+def test_load_sample_data_spatial_query_uses_configured_source_dataset(monkeypatch):
+    captured: dict[str, object] = {}
+
+    db = _DummyDatabase()
+    db.engine = _DummyEngine()
+
+    def fake_resolve_dataset_table(_db, dataset):
+        captured["dataset"] = dataset
+        return "dataset_observations"
+
+    def fake_read_sql(query, _engine, params=None):
+        query_text = str(query)
+        if "LIMIT 0" in query_text:
+            return pd.DataFrame(columns=["id", "geo_pt", "value"])
+        captured["query"] = query_text
+        captured["params"] = params
+        return pd.DataFrame([{"value": 12}])
+
+    monkeypatch.setattr(data_loader, "quote_identifier", lambda _db, name: name)
+    monkeypatch.setattr(
+        data_loader, "resolve_dataset_table", fake_resolve_dataset_table
+    )
+    monkeypatch.setattr(data_loader.pd, "read_sql", fake_read_sql)
+
+    result = data_loader.load_sample_data(
+        db=db,
+        representative={
+            "spatial_query": True,
+            "geometry": "POLYGON ((0 0,1 0,1 1,0 1,0 0))",
+            "source_dataset": "observations",
+        },
+        template_config={"field": "value"},
+        limit=10,
+    )
+
+    assert result.to_dict("records") == [{"value": 12}]
+    assert captured["dataset"] == "observations"
+    assert "FROM dataset_observations" in str(captured["query"])
+    assert captured["params"] == {"geom_wkt": "POLYGON ((0 0,1 0,1 1,0 1,0 0))"}
 
 
 def test_load_class_object_data_for_preview_prioritizes_reference_name(tmp_path):
