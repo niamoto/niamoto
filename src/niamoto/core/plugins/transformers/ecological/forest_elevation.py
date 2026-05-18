@@ -97,26 +97,24 @@ class ForestElevationConfig(PluginConfig):
     @field_validator("params")
     def validate_paths(cls, v):
         """Validate the paths to the source data."""
-        if "forest_types_path" not in v or not v["forest_types_path"]:
+        if not v.forest_types_path:
             raise ValueError("The path to the forest types layer is required")
 
-        if "dem_path" not in v or not v["dem_path"]:
+        if not v.dem_path:
             raise ValueError("The path to the elevation raster is required")
 
         # Validate the elevation classes
-        if "elevation_bins" in v:
-            bins = v["elevation_bins"]
-            if not isinstance(bins, list) or len(bins) < 2:
-                raise ValueError("elevation_bins must be a list with at least 2 values")
+        bins = v.elevation_bins
+        if len(bins) < 2:
+            raise ValueError("elevation_bins must be a list with at least 2 values")
 
-            # Check that the bins are in ascending order
-            if not all(bins[i] < bins[i + 1] for i in range(len(bins) - 1)):
-                raise ValueError("The elevation classes must be in ascending order")
+        # Check that the bins are in ascending order
+        if not all(bins[i] < bins[i + 1] for i in range(len(bins) - 1)):
+            raise ValueError("The elevation classes must be in ascending order")
 
         # Validate the forest types
-        if "forest_types" in v:
-            if not isinstance(v["forest_types"], list) or not v["forest_types"]:
-                raise ValueError("forest_types must be a non-empty list")
+        if not v.forest_types:
+            raise ValueError("forest_types must be a non-empty list")
 
         return v
 
@@ -136,7 +134,7 @@ class ForestElevationAnalysis(TransformerPlugin):
 
     config_model = ForestElevationConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, config: Dict[str, Any]) -> ForestElevationConfig:
         """Validate the plugin configuration."""
         try:
             validated_config = self.config_model(**config)
@@ -173,7 +171,9 @@ class ForestElevationAnalysis(TransformerPlugin):
                     details={"data_type": type(data).__name__},
                 )
 
-            shape_field = validated_config.params.get("shape_field", "geometry")
+            params = validated_config.params
+
+            shape_field = params.shape_field
             if shape_field not in data.columns and shape_field != "geometry":
                 geometry = data.geometry
             else:
@@ -186,16 +186,16 @@ class ForestElevationAnalysis(TransformerPlugin):
             main_geom = geometry.iloc[0]
 
             # Get the elevation bins
-            elevation_bins = np.array(validated_config.params["elevation_bins"])
+            elevation_bins = np.array(params.elevation_bins)
 
             # Resolve relative paths
             base_dir = self._get_base_directory()
 
-            forest_types_path = validated_config.params["forest_types_path"]
+            forest_types_path = params.forest_types_path
             if not os.path.isabs(forest_types_path):
                 forest_types_path = os.path.join(base_dir, forest_types_path)
 
-            dem_path = validated_config.params["dem_path"]
+            dem_path = params.dem_path
             if not os.path.isabs(dem_path):
                 dem_path = os.path.join(base_dir, dem_path)
 
@@ -207,43 +207,35 @@ class ForestElevationAnalysis(TransformerPlugin):
                         src,
                         [main_geom],
                         crop=True,
-                        nodata=validated_config.params["nodata"],
+                        nodata=params.nodata,
                     )
 
                     # Get the elevation data (first band)
                     elevation_data = masked[0]
 
                     # Filter out nodata values
-                    nodata = validated_config.params["nodata"]
+                    nodata = params.nodata
                     valid_mask = elevation_data != nodata
 
                     if np.sum(valid_mask) == 0:
-                        return self._empty_results(
-                            elevation_bins, validated_config.params["forest_types"]
-                        )
+                        return self._empty_results(elevation_bins, params.forest_types)
             except Exception as e:
                 self.logger.error(f"Error opening the DEM: {str(e)}")
-                return self._empty_results(
-                    elevation_bins, validated_config.params["forest_types"]
-                )
+                return self._empty_results(elevation_bins, params.forest_types)
 
             # Load the forest types layer
             try:
                 forest_gdf = gpd.read_file(forest_types_path, engine="pyogrio")
 
                 if forest_gdf.empty:
-                    return self._empty_results(
-                        elevation_bins, validated_config.params["forest_types"]
-                    )
+                    return self._empty_results(elevation_bins, params.forest_types)
 
                 # Ensure the CRS matches
                 if data.crs != forest_gdf.crs:
                     forest_gdf = forest_gdf.to_crs(data.crs)
             except Exception as e:
                 self.logger.error(f"Error loading the forest types layer: {str(e)}")
-                return self._empty_results(
-                    elevation_bins, validated_config.params["forest_types"]
-                )
+                return self._empty_results(elevation_bins, params.forest_types)
 
             # Clip the forest layer to the main geometry
             try:
@@ -252,17 +244,13 @@ class ForestElevationAnalysis(TransformerPlugin):
                 )
 
                 if forest_in_area.empty:
-                    return self._empty_results(
-                        elevation_bins, validated_config.params["forest_types"]
-                    )
+                    return self._empty_results(elevation_bins, params.forest_types)
             except Exception as e:
                 self.logger.error(f"Error clipping the forest layer: {str(e)}")
-                return self._empty_results(
-                    elevation_bins, validated_config.params["forest_types"]
-                )
+                return self._empty_results(elevation_bins, params.forest_types)
 
             # Verify the forest type field
-            forest_type_field = validated_config.params["forest_type_field"]
+            forest_type_field = params.forest_type_field
             if forest_type_field not in forest_in_area.columns:
                 raise DataTransformError(
                     f"Field '{forest_type_field}' not found in the forest types layer",
@@ -270,7 +258,7 @@ class ForestElevationAnalysis(TransformerPlugin):
                 )
 
             # Create masks for each forest type
-            forest_types = validated_config.params["forest_types"]
+            forest_types = params.forest_types
             type_masks = {}
 
             for forest_type in forest_types:

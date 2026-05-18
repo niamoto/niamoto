@@ -170,7 +170,7 @@ class LandUseAnalysis(TransformerPlugin):
                     details={"data_type": type(data).__name__},
                 )
 
-            shape_field = params.get("shape_field", "geometry")
+            shape_field = params.shape_field
             if shape_field not in data.columns and shape_field != "geometry":
                 geometry = data.geometry
             else:
@@ -186,7 +186,7 @@ class LandUseAnalysis(TransformerPlugin):
             total_area_m2 = main_geom.area
 
             # Get the conversion factor for the unit of surface area
-            area_unit = params.get("area_unit", "ha")
+            area_unit = params.area_unit
             if area_unit == "ha":
                 area_factor = 0.0001  # m² to ha
             elif area_unit == "km2":
