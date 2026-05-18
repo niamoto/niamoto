@@ -44,6 +44,19 @@ TEST_DATABASE_ARTIFACT_PREFIXES = (
     "niamoto_test_",
     "niamoto-test-",
 )
+MAGICMOCK_SCAN_EXCLUDED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+    "htmlcov",
+    "node_modules",
+    "target",
+}
 
 NIAMOTO_SUBSET_INSTANCE = (
     Path(__file__).parent.parent / "test-instance" / "niamoto-subset"
@@ -69,7 +82,7 @@ def cleanup_magicmocks():
     # Run the test
     yield
 
-    # No need to clean up after as pytest_sessionfinish will handle it
+    _cleanup_magicmock_paths(Path(__file__).parent.parent)
 
 
 def is_magicmock_file(name):
@@ -81,6 +94,36 @@ def is_magicmock_file(name):
     ]
 
     return any(re.match(pattern, name) for pattern in patterns)
+
+
+def _cleanup_magicmock_paths(root_dir: Path, *, verbose: bool = False) -> None:
+    """Remove MagicMock artifacts under root_dir."""
+    for current_root, dir_names, file_names in os.walk(root_dir):
+        dir_names[:] = [
+            name for name in dir_names if name not in MAGICMOCK_SCAN_EXCLUDED_DIRS
+        ]
+
+        for name in list(dir_names) + file_names:
+            if not is_magicmock_file(name):
+                continue
+
+            item = Path(current_root) / name
+            try:
+                if item.is_file():
+                    if verbose:
+                        print(f"Cleaning up MagicMock file: {item}")
+                    item.unlink()
+                    _known_magicmock_paths.add(str(item))
+                elif item.is_dir():
+                    if verbose:
+                        print(f"Cleaning up MagicMock directory: {item}")
+                    shutil.rmtree(item)
+                    _known_magicmock_paths.add(str(item))
+                    if name in dir_names:
+                        dir_names.remove(name)
+            except Exception as e:
+                if verbose:
+                    print(f"Error cleaning up {item}: {e}")
 
 
 def is_test_database_artifact(path: Path) -> bool:
@@ -131,19 +174,7 @@ def pytest_sessionfinish(session, exitstatus):
                     print(f"Error cleaning up {aux_file}: {e}")
 
     # Find and remove MagicMock files
-    for item in root_dir.glob("**/*"):
-        if is_magicmock_file(item.name):
-            try:
-                if item.is_file():
-                    print(f"Cleaning up MagicMock file: {item}")
-                    item.unlink()
-                    _known_magicmock_paths.add(str(item))
-                elif item.is_dir():
-                    print(f"Cleaning up MagicMock directory: {item}")
-                    shutil.rmtree(item)
-                    _known_magicmock_paths.add(str(item))
-            except Exception as e:
-                print(f"Error cleaning up {item}: {e}")
+    _cleanup_magicmock_paths(root_dir, verbose=True)
 
 
 @pytest.fixture(scope="function")
