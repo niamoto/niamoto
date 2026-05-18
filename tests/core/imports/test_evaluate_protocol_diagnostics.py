@@ -19,6 +19,7 @@ from ml.scripts.eval.evaluate import (
     _is_gbif_core_standard_record,
     _is_gbif_extended_record,
     _is_surrogate_objective,
+    evaluate_niamoto_protocol,
     evaluate_fusion_surrogate,
 )
 from ml.scripts.research.fusion_surrogate import compute_gold_set_sha256
@@ -161,6 +162,58 @@ def test_surrogate_objective_detection():
     assert _is_surrogate_objective("surrogate-fast") is True
     assert _is_surrogate_objective("surrogate-mid") is True
     assert _is_surrogate_objective("product-score") is False
+
+
+def test_product_score_skips_empty_family_holdout(tmp_path, monkeypatch):
+    gold_path = tmp_path / "gold_set.json"
+    records = [
+        {
+            "column_name": "height",
+            "concept_coarse": "measurement.height",
+            "source_dataset": "guyadiv_plot",
+            "language": "en",
+            "values_sample": [1, 2],
+            "values_stats": {},
+        },
+        {
+            "column_name": "dbh",
+            "concept_coarse": "measurement.dbh",
+            "source_dataset": "nc_plot",
+            "language": "en",
+            "values_sample": [3, 4],
+            "values_stats": {},
+        },
+    ]
+    gold_path.write_text(json.dumps(records))
+
+    calls = []
+
+    class DummyScore:
+        final_score = 80.0
+
+        def summary(self):
+            return "dummy=80.000"
+
+    def fake_evaluate_holdout(test_records, train_records, all_concepts, **kwargs):
+        calls.append((len(test_records), len(train_records), kwargs))
+        assert test_records
+        assert train_records
+        if kwargs.get("return_models"):
+            return DummyScore(), ["measurement.height"], [1.0], (None, None, None)
+        return DummyScore(), ["measurement.height"], [1.0]
+
+    monkeypatch.setattr(
+        "ml.scripts.eval.evaluate._evaluate_holdout_score",
+        fake_evaluate_holdout,
+    )
+
+    score = evaluate_niamoto_protocol(
+        gold_path, n_splits=2, objective="product-score-fast-fast"
+    )
+
+    assert isinstance(score, float)
+    assert calls
+    assert all(train_count > 0 for _test_count, train_count, _kwargs in calls)
 
 
 def test_fusion_surrogate_scores_use_expected_weights():
