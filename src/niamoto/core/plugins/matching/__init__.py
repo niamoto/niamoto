@@ -5,6 +5,6 @@ This module implements the SmartMatcher system that automatically discovers
 compatible widgets for transformers based on their output/input contracts.
 """
 
-from .matcher import SmartMatcher, WidgetSuggestion
+from .matcher import SmartMatcher, TransformerSuggestion, WidgetSuggestion
 
-__all__ = ["SmartMatcher", "WidgetSuggestion"]
+__all__ = ["SmartMatcher", "TransformerSuggestion", "WidgetSuggestion"]
