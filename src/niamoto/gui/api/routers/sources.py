@@ -144,6 +144,23 @@ def _load_transform_config(work_dir: Path) -> dict[str, Any]:
     return {"groups": groups}
 
 
+def _resolve_imports_source_path(work_dir: Path, source_path: str) -> Path:
+    """Resolve a configured source path and require it to stay under imports/."""
+    try:
+        imports_dir = (work_dir / "imports").resolve()
+        resolved_path = (work_dir / source_path).resolve()
+        resolved_path.relative_to(imports_dir)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Source path must stay inside the imports directory",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid source path") from exc
+
+    return resolved_path
+
+
 def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
     """Save transform.yml configuration.
 
@@ -432,7 +449,7 @@ async def save_source_config(
     work_dir = Path(work_dir)
 
     # Verify the CSV file exists
-    csv_path = work_dir / request.file_path
+    csv_path = _resolve_imports_source_path(work_dir, request.file_path)
     if not csv_path.exists():
         raise HTTPException(
             status_code=404, detail=f"CSV file not found: {request.file_path}"
@@ -620,7 +637,7 @@ async def analyze_existing_source(
 
     # Get file path
     data_path = source_config.get("data", "")
-    csv_path = work_dir / data_path
+    csv_path = _resolve_imports_source_path(work_dir, data_path)
 
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail=f"CSV file not found: {data_path}")
