@@ -1,5 +1,6 @@
 """Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
+import html
 import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
@@ -71,6 +72,12 @@ def _validate_identifier(value: str, label: str) -> str:
     if not _SAFE_IDENTIFIER_RE.fullmatch(value):
         raise HTTPException(status_code=400, detail=f"Invalid {label}")
     return value
+
+
+def _html_message(css_class: str, message: str) -> HTMLResponse:
+    return HTMLResponse(
+        content=f"<p class='{css_class}'>{html.escape(message, quote=True)}</p>"
+    )
 
 
 @router.get("/available", response_model=EntityListResponse)
@@ -409,21 +416,21 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
             break
 
     if not widget_config or not widget_plugin_id:
-        return HTMLResponse(
-            content=f"<p class='info'>No widget configured for transformation '{transform_key}'</p>"
+        return _html_message(
+            "info",
+            f"No widget configured for transformation '{transform_key}'",
         )
 
     # Get the widget plugin from registry
     try:
         plugin_class = PluginRegistry.get_plugin(widget_plugin_id, PluginType.WIDGET)
     except PluginNotFoundError:
-        return HTMLResponse(
-            content=f"<p class='error'>Widget plugin '{widget_plugin_id}' not found in registry</p>"
+        return _html_message(
+            "error",
+            f"Widget plugin '{widget_plugin_id}' not found in registry",
         )
     except Exception as e:
-        return HTMLResponse(
-            content=f"<p class='error'>Error loading plugin: {str(e)}</p>"
-        )
+        return _html_message("error", f"Error loading plugin: {str(e)}")
 
     try:
         # Get database instance for the plugin
@@ -446,8 +453,9 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
                         widget_params
                     )
                 except Exception as e:
-                    return HTMLResponse(
-                        content=f"<p class='error'>Invalid widget parameters: {str(e)}</p>"
+                    return _html_message(
+                        "error",
+                        f"Invalid widget parameters: {str(e)}",
                     )
 
             widget_html = plugin_instance.render(transformation_data, validated_params)
@@ -503,6 +511,4 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
         return HTMLResponse(content=full_html)
 
     except Exception as e:
-        return HTMLResponse(
-            content=f"<p class='error'>Error rendering widget: {str(e)}</p>"
-        )
+        return _html_message("error", f"Error rendering widget: {str(e)}")
