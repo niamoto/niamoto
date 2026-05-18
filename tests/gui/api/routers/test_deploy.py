@@ -135,3 +135,101 @@ def test_unpublish_streams_deployer_output_without_working_directory(monkeypatch
     assert "data: removing deployment" in response.text
     assert fake_deployer.received_config is not None
     assert str(fake_deployer.received_config.exports_dir) == "."
+
+
+def test_health_rejects_private_url_without_outbound_request(monkeypatch):
+    class FailingAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            raise AssertionError("health check should reject before HTTP client use")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.httpx.AsyncClient",
+        FailingAsyncClient,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/deploy/health", params={"url": "http://127.0.0.1"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Health check URL is not allowed."
+
+
+def test_health_checks_public_url_with_mocked_client(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+        content = b"ok"
+        text = "ok"
+        headers = {}
+        url = "https://example.com"
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, url):
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.url_security.socket.getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.httpx.AsyncClient",
+        FakeAsyncClient,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/deploy/health", params={"url": "https://example.com"})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "up"
+    assert response.json()["statusCode"] == 200
+
+
+def test_health_rejects_redirect_to_private_url(monkeypatch):
+    class FakeResponse:
+        status_code = 302
+        content = b""
+        text = ""
+        headers = {"location": "http://127.0.0.1/admin"}
+        url = "https://example.com"
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, url):
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.url_security.socket.getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.httpx.AsyncClient",
+        FakeAsyncClient,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/deploy/health", params={"url": "https://example.com"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Health check redirect URL is not allowed."

@@ -5,9 +5,11 @@ Built-in: Cloudflare Workers, GitHub Pages, Netlify, Vercel, Render, SSH/SFTP.
 """
 
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -18,6 +20,7 @@ from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.deployers.models import DeployConfig
 from niamoto.core.services.credential import CredentialService
+from niamoto.gui.api.url_security import validate_public_http_url
 from ..context import get_working_directory
 
 # Import deployer modules to trigger @register decorators at startup
@@ -195,12 +198,11 @@ async def check_site_health(url: str = Query(..., description="URL to check")):
     to catch cases where the landing page returns 200 but redirects to a 404 page
     (common with GitHub Pages after branch deletion).
     """
-    import re
-
+    safe_url = validate_public_http_url(url, detail="Health check URL is not allowed.")
     try:
         start = time.monotonic()
-        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-            resp = await client.get(url)
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
+            resp = await _get_with_validated_redirects(client, safe_url)
             final_code = resp.status_code
 
             # If the page returns 200, check for meta-refresh redirects
@@ -214,12 +216,12 @@ async def check_site_health(url: str = Query(..., description="URL to check")):
                 )
                 if match:
                     redirect_target = match.group(1).rstrip("\"'>")
-                    # Resolve relative URL
-                    if not redirect_target.startswith("http"):
-                        base = str(resp.url).rstrip("/")
-                        redirect_target = f"{base}/{redirect_target.lstrip('/')}"
+                    redirect_target = validate_public_http_url(
+                        urljoin(str(resp.url), redirect_target),
+                        detail="Health check redirect URL is not allowed.",
+                    )
                     # Follow the meta-refresh
-                    resp2 = await client.get(redirect_target)
+                    resp2 = await _get_with_validated_redirects(client, redirect_target)
                     final_code = resp2.status_code
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -236,8 +238,34 @@ async def check_site_health(url: str = Query(..., description="URL to check")):
                 "statusCode": final_code,
                 "responseTime": elapsed_ms,
             }
+    except HTTPException:
+        raise
     except Exception:
         return {"status": "down", "statusCode": None, "responseTime": None}
+
+
+async def _get_with_validated_redirects(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    max_redirects: int = 5,
+) -> httpx.Response:
+    current_url = url
+    for _ in range(max_redirects + 1):
+        response = await client.get(current_url)
+        if response.status_code not in {301, 302, 303, 307, 308}:
+            return response
+
+        location = response.headers.get("location")
+        if not location:
+            return response
+
+        current_url = validate_public_http_url(
+            urljoin(str(response.url), location),
+            detail="Health check redirect URL is not allowed.",
+        )
+
+    raise HTTPException(status_code=400, detail="Too many redirects.")
 
 
 # --- Unpublish ---
