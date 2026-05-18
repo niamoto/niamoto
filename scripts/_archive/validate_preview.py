@@ -18,6 +18,7 @@ import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from sqlalchemy import text
 
 # Configuration
 INSTANCE_PATH = Path("test-instance/niamoto-nc")
@@ -148,12 +149,12 @@ def load_sample_data(
         query = f"""
             SELECT *
             FROM {table_name}
-            WHERE "family" = '{family_name}'
+            WHERE "family" = :family_name
         """
         # Ajouter échantillonnage aléatoire si limite spécifiée
         if limit:
-            query += f" ORDER BY RANDOM() LIMIT {limit}"
-        return pd.read_sql(query, db.engine)
+            query += f" ORDER BY RANDOM() LIMIT {int(limit)}"
+        return pd.read_sql(text(query), db.engine, params={"family_name": family_name})
     finally:
         db.close_db_session()
 
