@@ -193,6 +193,39 @@ class TestFragmentationAnalysis:
         expected_path = "/fake/base/dir/dummy/outside.shp"
         mock_read_file.assert_called_once_with(expected_path, engine="pyogrio")
 
+    @pytest.mark.parametrize(
+        ("area_unit", "expected_density", "expected_unit"),
+        [
+            ("ha", 1.4, "m/ha"),
+            ("km2", 140.0, "m/km²"),
+        ],
+    )
+    @patch("geopandas.read_file")
+    def test_transform_edge_density_uses_requested_area_unit(
+        self,
+        mock_read_file,
+        area_of_interest,
+        mock_forest_data,
+        area_unit,
+        expected_density,
+        expected_unit,
+    ):
+        """Test edge density is meters per converted area unit."""
+        mock_read_file.return_value = mock_forest_data
+        config = {
+            "params": {
+                "forest_path": "dummy/forest.shp",
+                "metrics": ["edge_density"],
+                "area_unit": area_unit,
+            }
+        }
+
+        result = self.plugin.transform(area_of_interest, config)
+
+        assert result["edge_length"] == pytest.approx(14000.0)
+        assert result["edge_density"] == pytest.approx(expected_density)
+        assert result["edge_unit"] == expected_unit
+
     # --- TODO: Add more specific tests ---
     # - Test each metric individually (meff, lpi, edge_density, core_area, connectivity, size_dist)
     #   with known geometries to verify calculations.
