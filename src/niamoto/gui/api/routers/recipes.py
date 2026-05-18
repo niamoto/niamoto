@@ -916,20 +916,17 @@ def _build_column_tree(db: Database, source_info: SourceInfo) -> list[ColumnNode
     try:
         quoted_table_name = quote_identifier(db, source_info.table_name)
         schema_sql = f"DESCRIBE {quoted_table_name}"
-        result = db.execute_sql(schema_sql, fetch=True)
+        result = db.execute_sql(schema_sql, fetch_all=True)
 
         if result:
             for row in result if isinstance(result, list) else [result]:
-                col_name = (
-                    row[0]
-                    if isinstance(row, (list, tuple))
-                    else row.get("column_name", "")
-                )
-                col_type = (
-                    row[1]
-                    if isinstance(row, (list, tuple))
-                    else row.get("column_type", "")
-                )
+                if isinstance(row, (list, tuple)):
+                    col_name = row[0]
+                    col_type = row[1]
+                else:
+                    row_mapping = row._mapping if hasattr(row, "_mapping") else row
+                    col_name = row_mapping.get("column_name", "")
+                    col_type = row_mapping.get("column_type", "")
 
                 # Check if this is a JSON column by sampling data
                 if "JSON" in col_type.upper() or "STRUCT" in col_type.upper():
