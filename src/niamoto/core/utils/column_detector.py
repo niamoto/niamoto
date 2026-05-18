@@ -720,6 +720,11 @@ class ColumnDetector:
         target_entity_name: Optional[str] = None,
     ) -> float:
         """Score a relationship candidate from value overlap plus semantic hints."""
+        if cls._has_disjoint_sample_values(
+            source_col, target_col, source_sample, target_sample
+        ):
+            return 0.0
+
         base_confidence = cls._calculate_relationship_confidence(
             source_col, target_col, source_sample, target_sample
         )
@@ -730,6 +735,29 @@ class ColumnDetector:
             target_entity_name=target_entity_name,
         )
         return max(0.0, min(0.99, round(base_confidence + semantic_adjustment, 4)))
+
+    @classmethod
+    def _has_disjoint_sample_values(
+        cls,
+        source_col: str,
+        target_col: str,
+        source_sample: Optional[List[Dict[str, Any]]],
+        target_sample: Optional[List[Dict[str, Any]]],
+    ) -> bool:
+        """Return true when available sample values disprove a relationship."""
+        if not source_sample or not target_sample:
+            return False
+
+        source_values = {
+            row.get(source_col) for row in source_sample if row.get(source_col)
+        }
+        target_values = {
+            row.get(target_col) for row in target_sample if row.get(target_col)
+        }
+
+        return bool(
+            source_values and target_values and not (source_values & target_values)
+        )
 
     @classmethod
     def _calculate_relationship_confidence(
@@ -767,7 +795,9 @@ class ColumnDetector:
                 overlap_ratio = len(overlap) / len(source_values)
 
                 # Increase confidence based on overlap
-                if overlap_ratio > 0.8:
+                if overlap_ratio == 0:
+                    confidence = 0.0
+                elif overlap_ratio > 0.8:
                     confidence = 0.95
                 elif overlap_ratio > 0.5:
                     confidence = 0.8

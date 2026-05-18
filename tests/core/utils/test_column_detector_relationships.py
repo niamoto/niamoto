@@ -54,6 +54,29 @@ def test_detect_relationships_allows_taxon_identifier_to_match_target_id():
     assert relationships[0]["confidence"] >= 0.7
 
 
+def test_detect_relationships_rejects_disjoint_sample_values():
+    relationships = ColumnDetector.detect_relationships(
+        source_columns=["plot_id"],
+        target_columns=["plot_id", "plot_name"],
+        source_sample=[
+            {"plot_id": "P001"},
+            {"plot_id": "P002"},
+        ],
+        target_sample=[
+            {"plot_id": "Q001", "plot_name": "North"},
+            {"plot_id": "Q002", "plot_name": "South"},
+        ],
+        source_entity_name="occurrences",
+        target_entity_name="plots",
+    )
+
+    assert all(
+        relationship["source_field"] != "plot_id"
+        or relationship["target_field"] != "plot_id"
+        for relationship in relationships
+    )
+
+
 def test_detect_relationships_penalizes_locality_as_hard_id_join():
     relationships = ColumnDetector.detect_relationships(
         source_columns=["locality_name"],
