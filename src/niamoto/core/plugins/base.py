@@ -11,6 +11,8 @@ Exporters, Widgets), and the registration decorator.
 
 from abc import ABC, abstractmethod
 from enum import Enum
+import html
+import re
 from typing import Any, AsyncIterator, Optional, List, Dict, TYPE_CHECKING
 
 # Import pandas for type hinting in LoaderPlugin, but avoid runtime dependency if possible
@@ -179,6 +181,11 @@ class WidgetPlugin(Plugin, ABC):
     """Abstract base class for visualization widget plugins used in HTML exports."""
 
     type = PluginType.WIDGET
+
+    _SAFE_CSS_SIZE_RE = re.compile(
+        r"\A(?:auto|0|(?:\d+(?:\.\d+)?)(?:px|%|rem|em|vh|vw|vmin|vmax))\Z"
+    )
+    _SAFE_CSS_CLASS_RE = re.compile(r"\A[A-Za-z0-9_-]+\Z")
     # Concrete widgets should define: config_model = MyWidgetParams
 
     # Pattern matching: Declare compatible input data structures
@@ -236,8 +243,8 @@ class WidgetPlugin(Plugin, ABC):
         """
         # Note: Needs forward reference 'WidgetConfig' or deferred import.
         # Access common config directly, specific params via config.params
-        width = config.params.get("width", "auto")
-        height = config.params.get("height", "auto")
+        width = self._safe_css_size(config.params.get("width", "auto"))
+        height = self._safe_css_size(config.params.get("height", "auto"))
 
         # Support both structures for backward compatibility:
         # 1. New structure: title/description at widget level
@@ -249,30 +256,32 @@ class WidgetPlugin(Plugin, ABC):
             else config.params.get("description")
         )
 
-        css_class = config.params.get(
-            "class_name", ""
-        )  # Example of accessing specific param
+        css_class = self._safe_css_classes(config.params.get("class_name", ""))
 
         # Don't render container if content is empty
         if not content or content.strip() == "":
             return ""
 
         # Use the provided widget_id for the container div
+        safe_widget_id = html.escape(str(widget_id), quote=True)
         title_html = ""
         if title:
+            safe_title = html.escape(str(title))
             if description:
+                safe_description = html.escape(str(description))
+                safe_description_attr = html.escape(str(description), quote=True)
                 # Title with elegant tooltip for description
                 title_html = f"""
                 <div class="widget-header-modern">
                     <h3 class="widget-title-modern">
-                        {title}
-                        <span class="info-tooltip" data-tooltip="{description.replace('"', "&quot;").replace("'", "&#39;")}">
+                        {safe_title}
+                        <span class="info-tooltip" data-tooltip="{safe_description_attr}">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <path d="M9,9h0a3,3,0,0,1,6,0c0,2-3,3-3,3"></path>
                                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
                             </svg>
-                            <span class="tooltip-text">{description}</span>
+                            <span class="tooltip-text">{safe_description}</span>
                         </span>
                     </h3>
                 </div>
@@ -281,18 +290,37 @@ class WidgetPlugin(Plugin, ABC):
                 # Title without tooltip
                 title_html = f"""
                 <div class="widget-header-modern">
-                    <h3 class="widget-title-modern">{title}</h3>
+                    <h3 class="widget-title-modern">{safe_title}</h3>
                 </div>
                 """
 
         return f"""
-        <div id="{widget_id}" class="widget widget-modern {css_class}" style="width:{width}; height:{height};">
+        <div id="{safe_widget_id}" class="widget widget-modern {css_class}" style="width:{width}; height:{height};">
             {title_html}
             <div class="widget-content">
                 {content}
             </div>
         </div>
         """
+
+    @classmethod
+    def _safe_css_size(cls, value: Any) -> str:
+        if isinstance(value, (int, float)):
+            return f"{value:g}px" if value >= 0 else "auto"
+
+        text = str(value).strip()
+        if text.isdigit():
+            return f"{text}px"
+        if cls._SAFE_CSS_SIZE_RE.fullmatch(text):
+            return text
+        return "auto"
+
+    @classmethod
+    def _safe_css_classes(cls, value: Any) -> str:
+        tokens = str(value).split()
+        return " ".join(
+            token for token in tokens if cls._SAFE_CSS_CLASS_RE.fullmatch(token)
+        )
 
 
 class DeployerPlugin(Plugin, ABC):
