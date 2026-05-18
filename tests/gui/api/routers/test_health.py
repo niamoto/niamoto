@@ -44,8 +44,52 @@ class TestHealthCheckEndpoint:
 class TestReloadProjectEndpoint:
     """Test `/api/health/reload-project` contract."""
 
+    def test_rejects_missing_desktop_auth_token(self, monkeypatch: pytest.MonkeyPatch):
+        client = create_test_client()
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+        monkeypatch.setattr(
+            health,
+            "reload_project_from_desktop_config",
+            lambda: pytest.fail("reload should not run without desktop auth"),
+        )
+        monkeypatch.setattr(
+            health,
+            "cancel_enrichment_for_project_change",
+            lambda project_path: pytest.fail("enrichment cancellation should not run"),
+        )
+        monkeypatch.setattr(
+            health,
+            "reset_preview_engine",
+            lambda: pytest.fail("preview reset should not run"),
+        )
+
+        response = client.post("/api/health/reload-project")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid desktop auth token."
+        assert client.app.state.job_store == "sentinel"
+        assert client.app.state.job_store_work_dir == "sentinel"
+
+    def test_rejects_wrong_desktop_auth_token(self, monkeypatch: pytest.MonkeyPatch):
+        client = create_test_client()
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+        monkeypatch.setattr(
+            health,
+            "reload_project_from_desktop_config",
+            lambda: pytest.fail("reload should not run with wrong desktop auth"),
+        )
+
+        response = client.post(
+            "/api/health/reload-project",
+            headers={"x-niamoto-desktop-token": "wrong-secret"},
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid desktop auth token."
+
     def test_loaded_state_resolves_job_store(self, monkeypatch: pytest.MonkeyPatch):
         client = create_test_client()
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
         loaded_project = Path("/tmp/niamoto-project")
         resolve_calls = []
         reset_calls = []
@@ -64,7 +108,10 @@ class TestReloadProjectEndpoint:
             health, "reset_preview_engine", lambda: reset_calls.append(True)
         )
 
-        response = client.post("/api/health/reload-project")
+        response = client.post(
+            "/api/health/reload-project",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+        )
 
         assert response.status_code == 200
         assert response.json() == {

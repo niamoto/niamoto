@@ -20,6 +20,7 @@ from niamoto.gui.startup_logging import log_desktop_startup
 router = APIRouter(prefix="/api/health", tags=["health"])
 _first_health_logged = False
 DESKTOP_SHELL_ENV = "NIAMOTO_DESKTOP_SHELL"
+DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 
 
 @router.get("")
@@ -78,6 +79,8 @@ async def reload_project(request: Request):
         - project: The newly loaded project path (null if no project selected)
         - success: Whether the reload was successful
     """
+    _require_desktop_auth(request)
+
     reload_result = reload_project_from_desktop_config()
     cancel_enrichment_for_project_change(reload_result.project_path)
     reset_preview_engine()
@@ -96,6 +99,16 @@ async def reload_project(request: Request):
         ),
         "message": reload_result.message,
     }
+
+
+def _require_desktop_auth(request: Request) -> None:
+    expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
+    if not expected_token:
+        return
+
+    provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
+    if provided_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
 
 
 @router.get("/connectivity")
