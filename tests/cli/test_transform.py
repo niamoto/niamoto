@@ -133,6 +133,7 @@ def test_config_error(runner):
 
         result = runner.invoke(transform_commands, ["--group", "taxon"])
 
+        assert result.exit_code == 1
         assert "Configuration file not found" in result.output
 
 

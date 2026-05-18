@@ -183,6 +183,7 @@ def process_transformations(
 
     except ConfigurationError as e:
         print_warning(f"Error reading configuration: {str(e)}")
+        raise
 
 
 @transform_commands.command(name="check")
