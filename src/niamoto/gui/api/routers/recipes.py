@@ -1499,13 +1499,19 @@ async def delete_widget_recipe(group_by: str, widget_id: str):
     # --- Update export.yml ---
     export_config = load_export_config(work_dir)
 
+    web_export = None
     for export in export_config.get("exports", []):
-        for group in export.get("groups", []):
-            if group.get("group_by") == group_by:
-                widgets = group.get("widgets", [])
-                group["widgets"] = [
-                    w for w in widgets if w.get("data_source") != widget_id
-                ]
+        if export.get("exporter") == "html_page_exporter":
+            web_export = export
+            break
+
+    if web_export:
+        for group in web_export.get("groups", []):
+            if group.get("group_by") != group_by:
+                continue
+            widgets = group.get("widgets", [])
+            group["widgets"] = [w for w in widgets if w.get("data_source") != widget_id]
+            break
 
     save_export_config(work_dir, export_config)
 

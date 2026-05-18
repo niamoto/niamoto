@@ -224,6 +224,67 @@ def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_pat
     assert saved_export_configs == []
 
 
+def test_delete_recipe_removes_widget_only_from_html_page_exporter(
+    monkeypatch, tmp_path
+):
+    transform_config = [
+        {"group_by": "taxons", "widgets_data": {"alpha": {"plugin": "stats"}}}
+    ]
+    export_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "exporter": "html_page_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [{"plugin": "chart_widget", "data_source": "alpha"}],
+                    }
+                ],
+            },
+            {
+                "name": "json_api",
+                "exporter": "json_api_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [{"plugin": "json_widget", "data_source": "alpha"}],
+                    }
+                ],
+            },
+        ]
+    }
+    saved_transform_configs = []
+    saved_export_configs = []
+
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        recipes, "load_transform_config", lambda _work_dir: transform_config
+    )
+    monkeypatch.setattr(recipes, "load_export_config", lambda _work_dir: export_config)
+    monkeypatch.setattr(
+        recipes,
+        "save_transform_config",
+        lambda _work_dir, config: saved_transform_configs.append(config),
+    )
+    monkeypatch.setattr(
+        recipes,
+        "save_export_config",
+        lambda _work_dir, config: saved_export_configs.append(config),
+    )
+
+    client = TestClient(create_app())
+    response = client.delete("/api/recipes/taxons/alpha")
+
+    assert response.status_code == 200, response.text
+    assert "alpha" not in saved_transform_configs[0][0]["widgets_data"]
+    saved_exports = saved_export_configs[0]["exports"]
+    assert saved_exports[0]["groups"][0]["widgets"] == []
+    assert saved_exports[1]["groups"][0]["widgets"] == [
+        {"plugin": "json_widget", "data_source": "alpha"}
+    ]
+
+
 def test_reorder_widgets_preserves_unresolved_widgets(monkeypatch, tmp_path):
     export_config = {
         "exports": [
