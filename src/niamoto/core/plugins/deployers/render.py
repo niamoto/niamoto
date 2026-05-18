@@ -42,10 +42,15 @@ class RenderDeployer(DeployerPlugin):
         yield self.sse_log(f"Suspending Render service {service_id}...")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                f"{RENDER_API}/services/{service_id}/suspend",
-                headers={"Authorization": f"Bearer {token}"},
-            )
+            try:
+                resp = await client.post(
+                    f"{RENDER_API}/services/{service_id}/suspend",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            except httpx.HTTPError as exc:
+                yield self.sse_error(f"Failed to suspend service: {exc}")
+                yield self.sse_done()
+                return
 
             if resp.status_code in (200, 202):
                 yield self.sse_success("Render service suspended.")

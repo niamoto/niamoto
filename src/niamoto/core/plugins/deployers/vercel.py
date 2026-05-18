@@ -36,10 +36,15 @@ class VercelDeployer(DeployerPlugin):
         yield self.sse_log(f"Deleting Vercel project '{project_name}'...")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.delete(
-                f"{VERCEL_API}/v9/projects/{project_name}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
+            try:
+                resp = await client.delete(
+                    f"{VERCEL_API}/v9/projects/{project_name}",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            except httpx.HTTPError as exc:
+                yield self.sse_error(f"Failed to delete project: {exc}")
+                yield self.sse_done()
+                return
 
             if resp.status_code == 204:
                 yield self.sse_success(f"Vercel project '{project_name}' deleted.")

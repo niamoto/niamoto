@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import httpx
+
 from niamoto.core.plugins.deployers.models import DeployConfig
 from niamoto.core.plugins.deployers.vercel import VercelDeployer
 
@@ -33,6 +35,20 @@ class _FakeClient:
 
     async def post(self, *_args, **_kwargs):
         return self._responses.pop(0)
+
+    async def delete(self, *_args, **_kwargs):
+        return self._responses.pop(0)
+
+
+class _FailingClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def delete(self, *_args, **_kwargs):
+        raise httpx.ConnectError("network down")
 
 
 def test_vercel_deployer_reports_missing_token(monkeypatch, tmp_path: Path) -> None:
@@ -103,4 +119,30 @@ def test_vercel_deployer_uploads_files_and_returns_https_url(
         for line in lines
     )
     assert any("URL: https://niamoto-site.vercel.app" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_vercel_unpublish_reports_network_errors(monkeypatch, tmp_path: Path) -> None:
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.vercel.CredentialService.get",
+        lambda *_args, **_kwargs: "vercel-token",
+    )
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.vercel.httpx.AsyncClient",
+        lambda **_kwargs: _FailingClient(),
+    )
+
+    deployer = VercelDeployer()
+    config = DeployConfig(
+        platform="vercel",
+        exports_dir=exports_dir,
+        project_name="niamoto-site",
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any("ERROR: Failed to delete project" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"

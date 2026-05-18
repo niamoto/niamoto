@@ -65,10 +65,15 @@ class CloudflareDeployer(DeployerPlugin):
         yield self.sse_log(f"Deleting Worker '{script_name}'...")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.delete(
-                f"{CF_API_BASE}/accounts/{account_id}/workers/scripts/{script_name}",
-                headers={"Authorization": f"Bearer {api_token}"},
-            )
+            try:
+                resp = await client.delete(
+                    f"{CF_API_BASE}/accounts/{account_id}/workers/scripts/{script_name}",
+                    headers={"Authorization": f"Bearer {api_token}"},
+                )
+            except httpx.HTTPError as exc:
+                yield self.sse_error(f"Failed to delete Worker: {exc}")
+                yield self.sse_done()
+                return
 
             if resp.status_code == 200:
                 yield self.sse_success(f"Worker '{script_name}' deleted.")
