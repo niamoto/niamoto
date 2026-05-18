@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import List, Type, Tuple
 
+import pytest
+
 from niamoto.core.plugins.base import (
     Plugin,
     PluginType,
@@ -34,6 +36,7 @@ def discover_plugins(plugin_type: PluginType) -> List[Tuple[str, Type[Plugin]]]:
         List of tuples containing (module_name, plugin_class)
     """
     plugins = []
+    errors = []
 
     # Get the plugins directory
     plugins_dir = (
@@ -85,9 +88,29 @@ def discover_plugins(plugin_type: PluginType) -> List[Tuple[str, Type[Plugin]]]:
                 ):
                     plugins.append((module_name, obj))
         except Exception as e:
-            print(f"Error loading module {module_name}: {str(e)}")
+            errors.append(f"{module_name}: {e}")
+
+    if errors:
+        raise AssertionError(
+            "Failed to import plugin modules:\n" + "\n".join(sorted(errors))
+        )
+
+    if not plugins:
+        raise AssertionError(f"No {plugin_type.value} plugins discovered in {type_dir}")
 
     return plugins
+
+
+def test_discover_plugins_surfaces_import_errors(monkeypatch):
+    """Plugin discovery failures should fail tests instead of being printed."""
+
+    def raise_import_error(module_name):
+        raise RuntimeError(f"broken import for {module_name}")
+
+    monkeypatch.setattr(importlib, "import_module", raise_import_error)
+
+    with pytest.raises(AssertionError, match="Failed to import plugin modules"):
+        discover_plugins(PluginType.WIDGET)
 
 
 class TestTransformerPlugins(unittest.TestCase):
