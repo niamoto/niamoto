@@ -148,6 +148,17 @@ class _AutoConfigureJobStore:
             job.status = "completed"
             job.result = result
 
+    def complete_with_event(
+        self, job_id: str, result: Dict[str, Any], event: Dict[str, Any]
+    ) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.events.append(event)
+            job.result = result
+            job.status = "completed"
+
     def fail(self, job_id: str, error: str) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -155,6 +166,15 @@ class _AutoConfigureJobStore:
                 return
             job.status = "failed"
             job.error = error
+
+    def fail_with_event(self, job_id: str, error: str, event: Dict[str, Any]) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.events.append(event)
+            job.error = error
+            job.status = "failed"
 
 
 _AUTO_CONFIG_JOB_STORE = _AutoConfigureJobStore()
@@ -197,9 +217,9 @@ def _run_auto_config_job(job_id: str, work_dir_str: str, files: List[str]) -> No
             event_sink=lambda event: _AUTO_CONFIG_JOB_STORE.append_event(job_id, event),
         )
         result = service.auto_configure(files)
-        _AUTO_CONFIG_JOB_STORE.complete(job_id, result)
-        _AUTO_CONFIG_JOB_STORE.append_event(
+        _AUTO_CONFIG_JOB_STORE.complete_with_event(
             job_id,
+            result,
             _make_progress_event(
                 kind="complete",
                 message="Auto-configuration ready",
@@ -215,9 +235,9 @@ def _run_auto_config_job(job_id: str, work_dir_str: str, files: List[str]) -> No
         )
     except Exception as exc:
         error_message = str(exc)
-        _AUTO_CONFIG_JOB_STORE.fail(job_id, error_message)
-        _AUTO_CONFIG_JOB_STORE.append_event(
+        _AUTO_CONFIG_JOB_STORE.fail_with_event(
             job_id,
+            error_message,
             _make_progress_event(kind="error", message=error_message),
         )
 

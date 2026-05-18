@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api import context
+from niamoto.gui.api.routers import smart_config
 
 
 # ============================================================================
@@ -1071,13 +1072,68 @@ class TestAutoConfigureJobs:
                 if not line or not line.startswith("data: "):
                     continue
                 streamed_payloads.append(line.removeprefix("data: "))
-                if len(streamed_payloads) >= 4:
-                    break
 
         assert streamed_payloads
         decoded_events = [yaml.safe_load(payload) for payload in streamed_payloads]
         assert any(event["kind"] == "stage" for event in decoded_events)
         assert any(event["kind"] in {"detail", "finding"} for event in decoded_events)
+        assert decoded_events[-1]["kind"] == "complete"
+
+    def test_auto_configure_job_events_streams_terminal_complete_event(
+        self, test_client: TestClient
+    ):
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job()
+        event = smart_config._make_progress_event(
+            kind="complete", message="Auto-configuration ready"
+        )
+        smart_config._AUTO_CONFIG_JOB_STORE.complete_with_event(
+            job.job_id,
+            {
+                "success": True,
+                "entities": {},
+                "confidence": 1.0,
+            },
+            event,
+        )
+
+        try:
+            streamed_payloads = []
+            with test_client.stream(
+                "GET", f"/api/smart/auto-configure/jobs/{job.job_id}/events"
+            ) as response:
+                assert response.status_code == 200
+                for line in response.iter_lines():
+                    if line and line.startswith("data: "):
+                        streamed_payloads.append(line.removeprefix("data: "))
+        finally:
+            with smart_config._AUTO_CONFIG_JOB_STORE._lock:
+                smart_config._AUTO_CONFIG_JOB_STORE._jobs.pop(job.job_id, None)
+
+        decoded_events = [yaml.safe_load(payload) for payload in streamed_payloads]
+        assert decoded_events[-1]["kind"] == "complete"
+
+    def test_auto_configure_job_events_streams_terminal_error_event(
+        self, test_client: TestClient
+    ):
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job()
+        event = smart_config._make_progress_event(kind="error", message="boom")
+        smart_config._AUTO_CONFIG_JOB_STORE.fail_with_event(job.job_id, "boom", event)
+
+        try:
+            streamed_payloads = []
+            with test_client.stream(
+                "GET", f"/api/smart/auto-configure/jobs/{job.job_id}/events"
+            ) as response:
+                assert response.status_code == 200
+                for line in response.iter_lines():
+                    if line and line.startswith("data: "):
+                        streamed_payloads.append(line.removeprefix("data: "))
+        finally:
+            with smart_config._AUTO_CONFIG_JOB_STORE._lock:
+                smart_config._AUTO_CONFIG_JOB_STORE._jobs.pop(job.job_id, None)
+
+        decoded_events = [yaml.safe_load(payload) for payload in streamed_payloads]
+        assert decoded_events[-1]["kind"] == "error"
 
 
 # ============================================================================
