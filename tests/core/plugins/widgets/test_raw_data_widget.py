@@ -1,6 +1,5 @@
 import pandas as pd
-import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from niamoto.core.plugins.widgets.raw_data_widget import (
     RawDataWidget,
@@ -347,21 +346,15 @@ class TestRawDataWidget(NiamotoTestCase):
 
         params = RawDataWidgetParams()
 
-        # Mock to_html to raise an exception
-        with pytest.raises(Exception):
-            # Mock the to_html method to raise an exception
-            original_to_html = df.to_html
-            df.to_html = Mock(side_effect=Exception("HTML generation error"))
+        # Mock the class method because render works on a copied DataFrame.
+        with patch.object(
+            pd.DataFrame, "to_html", side_effect=Exception("HTML generation error")
+        ):
+            result = self.widget.render(df, params)
 
-            try:
-                result = self.widget.render(df, params)
-
-                self.assertIn("<p class='error'>", result)
-                self.assertIn("Error displaying data", result)
-                self.assertIn("HTML generation error", result)
-            finally:
-                # Restore original method
-                df.to_html = original_to_html
+            self.assertIn("<p class='error'>", result)
+            self.assertIn("Error displaying data", result)
+            self.assertIn("HTML generation error", result)
 
     def test_render_large_dataframe_performance(self):
         """Test rendering with larger DataFrame to ensure performance."""
