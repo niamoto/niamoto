@@ -74,7 +74,7 @@ class SummaryStatsWidget(WidgetPlugin):
 
     def render(self, data: Optional[pd.DataFrame], params: SummaryStatsParams) -> str:
         """Generate the HTML table for the summary statistics."""
-        if data is None or data.empty:
+        if data is None:
             logger.info("No data provided to SummaryStatsWidget.")
             return "<p class='info'>No data available for summary statistics.</p>"
 
@@ -90,6 +90,10 @@ class SummaryStatsWidget(WidgetPlugin):
                 return (
                     "<p class='error'>Invalid data format for summary statistics.</p>"
                 )
+
+        if data.empty:
+            logger.info("No data provided to SummaryStatsWidget.")
+            return "<p class='info'>No data available for summary statistics.</p>"
 
         # Select numeric columns
         if params.numeric_columns:
