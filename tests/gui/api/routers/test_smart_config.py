@@ -284,6 +284,26 @@ class TestUploadFiles:
         assert len(data["existing_files"]) == 0
         assert data["uploaded_files"][0]["filename"] == "data.csv"
 
+    def test_upload_failed_overwrite_preserves_existing_file(
+        self, test_client: TestClient, working_directory: Path, monkeypatch
+    ):
+        """Failed overwrite uploads should not remove the original file."""
+        existing_file = working_directory / "imports" / "data.csv"
+        existing_file.parent.mkdir(exist_ok=True)
+        existing_file.write_text("original\n", encoding="utf-8")
+        monkeypatch.setattr(smart_config, "MAX_UPLOAD_SIZE_BYTES", 5)
+
+        response = test_client.post(
+            "/api/smart/upload-files?overwrite=true",
+            files={"files": ("data.csv", b"too large", "text/csv")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["uploaded_files"] == []
+        assert data["errors"]
+        assert existing_file.read_text(encoding="utf-8") == "original\n"
+
     def test_upload_zip_file_extracts_contents(
         self, test_client: TestClient, tmp_path: Path
     ):

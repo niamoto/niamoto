@@ -321,17 +321,11 @@ async def upload_files(
                 target_path = imports_dir / filename
                 relative_path = f"imports/{filename}"
 
-                # Check if file already exists BEFORE reading content (performance optimization)
-                if target_path.exists():
-                    if not overwrite:
-                        # Don't overwrite - add to existing_files list
-                        existing_files.append(filename)
-                        continue
-                    else:
-                        # Overwrite - delete existing file first
-                        target_path.unlink()
+                if target_path.exists() and not overwrite:
+                    existing_files.append(filename)
+                    continue
 
-                # Save file - only read if file doesn't exist or we're overwriting
+                # Read and validate before replacing an existing destination.
                 content = await _read_uploaded_content(uploaded_file)
                 file_size = len(content)
 
@@ -347,9 +341,16 @@ async def upload_files(
                         overwrite=overwrite,
                     )
                 else:
-                    # Write file to disk
-                    with open(target_path, "wb") as f:
-                        f.write(content)
+                    tmp_path = target_path.with_name(
+                        f".{target_path.name}.{uuid.uuid4().hex}.tmp"
+                    )
+                    try:
+                        with open(tmp_path, "xb") as f:
+                            f.write(content)
+                        tmp_path.replace(target_path)
+                    except Exception:
+                        tmp_path.unlink(missing_ok=True)
+                        raise
 
                     uploaded_files.append(
                         UploadedFileInfo(
