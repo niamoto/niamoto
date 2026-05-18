@@ -1294,12 +1294,16 @@ async def save_import_v2(request: ImportConfigSaveRequest):
         HTTPException: If YAML is invalid or file operation fails
     """
     try:
-        # Validate YAML syntax first
-        try:
-            yaml.safe_load(request.config)
-        except yaml.YAMLError as e:
+        validation = await validate_import_v2(
+            ImportConfigValidateRequest(config=request.config)
+        )
+        if not validation.valid:
             raise HTTPException(
-                status_code=400, detail=f"Invalid YAML syntax: {str(e)}"
+                status_code=400,
+                detail={
+                    "errors": validation.errors,
+                    "warnings": validation.warnings,
+                },
             )
 
         # Ensure config directory exists
