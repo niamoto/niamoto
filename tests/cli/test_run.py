@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from niamoto.cli.commands.run import run_pipeline
-# Imports d'exceptions supprimés - tests supprimés
+from niamoto.common.exceptions import ConfigurationError
 
 
 @pytest.fixture
@@ -482,6 +482,37 @@ def test_run_pipeline_handles_import_failure(
     mock_import.assert_called_once()  # Import attempted
     mock_transform.assert_not_called()  # Transform should NOT run after import failure
     mock_export.assert_not_called()  # Export should NOT run after import failure
+
+
+@patch("niamoto.cli.commands.run.reset_environment")
+@patch("niamoto.cli.commands.run.get_config_dir")
+@patch("niamoto.cli.commands.run.import_all")
+@patch("niamoto.cli.commands.run.process_transformations")
+@patch("niamoto.cli.commands.run.export_command")
+def test_run_pipeline_stops_on_transform_configuration_failure(
+    mock_export,
+    mock_transform,
+    mock_import,
+    mock_get_config_dir,
+    mock_reset_env,
+    runner,
+):
+    """Test pipeline stops before export when transform configuration fails."""
+    mock_get_config_dir.return_value = "/mock/config"
+    mock_transform.side_effect = ConfigurationError(
+        config_key="transform",
+        message="Configuration file not found",
+        details={"path": "transform.yml"},
+    )
+
+    result = runner.invoke(run_pipeline)
+
+    assert result.exit_code != 0
+    assert "Configuration file not found" in result.output
+    mock_reset_env.assert_called_once()
+    mock_import.assert_called_once()
+    mock_transform.assert_called_once()
+    mock_export.assert_not_called()
 
 
 # Tests d'intégration supprimés - créaient des répertoires indésirables (db/, logs/)
