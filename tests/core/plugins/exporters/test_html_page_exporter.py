@@ -488,6 +488,73 @@ class TestHtmlPageExporter(NiamotoTestCase):
         content = external_file.read_text()
         self.assertIn("<h1>External Content</h1>", content)
 
+    def test_static_page_output_file_cannot_escape_output_dir(self):
+        """Static page output files must stay inside the export directory."""
+        exporter = HtmlPageExporter(self.mock_db)
+        static_pages = [
+            StaticPageConfig(
+                name="escape",
+                output_file="../escaped.html",
+                template="_layouts/static_page.html",
+                context=StaticPageContext(title="Escape", content_markdown="# Escape"),
+            )
+        ]
+
+        from jinja2 import Environment, FileSystemLoader
+        from markdown_it import MarkdownIt
+
+        jinja_env = Environment(loader=FileSystemLoader(str(self.template_dir)))
+        params = HtmlExporterParams(
+            output_dir=str(self.output_dir), template_dir=str(self.template_dir)
+        )
+
+        with self.assertRaisesRegex(ValueError, "escapes output directory"):
+            exporter._process_static_pages(
+                static_pages, jinja_env, params, self.output_dir, MarkdownIt()
+            )
+        self.assertFalse((Path(self.test_dir) / "escaped.html").exists())
+
+    def test_detail_output_pattern_cannot_escape_output_dir(self):
+        """Detail output patterns must stay inside the export directory."""
+        exporter = HtmlPageExporter(self.mock_db)
+        group_config = GroupConfigWeb(
+            group_by="taxon",
+            data_source="db",
+            output_pattern="../escaped.html",
+            index_output_pattern="index.html",
+            widgets=[],
+        )
+
+        with self.assertRaisesRegex(ValueError, "escapes output directory"):
+            exporter._resolve_detail_output_path(
+                group_config=group_config,
+                group_by_key="taxon",
+                item_id=1,
+                output_dir=self.output_dir,
+                group_output_dir=self.output_dir / "taxon",
+            )
+        self.assertFalse((Path(self.test_dir) / "escaped.html").exists())
+
+    def test_group_index_output_pattern_cannot_escape_output_dir(self):
+        """Group index output patterns must stay inside the export directory."""
+        exporter = HtmlPageExporter(self.mock_db)
+        group_config = GroupConfigWeb(
+            group_by="taxon",
+            data_source="db",
+            output_pattern="{id}.html",
+            index_output_pattern="../escaped-index.html",
+            widgets=[],
+        )
+
+        with self.assertRaisesRegex(ValueError, "escapes output directory"):
+            exporter._resolve_group_index_output_path(
+                group_config=group_config,
+                group_by_key="taxon",
+                output_dir=self.output_dir,
+                group_output_dir=self.output_dir / "taxon",
+            )
+        self.assertFalse((Path(self.test_dir) / "escaped-index.html").exists())
+
     @patch("niamoto.core.plugins.registry.PluginRegistry")
     def test_process_groups_basic(self, mock_registry_class):
         """Test basic group processing."""
