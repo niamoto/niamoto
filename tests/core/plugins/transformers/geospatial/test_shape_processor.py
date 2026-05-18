@@ -22,16 +22,12 @@ from tests.common.base_test import NiamotoTestCase
 class TestShapeProcessor(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
-        # Create test data directory and files
-        self.test_data_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "data")
-        )
-        os.makedirs(self.test_data_dir, exist_ok=True)
-
         # Create config directory in temporary location
         self.temp_dir = tempfile.mkdtemp()
         self.config_dir = os.path.join(self.temp_dir, "config")
+        self.test_data_dir = os.path.join(self.temp_dir, "data")
         os.makedirs(self.config_dir, exist_ok=True)
+        os.makedirs(self.test_data_dir, exist_ok=True)
 
         # Create test layers with more complex geometries
         test_gdf = gpd.GeoDataFrame(
@@ -229,9 +225,6 @@ class TestShapeProcessor(NiamotoTestCase):
             if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-            # Clean up test data directory
-            if os.path.exists(self.test_data_dir):
-                shutil.rmtree(self.test_data_dir, ignore_errors=True)
         except Exception as e:
             print(f"Error during cleanup: {e}")
 
@@ -291,6 +284,13 @@ class TestShapeProcessor(NiamotoTestCase):
         # Write test import.yml
         with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
             yaml.dump(self.import_config, f)
+
+    def test_uses_temporary_data_directory(self):
+        """Generated layer files should stay out of repository fixtures."""
+        repo_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
+
+        self.assertNotEqual(self.test_data_dir, repo_data_dir)
+        self.assertTrue(self.test_data_dir.startswith(self.temp_dir))
 
     def test_validate_config(self):
         """Test configuration validation."""
