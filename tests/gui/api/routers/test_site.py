@@ -879,6 +879,72 @@ class TestSiteGroups:
             assert response.status_code == 400
             assert not (project / "probe.md").exists()
 
+    def test_upload_saves_file_without_buffering_entire_body(self, monkeypatch):
+        monkeypatch.setattr(site_router, "SITE_UPLOAD_CHUNK_SIZE_BYTES", 4)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/upload",
+                    params={"folder": "files"},
+                    files={
+                        "file": (
+                            "field_notes.md",
+                            b"sample field notes",
+                            "text/markdown",
+                        )
+                    },
+                )
+
+            assert response.status_code == 200
+            assert response.json() == {
+                "success": True,
+                "path": "files/field_notes.md",
+                "filename": "field_notes.md",
+            }
+            assert (project / "files" / "field_notes.md").read_bytes() == (
+                b"sample field notes"
+            )
+            assert not list((project / "files").glob("*.tmp"))
+
+    def test_upload_rejects_oversized_file_without_partial_output(self, monkeypatch):
+        monkeypatch.setattr(site_router, "MAX_SITE_UPLOAD_SIZE_BYTES", 5)
+        monkeypatch.setattr(site_router, "SITE_UPLOAD_CHUNK_SIZE_BYTES", 4)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/upload",
+                    params={"folder": "files"},
+                    files={"file": ("too_big.md", b"123456", "text/markdown")},
+                )
+
+            upload_dir = project / "files"
+            assert response.status_code == 413
+            assert response.json()["detail"] == (
+                "Uploaded file exceeds the maximum allowed size of 5 bytes"
+            )
+            assert not (upload_dir / "too_big.md").exists()
+            assert not list(upload_dir.glob("*.tmp"))
+
     def test_files_serves_svg_as_attachment_with_defensive_headers(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "project"
