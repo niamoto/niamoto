@@ -249,6 +249,23 @@ class TestLinePlotWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
 
+    def test_render_dict_multiple_y_axis_direct_keys(self):
+        """Test rendering dictionary data with multiple Y-axis fields."""
+        data = {
+            "time": [1, 2, 3, 4],
+            "temp_indoor": [22, 23, 24, 23],
+            "temp_outdoor": [18, 20, 22, 19],
+        }
+
+        params = LinePlotParams(x_axis="time", y_axis=["temp_indoor", "temp_outdoor"])
+
+        result = self.widget.render(data, params)
+
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertNotIn("<p class='info'>", result)
+        self.assertIn("plotly-graph-div", result)
+
     def test_render_dict_fragmentation_structure(self):
         """Test rendering with fragmentation distribution structure."""
         data = {"sizes": [1, 2, 3, 4, 5], "areas": [100, 150, 130, 170, 200]}
