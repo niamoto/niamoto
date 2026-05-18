@@ -1479,6 +1479,7 @@ class GroupIndexPreviewRequest(BaseModel):
 
     site: Optional[Dict[str, Any]] = None
     navigation: Optional[List[Dict[str, Any]]] = None
+    footer_navigation: Optional[List[Dict[str, Any]]] = None
     gui_lang: Optional[str] = None
     index_config: Optional[GroupIndexConfig] = None
 
@@ -1740,6 +1741,14 @@ async def preview_group_index(
             navigation = params.get("navigation", [])
         navigation = _resolve_navigation(navigation, lang)
 
+        footer_navigation = (
+            request.footer_navigation if request and request.footer_navigation else []
+        )
+        if not footer_navigation:
+            params = web_pages.get("params", {})
+            footer_navigation = params.get("footer_navigation", [])
+        footer_navigation = _resolve_footer_sections(footer_navigation, lang)
+
         # Build index_config for the template
         display_fields = [
             i18n_resolver.resolve_recursive(field, lang)
@@ -1779,7 +1788,7 @@ async def preview_group_index(
         rendered_html = template.render(
             site=site_config,
             navigation=navigation,
-            footer_navigation=[],
+            footer_navigation=footer_navigation,
             languages=site_config.get("languages") or [site_lang],
             current_lang=lang,
             language_switcher=site_config.get("language_switcher", False),
