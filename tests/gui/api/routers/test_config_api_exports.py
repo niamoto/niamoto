@@ -1109,6 +1109,73 @@ def test_api_export_preview_route_applies_dwc_transformer_for_detail(monkeypatch
     )
 
 
+def test_api_export_preview_route_allows_draft_to_clear_saved_transformer(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [
+                {
+                    "name": "dwc_occurrence_json",
+                    "exporter": "json_api_exporter",
+                    "params": {"output_dir": "exports/dwc_occurrence_json"},
+                    "groups": [
+                        {
+                            "group_by": "taxons",
+                            "transformer_plugin": "niamoto_to_dwc_occurrence",
+                            "transformer_params": {
+                                "occurrence_list_source": "occurrences",
+                                "mapping": {
+                                    "occurrenceID": {
+                                        "generator": "unique_occurrence_id"
+                                    }
+                                },
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    def fake_load_preview_item(group_by, data_source, paths=None):
+        assert group_by == "taxons"
+        assert data_source is None
+        assert paths == []
+        return {"id": 3, "general_info": {"name": {"value": "Draft taxon"}}}
+
+    def fail_apply_transformer(group_config, items):
+        pytest.fail("Draft cleared transformer_plugin but transformer was applied")
+
+    monkeypatch.setattr(
+        config_router, "_load_api_export_preview_item", fake_load_preview_item
+    )
+    monkeypatch.setattr(
+        config_router,
+        "_apply_api_export_preview_transformer",
+        fail_apply_transformer,
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/export/api-targets/dwc_occurrence_json/groups/taxons/preview",
+        json={
+            "section": "detail",
+            "transformer_plugin": None,
+            "detail": {"pass_through": True},
+            "index": {"fields": []},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["item_id"] == 3
+    assert payload["preview"] == {
+        "id": 3,
+        "general_info": {"name": {"value": "Draft taxon"}},
+    }
+
+
 def test_api_export_preview_route_returns_empty_dwc_output_without_mapping(monkeypatch):
     monkeypatch.setattr(
         config_router,
