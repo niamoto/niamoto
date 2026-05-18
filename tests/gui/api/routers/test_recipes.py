@@ -103,6 +103,32 @@ def test_recipes_source_columns_use_read_only_duckdb_connections(
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 
 
+def test_recipes_source_columns_returns_all_database_columns(
+    gui_duckdb_client: TestClient,
+):
+    with patch(
+        "niamoto.gui.api.routers.recipes._get_all_sources",
+        return_value=[
+            SourceInfo(
+                type="dataset",
+                name="occurrences",
+                table_name="dataset_occurrences",
+                columns=[],
+                transformers=[],
+            )
+        ],
+    ):
+        response = gui_duckdb_client.get(
+            "/api/recipes/sources/taxons/occurrences/columns"
+        )
+
+    assert response.status_code == 200, response.text
+    column_names = [column["name"] for column in response.json()["columns"]]
+    assert "id" in column_names
+    assert "taxon_id" in column_names
+    assert "count" in column_names
+
+
 def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
     gui_duckdb_client: TestClient,
 ):
