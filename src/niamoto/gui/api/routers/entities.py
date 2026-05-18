@@ -2,6 +2,7 @@
 
 import html
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ from niamoto.core.imports.registry import EntityRegistry
 from ..utils.database import open_database
 
 router = APIRouter()
+UNSAFE_SCRIPT_SRC_CHARS = {'"', "'", "<", ">", "`"}
 
 
 class EntitySummary(BaseModel):
@@ -70,6 +72,28 @@ def _html_message(css_class: str, message: str) -> HTMLResponse:
     return HTMLResponse(
         content=f"<p class='{css_class}'>{html.escape(message, quote=True)}</p>"
     )
+
+
+def _safe_script_src(dependency: Any) -> str:
+    if not isinstance(dependency, str):
+        raise ValueError("Widget dependency must be a string")
+
+    if dependency != dependency.strip():
+        raise ValueError("Widget dependency must not contain leading or trailing space")
+
+    if any(ord(char) < 32 for char in dependency) or any(
+        char in UNSAFE_SCRIPT_SRC_CHARS for char in dependency
+    ):
+        raise ValueError("Widget dependency contains unsafe characters")
+
+    parsed = urlsplit(dependency)
+    if parsed.scheme:
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Widget dependency URL scheme is not allowed")
+    elif not dependency.startswith("/") or dependency.startswith("//"):
+        raise ValueError("Widget dependency path is not allowed")
+
+    return html.escape(dependency, quote=True)
 
 
 def _resolve_entity_table(db: Any, group_by: str) -> str:
@@ -475,7 +499,9 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
 
             cdn_dependencies = set()
             for dep in dependencies:
-                if dep.startswith("/assets/"):
+                if not isinstance(dep, str):
+                    cdn_dependencies.add(dep)
+                elif dep.startswith("/assets/"):
                     # Remap exported-site paths to API paths
                     cdn_dependencies.add(f"/api/site{dep}")
                 elif "topojson" in dep.lower():
@@ -485,9 +511,13 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
                 else:
                     cdn_dependencies.add(dep)
 
-            dependency_scripts = "\n".join(
-                [f'<script src="{dep}"></script>' for dep in cdn_dependencies]
-            )
+            try:
+                dependency_scripts = "\n".join(
+                    f'<script src="{_safe_script_src(dep)}"></script>'
+                    for dep in cdn_dependencies
+                )
+            except ValueError as e:
+                return _html_message("error", f"Unsafe widget dependency: {str(e)}")
 
             full_html = f"""<!DOCTYPE html>
 <html>
