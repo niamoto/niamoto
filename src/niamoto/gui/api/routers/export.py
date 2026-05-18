@@ -868,7 +868,7 @@ async def execute_export_cli(
         )
 
     try:
-        job = job_store.create_job("export-cli")
+        job = job_store.create_job("export")
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 

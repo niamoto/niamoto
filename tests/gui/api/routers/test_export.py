@@ -165,6 +165,49 @@ class TestExportHistory:
             store.complete_job(running_export["id"], result={"ignored": True})
             assert store.get_job(running_export["id"])["status"] == "cancelled"
 
+    def test_execute_cli_job_is_visible_to_export_job_endpoints(self, monkeypatch):
+        class DummyProcess:
+            returncode = 0
+
+            async def communicate(self):
+                return b"export ok", b""
+
+        async def fake_create_subprocess_exec(*_args, **_kwargs):
+            return DummyProcess()
+
+        with TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+
+            monkeypatch.setattr(
+                export_router.asyncio,
+                "create_subprocess_exec",
+                fake_create_subprocess_exec,
+            )
+            monkeypatch.setattr(
+                export_router, "get_working_directory", lambda: work_dir
+            )
+
+            with patch(
+                "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+                return_value=work_dir,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post("/api/export/execute-cli")
+                assert response.status_code == 200, response.text
+                job_id = response.json()["job_id"]
+
+                active_response = client.get("/api/export/active")
+                assert active_response.status_code == 200, active_response.text
+                assert active_response.json()["job_id"] == job_id
+
+                jobs_response = client.get("/api/export/jobs")
+                assert jobs_response.status_code == 200, jobs_response.text
+                assert [job["job_id"] for job in jobs_response.json()["jobs"]] == [
+                    job_id
+                ]
+
 
 class _DummyJobStore:
     def __init__(self) -> None:
