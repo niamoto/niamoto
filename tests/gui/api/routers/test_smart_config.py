@@ -1222,6 +1222,8 @@ class TestCreateEntitiesBulk:
         assert data["success"] is True
         assert "dataset_count" in data
         assert "reference_count" in data
+        assert data["config_path"] == "config/import.yml"
+        assert str(working_directory) not in response.text
 
         # Verify YAML file was created
         import_yml = working_directory / "config" / "import.yml"

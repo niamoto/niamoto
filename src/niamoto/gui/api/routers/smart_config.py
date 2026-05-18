@@ -781,7 +781,7 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
         return {
             "success": True,
             "message": f"Successfully created {dataset_count} dataset(s) and {reference_count} reference(s)",
-            "config_path": str(import_yml_path),
+            "config_path": "config/import.yml",
             "dataset_count": dataset_count,
             "reference_count": reference_count,
         }
