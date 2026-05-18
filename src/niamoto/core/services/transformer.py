@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from rich.console import Console
+from rich.markup import escape
 from sqlalchemy import inspect
 from sqlalchemy.sql import quoted_name
 from pydantic import ValidationError as PydanticValidationError
@@ -321,7 +322,9 @@ class TransformerService:
         else:
             logger.warning(error_msg)
             if self.console is not None:
-                self.console.print(f"[yellow]{emoji('⚠', '[!]')} {error_msg}[/yellow]")
+                self.console.print(
+                    f"[yellow]{emoji('⚠', '[!]')} {escape(error_msg)}[/yellow]"
+                )
 
         if self.transform_metrics:
             self.transform_metrics.add_warning(error_msg)

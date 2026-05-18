@@ -6,6 +6,7 @@ import logging
 import sys
 
 from rich.console import Console
+from rich.markup import escape
 
 from niamoto.cli import cli as create_cli
 from niamoto.common.exceptions import LoggingError, NiamotoError
@@ -61,12 +62,14 @@ def main() -> None:
             if hasattr(e, "details") and e.details:
                 console.print("[red]Error Details:[/red]")
                 for key, value in e.details.items():
-                    console.print(f"  [yellow]{key}:[/yellow] {value}")
+                    console.print(
+                        f"  [yellow]{escape(str(key))}:[/yellow] {escape(str(value))}"
+                    )
         else:
             error_msg = f"An unexpected error occurred: {str(e)}"
 
         # Afficher l'erreur en rouge
-        console.print(f"[red]{emoji('✗', '[X]')} {error_msg}[/red]")
+        console.print(f"[red]{emoji('✗', '[X]')} {escape(error_msg)}[/red]")
 
         # Dans un environnement de développement, afficher la stack trace complète
         if "--debug" in sys.argv:
