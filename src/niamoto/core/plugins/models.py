@@ -155,7 +155,7 @@ class StaticPageConfig(BaseModel):
     output_file: str = Field(
         ..., description="Output HTML file path relative to target output_dir"
     )
-    context: Optional[StaticPageContext] = Field(default_factory=dict)
+    context: Optional[StaticPageContext] = None
 
 
 class HtmlExporterParams(BasePluginParams):
