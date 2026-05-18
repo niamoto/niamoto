@@ -71,6 +71,22 @@ def classify_html(html):
     return "UNKNOWN", "Unrecognized HTML"
 
 
+def test_classify_html_detects_plotly_chart():
+    """Pytest smoke coverage for the preview suggestion classifier."""
+    category, detail = classify_html("<body><div>Plotly.newPlot()</div></body>")
+
+    assert category == "OK"
+    assert detail == "Plotly chart"
+
+
+def test_classify_html_detects_error_message():
+    """Pytest smoke coverage for preview error responses."""
+    category, detail = classify_html("<body><div class='error'>Broken</div></body>")
+
+    assert category == "ERROR"
+    assert detail == "Broken"
+
+
 def build_inline_body(suggestion, group_by):
     """Build POST inline body from a suggestion."""
     widget_plugin = suggestion.get("widget_plugin")
