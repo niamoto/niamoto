@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -4486,8 +4487,6 @@ async def update_validation_rules(rules: ValidationRules):
     """
     Save validation rules to config/validation.yml.
     """
-    import yaml
-
     work_dir = get_working_directory()
     config_dir = work_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -4507,8 +4506,26 @@ async def update_validation_rules(rules: ValidationRules):
             ]
         }
 
-        with open(rules_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(rules_data, f, default_flow_style=False)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=config_dir,
+                prefix=".validation.yml.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                yaml.safe_dump(rules_data, temp_file, default_flow_style=False)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+
+            temp_path.replace(rules_path)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
 
         return rules
 

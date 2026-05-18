@@ -6,7 +6,9 @@ import io
 from typing import Any, Dict, List
 
 import duckdb
+import pytest
 import yaml
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
@@ -1476,6 +1478,40 @@ def test_validation_rules_default_and_roundtrip(tmp_path, monkeypatch):
 
     reloaded = asyncio.run(stats_router.get_validation_rules())
     assert reloaded == updated
+
+
+def test_validation_rules_preserves_existing_file_on_write_failure(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    saved_path = config_dir / "validation.yml"
+    original_content = "rules:\n- type: outlier\n  target: '*'\n"
+    saved_path.write_text(original_content, encoding="utf-8")
+
+    updated = stats_router.ValidationRules(
+        rules=[
+            stats_router.ValidationRule(
+                rule_type="required",
+                target="dataset_occurrences.locality",
+                method="manual",
+                params={"allow_empty": False},
+            )
+        ]
+    )
+
+    def fail_safe_dump(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(stats_router.yaml, "safe_dump", fail_safe_dump)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(stats_router.update_validation_rules(updated))
+
+    assert exc_info.value.status_code == 500
+    assert saved_path.read_text(encoding="utf-8") == original_content
+    assert list(config_dir.glob(".validation.yml.*.tmp")) == []
 
 
 def test_validation_rules_put_requires_desktop_auth_when_configured(
