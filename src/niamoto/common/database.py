@@ -122,6 +122,7 @@ class Database:
                         )
                     self.engine = create_engine(self.connection_string, **engine_kwargs)
                     self._register_duckdb_mode(db_path, self.read_only)
+                    self._suppress_duckdb_mode_release = False
                     self._wrap_engine_dispose(db_path, self.read_only)
 
                     # Register event listener to load spatial extension on every connection
@@ -221,11 +222,20 @@ class Database:
             try:
                 return original_dispose(*args, **kwargs)
             finally:
-                if not released:
+                if not released and not self._suppress_duckdb_mode_release:
                     self._release_duckdb_mode(db_path, read_only)
                     released = True
 
         self.engine.dispose = tracked_dispose
+
+    def _dispose_duckdb_pool_for_refresh(self) -> None:
+        """Dispose DuckDB pool connections without ending this Database lifecycle."""
+
+        self._suppress_duckdb_mode_release = True
+        try:
+            self.engine.dispose()
+        finally:
+            self._suppress_duckdb_mode_release = False
 
     def enable_connection_reuse(self) -> None:
         """Enable per-thread connection reuse for hot read/write loops."""
@@ -636,7 +646,7 @@ class Database:
             # For DuckDB, dispose of the pool to get fresh connections
             # This ensures we see the latest data after imports/transforms
             if self.is_duckdb and not self._reuse_connections:
-                self.engine.dispose()
+                self._dispose_duckdb_pool_for_refresh()
 
             with self.connection() as connection:
                 return connection.execute(text(sql))
