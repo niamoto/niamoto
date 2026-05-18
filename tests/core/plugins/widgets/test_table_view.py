@@ -450,10 +450,13 @@ class TestTableViewWidget(NiamotoTestCase):
 
         params = TableViewParams()
 
-        # Note: The widget has a bug where it checks data.empty before isinstance check
-        # This will cause AttributeError for non-DataFrame types
-        with self.assertRaises(AttributeError):
-            self.widget.render(data, params)
+        result = self.widget.render(data, params)
+
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("<table", result)
+        self.assertIn("Species A", result)
+        self.assertIn("Species C", result)
 
     def test_render_invalid_data_type_non_convertible(self):
         """Test rendering with invalid data type that cannot be converted."""
@@ -461,10 +464,10 @@ class TestTableViewWidget(NiamotoTestCase):
 
         params = TableViewParams()
 
-        # Note: The widget has a bug where it checks data.empty before isinstance check
-        # This will cause AttributeError for non-DataFrame types
-        with self.assertRaises(AttributeError):
-            self.widget.render(data, params)
+        result = self.widget.render(data, params)
+
+        self.assertIn("<p class='error'>", result)
+        self.assertIn("Invalid data format for table view", result)
 
     def test_render_with_sorting_exception(self):
         """Test rendering when sorting raises an exception."""
