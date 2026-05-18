@@ -139,6 +139,52 @@ def test_execute_import_all_rejects_concurrent_job_for_same_workdir(
     }
 
 
+def test_execute_import_dataset_rejects_missing_desktop_auth_before_job_creation(
+    monkeypatch,
+):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    before_job_ids = set(imports.import_jobs)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/imports/execute/dataset/occurrences",
+        data={"reset_table": "true"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+    assert set(imports.import_jobs) == before_job_ids
+
+
+def test_execute_import_dataset_accepts_valid_desktop_auth(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    async def noop_process_generic_import_entity(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        imports, "process_generic_import_entity", noop_process_generic_import_entity
+    )
+
+    before_job_ids = set(imports.import_jobs)
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/imports/execute/dataset/occurrences",
+        data={"reset_table": "true"},
+        headers={"x-niamoto-desktop-token": "desktop-secret"},
+    )
+
+    try:
+        assert response.status_code == 200
+        job_id = response.json()["job_id"]
+        assert job_id not in before_job_ids
+        assert imports.import_jobs[job_id]["entity_name"] == "occurrences"
+        assert imports.import_jobs[job_id]["import_type"] == "dataset"
+    finally:
+        for job_id in set(imports.import_jobs) - before_job_ids:
+            imports.import_jobs.pop(job_id, None)
+
+
 def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path):
     work_dir = tmp_path
     (work_dir / "config").mkdir()
