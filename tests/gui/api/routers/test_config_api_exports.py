@@ -349,6 +349,94 @@ def test_update_api_export_target_settings_persists_params(monkeypatch):
     saved.assert_called_once_with(export_config)
 
 
+@pytest.mark.parametrize(
+    ("params", "expected_detail"),
+    [
+        (
+            {"output_dir": "../outside"},
+            "output_dir must not contain parent directory segments",
+        ),
+        (
+            {"output_dir": "/tmp/niamoto-export"},
+            "output_dir must be relative to the project directory",
+        ),
+        (
+            {"output_dir": "tmp/json_api"},
+            "output_dir must stay within the exports directory",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "detail_output_pattern": "../{group}/{id}.json",
+            },
+            "detail_output_pattern must not contain parent directory segments",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "index_output_pattern": "/{group}/index.json",
+            },
+            "index_output_pattern must be relative to the project directory",
+        ),
+    ],
+)
+def test_update_api_export_target_settings_rejects_unsafe_paths(
+    monkeypatch, params, expected_detail
+):
+    export_config = {
+        "exports": [
+            {
+                "name": "json_api",
+                "exporter": "json_api_exporter",
+                "enabled": True,
+                "params": {"output_dir": "exports/json_api"},
+                "groups": [],
+            }
+        ]
+    }
+    saved = Mock()
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: export_config)
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", saved)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/config/export/api-targets/json_api/settings",
+        json={"enabled": False, "params": params},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == expected_detail
+    assert export_config["exports"][0]["enabled"] is True
+    assert export_config["exports"][0]["params"] == {"output_dir": "exports/json_api"}
+    saved.assert_not_called()
+
+
+def test_create_api_export_target_rejects_unsafe_output_dir(monkeypatch):
+    saved = Mock()
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: {"exports": []})
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", saved)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/export/api-targets",
+        json={
+            "name": "json_api",
+            "template": "simple",
+            "params": {"output_dir": "../outside"},
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "output_dir must not contain parent directory segments"
+    )
+    saved.assert_not_called()
+
+
 def test_update_api_export_group_config_disables_missing_group(monkeypatch):
     export_config = {
         "exports": [
