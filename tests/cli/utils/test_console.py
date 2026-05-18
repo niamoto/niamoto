@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
+from rich.markup import escape
 from rich.table import Table
 from rich.panel import Panel
 
@@ -491,6 +492,20 @@ class TestImportAndFileMessages:
         )
         mock_console.print.assert_called_once_with(expected, style="green")
 
+    def test_print_import_result_escapes_rich_markup(self, mock_console):
+        """Test import result escapes Rich markup in caller-provided values."""
+        file_path = "/tmp/[red]bad[/red].csv"
+        data_type = "[bold]records[/bold]"
+        details = "source [blink]name[/blink]"
+
+        print_import_result(file_path, 5, data_type, details)
+
+        expected = (
+            f"[{emoji('✓', '[OK]')}] 5 {escape(data_type)} imported from "
+            f"{escape(file_path)}. {escape(details)}"
+        )
+        mock_console.print.assert_called_once_with(expected, style="green")
+
     def test_print_file_processed_default_action(self, mock_console):
         """Test file processed message with default action."""
         file_path = "/path/to/file.geojson"
@@ -508,6 +523,16 @@ class TestImportAndFileMessages:
 
         print_file_processed(file_path, count, action)
         expected = f"📁 250 features {action} from {file_path}"
+        mock_console.print.assert_called_once_with(expected, style="cyan")
+
+    def test_print_file_processed_escapes_rich_markup(self, mock_console):
+        """Test file processed escapes Rich markup in caller-provided values."""
+        file_path = "/tmp/[red]bad[/red].geojson"
+        action = "[cyan]imported[/cyan]"
+
+        print_file_processed(file_path, 250, action)
+
+        expected = f"📁 250 features {escape(action)} from {escape(file_path)}"
         mock_console.print.assert_called_once_with(expected, style="cyan")
 
 
