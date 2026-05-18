@@ -2621,6 +2621,18 @@ async def import_csv(
         if has_header:
             # Use first row as column names
             headers = [h.strip().lower().replace(" ", "_") for h in rows[0]]
+            duplicate_headers = sorted(
+                {header for header in headers if headers.count(header) > 1}
+            )
+            if duplicate_headers:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Duplicate CSV headers after normalization: "
+                        + ", ".join(duplicate_headers)
+                    ),
+                )
+
             for i, row in enumerate(rows[1:], 2):
                 if len(row) != len(headers):
                     errors.append(
@@ -2646,6 +2658,8 @@ async def import_csv(
             errors=errors,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error processing CSV file: {str(e)}"
