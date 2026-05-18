@@ -3,6 +3,8 @@ Plugin for performing custom calculations on data from other transformers.
 Allows mathematical operations, ecological indices calculations and advanced statistical transformations.
 """
 
+import ast
+import operator
 from typing import Dict, Any, List, Optional, Literal, Union
 from pydantic import Field, model_validator, ConfigDict
 import pandas as pd
@@ -12,6 +14,51 @@ from enum import Enum
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
+
+
+CUSTOM_FORMULA_FUNCTIONS = {
+    "abs": abs,
+    "max": max,
+    "min": min,
+    "sum": sum,
+    "len": len,
+    "round": round,
+    "pow": pow,
+    "int": int,
+    "float": float,
+    "sin": np.sin,
+    "cos": np.cos,
+    "tan": np.tan,
+    "exp": np.exp,
+    "log": np.log,
+    "log10": np.log10,
+    "sqrt": np.sqrt,
+    "square": np.square,
+    "mean": np.mean,
+    "median": np.median,
+    "std": np.std,
+    "var": np.var,
+}
+
+CUSTOM_FORMULA_CONSTANTS = {
+    "pi": np.pi,
+    "e": np.e,
+}
+
+CUSTOM_FORMULA_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+
+CUSTOM_FORMULA_UNARY_OPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
 
 
 class Operation(str, Enum):
@@ -1480,6 +1527,79 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
+    def _evaluate_custom_formula(self, formula: str, variables: Dict[str, Any]) -> Any:
+        """Evaluate an arithmetic formula using a restricted AST allowlist."""
+        names = {**CUSTOM_FORMULA_CONSTANTS, **variables}
+        for name in names:
+            if "__" in name:
+                raise ValueError(f"Unsafe formula name: {name}")
+
+        try:
+            expression = ast.parse(formula, mode="eval")
+        except SyntaxError as e:
+            raise ValueError(f"Invalid formula syntax: {e.msg}") from e
+
+        return self._evaluate_custom_formula_node(expression, names)
+
+    def _evaluate_custom_formula_node(
+        self,
+        node: ast.AST,
+        names: Dict[str, Any],
+    ) -> Any:
+        if isinstance(node, ast.Expression):
+            return self._evaluate_custom_formula_node(node.body, names)
+
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return node.value
+            raise ValueError("Only numeric constants are allowed in formulas")
+
+        if isinstance(node, ast.Name):
+            if "__" in node.id:
+                raise ValueError(f"Unsafe formula name: {node.id}")
+            if node.id in names:
+                return names[node.id]
+            if node.id in CUSTOM_FORMULA_FUNCTIONS:
+                return CUSTOM_FORMULA_FUNCTIONS[node.id]
+            raise ValueError(f"Unknown formula name: {node.id}")
+
+        if isinstance(node, ast.BinOp):
+            op = CUSTOM_FORMULA_BIN_OPS.get(type(node.op))
+            if op is None:
+                raise ValueError("Unsupported formula operator")
+            left = self._evaluate_custom_formula_node(node.left, names)
+            right = self._evaluate_custom_formula_node(node.right, names)
+            return op(left, right)
+
+        if isinstance(node, ast.UnaryOp):
+            op = CUSTOM_FORMULA_UNARY_OPS.get(type(node.op))
+            if op is None:
+                raise ValueError("Unsupported formula operator")
+            operand = self._evaluate_custom_formula_node(node.operand, names)
+            return op(operand)
+
+        if isinstance(node, (ast.List, ast.Tuple)):
+            values = [
+                self._evaluate_custom_formula_node(elt, names) for elt in node.elts
+            ]
+            return tuple(values) if isinstance(node, ast.Tuple) else values
+
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("Only direct calls to allowed functions are permitted")
+            function_name = node.func.id
+            if "__" in function_name:
+                raise ValueError(f"Unsafe formula function: {function_name}")
+            function = CUSTOM_FORMULA_FUNCTIONS.get(function_name)
+            if function is None:
+                raise ValueError(f"Formula function is not allowed: {function_name}")
+            if node.keywords:
+                raise ValueError("Keyword arguments are not allowed in formulas")
+            args = [self._evaluate_custom_formula_node(arg, names) for arg in node.args]
+            return function(*args)
+
+        raise ValueError(f"Unsupported formula expression: {type(node).__name__}")
+
     def _custom_formula(self, params: Any) -> Dict[str, Any]:
         """
         Evaluates a custom mathematical formula with provided variables.
@@ -1516,46 +1636,7 @@ class CustomCalculator(TransformerPlugin):
                     details={"variables": variables},
                 )
 
-            # Create a safe namespace for evaluation
-            # Only allow basic mathematical functions
-            safe_dict = {
-                "abs": abs,
-                "max": max,
-                "min": min,
-                "sum": sum,
-                "len": len,
-                "round": round,
-                "pow": pow,
-                "int": int,
-                "float": float,
-            }
-
-            # Add NumPy functions
-            safe_dict.update(
-                {
-                    "np": np,
-                    "sin": np.sin,
-                    "cos": np.cos,
-                    "tan": np.tan,
-                    "exp": np.exp,
-                    "log": np.log,
-                    "log10": np.log10,
-                    "sqrt": np.sqrt,
-                    "square": np.square,
-                    "mean": np.mean,
-                    "median": np.median,
-                    "std": np.std,
-                    "var": np.var,
-                    "pi": np.pi,
-                    "e": np.e,
-                }
-            )
-
-            # Add user variables
-            safe_dict.update(variables)
-
-            # Evaluate the formula
-            result = eval(formula, {"__builtins__": {}}, safe_dict)
+            result = self._evaluate_custom_formula(formula, variables)
 
             # Convert result to a standard Python type if it's a NumPy type
             if isinstance(result, np.ndarray):
