@@ -131,6 +131,35 @@ def test_extraction_unsorted_numeric(mock_db, sample_data, valid_config):
     assert np.allclose(result["type_b"], [22.2, 11.1, 33.3])
 
 
+def test_series_are_aligned_to_first_type_axis_when_buckets_differ(
+    mock_db, valid_config
+):
+    """Series with missing or extra buckets must align to the emitted axis."""
+    plugin = ClassObjectSeriesByAxisExtractor(mock_db)
+    data = pd.DataFrame(
+        {
+            "class_object": [
+                "class_obj_A",
+                "class_obj_A",
+                "class_obj_A",
+                "class_obj_B",
+                "class_obj_B",
+                "class_obj_B",
+            ],
+            "class_name": ["100", "200", "300", "300", "100", "400"],
+            "class_value": [1.0, 2.0, 3.0, 30.0, 10.0, 40.0],
+        }
+    )
+
+    result = plugin.transform(data, valid_config)
+
+    assert result["elevation"] == [100, 200, 300]
+    assert np.allclose(result["type_a"], [1.0, 2.0, 3.0])
+    assert result["type_b"][0] == 10.0
+    assert np.isnan(result["type_b"][1])
+    assert result["type_b"][2] == 30.0
+
+
 def test_extraction_sorted_non_numeric(mock_db, sample_data, valid_config):
     """Test extraction with non-numeric, sorted axis."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
