@@ -500,6 +500,27 @@ class TestGeospatialExtractorTransform:
         assert result["type"] == "FeatureCollection"
         assert len(result["features"]) == 2
 
+    def test_transform_with_external_source_failure_raises(
+        self, geospatial_extractor_plugin
+    ):
+        """Test operational source-loading failures are not hidden as empty maps."""
+        input_data = pd.DataFrame()
+        geospatial_extractor_plugin._get_data_from_source = MagicMock(
+            side_effect=ValueError("database unavailable")
+        )
+
+        config = {
+            "plugin": "geospatial_extractor",
+            "params": {
+                "source": "external_source",
+                "field": "geometry",
+                "format": "geojson",
+            },
+        }
+
+        with pytest.raises(ValueError, match="database unavailable"):
+            geospatial_extractor_plugin.transform(input_data, config)
+
     def test_transform_with_missing_field(self, geospatial_extractor_plugin):
         """Test transform with missing field."""
         data = pd.DataFrame(
