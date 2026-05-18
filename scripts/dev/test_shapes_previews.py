@@ -99,6 +99,22 @@ def classify_html(status, html):
     return "WARN", f"Contenu court ({len(body)} chars)"
 
 
+def test_classify_html_detects_leaflet_map():
+    """Pytest smoke coverage for the shapes preview classifier."""
+    category, detail = classify_html(200, "<body><script>L.map()</script></body>")
+
+    assert category == "OK"
+    assert detail == "Leaflet map"
+
+
+def test_classify_html_detects_connection_error():
+    """Pytest smoke coverage for unavailable preview servers."""
+    category, detail = classify_html(0, "")
+
+    assert category == "CONN"
+    assert detail == "Serveur non joignable"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Test shapes widget previews")
     parser.add_argument("--port", type=int, default=8080)
