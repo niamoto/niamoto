@@ -35,6 +35,46 @@ def test_entities_available_use_read_only_duckdb_connections(
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 
 
+def test_list_entities_uses_read_only_duckdb_connections(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    """Entity list reads should not open DuckDB in write mode."""
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE taxons (
+                taxons_id INTEGER,
+                general_info JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO taxons VALUES (
+                101,
+                '{"name": {"value": "Araucaria columnaris"}}'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.entities.open_database",
+        wraps=entities.open_database,
+    ) as open_database_mock:
+        response = gui_duckdb_client.get("/api/entities/entities/taxons")
+
+    assert response.status_code == 200, response.text
+    assert response.json()[0]["id"] == "101"
+    assert open_database_mock.call_args is not None
+    assert open_database_mock.call_args.kwargs.get("read_only") is True
+
+
 def test_entity_detail_uses_read_only_duckdb_connections(
     gui_duckdb_client: TestClient,
     gui_duckdb_project: Path,
