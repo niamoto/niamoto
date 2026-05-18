@@ -24,6 +24,45 @@ def test_recipes_sources_use_read_only_duckdb_connections(
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 
 
+def test_recipes_sources_add_dataset_fallback_when_only_reference_exists(
+    gui_duckdb_client: TestClient,
+):
+    """Reference-only source lists should still include dataset fallback sources."""
+
+    with (
+        patch(
+            "niamoto.gui.api.routers.recipes._get_all_sources",
+            return_value=[
+                SourceInfo(
+                    type="reference",
+                    name="taxons",
+                    table_name="entity_taxons",
+                    columns=["id", "full_name"],
+                    transformers=[],
+                )
+            ],
+        ),
+        patch(
+            "niamoto.gui.api.routers.recipes._get_all_dataset_entities",
+            return_value=[
+                ("occurrences", "dataset_occurrences", ["id", "taxon_id", "count"])
+            ],
+        ),
+    ):
+        response = gui_duckdb_client.get("/api/recipes/sources/taxons")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [source["name"] for source in payload["sources"]] == [
+        "taxons",
+        "occurrences",
+    ]
+    assert [source["type"] for source in payload["sources"]] == [
+        "reference",
+        "dataset",
+    ]
+
+
 def test_recipes_source_columns_use_read_only_duckdb_connections(
     gui_duckdb_client: TestClient,
 ):

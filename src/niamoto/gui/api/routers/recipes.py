@@ -824,9 +824,13 @@ async def get_available_sources(group_by: str):
             # Get all sources from transform.yml
             sources = _get_all_sources(work_dir, group_by, db)
 
-            # If no sources found in transform.yml, add all dataset entities
-            if not sources:
+            # If no transform.yml sources were found, add all dataset entities.
+            # The group reference source is always added when available, so do not
+            # let it suppress the dataset fallback on its own.
+            if not any(source.type != "reference" for source in sources):
                 for entity_name, tbl_name, columns in _get_all_dataset_entities(db):
+                    if any(source.name == entity_name for source in sources):
+                        continue
                     if columns:
                         sources.append(
                             SourceInfo(
