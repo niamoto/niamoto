@@ -878,6 +878,51 @@ class TestSiteGroups:
 
             assert response.status_code == 400
             assert not (project / "probe.md").exists()
+
+    def test_files_serves_svg_as_attachment_with_defensive_headers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            files_dir.mkdir(parents=True)
+            (files_dir / "example.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+                encoding="utf-8",
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get("/api/site/files/example.svg")
+
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("image/svg+xml")
+            assert response.headers["content-disposition"].startswith("attachment;")
+            assert response.headers["x-content-type-options"] == "nosniff"
+            assert response.headers["content-security-policy"] == "sandbox"
+
+    def test_files_serves_png_inline_for_preview(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            files_dir.mkdir(parents=True)
+            (files_dir / "example.png").write_bytes(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get("/api/site/files/example.png")
+
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("image/png")
+            assert "content-disposition" not in response.headers
             assert not (project / "files" / "probe.md").exists()
 
     def test_preview_group_index_uses_absolute_backend_urls_for_assets(self):
