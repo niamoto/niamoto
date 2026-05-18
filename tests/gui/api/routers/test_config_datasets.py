@@ -1,6 +1,7 @@
 """Regression tests for dataset configuration routes."""
 
 import asyncio
+from copy import deepcopy
 import json
 import threading
 import time
@@ -87,6 +88,65 @@ def test_update_reference_config_serializes_concurrent_import_writes(
     refs = saved["entities"]["references"]
     assert refs["taxons"]["description"] == "Taxons updated"
     assert refs["plots"]["description"] == "Plots updated"
+
+
+def test_update_transform_widget_serializes_concurrent_writes(monkeypatch):
+    current_groups = [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def fake_load_transform_config():
+        with config_lock:
+            return deepcopy(current_groups)
+
+    def fake_save_transform_config(groups):
+        nonlocal current_groups
+        widgets = groups[0]["widgets_data"]
+        if "first_widget" in widgets and len(widgets) == 1:
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_groups = deepcopy(groups)
+
+    monkeypatch.setattr(
+        config_router, "_load_transform_config", fake_load_transform_config
+    )
+    monkeypatch.setattr(
+        config_router, "_save_transform_config", fake_save_transform_config
+    )
+
+    def update_widget(widget_id: str):
+        try:
+            asyncio.run(
+                config_router.update_transform_widget(
+                    "taxons",
+                    widget_id,
+                    config_router.TransformWidgetUpdate(
+                        plugin="field_aggregator",
+                        params={"widget": widget_id},
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=update_widget, args=("first_widget",))
+    second = threading.Thread(target=update_widget, args=("second_widget",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert set(current_groups[0]["widgets_data"]) == {"first_widget", "second_widget"}
 
 
 def test_update_dataset_config_rejects_malformed_entities_without_writing(
