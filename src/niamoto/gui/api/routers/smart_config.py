@@ -318,7 +318,13 @@ async def upload_files(
                 # Handle ZIP extraction
                 if file_ext == ".zip":
                     await _handle_zip_upload(
-                        content, filename, imports_dir, uploaded_files, errors
+                        content,
+                        filename,
+                        imports_dir,
+                        uploaded_files,
+                        existing_files,
+                        errors,
+                        overwrite=overwrite,
                     )
                 else:
                     # Write file to disk
@@ -359,7 +365,10 @@ async def _handle_zip_upload(
     filename: str,
     target_dir: Path,
     uploaded_files: List[UploadedFileInfo],
+    existing_files: List[str],
     errors: List[str],
+    *,
+    overwrite: bool = False,
 ) -> None:
     """Handle ZIP file upload (typically shapefiles)."""
     import tempfile
@@ -408,6 +417,11 @@ async def _handle_zip_upload(
             # Copy extracted files
             for extracted_file in extracted_files:
                 dest = shapefile_dir / extracted_file.name
+                relative_extracted_path = f"{shapefile_name}/{extracted_file.name}"
+                if dest.exists() and not overwrite:
+                    existing_files.append(relative_extracted_path)
+                    continue
+
                 shutil.copy2(extracted_file, dest)
 
                 uploaded_files.append(
