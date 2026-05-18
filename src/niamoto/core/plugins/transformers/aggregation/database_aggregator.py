@@ -347,7 +347,11 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
         if template_name not in templates:
             raise ValueError(f"Template '{template_name}' not found")
 
-        template_config = TemplateConfig(**templates[template_name])
+        template_value = templates[template_name]
+        if isinstance(template_value, TemplateConfig):
+            template_config = template_value
+        else:
+            template_config = TemplateConfig(**template_value)
 
         # Validate template parameters
         required_params = set(template_config.params)

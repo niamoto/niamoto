@@ -164,6 +164,44 @@ class TestDatabaseAggregatorPlugin:
         assert result == [{"field": "species", "count": 100}]
         plugin._execute_query.assert_called_once()
 
+    def test_transform_executes_validated_template_config(self):
+        """Test template execution after transform validates configuration."""
+        plugin = DatabaseAggregatorPlugin()
+        plugin._execute_query = Mock(return_value=[{"field": "species", "count": 100}])
+
+        config = {
+            "plugin": "database_aggregator",
+            "params": {
+                "queries": {
+                    "species_by_rank": {
+                        "template": "count_by_field",
+                        "template_params": {
+                            "field": "rank_name",
+                            "table": "taxon_ref",
+                            "limit": "10",
+                        },
+                        "format": "table",
+                    }
+                },
+                "templates": {
+                    "count_by_field": {
+                        "sql": "SELECT {field}, COUNT(*) as count FROM {table} GROUP BY {field} LIMIT {limit}",
+                        "params": ["field", "table", "limit"],
+                    }
+                },
+            },
+        }
+
+        result = plugin.transform(None, config)
+
+        assert result["species_by_rank"] == [{"field": "species", "count": 100}]
+        plugin._execute_query.assert_called_once_with(
+            "SELECT rank_name, COUNT(*) as count FROM taxon_ref GROUP BY rank_name LIMIT 10",
+            None,
+            "table",
+            30,
+        )
+
     def test_execute_template_missing_params(self):
         """Test template execution with missing parameters."""
         plugin = DatabaseAggregatorPlugin()
