@@ -12,12 +12,17 @@ import subprocess
 from pathlib import Path
 
 
+def repository_root() -> Path:
+    """Return the project root for this archived helper script."""
+    return Path(__file__).resolve().parents[2]
+
+
 def main():
     """Run tests with optimized settings."""
     start_time = time.time()
 
     # Get the root directory of the project
-    root_dir = Path(__file__).parent.parent
+    root_dir = repository_root()
 
     # Change to the root directory
     os.chdir(root_dir)
