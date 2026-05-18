@@ -899,7 +899,7 @@ async def list_project_files(folder: str = "files"):
     if not work_dir:
         return FilesResponse(files=[], folder=folder)
 
-    target_dir = work_dir / folder
+    target_dir = _resolve_project_file_path(work_dir, folder)
     files = []
 
     if target_dir.exists() and target_dir.is_dir():
