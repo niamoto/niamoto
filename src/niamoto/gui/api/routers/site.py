@@ -2282,6 +2282,18 @@ async def serve_file(filename: str):
     }
     media_type = media_types.get(extension, "application/octet-stream")
 
+    if extension == ".svg":
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            filename=file_path.name,
+            content_disposition_type="attachment",
+            headers={
+                "Content-Security-Policy": "sandbox",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     return FileResponse(file_path, media_type=media_type)
 
 
