@@ -119,3 +119,51 @@ def test_save_source_uses_selected_entity_column_and_reference_key(
     )
     assert source["relation"]["ref_field"] == "taxons_id"
     assert source["relation"]["match_field"] == "taxon_id"
+
+
+def test_analyze_existing_source_rejects_paths_outside_imports(
+    monkeypatch,
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    transform_path = work_dir / "config" / "transform.yml"
+    transform_path.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "sources": [
+                        {
+                            "name": "escaped_stats",
+                            "data": "../secret.csv",
+                            "grouping": "taxons",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "ref_field": "id",
+                                "match_field": "id",
+                            },
+                        }
+                    ],
+                }
+            ],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (work_dir.parent / "secret.csv").write_text("id,value\n1,2\n", encoding="utf-8")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("ClassObjectAnalyzer should not read escaped paths")
+
+    monkeypatch.setattr(sources_router, "ClassObjectAnalyzer", fail_if_called)
+
+    response = gui_duckdb_client.get(
+        "/api/sources/taxons/analyze/escaped_stats",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Source path must stay inside the imports directory"
+    )
