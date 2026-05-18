@@ -307,6 +307,34 @@ class TestUploadFiles:
         uploaded_names = {f["filename"] for f in data["uploaded_files"]}
         assert uploaded_names == {"file1.csv", "file2.csv"}
 
+    def test_upload_zip_without_overwrite_preserves_existing_component(
+        self, test_client: TestClient, tmp_path: Path, working_directory: Path
+    ):
+        """Test ZIP extraction does not replace existing files by default."""
+        existing_dir = working_directory / "imports" / "data"
+        existing_dir.mkdir()
+        existing_component = existing_dir / "plots.shp"
+        existing_component.write_bytes(b"original shapefile")
+
+        zip_path = tmp_path / "data.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("plots.shp", b"replacement shapefile")
+            zf.writestr("plots.dbf", b"new dbf")
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert existing_component.read_bytes() == b"original shapefile"
+        assert "data/plots.shp" in data["existing_files"]
+        uploaded_names = {f["filename"] for f in data["uploaded_files"]}
+        assert uploaded_names == {"plots.dbf"}
+
     def test_upload_empty_filename_returns_error(self, test_client: TestClient):
         """Test uploading a file with empty filename should return error."""
         # Create a file with no filename
