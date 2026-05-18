@@ -104,6 +104,48 @@ def test_data_content_update_rejects_sibling_prefix_escape(monkeypatch, tmp_path
     assert not (sibling_dir / "data.json").exists()
 
 
+def test_data_content_update_rejects_unrelated_project_json(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    work_dir.mkdir()
+    package_json = work_dir / "package.json"
+    package_json.write_text('{"name": "niamoto"}', encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/site/data-content",
+        json={"path": "package.json", "data": [{"id": 1}]},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Data file path is not allowed"
+    assert package_json.read_text(encoding="utf-8") == '{"name": "niamoto"}'
+
+
+def test_data_content_update_allows_data_subtree(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    work_dir.mkdir()
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/site/data-content",
+        json={"path": "data/team.json", "data": [{"name": "Équipe"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert (work_dir / "data" / "team.json").exists()
+
+
 def test_files_endpoint_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     files_dir = work_dir / "files"
