@@ -91,6 +91,25 @@ def _find_export_group(
     return _find_export_group_impl(export_config, group_by)
 
 
+def _find_export_group_in_supported_locations(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find an export group in both supported export.yml group locations."""
+    group = _find_export_group(export_config, group_by)
+    if group is not None:
+        return group
+
+    for export_entry in export_config.get("exports", []) or []:
+        if not isinstance(export_entry, dict):
+            continue
+        params = export_entry.get("params", {}) or {}
+        for candidate in params.get("groups", []) or []:
+            if isinstance(candidate, dict) and candidate.get("group_by") == group_by:
+                return candidate
+
+    return None
+
+
 def _list_api_export_targets(export_config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """List export targets backed by the JSON API exporter."""
     return [
@@ -1921,7 +1940,7 @@ async def list_export_widgets(group_by: str) -> List[Dict[str, Any]]:
     """
     try:
         export_config = _load_export_config()
-        group = _find_export_group(export_config, group_by)
+        group = _find_export_group_in_supported_locations(export_config, group_by)
 
         if not group:
             return []
@@ -2214,7 +2233,7 @@ async def get_index_generator(group_by: str) -> Dict[str, Any]:
     """
     try:
         export_config = _load_export_config()
-        group = _find_export_group(export_config, group_by)
+        group = _find_export_group_in_supported_locations(export_config, group_by)
 
         if not group:
             raise HTTPException(
@@ -2291,18 +2310,9 @@ async def update_index_generator(
         with EXPORT_CONFIG_WRITE_LOCK:
             export_config = _load_export_config()
 
-            # Find the group
-            target_group = None
-            for export_entry in export_config.get("exports", []):
-                groups = export_entry.get("groups") or export_entry.get(
-                    "params", {}
-                ).get("groups", [])
-                for group in groups:
-                    if group.get("group_by") == group_by:
-                        target_group = group
-                        break
-                if target_group:
-                    break
+            target_group = _find_export_group_in_supported_locations(
+                export_config, group_by
+            )
 
             if not target_group:
                 raise HTTPException(

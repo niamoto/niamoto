@@ -517,6 +517,69 @@ def test_update_index_generator_accepts_localized_strings(tmp_path: Path):
     assert saved_group["display_fields"][2]["link_label"]["fr"] == "Endemia"
 
 
+def test_index_generator_roundtrips_params_groups(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "export.yml").write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "enabled": True,
+                        "exporter": "html_page_exporter",
+                        "params": {
+                            "groups": [
+                                {
+                                    "group_by": "taxons",
+                                    "widgets": [],
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = {
+        "enabled": True,
+        "template": "_group_index.html",
+        "page_config": {
+            "title": {"fr": "Taxons", "en": "Taxa"},
+            "items_per_page": 12,
+        },
+        "display_fields": [
+            {
+                "name": "full_name",
+                "source": "full_name",
+                "type": "text",
+            }
+        ],
+        "views": [{"type": "grid", "default": True}],
+    }
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        put_response = client.put(
+            "/api/config/export/taxons/index-generator", json=payload
+        )
+        get_response = client.get("/api/config/export/taxons/index-generator")
+
+    assert put_response.status_code == 200, put_response.text
+    assert get_response.status_code == 200, get_response.text
+    assert get_response.json()["page_config"]["title"]["en"] == "Taxa"
+
+    saved = yaml.safe_load((config_dir / "export.yml").read_text(encoding="utf-8"))
+    saved_group = saved["exports"][0]["params"]["groups"][0]
+    assert saved_group["index_generator"]["display_fields"][0]["name"] == "full_name"
+
+
 def test_update_index_generator_preserves_concurrent_group_updates(monkeypatch):
     current_config = {
         "exports": [
