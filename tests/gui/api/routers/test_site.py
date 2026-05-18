@@ -35,6 +35,20 @@ def _write_config(path: Path, data: object) -> None:
         yaml.safe_dump(data, f, sort_keys=False)
 
 
+def test_import_csv_rejects_duplicate_normalized_headers():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-csv",
+        files={"file": ("data.csv", b"Name,name\nfirst,second\n", "text/csv")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Duplicate CSV headers after normalization: name"
+    )
+
+
 def test_site_helper_normalization_rewrites_home_aliases_recursively():
     static_pages, output_aliases = _normalize_static_pages(
         [
