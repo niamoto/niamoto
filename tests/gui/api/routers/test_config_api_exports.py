@@ -1,3 +1,7 @@
+import asyncio
+from copy import deepcopy
+import threading
+import time
 from unittest.mock import Mock
 
 import pytest
@@ -313,6 +317,63 @@ def test_create_api_export_target_route_rejects_duplicate(monkeypatch):
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Target 'json_api' already exists"
+
+
+def test_create_api_export_target_serializes_concurrent_writes(monkeypatch):
+    current_export_config = {"exports": []}
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def load_export_config():
+        with config_lock:
+            return deepcopy(current_export_config)
+
+    def save_export_config(export_config):
+        nonlocal current_export_config
+        exports = export_config.get("exports", [])
+        if len(exports) == 1 and exports[0].get("name") == "api_one":
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_export_config = deepcopy(export_config)
+
+    monkeypatch.setattr(config_router, "_load_export_config", load_export_config)
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", save_export_config)
+
+    def create_target(name: str):
+        try:
+            asyncio.run(
+                config_router.create_api_export_target(
+                    config_router.ApiExportTargetCreate(
+                        name=name,
+                        template="simple",
+                    )
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=create_target, args=("api_one",))
+    second = threading.Thread(target=create_target, args=("api_two",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert {target["name"] for target in current_export_config["exports"]} == {
+        "api_one",
+        "api_two",
+    }
 
 
 def test_update_api_export_target_settings_persists_params(monkeypatch):

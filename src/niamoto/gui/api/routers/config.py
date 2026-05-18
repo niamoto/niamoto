@@ -2415,13 +2415,6 @@ async def create_api_export_target(
                 detail="Name must be 3-31 lowercase chars (letters, digits, underscores)",
             )
 
-        export_config = _load_export_config()
-        if _find_api_export_target(export_config, body.name):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Target '{body.name}' already exists",
-            )
-
         # Build new target from template
         new_target: Dict[str, Any] = {
             "name": body.name,
@@ -2452,9 +2445,18 @@ async def create_api_export_target(
             )
 
         _validate_api_export_target_params(new_target["params"])
-        export_config.setdefault("exports", []).append(new_target)
-        _validate_export_config_or_raise(export_config)
-        _save_export_config(export_config)
+
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
+            if _find_api_export_target(export_config, body.name):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Target '{body.name}' already exists",
+                )
+
+            export_config.setdefault("exports", []).append(new_target)
+            _validate_export_config_or_raise(export_config)
+            _save_export_config(export_config)
 
         return ApiExportTargetSummary(
             name=body.name,
@@ -2503,25 +2505,27 @@ async def update_api_export_target_settings(
 ) -> Dict[str, Any]:
     """Update target-level settings for a static API export target."""
     try:
-        export_config = _load_export_config()
-        export_target = _find_api_export_target(export_config, export_name)
-        if not export_target:
-            raise HTTPException(
-                status_code=404, detail=f"API export target '{export_name}' not found"
-            )
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
+            export_target = _find_api_export_target(export_config, export_name)
+            if not export_target:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API export target '{export_name}' not found",
+                )
 
-        _validate_api_export_target_params(config.params)
-        export_target["enabled"] = config.enabled
-        export_target["params"] = config.params
+            _validate_api_export_target_params(config.params)
+            export_target["enabled"] = config.enabled
+            export_target["params"] = config.params
 
-        _validate_export_config_or_raise(export_config)
-        _save_export_config(export_config)
+            _validate_export_config_or_raise(export_config)
+            _save_export_config(export_config)
 
-        return {
-            "name": export_name,
-            "enabled": export_target.get("enabled", True),
-            "params": deepcopy(export_target.get("params", {}) or {}),
-        }
+            return {
+                "name": export_name,
+                "enabled": export_target.get("enabled", True),
+                "params": deepcopy(export_target.get("params", {}) or {}),
+            }
     except HTTPException:
         raise
     except Exception as e:
@@ -2570,81 +2574,84 @@ async def update_api_export_group_config(
 ) -> Dict[str, Any]:
     """Update per-group settings for a static API export target."""
     try:
-        export_config = _load_export_config()
-        export_target = _find_api_export_target(export_config, export_name)
-        if not export_target:
-            raise HTTPException(
-                status_code=404, detail=f"API export target '{export_name}' not found"
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
+            export_target = _find_api_export_target(export_config, export_name)
+            if not export_target:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API export target '{export_name}' not found",
+                )
+
+            groups = export_target.setdefault("groups", [])
+            existing_group = _find_target_group(export_target, group_by)
+
+            if not config.enabled:
+                if existing_group:
+                    existing_group["enabled"] = False
+                else:
+                    groups.append({"group_by": group_by, "enabled": False})
+                _validate_export_config_or_raise(export_config)
+                _save_export_config(export_config)
+                result = deepcopy(existing_group or {"group_by": group_by})
+                result["enabled"] = False
+                return result
+
+            next_group: Dict[str, Any] = (
+                deepcopy(existing_group)
+                if existing_group is not None
+                else {"group_by": group_by}
             )
+            next_group["group_by"] = group_by
+            next_group["enabled"] = True
+            payload = config.model_dump(exclude_none=True)
+            payload.pop("enabled", None)
 
-        groups = export_target.setdefault("groups", [])
-        existing_group = _find_target_group(export_target, group_by)
+            for key in (
+                "data_source",
+                "detail",
+                "index",
+                "json_options",
+                "transformer_plugin",
+                "transformer_params",
+            ):
+                if key in payload:
+                    next_group[key] = payload[key]
 
-        if not config.enabled:
-            if existing_group:
-                existing_group["enabled"] = False
+            next_group.setdefault("detail", {"pass_through": True})
+
+            # If no transformer_plugin was specified, inherit from existing
+            # sibling groups in the same target (e.g. activating a DwC target
+            # for a new group should copy the transformer from its siblings).
+            if "transformer_plugin" not in next_group:
+                for sibling in groups:
+                    sibling_plugin = sibling.get("transformer_plugin")
+                    if sibling_plugin and sibling.get("group_by") != group_by:
+                        next_group["transformer_plugin"] = sibling_plugin
+                        break
+                if (
+                    "transformer_plugin" not in next_group
+                    and _api_export_target_uses_dwc(export_target, group_by)
+                ):
+                    next_group["transformer_plugin"] = "niamoto_to_dwc_occurrence"
+
+            if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
+                next_group.setdefault(
+                    "transformer_params", _default_dwc_transformer_params(group_by)
+                )
+
+            if existing_group is None:
+                export_target["groups"].append(next_group)
             else:
-                groups.append({"group_by": group_by, "enabled": False})
+                existing_group.clear()
+                existing_group.update(next_group)
+
             _validate_export_config_or_raise(export_config)
             _save_export_config(export_config)
-            result = deepcopy(existing_group or {"group_by": group_by})
-            result["enabled"] = False
-            return result
 
-        next_group: Dict[str, Any] = (
-            deepcopy(existing_group)
-            if existing_group is not None
-            else {"group_by": group_by}
-        )
-        next_group["group_by"] = group_by
-        next_group["enabled"] = True
-        payload = config.model_dump(exclude_none=True)
-        payload.pop("enabled", None)
-
-        for key in (
-            "data_source",
-            "detail",
-            "index",
-            "json_options",
-            "transformer_plugin",
-            "transformer_params",
-        ):
-            if key in payload:
-                next_group[key] = payload[key]
-
-        next_group.setdefault("detail", {"pass_through": True})
-
-        # If no transformer_plugin was specified, inherit from existing
-        # sibling groups in the same target (e.g. activating a DwC target
-        # for a new group should copy the transformer from its siblings).
-        if "transformer_plugin" not in next_group:
-            for sibling in groups:
-                sibling_plugin = sibling.get("transformer_plugin")
-                if sibling_plugin and sibling.get("group_by") != group_by:
-                    next_group["transformer_plugin"] = sibling_plugin
-                    break
-            if "transformer_plugin" not in next_group and _api_export_target_uses_dwc(
-                export_target, group_by
-            ):
-                next_group["transformer_plugin"] = "niamoto_to_dwc_occurrence"
-
-        if next_group.get("transformer_plugin") == "niamoto_to_dwc_occurrence":
-            next_group.setdefault(
-                "transformer_params", _default_dwc_transformer_params(group_by)
-            )
-
-        if existing_group is None:
-            export_target["groups"].append(next_group)
-        else:
-            existing_group.clear()
-            existing_group.update(next_group)
-
-        _validate_export_config_or_raise(export_config)
-        _save_export_config(export_config)
-
-        response = deepcopy(next_group)
-        response["enabled"] = True
-        return response
+            response = deepcopy(next_group)
+            response["enabled"] = True
+            return response
     except HTTPException:
         raise
     except Exception as e:
