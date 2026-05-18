@@ -22,6 +22,11 @@ from typing import Any, Optional
 import duckdb
 
 
+def _duckdb_string_literal(value: str | Path) -> str:
+    """Return a safely quoted DuckDB SQL string literal."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 class ClassObjectCategory(str, Enum):
     """Fine-grained categorization of class_object types."""
 
@@ -166,11 +171,12 @@ class ClassObjectAnalyzer:
 
         try:
             # Load CSV
+            csv_path_literal = _duckdb_string_literal(self.csv_path)
             conn.execute(
                 f"""
                 CREATE TABLE data AS
                 SELECT * FROM read_csv_auto(
-                    '{self.csv_path}',
+                    {csv_path_literal},
                     delim='{delimiter}',
                     header=true
                 )
