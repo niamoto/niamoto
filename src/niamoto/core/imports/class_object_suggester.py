@@ -17,6 +17,7 @@ Widget selection is based on data characteristics, not hardcoded names:
 - Numeric class_names → bar_plot (distribution)
 """
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -305,8 +306,9 @@ class ClassObjectWidgetSuggester:
             max_sample = max(co.sample_values)
             if max_sample > 0:
                 # Round to nice number
-                magnitude = 10 ** len(str(int(max_sample)))
-                return round(max_sample * 1.2 / magnitude) * magnitude
+                target = max_sample * 1.2
+                magnitude = 10 ** math.floor(math.log10(target))
+                return math.ceil(target / magnitude) * magnitude
 
         # Safe default
         return 100
