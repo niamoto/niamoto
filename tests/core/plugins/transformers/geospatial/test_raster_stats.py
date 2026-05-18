@@ -311,6 +311,18 @@ class TestExtractRasterData:
         assert len(data) > 0
         assert -9999 not in data
 
+    def test_extract_raster_data_uses_raster_nodata_metadata(
+        self, plugin, temp_raster_with_nodata, simple_polygon
+    ):
+        """Raster nodata metadata should be honored without config duplication."""
+        params = {"band": 1, "scale_factor": 1.0, "offset": 0.0}
+        data = plugin._extract_raster_data(
+            temp_raster_with_nodata, simple_polygon, params
+        )
+
+        assert len(data) > 0
+        assert -9999 not in data
+
     def test_extract_raster_data_no_valid_data(self, plugin, simple_polygon):
         """Test error when no valid data found."""
         # Create a raster with all nodata

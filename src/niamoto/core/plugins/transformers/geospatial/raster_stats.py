@@ -261,16 +261,17 @@ class RasterStats(TransformerPlugin):
                         details={"bands_available": src.count},
                     )
 
+                nodata = params.get("nodata")
+                if nodata is None:
+                    nodata = src.nodata
+
                 # Mask the raster with the geometry
-                masked, mask_transform = mask(
-                    src, [geometry], crop=True, nodata=params.get("nodata")
-                )
+                masked, mask_transform = mask(src, [geometry], crop=True, nodata=nodata)
 
                 # Get the raster data (specified band)
                 band_data = masked[band]
 
                 # Filter out nodata values
-                nodata = params.get("nodata")
                 if nodata is not None:
                     valid_data = band_data[band_data != nodata]
                 else:
