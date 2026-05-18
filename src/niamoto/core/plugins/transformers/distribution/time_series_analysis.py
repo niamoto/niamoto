@@ -174,6 +174,16 @@ class TimeSeriesAnalysis(TransformerPlugin):
         "Dec",
     ]
 
+    @staticmethod
+    def _presence_percentage(values: pd.Series) -> float:
+        """Calculate bounded presence percentage from numeric values."""
+        total = len(values)
+        if total == 0:
+            return 0.0
+
+        present = values.fillna(0).gt(0).sum()
+        return round((present / total) * 100, 2)
+
     def validate_config(self, config: Dict[str, Any]) -> TimeSeriesAnalysisConfig:
         """Validate configuration and return typed config."""
         try:
@@ -241,10 +251,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
                         for phenology_name, field_name in params.fields.items():
                             if field_name in month_df:
                                 # Calculate percentage of presence
-                                total = len(month_df)
-                                present = month_df[field_name].fillna(0).sum()
-                                value = (present / total) * 100 if total > 0 else 0
-                                month_data[phenology_name][month - 1] = round(value, 2)
+                                month_data[phenology_name][month - 1] = (
+                                    self._presence_percentage(month_df[field_name])
+                                )
 
             # Process single field if provided and fields is empty
             elif params.field:
@@ -261,10 +270,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
                     month_df = data[data[time_field] == month]
                     if not month_df.empty:
                         # Calculate percentage of presence
-                        total = len(month_df)
-                        present = month_df[field_name].fillna(0).sum()
-                        value = (present / total) * 100 if total > 0 else 0
-                        month_data["value"][month - 1] = round(value, 2)
+                        month_data["value"][month - 1] = self._presence_percentage(
+                            month_df[field_name]
+                        )
 
             return {
                 "month_data": month_data,
