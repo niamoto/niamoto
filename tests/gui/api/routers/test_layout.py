@@ -74,6 +74,69 @@ def test_layout_accepts_localized_widget_metadata(
     }
 
 
+def test_layout_update_preserves_widget_index_identity(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "bar_plot",
+                                        "data_source": "richness",
+                                        "title": "Original first",
+                                        "layout": {"order": 0, "colspan": 1},
+                                    },
+                                    {
+                                        "plugin": "donut_chart",
+                                        "data_source": "status",
+                                        "title": "Original second",
+                                        "layout": {"order": 1, "colspan": 1},
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    reorder_response = gui_duckdb_client.put(
+        "/api/layout/taxons",
+        json={
+            "widgets": [
+                {"index": 0, "order": 1},
+                {"index": 1, "order": 0},
+            ]
+        },
+    )
+    assert reorder_response.status_code == 200, reorder_response.text
+
+    stale_update_response = gui_duckdb_client.put(
+        "/api/layout/taxons",
+        json={"widgets": [{"index": 0, "order": 1, "title": "Updated first"}]},
+    )
+    assert stale_update_response.status_code == 200, stale_update_response.text
+
+    export_config = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    widgets = export_config["exports"][0]["groups"][0]["widgets"]
+    assert [widget["plugin"] for widget in widgets] == ["bar_plot", "donut_chart"]
+    assert widgets[0]["title"] == "Updated first"
+    assert widgets[1]["title"] == "Original second"
+    assert [widget["layout"]["order"] for widget in widgets] == [1, 0]
+
+
 class TestLayoutPreviewDelegation:
     """Vérifie que layout.preview_widget utilise le moteur de preview unifié."""
 
