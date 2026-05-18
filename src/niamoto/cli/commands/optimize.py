@@ -5,6 +5,7 @@ CLI command for optimizing the Niamoto database.
 import click
 from pathlib import Path
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from niamoto.common.config import Config
@@ -47,14 +48,14 @@ def optimize_command(db_path: str = None, show_stats: bool = False):
             config = Config()
             db_path = config.database_path
         except Exception as e:
-            console.print(f"[red]Error loading configuration:[/red] {str(e)}")
+            console.print(f"[red]Error loading configuration:[/red] {escape(str(e))}")
             raise click.Abort()
 
     if not Path(db_path).exists():
-        console.print(f"[red]Database not found:[/red] {db_path}")
+        console.print(f"[red]Database not found:[/red] {escape(str(db_path))}")
         raise click.Abort()
 
-    console.print(f"[cyan]Optimizing database:[/cyan] {db_path}")
+    console.print(f"[cyan]Optimizing database:[/cyan] {escape(str(db_path))}")
 
     try:
         # Initialize database with optimizations
@@ -119,7 +120,7 @@ def optimize_command(db_path: str = None, show_stats: bool = False):
                 )
 
     except Exception as e:
-        console.print(f"\n[red]Error during optimization:[/red] {str(e)}")
+        console.print(f"\n[red]Error during optimization:[/red] {escape(str(e))}")
         raise click.Abort()
 
 
