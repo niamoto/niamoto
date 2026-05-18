@@ -665,6 +665,72 @@ class TestSiteGroups:
             assert response.status_code == 403
             assert response.json()["detail"] == "Access denied: path outside project"
 
+    def test_upload_rejects_absolute_folder_without_writing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            outside_dir = Path(temp_dir) / "outside"
+            outside_dir.mkdir()
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/upload",
+                    params={"folder": str(outside_dir)},
+                    files={"file": ("probe.md", b"probe", "text/markdown")},
+                )
+
+            assert response.status_code == 403
+            assert not (outside_dir / "probe.md").exists()
+
+    def test_upload_rejects_folder_traversal_outside_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/upload",
+                    params={"folder": "files/data/../../config"},
+                    files={"file": ("probe.json", b"{}", "application/json")},
+                )
+
+            assert response.status_code == 403
+            assert not (project / "config" / "probe.json").exists()
+
+    def test_upload_rejects_filename_traversal(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/upload",
+                    params={"folder": "files"},
+                    files={"file": ("../probe.md", b"probe", "text/markdown")},
+                )
+
+            assert response.status_code == 400
+            assert not (project / "probe.md").exists()
+            assert not (project / "files" / "probe.md").exists()
+
     def test_preview_group_index_uses_absolute_backend_urls_for_assets(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
