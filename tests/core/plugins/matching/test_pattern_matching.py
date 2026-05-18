@@ -13,6 +13,19 @@ from niamoto.core.plugins.matching.matcher import SmartMatcher
 from niamoto.core.plugins.registry import PluginRegistry
 
 
+def test_matching_package_exports_public_suggestion_models():
+    """Test public matching package exports its documented suggestion models."""
+    from niamoto.core.plugins.matching import (
+        SmartMatcher as ExportedSmartMatcher,
+        TransformerSuggestion,
+        WidgetSuggestion,
+    )
+
+    assert ExportedSmartMatcher is SmartMatcher
+    assert TransformerSuggestion.__name__ == "TransformerSuggestion"
+    assert WidgetSuggestion.__name__ == "WidgetSuggestion"
+
+
 # Mock transformer classes for testing
 class MockTransformerWithStructure(TransformerPlugin):
     """Mock transformer with output_structure defined."""
