@@ -82,6 +82,8 @@ class JobFileStore:
             job = self._read_active()
             if not job or job["id"] != job_id:
                 return
+            if job["status"] in TERMINAL_STATUSES:
+                return
             job["progress"] = progress
             job["message"] = message
             job["updated_at"] = datetime.now().isoformat()
@@ -96,6 +98,8 @@ class JobFileStore:
             job = self._read_active()
             if not job or job["id"] != job_id:
                 return
+            if job["status"] in TERMINAL_STATUSES:
+                return
             job["status"] = "completed"
             job["progress"] = 100
             job["completed_at"] = datetime.now().isoformat()
@@ -109,12 +113,29 @@ class JobFileStore:
             job = self._read_active()
             if not job or job["id"] != job_id:
                 return
+            if job["status"] in TERMINAL_STATUSES:
+                return
             job["status"] = "failed"
             job["completed_at"] = datetime.now().isoformat()
             job["updated_at"] = datetime.now().isoformat()
             job["error"] = error
             job["result"] = result
             self._write_active(job)
+
+    def cancel_job(self, job_id: str, message: str = "Job cancelled") -> dict | None:
+        """Marque le job actif comme annulé s'il est encore en cours."""
+        with self._lock:
+            job = self._read_active()
+            if not job or job["id"] != job_id or job["status"] in TERMINAL_STATUSES:
+                return None
+
+            job["status"] = "cancelled"
+            job["completed_at"] = datetime.now().isoformat()
+            job["updated_at"] = datetime.now().isoformat()
+            job["message"] = message
+            job["error"] = None
+            self._write_active(job)
+            return job
 
     # --- Lecture ---
 
