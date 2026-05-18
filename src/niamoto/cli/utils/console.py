@@ -25,7 +25,7 @@ def print_success(message: str, icon: bool = True) -> None:
         prefix = f"[{emoji('✓', '[OK]')}] "
     else:
         prefix = ""
-    console.print(f"{prefix}{message}", style="green")
+    console.print(f"{prefix}{_safe_text(message)}", style="green")
 
 
 def print_error(message: str, icon: bool = True) -> None:
@@ -37,7 +37,7 @@ def print_error(message: str, icon: bool = True) -> None:
         prefix = f"[{emoji('✗', '[X]')}] "
     else:
         prefix = ""
-    console.print(f"{prefix}{message}", style="bold red")
+    console.print(f"{prefix}{_safe_text(message)}", style="bold red")
 
 
 def print_warning(message: str, icon: bool = True) -> None:
@@ -49,65 +49,65 @@ def print_warning(message: str, icon: bool = True) -> None:
         prefix = f"{emoji('⚠', '[!]')}  "
     else:
         prefix = ""
-    console.print(f"{prefix}{message}", style="yellow")
+    console.print(f"{prefix}{_safe_text(message)}", style="yellow")
 
 
 def print_info(message: str, icon: bool = True) -> None:
     """Print an info message in blue."""
     # Don't add icon if message starts with newline or is empty/whitespace only
     if message.startswith("\n") or not message.strip():
-        console.print(message, style="blue")
+        console.print(_safe_text(message), style="blue")
     else:
         if icon:
             prefix = f"{emoji('ℹ', '[i]')}  "
         else:
             prefix = ""
-        console.print(f"{prefix}{message}", style="blue")
+        console.print(f"{prefix}{_safe_text(message)}", style="blue")
 
 
 def print_start(message: str) -> None:
     """Print a start message with icon."""
     prefix = f"{emoji('🌱', '[*]')} "
-    console.print(f"{prefix}{message}", style="bold blue")
+    console.print(f"{prefix}{_safe_text(message)}", style="bold blue")
 
 
 def print_processing(message: str) -> None:
     """Print a processing message with icon."""
     prefix = f"{emoji('⚡', '[~]')} "
-    console.print(f"{prefix}{message}", style="cyan")
+    console.print(f"{prefix}{_safe_text(message)}", style="cyan")
 
 
 def print_section(title: str) -> None:
     """Print a section header."""
     prefix = f"{emoji('📋', '[#]')} "
-    console.print(f"\n{prefix}{title}", style="bold magenta")
+    console.print(f"\n{prefix}{_safe_text(title)}", style="bold magenta")
 
 
 def print_summary_header(title: str) -> None:
     """Print a summary section header."""
     prefix = f"{emoji('📊', '[=]')} "
-    console.print(f"\n{prefix}{title}", style="bold blue")
+    console.print(f"\n{prefix}{_safe_text(title)}", style="bold blue")
 
 
 def print_operation_start(operation: str) -> None:
     """Print operation start message."""
     prefix = f"{emoji('🔄', '[>]')} "
-    console.print(f"{prefix}Starting {operation}...", style="blue")
+    console.print(f"{prefix}Starting {_safe_text(operation)}...", style="blue")
 
 
 def print_operation_complete(operation: str, details: Optional[str] = None) -> None:
     """Print operation completion message."""
     prefix = f"[{emoji('✓', '[OK]')}] "
-    message = f"{prefix}{operation} completed"
+    message = f"{prefix}{_safe_text(operation)} completed"
     if details:
-        message += f" - {details}"
+        message += f" - {_safe_text(details)}"
     console.print(message, style="green")
 
 
 def print_files_processed(count: int, file_type: str = "files") -> None:
     """Print files processed message."""
     prefix = f"{emoji('📁', '[+]')} "
-    console.print(f"{prefix}Processed {count} {file_type}", style="cyan")
+    console.print(f"{prefix}Processed {count} {_safe_text(file_type)}", style="cyan")
 
 
 def print_duration(seconds: float) -> None:
@@ -141,7 +141,7 @@ def print_stats(stats: Dict[str, Any]) -> None:
 def print_metrics_summary(operation_name: str, metrics_lines: List[str]) -> None:
     """Print a formatted metrics summary."""
     prefix = f"{emoji('📊', '[=]')} "
-    console.print(f"\n{prefix}{operation_name} Summary:", style="bold blue")
+    console.print(f"\n{prefix}{_safe_text(operation_name)} Summary:", style="bold blue")
     for line in metrics_lines:
         # Skip empty lines or lines that only contain emojis/icons
         if (
@@ -165,7 +165,7 @@ def print_metrics_summary(operation_name: str, metrics_lines: List[str]) -> None
                 "[%]",
             ]
         ):
-            console.print(f"   {line}", style="cyan")
+            console.print(f"   {_safe_text(line)}", style="cyan")
 
 
 def print_operation_metrics(metrics: Any, operation_type: str) -> None:
@@ -196,14 +196,14 @@ def print_operation_metrics(metrics: Any, operation_type: str) -> None:
 
 def print_step_header(step_name: str) -> None:
     """Print a step header for sub-operations."""
-    console.print(f"{emoji('📋', '[#]')} {step_name}...", style="bold cyan")
+    console.print(f"{emoji('📋', '[#]')} {_safe_text(step_name)}...", style="bold cyan")
 
 
 def print_step_complete(
     step_name: str, count: Optional[int] = None, duration: Optional[float] = None
 ) -> None:
     """Print step completion message."""
-    message = f"[{emoji('✓', '[OK]')}] {step_name} completed"
+    message = f"[{emoji('✓', '[OK]')}] {_safe_text(step_name)} completed"
     if count is not None:
         message += f" • {count:,} items"
     if duration is not None:
@@ -220,7 +220,7 @@ def print_step_progress(step_name: str, current: int, total: int) -> None:
     """Print step progress without progress bar."""
     percentage = (current / total * 100) if total > 0 else 0
     console.print(
-        f"  {step_name}: {current:,}/{total:,} ({percentage:.1f}%)",
+        f"  {_safe_text(step_name)}: {current:,}/{total:,} ({percentage:.1f}%)",
         style="cyan",
     )
 
@@ -234,12 +234,12 @@ def print_linking_status(
 
     from rich.table import Table
 
-    table = Table(title=f"{link_type.title()} Link Status")
+    table = Table(title=f"{_safe_text(link_type).title()} Link Status")
     table.add_column("Metric", style="bold")
     table.add_column("Count", justify="right")
     table.add_column("Percentage", justify="right")
 
-    table.add_row(f"Total {link_type}", f"{total:,}", "100%")
+    table.add_row(f"Total {_safe_text(link_type)}", f"{total:,}", "100%")
     table.add_row(
         "Successfully linked", f"{linked:,}", f"{linked_pct:.1f}%", style="green"
     )
@@ -326,7 +326,7 @@ def print_table(data: list[dict[str, Any]], title: str) -> None:
 
         # Add rows
         for row in data:
-            table.add_row(*[str(v) for v in row.values()])
+            table.add_row(*[_safe_text(v) for v in row.values()])
 
     # Always print the table, even if empty
     console.print(table)

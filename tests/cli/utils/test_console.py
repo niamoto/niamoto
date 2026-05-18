@@ -53,6 +53,17 @@ def test_print_success(mock_console):
     )
 
 
+def test_print_success_escapes_rich_markup(mock_console):
+    """Test success messages escape caller-provided Rich markup."""
+    message = "Imported [red]danger[/red]"
+
+    print_success(message)
+
+    mock_console.print.assert_called_once_with(
+        f"[{emoji('✓', '[OK]')}] {escape(message)}", style="green"
+    )
+
+
 def test_print_error(mock_console):
     """Test error message printing."""
     message = "An error occurred"
@@ -110,6 +121,18 @@ def test_print_table_with_data(mock_console):
     assert table.columns[1].header == "age"
     assert table.columns[0].style == "cyan"
     assert table.columns[1].style == "cyan"
+
+
+def test_print_table_escapes_rich_markup(mock_console):
+    """Test table titles, columns, and cells escape Rich markup."""
+    data = [{"[red]name[/red]": "[bold]Jane[/bold]"}]
+    title = "[blue]People[/blue]"
+
+    print_table(data, title)
+
+    table = mock_console.print.call_args[0][0]
+    assert table.title == escape(title)
+    assert table.columns[0].header == escape("[red]name[/red]")
 
 
 def test_console_instance():
