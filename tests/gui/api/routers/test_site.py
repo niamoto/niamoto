@@ -531,6 +531,49 @@ class TestSiteGroups:
             web_pages = saved_config["exports"][0]
             assert web_pages["static_pages"] == []
 
+    def test_update_site_config_preserves_static_page_extra_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(config_dir / "export.yml", {"exports": []})
+
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [],
+                "footer_navigation": [],
+                "static_pages": [
+                    {
+                        "name": "Legal",
+                        "template": "page.html",
+                        "output_file": "Legal.html",
+                        "layout": "narrow",
+                        "context": {
+                            "title": "Legal",
+                            "content_source": "content/legal.md",
+                        },
+                    }
+                ],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.put("/api/site/config", json=payload)
+                assert response.status_code == 200, response.text
+
+            saved_config = yaml.safe_load((config_dir / "export.yml").read_text())
+            page = saved_config["exports"][0]["static_pages"][0]
+            assert page["layout"] == "narrow"
+            assert page["output_file"] == "Legal.html"
+            assert page["context"] == {
+                "title": "Legal",
+                "content_source": "content/legal.md",
+            }
+
     def test_update_site_config_rejects_multiple_home_templates(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
