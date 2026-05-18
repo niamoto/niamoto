@@ -459,149 +459,145 @@ class GeospatialExtractor(TransformerPlugin):
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Transform data according to configuration."""
-        try:
-            validated_config = self.validate_config(config)
-            params = validated_config.params
-            source = params.source
-            field = params.field
-            format_type = params.format
-            properties = params.properties
-            group_by_coordinates = params.group_by_coordinates
-            extract_children = params.extract_children
-            hierarchy_config = params.hierarchy_config
+        validated_config = self.validate_config(config)
+        params = validated_config.params
+        source = params.source
+        field = params.field
+        format_type = params.format
+        properties = params.properties
+        group_by_coordinates = params.group_by_coordinates
+        extract_children = params.extract_children
+        hierarchy_config = params.hierarchy_config
 
-            # Get source data if different from occurrences
-            # Exception: if source is "plots" but we already have aggregated data from nested_set,
-            # use the provided data instead of fetching from source
-            if source != "occurrences" and not (source == "plots" and not data.empty):
-                group_id = config.get("group_id")
+        # Get source data if different from occurrences
+        # Exception: if source is "plots" but we already have aggregated data from nested_set,
+        # use the provided data instead of fetching from source
+        if source != "occurrences" and not (source == "plots" and not data.empty):
+            group_id = config.get("group_id")
 
-                # If extract_children is True, get children instead of the entity itself
-                if extract_children:
-                    data = self._get_children_from_source(
-                        source, group_id, hierarchy_config.model_dump()
-                    )
-                else:
-                    data = self._get_data_from_source(source, group_id)
+            # If extract_children is True, get children instead of the entity itself
+            if extract_children:
+                data = self._get_children_from_source(
+                    source, group_id, hierarchy_config.model_dump()
+                )
+            else:
+                data = self._get_data_from_source(source, group_id)
 
-            # Check if field exists
-            if field not in data.columns:
-                return {"type": "FeatureCollection", "features": []}
+        # Check if field exists
+        if field not in data.columns:
+            return {"type": "FeatureCollection", "features": []}
 
-            geometry_data = data[field]
+        geometry_data = data[field]
 
-            if not geometry_data.empty:
-                # Convert WKB/WKT to geometry if needed
-                if not isinstance(geometry_data.iloc[0], BaseGeometry):
-                    geometry_data = geometry_data.apply(self._convert_to_geometry)
+        if not geometry_data.empty:
+            # Convert WKB/WKT to geometry if needed
+            if not isinstance(geometry_data.iloc[0], BaseGeometry):
+                geometry_data = geometry_data.apply(self._convert_to_geometry)
 
-                # Create a mask for valid geometries
-                valid_mask = ~geometry_data.isna()
+            # Create a mask for valid geometries
+            valid_mask = ~geometry_data.isna()
 
-                # Filter data to keep only rows with valid geometries
-                valid_data = data[valid_mask]
-                valid_geometry = geometry_data.dropna()
+            # Filter data to keep only rows with valid geometries
+            valid_data = data[valid_mask]
+            valid_geometry = geometry_data.dropna()
 
-                if not valid_geometry.empty:
-                    gdf = gpd.GeoDataFrame(valid_data, geometry=valid_geometry)
+            if not valid_geometry.empty:
+                gdf = gpd.GeoDataFrame(valid_data, geometry=valid_geometry)
 
-                    # Convert to GeoJSON
-                    if format_type == "geojson":
-                        if group_by_coordinates:
-                            # Dictionary to store unique coordinates and their features
-                            unique_features = {}
+                # Convert to GeoJSON
+                if format_type == "geojson":
+                    if group_by_coordinates:
+                        # Dictionary to store unique coordinates and their features
+                        unique_features = {}
 
-                            for idx, row in gdf.iterrows():
-                                try:
-                                    if row.geometry is not None:
-                                        # Handle different geometry types
-                                        if isinstance(row.geometry, Point):
-                                            # Get coordinates as a tuple for dictionary key
-                                            coords = (row.geometry.x, row.geometry.y)
+                        for idx, row in gdf.iterrows():
+                            try:
+                                if row.geometry is not None:
+                                    # Handle different geometry types
+                                    if isinstance(row.geometry, Point):
+                                        # Get coordinates as a tuple for dictionary key
+                                        coords = (row.geometry.x, row.geometry.y)
 
-                                            # Include only essential properties
-                                            properties_to_include = [
-                                                prop
-                                                for prop in properties
-                                                if prop in row.index
-                                                and not pd.isna(row[prop])
-                                            ]
+                                        # Include only essential properties
+                                        properties_to_include = [
+                                            prop
+                                            for prop in properties
+                                            if prop in row.index
+                                            and not pd.isna(row[prop])
+                                        ]
 
-                                            # Create properties dictionary
-                                            props = {
-                                                prop: row[prop]
-                                                for prop in properties_to_include
-                                            }
+                                        # Create properties dictionary
+                                        props = {
+                                            prop: row[prop]
+                                            for prop in properties_to_include
+                                        }
 
-                                            # If coordinates already exist, update count and merge properties
-                                            if coords in unique_features:
-                                                # Increment count
-                                                unique_features[coords]["properties"][
-                                                    "count"
-                                                ] = (
+                                        # If coordinates already exist, update count and merge properties
+                                        if coords in unique_features:
+                                            # Increment count
+                                            unique_features[coords]["properties"][
+                                                "count"
+                                            ] = (
+                                                unique_features[coords][
+                                                    "properties"
+                                                ].get("count", 1)
+                                                + 1
+                                            )
+
+                                            # Merge other properties if needed
+                                            for prop, value in props.items():
+                                                if (
+                                                    prop
+                                                    in unique_features[coords][
+                                                        "properties"
+                                                    ]
+                                                ):
+                                                    # If property already exists, we could implement custom merging logic here
+                                                    # For now, we keep the first value
+                                                    pass
+                                                else:
                                                     unique_features[coords][
                                                         "properties"
-                                                    ].get("count", 1)
-                                                    + 1
-                                                )
+                                                    ][prop] = value
+                                        else:
+                                            # Create new feature with count=1
+                                            props["count"] = 1
+                                            unique_features[coords] = {
+                                                "type": "Feature",
+                                                "geometry": {
+                                                    "type": "Point",
+                                                    "coordinates": [
+                                                        coords[0],
+                                                        coords[1],
+                                                    ],
+                                                },
+                                                "properties": props,
+                                            }
+                            except Exception:
+                                continue
 
-                                                # Merge other properties if needed
-                                                for prop, value in props.items():
-                                                    if (
-                                                        prop
-                                                        in unique_features[coords][
-                                                            "properties"
-                                                        ]
-                                                    ):
-                                                        # If property already exists, we could implement custom merging logic here
-                                                        # For now, we keep the first value
-                                                        pass
-                                                    else:
-                                                        unique_features[coords][
-                                                            "properties"
-                                                        ][prop] = value
-                                            else:
-                                                # Create new feature with count=1
-                                                props["count"] = 1
-                                                unique_features[coords] = {
-                                                    "type": "Feature",
-                                                    "geometry": {
-                                                        "type": "Point",
-                                                        "coordinates": [
-                                                            coords[0],
-                                                            coords[1],
-                                                        ],
-                                                    },
-                                                    "properties": props,
-                                                }
-                                except Exception:
-                                    continue
-
-                            # Convert dictionary values to list for GeoJSON
-                            features_list = list(unique_features.values())
-                            return {
-                                "type": "FeatureCollection",
-                                "features": features_list,
-                            }
+                        # Convert dictionary values to list for GeoJSON
+                        features_list = list(unique_features.values())
+                        return {
+                            "type": "FeatureCollection",
+                            "features": features_list,
+                        }
+                    else:
+                        # Use GeoPandas to_json for proper geometry handling
+                        # First filter columns if properties are specified
+                        if properties:
+                            # Keep geometry column plus requested properties
+                            cols_to_keep = ["geometry"] + [
+                                col for col in properties if col in gdf.columns
+                            ]
+                            gdf_filtered = gdf[cols_to_keep]
                         else:
-                            # Use GeoPandas to_json for proper geometry handling
-                            # First filter columns if properties are specified
-                            if properties:
-                                # Keep geometry column plus requested properties
-                                cols_to_keep = ["geometry"] + [
-                                    col for col in properties if col in gdf.columns
-                                ]
-                                gdf_filtered = gdf[cols_to_keep]
-                            else:
-                                gdf_filtered = gdf
+                            gdf_filtered = gdf
 
-                            # Convert to GeoJSON using GeoPandas
-                            import json
+                        # Convert to GeoJSON using GeoPandas
+                        import json
 
-                            geojson_str = gdf_filtered.to_json()
-                            return json.loads(geojson_str)
+                        geojson_str = gdf_filtered.to_json()
+                        return json.loads(geojson_str)
 
-            return {"type": "FeatureCollection", "features": []}
-
-        except Exception:
-            return {"type": "FeatureCollection", "features": []}
+        return {"type": "FeatureCollection", "features": []}
