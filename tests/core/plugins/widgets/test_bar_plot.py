@@ -420,6 +420,40 @@ class TestBarPlotWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
 
+    def test_render_filter_zero_values_horizontal_uses_x_axis(self):
+        """Test horizontal zero filtering uses the value axis."""
+        from plotly.graph_objects import Figure
+
+        df = pd.DataFrame(
+            {
+                "species": ["Araucaria", "Agathis", "Podocarpus", "Dacrydium"],
+                "count": [150, 0, 95, 0],
+            }
+        )
+        params = BarPlotParams(
+            x_axis="count",
+            y_axis="species",
+            orientation="h",
+            filter_zero_values=True,
+        )
+        captured = {}
+
+        def capture_figure(df_plot, params):
+            captured["df_plot"] = df_plot.copy()
+            return Figure()
+
+        with patch.object(
+            self.widget, "_render_fast_bar_figure", side_effect=capture_figure
+        ):
+            result = self.widget.render(df, params)
+
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertEqual(captured["df_plot"]["count"].tolist(), [150, 95])
+        self.assertEqual(
+            captured["df_plot"]["species"].tolist(), ["Araucaria", "Podocarpus"]
+        )
+
     def test_render_hide_legend(self):
         """Test rendering with hidden legend."""
         df = pd.DataFrame(
