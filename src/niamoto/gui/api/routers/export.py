@@ -348,9 +348,9 @@ async def execute_export_background(
         # Change to working directory so relative paths (output_dir, template_dir)
         # resolve correctly within the instance.
         # Protégé par un lock car os.chdir() affecte tout le process (thread-unsafe).
-        original_cwd = os.getcwd()
-        _cwd_lock.acquire()
+        await asyncio.to_thread(_cwd_lock.acquire)
         cwd_locked = True
+        original_cwd = os.getcwd()
         os.chdir(work_dir)
         logger.info("Job %s: Changed cwd to %s", job_id, work_dir)
 

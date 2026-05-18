@@ -1,5 +1,7 @@
 """Integration tests for export router history endpoints."""
 
+import asyncio
+import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -423,6 +425,96 @@ async def test_execute_export_background_uses_frozen_project_context(
     assert captured["cwd"] == str(request_project)
     assert captured["db_path"] == str(context.db_path)
     assert job_store.completed_result["metrics"]["static_site_path"] == str(output_dir)
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_waits_for_cwd_lock_off_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "exports" / "web"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+
+    first_started = threading.Event()
+    release_first = threading.Event()
+    call_lock = threading.Lock()
+    call_count = 0
+
+    class DummyExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            return None
+
+        def run_export(self, target_name=None):
+            nonlocal call_count
+            with call_lock:
+                call_count += 1
+                call_number = call_count
+
+            if call_number == 1:
+                first_started.set()
+                release_first.wait(timeout=5)
+
+            return {
+                "web_pages": {
+                    "status": "success",
+                    "files_generated": 1,
+                    "errors": 0,
+                    "output_path": str(output_dir),
+                }
+            }
+
+    monkeypatch.setattr(
+        export_router,
+        "get_export_config",
+        lambda path: {
+            "exports": [{"name": "web_pages", "exporter": "html_page_exporter"}]
+        },
+    )
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", DummyExporterService)
+
+    context = export_router.ExportExecutionContext(
+        work_dir=tmp_path,
+        config_path=tmp_path / "config" / "export.yml",
+        db_path=tmp_path / "db" / "niamoto.duckdb",
+    )
+    first_store = _DummyJobStore()
+    second_store = _DummyJobStore()
+
+    first_task = asyncio.create_task(
+        export_router.execute_export_background(
+            "job-1",
+            first_store,
+            context,
+            ["web_pages"],
+            False,
+        )
+    )
+    await asyncio.to_thread(first_started.wait, 5)
+
+    second_task = asyncio.create_task(
+        export_router.execute_export_background(
+            "job-2",
+            second_store,
+            context,
+            ["web_pages"],
+            False,
+        )
+    )
+
+    await asyncio.sleep(0.05)
+    assert not second_task.done()
+
+    release_first.set()
+    await asyncio.wait_for(asyncio.gather(first_task, second_task), timeout=5)
+
+    assert first_store.failed_error is None
+    assert second_store.failed_error is None
+    assert first_store.completed_result is not None
+    assert second_store.completed_result is not None
 
 
 @pytest.mark.anyio
