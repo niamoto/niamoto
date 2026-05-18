@@ -501,6 +501,27 @@ class TestTransformerService:
         assert result["occurrences"].equals(mock_df1)
         assert result["stats"].equals(mock_df2)
 
+    def test_resolve_widget_input_uses_top_level_source_with_multiple_sources(
+        self, transformer_service
+    ):
+        """Top-level widget source should select the requested source payload."""
+        occurrences_df = pd.DataFrame({"id": [1, 2], "species": ["A", "B"]})
+        stats_df = pd.DataFrame({"id": [1, 2], "height": [10, 20]})
+        group_data = {
+            "occurrences": occurrences_df,
+            "stats": stats_df,
+        }
+
+        data_to_pass, available_sources = transformer_service._resolve_widget_input(
+            "plots",
+            group_data,
+            {"plugin": "statistical_summary", "source": "stats", "params": {}},
+            1,
+        )
+
+        assert data_to_pass.equals(stats_df)
+        assert available_sources == ["occurrences", "stats"]
+
     def test_create_group_table_with_recreate(self, transformer_service, mock_db):
         """Test _create_group_table with table recreation."""
         widgets_config = {
