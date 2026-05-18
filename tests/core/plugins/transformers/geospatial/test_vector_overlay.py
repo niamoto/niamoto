@@ -440,6 +440,18 @@ class TestClipOperation:
         if result["clipped_features"]:
             assert "attribute" in result["clipped_features"][0]
 
+    def test_perform_clip_projects_geographic_feature_areas(
+        self, plugin, simple_polygon_gdf, overlay_polygon_gdf
+    ):
+        """Test clip feature areas are projected before area calculation."""
+        params = {"area_unit": "ha"}
+        result = plugin._perform_clip_operation(
+            simple_polygon_gdf, overlay_polygon_gdf, params
+        )
+
+        assert result["clipped_features"]
+        assert min(feature["area"] for feature in result["clipped_features"]) > 1000
+
     def test_perform_clip_operation_error(self, plugin):
         """Test clip operation error handling."""
         # Create GeoDataFrames with incompatible CRS
@@ -582,6 +594,18 @@ class TestIdentityOperation:
         )
         # Should have summary when attribute_field is specified
         assert "summary" in result or "identity_features" in result
+
+    def test_perform_identity_projects_geographic_feature_areas(
+        self, plugin, simple_polygon_gdf, overlay_polygon_gdf
+    ):
+        """Test identity feature areas are projected before area calculation."""
+        params = {"area_unit": "ha"}
+        result = plugin._perform_identity_operation(
+            simple_polygon_gdf, overlay_polygon_gdf, params
+        )
+
+        assert result["identity_features"]
+        assert sum(feature["area"] for feature in result["identity_features"]) > 1000
 
     def test_perform_identity_operation_error(self, plugin):
         """Test identity operation error handling."""

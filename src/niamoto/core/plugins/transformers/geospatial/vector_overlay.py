@@ -354,6 +354,30 @@ class VectorOverlay(TransformerPlugin):
         else:
             return 1.0  # m²
 
+    def _calculate_feature_areas(
+        self, gdf: gpd.GeoDataFrame, area_unit: str
+    ) -> pd.Series:
+        """
+        Calculate per-feature areas in a projected CRS when needed.
+
+        Args:
+            gdf: GeoDataFrame
+            area_unit: Unit of area
+
+        Returns:
+            Series of feature areas indexed like the input GeoDataFrame
+        """
+        area_factor = self._get_area_factor(area_unit)
+
+        if gdf.empty:
+            return pd.Series(index=gdf.index, dtype=float)
+
+        if gdf.crs and gdf.crs.is_geographic:
+            projected_gdf = self._project_to_appropriate_utm(gdf)
+            return projected_gdf.geometry.area * area_factor
+
+        return gdf.geometry.area * area_factor
+
     def _project_to_appropriate_utm(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
         Projects a GeoDataFrame to an appropriate UTM zone determined dynamically.
@@ -581,14 +605,14 @@ class VectorOverlay(TransformerPlugin):
 
             # Calculate statistics
             area_unit = params.get("area_unit", "ha")
-            area_factor = self._get_area_factor(area_unit)
+            feature_areas = self._calculate_feature_areas(clipped_gdf, area_unit)
 
             # Prepare results
             clipped_features = []
             attribute_field = params.get("attribute_field")
 
             for idx, row in clipped_gdf.iterrows():
-                area = row.geometry.area * area_factor
+                area = feature_areas.loc[idx]
                 feature_info = {"id": idx, "area": float(area)}
 
                 # Include attribute if specified
@@ -801,14 +825,14 @@ class VectorOverlay(TransformerPlugin):
 
             # Calculate statistics
             area_unit = params.get("area_unit", "ha")
-            area_factor = self._get_area_factor(area_unit)
+            feature_areas = self._calculate_feature_areas(identity_gdf, area_unit)
 
             # Prepare results
             identity_features = []
             attribute_field = params.get("attribute_field")
 
             for idx, row in identity_gdf.iterrows():
-                area = row.geometry.area * area_factor
+                area = feature_areas.loc[idx]
 
                 feature_info = {"id": idx, "area": float(area)}
 
