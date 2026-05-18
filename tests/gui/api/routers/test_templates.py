@@ -486,7 +486,19 @@ class TestTemplatesEndpoints:
     def test_widget_suggestions_requires_group_by(self, client):
         """Test GET /api/templates/widget-suggestions/{group_by}."""
         response = client.get("/api/templates/widget-suggestions/taxons")
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code in [200, 404]
+
+    def test_widget_suggestions_requires_working_directory(self):
+        """Missing working directory should return a controlled API error."""
+        with patch(
+            "niamoto.gui.api.routers.templates.get_working_directory",
+            return_value=None,
+        ):
+            client = TestClient(create_app())
+            response = client.get("/api/templates/widget-suggestions/taxons")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Working directory not configured"
 
     def test_combined_suggestions_requires_fields(self, client):
         """Test POST /api/templates/{reference}/combined-suggestions."""
