@@ -1080,21 +1080,44 @@ async def restore_backup(
     Returns:
         Success response
     """
-    backup_path = get_working_directory() / "config" / "backups" / backup_filename
-
-    if not backup_path.exists():
+    valid_configs = ["import", "transform", "export", "config"]
+    if config_name not in valid_configs:
         raise HTTPException(
-            status_code=404, detail=f"Backup file not found: {backup_filename}"
+            status_code=400,
+            detail=f"Invalid configuration name. Must be one of: {valid_configs}",
         )
 
-    # Validate that this is a backup for the correct config
-    if not backup_filename.startswith(f"{config_name}_"):
+    requested_backup = Path(backup_filename)
+    if (
+        requested_backup.is_absolute()
+        or requested_backup.name != backup_filename
+        or "/" in backup_filename
+        or "\\" in backup_filename
+    ):
+        raise HTTPException(status_code=400, detail="Backup filename is invalid")
+
+    if not (
+        backup_filename.startswith(f"{config_name}_")
+        and backup_filename.endswith(".yml")
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Backup file does not match configuration type: {config_name}",
         )
 
-    config_path = get_working_directory() / "config" / f"{config_name}.yml"
+    work_dir = get_working_directory()
+    backup_dir = (work_dir / "config" / "backups").resolve(strict=False)
+    backup_path = (backup_dir / backup_filename).resolve(strict=False)
+
+    if backup_path.parent != backup_dir:
+        raise HTTPException(status_code=400, detail="Backup filename is invalid")
+
+    if not backup_path.is_file():
+        raise HTTPException(
+            status_code=404, detail=f"Backup file not found: {backup_filename}"
+        )
+
+    config_path = work_dir / "config" / f"{config_name}.yml"
 
     try:
         # Create a backup of current config before restoring
