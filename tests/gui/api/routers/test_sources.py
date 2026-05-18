@@ -1,10 +1,15 @@
+import asyncio
+from copy import deepcopy
 from pathlib import Path
+import threading
+import time
 
 import duckdb
 import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import config as config_router
 from niamoto.gui.api.routers import sources as sources_router
 
 
@@ -197,6 +202,114 @@ def test_save_source_persists_canonical_imports_relative_path(
         if configured.get("name") == "taxa_stats_absolute"
     )
     assert source["data"] == "imports/raw_taxa_stats.csv"
+
+
+def test_source_save_shares_transform_write_lock_with_widget_updates(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(parents=True)
+    source_csv = imports_dir / "raw_taxa_stats.csv"
+    source_csv.write_text(
+        "taxon_id;class_object;class_name;class_value\n"
+        "101;nbe_source_dataset;network;12\n",
+        encoding="utf-8",
+    )
+
+    current_groups = [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def load_groups():
+        with config_lock:
+            return deepcopy(current_groups)
+
+    def save_groups(groups):
+        nonlocal current_groups
+        if groups[0].get("sources") and not groups[0].get("widgets_data"):
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_groups = deepcopy(groups)
+
+    def load_sources_config(_work_dir):
+        groups = {
+            group["group_by"]: {
+                key: value for key, value in group.items() if key != "group_by"
+            }
+            for group in load_groups()
+        }
+        return {"groups": groups}
+
+    def save_sources_config(_work_dir, config):
+        groups = []
+        for group_name, group_config in config["groups"].items():
+            group = {"group_by": group_name}
+            group.update(group_config)
+            groups.append(group)
+        save_groups(groups)
+
+    monkeypatch.setattr(sources_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(config_router, "_is_known_reference", lambda _group_by: True)
+    monkeypatch.setattr(config_router, "_load_transform_config", load_groups)
+    monkeypatch.setattr(config_router, "_save_transform_config", save_groups)
+    monkeypatch.setattr(sources_router, "_load_transform_config", load_sources_config)
+    monkeypatch.setattr(sources_router, "_save_transform_config", save_sources_config)
+    monkeypatch.setattr(
+        sources_router,
+        "detect_relation_fields",
+        lambda *_args, **_kwargs: ("id", "taxon_id", 1.0),
+    )
+
+    def save_source():
+        try:
+            asyncio.run(
+                sources_router.save_source_config(
+                    "taxons",
+                    sources_router.SaveSourceRequest(
+                        source_name="taxa_stats",
+                        file_path="imports/raw_taxa_stats.csv",
+                        entity_id_column="taxon_id",
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def update_widget():
+        try:
+            asyncio.run(
+                config_router.update_transform_widget(
+                    "taxons",
+                    "summary_widget",
+                    config_router.TransformWidgetUpdate(
+                        plugin="field_aggregator",
+                        params={"field": "class_value"},
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=save_source)
+    second = threading.Thread(target=update_widget)
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert current_groups[0]["sources"][0]["name"] == "taxa_stats"
+    assert "summary_widget" in current_groups[0]["widgets_data"]
 
 
 def test_analyze_existing_source_rejects_paths_outside_imports(

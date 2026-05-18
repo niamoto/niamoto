@@ -24,6 +24,9 @@ from niamoto.common.table_resolver import quote_identifier, resolve_reference_ta
 from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.imports.class_object_analyzer import ClassObjectAnalyzer
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.services.templates.config_service import (
+    TRANSFORM_CONFIG_WRITE_LOCK,
+)
 from niamoto.gui.api.services.templates.relation_detection import (
     detect_relation_fields,
 )
@@ -463,28 +466,6 @@ async def save_source_config(
             status_code=404, detail=f"CSV file not found: {request.file_path}"
         )
 
-    # Load existing config
-    config = _load_transform_config(work_dir)
-
-    # Ensure groups structure exists
-    if "groups" not in config:
-        config["groups"] = {}
-    if reference_name not in config["groups"]:
-        config["groups"][reference_name] = {}
-
-    group_config = config["groups"][reference_name]
-
-    # Ensure sources list exists
-    if "sources" not in group_config:
-        group_config["sources"] = []
-
-    # Check if source with same name already exists
-    existing_idx = None
-    for idx, source in enumerate(group_config["sources"]):
-        if source.get("name") == request.source_name:
-            existing_idx = idx
-            break
-
     # Build source configuration
     # Get CSV columns for smart detection
     with open(csv_path, "r", encoding="utf-8") as f:
@@ -529,22 +510,46 @@ async def save_source_config(
     }
 
     # Update or add source
-    if existing_idx is not None:
-        group_config["sources"][existing_idx] = new_source
-        message = f"Source '{request.source_name}' updated"
-    else:
-        group_config["sources"].append(new_source)
-        message = f"Source '{request.source_name}' added"
-
-    # Save config
     try:
-        _save_transform_config(work_dir, config)
+        with TRANSFORM_CONFIG_WRITE_LOCK:
+            config = _load_transform_config(work_dir)
+
+            # Ensure groups structure exists
+            if "groups" not in config:
+                config["groups"] = {}
+            if reference_name not in config["groups"]:
+                config["groups"][reference_name] = {}
+
+            group_config = config["groups"][reference_name]
+
+            # Ensure sources list exists
+            if "sources" not in group_config:
+                group_config["sources"] = []
+
+            # Check if source with same name already exists
+            existing_idx = None
+            for idx, source in enumerate(group_config["sources"]):
+                if source.get("name") == request.source_name:
+                    existing_idx = idx
+                    break
+
+            if existing_idx is not None:
+                group_config["sources"][existing_idx] = new_source
+                message = f"Source '{request.source_name}' updated"
+            else:
+                group_config["sources"].append(new_source)
+                message = f"Source '{request.source_name}' added"
+
+            _save_transform_config(work_dir, config)
+
         logger.info(f"{message} for group '{reference_name}'")
         return SaveSourceResponse(
             success=True,
             message=message,
             source_name=request.source_name,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error saving transform config: {e}")
         raise HTTPException(
@@ -570,37 +575,42 @@ async def remove_source_config(
 
     work_dir = Path(work_dir)
 
-    # Load existing config (now always normalized to dict format with 'groups' key)
-    config = _load_transform_config(work_dir)
-
-    # Find group config
-    groups = config.get("groups", {})
-    if reference_name not in groups:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Group '{reference_name}' not found in configuration",
-        )
-    group_config = groups[reference_name]
-
-    sources = group_config.get("sources", [])
-
-    original_count = len(sources)
-    group_config["sources"] = [s for s in sources if s.get("name") != source_name]
-
-    if len(group_config["sources"]) == original_count:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source '{source_name}' not found in group '{reference_name}'",
-        )
-
-    # Save config
     try:
-        _save_transform_config(work_dir, config)
+        with TRANSFORM_CONFIG_WRITE_LOCK:
+            # Load existing config (now always normalized to dict format with 'groups' key)
+            config = _load_transform_config(work_dir)
+
+            # Find group config
+            groups = config.get("groups", {})
+            if reference_name not in groups:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{reference_name}' not found in configuration",
+                )
+            group_config = groups[reference_name]
+
+            sources = group_config.get("sources", [])
+
+            original_count = len(sources)
+            group_config["sources"] = [
+                s for s in sources if s.get("name") != source_name
+            ]
+
+            if len(group_config["sources"]) == original_count:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Source '{source_name}' not found in group '{reference_name}'",
+                )
+
+            _save_transform_config(work_dir, config)
+
         logger.info(f"Source '{source_name}' removed from group '{reference_name}'")
         return RemoveSourceResponse(
             success=True,
             message=f"Source '{source_name}' removed from configuration",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error saving transform config: {e}")
         raise HTTPException(
