@@ -235,11 +235,14 @@ class SmartMatcher:
             pattern: Required structure pattern from widget
 
         Returns:
-            True if output has all required keys (and no extras)
+            True if output has all required keys with matching descriptors (and no extras)
         """
         output_keys = set(output.keys())
         pattern_keys = set(pattern.keys())
-        return output_keys == pattern_keys
+        return (
+            output_keys == pattern_keys
+            and self._matching_keys(output, pattern) == pattern_keys
+        )
 
     def _superset_match(self, output: Dict[str, str], pattern: Dict[str, str]) -> bool:
         """
@@ -250,12 +253,14 @@ class SmartMatcher:
             pattern: Required structure pattern from widget
 
         Returns:
-            True if output has all pattern keys plus additional ones
+            True if output has all pattern keys with matching descriptors plus additional ones
         """
         output_keys = set(output.keys())
         pattern_keys = set(pattern.keys())
-        return pattern_keys.issubset(output_keys) and len(output_keys) > len(
-            pattern_keys
+        return (
+            pattern_keys.issubset(output_keys)
+            and len(output_keys) > len(pattern_keys)
+            and self._matching_keys(output, pattern) == pattern_keys
         )
 
     def _partial_match(self, output: Dict[str, str], pattern: Dict[str, str]) -> bool:
@@ -267,12 +272,32 @@ class SmartMatcher:
             pattern: Required structure pattern from widget
 
         Returns:
-            True if at least 50% of pattern keys are in output
+            True if at least 50% of pattern keys are in output with matching descriptors
         """
-        output_keys = set(output.keys())
         pattern_keys = set(pattern.keys())
-        overlap = pattern_keys.intersection(output_keys)
+        if self._mismatched_keys(output, pattern):
+            return False
+
+        overlap = self._matching_keys(output, pattern)
         return len(overlap) >= len(pattern_keys) * 0.5
+
+    def _matching_keys(
+        self, output: Dict[str, str], pattern: Dict[str, str]
+    ) -> set[str]:
+        """Return keys present in both structures with the same descriptor."""
+        return {
+            key for key, descriptor in pattern.items() if output.get(key) == descriptor
+        }
+
+    def _mismatched_keys(
+        self, output: Dict[str, str], pattern: Dict[str, str]
+    ) -> set[str]:
+        """Return shared keys whose descriptors differ."""
+        return {
+            key
+            for key, descriptor in pattern.items()
+            if key in output and output[key] != descriptor
+        }
 
     def _match_reason(self, score: float) -> str:
         """
