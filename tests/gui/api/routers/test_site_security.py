@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
@@ -144,6 +146,41 @@ def test_data_content_update_allows_data_subtree(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert response.json()["count"] == 1
     assert (work_dir / "data" / "team.json").exists()
+
+
+def test_data_content_update_preserves_existing_file_when_replace_fails(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    data_dir = work_dir / "data"
+    data_dir.mkdir(parents=True)
+    data_path = data_dir / "team.json"
+    original_text = '[{"name": "Ancienne équipe"}]'
+    data_path.write_text(original_text, encoding="utf-8")
+
+    original_replace = Path.replace
+
+    def fail_data_replace(self, target):
+        if self.name.startswith(".team.json."):
+            raise OSError("simulated replace failure")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+    monkeypatch.setattr(Path, "replace", fail_data_replace)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/site/data-content",
+        json={"path": "data/team.json", "data": [{"name": "Nouvelle équipe"}]},
+    )
+
+    assert response.status_code == 500
+    assert "simulated replace failure" in response.json()["detail"]
+    assert data_path.read_text(encoding="utf-8") == original_text
+    assert list(data_dir.glob(".team.json.*.tmp")) == []
 
 
 def test_files_endpoint_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
