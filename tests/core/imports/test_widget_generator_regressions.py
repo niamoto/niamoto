@@ -51,6 +51,20 @@ class TestUmBugFix:
         assert labels == ("True", "False")
 
 
+class TestSmartBins:
+    """Regression tests for smart histogram bin generation."""
+
+    def test_downsampled_bins_preserve_upper_edge(self):
+        """Downsampled bins should still cover the full value range."""
+        from niamoto.core.imports.widget_generator import WidgetGenerator
+
+        gen = WidgetGenerator()
+        bins = gen._generate_smart_bins(0, 1500)
+
+        assert bins[-1] >= 1500
+        assert all(left < right for left, right in zip(bins, bins[1:]))
+
+
 # ── Phase 2.7: scatter_plot compatible_structures + mapping config ─────────
 
 
