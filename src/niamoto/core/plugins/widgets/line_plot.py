@@ -164,27 +164,22 @@ class LinePlotWidget(WidgetPlugin):
             processed_data = None
 
             # Case 1: Dictionary with direct keys for x and y axes
-            if params.x_axis in data and params.y_axis in data:
+            y_axes = (
+                [params.y_axis] if isinstance(params.y_axis, str) else params.y_axis
+            )
+            if params.x_axis in data and all(y_axis in data for y_axis in y_axes):
                 x_values = data[params.x_axis]
-                y_values = (
-                    data[params.y_axis]
-                    if isinstance(params.y_axis, str)
-                    else data[params.y_axis[0]]
-                )
+                y_values_by_axis = {
+                    y_axis: data[y_axis]
+                    for y_axis in y_axes
+                    if isinstance(data[y_axis], list)
+                    and len(data[y_axis]) == len(x_values)
+                }
 
-                if (
-                    isinstance(x_values, list)
-                    and isinstance(y_values, list)
-                    and len(x_values) == len(y_values)
-                ):
+                if isinstance(x_values, list) and len(y_values_by_axis) == len(y_axes):
                     # Create dataframe from the lists
                     processed_data = pd.DataFrame(
-                        {
-                            params.x_axis: x_values,
-                            params.y_axis
-                            if isinstance(params.y_axis, str)
-                            else params.y_axis[0]: y_values,
-                        }
+                        {params.x_axis: x_values, **y_values_by_axis}
                     )
 
                     # Add color field if available
