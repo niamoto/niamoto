@@ -693,7 +693,8 @@ class PluginLoader:
 
             # Register the plugin
             plugin_type_enum = PluginType(plugin_type)
-            PluginRegistry.register_plugin(plugin_class, plugin_type_enum)
+            plugin_name = getattr(plugin_class, "name", class_name)
+            PluginRegistry.register_plugin(plugin_name, plugin_class, plugin_type_enum)
 
             # Add to loaded plugins
             self.loaded_plugins.add(module_name)
