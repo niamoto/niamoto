@@ -1305,8 +1305,6 @@ async def save_widget_recipe(request: SaveRecipeRequest):
         "params": recipe.transformer.params,
     }
 
-    save_transform_config(work_dir, transform_config)
-
     # --- Update export.yml ---
     export_config = load_export_config(work_dir)
 
@@ -1387,6 +1385,7 @@ async def save_widget_recipe(request: SaveRecipeRequest):
         )
 
     save_export_config(work_dir, export_config)
+    save_transform_config(work_dir, transform_config)
 
     return SaveRecipeResponse(
         success=True,
