@@ -2848,9 +2848,21 @@ async def get_spatial_stats(
             # Detect or use provided coordinate columns
             coord_cols = detect_coordinate_columns(column_names)
             if x_column:
+                if x_column not in column_names:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"X column not found: {x_column}",
+                    )
                 coord_cols["x_col"] = x_column
             if y_column:
+                if y_column not in column_names:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Y column not found: {y_column}",
+                    )
                 coord_cols["y_col"] = y_column
+            if x_column and y_column:
+                coord_cols.pop("wkt_col", None)
 
             with db.engine.connect() as conn:
                 # Total count
