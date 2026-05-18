@@ -5,6 +5,8 @@ Centralizes all config file operations to avoid duplication across routers.
 """
 
 import logging
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -237,15 +239,21 @@ def _create_backup_file(file_path: Path) -> None:
     Args:
         file_path: Path to the file to backup
     """
-    import shutil
-    from datetime import datetime
-
     backup_dir = file_path.parent / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"{file_path.stem}_{timestamp}{file_path.suffix}"
-    backup_path = backup_dir / backup_name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    for attempt in range(1000):
+        suffix = "" if attempt == 0 else f"_{attempt}"
+        backup_name = f"{file_path.stem}_{timestamp}{suffix}{file_path.suffix}"
+        backup_path = backup_dir / backup_name
+        try:
+            with file_path.open("rb") as source, backup_path.open("xb") as backup:
+                shutil.copyfileobj(source, backup)
+            shutil.copystat(file_path, backup_path)
+            logger.debug(f"Created backup: {backup_path}")
+            return
+        except FileExistsError:
+            continue
 
-    shutil.copy2(file_path, backup_path)
-    logger.debug(f"Created backup: {backup_path}")
+    raise RuntimeError(f"Could not create a unique backup for {file_path.name}")
