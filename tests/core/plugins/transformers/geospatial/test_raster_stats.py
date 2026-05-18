@@ -497,14 +497,11 @@ class TestCalculateArea:
         params = {"area_unit": "ha"}
         result = {}
 
-        # None geometry should trigger error handling
-        try:
-            plugin._calculate_area(None, params, result)
-            # Should have added error to result
-            assert "area_error" in result or "total_area" not in result
-        except Exception:
-            # Or it might raise - both are acceptable
-            pass
+        # None geometry should trigger controlled error recording.
+        plugin._calculate_area(None, params, result)
+
+        assert "area_error" in result
+        assert "total_area" not in result
 
 
 class TestUTMProjection:

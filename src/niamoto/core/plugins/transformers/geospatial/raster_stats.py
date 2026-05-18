@@ -469,6 +469,9 @@ class RasterStats(TransformerPlugin):
             result: Dictionary to update with the results
         """
         try:
+            if geometry is None:
+                raise ValueError("Geometry is required for area calculation")
+
             area_unit = params.get("area_unit", "ha")
             area_factor = self._get_area_factor(area_unit)
 
