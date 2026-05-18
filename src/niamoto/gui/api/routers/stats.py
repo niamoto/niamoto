@@ -3972,13 +3972,37 @@ async def analyze_spatial_coverage(
             shape_coverage = []
 
             with db.engine.connect() as conn:
+                try:
+                    conn.execute(text("LOAD spatial"))
+                except Exception as exc:
+                    logger.debug("Spatial extension unavailable for coverage: %s", exc)
+                    return SpatialAnalysisResult(
+                        total_occurrences=0,
+                        occurrences_with_geo=0,
+                        occurrences_without_geo=0,
+                        shape_coverage=[],
+                        analysis_time_seconds=time.time() - start_time,
+                        geo_column=geo_column,
+                        status="error",
+                        message=f"Spatial extension unavailable: {exc}",
+                    )
+
+                occ_geom_count_expr = _geometry_sql_expression(
+                    db, geo_column, occ_geo_is_native
+                )
+
                 # Get occurrence counts
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_occ}"))
                 total_occ = result.scalar() or 0
 
                 result = conn.execute(
                     text(
-                        f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {quoted_occ}
+                        WHERE {quoted_geo} IS NOT NULL
+                        AND {occ_geom_count_expr} IS NOT NULL
+                        """
                     )
                 )
                 with_geo = result.scalar() or 0
@@ -3998,25 +4022,16 @@ async def analyze_spatial_coverage(
                     if total_shapes == 0:
                         continue
 
-                    # Build geometry expressions based on column types
-                    # Native GEOMETRY columns can be used directly
-                    # WKT text columns need ST_GeomFromText conversion
-                    if occ_geo_is_native:
-                        occ_geom_expr = f"o.{quoted_geo}"
-                    else:
-                        occ_geom_expr = f"ST_GeomFromText(o.{quoted_geo})"
-
-                    if shape_is_native:
-                        shape_geom_expr = f"s.{quoted_shape_geo}"
-                    else:
-                        shape_geom_expr = f"ST_GeomFromText(s.{quoted_shape_geo})"
+                    occ_geom_expr = _geometry_sql_expression(
+                        db, geo_column, occ_geo_is_native, alias="o"
+                    )
+                    shape_geom_expr = _geometry_sql_expression(
+                        db, shape_geo_col, shape_is_native, alias="s"
+                    )
 
                     # Count occurrences covered by any shape
                     # Using ST_Intersects for DuckDB spatial
                     try:
-                        # Load spatial extension for this connection
-                        conn.execute(text("LOAD spatial"))
-
                         # Use COUNT(*) instead of COUNT(DISTINCT rowid) for DuckDB
                         result = conn.execute(
                             text(
@@ -4024,9 +4039,11 @@ async def analyze_spatial_coverage(
                                 SELECT COUNT(*)
                                 FROM {quoted_occ} o
                                 WHERE o.{quoted_geo} IS NOT NULL
+                                AND {occ_geom_expr} IS NOT NULL
                                 AND EXISTS (
                                     SELECT 1 FROM {quoted_shape} s
                                     WHERE s.{quoted_shape_geo} IS NOT NULL
+                                    AND {shape_geom_expr} IS NOT NULL
                                     AND ST_Intersects({occ_geom_expr}, {shape_geom_expr})
                                 )
                             """
@@ -4047,9 +4064,11 @@ async def analyze_spatial_coverage(
                                     SELECT COUNT(*)
                                     FROM {quoted_occ} o
                                     WHERE o.{quoted_geo} IS NOT NULL
+                                    AND {occ_geom_expr} IS NOT NULL
                                     AND EXISTS (
                                         SELECT 1 FROM {quoted_shape} s
                                         WHERE s.{quoted_shape_geo} IS NOT NULL
+                                        AND {shape_geom_expr} IS NOT NULL
                                         AND ST_Contains({shape_geom_expr}, {occ_geom_expr})
                                     )
                                 """

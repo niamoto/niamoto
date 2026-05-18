@@ -970,6 +970,67 @@ def test_spatial_stats_preserves_wkt_counts_without_spatial_extension(
     }
 
 
+def test_geo_coverage_analyze_ignores_invalid_wkt_rows(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [{"name": "location", "type": "geometry"}],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("ALTER TABLE dataset_occurrences ADD COLUMN geo_pt VARCHAR")
+        conn.execute(
+            """
+            UPDATE dataset_occurrences
+            SET geo_pt = CASE id
+                WHEN 1 THEN 'POINT (166.5 -21.5)'
+                WHEN 2 THEN 'not a geometry'
+                ELSE NULL
+            END
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES (
+                'covered',
+                'Covered area',
+                'POLYGON ((166 -22, 167 -22, 167 -21, 166 -21, 166 -22))'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.post("/api/stats/geo-coverage/analyze")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["status"] == "success"
+    assert payload["total_occurrences"] == 3
+    assert payload["occurrences_with_geo"] == 1
+    assert payload["occurrences_without_geo"] == 2
+    assert payload["shape_coverage"][0]["occurrences_covered"] == 1
+
+
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
 ):
