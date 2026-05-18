@@ -1333,3 +1333,30 @@ class TestCreateEntitiesBulk:
         assert "entities" in yaml_data
         assert "datasets" in yaml_data["entities"]
         assert "new_data" in yaml_data["entities"]["datasets"]
+
+    def test_create_entities_preserves_existing_yaml_when_write_fails(
+        self, test_client: TestClient, working_directory: Path, monkeypatch
+    ):
+        """Test bulk creation does not truncate import.yml on write failure."""
+        import_yml = working_directory / "config" / "import.yml"
+        original_text = "version: '1.0'\nentities:\n  datasets:\n    old_data: {}\n"
+        import_yml.write_text(original_text, encoding="utf-8")
+
+        def fail_dump(*_args, **_kwargs):
+            raise OSError("simulated disk failure")
+
+        monkeypatch.setattr(smart_config.yaml, "dump", fail_dump)
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {
+                    "datasets": {"new_data": {"source": "new.csv", "fields": {}}}
+                }
+            },
+        )
+
+        assert response.status_code == 500
+        assert "simulated disk failure" in response.json()["detail"]
+        assert import_yml.read_text(encoding="utf-8") == original_text
+        assert list(import_yml.parent.glob(".import.yml.*.tmp")) == []
