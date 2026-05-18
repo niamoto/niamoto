@@ -1,7 +1,15 @@
+import asyncio
+from io import BytesIO
+
+from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
-from niamoto.gui.api.routers.feedback import _normalize_worker_feedback_url
+from niamoto.gui.api.routers.feedback import (
+    _MAX_SCREENSHOT_BYTES,
+    _normalize_worker_feedback_url,
+    _read_upload_limited,
+)
 
 
 def test_normalize_worker_feedback_url_appends_submit_path(monkeypatch):
@@ -88,6 +96,29 @@ def test_submit_feedback_proxies_to_worker(monkeypatch):
         "payload": '{"type":"bug","title":"Broken widget"}',
         "filename": "feedback.jpg",
     }
+
+
+def test_read_upload_limited_accepts_small_screenshot():
+    upload = UploadFile(file=BytesIO(b"binary-image"), filename="feedback.jpg")
+
+    content = asyncio.run(_read_upload_limited(upload))
+
+    assert content == b"binary-image"
+
+
+def test_read_upload_limited_rejects_oversized_screenshot():
+    upload = UploadFile(
+        file=BytesIO(b"x" * (_MAX_SCREENSHOT_BYTES + 1)),
+        filename="feedback.jpg",
+    )
+
+    try:
+        asyncio.run(_read_upload_limited(upload))
+    except HTTPException as exc:
+        assert exc.status_code == 413
+        assert "Screenshot is too large" in exc.detail
+    else:
+        raise AssertionError("oversized screenshot was accepted")
 
 
 def test_submit_feedback_rejects_private_configured_worker(monkeypatch):
