@@ -198,7 +198,8 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
                 axis_data = axis_data.sort_values(axis_config.field)
 
             # Store axis values
-            result[axis_config.output_field] = axis_data[axis_config.field].tolist()
+            axis_values = axis_data[axis_config.field].drop_duplicates().tolist()
+            result[axis_config.output_field] = axis_values
 
             # Process each type
             for output_name, class_object in params.types.items():
@@ -222,8 +223,18 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
                 if axis_config.sort:
                     type_data = type_data.sort_values(axis_config.field)
 
-                # Store type values
-                result[output_name] = type_data["class_value"].astype(float).tolist()
+                value_series = pd.to_numeric(type_data["class_value"])
+                grouped_values = (
+                    type_data.assign(_class_value=value_series)
+                    .groupby(axis_config.field, sort=False)["_class_value"]
+                    .sum()
+                )
+
+                # Align each series to the first type's axis so parallel arrays
+                # cannot silently pair values with the wrong bucket.
+                result[output_name] = (
+                    grouped_values.reindex(axis_values).astype(float).tolist()
+                )
 
             return result
 
