@@ -209,19 +209,23 @@ def credentials_group():
 @credentials_group.command(name="set")
 @click.argument("platform")
 @click.argument("key")
-@click.argument("value")
 @error_handler(log=True, raise_error=True)
-def credentials_set(platform: str, key: str, value: str):
+def credentials_set(platform: str, key: str):
     """Save a credential to the OS keyring.
 
     \b
     Examples:
-      niamoto deploy credentials set cloudflare api-token sk-xxx
-      niamoto deploy credentials set cloudflare account-id abc123
-      niamoto deploy credentials set github token ghp_xxx
+      niamoto deploy credentials set cloudflare api-token
+      niamoto deploy credentials set cloudflare account-id
+      niamoto deploy credentials set github token
     """
     from niamoto.core.services.credential import CredentialService
 
+    value = click.prompt(
+        f"Value for {platform}/{key}",
+        hide_input=True,
+        confirmation_prompt=True,
+    )
     success = CredentialService.save(platform, key, value)
     if success:
         print_success(f"Saved {platform}/{key} to keyring")

@@ -106,3 +106,32 @@ class TestDeployCommand:
         assert result.exit_code != 0
         assert "No index.html found in export directory" in result.output
         assert "Pre-flight validation failed" in result.output
+
+    def test_credentials_set_prompts_for_hidden_value(self) -> None:
+        runner = CliRunner()
+
+        with patch(
+            "niamoto.core.services.credential.CredentialService.save",
+            return_value=True,
+        ) as save_credential:
+            result = runner.invoke(
+                deploy_commands,
+                ["credentials", "set", "github", "token"],
+                input="ghp_secret\nghp_secret\n",
+            )
+
+        assert result.exit_code == 0
+        save_credential.assert_called_once_with("github", "token", "ghp_secret")
+        assert "ghp_secret" not in result.output
+        assert "Saved github/token to keyring" in result.output
+
+    def test_credentials_set_help_does_not_accept_positional_secret(self) -> None:
+        runner = CliRunner()
+
+        result = runner.invoke(deploy_commands, ["credentials", "set", "--help"])
+
+        assert result.exit_code == 0
+        assert "PLATFORM KEY VALUE" not in result.output
+        assert "PLATFORM KEY" in result.output
+        assert "sk-xxx" not in result.output
+        assert "ghp_xxx" not in result.output
