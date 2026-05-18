@@ -1048,6 +1048,28 @@ def test_value_validation_histogram_includes_max_boundary(
     assert histogram[-1]["count"] == 1
 
 
+def test_value_validation_preserves_zero_median(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE zero_median_values (value INTEGER)")
+        conn.execute("INSERT INTO zero_median_values VALUES (-1), (0), (1)")
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/zero_median_values",
+        params={"columns": "value"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["columns"][0]["median_value"] == 0.0
+
+
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
 ):
