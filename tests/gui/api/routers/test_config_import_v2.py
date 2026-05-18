@@ -122,6 +122,41 @@ def test_list_backups_rejects_wildcard_config_name(monkeypatch, tmp_path):
     assert response.json()["detail"].startswith("Invalid configuration name")
 
 
+def test_update_config_rejects_invalid_payload_without_writing(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    files = {
+        "import": config_dir / "import.yml",
+        "transform": config_dir / "transform.yml",
+        "export": config_dir / "export.yml",
+    }
+    original = {
+        "import": "version: '1.0'\nentities:\n  datasets:\n    occurrences: {}\n",
+        "transform": "- group_by: taxons\n  sources: []\n",
+        "export": "exports: []\n",
+    }
+    for config_name, path in files.items():
+        path.write_text(original[config_name], encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(config_router, "ensure_config_dir", lambda: config_dir)
+
+    client = TestClient(create_app())
+    invalid_payloads = {
+        "import": {},
+        "transform": {},
+        "export": {},
+    }
+
+    for config_name, content in invalid_payloads.items():
+        response = client.put(f"/api/config/{config_name}", json={"content": content})
+
+        assert response.status_code == 400
+        assert response.json()["detail"]["valid"] is False
+        assert files[config_name].read_text(encoding="utf-8") == original[config_name]
+
+
 def test_restore_backup_rejects_paths_outside_backup_directory(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     config_dir = work_dir / "config"
