@@ -24,6 +24,7 @@ from niamoto.gui.api.services.templates.config_service import (
     find_export_group as _find_export_group_impl,
     find_or_create_transform_group as _find_or_create_transform_group_impl,
 )
+from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.plugins.models import ExportConfig as ExportConfigModel
 from niamoto.common.hierarchy_context import (
     build_hierarchy_contexts,
@@ -191,6 +192,11 @@ def _validate_api_export_target_params(params: Dict[str, Any]) -> None:
             _normalized_relative_parts(params[field_name], field_name)
 
 
+def _validation_error(validation_result: Dict[str, Any], message: str) -> None:
+    validation_result["errors"].append(message)
+    validation_result["valid"] = False
+
+
 def _validate_import_config_content(
     content: Dict[str, Any], validation_result: Dict[str, Any]
 ) -> None:
@@ -239,6 +245,57 @@ def _validate_import_config_content(
             "No data sources defined (taxonomy, plots, occurrences, shapes, or entities)"
         )
         validation_result["valid"] = False
+
+
+def _validate_config_update_content(config_name: str, content: Any) -> Dict[str, Any]:
+    """Validate config payloads before writing them to disk."""
+    validation_result: Dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
+
+    if config_name == "import":
+        if not isinstance(content, dict):
+            _validation_error(validation_result, "import.yml must be an object")
+            return validation_result
+        _validate_import_config_content(content, validation_result)
+
+    elif config_name == "transform":
+        if not isinstance(content, list):
+            _validation_error(validation_result, "transform.yml must be a list")
+        elif not content:
+            _validation_error(validation_result, "No transforms configuration found")
+        else:
+            try:
+                validate_transform_config(content)
+            except Exception as exc:
+                _validation_error(validation_result, str(exc))
+
+    elif config_name == "export":
+        if not isinstance(content, dict):
+            _validation_error(validation_result, "export.yml must be an object")
+        elif not content:
+            _validation_error(validation_result, "No exports configuration found")
+        else:
+            if "exports" in content and not isinstance(content["exports"], list):
+                _validation_error(validation_result, "'exports' must be a list")
+            if "static_pages" in content and not isinstance(
+                content["static_pages"], list
+            ):
+                _validation_error(validation_result, "'static_pages' must be a list")
+
+    elif config_name == "config":
+        if not isinstance(content, dict):
+            _validation_error(validation_result, "config.yml must be an object")
+        else:
+            if "project" not in content:
+                validation_result["warnings"].append("Missing 'project' section")
+            elif "name" not in content.get("project", {}):
+                validation_result["warnings"].append("Missing project name")
+
+            if "database" not in content:
+                _validation_error(validation_result, "Missing 'database' section")
+            elif "path" not in content.get("database", {}):
+                _validation_error(validation_result, "Missing database path")
+
+    return validation_result
 
 
 def _build_default_api_group_config(export_name: str, group_by: str) -> Dict[str, Any]:
@@ -956,6 +1013,10 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
         Success response with backup path if created
     """
     _validate_config_name(config_name)
+
+    validation_result = _validate_config_update_content(config_name, update.content)
+    if not validation_result["valid"]:
+        raise HTTPException(status_code=400, detail=validation_result)
 
     # Ensure config directory exists
     ensure_config_dir()
