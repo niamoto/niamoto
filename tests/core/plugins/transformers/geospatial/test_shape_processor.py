@@ -22,6 +22,7 @@ from tests.common.base_test import NiamotoTestCase
 class TestShapeProcessor(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
+        super().setUp()
         # Create config directory in temporary location
         self.temp_dir = tempfile.mkdtemp()
         self.config_dir = os.path.join(self.temp_dir, "config")
