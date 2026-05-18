@@ -54,6 +54,20 @@ class TestConfig(NiamotoTestCase):
         # database_path is resolved to absolute path
         self.assertTrue(config.database_path.endswith("db/niamoto.duckdb"))
 
+    def test_database_path_expands_home_path(self):
+        """Test getting database path with a tilde-expanded path."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        home_dir = os.path.join(self.test_dir, "home")
+        os.makedirs(home_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump({"database": {"path": "~/custom.duckdb"}}, f)
+
+        with patch.dict(os.environ, {"HOME": home_dir}):
+            config = Config(config_dir=self.config_dir, create_default=True)
+            self.assertEqual(
+                config.database_path, os.path.join(home_dir, "custom.duckdb")
+            )
+
     def test_logs_path(self):
         """Test getting logs path."""
         config = Config(config_dir=self.config_dir, create_default=True)

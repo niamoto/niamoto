@@ -147,10 +147,16 @@ def get_database_path() -> Optional[Path]:
                 db_path_str = config.get("database", {}).get(
                     "path", "db/niamoto.duckdb"
                 )
-                db_path = work_dir / db_path_str
+                configured_db_path = Path(db_path_str).expanduser()
+                db_path = (
+                    configured_db_path
+                    if configured_db_path.is_absolute()
+                    else work_dir / configured_db_path
+                )
                 if db_path.exists():
                     logger.debug(f"Database found from config: {db_path}")
                     return db_path
+                logger.warning(f"Configured database path not found: {db_path}")
         except Exception as e:
             logger.warning(f"Error reading config: {e}")
 

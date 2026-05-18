@@ -172,6 +172,47 @@ class TestGetDatabasePath:
 
         assert result == db_file
 
+    def test_get_database_path_config_expands_home_path(self, tmp_path, monkeypatch):
+        """Test database path with tilde expansion in config."""
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+        db_file = home_dir / "custom.duckdb"
+        db_file.write_text("fake db")
+
+        config_dir = tmp_path / "project" / "config"
+        config_dir.mkdir(parents=True)
+        config_file = config_dir / "config.yml"
+        config_file.write_text(yaml.dump({"database": {"path": "~/custom.duckdb"}}))
+
+        monkeypatch.setenv("HOME", str(home_dir))
+        context.set_working_directory(tmp_path / "project")
+
+        result = context.get_database_path()
+
+        assert result == db_file
+
+    def test_get_database_path_missing_configured_path_falls_back(
+        self, tmp_path, caplog
+    ):
+        """Missing configured database paths should fall back to known locations."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        config_file = config_dir / "config.yml"
+        config_file.write_text(
+            yaml.dump({"database": {"path": "missing/custom.duckdb"}})
+        )
+
+        fallback_db = tmp_path / "db" / "niamoto.duckdb"
+        fallback_db.parent.mkdir()
+        fallback_db.write_text("fake db")
+
+        context.set_working_directory(tmp_path)
+
+        result = context.get_database_path()
+
+        assert result == fallback_db
+        assert "Configured database path not found" in caplog.text
+
     def test_get_database_path_fallback_db_duckdb(self, tmp_path):
         """Test fallback to db/niamoto.duckdb."""
         db_dir = tmp_path / "db"

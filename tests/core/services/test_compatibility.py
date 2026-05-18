@@ -847,6 +847,20 @@ class TestCompatibilityService:
             )
         return CompatibilityService(tmp_path)
 
+    def test_resolve_database_path_expands_home_path(self, tmp_path, monkeypatch):
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+        config_dir = tmp_path / "project" / "config"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.yml").write_text(
+            yaml.dump({"database": {"path": "~/custom.duckdb"}})
+        )
+        monkeypatch.setenv("HOME", str(home_dir))
+
+        service = CompatibilityService(tmp_path / "project")
+
+        assert service._resolve_database_path() == home_dir / "custom.duckdb"
+
     def test_no_issues_when_all_columns_present(self, tmp_path):
         csv = tmp_path / "imports" / "occurrences.csv"
         service = self._make_service(

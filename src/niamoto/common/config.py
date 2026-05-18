@@ -939,6 +939,7 @@ exports:
                 message="Database path not configured",
                 details={"config": self.config.get("database", {})},
             )
+        path = os.path.expanduser(path)
         # Resolve relative paths against NIAMOTO_HOME (project root)
         if not os.path.isabs(path):
             project_root = os.path.dirname(self.config_dir)
