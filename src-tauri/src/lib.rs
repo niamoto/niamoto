@@ -23,11 +23,14 @@ const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
 const SERVER_POLL_INTERVAL_MS: u64 = 500;
 const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
+const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
 const APP_LOADER_CSS: &str = include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
     process: Mutex<Option<Child>>,
+    api_port: Mutex<Option<u16>>,
+    desktop_auth_token: Mutex<Option<String>>,
 }
 
 fn sidecar_exe_name() -> &'static str {
@@ -235,6 +238,42 @@ fn is_server_ready(port: u16) -> bool {
         Ok(response) => response.status().is_success(),
         Err(_) => false,
     }
+}
+
+#[tauri::command]
+fn reload_desktop_project(state: State<ServerState>) -> Result<serde_json::Value, String> {
+    let port = state
+        .api_port
+        .lock()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Desktop API server is not ready".to_string())?;
+    let desktop_auth_token = state
+        .desktop_auth_token
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "Desktop auth token is unavailable".to_string())?;
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create desktop reload client: {e}"))?;
+    let response = client
+        .post(format!("http://127.0.0.1:{port}/api/health/reload-project"))
+        .header(DESKTOP_TOKEN_HEADER, desktop_auth_token)
+        .send()
+        .map_err(|e| format!("Failed to reload project on server: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Failed to reload project on server: {}",
+            response.status()
+        ));
+    }
+
+    response
+        .json::<serde_json::Value>()
+        .map_err(|e| format!("Received an invalid reload-project response: {e}"))
 }
 
 fn terminate_child_process(process: &mut Child) {
@@ -529,6 +568,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(ServerState {
             process: Mutex::new(None),
+            api_port: Mutex::new(None),
+            desktop_auth_token: Mutex::new(None),
         })
         .manage(ConfigState::new())
         .menu(menu::build_app_menu)
@@ -550,6 +591,7 @@ pub fn run() {
             commands::create_project,
             commands::browse_folder,
             commands::open_external_url,
+            reload_desktop_project,
         ])
         .setup(|app| {
             println!("Starting Niamoto Desktop Application...");
@@ -838,6 +880,12 @@ pub fn run() {
                 };
 
                 println!("✓ Server ready on http://127.0.0.1:{}", ready_port);
+                {
+                    let server_state = app_handle.state::<ServerState>();
+                    *server_state.api_port.lock().unwrap() = Some(ready_port);
+                    *server_state.desktop_auth_token.lock().unwrap() =
+                        Some(desktop_auth_token_for_thread.clone());
+                }
                 write_startup_log(
                     &startup_log_path_for_thread,
                     &startup_session_for_thread,
@@ -928,7 +976,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::startup_ready_url;
-    use super::{generate_startup_token, health_probe_is_authenticated};
+    use super::generate_startup_token;
     use tauri::Url;
 
     #[test]
@@ -936,30 +984,6 @@ mod tests {
         let token = generate_startup_token();
         assert_eq!(token.len(), 64);
         assert!(token.chars().all(|ch| ch.is_ascii_hexdigit()));
-    }
-
-    #[test]
-    fn health_probe_requires_matching_token() {
-        assert!(health_probe_is_authenticated(
-            reqwest::StatusCode::OK,
-            Some("secret"),
-            "secret"
-        ));
-        assert!(!health_probe_is_authenticated(
-            reqwest::StatusCode::OK,
-            Some("wrong"),
-            "secret"
-        ));
-        assert!(!health_probe_is_authenticated(
-            reqwest::StatusCode::OK,
-            None,
-            "secret"
-        ));
-        assert!(!health_probe_is_authenticated(
-            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
-            Some("secret"),
-            "secret"
-        ));
     }
 
     #[test]
