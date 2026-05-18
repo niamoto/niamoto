@@ -2791,7 +2791,7 @@ def _build_api_export_preview_group_config(
 ) -> JsonApiGroupConfig:
     """Build exporter group config from the current unsaved UI draft."""
     existing_group = deepcopy(_find_target_group(export_target, group_by) or {})
-    draft = request.model_dump(exclude_none=True)
+    draft = request.model_dump(exclude_unset=True)
     draft.pop("section", None)
 
     group_payload = {**existing_group, **draft, "group_by": group_by}
