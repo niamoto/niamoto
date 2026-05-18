@@ -698,16 +698,7 @@ async def update_site_config(update: SiteConfigUpdate):
     # Update static pages
     raw_static_pages_data = []
     for page in update.static_pages:
-        page_dict = {
-            "name": page.name,
-            "template": page.template,
-            "output_file": page.output_file,
-        }
-        if page.context:
-            context_dict = page.context.model_dump(exclude_none=True)
-            if context_dict:
-                page_dict["context"] = context_dict
-        raw_static_pages_data.append(page_dict)
+        raw_static_pages_data.append(page.model_dump(exclude_none=True))
 
     static_pages_data, output_aliases = _normalize_static_pages(raw_static_pages_data)
     _validate_static_pages(static_pages_data)
