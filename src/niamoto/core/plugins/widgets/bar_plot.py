@@ -840,8 +840,8 @@ class BarPlotWidget(WidgetPlugin):
 
         # Filter zero values if requested
         if params.filter_zero_values:
-            # Remove rows where y-axis value is 0 or null
-            mask = pd.notna(df_plot[params.y_axis]) & (df_plot[params.y_axis] != 0)
+            # Remove rows where the value axis is 0 or null
+            mask = pd.notna(df_plot[value_column]) & (df_plot[value_column] != 0)
             df_plot = df_plot.loc[mask].copy()
             logger.debug(
                 f"Filtered {len(processed_data) - len(df_plot)} zero/null values from data"
