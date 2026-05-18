@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from niamoto.core.imports.config_models import ConnectorType
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api import context
 from niamoto.gui.api.routers import imports
 
 
@@ -29,6 +30,16 @@ def _base_job(job_id: str = "job-1") -> dict:
         "warnings": [],
         "events": [],
     }
+
+
+def test_get_import_status_returns_500_without_working_directory(monkeypatch):
+    monkeypatch.setattr(context, "get_working_directory", lambda: None)
+
+    client = TestClient(create_app())
+    response = client.get("/api/imports/status")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Working directory not set"
 
 
 def test_process_generic_import_all_emits_entity_events(monkeypatch, tmp_path):

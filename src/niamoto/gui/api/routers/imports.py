@@ -660,6 +660,8 @@ async def get_import_status() -> ImportStatusResponse:
 
         return ImportStatusResponse(references=references, datasets=datasets)
 
+    except HTTPException:
+        raise
     except Exception:
         # Return empty status on error
         return ImportStatusResponse(
