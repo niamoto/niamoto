@@ -4,6 +4,8 @@ from pathlib import Path
 
 import json
 
+import pytest
+
 from niamoto.gui.help_content.builder import build_help_content
 
 
@@ -87,6 +89,20 @@ This section should appear automatically after build.
         {"title": "Import", "level": 2, "id": "import"}
     ]
     assert (output_root / "assets" / "screenshots" / "desktop" / "welcome.png").exists()
+
+
+def test_build_help_content_rejects_docs_root_as_output_root(tmp_path: Path):
+    docs_root = tmp_path / "docs"
+    asset_path = docs_root / "assets" / "source.png"
+
+    _write(docs_root / "01-guide" / "README.md", "# Guide\n")
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    asset_path.write_bytes(b"source asset")
+
+    with pytest.raises(ValueError, match="output root"):
+        build_help_content(docs_root=docs_root, output_root=docs_root)
+
+    assert asset_path.read_bytes() == b"source asset"
 
 
 def test_build_help_content_excludes_api_subtree_and_opted_out_pages(tmp_path: Path):
