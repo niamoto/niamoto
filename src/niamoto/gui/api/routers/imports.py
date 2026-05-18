@@ -358,6 +358,7 @@ async def list_import_jobs(
     # Apply pagination
     total = len(jobs)
     jobs = jobs[offset : offset + limit]
+    jobs = [_sanitize_import_job_for_response(job) for job in jobs]
 
     return {"total": total, "limit": limit, "offset": offset, "jobs": jobs}
 
