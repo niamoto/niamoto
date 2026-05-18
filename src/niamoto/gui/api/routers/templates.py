@@ -1047,6 +1047,10 @@ async def get_widget_suggestions(
     Returns suggestions organized by category with applicable templates.
     """
     work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
     transform_path = work_dir / "config" / "transform.yml"
 
     if not transform_path.exists():
