@@ -1,6 +1,8 @@
 """Site configuration API endpoints for managing export.yml site settings."""
 
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
@@ -2205,7 +2207,26 @@ async def update_data_content(update: DataFileUpdate):
 
         # Write JSON with nice formatting
         content = json.dumps(update.data, ensure_ascii=False, indent=2)
-        file_path.write_text(content, encoding="utf-8")
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=file_path.parent,
+                prefix=f".{file_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(content)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+
+            temp_path.replace(file_path)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
 
         return {
             "success": True,
