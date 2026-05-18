@@ -545,6 +545,23 @@ def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
     return file_path
 
 
+def _ensure_site_content_file_path(work_dir: Path, file_path: Path) -> None:
+    """Allow Site Builder file editing only in known content roots."""
+    allowed_roots = {("files",), ("templates", "content")}
+    try:
+        relative_path = file_path.relative_to(work_dir.resolve())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=403, detail="Access denied: path outside project"
+        ) from exc
+
+    if not any(relative_path.parts[: len(root)] == root for root in allowed_roots):
+        raise HTTPException(
+            status_code=403,
+            detail="File path is not allowed for site content editing",
+        )
+
+
 def _save_export_config(config: Dict[str, Any]) -> Path:
     """Save export.yml configuration with backup."""
     work_dir = get_working_directory()
@@ -2026,6 +2043,7 @@ async def get_file_content(path: str):
         raise HTTPException(status_code=500, detail="Working directory not set")
 
     file_path = _resolve_project_file_path(work_dir, path)
+    _ensure_site_content_file_path(work_dir, file_path)
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -2180,6 +2198,7 @@ async def update_file_content(update: FileContentUpdate):
         raise HTTPException(status_code=500, detail="Working directory not set")
 
     file_path = _resolve_project_file_path(work_dir, update.path)
+    _ensure_site_content_file_path(work_dir, file_path)
 
     # Only allow writing to text files (markdown, txt, json)
     allowed_extensions = {".md", ".markdown", ".txt", ".json"}
