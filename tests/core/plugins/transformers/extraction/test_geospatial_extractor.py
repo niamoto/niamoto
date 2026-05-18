@@ -261,6 +261,35 @@ class TestGeospatialExtractorGetData:
         assert params == {"id": 5}
         assert isinstance(result, pd.DataFrame)
 
+    def test_get_data_from_registry_table_uses_configured_id_field(
+        self, geospatial_extractor_plugin
+    ):
+        """Test registry schema id_field is used for filtered table reads."""
+        metadata = EntityMetadata(
+            name="plots",
+            kind=EntityKind.DATASET,
+            table_name="entity_plots",
+            config={"schema": {"id_field": "plot_id"}},
+        )
+
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = True
+
+        expected_df = pd.DataFrame({"plot_id": [5], "geometry": [Point(1, 1)]})
+        with patch("pandas.read_sql", return_value=expected_df) as mock_read_sql:
+            result = geospatial_extractor_plugin._get_data_from_source(
+                "plots", id_value=5
+            )
+
+        mock_read_sql.assert_called_once()
+        query = mock_read_sql.call_args[0][0]
+        query_text = query.text if hasattr(query, "text") else query
+        params = mock_read_sql.call_args.kwargs.get("params")
+        assert "FROM entity_plots" in query_text
+        assert "WHERE plot_id = :id" in query_text
+        assert params == {"id": 5}
+        pd.testing.assert_frame_equal(result, expected_df)
+
     def test_get_data_from_registry_connector_csv(self, geospatial_extractor_plugin):
         """Test getting data from CSV connector with id filtering."""
         # Setup: Create EntityMetadata with CSV connector
