@@ -154,3 +154,25 @@ class VercelDeployer(DeployerPlugin):
             "body": "Deploy static sites to Vercel via the Deployments API.",
         }
     ]
+
+
+def test_extract_plugins_fails_on_syntax_error(tmp_path: Path):
+    """Malformed plugin files must fail manifest generation."""
+    root = tmp_path / "plugins"
+    root.mkdir()
+    (root / "broken.py").write_text(
+        """
+from niamoto.core.plugins.base import PluginType, register
+
+
+@register("broken", PluginType.WIDGET)
+class BrokenWidget:
+    def render(self):
+        return (
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    module = _load_module()
+    with pytest.raises(SyntaxError):
+        module.extract_plugins(root)
