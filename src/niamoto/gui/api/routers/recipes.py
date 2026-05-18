@@ -9,8 +9,11 @@ Provides a unified interface for configuring widgets across all data sources:
 A "widget recipe" combines: Source → Transformer → Widget
 """
 
+import importlib
 import logging
+import pkgutil
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -37,6 +40,17 @@ from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
+
+
+def _import_plugin_modules(package: ModuleType) -> None:
+    """Import all direct plugin modules from a package so decorators register them."""
+    for module_info in pkgutil.iter_modules(package.__path__, f"{package.__name__}."):
+        if module_info.ispkg:
+            continue
+        module_name = module_info.name.rsplit(".", 1)[-1]
+        if module_name.startswith("_"):
+            continue
+        importlib.import_module(module_info.name)
 
 
 def _ensure_plugins_loaded():
@@ -69,19 +83,9 @@ def _ensure_plugins_loaded():
     )
 
     # Import widget plugins
-    from niamoto.core.plugins.widgets import (  # noqa: F401
-        bar_plot,
-        donut_chart,
-        interactive_map,
-        radial_gauge,
-        info_grid,
-        enrichment_panel,
-        stacked_area_plot,
-        concentric_rings,
-        line_plot,
-        scatter_plot,
-        sunburst_chart,
-    )
+    from niamoto.core.plugins import widgets as widget_package
+
+    _import_plugin_modules(widget_package)
 
 
 # Ensure plugins are loaded at module import
