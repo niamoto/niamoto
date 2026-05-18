@@ -20,6 +20,19 @@ from ..context import get_working_directory
 
 router = APIRouter()
 
+SERVE_FILE_IMAGE_EXTENSIONS = {
+    ".bmp",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".svg",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
+
 
 def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
     """Resolve a path below root_dir and reject sibling-prefix escapes."""
@@ -889,12 +902,22 @@ async def serve_file(file_path: str):
         file_path,
         detail="Access denied",
     )
+    files_dir = (work_dir / "files").resolve()
+    try:
+        full_path.relative_to(files_dir)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=403, detail="Access denied: file outside files directory"
+        ) from exc
 
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
     if not full_path.is_file():
         raise HTTPException(status_code=400, detail="Not a file")
+
+    if full_path.suffix.lower() not in SERVE_FILE_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=403, detail="Unsupported file type")
 
     # Determine content type
     import mimetypes
