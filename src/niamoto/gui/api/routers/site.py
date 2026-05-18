@@ -22,6 +22,8 @@ _ROOT_INDEX_TEMPLATE = "index.html"
 _ROOT_INDEX_OUTPUT = "index.html"
 MAX_BIBTEX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 BIBTEX_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+MAX_SITE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+SITE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
 
 def _normalize_output_alias(output_file: str | None) -> str | None:
@@ -2045,19 +2047,46 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
         target_path = target_dir / f"{original_stem}_{counter}{file_ext}"
         counter += 1
 
-    # Save the file
+    # Save the file without buffering the full upload in memory.
     try:
-        content = await file.read()
-        with open(target_path, "wb") as f:
-            f.write(content)
+        temp_file = tempfile.NamedTemporaryFile(
+            "wb",
+            delete=False,
+            dir=target_dir,
+            prefix=f".{target_path.name}.",
+            suffix=".tmp",
+        )
+        temp_path = Path(temp_file.name)
+        total_size = 0
+
+        try:
+            with temp_file:
+                while chunk := await file.read(SITE_UPLOAD_CHUNK_SIZE_BYTES):
+                    total_size += len(chunk)
+                    if total_size > MAX_SITE_UPLOAD_SIZE_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=(
+                                "Uploaded file exceeds the maximum allowed size "
+                                f"of {MAX_SITE_UPLOAD_SIZE_BYTES} bytes"
+                            ),
+                        )
+                    temp_file.write(chunk)
+
+            temp_path.replace(target_path)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
 
         # Return path relative to project root
-        rel_path = target_path.relative_to(work_dir)
+        rel_path = target_path.relative_to(work_dir.resolve())
         return FileUploadResponse(
             success=True,
             path=str(rel_path),
             filename=target_path.name,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
