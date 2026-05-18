@@ -4,6 +4,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from rich.console import Console
+from rich.markup import escape
 
 from niamoto.cli.utils.progress import (
     ProgressManager,
@@ -177,6 +178,17 @@ class TestProgressManager:
         assert manager._stats["errors"] == 1
         mock_console.print.assert_called_with("❌ Test error message", style="bold red")
 
+    def test_add_error_escapes_rich_markup(self):
+        """Test error messages escape caller-provided Rich markup."""
+        mock_console = MagicMock()
+        manager = ProgressManager(console=mock_console)
+        message = "Failed [red]bad[/red]"
+
+        with manager.progress_context():
+            manager.add_error(message)
+
+        mock_console.print.assert_called_with(f"❌ {escape(message)}", style="bold red")
+
     def test_add_warning(self):
         """Test adding warning messages."""
         mock_console = MagicMock()
@@ -255,6 +267,29 @@ class TestProgressManager:
         mock_console.print.assert_any_call("   Files processed: 25")
         mock_console.print.assert_any_call("   Data imported: 1,500 records")
 
+    @patch("niamoto.cli.utils.progress.datetime")
+    def test_show_summary_escapes_rich_markup(self, mock_datetime):
+        """Test summary labels and stats escape Rich markup."""
+        start_time = datetime(2023, 1, 1, 12, 0, 0)
+        end_time = datetime(2023, 1, 1, 12, 0, 30)
+        mock_datetime.now.side_effect = [start_time, end_time]
+
+        mock_console = MagicMock()
+        manager = ProgressManager(console=mock_console)
+
+        with manager.progress_context():
+            manager.show_summary(
+                "[red]Import[/red]",
+                {"[bold]Source[/bold]": "[cyan]dataset[/cyan]"},
+            )
+
+        mock_console.print.assert_any_call(
+            f"\n📊 {escape('[red]Import[/red]')} Summary:", style="bold blue"
+        )
+        mock_console.print.assert_any_call(
+            f"   {escape('[bold]Source[/bold]')}: {escape('[cyan]dataset[/cyan]')}"
+        )
+
     def test_show_summary_without_context(self):
         """Test showing summary without active context."""
         mock_console = MagicMock()
@@ -330,6 +365,18 @@ class TestOperationTracker:
         tracker.start_operation("Starting test operation")
         mock_console.print.assert_called_once_with(
             "🚀 Starting test operation", style="blue"
+        )
+
+    def test_start_operation_escapes_rich_markup(self):
+        """Test tracker messages escape caller-provided Rich markup."""
+        mock_console = MagicMock()
+        tracker = OperationTracker(console=mock_console)
+        message = "Starting [red]import[/red]"
+
+        tracker.start_operation(message)
+
+        mock_console.print.assert_called_once_with(
+            f"🚀 {escape(message)}", style="blue"
         )
 
     def test_complete_operation(self):
