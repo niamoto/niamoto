@@ -10,6 +10,8 @@ Provides endpoints for:
 
 import csv
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -190,15 +192,33 @@ def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
             yaml_config.append(item)
 
     transform_path = config_dir / "transform.yml"
-    with open(transform_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            validate_transform_config(yaml_config),
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=config_dir,
+            prefix=".transform.yml.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            yaml.dump(
+                validate_transform_config(yaml_config),
+                temp_file,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                width=120,
+            )
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+
+        temp_path.replace(transform_path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
 
 
 def _get_reference_kind(work_dir: Path, reference_name: str) -> str:

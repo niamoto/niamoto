@@ -312,6 +312,79 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
     assert "summary_widget" in current_groups[0]["widgets_data"]
 
 
+def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(parents=True)
+    for source_name in ("first_stats", "second_stats"):
+        (imports_dir / f"raw_{source_name}.csv").write_text(
+            "taxon_id;class_object;class_name;class_value\n"
+            "101;nbe_source_dataset;network;12\n",
+            encoding="utf-8",
+        )
+
+    current_config = {"groups": {"taxons": {"sources": [], "widgets_data": {}}}}
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def load_transform_config(_work_dir):
+        with config_lock:
+            return deepcopy(current_config)
+
+    def save_transform_config(_work_dir, config):
+        nonlocal current_config
+        sources = config["groups"]["taxons"]["sources"]
+        if len(sources) == 1 and sources[0].get("name") == "first_stats":
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_config = deepcopy(config)
+
+    monkeypatch.setattr(sources_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(sources_router, "_load_transform_config", load_transform_config)
+    monkeypatch.setattr(sources_router, "_save_transform_config", save_transform_config)
+    monkeypatch.setattr(
+        sources_router,
+        "detect_relation_fields",
+        lambda *_args, **_kwargs: ("id", "taxon_id", 1.0),
+    )
+
+    def save_source(source_name: str):
+        try:
+            asyncio.run(
+                sources_router.save_source_config(
+                    "taxons",
+                    sources_router.SaveSourceRequest(
+                        source_name=source_name,
+                        file_path=f"imports/raw_{source_name}.csv",
+                        entity_id_column="taxon_id",
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=save_source, args=("first_stats",))
+    second = threading.Thread(target=save_source, args=("second_stats",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert {
+        source["name"] for source in current_config["groups"]["taxons"]["sources"]
+    } == {"first_stats", "second_stats"}
+
+
 def test_analyze_existing_source_rejects_paths_outside_imports(
     monkeypatch,
     gui_duckdb_client: TestClient,
