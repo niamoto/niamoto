@@ -1,7 +1,6 @@
 """Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
 import html
-import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -21,7 +20,6 @@ from niamoto.core.imports.registry import EntityRegistry
 from ..utils.database import open_database
 
 router = APIRouter()
-_SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class EntitySummary(BaseModel):
@@ -68,16 +66,32 @@ class EntityListResponse(BaseModel):
     all: List[EntityInfo] = []
 
 
-def _validate_identifier(value: str, label: str) -> str:
-    if not _SAFE_IDENTIFIER_RE.fullmatch(value):
-        raise HTTPException(status_code=400, detail=f"Invalid {label}")
-    return value
-
-
 def _html_message(css_class: str, message: str) -> HTMLResponse:
     return HTMLResponse(
         content=f"<p class='{css_class}'>{html.escape(message, quote=True)}</p>"
     )
+
+
+def _resolve_entity_table(db: Any, group_by: str) -> str:
+    table_names = set(db.get_table_names())
+    if group_by not in table_names:
+        raise HTTPException(status_code=404, detail="Entity table not found")
+    return group_by
+
+
+def _resolve_entity_id_column(table_name: str, columns: List[Dict[str, Any]]) -> str:
+    column_names = [column["name"] for column in columns]
+    candidates = [f"{table_name}_id", "id"]
+
+    for candidate in candidates:
+        if candidate in column_names:
+            return candidate
+
+    id_like_columns = [name for name in column_names if name.endswith("_id")]
+    if len(id_like_columns) == 1:
+        return id_like_columns[0]
+
+    raise HTTPException(status_code=400, detail="Entity id column not found")
 
 
 @router.get("/available", response_model=EntityListResponse)
@@ -165,15 +179,12 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
-    group_by = _validate_identifier(group_by, "entity group")
-    # Map group_by to ID column name
-    # No hardcoded validation - dynamic tables from transforms allowed
-    # Will fail gracefully via OperationalError handler if table doesn't exist
-    id_column = f"{group_by}_id"
-
     try:
         with open_database(db_path, read_only=True) as db:
-            quoted_table = quote_identifier(db, group_by)
+            table_name = _resolve_entity_table(db, group_by)
+            columns = db.get_columns(table_name)
+            id_column = _resolve_entity_id_column(table_name, columns)
+            quoted_table = quote_identifier(db, table_name)
             quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
                 if limit is not None:
@@ -202,13 +213,15 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
                     entities.append(
                         EntitySummary(
                             id=row.id,
-                            name=row.name or f"{group_by}_{row.id}",
-                            display_name=row.name or f"{group_by}_{row.id}",
+                            name=row.name or f"{table_name}_{row.id}",
+                            display_name=row.name or f"{table_name}_{row.id}",
                         )
                     )
 
                 return entities
 
+    except HTTPException:
+        raise
     except OperationalError as e:
         if "no such table" in str(e).lower():
             return []
@@ -237,24 +250,18 @@ async def get_entity_detail(group_by: str, entity_id: str):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
-    group_by = _validate_identifier(group_by, "entity group")
-    # Map group_by to ID column name
-    # No hardcoded validation - dynamic tables from transforms allowed
-    # Will fail gracefully via OperationalError handler if table doesn't exist
-    id_column = f"{group_by}_id"
-
     try:
         with open_database(db_path, read_only=True) as db:
-            quoted_table = quote_identifier(db, group_by)
+            table_name = _resolve_entity_table(db, group_by)
+            columns = db.get_columns(table_name)
+            id_column = _resolve_entity_id_column(table_name, columns)
+            quoted_table = quote_identifier(db, table_name)
             quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
-                columns_query = text(f"PRAGMA table_info({quoted_table})")
-                columns_result = session.execute(columns_query)
-
                 json_columns = []
-                for col in columns_result:
-                    col_name = col[1]
-                    col_type = col[2]
+                for col in columns:
+                    col_name = col["name"]
+                    col_type = str(col["type"]).upper()
                     if col_name != id_column and col_type == "JSON":
                         json_columns.append(col_name)
 
@@ -291,8 +298,8 @@ async def get_entity_detail(group_by: str, entity_id: str):
                     id=result_dict[
                         "id"
                     ],  # Use the aliased 'id' column instead of id_column
-                    name=result_dict.get("name") or f"{group_by}_{entity_id}",
-                    group_by=group_by,
+                    name=result_dict.get("name") or f"{table_name}_{entity_id}",
+                    group_by=table_name,
                     widgets_data=widgets_data,
                 )
 

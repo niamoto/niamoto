@@ -82,8 +82,8 @@ def test_list_entities_rejects_malformed_group_by(gui_duckdb_client: TestClient)
         "/api/entities/entities/taxon%3Bdrop%20table%20taxon"
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid entity group"
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity table not found"
 
 
 def test_entity_detail_rejects_malformed_group_by(gui_duckdb_client: TestClient):
@@ -91,8 +91,51 @@ def test_entity_detail_rejects_malformed_group_by(gui_duckdb_client: TestClient)
         "/api/entities/entity/taxon%29%3Bdrop%20table%20taxon/1"
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid entity group"
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity table not found"
+
+
+def test_entity_routes_quote_dynamic_table_and_id_names(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE "plots-special" (
+                "plots-special_id" INTEGER,
+                general_info JSON,
+                metrics JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO "plots-special" VALUES (
+                7,
+                '{"name": {"value": "Plot Seven"}}',
+                '{"count": 42}'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    list_response = gui_duckdb_client.get("/api/entities/entities/plots-special")
+    assert list_response.status_code == 200, list_response.text
+    assert list_response.json() == [
+        {"id": "7", "name": "Plot Seven", "display_name": "Plot Seven"}
+    ]
+
+    detail_response = gui_duckdb_client.get("/api/entities/entity/plots-special/7")
+    assert detail_response.status_code == 200, detail_response.text
+    detail = detail_response.json()
+    assert detail["id"] == "7"
+    assert detail["name"] == "Plot Seven"
+    assert detail["group_by"] == "plots-special"
+    assert detail["widgets_data"]["metrics"] == {"count": 42}
 
 
 def test_render_widget_escapes_missing_widget_transform_key(monkeypatch, tmp_path):
