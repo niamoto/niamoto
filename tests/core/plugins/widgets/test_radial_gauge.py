@@ -431,6 +431,20 @@ class TestRadialGaugeWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
 
+    def test_render_style_contextual_zero_range(self):
+        """Test contextual rendering when min and max are equal."""
+        data = {"value": 0}
+
+        params = RadialGaugeParams(
+            value_field="value", min_value=0, max_value=0, style_mode="contextual"
+        )
+
+        result = self.widget.render(data, params)
+
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("plotly-graph-div", result)
+
     def test_render_with_threshold(self):
         """Test rendering with threshold line."""
         data = {"cpu_usage": 78}
