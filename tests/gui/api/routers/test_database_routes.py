@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 import yaml
 
 from niamoto.gui.api.routers import database as database_router
+from niamoto.gui.api.utils.database import open_database
 
 
 def test_database_router_path_expands_configured_home_path(tmp_path, monkeypatch):
@@ -70,3 +71,21 @@ def test_database_schema_uses_duckdb_fixture_without_reflection_errors(
     ]
     assert tables["entity_taxons"]["row_count"] == 2
     assert views["occurrences_by_taxon"]["is_view"] is True
+
+
+def test_table_preview_uses_read_only_duckdb_connection(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+
+    with open_database(db_path, read_only=True):
+        response = gui_duckdb_client.get(
+            "/api/database/tables/dataset_occurrences/preview"
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["table_name"] == "dataset_occurrences"
+    assert payload["total_rows"] == 3
+    assert [row["id"] for row in payload["rows"]] == [1, 2, 3]

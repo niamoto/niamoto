@@ -119,7 +119,7 @@ async def get_database_schema():
         return DatabaseSchema(tables=[], views=[], total_size=None)
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
