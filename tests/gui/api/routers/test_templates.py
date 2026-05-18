@@ -496,6 +496,32 @@ class TestTemplatesEndpoints:
         )
         assert response.status_code in [200, 422, 500]
 
+    def test_combined_suggestions_hides_unexpected_exception_details(self, client):
+        """Unexpected backend errors should not leak internals to clients."""
+        with (
+            patch(
+                "niamoto.gui.api.routers.templates.get_database_path",
+                return_value="/tmp/niamoto.duckdb",
+            ),
+            patch(
+                "niamoto.gui.api.routers.templates.Database",
+                side_effect=RuntimeError("/private/path secret"),
+            ),
+        ):
+            response = client.post(
+                "/api/templates/taxons/combined-suggestions",
+                json={
+                    "selected_fields": ["elevation", "dbh"],
+                    "source_name": "taxons",
+                },
+            )
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == (
+            "Failed to generate combined widget suggestions"
+        )
+        assert "/private/path secret" not in response.text
+
     def test_semantic_groups_endpoint(self, client):
         """Test GET /api/templates/{reference}/semantic-groups."""
         response = client.get("/api/templates/taxons/semantic-groups")

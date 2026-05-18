@@ -1348,7 +1348,10 @@ async def get_combined_widget_suggestions(
         raise
     except Exception as e:
         logger.exception(f"Error getting combined widget suggestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate combined widget suggestions",
+        )
 
 
 @router.get(
