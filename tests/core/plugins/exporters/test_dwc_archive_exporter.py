@@ -469,6 +469,8 @@ class TestFetchGroupData:
         assert result[0]["id"] == 1
         assert result[0]["name"] == "Species A"
         assert "latitude" in result[0]
+        executed_query = str(mock_connection.execute.call_args.args[0])
+        assert 'FROM "test_table"' in executed_query
 
     def test_fetch_group_data_empty_result(self, exporter):
         """Test fetch with no data returned."""
@@ -513,6 +515,21 @@ class TestFetchGroupData:
         result = exporter._fetch_group_data(mock_db, "failing_table")
 
         assert result == []
+
+    def test_fetch_group_data_rejects_unknown_injected_table(self, exporter):
+        """Configured group names must resolve to known tables before execution."""
+        mock_db = MagicMock()
+        mock_db.get_table_names.return_value = ["safe_table"]
+        mock_connection = MagicMock()
+        mock_db.engine.connect.return_value.__enter__.return_value = mock_connection
+
+        result = exporter._fetch_group_data(
+            mock_db,
+            'safe_table"; DROP TABLE safe_table; --',
+        )
+
+        assert result == []
+        mock_connection.execute.assert_not_called()
 
 
 class TestApplyTransformer:

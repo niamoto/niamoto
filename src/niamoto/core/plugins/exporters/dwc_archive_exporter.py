@@ -40,6 +40,33 @@ except ImportError:
     ProgressManager = None
 
 
+def _quote_table_identifier(repository: Database, table_name: str) -> str:
+    """Quote a table identifier using the active SQL dialect."""
+    try:
+        from sqlalchemy import inspect
+
+        preparer = inspect(repository.engine).dialect.identifier_preparer
+        quoted = preparer.quote(table_name)
+        if isinstance(quoted, str):
+            return quoted
+    except Exception:
+        pass
+
+    escaped = table_name.replace('"', '""')
+    return f'"{escaped}"'
+
+
+def _resolve_group_table_identifier(repository: Database, group_name: str) -> str:
+    """Validate and quote a configured DwC group table name."""
+    get_table_names = getattr(repository, "get_table_names", None)
+    if callable(get_table_names):
+        table_names = get_table_names()
+        if isinstance(table_names, list) and group_name not in table_names:
+            raise ProcessError(f"Group table '{group_name}' not found")
+
+    return _quote_table_identifier(repository, group_name)
+
+
 class DatasetMetadata(BaseModel):
     """Metadata for the Darwin Core Archive dataset."""
 
@@ -290,7 +317,8 @@ class DwcArchiveExporter(ExporterPlugin):
             from sqlalchemy import text
             import json
 
-            query = text(f"SELECT * FROM {group_name}")
+            quoted_group_name = _resolve_group_table_identifier(repository, group_name)
+            query = text(f"SELECT * FROM {quoted_group_name}")
 
             with repository.engine.connect() as connection:
                 result_proxy = connection.execute(query)
