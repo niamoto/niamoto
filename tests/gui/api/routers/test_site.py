@@ -182,6 +182,31 @@ def test_site_helper_preview_api_base_url_uses_request_base_url_when_available()
     )
 
 
+def test_preview_markdown_sanitizes_user_controlled_html():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/preview-markdown",
+        json={
+            "content": (
+                "# Title\n"
+                "<script>alert(1)</script>\n"
+                "<img src=x onerror=alert(document.domain)>\n"
+                "[bad](javascript:alert(1))\n"
+                '![bad" onerror="alert(1)](javascript:alert(1))'
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    html = response.json()["html"]
+    assert "<h1" in html
+    assert "<script" not in html
+    assert "onerror" not in html
+    assert "javascript:" not in html
+    assert "alert(1)" in html
+
+
 class TestSiteGroups:
     """Regression tests for group listing in the Site Builder."""
 

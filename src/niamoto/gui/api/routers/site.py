@@ -963,6 +963,7 @@ def _preprocess_markdown_images(content: str) -> str:
     - ![alt|width|center](src) -> combined styles
     - files/... paths -> /api/site/files/... for preview
     """
+    import html
     import re
 
     def replace_image(match):
@@ -987,8 +988,10 @@ def _preprocess_markdown_images(content: str) -> str:
         if src.startswith("files/"):
             src = f"/api/site/{src}"
 
+        safe_alt = html.escape(alt, quote=True)
+        safe_src = html.escape(src, quote=True)
         img_style = f' style="{";".join(img_styles)}"' if img_styles else ""
-        img_tag = f'<img src="{src}" alt="{alt}"{img_style}>'
+        img_tag = f'<img src="{safe_src}" alt="{safe_alt}"{img_style}>'
 
         # Wrap in a flex div for alignment (works with Tailwind's display:block on img)
         if align == "center":
@@ -1000,6 +1003,111 @@ def _preprocess_markdown_images(content: str) -> str:
     # Match markdown images: ![alt](src) or ![alt|width](src)
     pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
     return re.sub(pattern, replace_image, content)
+
+
+def _sanitize_markdown_html(html_content: str) -> str:
+    """Sanitize preview HTML with a small allowlist for markdown output."""
+    from html import escape
+    from html.parser import HTMLParser
+    from urllib.parse import urlparse
+
+    allowed_tags = {
+        "a",
+        "blockquote",
+        "br",
+        "code",
+        "div",
+        "em",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "img",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "span",
+        "strong",
+        "table",
+        "tbody",
+        "td",
+        "th",
+        "thead",
+        "tr",
+        "ul",
+    }
+    allowed_attrs = {
+        "a": {"href", "title"},
+        "div": {"style"},
+        "img": {"alt", "src", "style", "title"},
+        "span": {"style"},
+        "td": {"align"},
+        "th": {"align"},
+    }
+    void_tags = {"br", "hr", "img"}
+
+    def is_safe_url(value: str) -> bool:
+        parsed = urlparse(value.strip())
+        return (
+            not parsed.scheme
+            or parsed.scheme in {"http", "https", "mailto"}
+            or value.startswith("/")
+        )
+
+    def is_safe_style(value: str) -> bool:
+        lowered = value.lower()
+        if any(token in lowered for token in ("url", "expression", "javascript")):
+            return False
+        return all(char.isalnum() or char in " #:;.,%()-" for char in value)
+
+    class Sanitizer(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.parts: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
+            if tag not in allowed_tags:
+                return
+
+            clean_attrs = []
+            for name, value in attrs:
+                if name not in allowed_attrs.get(tag, set()) or value is None:
+                    continue
+                if name in {"href", "src"} and not is_safe_url(value):
+                    continue
+                if name == "style" and not is_safe_style(value):
+                    continue
+                if name in {"alt", "title"}:
+                    value = re.sub(r"on[a-z]+\s*=", "", value, flags=re.IGNORECASE)
+                clean_attrs.append(f'{name}="{escape(value, quote=True)}"')
+
+            attr_text = f" {' '.join(clean_attrs)}" if clean_attrs else ""
+            self.parts.append(f"<{tag}{attr_text}>")
+
+        def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]):
+            self.handle_starttag(tag, attrs)
+
+        def handle_endtag(self, tag: str):
+            if tag in allowed_tags and tag not in void_tags:
+                self.parts.append(f"</{tag}>")
+
+        def handle_data(self, data: str):
+            self.parts.append(escape(data))
+
+        def handle_entityref(self, name: str):
+            self.parts.append(f"&{name};")
+
+        def handle_charref(self, name: str):
+            self.parts.append(f"&#{name};")
+
+    sanitizer = Sanitizer()
+    sanitizer.feed(html_content)
+    sanitizer.close()
+    return "".join(sanitizer.parts)
 
 
 @router.post("/preview-markdown", response_model=MarkdownPreviewResponse)
@@ -1020,6 +1128,7 @@ async def preview_markdown(request: MarkdownPreviewRequest):
             processed_content,
             extensions=["tables", "fenced_code", "toc", "attr_list"],
         )
+        html = _sanitize_markdown_html(html)
         return MarkdownPreviewResponse(html=html)
     except ImportError:
         # Fallback: basic conversion without markdown library
@@ -1051,6 +1160,7 @@ async def preview_markdown(request: MarkdownPreviewRequest):
                 html_lines.append(f"<p>{line}</p>")
 
         html = "\n".join(html_lines)
+        html = _sanitize_markdown_html(html)
         return MarkdownPreviewResponse(html=html)
     except Exception as e:
         raise HTTPException(
