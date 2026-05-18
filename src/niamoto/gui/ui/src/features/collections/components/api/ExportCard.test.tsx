@@ -98,6 +98,24 @@ vi.mock('@/components/ui/switch', () => ({
   ),
 }))
 
+vi.mock('@/components/ui/input', () => ({
+  Input: (props: {
+    value?: string
+    onChange?: (event: { target: { value: string } }) => void
+    placeholder?: string
+  }) => (
+    <input
+      data-testid="data-source-input"
+      value={props.value ?? ''}
+      placeholder={props.placeholder}
+      onChange={(event) => props.onChange?.({ target: { value: event.target.value } })}
+      onInput={(event) =>
+        props.onChange?.({ target: { value: event.currentTarget.value } })
+      }
+    />
+  ),
+}))
+
 vi.mock('@/components/ui/select', () => ({
   Select: (props: {
     value?: string
@@ -331,6 +349,35 @@ describe('ExportCard auto-configuration', () => {
 
     expect(saveMutation).toHaveBeenCalledWith(
       expect.objectContaining({ data_source: 'plots' })
+    )
+  })
+
+  it('still allows entering a custom data source override', async () => {
+    await renderCard()
+
+    const input = container!.querySelector(
+      '[data-testid="data-source-input"]'
+    ) as HTMLInputElement
+
+    expect(input).toBeTruthy()
+
+    await act(async () => {
+      input.value = 'custom_stats_table'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    const saveButton = Array.from(container!.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('common:actions.save')
+    )
+
+    await act(async () => {
+      click(saveButton ?? null)
+      await Promise.resolve()
+    })
+
+    expect(saveMutation).toHaveBeenCalledWith(
+      expect.objectContaining({ data_source: 'custom_stats_table' })
     )
   })
 
