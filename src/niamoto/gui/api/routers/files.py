@@ -703,7 +703,7 @@ async def list_exports() -> Dict[str, Any]:
         if not exports_dir.exists():
             return {
                 "exists": False,
-                "path": str(exports_dir),
+                "path": "exports",
                 "web": [],
                 "api": [],
                 "dwc": [],
@@ -711,7 +711,7 @@ async def list_exports() -> Dict[str, Any]:
 
         result = {
             "exists": True,
-            "path": str(exports_dir),
+            "path": "exports",
             "web": [],
             "api": [],
             "dwc": [],
@@ -726,7 +726,6 @@ async def list_exports() -> Dict[str, Any]:
                     {
                         "name": item.name,
                         "path": str(rel_path),
-                        "full_path": str(item),
                         "size": item.stat().st_size,
                         "modified": item.stat().st_mtime,
                     }
@@ -741,7 +740,6 @@ async def list_exports() -> Dict[str, Any]:
                     {
                         "name": item.name,
                         "path": str(rel_path),
-                        "full_path": str(item),
                         "size": item.stat().st_size,
                         "modified": item.stat().st_mtime,
                     }
@@ -756,7 +754,6 @@ async def list_exports() -> Dict[str, Any]:
                     {
                         "name": item.name,
                         "path": str(rel_path),
-                        "full_path": str(item),
                         "size": item.stat().st_size,
                         "modified": item.stat().st_mtime,
                     }

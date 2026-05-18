@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
@@ -28,6 +30,38 @@ def test_read_export_file_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Access denied: file outside exports directory"
+
+
+def test_list_exports_does_not_expose_absolute_paths(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    exports_dir = work_dir / "exports"
+    web_dir = exports_dir / "web"
+    api_dir = exports_dir / "api"
+    dwc_dir = exports_dir / "dwc"
+    web_dir.mkdir(parents=True)
+    api_dir.mkdir()
+    dwc_dir.mkdir()
+    (web_dir / "index.html").write_text("<h1>Home</h1>", encoding="utf-8")
+    (api_dir / "taxons.json").write_text("[]", encoding="utf-8")
+    (dwc_dir / "archive.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.files.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/files/exports/list")
+
+    assert response.status_code == 200
+    data = response.json()
+    serialized = json.dumps(data)
+    assert data["path"] == "exports"
+    assert data["web"][0]["path"] == "web/index.html"
+    assert data["api"][0]["path"] == "api/taxons.json"
+    assert data["dwc"][0]["path"] == "dwc/archive.json"
+    assert "full_path" not in serialized
+    assert str(work_dir) not in serialized
 
 
 def test_serve_file_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
