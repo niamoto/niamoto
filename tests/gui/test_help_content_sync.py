@@ -153,6 +153,39 @@ in_app_docs: false
     assert [entry["slug"] for entry in search_index["entries"]] == ["06-reference"]
 
 
+def test_build_help_content_handles_opted_out_section_readme(tmp_path: Path):
+    docs_root = tmp_path / "docs"
+    output_root = tmp_path / "help_content"
+
+    _write(
+        docs_root / "02-workflow" / "README.md",
+        """---
+in_app_docs: false
+---
+# Workflow
+""",
+    )
+    _write(
+        docs_root / "02-workflow" / "import.md",
+        """# Import Data
+
+Configure the import pipeline.
+""",
+    )
+
+    result = build_help_content(docs_root=docs_root, output_root=output_root)
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert result.sections == 1
+    assert result.pages == 1
+    assert manifest["sections"][0]["path"] == "/help/02-workflow/import"
+    assert [page["slug"] for page in manifest["sections"][0]["pages"]] == [
+        "02-workflow/import"
+    ]
+    assert not (output_root / "pages" / "02-workflow.json").exists()
+    assert (output_root / "pages" / "02-workflow" / "import.json").exists()
+
+
 def test_build_help_content_embeds_html_pages_as_iframe_assets(tmp_path: Path):
     docs_root = tmp_path / "docs"
     output_root = tmp_path / "help_content"

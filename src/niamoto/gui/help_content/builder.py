@@ -394,15 +394,23 @@ def _order_section_pages(
     slug_lookup: dict[Path, str],
 ) -> list[SourcePage]:
     pages_by_slug = {page.slug: page for page in section_pages}
-    readme_page = next(page for page in section_pages if page.is_section_index)
-    ordered_slugs = [readme_page.slug]
+    readme_page = next(
+        (page for page in section_pages if page.is_section_index),
+        None,
+    )
+    ordered_slugs = [readme_page.slug] if readme_page else []
 
-    for linked_slug in _extract_readme_link_order(readme_page, docs_root, slug_lookup):
-        linked_page = pages_by_slug.get(linked_slug)
-        if linked_page is None:
-            continue
-        if linked_page.slug not in ordered_slugs:
-            ordered_slugs.append(linked_page.slug)
+    if readme_page is not None:
+        for linked_slug in _extract_readme_link_order(
+            readme_page,
+            docs_root,
+            slug_lookup,
+        ):
+            linked_page = pages_by_slug.get(linked_slug)
+            if linked_page is None:
+                continue
+            if linked_page.slug not in ordered_slugs:
+                ordered_slugs.append(linked_page.slug)
 
     for page in sorted(
         section_pages,
