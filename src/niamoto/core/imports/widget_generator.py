@@ -606,8 +606,11 @@ class WidgetGenerator:
             current += step
 
         # Limit to ~15 bins max
+        final_edge = bins[-1]
         while len(bins) > 15:
             bins = bins[::2]
+            if bins[-1] != final_edge:
+                bins.append(final_edge)
 
         return bins
 
