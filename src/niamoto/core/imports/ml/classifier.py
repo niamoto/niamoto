@@ -39,6 +39,7 @@ def _get_resource_path(*relatives: str) -> Path:
     Resolution order:
     1. bundle.py (PyInstaller frozen → sys._MEIPASS, source → project root)
     2. Package-relative (pip install → niamoto/ package directory)
+    3. Source-tree ancestors (checkout → repository-level ml/models)
     """
     for relative in relatives:
         try:
@@ -51,10 +52,19 @@ def _get_resource_path(*relatives: str) -> Path:
             pass
 
     package_root = Path(__file__).resolve().parents[3]
-    for relative in relatives:
-        path = package_root / relative
-        if path.exists():
-            return path
+    searched_paths = []
+    for root in [package_root, *package_root.parents]:
+        for relative in relatives:
+            path = root / relative
+            searched_paths.append(path)
+            if path.exists():
+                return path
+
+    logger.debug(
+        "ML resource not found for %s; searched: %s",
+        relatives[0],
+        [str(path) for path in searched_paths],
+    )
 
     return package_root / relatives[0]
 
