@@ -306,7 +306,7 @@ class TransformerSuggester:
         # Target ~10% of unique values, minimum 5, maximum 10
         # But never more than actual cardinality
         target_count = max(5, profile.cardinality // 10)
-        count = min(10, target_count, profile.cardinality)
+        count = max(1, min(10, target_count, profile.cardinality))
 
         return {
             "plugin": "top_ranking",
