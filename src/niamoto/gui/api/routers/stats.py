@@ -5,10 +5,11 @@ import html
 import io
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
@@ -34,7 +35,18 @@ from ..services.preview_utils import error_html, wrap_html_response
 router = APIRouter()
 logger = logging.getLogger(__name__)
 NIAMOTO_MAP_GREEN = "#2E7D32"
+DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 _WKT_NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+
+
+def _require_stats_mutation_auth(request: Request) -> None:
+    expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
+    if not expected_token:
+        return
+
+    provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
+    if provided_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
 
 
 # =============================================================================
@@ -4456,7 +4468,11 @@ async def get_validation_rules():
         )
 
 
-@router.put("/validation/rules", response_model=ValidationRules)
+@router.put(
+    "/validation/rules",
+    response_model=ValidationRules,
+    dependencies=[Depends(_require_stats_mutation_auth)],
+)
 async def update_validation_rules(rules: ValidationRules):
     """
     Save validation rules to config/validation.yml.
