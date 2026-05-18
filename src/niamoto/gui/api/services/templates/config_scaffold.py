@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from niamoto.gui.api.services.templates.config_service import (
+    TRANSFORM_CONFIG_WRITE_LOCK,
     find_export_group,
     find_transform_group,
     load_export_config,
@@ -121,40 +122,41 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
     # Récupérer le premier dataset comme source de données par défaut
     first_dataset = next(iter(datasets), None)
 
-    # Charger les configs existantes
-    transform_groups = load_transform_config(work_dir)
-    export_config = load_export_config(work_dir)
+    with TRANSFORM_CONFIG_WRITE_LOCK:
+        # Charger les configs existantes
+        transform_groups = load_transform_config(work_dir)
+        export_config = load_export_config(work_dir)
 
-    # Normaliser : exports peut être None si le YAML contient "exports:" sans valeur
-    if not export_config.get("exports"):
-        export_config["exports"] = []
+        # Normaliser : exports peut être None si le YAML contient "exports:" sans valeur
+        if not export_config.get("exports"):
+            export_config["exports"] = []
 
-    transform_added: List[str] = []
-    export_added: List[str] = []
+        transform_added: List[str] = []
+        export_added: List[str] = []
 
-    for ref_name, ref_config in references.items():
-        ref_config = ref_config if isinstance(ref_config, dict) else {}
-        kind = ref_config.get("kind", "generic")
+        for ref_name, ref_config in references.items():
+            ref_config = ref_config if isinstance(ref_config, dict) else {}
+            kind = ref_config.get("kind", "generic")
 
-        # --- Transform ---
-        if not find_transform_group(transform_groups, ref_name):
-            group = _build_transform_group(
-                work_dir, ref_name, kind, ref_config, first_dataset
-            )
-            transform_groups.append(group)
-            transform_added.append(ref_name)
+            # --- Transform ---
+            if not find_transform_group(transform_groups, ref_name):
+                group = _build_transform_group(
+                    work_dir, ref_name, kind, ref_config, first_dataset
+                )
+                transform_groups.append(group)
+                transform_added.append(ref_name)
 
-        # --- Export ---
-        if not find_export_group(export_config, ref_name):
-            _add_export_group(export_config, ref_name)
-            export_added.append(ref_name)
+            # --- Export ---
+            if not find_export_group(export_config, ref_name):
+                _add_export_group(export_config, ref_name)
+                export_added.append(ref_name)
 
-    # Sauvegarder si des changements ont été faits
-    changed = bool(transform_added or export_added)
-    if transform_added:
-        save_transform_config(work_dir, transform_groups, create_backup=True)
-    if export_added:
-        save_export_config(work_dir, export_config, create_backup=True)
+        # Sauvegarder si des changements ont été faits
+        changed = bool(transform_added or export_added)
+        if transform_added:
+            save_transform_config(work_dir, transform_groups, create_backup=True)
+        if export_added:
+            save_export_config(work_dir, export_config, create_backup=True)
 
     parts = []
     if transform_added:
