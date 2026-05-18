@@ -1283,6 +1283,54 @@ def test_export_outliers_csv_escapes_spreadsheet_formulas(
     assert outlier[headers.index("spaced_note")] == "'  @cmd"
 
 
+def test_export_outliers_csv_rejects_invalid_percentile_threshold(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences/export-outliers",
+        params={"column": "count", "method": "percentile", "threshold": "-1"},
+    )
+
+    assert response.status_code == 422
+    assert "Percentile threshold" in response.json()["detail"]
+
+
+def test_export_outliers_csv_rejects_inverted_percentile_threshold(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences/export-outliers",
+        params={"column": "count", "method": "percentile", "threshold": "150"},
+    )
+
+    assert response.status_code == 422
+    assert "Percentile threshold" in response.json()["detail"]
+
+
+def test_export_outliers_csv_rejects_unknown_method(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences/export-outliers",
+        params={"column": "count", "method": "unknown", "threshold": "1.5"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_export_outliers_csv_accepts_valid_percentile_request(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences/export-outliers",
+        params={"column": "count", "method": "percentile", "threshold": "5"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.text.splitlines()[0].startswith("count,")
+
+
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
 ):

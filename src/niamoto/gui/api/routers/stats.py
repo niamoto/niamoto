@@ -51,6 +51,32 @@ def _require_stats_mutation_auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
 
 
+def _validate_outlier_export_params(
+    method: Literal["iqr", "zscore", "percentile"], threshold: float
+) -> None:
+    if method == "percentile":
+        if threshold < 0 or threshold >= 50:
+            raise HTTPException(
+                status_code=422,
+                detail="Percentile threshold must be greater than or equal to 0 and less than 50.",
+            )
+        return
+
+    if method == "zscore":
+        if threshold <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Z-score threshold must be greater than 0.",
+            )
+        return
+
+    if threshold < 0:
+        raise HTTPException(
+            status_code=422,
+            detail="IQR threshold must be greater than or equal to 0.",
+        )
+
+
 def _escape_csv_spreadsheet_cell(value: Any) -> Any:
     if isinstance(value, str) and value.lstrip().startswith(_CSV_FORMULA_PREFIXES):
         return "'" + value
@@ -3702,7 +3728,7 @@ async def get_value_validation(
 async def export_outliers_csv(
     entity: str,
     column: str = Query(..., description="Column to analyze for outliers"),
-    method: str = Query(
+    method: Literal["iqr", "zscore", "percentile"] = Query(
         default="iqr", description="Detection method: iqr, zscore, percentile"
     ),
     threshold: float = Query(default=1.5, description="Detection threshold"),
@@ -3713,6 +3739,8 @@ async def export_outliers_csv(
     Returns a CSV file with all records that are detected as outliers
     according to the specified method and threshold.
     """
+    _validate_outlier_export_params(method, threshold)
+
     db_path = get_database_path()
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
