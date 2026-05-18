@@ -147,6 +147,40 @@ def _api_export_target_looks_like_dwc(export_target: Dict[str, Any]) -> bool:
     )
 
 
+def _normalized_relative_parts(raw_path: Any, field_name: str) -> List[str]:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise HTTPException(status_code=400, detail=f"{field_name} must not be empty")
+
+    normalized_path = raw_path.strip().replace("\\", "/")
+    path = Path(normalized_path)
+    if path.is_absolute() or normalized_path.startswith("/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} must be relative to the project directory",
+        )
+
+    parts = [part for part in normalized_path.split("/") if part not in ("", ".")]
+    if any(part == ".." for part in parts):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} must not contain parent directory segments",
+        )
+    return parts
+
+
+def _validate_api_export_target_params(params: Dict[str, Any]) -> None:
+    output_parts = _normalized_relative_parts(params.get("output_dir"), "output_dir")
+    if not output_parts or output_parts[0] != "exports":
+        raise HTTPException(
+            status_code=400,
+            detail="output_dir must stay within the exports directory",
+        )
+
+    for field_name in ("detail_output_pattern", "index_output_pattern"):
+        if field_name in params and params[field_name] is not None:
+            _normalized_relative_parts(params[field_name], field_name)
+
+
 def _validate_import_config_content(
     content: Dict[str, Any], validation_result: Dict[str, Any]
 ) -> None:
@@ -2417,6 +2451,7 @@ async def create_api_export_target(
                 detail=f"Unknown template '{body.template}'. Use: simple, dwc",
             )
 
+        _validate_api_export_target_params(new_target["params"])
         export_config.setdefault("exports", []).append(new_target)
         _validate_export_config_or_raise(export_config)
         _save_export_config(export_config)
@@ -2475,6 +2510,7 @@ async def update_api_export_target_settings(
                 status_code=404, detail=f"API export target '{export_name}' not found"
             )
 
+        _validate_api_export_target_params(config.params)
         export_target["enabled"] = config.enabled
         export_target["params"] = config.params
 
