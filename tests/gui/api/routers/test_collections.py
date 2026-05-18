@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+from copy import deepcopy
+import threading
+import time
+
 import yaml
+
+from niamoto.gui.api.routers import collections
 
 
 def test_list_collections_returns_reviewable_candidates(
@@ -82,6 +89,80 @@ def test_create_manual_collection_from_dataset_persists_non_page_collection(
         "type": "dataset",
         "name": "occurrences",
     }
+
+
+def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatch):
+    current_import_config = {
+        "entities": {"datasets": {"occurrences": {}}, "references": {"taxons": {}}},
+        "metadata": {"collections": {}},
+    }
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    class FakeCatalogService:
+        def __init__(self):
+            with config_lock:
+                self.import_config = deepcopy(current_import_config)
+
+        def create_collection(self, **payload):
+            collections_config = self.import_config.setdefault(
+                "metadata", {}
+            ).setdefault("collections", {})
+            collections_config[payload["name"]] = {
+                "source": {
+                    "type": payload["source_type"],
+                    "name": payload["source_name"],
+                },
+                "grain": payload.get("grain"),
+                "roles": payload.get("roles", []),
+            }
+            return {"name": payload["name"]}
+
+    def fake_save_service_config(service):
+        nonlocal current_import_config
+        collections_config = service.import_config["metadata"]["collections"]
+        if "first_collection" in collections_config and len(collections_config) == 1:
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_import_config = deepcopy(service.import_config)
+
+    monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
+    monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
+
+    def make_request(name: str) -> collections.CollectionCreateRequest:
+        return collections.CollectionCreateRequest(
+            name=name,
+            source_type="dataset",
+            source_name="occurrences",
+            grain="occurrence",
+            roles=["api"],
+        )
+
+    def create(name: str):
+        try:
+            asyncio.run(collections.create_collection(make_request(name)))
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=create, args=("first_collection",))
+    second = threading.Thread(target=create, args=("second_collection",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    saved_collections = current_import_config["metadata"]["collections"]
+    assert set(saved_collections) == {"first_collection", "second_collection"}
 
 
 def test_create_manual_collection_rejects_unknown_source_without_writing(
