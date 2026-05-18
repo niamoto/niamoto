@@ -28,3 +28,17 @@ def test_archived_optimized_test_runner_uses_repository_root():
     )
 
     assert script_globals["repository_root"]() == REPO_ROOT
+
+
+def test_archived_debug_scripts_use_repository_root():
+    for script_name in (
+        "trace_flow.py",
+        "test_auto_detection.py",
+        "test_auto_suggestions.py",
+        "test_pattern_matching.py",
+    ):
+        script_path = REPO_ROOT / "scripts" / "_archive" / "debug" / script_name
+        script_source = script_path.read_text(encoding="utf-8")
+
+        assert "REPO_ROOT = Path(__file__).resolve().parents[3]" in script_source
+        assert 'REPO_ROOT / "src"' in script_source
