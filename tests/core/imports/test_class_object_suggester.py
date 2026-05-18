@@ -27,7 +27,9 @@ def make_class_object(
         cardinality=cardinality,
         class_names=class_names or ["Dense", "Open"],
         value_type=value_type,
-        sample_values=sample_values or [45.0, 35.0, 20.0],
+        sample_values=sample_values
+        if sample_values is not None
+        else [45.0, 35.0, 20.0],
         suggested_plugin=suggested_plugin,
         confidence=confidence,
     )
@@ -166,6 +168,28 @@ def test_field_aggregator_uses_safe_default_when_samples_are_missing():
         "value_field": "species_count.value",
         "max_value": 100,
     }
+
+
+def test_field_aggregator_uses_positive_sample_headroom_for_gauge():
+    suggester = ClassObjectWidgetSuggester()
+    class_object = make_class_object(
+        name="species_count",
+        cardinality=1,
+        class_names=[],
+        sample_values=[150.0],
+        suggested_plugin="field_aggregator",
+    )
+
+    suggestion = suggester.suggest_for_class_object(
+        class_object,
+        source_name="plot_stats",
+        reference_name="plots",
+    )
+
+    assert suggestion is not None
+    assert suggestion.widget_plugin == "radial_gauge"
+    assert suggestion.widget_params["max_value"] == 200
+    assert suggestion.widget_params["max_value"] >= 150.0
 
 
 def test_suggest_from_source_returns_sorted_suggestions(monkeypatch):
