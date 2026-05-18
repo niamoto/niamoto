@@ -232,6 +232,41 @@ class TestWidgetPlugin(NiamotoTestCase):
         self.assertIn(widget_content_html, result)
         self.assertTrue(result.strip().endswith("</div>"))
 
+    def test_get_container_html_escapes_config_metadata(self):
+        """Test container metadata cannot inject HTML or attributes."""
+        plugin = ConcreteWidgetPlugin(MagicMock())
+
+        mock_widget_config = MagicMock(spec=["title", "description", "params"])
+        mock_widget_config.title = '<img src=x onerror="alert(1)">'
+        mock_widget_config.description = 'Bad "tooltip" <script>alert(1)</script>'
+        mock_widget_config.params = {
+            "width": '10px;" onclick="alert(1)',
+            "height": "50%; background:url(javascript:alert(1))",
+            "class_name": 'safe-class bad"class another_safe',
+        }
+
+        result = plugin.get_container_html(
+            widget_id='widget-123" onclick="alert(1)',
+            content='<div class="trusted-widget-content"></div>',
+            config=mock_widget_config,
+        )
+
+        self.assertIn("widget-123&quot; onclick=&quot;alert(1)", result)
+        self.assertIn("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;", result)
+        self.assertIn(
+            'data-tooltip="Bad &quot;tooltip&quot; &lt;script&gt;alert(1)&lt;/script&gt;"',
+            result,
+        )
+        self.assertIn(
+            "Bad &quot;tooltip&quot; &lt;script&gt;alert(1)&lt;/script&gt;",
+            result,
+        )
+        self.assertIn('class="widget widget-modern safe-class another_safe"', result)
+        self.assertIn('style="width:auto; height:auto;"', result)
+        self.assertIn('<div class="trusted-widget-content"></div>', result)
+        self.assertNotIn("<script>alert(1)</script>", result)
+        self.assertNotIn('onclick="alert(1)"', result)
+
 
 class TestRegisterDecorator(NiamotoTestCase):
     """Tests for the @register decorator."""
