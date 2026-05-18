@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
+import duckdb
 import pytest
 import pandas as pd
 
@@ -603,6 +605,63 @@ def test_merge_source_enrichment_data_keeps_existing_sources():
     assert merged["api_enrichment"]["sources"]["gbif"]["status"] == "completed"
 
 
+def test_save_source_enrichment_merges_with_current_database_extra_data(
+    monkeypatch, tmp_path
+):
+    """Saving must merge with the row's latest extra_data, not a stale job snapshot."""
+
+    db_dir = tmp_path / "db"
+    db_dir.mkdir()
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE taxons (id INTEGER, extra_data JSON)")
+        conn.execute(
+            "INSERT INTO taxons VALUES (?, ?)",
+            [
+                1,
+                json.dumps({"notes": {"concurrent": True}}),
+            ],
+        )
+    finally:
+        conn.close()
+
+    source = enrichment_service.EnrichmentSourceConfig(
+        id="gbif",
+        label="GBIF",
+        enabled=True,
+        api_url="https://api.gbif.org/v1/species/match",
+    )
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_reference_table_name",
+        lambda _reference_name: "taxons",
+    )
+
+    merged = enrichment_service._save_source_enrichment_to_db(
+        "taxons",
+        1,
+        source,
+        {"usage_key": 987654},
+        {"notes": {"stale": True}},
+    )
+
+    assert merged is not None
+    assert merged["notes"] == {"concurrent": True}
+    assert merged["api_enrichment"]["sources"]["gbif"]["data"] == {"usage_key": 987654}
+
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        stored = json.loads(
+            conn.execute("SELECT CAST(extra_data AS VARCHAR) FROM taxons").fetchone()[0]
+        )
+    finally:
+        conn.close()
+    assert stored["notes"] == {"concurrent": True}
+    assert stored["api_enrichment"]["sources"]["gbif"]["data"] == {"usage_key": 987654}
+
+
 def test_delete_source_enrichment_data_keeps_other_sources():
     """Deleting one source must preserve other source payloads and extra_data keys."""
 
@@ -633,6 +692,64 @@ def test_delete_source_enrichment_data_keeps_other_sources():
     assert updated["notes"] == {"reviewed": True}
     assert "gbif" not in updated["api_enrichment"]["sources"]
     assert updated["api_enrichment"]["sources"]["endemia"]["data"] == {"api_id": 12}
+
+
+def test_delete_source_enrichment_merges_with_current_database_extra_data(
+    monkeypatch, tmp_path
+):
+    """Deleting must preserve extra_data written after the job loaded its rows."""
+
+    db_dir = tmp_path / "db"
+    db_dir.mkdir()
+    db_path = db_dir / "niamoto.duckdb"
+    current_extra_data = {
+        "notes": {"concurrent": True},
+        "api_enrichment": {
+            "sources": {
+                "endemia": {"label": "Endemia", "data": {"api_id": 12}},
+                "gbif": {"label": "GBIF", "data": {"usage_key": 987654}},
+            }
+        },
+    }
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE taxons (id INTEGER, extra_data JSON)")
+        conn.execute(
+            "INSERT INTO taxons VALUES (?, ?)",
+            [1, json.dumps(current_extra_data)],
+        )
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(enrichment_service, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        enrichment_service,
+        "_get_reference_table_name",
+        lambda _reference_name: "taxons",
+    )
+
+    updated = enrichment_service._delete_source_enrichment_from_db(
+        "taxons",
+        1,
+        "gbif",
+        {"notes": {"stale": True}},
+    )
+
+    assert updated is not None
+    assert updated["notes"] == {"concurrent": True}
+    assert "gbif" not in updated["api_enrichment"]["sources"]
+    assert updated["api_enrichment"]["sources"]["endemia"]["data"] == {"api_id": 12}
+
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        stored = json.loads(
+            conn.execute("SELECT CAST(extra_data AS VARCHAR) FROM taxons").fetchone()[0]
+        )
+    finally:
+        conn.close()
+    assert stored["notes"] == {"concurrent": True}
+    assert "gbif" not in stored["api_enrichment"]["sources"]
+    assert stored["api_enrichment"]["sources"]["endemia"]["data"] == {"api_id": 12}
 
 
 def test_delete_source_enrichment_data_cleans_empty_container():
