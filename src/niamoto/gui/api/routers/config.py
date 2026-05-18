@@ -1851,11 +1851,21 @@ async def update_export_widget(
     """
     try:
         export_config = _load_export_config()
+        exports = export_config.setdefault("exports", [])
+        for export_entry in exports:
+            if (
+                isinstance(export_entry, dict)
+                and export_entry.get("exporter") == "html_page_exporter"
+            ):
+                params = export_entry.setdefault("params", {})
+                params.setdefault("template_dir", "templates/")
+                params.setdefault("output_dir", "exports/web")
+                export_entry.setdefault("static_pages", [])
 
         # Find the export entry with groups
         target_group = None
 
-        for export_entry in export_config.get("exports", []):
+        for export_entry in exports:
             groups = export_entry.get("groups") or export_entry.get("params", {}).get(
                 "groups", []
             )
@@ -1873,7 +1883,6 @@ async def update_export_widget(
                     status_code=404,
                     detail=f"Group '{group_by}' not found in export config and is not a known reference in import.yml",
                 )
-            exports = export_config.setdefault("exports", [])
             web_export = None
             for entry in exports:
                 if isinstance(entry, dict) and entry.get("name") == "web_pages":
@@ -1884,9 +1893,19 @@ async def update_export_widget(
                     "name": "web_pages",
                     "enabled": True,
                     "exporter": "html_page_exporter",
+                    "params": {
+                        "template_dir": "templates/",
+                        "output_dir": "exports/web",
+                    },
+                    "static_pages": [],
                     "groups": [],
                 }
                 exports.append(web_export)
+            else:
+                params = web_export.setdefault("params", {})
+                params.setdefault("template_dir", "templates/")
+                params.setdefault("output_dir", "exports/web")
+                web_export.setdefault("static_pages", [])
             target_group = {"group_by": group_by, "widgets": []}
             web_export.setdefault("groups", []).append(target_group)
 
@@ -1932,6 +1951,7 @@ async def update_export_widget(
         else:
             target_group["widgets"].append(new_widget)
 
+        _validate_export_config_or_raise(export_config)
         _save_export_config(export_config)
 
         return new_widget
