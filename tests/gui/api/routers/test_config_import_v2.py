@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
+from niamoto.core.imports.config_models import GenericImportConfig
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
 
@@ -277,3 +278,44 @@ def test_validate_import_config_accepts_entities_schema():
 
     assert response.status_code == 200
     assert response.json() == {"valid": True, "errors": [], "warnings": []}
+
+
+def test_import_v2_schema_matches_accepted_entities_shape():
+    client = TestClient(create_app())
+    import_config = {
+        "entities": {
+            "references": {
+                "taxonomy": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/taxonomy.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                }
+            },
+            "datasets": {
+                "occurrences": {
+                    "connector": {
+                        "type": "file",
+                        "format": "csv",
+                        "path": "imports/occurrences.csv",
+                    },
+                    "schema": {"id_field": "id", "fields": []},
+                }
+            },
+        }
+    }
+
+    response = client.get("/api/config/import/v2/schema")
+
+    assert response.status_code == 200
+    GenericImportConfig.model_validate(import_config)
+    schema = response.json()
+    assert schema["required"] == ["entities"]
+    assert schema["$defs"]["ReferenceEntityConfig"]["required"] == ["connector"]
+    assert schema["$defs"]["EntitySchema"]["properties"]["fields"]["type"] == "array"
+    assert (
+        schema["$defs"]["ReferenceEntityConfig"]["properties"]["enrichment"]["type"]
+        == "array"
+    )
