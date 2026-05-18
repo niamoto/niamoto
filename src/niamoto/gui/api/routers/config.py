@@ -1,7 +1,10 @@
 """Configuration management API endpoints for reading and updating YAML configs."""
 
 from copy import deepcopy
+import os
 from pathlib import Path
+import tempfile
+import threading
 from typing import Dict, Any, Literal, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
@@ -37,6 +40,7 @@ from niamoto.core.imports.config_models import GenericImportConfig
 
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
+IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
 
 
 # Wrapper functions for backward compatibility (use get_working_directory)
@@ -273,6 +277,35 @@ def create_backup(config_path: Path) -> Optional[Path]:
             continue
 
     raise RuntimeError(f"Could not create a unique backup for {config_path.name}")
+
+
+def _write_yaml_atomic(config_path: Path, content: Any) -> None:
+    """Write YAML through a same-directory temp file and atomic replace."""
+    temp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=config_path.parent,
+            prefix=f".{config_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            yaml.safe_dump(
+                content,
+                temp_file,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+
+        temp_path.replace(config_path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
 
 
 @router.get("/project")
@@ -612,27 +645,26 @@ async def update_reference_config(
         raise HTTPException(status_code=404, detail="import.yml not found")
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            import_config = yaml.safe_load(f) or {}
+        with IMPORT_CONFIG_WRITE_LOCK:
+            with open(config_path, "r", encoding="utf-8") as f:
+                import_config = yaml.safe_load(f) or {}
 
-        entities = import_config.get("entities") or {}
-        refs_section = entities.get("references") or {}
+            entities = import_config.get("entities") or {}
+            refs_section = entities.get("references") or {}
 
-        if reference_name not in refs_section:
-            raise HTTPException(
-                status_code=404, detail=f"Reference '{reference_name}' not found"
-            )
+            if reference_name not in refs_section:
+                raise HTTPException(
+                    status_code=404, detail=f"Reference '{reference_name}' not found"
+                )
 
-        # Backup before modifying
-        create_backup(config_path)
+            # Backup before modifying
+            create_backup(config_path)
 
-        # Update the reference config
-        refs_section[reference_name] = config
-        import_config["entities"]["references"] = refs_section
+            # Update the reference config
+            refs_section[reference_name] = config
+            import_config["entities"]["references"] = refs_section
 
-        # Write back
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+            _write_yaml_atomic(config_path, import_config)
 
         return {
             "success": True,
