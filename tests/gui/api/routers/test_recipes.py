@@ -3,7 +3,9 @@
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
+from niamoto.core.plugins.base import PluginType
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import recipes
 from niamoto.gui.api.routers.recipes import SourceInfo
@@ -163,6 +165,63 @@ def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
     payload = response.json()
     assert payload["source_name"] == "occurrences"
     assert payload["table_name"] == "dataset_occurrences"
+
+
+def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_path):
+    class RequiredTransformerParams(BaseModel):
+        source: str
+
+    class RequiredTransformer:
+        param_schema = RequiredTransformerParams
+
+    class RequiredWidgetParams(BaseModel):
+        value_field: str
+
+    class RequiredWidget:
+        param_schema = RequiredWidgetParams
+
+    def fake_get_plugin(name, plugin_type):
+        if plugin_type == PluginType.TRANSFORMER and name == "required_transformer":
+            return RequiredTransformer
+        if plugin_type == PluginType.WIDGET and name == "required_widget":
+            return RequiredWidget
+        raise KeyError(name)
+
+    saved_transform_configs = []
+    saved_export_configs = []
+    monkeypatch.setattr(
+        recipes.PluginRegistry, "get_plugin", staticmethod(fake_get_plugin)
+    )
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        recipes,
+        "save_transform_config",
+        lambda _work_dir, config: saved_transform_configs.append(config),
+    )
+    monkeypatch.setattr(
+        recipes,
+        "save_export_config",
+        lambda _work_dir, config: saved_export_configs.append(config),
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/recipes/save",
+        json={
+            "group_by": "taxons",
+            "recipe": {
+                "widget_id": "bad_widget",
+                "transformer": {"plugin": "required_transformer", "params": {}},
+                "widget": {"plugin": "required_widget", "params": {}},
+            },
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert "transformer.params.source" in response.text
+    assert "widget.params.value_field" in response.text
+    assert saved_transform_configs == []
+    assert saved_export_configs == []
 
 
 def test_reorder_widgets_preserves_unresolved_widgets(monkeypatch, tmp_path):

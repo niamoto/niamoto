@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
@@ -247,6 +247,82 @@ class ValidateRecipeResponse(BaseModel):
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+
+def _append_model_validation_errors(
+    errors: list[ValidationError],
+    *,
+    field_prefix: str,
+    model: type | None,
+    value: Any,
+) -> None:
+    """Append field-level validation errors from a Pydantic model."""
+    if model is None or not hasattr(model, "model_validate"):
+        return
+
+    try:
+        model.model_validate(value)
+    except PydanticValidationError as exc:
+        for error in exc.errors():
+            location = ".".join(str(part) for part in error.get("loc", ()))
+            field = f"{field_prefix}.{location}" if location else field_prefix
+            errors.append(
+                ValidationError(
+                    field=field,
+                    message=error.get("msg", "Invalid parameter"),
+                )
+            )
+
+
+def _append_params_validation_errors(
+    errors: list[ValidationError],
+    *,
+    field_prefix: str,
+    params_model: type | None,
+    params: dict[str, Any],
+) -> None:
+    """Validate recipe params with a plugin Pydantic model."""
+    _append_model_validation_errors(
+        errors,
+        field_prefix=field_prefix,
+        model=params_model,
+        value=params,
+    )
+
+
+def _get_transformer_params_validation_model(plugin_class: type) -> type | None:
+    """Return the Pydantic model that validates transformer params."""
+    param_schema = getattr(plugin_class, "param_schema", None)
+    if param_schema is not None:
+        return param_schema
+
+    return _find_params_model(plugin_class)
+
+
+def _append_transformer_validation_errors(
+    errors: list[ValidationError],
+    *,
+    plugin_name: str,
+    plugin_class: type,
+    params: dict[str, Any],
+) -> None:
+    """Validate transformer params against the most specific available schema."""
+    params_model = _get_transformer_params_validation_model(plugin_class)
+    if params_model is not None:
+        _append_params_validation_errors(
+            errors,
+            field_prefix="transformer.params",
+            params_model=params_model,
+            params=params,
+        )
+        return
+
+    _append_model_validation_errors(
+        errors,
+        field_prefix="transformer",
+        model=getattr(plugin_class, "config_model", None),
+        value={"plugin": plugin_name, "params": params},
+    )
 
 
 def _get_table_columns(db: Database, table_name: str) -> list[str]:
@@ -1116,10 +1192,12 @@ async def validate_recipe(request: SaveRecipeRequest):
     """
     errors = []
     warnings = []
+    transformer_class = None
+    widget_class = None
 
     # Check transformer exists
     try:
-        PluginRegistry.get_plugin(
+        transformer_class = PluginRegistry.get_plugin(
             request.recipe.transformer.plugin, PluginType.TRANSFORMER
         )
     except Exception:
@@ -1132,13 +1210,31 @@ async def validate_recipe(request: SaveRecipeRequest):
 
     # Check widget exists
     try:
-        PluginRegistry.get_plugin(request.recipe.widget.plugin, PluginType.WIDGET)
+        widget_class = PluginRegistry.get_plugin(
+            request.recipe.widget.plugin, PluginType.WIDGET
+        )
     except Exception:
         errors.append(
             ValidationError(
                 field="widget.plugin",
                 message=f"Widget '{request.recipe.widget.plugin}' not found",
             )
+        )
+
+    if transformer_class is not None:
+        _append_transformer_validation_errors(
+            errors,
+            plugin_name=request.recipe.transformer.plugin,
+            plugin_class=transformer_class,
+            params=request.recipe.transformer.params,
+        )
+
+    if widget_class is not None:
+        _append_params_validation_errors(
+            errors,
+            field_prefix="widget.params",
+            params_model=getattr(widget_class, "param_schema", None),
+            params=request.recipe.widget.params,
         )
 
     # Check widget_id is valid
