@@ -1,9 +1,45 @@
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 import requests
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+
+
+@pytest.mark.parametrize(
+    ("filename", "analyzer_name", "expected_type"),
+    [
+        ("DATA.CSV", "analyze_csv", "csv"),
+        ("Workbook.XLSX", "analyze_excel", "excel"),
+    ],
+)
+def test_analyze_file_accepts_uppercase_supported_extensions(
+    filename: str, analyzer_name: str, expected_type: str
+):
+    client = TestClient(create_app())
+    analyzer = AsyncMock(
+        return_value={
+            "filename": filename,
+            "type": expected_type,
+        }
+    )
+
+    with patch(f"niamoto.gui.api.routers.files.{analyzer_name}", analyzer):
+        response = client.post(
+            "/api/files/analyze",
+            files={"file": (filename, b"col\nvalue\n")},
+            data={"entity_type": "taxon"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "filename": filename,
+        "type": expected_type,
+        "entity_type": "taxon",
+        "suggestions": {},
+    }
+    analyzer.assert_awaited_once()
 
 
 def test_test_api_connection_uses_requests_stack():
