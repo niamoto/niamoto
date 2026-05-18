@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
 MAX_IMPORT_EVENTS = 40
+ACTIVE_IMPORT_STATUSES = {"pending", "running"}
 
 
 def _now_iso() -> str:
@@ -157,6 +158,24 @@ def _job_progress(processed_entities: int, total_entities: int) -> int:
     return 15 + int(ratio * 75)
 
 
+def _working_directory_key(work_dir: Any) -> str:
+    try:
+        return str(work_dir.resolve())
+    except Exception:
+        return str(work_dir)
+
+
+def _find_active_import_all_job(working_directory: str) -> Dict[str, Any] | None:
+    for job in import_jobs.values():
+        if (
+            job.get("import_type") == "all"
+            and job.get("working_directory") == working_directory
+            and job.get("status") in ACTIVE_IMPORT_STATUSES
+        ):
+            return job
+    return None
+
+
 class ImportStatus(BaseModel):
     """Status of a particular entity import."""
 
@@ -188,6 +207,22 @@ async def execute_import_all(
     reset_table: bool = Form(False),
 ) -> ImportJobResponse:
     """Execute import of all entities from generic configuration."""
+    from ..context import get_working_directory
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=400, detail="Working directory not set")
+
+    working_directory = _working_directory_key(work_dir)
+    active_job = _find_active_import_all_job(working_directory)
+    if active_job is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "An import-all job is already pending or running",
+                "job_id": active_job.get("id"),
+            },
+        )
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -197,6 +232,7 @@ async def execute_import_all(
         "id": job_id,
         "status": "pending",
         "import_type": "all",
+        "working_directory": working_directory,
         "created_at": datetime.utcnow().isoformat(),
         "started_at": None,
         "completed_at": None,
