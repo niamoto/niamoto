@@ -135,10 +135,13 @@ class SummaryStatsWidget(WidgetPlugin):
                 for stat in params.include_stats:
                     if stat in valid_stats:
                         stats_to_keep_final.append(stat)
-                    elif f"{stat * 100:.0f}%" in percentile_strs:
-                        stats_to_keep_final.append(
-                            f"{stat * 100:.0f}%"
-                        )  # Match the format from describe
+                        continue
+                    try:
+                        percentile_label = f"{float(stat) * 100:.0f}%"
+                    except (TypeError, ValueError):
+                        continue
+                    if percentile_label in percentile_strs:
+                        stats_to_keep_final.append(percentile_label)
 
                 if not stats_to_keep_final:
                     logger.warning(

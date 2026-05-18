@@ -244,10 +244,11 @@ class TestSummaryStatsWidget(NiamotoTestCase):
 
         result = self.widget.render(df, params)
 
-        # The widget has a bug where it tries to do stat * 100 on string stats
-        # This will cause a ValueError for string multiplication
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Error calculating statistics", result)
+        # No requested stats are valid, so the widget falls back to default stats.
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("<table", result)
+        self.assertIn("count", result)
+        self.assertIn("mean", result)
 
     def test_render_with_mixed_valid_invalid_stats(self):
         """Test rendering with mix of valid and invalid include_stats."""
@@ -259,10 +260,12 @@ class TestSummaryStatsWidget(NiamotoTestCase):
 
         result = self.widget.render(df, params)
 
-        # The widget has a bug where it tries to do stat * 100 on string stats
-        # This will cause a ValueError for string multiplication
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Error calculating statistics", result)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("<table", result)
+        self.assertIn("count", result)
+        self.assertIn("mean", result)
+        self.assertIn("std", result)
+        self.assertNotIn("invalid_stat", result)
 
     def test_render_with_title_and_description(self):
         """Test rendering with title and description."""
