@@ -49,6 +49,31 @@ def test_update_import_config_writes_plots_without_advanced_options(tmp_path):
     }
 
 
+def test_update_import_config_removes_plots_with_advanced_options(tmp_path):
+    config_path = tmp_path / "import.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "plots": {"path": "imports/plots.csv"},
+                "taxonomy": {"path": "imports/taxonomy.csv"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    update_import_config(
+        config_path=config_path,
+        import_type="plots",
+        filename="null",
+        field_mappings={},
+        advanced_options={"linkField": "plot_id"},
+    )
+
+    assert yaml.safe_load(config_path.read_text(encoding="utf-8")) == {
+        "taxonomy": {"path": "imports/taxonomy.csv"}
+    }
+
+
 def test_update_import_config_adds_taxonomy_api_enrichment_defaults(tmp_path):
     config_path = tmp_path / "import.yml"
 

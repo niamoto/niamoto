@@ -102,6 +102,9 @@ def update_import_config(
         if not filename or filename == "null":
             if "plots" in config:
                 del config["plots"]
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+            return
         else:
             plots_config = {
                 "type": "csv",
