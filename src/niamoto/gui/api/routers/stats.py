@@ -3167,7 +3167,9 @@ async def get_value_validation(
                                 )
                             )
                             median_val = result.scalar()
-                            median_val = float(median_val) if median_val else None
+                            median_val = (
+                                float(median_val) if median_val is not None else None
+                            )
                         except Exception as exc:
                             logger.debug(
                                 "Median computation failed for %s.%s: %s",
