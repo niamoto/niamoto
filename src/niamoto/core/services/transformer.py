@@ -220,7 +220,9 @@ class TransformerService:
         available_sources = (
             list(group_data.keys()) if hasattr(group_data, "keys") else []
         )
-        source_requested = widget_config.get("params", {}).get("source")
+        source_requested = widget_config.get("source") or widget_config.get(
+            "params", {}
+        ).get("source")
 
         if isinstance(group_data, dict):
             if source_requested and source_requested not in group_data:
