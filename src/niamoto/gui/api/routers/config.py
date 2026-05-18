@@ -206,13 +206,22 @@ def create_backup(config_path: Path) -> Optional[Path]:
     if not config_path.exists():
         return None
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_dir = get_working_directory() / "config" / "backups"
     backup_dir.mkdir(exist_ok=True)
 
-    backup_path = backup_dir / f"{config_path.stem}_{timestamp}.yml"
-    shutil.copy2(config_path, backup_path)
-    return backup_path
+    for attempt in range(1000):
+        suffix = "" if attempt == 0 else f"_{attempt}"
+        backup_path = backup_dir / f"{config_path.stem}_{timestamp}{suffix}.yml"
+        try:
+            with config_path.open("rb") as source, backup_path.open("xb") as backup:
+                shutil.copyfileobj(source, backup)
+            shutil.copystat(config_path, backup_path)
+            return backup_path
+        except FileExistsError:
+            continue
+
+    raise RuntimeError(f"Could not create a unique backup for {config_path.name}")
 
 
 @router.get("/project")
