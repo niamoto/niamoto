@@ -1,8 +1,10 @@
 import asyncio
 from types import SimpleNamespace
 
+from fastapi.testclient import TestClient
 
 from niamoto.core.imports.config_models import ConnectorType
+from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import imports
 
 
@@ -163,6 +165,49 @@ def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path)
     assert job["events"][-1]["kind"] == "error"
     assert "Import failed" in job["events"][-1]["message"]
     assert job["events"][-1]["details"]["error_type"] == "RuntimeError"
+
+
+def test_get_job_status_redacts_internal_tracebacks():
+    job_id = "job-redacted"
+    imports.import_jobs[job_id] = _base_job(job_id)
+    imports.import_jobs[job_id].update(
+        {
+            "status": "failed",
+            "error_details": {
+                "message": "boom",
+                "error_type": "RuntimeError",
+                "traceback": "Traceback with /private/project/path",
+                "cause": {
+                    "message": "inner",
+                    "traceback": "Nested traceback",
+                },
+            },
+            "events": [
+                {
+                    "kind": "error",
+                    "message": "Import failed",
+                    "details": {
+                        "message": "boom",
+                        "error_type": "RuntimeError",
+                        "traceback": "Event traceback",
+                    },
+                }
+            ],
+        }
+    )
+
+    try:
+        client = TestClient(create_app())
+        response = client.get(f"/api/imports/jobs/{job_id}")
+    finally:
+        imports.import_jobs.pop(job_id, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["error_details"]["message"] == "boom"
+    assert "traceback" not in payload["error_details"]
+    assert "traceback" not in payload["error_details"]["cause"]
+    assert "traceback" not in payload["events"][0]["details"]
 
 
 def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):
