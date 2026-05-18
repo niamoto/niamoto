@@ -516,10 +516,21 @@ def _create_backup(file_path: Path) -> Optional[Path]:
     backup_dir = file_path.parent / "backups"
     backup_dir.mkdir(exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = backup_dir / f"{file_path.stem}_{timestamp}{file_path.suffix}"
-    shutil.copy2(file_path, backup_path)
-    return backup_path
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    for attempt in range(1000):
+        suffix = "" if attempt == 0 else f"_{attempt}"
+        backup_path = (
+            backup_dir / f"{file_path.stem}_{timestamp}{suffix}{file_path.suffix}"
+        )
+        try:
+            with file_path.open("rb") as source, backup_path.open("xb") as backup:
+                shutil.copyfileobj(source, backup)
+            shutil.copystat(file_path, backup_path)
+            return backup_path
+        except FileExistsError:
+            continue
+
+    raise RuntimeError(f"Could not create a unique backup for {file_path.name}")
 
 
 def _resolve_project_file_path(work_dir: Path, path: str) -> Path:

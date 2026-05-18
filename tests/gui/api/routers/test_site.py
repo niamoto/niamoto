@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from unittest.mock import patch
+from datetime import datetime
 import shutil
 import tempfile
 
@@ -77,6 +78,28 @@ def test_import_bibtex_rejects_oversized_upload(monkeypatch):
     assert response.json()["detail"] == (
         "BibTeX file exceeds the maximum allowed size of 10 bytes"
     )
+
+
+def test_site_create_backup_preserves_rapid_successive_backups(monkeypatch, tmp_path):
+    export_path = tmp_path / "export.yml"
+    export_path.write_text("first\n", encoding="utf-8")
+
+    class FixedDatetime:
+        @classmethod
+        def now(cls):
+            return datetime(2026, 5, 18, 17, 15, 0, 123456)
+
+    monkeypatch.setattr(site_router, "datetime", FixedDatetime)
+
+    first_backup = site_router._create_backup(export_path)
+    export_path.write_text("second\n", encoding="utf-8")
+    second_backup = site_router._create_backup(export_path)
+
+    assert first_backup is not None
+    assert second_backup is not None
+    assert first_backup != second_backup
+    assert first_backup.read_text(encoding="utf-8") == "first\n"
+    assert second_backup.read_text(encoding="utf-8") == "second\n"
 
 
 def test_import_csv_rejects_duplicate_normalized_headers():

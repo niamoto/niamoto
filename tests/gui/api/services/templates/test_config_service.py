@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from niamoto.gui.api.services.templates import config_service
@@ -34,6 +36,29 @@ def test_save_and_load_transform_config_round_trip(tmp_path):
     config_service.save_transform_config(tmp_path, config)
 
     assert config_service.load_transform_config(tmp_path) == config
+
+
+def test_create_backup_file_preserves_rapid_successive_backups(monkeypatch, tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_path = config_dir / "transform.yml"
+    config_path.write_text("first\n", encoding="utf-8")
+
+    class FixedDatetime:
+        @classmethod
+        def now(cls):
+            return datetime(2026, 5, 18, 17, 15, 0, 123456)
+
+    monkeypatch.setattr(config_service, "datetime", FixedDatetime)
+
+    config_service._create_backup_file(config_path)
+    config_path.write_text("second\n", encoding="utf-8")
+    config_service._create_backup_file(config_path)
+
+    backups = sorted((config_dir / "backups").glob("transform_*.yml"))
+    assert len(backups) == 2
+    assert backups[0].read_text(encoding="utf-8") == "first\n"
+    assert backups[1].read_text(encoding="utf-8") == "second\n"
 
 
 def test_load_import_config_defaults_missing_entities(tmp_path):
