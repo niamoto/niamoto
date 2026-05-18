@@ -225,9 +225,12 @@ class GeospatialExtractor(TransformerPlugin):
         """Get data from a source (table or import)."""
         try:
             table_name = self._resolve_table_name(source)
+            id_field = self._resolve_id_field(source)
             if self.db.has_table(table_name):
                 if id_value is not None:
-                    query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
+                    query = sa_text(
+                        f"SELECT * FROM {table_name} WHERE {id_field} = :id"
+                    )
                     params = {"id": id_value}
                 else:
                     query = sa_text(f"SELECT * FROM {table_name}")
@@ -256,8 +259,11 @@ class GeospatialExtractor(TransformerPlugin):
             if entity_info and hasattr(entity_info, "table_name"):
                 # Source exists in registry, try loading from its table
                 table_name = entity_info.table_name
+                id_field = self._id_field_from_metadata(entity_info)
                 try:
-                    query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
+                    query = sa_text(
+                        f"SELECT * FROM {table_name} WHERE {id_field} = :id"
+                    )
                     with self.db.connection() as conn:
                         df = pd.read_sql(query, conn, params={"id": id_value})
                     if not df.empty:
@@ -293,6 +299,7 @@ class GeospatialExtractor(TransformerPlugin):
                 return self._get_data_from_source(source, parent_id)
 
             table_name = self._resolve_table_name(source)
+            id_field = self._resolve_id_field(source)
 
             # Determine which hierarchy model to use
             # Priority: parent_field (adjacency list) > left/right (nested sets)
@@ -319,7 +326,7 @@ class GeospatialExtractor(TransformerPlugin):
 
             # Get parent entity type
             type_query = sa_text(
-                f"SELECT {type_field} FROM {table_name} WHERE id = :id"
+                f"SELECT {type_field} FROM {table_name} WHERE {id_field} = :id"
             )
             with self.db.connection() as conn:
                 type_df = pd.read_sql(type_query, conn, params={"id": parent_id})
@@ -331,7 +338,7 @@ class GeospatialExtractor(TransformerPlugin):
 
             # If it's already a leaf entity, return itself
             if entity_type == leaf_type:
-                query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
+                query = sa_text(f"SELECT * FROM {table_name} WHERE {id_field} = :id")
                 with self.db.connection() as conn:
                     return pd.read_sql(query, conn, params={"id": parent_id})
 
@@ -349,11 +356,11 @@ class GeospatialExtractor(TransformerPlugin):
                         -- Recursive case: children of children
                         SELECT t.*
                         FROM {table_name} t
-                        INNER JOIN descendants d ON t.{parent_field} = d.id
+                        INNER JOIN descendants d ON t.{parent_field} = d.{id_field}
                     )
                     SELECT * FROM descendants
                     WHERE {type_field} = :leaf_type
-                    ORDER BY id
+                    ORDER BY {id_field}
                 """
                 with self.db.connection() as conn:
                     return pd.read_sql(
@@ -366,7 +373,7 @@ class GeospatialExtractor(TransformerPlugin):
                 parent_query = f"""
                     SELECT {left_field}, {right_field}
                     FROM {table_name}
-                    WHERE id = :parent_id
+                    WHERE {id_field} = :parent_id
                 """
                 parent_df = pd.read_sql(
                     parent_query, self.db.engine, params={"parent_id": parent_id}
@@ -434,6 +441,19 @@ class GeospatialExtractor(TransformerPlugin):
             return metadata.table_name
         except (DatabaseQueryError, AttributeError):
             return logical_name
+
+    def _resolve_id_field(self, logical_name: str) -> str:
+        """Resolve the configured identifier field for a registered entity."""
+        try:
+            metadata = self.registry.get(logical_name)
+            return self._id_field_from_metadata(metadata)
+        except (DatabaseQueryError, AttributeError):
+            return "id"
+
+    @staticmethod
+    def _id_field_from_metadata(metadata: Any) -> str:
+        config = getattr(metadata, "config", None) or {}
+        return config.get("schema", {}).get("id_field") or "id"
 
     def transform(
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
