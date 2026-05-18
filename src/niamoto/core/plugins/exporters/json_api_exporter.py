@@ -347,6 +347,7 @@ class JsonApiExporter(ExporterPlugin):
 
             # Generate metadata if requested
             if params.metadata.generate:
+                self.stats["end_time"] = datetime.now()
                 self._generate_metadata(output_dir, params, target_config)
 
             # Save errors if any
