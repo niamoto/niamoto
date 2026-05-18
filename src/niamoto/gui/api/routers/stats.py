@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 NIAMOTO_MAP_GREEN = "#2E7D32"
 DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 _WKT_NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@")
 
 
 def _require_stats_mutation_auth(request: Request) -> None:
@@ -47,6 +48,12 @@ def _require_stats_mutation_auth(request: Request) -> None:
     provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
     if provided_token != expected_token:
         raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
+
+
+def _escape_csv_spreadsheet_cell(value: Any) -> Any:
+    if isinstance(value, str) and value.lstrip().startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 # =============================================================================
@@ -3802,7 +3809,9 @@ async def export_outliers_csv(
 
                 # Write data
                 for row in result:
-                    writer.writerow(row)
+                    writer.writerow(
+                        [_escape_csv_spreadsheet_cell(cell) for cell in row]
+                    )
 
                 output.seek(0)
 

@@ -1,6 +1,8 @@
 """Unit tests for stats router helper functions."""
 
 import asyncio
+import csv
+import io
 from typing import Any, Dict, List
 
 import duckdb
@@ -1179,6 +1181,49 @@ def test_value_validation_preserves_zero_median(
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["columns"][0]["median_value"] == 0.0
+
+
+def test_export_outliers_csv_escapes_spreadsheet_formulas(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE formula_outlier_values (
+                value INTEGER,
+                note VARCHAR,
+                spaced_note VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO formula_outlier_values VALUES
+                (1, 'normal', 'normal'),
+                (2, 'normal', 'normal'),
+                (3, 'normal', 'normal'),
+                (100, '=1+1', '  @cmd')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/formula_outlier_values/export-outliers",
+        params={"column": "value", "method": "iqr"},
+    )
+
+    assert response.status_code == 200, response.text
+    rows = list(csv.reader(io.StringIO(response.text)))
+    headers = rows[0]
+    outlier = rows[1]
+
+    assert outlier[headers.index("value")] == "100"
+    assert outlier[headers.index("note")] == "'=1+1"
+    assert outlier[headers.index("spaced_note")] == "'  @cmd"
 
 
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(
