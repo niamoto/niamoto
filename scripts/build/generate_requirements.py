@@ -6,6 +6,24 @@ import sys
 from pathlib import Path
 
 
+UVLOOP_WINDOWS_MARKER = '; sys_platform != "win32"'
+
+
+def add_platform_markers(requirements_path: Path) -> None:
+    """Add markers for dependencies that cannot install on every platform."""
+    if not requirements_path.exists():
+        return
+
+    lines = requirements_path.read_text(encoding="utf-8").splitlines()
+    updated_lines = []
+    for line in lines:
+        if line.startswith("uvloop==") and ";" not in line:
+            line = f"{line} {UVLOOP_WINDOWS_MARKER}"
+        updated_lines.append(line)
+
+    requirements_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
 def run_command(cmd):
     """Run a command and return its output."""
     if not isinstance(cmd, list):
@@ -51,6 +69,7 @@ def main() -> int:
     # Generate main requirements.txt
     print("Generating main requirements.txt...")
     run_command(["uv", "pip", "compile", "pyproject.toml", "-o", "requirements.txt"])
+    add_platform_markers(project_root / "requirements.txt")
 
     # Generate dev-requirements.txt from the shared development dependency group.
     print("Generating dev-requirements.txt...")
@@ -66,6 +85,7 @@ def main() -> int:
             "dev-requirements.txt",
         ]
     )
+    add_platform_markers(project_root / "dev-requirements.txt")
 
     print("Requirements files generated successfully!")
     return 0
