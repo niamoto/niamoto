@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any, NoReturn
 
 from fastapi import APIRouter, HTTPException, status
@@ -27,6 +28,7 @@ from niamoto.gui.api.services.templates.config_service import (
 )
 
 router = APIRouter()
+COLLECTION_CONFIG_LOCK = threading.RLock()
 
 
 class CollectionUpdateRequest(BaseModel):
@@ -119,16 +121,17 @@ async def update_collection(
     update: CollectionUpdateRequest,
 ) -> dict[str, Any]:
     """Update review metadata for an inferred or explicit collection."""
-    service = _catalog_service()
-    try:
-        collection = service.update_collection(
-            collection_name, **update.model_dump(exclude_unset=True)
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        _raise_catalog_error(exc)
-    _save_service_config(service)
+    with COLLECTION_CONFIG_LOCK:
+        service = _catalog_service()
+        try:
+            collection = service.update_collection(
+                collection_name, **update.model_dump(exclude_unset=True)
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            _raise_catalog_error(exc)
+        _save_service_config(service)
     return {"collection": collection}
 
 
@@ -141,10 +144,11 @@ async def create_collection(
     request: CollectionCreateRequest,
 ) -> dict[str, Any]:
     """Create a manual collection backed by a known source."""
-    service = _catalog_service()
-    try:
-        collection = service.create_collection(**request.model_dump())
-    except ValueError as exc:
-        _raise_catalog_error(exc)
-    _save_service_config(service)
+    with COLLECTION_CONFIG_LOCK:
+        service = _catalog_service()
+        try:
+            collection = service.create_collection(**request.model_dump())
+        except ValueError as exc:
+            _raise_catalog_error(exc)
+        _save_service_config(service)
     return {"collection": collection}
