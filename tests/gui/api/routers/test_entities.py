@@ -29,3 +29,21 @@ def test_entities_available_use_read_only_duckdb_connections(
     assert response.status_code == 200, response.text
     assert open_database_mock.call_args is not None
     assert open_database_mock.call_args.kwargs.get("read_only") is True
+
+
+def test_list_entities_rejects_malformed_group_by(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.get(
+        "/api/entities/entities/taxon%3Bdrop%20table%20taxon"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid entity group"
+
+
+def test_entity_detail_rejects_malformed_group_by(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.get(
+        "/api/entities/entity/taxon%29%3Bdrop%20table%20taxon/1"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid entity group"

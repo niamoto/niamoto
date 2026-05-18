@@ -1,5 +1,6 @@
 """Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
+import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -10,6 +11,7 @@ import json
 import yaml
 
 from niamoto.common.config import Config
+from niamoto.common.table_resolver import quote_identifier
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
@@ -18,6 +20,7 @@ from niamoto.core.imports.registry import EntityRegistry
 from ..utils.database import open_database
 
 router = APIRouter()
+_SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class EntitySummary(BaseModel):
@@ -62,6 +65,12 @@ class EntityListResponse(BaseModel):
     datasets: List[str] = []
     references: List[str] = []
     all: List[EntityInfo] = []
+
+
+def _validate_identifier(value: str, label: str) -> str:
+    if not _SAFE_IDENTIFIER_RE.fullmatch(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+    return value
 
 
 @router.get("/available", response_model=EntityListResponse)
@@ -149,6 +158,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
+    group_by = _validate_identifier(group_by, "entity group")
     # Map group_by to ID column name
     # No hardcoded validation - dynamic tables from transforms allowed
     # Will fail gracefully via OperationalError handler if table doesn't exist
@@ -156,12 +166,14 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
 
     try:
         with open_database(db_path) as db:
+            quoted_table = quote_identifier(db, group_by)
+            quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
                 if limit is not None:
                     query = text(f"""
-                        SELECT CAST({id_column} AS VARCHAR) as id,
+                        SELECT CAST({quoted_id_column} AS VARCHAR) as id,
                                json_extract(general_info, '$.name.value') as name
-                        FROM {group_by}
+                        FROM {quoted_table}
                         WHERE general_info IS NOT NULL
                         ORDER BY name
                         LIMIT :limit
@@ -169,9 +181,9 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
                     result = session.execute(query, {"limit": limit})
                 else:
                     query = text(f"""
-                        SELECT CAST({id_column} AS VARCHAR) as id,
+                        SELECT CAST({quoted_id_column} AS VARCHAR) as id,
                                json_extract(general_info, '$.name.value') as name
-                        FROM {group_by}
+                        FROM {quoted_table}
                         WHERE general_info IS NOT NULL
                         ORDER BY name
                     """)
@@ -218,6 +230,7 @@ async def get_entity_detail(group_by: str, entity_id: str):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
+    group_by = _validate_identifier(group_by, "entity group")
     # Map group_by to ID column name
     # No hardcoded validation - dynamic tables from transforms allowed
     # Will fail gracefully via OperationalError handler if table doesn't exist
@@ -225,8 +238,10 @@ async def get_entity_detail(group_by: str, entity_id: str):
 
     try:
         with open_database(db_path) as db:
+            quoted_table = quote_identifier(db, group_by)
+            quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
-                columns_query = text(f"PRAGMA table_info({group_by})")
+                columns_query = text(f"PRAGMA table_info({quoted_table})")
                 columns_result = session.execute(columns_query)
 
                 json_columns = []
@@ -237,14 +252,14 @@ async def get_entity_detail(group_by: str, entity_id: str):
                         json_columns.append(col_name)
 
                 columns_str = ", ".join(
-                    [f"CAST({id_column} AS VARCHAR) as id"]
+                    [f"CAST({quoted_id_column} AS VARCHAR) as id"]
                     + ["json_extract(general_info, '$.name.value') as name"]
-                    + json_columns
+                    + [quote_identifier(db, column) for column in json_columns]
                 )
                 query = text(f"""
                     SELECT {columns_str}
-                    FROM {group_by}
-                    WHERE CAST({id_column} AS VARCHAR) = :entity_id
+                    FROM {quoted_table}
+                    WHERE CAST({quoted_id_column} AS VARCHAR) = :entity_id
                 """)
 
                 result = session.execute(query, {"entity_id": entity_id}).fetchone()
