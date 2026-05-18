@@ -167,6 +167,22 @@ def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
     assert payload["table_name"] == "dataset_occurrences"
 
 
+def test_recipes_widgets_lists_all_core_widget_modules():
+    client = TestClient(create_app())
+
+    response = client.get("/api/recipes/widgets")
+
+    assert response.status_code == 200, response.text
+    widget_names = {widget["name"] for widget in response.json()}
+    assert {
+        "diverging_bar_plot",
+        "hierarchical_nav_widget",
+        "raw_data_widget",
+        "summary_stats",
+        "table_view",
+    }.issubset(widget_names)
+
+
 def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_path):
     class RequiredTransformerParams(BaseModel):
         source: str
