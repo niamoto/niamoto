@@ -89,7 +89,8 @@ class TestTopRanking(unittest.TestCase):
 
             # Extract IDs from the 'WHERE id IN (...)' clause
             try:
-                ids_str = query.split("WHERE id IN (")[1].split(")")[0]
+                normalized_query = query.replace('"id"', "id")
+                ids_str = normalized_query.split("WHERE id IN (")[1].split(")")[0]
                 ids_queried = {int(id_str.strip()) for id_str in ids_str.split(",")}
             except IndexError:
                 # If query format is unexpected, return empty
@@ -143,7 +144,7 @@ class TestTopRanking(unittest.TestCase):
         self.assertTrue(self.db_mock.execute_select.call_count >= 3)
         # Example: Check the first call was for the initial IDs
         first_call_args = self.db_mock.execute_select.call_args_list[0].args[0]
-        self.assertIn("WHERE id IN (", first_call_args)
+        self.assertIn('WHERE "id" IN (', first_call_args)
         self.assertIn("101", first_call_args)
         self.assertIn("102", first_call_args)
         self.assertIn("103", first_call_args)
@@ -171,7 +172,8 @@ class TestTopRanking(unittest.TestCase):
             mock_cursor = MagicMock()
             mock_result.cursor = mock_cursor
             try:
-                ids_str = query.split("WHERE id IN (")[1].split(")")[0]
+                normalized_query = query.replace('"id"', "id")
+                ids_str = normalized_query.split("WHERE id IN (")[1].split(")")[0]
                 ids_queried = {int(id_str.strip()) for id_str in ids_str.split(",")}
             except IndexError:
                 mock_cursor.description = []
@@ -323,6 +325,102 @@ class TestTopRanking(unittest.TestCase):
         executed_query = self.db_mock.execute_select.call_args[0][0]
         self.assertIn('SUM(hierarchy_path."metric_value")', executed_query)
         self.assertEqual(result, {"tops": ["Genus Alpha"], "counts": [10]})
+
+    def test_join_mode_rejects_unsafe_configured_identifiers(self):
+        """Join mode rejects unsafe table and column identifiers before querying."""
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "join",
+                "hierarchy_table": "taxonomy",
+                "join_table": "occurrence_taxon",
+                "join_columns": {"source_id": "id; DROP TABLE occurrence_taxon"},
+                "target_ranks": ["genus"],
+                "count": 3,
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "Invalid SQL identifier"):
+            self.plugin.transform(SAMPLE_DATA.copy(), config)
+
+        self.db_mock.execute_select.assert_not_called()
+
+    def test_hierarchical_mode_rejects_unsafe_configured_identifiers(self):
+        """Hierarchical mode rejects unsafe table and column identifiers."""
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxonomy; DROP TABLE taxonomy",
+                "hierarchy_columns": {
+                    "id": "id",
+                    "name": "full_name",
+                    "rank": "rank_name",
+                    "parent_id": "parent_id",
+                },
+                "target_ranks": ["genus"],
+                "count": 3,
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "Invalid SQL identifier"):
+            self.plugin.transform(SAMPLE_DATA.copy(), config)
+
+        self.db_mock.execute_select.assert_not_called()
+
+    def test_direct_mode_name_enrichment_rejects_unsafe_identifiers(self):
+        """Direct ranking name enrichment refuses unsafe configured identifiers."""
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "direct",
+                "hierarchy_table": "taxonomy; DROP TABLE taxonomy",
+                "hierarchy_columns": {
+                    "id": "id",
+                    "name": "full_name",
+                },
+                "count": 2,
+            },
+        }
+
+        result = self.plugin.transform(
+            pd.DataFrame({"taxon_ref_id": [1, 1, 2]}), config
+        )
+
+        self.db_mock.connection.assert_not_called()
+        self.assertEqual(result, {"tops": ["1", "2"], "counts": [2, 1]})
+
+    def test_join_mode_escapes_target_rank_literals(self):
+        """Target rank values are escaped as SQL string literals."""
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "join",
+                "hierarchy_table": "taxonomy",
+                "join_table": "occurrence_taxon",
+                "target_ranks": ["genus'; DROP TABLE taxonomy; --"],
+                "count": 3,
+            },
+        }
+
+        self.db_mock.get_table_columns.return_value = ["id", "parent_id", "rank_name"]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        self.db_mock.execute_select.return_value = mock_result
+
+        result = self.plugin.transform(SAMPLE_DATA.copy(), config)
+
+        executed_query = self.db_mock.execute_select.call_args[0][0]
+        self.assertIn("'genus''; DROP TABLE taxonomy; --'", executed_query)
+        self.assertEqual(result, {"tops": [], "counts": []})
 
     def test_transform_no_taxa_found_in_db(self):
         """Test when initial DB query returns no matching taxa."""

@@ -2,6 +2,7 @@
 Plugin for aggregating fields from different sources.
 """
 
+import re
 from typing import Dict, Any, Union, List, Optional, Literal
 from pydantic import BaseModel, field_validator, Field, ConfigDict
 
@@ -12,6 +13,15 @@ from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
 from niamoto.core.imports.registry import EntityRegistry
+
+_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Validate and quote a single SQL identifier."""
+    if not _SQL_IDENTIFIER_RE.fullmatch(identifier):
+        raise ValueError(f"Invalid SQL identifier: {identifier}")
+    return f'"{identifier}"'
 
 
 class FieldConfig(BaseModel):
@@ -130,11 +140,14 @@ class FieldAggregator(TransformerPlugin):
         For example: extra_data.taxon_type will extract the taxon_type from the extra_data JSON field
         """
         try:
+            quoted_table = _quote_identifier(table)
+            quoted_id_column = _quote_identifier(id_column)
             # Check if we're trying to access a JSON field (using dot notation)
             if "." in field:
                 json_field, json_key = field.split(".", 1)
+                quoted_json_field = _quote_identifier(json_field)
                 query = f"""
-                    SELECT {json_field} FROM {table} WHERE {id_column} = :id_value
+                    SELECT {quoted_json_field} FROM {quoted_table} WHERE {quoted_id_column} = :id_value
                 """
                 # Use fetch_one which properly handles connection lifecycle
                 row = self.db.fetch_one(query, {"id_value": id_value})
@@ -161,8 +174,9 @@ class FieldAggregator(TransformerPlugin):
                 return None
             else:
                 # Regular field access
+                quoted_field = _quote_identifier(field)
                 query = f"""
-                    SELECT {field} FROM {table} WHERE {id_column} = :id_value
+                    SELECT {quoted_field} FROM {quoted_table} WHERE {quoted_id_column} = :id_value
                 """
                 # Use fetch_one which properly handles connection lifecycle
                 row = self.db.fetch_one(query, {"id_value": id_value})
@@ -182,8 +196,9 @@ class FieldAggregator(TransformerPlugin):
                     entity_info.table_name, field, id_value, id_column
                 )
 
-            # Fallback: try using source as direct table name
-            return self._get_field_from_table(source, field, id_value)
+            # Fallback: try using source as direct table name.
+            table_name = source.removeprefix("import:")
+            return self._get_field_from_table(table_name, field, id_value)
 
         except Exception as e:
             raise ValueError(f"Error getting field {field} from {source}") from e
