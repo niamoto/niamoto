@@ -43,6 +43,16 @@ router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
 EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
+VALID_CONFIG_NAMES = ("import", "transform", "export", "config")
+
+
+def _validate_config_name(config_name: str) -> None:
+    """Ensure a route config name maps to a supported config file."""
+    if config_name not in VALID_CONFIG_NAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid configuration name. Must be one of: {list(VALID_CONFIG_NAMES)}",
+        )
 
 
 # Wrapper functions for backward compatibility (use get_working_directory)
@@ -905,13 +915,7 @@ async def get_config(config_name: str):
     Returns:
         The configuration content as a dictionary
     """
-    # Validate config name
-    valid_configs = ["import", "transform", "export", "config"]
-    if config_name not in valid_configs:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid configuration name. Must be one of: {valid_configs}",
-        )
+    _validate_config_name(config_name)
 
     # Check in config/ directory
     config_path = get_working_directory() / "config" / f"{config_name}.yml"
@@ -951,13 +955,7 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
     Returns:
         Success response with backup path if created
     """
-    # Validate config name
-    valid_configs = ["import", "transform", "export", "config"]
-    if config_name not in valid_configs:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid configuration name. Must be one of: {valid_configs}",
-        )
+    _validate_config_name(config_name)
 
     # Ensure config directory exists
     ensure_config_dir()
@@ -1080,13 +1078,22 @@ async def list_backups(config_name: str) -> Dict[str, Any]:
     Returns:
         List of backup files with metadata
     """
+    _validate_config_name(config_name)
+
     backup_dir = get_working_directory() / "config" / "backups"
 
     if not backup_dir.exists():
         return {"backups": []}
 
     backups = []
-    for backup_file in backup_dir.glob(f"{config_name}_*.yml"):
+    backup_prefix = f"{config_name}_"
+    for backup_file in backup_dir.iterdir():
+        if not (
+            backup_file.is_file()
+            and backup_file.name.startswith(backup_prefix)
+            and backup_file.name.endswith(".yml")
+        ):
+            continue
         stat = backup_file.stat()
         backups.append(
             {
@@ -1116,12 +1123,7 @@ async def restore_backup(
     Returns:
         Success response
     """
-    valid_configs = ["import", "transform", "export", "config"]
-    if config_name not in valid_configs:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid configuration name. Must be one of: {valid_configs}",
-        )
+    _validate_config_name(config_name)
 
     requested_backup = Path(backup_filename)
     if (

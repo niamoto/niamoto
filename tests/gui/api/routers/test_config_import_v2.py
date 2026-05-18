@@ -83,6 +83,45 @@ def test_list_backups_does_not_expose_absolute_paths(monkeypatch, tmp_path):
     assert str(work_dir) not in response.text
 
 
+def test_list_backups_filters_to_requested_config(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    backup_dir = work_dir / "config" / "backups"
+    backup_dir.mkdir(parents=True)
+    import_backup = backup_dir / "import_20260518_171500_123456.yml"
+    transform_backup = backup_dir / "transform_20260518_171500_123456.yml"
+    import_backup.write_text("version: '2'\n", encoding="utf-8")
+    transform_backup.write_text("groups: []\n", encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/import/backup/list")
+
+    assert response.status_code == 200, response.text
+    filenames = [backup["filename"] for backup in response.json()["backups"]]
+    assert filenames == [import_backup.name]
+
+
+def test_list_backups_rejects_wildcard_config_name(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    backup_dir = work_dir / "config" / "backups"
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "import_20260518_171500_123456.yml").write_text(
+        "version: '2'\n", encoding="utf-8"
+    )
+    (backup_dir / "transform_20260518_171500_123456.yml").write_text(
+        "groups: []\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/*/backup/list")
+
+    assert response.status_code == 400
+    assert response.json()["detail"].startswith("Invalid configuration name")
+
+
 def test_restore_backup_rejects_paths_outside_backup_directory(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     config_dir = work_dir / "config"
