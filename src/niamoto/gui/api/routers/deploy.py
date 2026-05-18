@@ -5,6 +5,7 @@ Built-in: Cloudflare Workers, GitHub Pages, Netlify, Vercel, Render, SSH/SFTP.
 """
 
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -33,6 +34,17 @@ import niamoto.core.plugins.deployers.ssh  # noqa: F401
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
+
+
+def _require_deploy_mutation_auth(request: Request) -> None:
+    expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
+    if not expected_token:
+        return
+
+    provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
+    if provided_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
 
 
 def _get_supported_platforms() -> list[str]:
@@ -84,7 +96,10 @@ async def list_platforms():
 # --- Credential Endpoints ---
 
 
-@router.post("/credentials/{platform}")
+@router.post(
+    "/credentials/{platform}",
+    dependencies=[Depends(_require_deploy_mutation_auth)],
+)
 async def save_credential(platform: str, request: CredentialSaveRequest):
     """Save a credential to the OS keyring."""
     _check_platform(platform)
@@ -105,7 +120,10 @@ async def check_credentials(platform: str):
     return {"configured": has_creds, "credentials": masked}
 
 
-@router.delete("/credentials/{platform}/{key}")
+@router.delete(
+    "/credentials/{platform}/{key}",
+    dependencies=[Depends(_require_deploy_mutation_auth)],
+)
 async def delete_credential(platform: str, key: str):
     """Delete a credential from the OS keyring."""
     _check_platform(platform)
