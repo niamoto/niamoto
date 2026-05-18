@@ -24,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -658,6 +659,16 @@ function ExportCardForm({
                       ))}
                     </SelectContent>
                   </Select>
+                  <Input
+                    value={localConfig.data_source || ''}
+                    onChange={(event) =>
+                      updateLocalConfig((current) => ({
+                        ...current,
+                        data_source: event.target.value || undefined,
+                      }))
+                    }
+                    placeholder={t('collectionPanel.api.dataSourcePlaceholder')}
+                  />
                   <p className="text-xs text-muted-foreground">
                     {t('collectionPanel.api.dataSourceHelp')}
                   </p>
