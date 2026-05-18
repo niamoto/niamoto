@@ -186,6 +186,8 @@ async def get_diagnostic():
 @router.get("/debug/test-500")
 async def trigger_test_server_error():
     """Trigger a deliberate 500 response for manual feedback-flow testing."""
+    if os.environ.get("NIAMOTO_ENABLE_DEBUG_ROUTES") != "1":
+        raise HTTPException(status_code=404, detail="Not found")
 
     raise HTTPException(
         status_code=500,
