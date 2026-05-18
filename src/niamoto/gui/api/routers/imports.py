@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
 MAX_IMPORT_EVENTS = 40
+MAX_RETAINED_IMPORT_JOBS = 100
 ACTIVE_IMPORT_STATUSES = {"pending", "running"}
+TERMINAL_IMPORT_STATUSES = {"completed", "failed"}
 DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 
 
@@ -140,6 +142,45 @@ def _append_import_event(job: Dict[str, Any], event: Dict[str, Any]) -> None:
     events.append(event)
     if len(events) > MAX_IMPORT_EVENTS:
         del events[:-MAX_IMPORT_EVENTS]
+
+
+def _import_job_sort_key(job: Dict[str, Any]) -> datetime:
+    created_at = job.get("created_at")
+    if not isinstance(created_at, str):
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    try:
+        parsed = datetime.fromisoformat(created_at)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _prune_import_jobs() -> None:
+    if len(import_jobs) <= MAX_RETAINED_IMPORT_JOBS:
+        return
+
+    terminal_jobs = sorted(
+        (
+            (job_id, job)
+            for job_id, job in import_jobs.items()
+            if job.get("status") in TERMINAL_IMPORT_STATUSES
+        ),
+        key=lambda item: _import_job_sort_key(item[1]),
+    )
+
+    for job_id, _job in terminal_jobs:
+        if len(import_jobs) <= MAX_RETAINED_IMPORT_JOBS:
+            break
+        import_jobs.pop(job_id, None)
+
+
+def _store_import_job(job_id: str, job: Dict[str, Any]) -> None:
+    import_jobs[job_id] = job
+    _prune_import_jobs()
 
 
 def _set_job_state(
@@ -264,7 +305,7 @@ async def execute_import_all(
         "events": [],
     }
 
-    import_jobs[job_id] = job
+    _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -314,7 +355,7 @@ async def execute_import_reference(
         "events": [],
     }
 
-    import_jobs[job_id] = job
+    _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -366,7 +407,7 @@ async def execute_import_dataset(
         "events": [],
     }
 
-    import_jobs[job_id] = job
+    _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -902,6 +943,7 @@ async def process_generic_import_all(
                     phase="completed",
                 ),
             )
+            _prune_import_jobs()
 
         finally:
             # Always close database connections
@@ -932,6 +974,7 @@ async def process_generic_import_all(
                 details=error_details,
             ),
         )
+        _prune_import_jobs()
 
         logger.exception("Import-all job '%s' failed: %s", job_id, e)
 
@@ -1061,6 +1104,7 @@ async def process_generic_import_entity(
                     entity_type=entity_type,
                 ),
             )
+            _prune_import_jobs()
 
             # Invalider le cache du moteur de preview (données changées)
             try:
@@ -1103,6 +1147,7 @@ async def process_generic_import_entity(
                 details=error_details,
             ),
         )
+        _prune_import_jobs()
 
         logger.exception(
             "Import job '%s' failed for %s '%s': %s",
