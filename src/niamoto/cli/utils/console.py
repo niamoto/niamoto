@@ -4,10 +4,16 @@ Provides consistent formatting for different types of messages with unified icon
 """
 
 from rich.console import Console
+from rich.markup import escape
 from typing import Any, Optional, List, Dict
 from niamoto.common.utils.emoji import emoji
 
 console = Console()
+
+
+def _safe_text(value: Any) -> str:
+    """Escape caller-provided text before composing Rich markup strings."""
+    return escape(str(value))
 
 
 def print_success(message: str, icon: bool = True) -> None:
@@ -127,9 +133,9 @@ def print_stats(stats: Dict[str, Any]) -> None:
     console.print(f"{prefix}Statistics:", style="bold cyan")
     for key, value in stats.items():
         if isinstance(value, (int, float)):
-            console.print(f"   {key}: {value:,}", style="cyan")
+            console.print(f"   {_safe_text(key)}: {value:,}", style="cyan")
         else:
-            console.print(f"   {key}: {value}", style="cyan")
+            console.print(f"   {_safe_text(key)}: {_safe_text(value)}", style="cyan")
 
 
 def print_metrics_summary(operation_name: str, metrics_lines: List[str]) -> None:
@@ -214,7 +220,8 @@ def print_step_progress(step_name: str, current: int, total: int) -> None:
     """Print step progress without progress bar."""
     percentage = (current / total * 100) if total > 0 else 0
     console.print(
-        f"  {step_name}: {current:,}/{total:,} ({percentage:.1f}%)", style="cyan"
+        f"  {step_name}: {current:,}/{total:,} ({percentage:.1f}%)",
+        style="cyan",
     )
 
 
@@ -255,7 +262,7 @@ def print_unlinked_samples(samples: List[str], sample_type: str = "items") -> No
 
     sample_lines = []
     for sample in samples[:5]:  # Show max 5 samples
-        sample_lines.append(f"  - {sample}")
+        sample_lines.append(f"  - {_safe_text(sample)}")
 
     if len(samples) > 5:
         sample_lines.append(f"  ... and {len(samples) - 5} more")
@@ -263,7 +270,7 @@ def print_unlinked_samples(samples: List[str], sample_type: str = "items") -> No
     content = "\n".join(sample_lines)
     panel = Panel(
         content,
-        title=f"Sample of Unlinked {sample_type.title()}",
+        title=f"Sample of Unlinked {_safe_text(sample_type).title()}",
         border_style="yellow",
     )
     console.print(panel)
@@ -273,16 +280,20 @@ def print_import_result(
     file_path: str, count: int, data_type: str, details: Optional[str] = None
 ) -> None:
     """Print import result with file path and count."""
-    message = f"[{emoji('✓', '[OK]')}] {count:,} {data_type} imported from {file_path}"
+    message = (
+        f"[{emoji('✓', '[OK]')}] {count:,} {_safe_text(data_type)} "
+        f"imported from {_safe_text(file_path)}"
+    )
     if details:
-        message += f". {details}"
+        message += f". {_safe_text(details)}"
     console.print(message, style="green")
 
 
 def print_file_processed(file_path: str, count: int, action: str = "processed") -> None:
     """Print file processing result."""
     console.print(
-        f"{emoji('📁', '[+]')} {count:,} features {action} from {file_path}",
+        f"{emoji('📁', '[+]')} {count:,} features {_safe_text(action)} "
+        f"from {_safe_text(file_path)}",
         style="cyan",
     )
 
@@ -306,12 +317,12 @@ def print_table(data: list[dict[str, Any]], title: str) -> None:
     """Print data in a formatted table."""
     from rich.table import Table
 
-    table = Table(title=title)
+    table = Table(title=_safe_text(title))
 
     # Add columns from the first row keys
     if data:
         for key in data[0].keys():
-            table.add_column(key, style="cyan")
+            table.add_column(_safe_text(key), style="cyan")
 
         # Add rows
         for row in data:
