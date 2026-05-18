@@ -28,6 +28,31 @@ def test_upload_rejects_files_over_size_limit(
     assert not (gui_duckdb_context / "imports" / "raw_large_stats.csv").exists()
 
 
+def test_upload_rejects_existing_source_file(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    imports_dir = gui_duckdb_context / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    existing_file = imports_dir / "raw_existing_stats.csv"
+    existing_file.write_text("existing\n", encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "existing_stats"},
+        files={
+            "file": (
+                "replacement.csv",
+                b"class_object,class_name,class_value\n",
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 409
+    assert existing_file.read_text(encoding="utf-8") == "existing\n"
+
+
 def test_save_source_uses_selected_entity_column_and_reference_key(
     gui_duckdb_context: Path,
 ):

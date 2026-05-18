@@ -279,8 +279,10 @@ async def upload_precalc_source(
 
     # Save uploaded file
     try:
+        file_created = False
         bytes_written = 0
-        with open(file_path, "wb") as f:
+        with open(file_path, "xb") as f:
+            file_created = True
             while chunk := await file.read(UPLOAD_CHUNK_SIZE_BYTES):
                 bytes_written += len(chunk)
                 if bytes_written > MAX_UPLOAD_SIZE_BYTES:
@@ -292,12 +294,17 @@ async def upload_precalc_source(
                         ),
                     )
                 f.write(chunk)
+    except FileExistsError:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Source file already exists for '{source_name}'",
+        )
     except HTTPException:
-        if file_path.exists():
+        if file_created and file_path.exists():
             file_path.unlink()
         raise
     except Exception as e:
-        if file_path.exists():
+        if file_created and file_path.exists():
             file_path.unlink()
         logger.exception(f"Error saving uploaded file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
