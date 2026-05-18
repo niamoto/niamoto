@@ -240,6 +240,9 @@ class TestPatternMatching:
         pattern = {"bins": "list", "counts": "list"}
         assert matcher._exact_match(output, pattern) is True
 
+        pattern_wrong_type = {"bins": "list", "counts": "dict"}
+        assert matcher._exact_match(output, pattern_wrong_type) is False
+
         pattern_extra = {"bins": "list", "counts": "list", "labels": "list"}
         assert matcher._exact_match(output, pattern_extra) is False
 
@@ -248,6 +251,9 @@ class TestPatternMatching:
         output = {"bins": "list", "counts": "list", "percentages": "list"}
         pattern = {"bins": "list", "counts": "list"}
         assert matcher._superset_match(output, pattern) is True
+
+        pattern_wrong_type = {"bins": "list", "counts": "dict"}
+        assert matcher._superset_match(output, pattern_wrong_type) is False
 
         # Same size - not a superset
         pattern_same = {"bins": "list", "counts": "list", "percentages": "list"}
@@ -269,6 +275,14 @@ class TestPatternMatching:
 
         # 50% overlap (2 out of 4 required)
         assert matcher._partial_match(output, pattern) is True
+
+        pattern_type_mismatch = {
+            "bins": "dict",
+            "counts": "dict",
+            "labels": "list",
+            "percentages": "list",
+        }
+        assert matcher._partial_match(output, pattern_type_mismatch) is False
 
         # Less than 50%
         pattern_large = {
@@ -314,6 +328,23 @@ class TestPatternMatching:
         assert len(greedy_matches) == 1
         assert greedy_matches[0].score == 0.6  # Partial match (2/4 = 50%)
         assert greedy_matches[0].reason == "partial_match"
+
+    def test_descriptor_mismatch_is_incompatible(self, matcher):
+        """Test matching ignores keys whose descriptors differ."""
+
+        class MismatchedTypeWidget(WidgetPlugin):
+            type = PluginType.WIDGET
+            compatible_structures = [{"labels": "list", "values": "list"}]
+
+            def render(self, data: Any, params: Any) -> str:
+                return ""
+
+        output_structure = {"labels": "list", "values": "dict"}
+
+        assert (
+            matcher._structure_match_score(output_structure, MismatchedTypeWidget)
+            == 0.0
+        )
 
     def test_match_reason_mapping(self, matcher):
         """Test _match_reason returns correct reason strings."""
