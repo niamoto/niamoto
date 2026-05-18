@@ -135,6 +135,55 @@ def test_update_export_widget_can_clear_metadata(gui_duckdb_client, gui_duckdb_c
     assert widget["layout"] == {"order": 3, "colspan": 2}
 
 
+def test_update_export_widget_auto_creates_valid_web_export(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "json_api",
+                        "exporter": "json_api_exporter",
+                        "params": {
+                            "output_dir": "exports/json_api",
+                            "detail_output_pattern": "{group}/{id}.json",
+                            "index_output_pattern": "{group}/index.json",
+                        },
+                        "groups": [],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.put(
+        "/api/config/export/taxons/widgets/richness",
+        json={
+            "plugin": "bar_plot",
+            "data_source": "richness",
+            "params": {"x_axis": "name"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    web_export = next(
+        export for export in saved["exports"] if export["name"] == "web_pages"
+    )
+    assert web_export["exporter"] == "html_page_exporter"
+    assert web_export["params"] == {
+        "template_dir": "templates/",
+        "output_dir": "exports/web",
+    }
+    assert web_export["static_pages"] == []
+    assert web_export["groups"][0]["group_by"] == "taxons"
+    assert web_export["groups"][0]["widgets"][0]["data_source"] == "richness"
+
+
 def test_api_export_suggestions_route_serializes_response(monkeypatch):
     monkeypatch.setattr(
         config_router,
