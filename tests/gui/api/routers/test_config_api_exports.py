@@ -394,6 +394,47 @@ def test_update_api_export_group_config_applies_dwc_defaults_for_empty_target(
     assert payload["transformer_params"]["taxonomy_entity"] == "plots"
 
 
+def test_update_api_export_group_config_preserves_omitted_existing_fields(monkeypatch):
+    export_config = {
+        "exports": [
+            {
+                "name": "json_api",
+                "exporter": "json_api_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "data_source": "taxon_stats",
+                        "detail": {"pass_through": False, "fields": ["name"]},
+                        "index": {"fields": ["id"]},
+                        "json_options": {"indent": 2},
+                        "transformer_plugin": "custom_transformer",
+                        "transformer_params": {"custom": True},
+                    }
+                ],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: export_config)
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", Mock())
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/config/export/api-targets/json_api/groups/taxons",
+        json={"enabled": True, "index": {"fields": ["id", "full_name"]}},
+    )
+
+    assert response.status_code == 200
+    saved_group = export_config["exports"][0]["groups"][0]
+    assert saved_group["data_source"] == "taxon_stats"
+    assert saved_group["detail"] == {"pass_through": False, "fields": ["name"]}
+    assert saved_group["index"] == {"fields": ["id", "full_name"]}
+    assert saved_group["json_options"] == {"indent": 2}
+    assert saved_group["transformer_plugin"] == "custom_transformer"
+    assert saved_group["transformer_params"] == {"custom": True}
+
+
 def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypatch):
     export_config = {
         "exports": [

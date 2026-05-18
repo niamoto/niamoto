@@ -2473,7 +2473,13 @@ async def update_api_export_group_config(
             result["enabled"] = False
             return result
 
-        next_group: Dict[str, Any] = {"group_by": group_by}
+        next_group: Dict[str, Any] = (
+            deepcopy(existing_group)
+            if existing_group is not None
+            else {"group_by": group_by}
+        )
+        next_group["group_by"] = group_by
+        next_group["enabled"] = True
         payload = config.model_dump(exclude_none=True)
         payload.pop("enabled", None)
 
