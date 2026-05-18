@@ -131,6 +131,66 @@ def test_load_single_node_only(adjacency_list_loader, hierarchy_data):
     assert set(result["location"]) == {"Site A", "Site B"}
 
 
+def test_load_single_node_with_custom_hierarchy_id_field(
+    adjacency_list_loader, temp_db
+):
+    """Load one node when data references an external hierarchy identifier."""
+    test_db = temp_db
+    test_db.execute_sql("""
+        CREATE TABLE custom_hierarchy (
+            id INTEGER PRIMARY KEY,
+            taxon_id INTEGER,
+            parent_id INTEGER,
+            name TEXT
+        )
+    """)
+    test_db.execute_sql("""
+        CREATE TABLE custom_occurrences (
+            id INTEGER PRIMARY KEY,
+            taxon_ref INTEGER,
+            location TEXT
+        )
+    """)
+
+    with test_db.engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO custom_hierarchy VALUES
+                    (1, 100, NULL, 'Plantae'),
+                    (2, 200, 1, 'Fabales')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO custom_occurrences VALUES
+                    (1, 200, 'Site A'),
+                    (2, 200, 'Site B'),
+                    (3, 100, 'Site C')
+                """
+            )
+        )
+        conn.commit()
+
+    config = {
+        "data": "custom_occurrences",
+        "grouping": "custom_hierarchy",
+        "params": {
+            "key": "taxon_ref",
+            "parent_field": "parent_id",
+            "hierarchy_id_field": "taxon_id",
+            "include_children": False,
+        },
+    }
+
+    result = adjacency_list_loader.load_data(2, config)
+
+    assert len(result) == 2
+    assert set(result["location"]) == {"Site A", "Site B"}
+
+
 def test_load_node_with_children(adjacency_list_loader, hierarchy_data):
     """Test loading data for node including all descendants."""
     config = {

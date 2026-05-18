@@ -169,7 +169,9 @@ class AdjacencyListLoader(LoaderPlugin):
             query = text(f"""
                 SELECT m.*
                 FROM {data_table} AS m
-                WHERE m.{key_column} = :id
+                INNER JOIN {grouping_table} AS h
+                    ON m.{key_column} = h.{hierarchy_id_column}
+                WHERE h.{hierarchy_pk_column} = :id
             """)
 
             with self.db.connection() as conn:
