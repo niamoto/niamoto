@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from copy import deepcopy
 from pathlib import Path
+import threading
+import time
 from unittest.mock import patch
 
 import duckdb
@@ -511,6 +515,89 @@ def test_update_index_generator_accepts_localized_strings(tmp_path: Path):
     assert saved_group["page_config"]["title"]["fr"] == "Liste des taxons"
     assert saved_group["display_fields"][0]["label"]["en"] == "Family"
     assert saved_group["display_fields"][2]["link_label"]["fr"] == "Endemia"
+
+
+def test_update_index_generator_preserves_concurrent_group_updates(monkeypatch):
+    current_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "enabled": True,
+                "exporter": "html_page_exporter",
+                "groups": [
+                    {"group_by": "taxons", "widgets": []},
+                    {"group_by": "plots", "widgets": []},
+                ],
+            }
+        ]
+    }
+    config_lock = threading.Lock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def fake_load_export_config():
+        with config_lock:
+            return deepcopy(current_config)
+
+    def fake_save_export_config(export_config):
+        nonlocal current_config
+        groups = export_config["exports"][0]["groups"]
+        taxons_group = next(group for group in groups if group["group_by"] == "taxons")
+        plots_group = next(group for group in groups if group["group_by"] == "plots")
+
+        if "index_generator" in taxons_group and "index_generator" not in plots_group:
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+
+        with config_lock:
+            current_config = deepcopy(export_config)
+
+    monkeypatch.setattr(config_router, "_load_export_config", fake_load_export_config)
+    monkeypatch.setattr(config_router, "_save_export_config", fake_save_export_config)
+
+    def payload(title: str) -> config_router.IndexGeneratorConfigUpdate:
+        return config_router.IndexGeneratorConfigUpdate(
+            enabled=True,
+            template="_group_index.html",
+            page_config={"title": title, "items_per_page": 24},
+            filters=[],
+            display_fields=[
+                {"name": "name", "source": "name", "type": "text", "is_title": True}
+            ],
+            views=[{"type": "grid", "default": True}],
+        )
+
+    def update_group(group_by: str, title: str):
+        try:
+            asyncio.run(config_router.update_index_generator(group_by, payload(title)))
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=update_group, args=("taxons", "Taxons"))
+    second = threading.Thread(target=update_group, args=("plots", "Plots"))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+
+    groups_by_name = {
+        group["group_by"]: group for group in current_config["exports"][0]["groups"]
+    }
+    assert groups_by_name["taxons"]["index_generator"]["page_config"]["title"] == (
+        "Taxons"
+    )
+    assert groups_by_name["plots"]["index_generator"]["page_config"]["title"] == (
+        "Plots"
+    )
 
 
 def test_index_suggestions_merge_transformed_fields_with_reference_extra_data(
