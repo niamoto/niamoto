@@ -13,6 +13,7 @@ from tests.common.base_test import NiamotoTestCase
 class TestEnvironment(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
+        super().setUp()
         self.test_dir = tempfile.mkdtemp()
 
         # Create a mock with necessary attributes
@@ -43,6 +44,7 @@ class TestEnvironment(NiamotoTestCase):
 
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()
+        super().tearDown()
 
     @patch("niamoto.common.environment.Database", autospec=True)
     def test_initialize(self, mock_database):

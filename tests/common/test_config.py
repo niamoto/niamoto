@@ -17,6 +17,7 @@ from tests.common.base_test import NiamotoTestCase
 class TestConfig(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
+        super().setUp()
         Config.clear_cache()
         self.test_dir = tempfile.mkdtemp()
         self.config_dir = os.path.join(self.test_dir, "config")
@@ -32,6 +33,7 @@ class TestConfig(NiamotoTestCase):
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()
         Config.clear_cache()
+        super().tearDown()
 
     def test_init_with_default_config(self):
         """Test initialization with default configuration."""
