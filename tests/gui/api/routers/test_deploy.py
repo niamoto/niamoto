@@ -39,6 +39,53 @@ def test_save_credential_returns_500_when_keyring_write_fails(monkeypatch):
     assert response.json()["detail"] == "Failed to save credential to keyring"
 
 
+def test_save_credential_requires_desktop_auth_when_configured(monkeypatch):
+    saved_calls = []
+
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy._check_platform", lambda _: None
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.CredentialService.save",
+        lambda platform, key, value: saved_calls.append((platform, key, value)),
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/deploy/credentials/cloudflare",
+        json={"key": "api_token", "value": "secret"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+    assert saved_calls == []
+
+
+def test_save_credential_accepts_desktop_auth_token(monkeypatch):
+    saved_calls = []
+
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy._check_platform", lambda _: None
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.CredentialService.save",
+        lambda platform, key, value: saved_calls.append((platform, key, value)) or True,
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/deploy/credentials/cloudflare",
+        json={"key": "api_token", "value": "secret"},
+        headers={"x-niamoto-desktop-token": "desktop-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"saved": True}
+    assert saved_calls == [("cloudflare", "api_token", "secret")]
+
+
 def test_validate_exports_returns_errors_without_starting_deploy(monkeypatch, tmp_path):
     exports_dir = tmp_path / "exports" / "web"
     exports_dir.mkdir(parents=True)
