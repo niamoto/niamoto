@@ -1031,6 +1031,23 @@ def test_geo_coverage_analyze_ignores_invalid_wkt_rows(
     assert payload["shape_coverage"][0]["occurrences_covered"] == 1
 
 
+def test_value_validation_histogram_includes_max_boundary(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences",
+        params={"columns": "count", "method": "iqr"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    histogram = payload["columns"][0]["histogram"]
+
+    assert sum(bin_info["count"] for bin_info in histogram) == 3
+    assert histogram[-1]["bin_end"] == 5.0
+    assert histogram[-1]["count"] == 1
+
+
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
 ):

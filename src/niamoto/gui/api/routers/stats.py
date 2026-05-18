@@ -3266,7 +3266,7 @@ async def get_value_validation(
                                             text(
                                                 f"""
                                             SELECT
-                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                LEAST(CAST(FLOOR(({quoted_col} - {min_val}) / {bin_width}) AS INTEGER), {num_bins - 1}) as bin_idx,
                                                 COUNT(*) as cnt
                                             FROM {quoted_table}
                                             WHERE {quoted_col} IS NOT NULL
@@ -3381,7 +3381,7 @@ async def get_value_validation(
                                                 text(
                                                     f"""
                                                 SELECT
-                                                    FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                    LEAST(CAST(FLOOR(({quoted_col} - {min_val}) / {bin_width}) AS INTEGER), {num_bins - 1}) as bin_idx,
                                                     COUNT(*) as cnt
                                                 FROM {quoted_table}
                                                 WHERE {quoted_col} IS NOT NULL
@@ -3493,7 +3493,7 @@ async def get_value_validation(
                                             text(
                                                 f"""
                                             SELECT
-                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                LEAST(CAST(FLOOR(({quoted_col} - {min_val}) / {bin_width}) AS INTEGER), {num_bins - 1}) as bin_idx,
                                                 COUNT(*) as cnt
                                             FROM {quoted_table}
                                             WHERE {quoted_col} IS NOT NULL
