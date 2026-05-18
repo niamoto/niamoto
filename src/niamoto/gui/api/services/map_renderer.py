@@ -7,6 +7,7 @@ as rendering engines. Plotly is the default engine.
 
 import json
 import logging
+import html
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -242,6 +243,23 @@ class MapRenderer:
     def _render_leaflet(cls, geojson: Dict[str, Any], config: MapConfig) -> str:
         """Render map using Leaflet."""
         style = config.style
+        safe_title = html.escape(str(config.title))
+        safe_geojson = cls._json_for_inline_script(geojson)
+        safe_center = cls._json_for_inline_script(
+            [config.center_lat, config.center_lon]
+        )
+        safe_zoom = cls._json_for_inline_script(config.zoom)
+        safe_style = cls._json_for_inline_script(
+            {
+                "color": style.color,
+                "strokeWidth": style.stroke_width,
+                "fillColor": style.fill_color,
+                "fillOpacity": style.fill_opacity,
+                "pointRadius": style.point_radius,
+                "strokeOpacity": style.stroke_opacity,
+                "pointFillOpacity": style.fill_opacity + 0.4,
+            }
+        )
 
         return f"""
 <!DOCTYPE html>
@@ -249,7 +267,7 @@ class MapRenderer:
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{config.title}</title>
+    <title>{safe_title}</title>
     <link rel="stylesheet" href="/api/site/assets/css/vendor/leaflet/1.9.4_leaflet.css" />
     <script src="/api/site/assets/js/vendor/leaflet/1.9.4_leaflet.js"></script>
     <style>
@@ -265,8 +283,9 @@ class MapRenderer:
 <body>
     <div id="map"></div>
     <script>
-        const geojson = {json.dumps(geojson)};
-        const map = L.map('map').setView([{config.center_lat}, {config.center_lon}], {config.zoom});
+        const geojson = {safe_geojson};
+        const mapStyle = {safe_style};
+        const map = L.map('map').setView({safe_center}, {safe_zoom});
 
         // Tenter de charger les tuiles OSM, avec fallback fond blanc si offline
         const tileLayer = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}.png', {{
@@ -287,25 +306,28 @@ class MapRenderer:
         const geojsonLayer = L.geoJSON(geojson, {{
             style: function(feature) {{
                 return {{
-                    color: '{style.color}',
-                    weight: {style.stroke_width},
-                    fillColor: '{style.fill_color}',
-                    fillOpacity: {style.fill_opacity}
+                    color: mapStyle.color,
+                    weight: mapStyle.strokeWidth,
+                    fillColor: mapStyle.fillColor,
+                    fillOpacity: mapStyle.fillOpacity
                 }};
             }},
             pointToLayer: function(feature, latlng) {{
                 return L.circleMarker(latlng, {{
-                    radius: {style.point_radius},
-                    fillColor: '{style.fill_color}',
-                    color: '{style.color}',
-                    weight: {style.stroke_width},
-                    opacity: {style.stroke_opacity},
-                    fillOpacity: {style.fill_opacity + 0.4}
+                    radius: mapStyle.pointRadius,
+                    fillColor: mapStyle.fillColor,
+                    color: mapStyle.color,
+                    weight: mapStyle.strokeWidth,
+                    opacity: mapStyle.strokeOpacity,
+                    fillOpacity: mapStyle.pointFillOpacity
                 }});
             }},
             onEachFeature: function(feature, layer) {{
                 if (feature.properties && (feature.properties.label || feature.properties.name)) {{
-                    layer.bindPopup('<strong>' + (feature.properties.label || feature.properties.name) + '</strong>');
+                    const popupLabel = feature.properties.label || feature.properties.name;
+                    const popupContent = document.createElement('strong');
+                    popupContent.textContent = String(popupLabel);
+                    layer.bindPopup(popupContent);
                 }}
             }}
         }}).addTo(map);
@@ -318,6 +340,17 @@ class MapRenderer:
 </body>
 </html>
 """
+
+    @staticmethod
+    def _json_for_inline_script(value: Any) -> str:
+        return (
+            json.dumps(value, ensure_ascii=False)
+            .replace("&", "\\u0026")
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029")
+        )
 
     @staticmethod
     def _extract_polygon_coords(geometry: Dict[str, Any]) -> List[List[List[float]]]:
