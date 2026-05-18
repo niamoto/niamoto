@@ -1251,8 +1251,17 @@ document.addEventListener('DOMContentLoaded', function() {{
 
             reference = parts[0]
             geom_col = "_".join(parts[1:])
+            entity_table = None
+            for split_index in range(len(parts) - 1, 0, -1):
+                candidate_reference = "_".join(parts[:split_index])
+                candidate_geom_col = "_".join(parts[split_index:])
+                candidate_table = resolve_reference_table(db, candidate_reference)
+                if candidate_table:
+                    reference = candidate_reference
+                    geom_col = candidate_geom_col
+                    entity_table = candidate_table
+                    break
 
-            entity_table = resolve_reference_table(db, reference)
             if not entity_table:
                 return self._info_html(f"Table '{reference}' not found")
 
