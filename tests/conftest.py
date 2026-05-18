@@ -28,6 +28,22 @@ def cli_runner():
 
 # Cache for known MagicMock paths to avoid excessive glob operations
 _known_magicmock_paths = set()
+TEST_DATABASE_ARTIFACT_PREFIXES = (
+    "test.",
+    "test-",
+    "test_",
+    "temp.",
+    "temp-",
+    "temp_",
+    "tmp.",
+    "tmp-",
+    "tmp_",
+    "mock.",
+    "mock-",
+    "mock_",
+    "niamoto_test_",
+    "niamoto-test-",
+)
 
 NIAMOTO_SUBSET_INSTANCE = (
     Path(__file__).parent.parent / "test-instance" / "niamoto-subset"
@@ -67,6 +83,11 @@ def is_magicmock_file(name):
     return any(re.match(pattern, name) for pattern in patterns)
 
 
+def is_test_database_artifact(path: Path) -> bool:
+    """Check whether a root database file is clearly owned by tests."""
+    return path.name.startswith(TEST_DATABASE_ARTIFACT_PREFIXES)
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Clean up MagicMock files, mock_db_path, and database test artifacts after test session."""
     # Get the root directory of the project
@@ -90,7 +111,7 @@ def pytest_sessionfinish(session, exitstatus):
     for pattern in db_patterns:
         for db_file in root_dir.glob(pattern):
             # Only clean up files at the root, not in subdirectories
-            if db_file.parent == root_dir:
+            if db_file.parent == root_dir and is_test_database_artifact(db_file):
                 try:
                     print(f"Cleaning up test database artifact: {db_file}")
                     db_file.unlink()
@@ -102,7 +123,7 @@ def pytest_sessionfinish(session, exitstatus):
     for pattern in aux_patterns:
         for aux_file in root_dir.glob(pattern):
             # Only clean up files at the root, not in subdirectories
-            if aux_file.parent == root_dir:
+            if aux_file.parent == root_dir and is_test_database_artifact(aux_file):
                 try:
                     print(f"Cleaning up test database auxiliary file: {aux_file}")
                     aux_file.unlink()
