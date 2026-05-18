@@ -17,6 +17,7 @@ from niamoto.core.plugins.models import DwcTransformerParams, PluginConfig
 from niamoto.common.exceptions import DataTransformError
 
 logger = logging.getLogger(__name__)
+SAFE_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class NiamotoDwCConfig(PluginConfig):
@@ -234,10 +235,64 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._taxonomy_external_id_column = self._resolve_taxonomy_external_id_column(
             params.taxonomy_external_id_column
         )
+        self._validate_configured_identifiers()
         self._active_config_ref = validated_config
         self._active_params = params
         self._active_compiled_mapping = self._compile_mapping(params.mapping)
         return params
+
+    def _validate_sql_identifier(self, identifier: str, label: str) -> str:
+        """Reject config-derived SQL identifiers that cannot be safely quoted."""
+        if not isinstance(identifier, str) or not SAFE_SQL_IDENTIFIER_RE.fullmatch(
+            identifier
+        ):
+            raise DataTransformError(f"Invalid {label}: {identifier!r}")
+        return identifier
+
+    def _quote_sql_identifier(self, identifier: str, label: str) -> str:
+        validated = self._validate_sql_identifier(identifier, label)
+        return f'"{validated}"'
+
+    def _validate_configured_column(
+        self,
+        table_name: str,
+        column_name: str,
+        label: str,
+    ) -> None:
+        self._validate_sql_identifier(column_name, label)
+        get_table_columns = getattr(self.db, "get_table_columns", None)
+        if not callable(get_table_columns):
+            return
+
+        try:
+            columns = get_table_columns(table_name)
+        except Exception:
+            return
+
+        if isinstance(columns, list) and columns and column_name not in columns:
+            raise DataTransformError(
+                f"Configured {label} '{column_name}' does not exist in table '{table_name}'"
+            )
+
+    def _validate_configured_identifiers(self) -> None:
+        occurrence_table = self._validate_sql_identifier(
+            self._occurrence_table,
+            "occurrence table",
+        )
+        taxonomy_table = self._validate_sql_identifier(
+            self._taxonomy_table,
+            "taxonomy table",
+        )
+        self._validate_configured_column(
+            occurrence_table,
+            self._taxon_id_column,
+            "occurrence taxon id column",
+        )
+        self._validate_configured_column(
+            taxonomy_table,
+            self._taxonomy_external_id_column,
+            "taxonomy external id column",
+        )
 
     def _fetch_occurrences_from_db(
         self,
@@ -261,15 +316,32 @@ class NiamotoDwCTransformer(TransformerPlugin):
         try:
             from sqlalchemy import text
 
+            occurrence_table_sql = self._quote_sql_identifier(
+                occurrence_table,
+                "occurrence table",
+            )
+            taxonomy_table_sql = self._quote_sql_identifier(
+                taxonomy_table,
+                "taxonomy table",
+            )
+            taxon_id_column_sql = self._quote_sql_identifier(
+                taxon_id_column,
+                "occurrence taxon id column",
+            )
+            taxonomy_external_id_column_sql = self._quote_sql_identifier(
+                taxonomy_external_id_column,
+                "taxonomy external id column",
+            )
+
             # The taxon_id from the taxon table corresponds to entity_taxonomy.id
             # But occurrences link via entity_taxonomy.taxonomy_id
             # So we need to join entity_taxonomy to get the taxonomy_id first
             query = text(
                 f"""
                 SELECT o.*
-                FROM "{occurrence_table}" o
-                JOIN "{taxonomy_table}" t
-                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                FROM {occurrence_table_sql} o
+                JOIN {taxonomy_table_sql} t
+                  ON o.{taxon_id_column_sql} = t.{taxonomy_external_id_column_sql}
                 WHERE t.id = :taxon_id
             """
             )
@@ -324,12 +396,29 @@ class NiamotoDwCTransformer(TransformerPlugin):
         try:
             from sqlalchemy import bindparam, text
 
+            occurrence_table_sql = self._quote_sql_identifier(
+                occurrence_table,
+                "occurrence table",
+            )
+            taxonomy_table_sql = self._quote_sql_identifier(
+                taxonomy_table,
+                "taxonomy table",
+            )
+            taxon_id_column_sql = self._quote_sql_identifier(
+                taxon_id_column,
+                "occurrence taxon id column",
+            )
+            taxonomy_external_id_column_sql = self._quote_sql_identifier(
+                taxonomy_external_id_column,
+                "taxonomy external id column",
+            )
+
             query = text(
                 f"""
                 SELECT t.id AS _taxon_id, o.*
-                FROM "{occurrence_table}" o
-                JOIN "{taxonomy_table}" t
-                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                FROM {occurrence_table_sql} o
+                JOIN {taxonomy_table_sql} t
+                  ON o.{taxon_id_column_sql} = t.{taxonomy_external_id_column_sql}
                 WHERE t.id IN :taxon_ids
                 """
             ).bindparams(bindparam("taxon_ids", expanding=True))
