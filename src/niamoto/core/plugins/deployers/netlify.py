@@ -45,7 +45,12 @@ class NetlifyDeployer(DeployerPlugin):
             headers={"Authorization": f"Bearer {token}"},
             timeout=30.0,
         ) as client:
-            resp = await client.delete(f"/api/v1/sites/{site_id}")
+            try:
+                resp = await client.delete(f"/api/v1/sites/{site_id}")
+            except httpx.HTTPError as exc:
+                yield self.sse_error(f"Failed to delete site: {exc}")
+                yield self.sse_done()
+                return
 
             if resp.status_code == 204:
                 yield self.sse_success("Netlify site deleted.")

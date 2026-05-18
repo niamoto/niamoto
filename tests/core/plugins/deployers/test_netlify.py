@@ -43,6 +43,20 @@ class _FakeClient:
     async def post(self, *_args, **_kwargs):
         return self._response
 
+    async def delete(self, *_args, **_kwargs):
+        return self._response
+
+
+class _FailingClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def delete(self, *_args, **_kwargs):
+        raise httpx.ConnectError("network down")
+
 
 def test_netlify_create_zip_preserves_relative_paths(tmp_path: Path) -> None:
     exports_dir = tmp_path / "exports"
@@ -91,4 +105,31 @@ def test_netlify_deployer_reports_live_url(monkeypatch, tmp_path: Path) -> None:
     assert any("Deploy created: deploy-123" in line for line in lines)
     assert any("SUCCESS: Deployment is live!" in line for line in lines)
     assert any("URL: https://niamoto-test.netlify.app" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_netlify_unpublish_reports_network_errors(monkeypatch, tmp_path: Path) -> None:
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.netlify.CredentialService.get",
+        lambda *_args, **_kwargs: "netlify-token",
+    )
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.netlify.httpx.AsyncClient",
+        lambda **_kwargs: _FailingClient(),
+    )
+
+    deployer = NetlifyDeployer()
+    config = DeployConfig(
+        platform="netlify",
+        exports_dir=exports_dir,
+        project_name="niamoto-test",
+        extra={"site_id": "site-123"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any("ERROR: Failed to delete site" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"

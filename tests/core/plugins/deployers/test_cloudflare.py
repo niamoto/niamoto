@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import httpx
+
 from niamoto.core.plugins.deployers.cloudflare import CloudflareDeployer
 from niamoto.core.plugins.deployers.models import DeployConfig
 
@@ -37,6 +39,20 @@ class _FakeClient:
     async def put(self, *_args, **_kwargs):
         return self._responses.pop(0)
 
+    async def delete(self, *_args, **_kwargs):
+        return self._responses.pop(0)
+
+
+class _FailingClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def delete(self, *_args, **_kwargs):
+        raise httpx.ConnectError("network down")
+
 
 def test_cloudflare_deployer_reports_missing_credentials(
     monkeypatch, tmp_path: Path
@@ -59,6 +75,37 @@ def test_cloudflare_deployer_reports_missing_credentials(
     lines = asyncio.run(_collect_lines(deployer.deploy(config)))
 
     assert any("Missing Cloudflare credentials" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_cloudflare_unpublish_reports_network_errors(
+    monkeypatch, tmp_path: Path
+) -> None:
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.cloudflare.CredentialService.get",
+        lambda _platform, key: {
+            "api-token": "cf-token",
+            "account-id": "account-123",
+        }.get(key),
+    )
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.cloudflare.httpx.AsyncClient",
+        lambda **_kwargs: _FailingClient(),
+    )
+
+    deployer = CloudflareDeployer()
+    config = DeployConfig(
+        platform="cloudflare",
+        exports_dir=exports_dir,
+        project_name="niamoto-site",
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any("ERROR: Failed to delete Worker" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"
 
 
