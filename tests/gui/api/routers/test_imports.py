@@ -196,6 +196,79 @@ def test_execute_import_dataset_accepts_valid_desktop_auth(monkeypatch):
             imports.import_jobs.pop(job_id, None)
 
 
+def test_execute_import_reference_prunes_old_terminal_jobs(monkeypatch, tmp_path):
+    monkeypatch.delenv("NIAMOTO_DESKTOP_AUTH_TOKEN", raising=False)
+    before_jobs = dict(imports.import_jobs)
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    references = {
+        f"taxon-{index}": SimpleNamespace(
+            connector=SimpleNamespace(type=ConnectorType.FILE)
+        )
+        for index in range(imports.MAX_RETAINED_IMPORT_JOBS + 3)
+    }
+    generic_config = SimpleNamespace(
+        entities=SimpleNamespace(datasets={}, references=references)
+    )
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+        @property
+        def get_imports_config(self):
+            return generic_config
+
+    class FakeImporterService:
+        def __init__(self, db_path: str):
+            self.db_path = db_path
+
+        def import_reference(self, name, config, reset_table=False):
+            return f"reference:{name}"
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "ImporterService", FakeImporterService)
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.preview_engine.engine.get_preview_engine",
+        lambda: None,
+    )
+
+    try:
+        imports.import_jobs.clear()
+        client = TestClient(create_app())
+        created_job_ids = []
+        for index in range(imports.MAX_RETAINED_IMPORT_JOBS + 3):
+            response = client.post(
+                f"/api/imports/execute/reference/taxon-{index}",
+                data={"reset_table": "false"},
+            )
+            assert response.status_code == 200
+            created_job_ids.append(response.json()["job_id"])
+
+        assert len(imports.import_jobs) == imports.MAX_RETAINED_IMPORT_JOBS
+        assert created_job_ids[0] not in imports.import_jobs
+        assert created_job_ids[1] not in imports.import_jobs
+        assert created_job_ids[2] not in imports.import_jobs
+        assert created_job_ids[-1] in imports.import_jobs
+
+        missing_response = client.get(f"/api/imports/jobs/{created_job_ids[0]}")
+        newest_response = client.get(f"/api/imports/jobs/{created_job_ids[-1]}")
+
+        assert missing_response.status_code == 404
+        assert newest_response.status_code == 200
+        assert newest_response.json()["id"] == created_job_ids[-1]
+    finally:
+        imports.import_jobs.clear()
+        imports.import_jobs.update(before_jobs)
+
+
 def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path):
     work_dir = tmp_path
     (work_dir / "config").mkdir()
