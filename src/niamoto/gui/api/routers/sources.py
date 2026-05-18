@@ -150,6 +150,13 @@ def _resolve_imports_source_path(work_dir: Path, source_path: str) -> Path:
         imports_dir = (work_dir / "imports").resolve()
         resolved_path = (work_dir / source_path).resolve()
         resolved_path.relative_to(imports_dir)
+        if resolved_path.suffix.lower() != ".csv":
+            raise HTTPException(
+                status_code=400,
+                detail="Source path must reference a CSV file",
+            )
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -450,6 +457,7 @@ async def save_source_config(
 
     # Verify the CSV file exists
     csv_path = _resolve_imports_source_path(work_dir, request.file_path)
+    canonical_file_path = str(csv_path.relative_to(work_dir))
     if not csv_path.exists():
         raise HTTPException(
             status_code=404, detail=f"CSV file not found: {request.file_path}"
@@ -510,7 +518,7 @@ async def save_source_config(
 
     new_source = {
         "name": request.source_name,
-        "data": request.file_path,
+        "data": canonical_file_path,
         "grouping": reference_name,
         "relation": {
             "plugin": "stats_loader",

@@ -121,6 +121,84 @@ def test_save_source_uses_selected_entity_column_and_reference_key(
     assert source["relation"]["match_field"] == "taxon_id"
 
 
+def test_save_source_rejects_paths_outside_imports(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    outside_csv = work_dir.parent / "outside.csv"
+    outside_csv.write_text(
+        "taxon_id;class_object;class_name;class_value\n"
+        "101;nbe_source_dataset;network;12\n",
+        encoding="utf-8",
+    )
+    transform_path = work_dir / "config" / "transform.yml"
+    before = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "escaped_stats",
+            "file_path": str(outside_csv),
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Source path must stay inside the imports directory"
+    )
+    after = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    assert after == before
+
+
+def test_save_source_persists_canonical_imports_relative_path(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    source_path = imports_dir / "raw_taxa_stats.csv"
+    source_path.write_text(
+        "\n".join(
+            [
+                "taxon_id;class_object;class_name;class_value",
+                "101;nbe_source_dataset;network;12",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "taxa_stats_absolute",
+            "file_path": str(source_path),
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    transform_config = yaml.safe_load(
+        (work_dir / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    taxons_group = next(
+        group for group in transform_config if group.get("group_by") == "taxons"
+    )
+    source = next(
+        configured
+        for configured in taxons_group.get("sources", [])
+        if configured.get("name") == "taxa_stats_absolute"
+    )
+    assert source["data"] == "imports/raw_taxa_stats.csv"
+
+
 def test_analyze_existing_source_rejects_paths_outside_imports(
     monkeypatch,
     gui_duckdb_client: TestClient,
