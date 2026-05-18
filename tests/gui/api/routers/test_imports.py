@@ -210,6 +210,43 @@ def test_get_job_status_redacts_internal_tracebacks():
     assert "traceback" not in payload["events"][0]["details"]
 
 
+def test_list_import_jobs_redacts_internal_tracebacks():
+    job_id = "job-list-redacted"
+    imports.import_jobs[job_id] = _base_job(job_id)
+    imports.import_jobs[job_id].update(
+        {
+            "status": "failed",
+            "error_details": {
+                "message": "boom",
+                "error_type": "RuntimeError",
+                "traceback": "Traceback with /private/project/path",
+            },
+            "events": [
+                {
+                    "kind": "error",
+                    "message": "Import failed",
+                    "details": {
+                        "message": "boom",
+                        "traceback": "Event traceback",
+                    },
+                }
+            ],
+        }
+    )
+
+    try:
+        client = TestClient(create_app())
+        response = client.get("/api/imports/jobs")
+    finally:
+        imports.import_jobs.pop(job_id, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    listed_job = next(job for job in payload["jobs"] if job["id"] == job_id)
+    assert "traceback" not in listed_job["error_details"]
+    assert "traceback" not in listed_job["events"][0]["details"]
+
+
 def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):
     work_dir = tmp_path
     (work_dir / "config").mkdir()
