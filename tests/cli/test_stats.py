@@ -20,6 +20,7 @@ from niamoto.cli.commands.stats import (
     show_data_exploration_suggestions,
     export_statistics,
 )
+from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.core.imports.registry import EntityKind
 from types import SimpleNamespace
 
@@ -799,6 +800,37 @@ class TestDisplayFunctions:
         assert "Elevation Range" in captured.out
         assert "Numerical Data Summary" in captured.out
 
+    def test_display_general_statistics_escapes_rich_markup(self, capsys):
+        """Test database-derived stats render Rich markup literally."""
+        stats = {
+            "Reference [red]Taxon[/red]": 1000,
+            "Generated Tables": {
+                "[red]taxon[/red]": 800,
+            },
+            "Shape Types": {
+                "[red]Forest[/red]": 100,
+            },
+            "Top Families": [
+                ("[red]Myrtaceae[/red]", 500),
+            ],
+            "Elevation Range": {
+                "[red]Min[/red]": "[yellow]0m[/yellow]",
+            },
+            "Numerical Data": {
+                "[red]dbh[/red]": {
+                    "[yellow]Count[/yellow]": "[green]3,000[/green]",
+                }
+            },
+        }
+
+        display_general_statistics(stats, detailed=True)
+
+        captured = capsys.readouterr()
+        assert "[red]Taxon[/red]" in captured.out
+        assert "[red]taxon[/red]" in captured.out
+        assert "[red]Myrtaceae[/red]" in captured.out
+        assert "[RED]DBH[/RED]" in captured.out
+
     def test_display_group_statistics(self, capsys):
         """Test displaying group statistics."""
         stats = {
@@ -851,6 +883,31 @@ class TestDisplayFunctions:
         assert "Types" in captured.out
         assert "Forest" in captured.out
         assert "100" in captured.out
+
+    def test_display_group_statistics_escapes_rich_markup(self, capsys):
+        """Test group labels and distributions render markup literally."""
+        stats = {
+            "Total Count": 200,
+            "[red]Columns[/red]": 5,
+            "Rank Distribution": {
+                "[red]species[/red]": 100,
+            },
+            "Types": {
+                "[red]Forest[/red]": 50,
+            },
+            "Localities": {
+                "[red]Nouméa[/red]": 25,
+            },
+        }
+
+        display_group_statistics(stats, "[red]shape[/red]", detailed=True)
+
+        captured = capsys.readouterr()
+        assert "[red]shape[/red]" in captured.out
+        assert "[red]Columns[/red]" in captured.out
+        assert "[red]species[/red]" in captured.out
+        assert "[red]Forest[/red]" in captured.out
+        assert "[red]Nouméa[/red]" in captured.out
 
 
 class TestShowDataExplorationSuggestions:
@@ -935,6 +992,47 @@ class TestShowDataExplorationSuggestions:
 
         captured = capsys.readouterr()
         assert "Data Exploration Suggestions" in captured.out
+
+    def test_show_suggestions_escapes_rich_markup(
+        self, mock_database, mock_inspector, capsys
+    ):
+        """Test schema-derived suggestion values render markup literally."""
+        dataset = SimpleNamespace(
+            name="[red]occurrences[/red]",
+            table_name="[red]occurrences[/red]",
+            config={
+                "role": "occurrence",
+                "schema": {
+                    "fields": [
+                        {
+                            "name": "[red]family[/red]",
+                            "role": "taxonomic_family",
+                        }
+                    ]
+                },
+            },
+        )
+        reference = SimpleNamespace(
+            name="[red]taxon_ref[/red]",
+            table_name="[red]taxon_ref[/red]",
+            config={},
+        )
+        registry = Mock()
+        registry.list_entities.side_effect = lambda kind: (
+            [dataset] if kind == EntityKind.DATASET else [reference]
+        )
+        registry.get.side_effect = DatabaseQueryError("lookup", "not found")
+        mock_inspector.get_table_names.return_value = [
+            "[red]occurrences[/red]",
+            "[red]taxon_ref[/red]",
+        ]
+        mock_database.get_table_columns.return_value = ["[red]family[/red]"]
+
+        show_data_exploration_suggestions(mock_database, registry)
+
+        captured = capsys.readouterr()
+        assert "[red]family[/red]" in captured.out
+        assert "[red]taxon_ref[/red]" in captured.out
 
 
 class TestExportStatistics:

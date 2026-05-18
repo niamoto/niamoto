@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from rich import box
 
@@ -24,6 +25,11 @@ from string import ascii_letters, digits
 
 _ALLOWED_IDENTIFIER_CHARS = set(ascii_letters + digits + "_- ")
 _UNQUOTED_IDENTIFIER_CHARS = set(ascii_letters + digits + "_")
+
+
+def _safe_text(value: Any) -> str:
+    """Render untrusted values as literal Rich text."""
+    return escape(str(value))
 
 
 # Entity role configurations for distribution statistics
@@ -645,15 +651,17 @@ def display_general_statistics(stats: Dict[str, Any], detailed: bool) -> None:
     }
 
     for key in sorted(reference_entries.keys()):
-        table.add_row(key, f"{reference_entries[key]:,}")
+        table.add_row(_safe_text(key), _safe_text(f"{reference_entries[key]:,}"))
 
     for key in sorted(dataset_entries.keys()):
-        table.add_row(key, f"{dataset_entries[key]:,}")
+        table.add_row(_safe_text(key), _safe_text(f"{dataset_entries[key]:,}"))
 
     # Display generated tables count if present
     if "Generated Tables" in stats:
         for table_name, count in stats["Generated Tables"].items():
-            table.add_row(f"Generated {table_name}", f"{count:,}")
+            table.add_row(
+                _safe_text(f"Generated {table_name}"), _safe_text(f"{count:,}")
+            )
 
     console.print(table)
 
@@ -669,7 +677,7 @@ def display_general_statistics(stats: Dict[str, Any], detailed: bool) -> None:
         shape_table.add_column("Count", justify="right", style="yellow")
 
         for shape_type, count in stats["Shape Types"].items():
-            shape_table.add_row(shape_type, f"{count:,}")
+            shape_table.add_row(_safe_text(shape_type), _safe_text(f"{count:,}"))
 
         console.print(shape_table)
 
@@ -686,21 +694,21 @@ def display_general_statistics(stats: Dict[str, Any], detailed: bool) -> None:
             family_table.add_column("Count", justify="right", style="yellow")
 
             for family, count in stats["Top Families"]:
-                family_table.add_row(family, f"{count:,}")
+                family_table.add_row(_safe_text(family), _safe_text(f"{count:,}"))
 
             console.print(family_table)
 
         if stats.get("Elevation Range"):
             console.print("\n[bold cyan]Elevation Range:[/bold cyan]")
             for key, value in stats["Elevation Range"].items():
-                console.print(f"  {key}: {value}")
+                console.print(f"  {_safe_text(key)}: {_safe_text(value)}")
 
         if stats.get("Numerical Data"):
             console.print("\n[bold cyan]Numerical Data Summary:[/bold cyan]")
             for field_name, field_stats in stats["Numerical Data"].items():
-                console.print(f"  [green]{field_name.upper()}:[/green]")
+                console.print(f"  [green]{_safe_text(field_name.upper())}:[/green]")
                 for key, value in field_stats.items():
-                    console.print(f"    {key}: {value}")
+                    console.print(f"    {_safe_text(key)}: {_safe_text(value)}")
 
 
 def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) -> None:
@@ -708,7 +716,7 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
     console = Console()
 
     table = Table(
-        title=f"{group.capitalize()} Statistics",
+        title=f"{_safe_text(group.capitalize())} Statistics",
         show_header=True,
         header_style="bold cyan",
         box=box.ROUNDED,
@@ -725,7 +733,7 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
             "Types",
             "Localities",
         ]:
-            table.add_row(key, f"{value:,}")
+            table.add_row(_safe_text(key), _safe_text(f"{value:,}"))
 
     console.print(table)
 
@@ -746,7 +754,7 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
             rank_table.add_column("Count", justify="right", style="yellow")
 
             for rank, count in stats["Rank Distribution"].items():
-                rank_table.add_row(rank, f"{count:,}")
+                rank_table.add_row(_safe_text(rank), _safe_text(f"{count:,}"))
 
             console.print(rank_table)
 
@@ -762,7 +770,7 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
             type_table.add_column("Count", justify="right", style="yellow")
 
             for type_value, count in stats["Types"].items():
-                type_table.add_row(str(type_value), f"{count:,}")
+                type_table.add_row(_safe_text(type_value), _safe_text(f"{count:,}"))
 
             console.print(type_table)
 
@@ -778,7 +786,7 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
             locality_table.add_column("Count", justify="right", style="yellow")
 
             for locality, count in stats["Localities"].items():
-                locality_table.add_row(str(locality), f"{count:,}")
+                locality_table.add_row(_safe_text(locality), _safe_text(f"{count:,}"))
 
             console.print(locality_table)
 
@@ -810,9 +818,11 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         occ_config = occ_entity.config if occ_entity else {}
 
         console.print(
-            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]"
+            f"\n[green]{emoji('📊', '[=]')} {_safe_text(label)} Data Exploration:[/green]"
         )
-        console.print(f"  - Your {label.lower()} table has {len(columns)} columns")
+        console.print(
+            f"  - Your {_safe_text(label.lower())} table has {len(columns)} columns"
+        )
         console.print(
             "  - View all columns: [yellow]niamoto stats --group occurrence --detailed[/yellow]"
         )
@@ -829,7 +839,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
             console.print(
                 "  - Top families: [yellow]SELECT {col}, COUNT(*) FROM {table} "
                 "GROUP BY {col} ORDER BY COUNT(*) DESC LIMIT 10[/yellow]".format(
-                    col=family_col, table=occ_table
+                    col=_safe_text(family_col), table=_safe_text(occ_table)
                 )
             )
 
@@ -844,7 +854,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         if elev_col:
             console.print(
                 "  - Elevation distribution: [yellow]SELECT MIN({col}), MAX({col}), "
-                "AVG({col}) FROM {table}[/yellow]".format(col=elev_col, table=occ_table)
+                "AVG({col}) FROM {table}[/yellow]".format(
+                    col=_safe_text(elev_col), table=_safe_text(occ_table)
+                )
             )
 
         # Numerical columns detection
@@ -862,17 +874,19 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         ]
         numerical_cols = [col for col in numerical_candidates if col in columns]
         if numerical_cols:
-            console.print(f"  - Found numerical data: {', '.join(numerical_cols)}")
+            console.print(
+                f"  - Found numerical data: {_safe_text(', '.join(numerical_cols))}"
+            )
             console.print(
                 "  - Explore ranges: [yellow]SELECT MIN({col}), MAX({col}) FROM {table}[/yellow]".format(
-                    col=numerical_cols[0], table=occ_table
+                    col=_safe_text(numerical_cols[0]), table=_safe_text(occ_table)
                 )
             )
 
     elif dataset_entities:
         label = _format_entity_label(dataset_entities[0].name)
         console.print(
-            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]\n  - Table not yet available in the current schema"
+            f"\n[green]{emoji('📊', '[=]')} {_safe_text(label)} Data Exploration:[/green]\n  - Table not yet available in the current schema"
         )
 
     available_refs = [
@@ -887,9 +901,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
                 count = result.scalar() if result is not None else 0
             except Exception:
                 count = 0
-            console.print(f"  - {entity.table_name}: {count:,} records")
+            console.print(f"  - {_safe_text(entity.table_name)}: {count:,} records")
             console.print(
-                f"    [yellow]SELECT * FROM {entity.table_name} LIMIT 5[/yellow]"
+                f"    [yellow]SELECT * FROM {_safe_text(entity.table_name)} LIMIT 5[/yellow]"
             )
 
     # Detect generated tables by exclusion
@@ -905,8 +919,12 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
                 count = result.scalar() if result is not None else 0
             except Exception:
                 count = 0
-            console.print(f"  - {table}: {count:,} records (generated from transforms)")
-            console.print(f"    [yellow]SELECT * FROM {table} LIMIT 5[/yellow]")
+            console.print(
+                f"  - {_safe_text(table)}: {count:,} records (generated from transforms)"
+            )
+            console.print(
+                f"    [yellow]SELECT * FROM {_safe_text(table)} LIMIT 5[/yellow]"
+            )
 
     console.print(f"\n[green]{emoji('🚀', '>>')} Advanced Exploration Ideas:[/green]")
 
@@ -918,8 +936,8 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
             console.print(
                 "    [yellow]SELECT tr.full_name, COUNT(*) FROM {occ} o "
                 "JOIN {tax} tr ON o.taxon_ref_id = tr.id GROUP BY tr.full_name[/yellow]".format(
-                    occ=occ_entity.table_name,
-                    tax=taxon_entity.table_name,
+                    occ=_safe_text(occ_entity.table_name),
+                    tax=_safe_text(taxon_entity.table_name),
                 )
             )
 
@@ -930,8 +948,8 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
             console.print(
                 "    [yellow]SELECT pr.locality, COUNT(*) FROM {occ} o JOIN {plot} pr "
                 "ON o.plot_ref_id = pr.id GROUP BY pr.locality[/yellow]".format(
-                    occ=occ_entity.table_name,
-                    plot=plot_entity.table_name,
+                    occ=_safe_text(occ_entity.table_name),
+                    plot=_safe_text(plot_entity.table_name),
                 )
             )
 
