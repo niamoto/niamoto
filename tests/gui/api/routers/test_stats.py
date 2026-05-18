@@ -1141,6 +1141,71 @@ def test_spatial_map_preserves_wkt_features_without_spatial_extension(
     }
 
 
+def test_spatial_map_wkt_fallback_paginates_valid_geometries(
+    gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [{"name": "location", "type": "geometry"}],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES
+                ('invalid', 'Invalid', 'not a geometry'),
+                ('point', 'Point', 'POINT (164.5 -21.5)'),
+                ('polygon', 'Polygon',
+                 'POLYGON ((166 -22, 167 -22, 167 -20, 166 -20, 166 -22))')
+            """
+        )
+    finally:
+        conn.close()
+
+    def fail_spatial_extension(_conn):
+        raise RuntimeError("spatial extension unavailable")
+
+    monkeypatch.setattr(
+        stats_router, "_load_spatial_extension_best_effort", fail_spatial_extension
+    )
+
+    first_response = gui_duckdb_client.get("/api/stats/spatial-map/shapes?limit=1")
+    second_response = gui_duckdb_client.get(
+        "/api/stats/spatial-map/shapes?limit=1&offset=1"
+    )
+
+    assert first_response.status_code == 200, first_response.text
+    assert second_response.status_code == 200, second_response.text
+    first_payload = first_response.json()
+    second_payload = second_response.json()
+
+    assert first_payload["with_geometry"] == 2
+    assert first_payload["has_more"] is True
+    assert first_payload["next_offset"] == 1
+    assert first_payload["feature_collection"]["features"][0]["id"] == "point"
+    assert second_payload["with_geometry"] == 2
+    assert second_payload["has_more"] is False
+    assert second_payload["feature_collection"]["features"][0]["id"] == "polygon"
+
+
 def test_spatial_map_wkt_fallback_filters_layers_before_pagination(
     gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
 ):
