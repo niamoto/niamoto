@@ -134,6 +134,37 @@ class TestExportHistory:
             assert len(history) == 1
             assert history[0]["type"] == "transform"
 
+    def test_cancel_export_job_marks_running_job_cancelled(self):
+        with TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+            store = JobFileStore(work_dir)
+            running_export = store.create_job("export")
+
+            with patch(
+                "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+                return_value=work_dir,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.delete(f"/api/export/jobs/{running_export['id']}")
+                assert response.status_code == 200, response.text
+                assert response.json() == {
+                    "success": True,
+                    "job_id": running_export["id"],
+                    "status": "cancelled",
+                    "message": "Export job cancelled",
+                }
+
+                status_response = client.get(
+                    f"/api/export/status/{running_export['id']}"
+                )
+                assert status_response.status_code == 200, status_response.text
+                assert status_response.json()["status"] == "cancelled"
+
+            store.complete_job(running_export["id"], result={"ignored": True})
+            assert store.get_job(running_export["id"])["status"] == "cancelled"
+
 
 class _DummyJobStore:
     def __init__(self) -> None:

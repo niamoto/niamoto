@@ -53,7 +53,7 @@ class ExportStatus(BaseModel):
     """Status model for export jobs."""
 
     job_id: str
-    status: str  # "running", "completed", "failed"
+    status: str  # "running", "completed", "failed", "cancelled"
     progress: int  # 0-100
     message: str
     phase: Optional[str] = None  # "transform" or "export"
@@ -104,6 +104,15 @@ def _job_to_status(job: dict) -> dict:
         "result": job.get("result"),
         "error": job.get("error"),
     }
+
+
+def _job_is_cancelled(job_store: JobFileStore, job_id: str) -> bool:
+    """Return whether a background job has been cancelled."""
+    try:
+        job = job_store.get_job(job_id)
+    except AttributeError:
+        return False
+    return bool(job and job.get("status") == "cancelled")
 
 
 def _resolve_export_config_path(config_path: str | Path, work_dir: Path) -> Path:
@@ -325,6 +334,8 @@ async def execute_export_background(
     try:
         logger.info("Starting export job %s", job_id)
         job_store.update_progress(job_id, 0, "Loading configuration...")
+        if _job_is_cancelled(job_store, job_id):
+            return
         logger.info(
             "Job %s: Loading configuration from %s",
             job_id,
@@ -359,6 +370,8 @@ async def execute_export_background(
         # Phase 1 (optionnelle) : Transform
         if include_transform:
             job_store.update_progress(job_id, 0, "transform.running", phase="transform")
+            if _job_is_cancelled(job_store, job_id):
+                return
             logger.info("Job %s: Running transform phase", job_id)
 
             transformer_service = TransformerService(
@@ -383,10 +396,15 @@ async def execute_export_background(
                 True,
                 transform_progress_callback,
             )
+            if _job_is_cancelled(job_store, job_id):
+                return
             logger.info("Job %s: Transform phase completed", job_id)
             job_store.update_progress(job_id, 50, "export.starting", phase="export")
         else:
             job_store.update_progress(job_id, 0, "export.starting", phase="export")
+
+        if _job_is_cancelled(job_store, job_id):
+            return
 
         # Phase 2 : Export
         # Offset de progression : 50-100% si composite, 0-100% si export seul
@@ -417,6 +435,8 @@ async def execute_export_background(
                 export_types,
             )
             for idx, export_name in enumerate(export_types):
+                if _job_is_cancelled(job_store, job_id):
+                    return
                 pct = (
                     progress_base
                     + init_offset
@@ -440,6 +460,8 @@ async def execute_export_background(
                     result = await asyncio.to_thread(
                         exporter_service.run_export, target_name=export_name
                     )
+                    if _job_is_cancelled(job_store, job_id):
+                        return
                     export_result = (
                         result.get(export_name, {}) if isinstance(result, dict) else {}
                     )
@@ -487,6 +509,9 @@ async def execute_export_background(
 
             while not export_task.done():
                 await asyncio.sleep(5)
+                if _job_is_cancelled(job_store, job_id):
+                    export_task.cancel()
+                    return
                 if step_idx < len(steps) and not export_task.done():
                     pct = (
                         progress_base
@@ -503,6 +528,8 @@ async def execute_export_background(
 
             try:
                 result = await export_task
+                if _job_is_cancelled(job_store, job_id):
+                    return
                 logger.info("Job %s: Export task returned results", job_id)
 
                 for export_name, export_result in result.items():
@@ -696,9 +723,24 @@ async def cancel_export_job(job_id: str, http_request: Request):
     if not job:
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
-    raise HTTPException(
-        status_code=501, detail=f"Annulation non implémentée en v1 (job {job_id})"
-    )
+    if job.get("type") != "export":
+        raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
+
+    cancelled = job_store.cancel_job(job_id, "Export job cancelled")
+    if not cancelled:
+        latest = job_store.get_job(job_id)
+        status = latest.get("status", "unknown") if latest else "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Export job {job_id} is already {status}",
+        )
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": "cancelled",
+        "message": "Export job cancelled",
+    }
 
 
 @router.delete("/history")
