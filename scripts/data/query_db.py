@@ -7,19 +7,19 @@ during development and debugging.
 
 Examples:
     # Execute a query
-    uv run python scripts/query_db.py "SELECT * FROM taxon LIMIT 5"
+    uv run python scripts/data/query_db.py "SELECT * FROM taxon LIMIT 5"
 
     # List all tables
-    uv run python scripts/query_db.py --list-tables
+    uv run python scripts/data/query_db.py --list-tables
 
     # Describe a table schema
-    uv run python scripts/query_db.py --describe taxon
+    uv run python scripts/data/query_db.py --describe taxon
 
     # Interactive SQL REPL
-    uv run python scripts/query_db.py --interactive
+    uv run python scripts/data/query_db.py --interactive
 
     # Use a different database file
-    uv run python scripts/query_db.py --db /path/to/db.duckdb "SELECT COUNT(*) FROM taxon"
+    uv run python scripts/data/query_db.py --db /path/to/db.duckdb "SELECT COUNT(*) FROM taxon"
 """
 
 import argparse
@@ -27,28 +27,24 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from niamoto.common.database import Database
-from sqlalchemy import text
-from rich.console import Console
-from rich.table import Table
-from rich.syntax import Syntax
-from rich.panel import Panel
+# Add src to path
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from niamoto.common.database import Database  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from rich.console import Console  # noqa: E402
+from rich.table import Table  # noqa: E402
+from rich.syntax import Syntax  # noqa: E402
+from rich.panel import Panel  # noqa: E402
 
 console = Console()
 
 
 def get_default_db_path() -> str:
     """Get the default database path from test-instance."""
-    default_path = (
-        Path(__file__).parent.parent
-        / "test-instance"
-        / "niamoto-nc"
-        / "db"
-        / "niamoto.duckdb"
-    )
+    default_path = REPO_ROOT / "test-instance" / "niamoto-nc" / "db" / "niamoto.duckdb"
     if not default_path.exists():
         console.print(
             f"[yellow]Warning: Default database not found at {default_path}[/yellow]"
