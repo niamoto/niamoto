@@ -87,6 +87,41 @@ def _serialize_import_error(error: Exception) -> Dict[str, Any]:
     return jsonable_encoder(serialized)
 
 
+def _sanitize_error_details(details: Any) -> Any:
+    if not isinstance(details, dict):
+        return details
+
+    sanitized = {key: value for key, value in details.items() if key != "traceback"}
+    if isinstance(sanitized.get("details"), dict):
+        sanitized["details"] = _sanitize_error_details(sanitized["details"])
+    if isinstance(sanitized.get("cause"), dict):
+        sanitized["cause"] = _sanitize_error_details(sanitized["cause"])
+    return sanitized
+
+
+def _sanitize_import_job_for_response(job: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized = dict(job)
+
+    if sanitized.get("error_details") is not None:
+        sanitized["error_details"] = _sanitize_error_details(sanitized["error_details"])
+
+    sanitized_events = []
+    for event in sanitized.get("events", []):
+        if not isinstance(event, dict):
+            sanitized_events.append(event)
+            continue
+
+        sanitized_event = dict(event)
+        if sanitized_event.get("details") is not None:
+            sanitized_event["details"] = _sanitize_error_details(
+                sanitized_event["details"]
+            )
+        sanitized_events.append(sanitized_event)
+
+    sanitized["events"] = sanitized_events
+    return sanitized
+
+
 def _append_import_event(job: Dict[str, Any], event: Dict[str, Any]) -> None:
     events = job.setdefault("events", [])
     events.append(event)
@@ -302,7 +337,7 @@ async def get_job_status(job_id: str) -> Dict[str, Any]:
     if job_id not in import_jobs:
         raise HTTPException(status_code=404, detail=f"Import job {job_id} not found")
 
-    return import_jobs[job_id]
+    return _sanitize_import_job_for_response(import_jobs[job_id])
 
 
 @router.get("/jobs")
