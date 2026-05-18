@@ -6,6 +6,8 @@ to ensure file operations happen in the correct project directory.
 
 import asyncio
 import json
+import os
+import tempfile
 import threading
 import time
 import uuid
@@ -17,6 +19,7 @@ import zipfile
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import yaml
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 from niamoto.gui.api.context import get_working_directory
@@ -718,8 +721,6 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
     Returns:
         Success status and message
     """
-    import yaml
-
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
@@ -747,15 +748,32 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
         if request.auxiliary_sources:
             import_config["auxiliary_sources"] = request.auxiliary_sources
 
-        # Write to import.yml
-        with open(import_yml_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                import_config,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=config_dir,
+                prefix=".import.yml.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                yaml.dump(
+                    import_config,
+                    temp_file,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+
+            temp_path.replace(import_yml_path)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
 
         dataset_count = len(request.entities.get("datasets", {}))
         reference_count = len(request.entities.get("references", {}))
