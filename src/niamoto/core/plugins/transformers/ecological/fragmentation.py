@@ -366,13 +366,14 @@ class FragmentationAnalysis(TransformerPlugin):
                                 total_edge += interior.length
 
                 # Edge density = total edge length / total area
-                # Convert according to units (m/ha or m/km²)
+                # landscape_area is already expressed in the requested unit,
+                # so density is meters per requested area unit.
                 if landscape_area > 0:
                     if area_unit == "ha":
-                        edge_density = total_edge / (landscape_area * 10000)  # m/ha
+                        edge_density = total_edge / landscape_area  # m/ha
                         edge_unit = "m/ha"
                     elif area_unit == "km2":
-                        edge_density = total_edge / (landscape_area * 1000000)  # m/km²
+                        edge_density = total_edge / landscape_area  # m/km²
                         edge_unit = "m/km²"
                     else:
                         edge_density = total_edge / landscape_area  # m/m²
