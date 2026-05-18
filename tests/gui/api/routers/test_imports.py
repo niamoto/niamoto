@@ -13,6 +13,7 @@ def _base_job(job_id: str = "job-1") -> dict:
         "id": job_id,
         "status": "pending",
         "import_type": "all",
+        "working_directory": None,
         "created_at": "now",
         "started_at": None,
         "completed_at": None,
@@ -106,6 +107,36 @@ def test_process_generic_import_all_emits_entity_events(monkeypatch, tmp_path):
     assert any(event["message"] == "Imported occurrences" for event in job["events"])
     assert any(event["message"] == "Imported taxons" for event in job["events"])
     assert any(event["message"] == "Imported shapes" for event in job["events"])
+
+
+def test_execute_import_all_rejects_concurrent_job_for_same_workdir(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-import"
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/imports/execute/all", data={"reset_table": "false"}
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import-all job is already pending or running",
+        "job_id": active_job_id,
+    }
 
 
 def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path):
