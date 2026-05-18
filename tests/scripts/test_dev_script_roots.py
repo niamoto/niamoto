@@ -20,3 +20,11 @@ def test_evaluate_pipeline_uses_repository_root_for_imports():
 
     assert script_globals["REPO_ROOT"] == REPO_ROOT
     assert script_globals["SRC_DIR"] == REPO_ROOT / "src"
+
+
+def test_archived_optimized_test_runner_uses_repository_root():
+    script_globals = runpy.run_path(
+        str(REPO_ROOT / "scripts" / "_archive" / "run_tests_optimized.py")
+    )
+
+    assert script_globals["repository_root"]() == REPO_ROOT
