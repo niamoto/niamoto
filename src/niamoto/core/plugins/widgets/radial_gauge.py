@@ -335,6 +335,13 @@ class RadialGaugeWidget(WidgetPlugin):
         bar_color = params.bar_color
         bar_thickness = None  # Default thickness
         min_value = params.min_value or 0
+        if gauge_max <= min_value:
+            logger.warning(
+                "Invalid gauge range [%s, %s]; expanding max value.",
+                min_value,
+                gauge_max,
+            )
+            gauge_max = min_value + max(abs(min_value) * 0.1, 1)
 
         if params.style_mode == "contextual":
             # Determine color based on value position in range
