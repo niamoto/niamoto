@@ -88,3 +88,29 @@ def test_submit_feedback_proxies_to_worker(monkeypatch):
         "payload": '{"type":"bug","title":"Broken widget"}',
         "filename": "feedback.jpg",
     }
+
+
+def test_submit_feedback_rejects_private_configured_worker(monkeypatch):
+    forwarded = False
+    monkeypatch.setenv("NIAMOTO_FEEDBACK_WORKER_URL", "http://127.0.0.1:8787")
+    monkeypatch.setenv("NIAMOTO_FEEDBACK_API_KEY", "secret")
+
+    async def fake_forward_feedback(*_args, **_kwargs):
+        nonlocal forwarded
+        forwarded = True
+        return 201, {"success": True}
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.feedback._forward_feedback",
+        fake_forward_feedback,
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/feedback/submit",
+        data={"payload": '{"type":"bug","title":"Broken widget"}'},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Feedback endpoint URL is not allowed."
+    assert forwarded is False
