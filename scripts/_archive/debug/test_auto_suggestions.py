@@ -10,8 +10,12 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add src to path
 REPO_ROOT = Path(__file__).resolve().parents[3]
+if not (REPO_ROOT / "src").is_dir():
+    raise RuntimeError(f"Could not resolve repository root from {__file__}")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from niamoto.common.database import Database  # noqa: E402
@@ -25,8 +29,7 @@ def test_auto_suggestions():
     # Use test instance
     db_path = REPO_ROOT / "test-instance" / "niamoto-nc" / "db" / "niamoto.duckdb"
     if not db_path.exists():
-        print(f"❌ Database not found: {db_path}")
-        return 1
+        pytest.fail(f"Database fixture not found: {db_path}")
 
     print("🔧 Connecting to database...")
     db = Database(str(db_path))
@@ -47,8 +50,7 @@ def test_auto_suggestions():
             break
 
     if not test_csv:
-        print(f"❌ No test CSV found in: {csv_files}")
-        return 1
+        pytest.fail(f"No test CSV found in: {csv_files}")
 
     print(f"📁 Testing with: {test_csv}")
 
@@ -72,13 +74,11 @@ def test_auto_suggestions():
         metadata = registry.get(entity_name)
 
         if not metadata or not metadata.config:
-            print("❌ No metadata found")
-            return 1
+            pytest.fail("No metadata found")
 
         config = metadata.config
         if "semantic_profile" not in config:
-            print("❌ No semantic_profile in metadata")
-            return 1
+            pytest.fail("No semantic_profile in metadata")
 
         semantic_profile = config["semantic_profile"]
         print(f"✅ Semantic profile generated at: {semantic_profile['analyzed_at']}")
@@ -107,14 +107,13 @@ def test_auto_suggestions():
         print(json.dumps(semantic_profile, indent=2, default=str))
 
         print("\n✅ Auto-suggestion system working correctly!")
-        return 0
 
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return 1
+        pytest.fail(f"Auto-suggestion test failed: {e}")
     finally:
         # Cleanup
         try:

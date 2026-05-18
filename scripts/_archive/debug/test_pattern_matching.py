@@ -11,6 +11,8 @@ from pathlib import Path
 
 # Add src to path
 REPO_ROOT = Path(__file__).resolve().parents[3]
+if not (REPO_ROOT / "src").is_dir():
+    raise RuntimeError(f"Could not resolve repository root from {__file__}")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from niamoto.core.plugins.matching.matcher import SmartMatcher  # noqa: E402

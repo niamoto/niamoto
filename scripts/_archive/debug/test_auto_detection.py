@@ -12,6 +12,8 @@ import pytest
 
 # Add src to path
 REPO_ROOT = Path(__file__).resolve().parents[3]
+if not (REPO_ROOT / "src").is_dir():
+    raise RuntimeError(f"Could not resolve repository root from {__file__}")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from niamoto.core.imports.auto_detector import AutoDetector  # noqa: E402
@@ -25,10 +27,10 @@ def test_auto_detection():
     print()
 
     # Path to test data
-    import_dir = REPO_ROOT / "test-instance" / "niamoto-og" / "imports"
+    import_dir = REPO_ROOT / "test-instance" / "niamoto-nc" / "imports"
 
     if not import_dir.exists():
-        pytest.skip(f"Import fixture directory not found: {import_dir}")
+        pytest.fail(f"Import fixture directory not found: {import_dir}")
 
     print(f"📁 Analyzing directory: {import_dir}")
     print()
