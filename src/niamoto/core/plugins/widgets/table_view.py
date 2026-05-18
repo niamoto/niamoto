@@ -141,7 +141,7 @@ class TableViewWidget(WidgetPlugin):
 
     def render(self, data: Optional[pd.DataFrame], params: TableViewParams) -> str:
         """Generate the HTML table from the DataFrame."""
-        if data is None or data.empty:
+        if data is None:
             logger.info("No data provided to TableViewWidget.")
             return "<p class='info'>No data available to display in table.</p>"
 
@@ -154,6 +154,10 @@ class TableViewWidget(WidgetPlugin):
             except Exception as e:
                 logger.error(f"Could not convert input data to DataFrame: {e}")
                 return "<p class='error'>Invalid data format for table view.</p>"
+
+        if data.empty:
+            logger.info("No data provided to TableViewWidget.")
+            return "<p class='info'>No data available to display in table.</p>"
 
         df_display = data.copy()
 
