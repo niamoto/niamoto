@@ -127,18 +127,19 @@ async def analyze_file(
         content = await file.read()
 
         # Basic analysis based on file type
+        filename_lower = file.filename.lower()
         # Check if it's a spatial file for shapes/spatial reference import
-        is_spatial = entity_type == "reference" and file.filename.lower().endswith(
+        is_spatial = entity_type == "reference" and filename_lower.endswith(
             (".zip", ".shp", ".geojson", ".gpkg")
         )
 
         if is_spatial:
             result = await analyze_shape(content, file.filename)
-        elif file.filename.endswith(".csv"):
+        elif filename_lower.endswith(".csv"):
             result = await analyze_csv(content, file.filename)
-        elif file.filename.endswith((".xls", ".xlsx")):
+        elif filename_lower.endswith((".xls", ".xlsx")):
             result = await analyze_excel(content, file.filename)
-        elif file.filename.lower().endswith(".shp"):
+        elif filename_lower.endswith(".shp"):
             return {
                 "error": "Shapefile analysis requires all component files (.shp, .shx, .dbf). Please upload a ZIP file containing all shapefile components."
             }
