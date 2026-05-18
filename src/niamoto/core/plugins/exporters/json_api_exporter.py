@@ -37,6 +37,7 @@ from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.utils.emoji import emoji
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, register
+from niamoto.core.plugins.exporters.path_utils import safe_output_path
 from niamoto.core.plugins.models import TargetConfig, BasePluginParams
 from niamoto.core.plugins.registry import PluginRegistry
 
@@ -614,8 +615,9 @@ class JsonApiExporter(ExporterPlugin):
                 return False
 
             # Generate file path for the item
-            file_path = output_dir / params.detail_output_pattern.format(
-                group=group_name, id=item_id
+            file_path = safe_output_path(
+                output_dir,
+                params.detail_output_pattern.format(group=group_name, id=item_id),
             )
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -625,8 +627,9 @@ class JsonApiExporter(ExporterPlugin):
             return True
         else:
             # Normal single item output
-            file_path = output_dir / params.detail_output_pattern.format(
-                group=group_name, id=item_id
+            file_path = safe_output_path(
+                output_dir,
+                params.detail_output_pattern.format(group=group_name, id=item_id),
             )
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -679,7 +682,9 @@ class JsonApiExporter(ExporterPlugin):
         logger.info(f"Generating index file for group: {group_name}")
 
         # Generate file path
-        file_path = output_dir / params.index_output_pattern.format(group=group_name)
+        file_path = safe_output_path(
+            output_dir, params.index_output_pattern.format(group=group_name)
+        )
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Map index data
@@ -928,7 +933,8 @@ class JsonApiExporter(ExporterPlugin):
     def _save_errors(self, output_dir: Path, params: JsonApiExporterParams) -> None:
         """Save error log to file."""
         if params.error_handling.error_file:
-            error_file = output_dir / params.error_handling.error_file
+            error_file = safe_output_path(output_dir, params.error_handling.error_file)
+            error_file.parent.mkdir(parents=True, exist_ok=True)
             with open(error_file, "w", encoding="utf-8") as f:
                 json.dump(self.errors, f, indent=2, default=str)
 
@@ -962,7 +968,7 @@ class JsonApiExporter(ExporterPlugin):
             # TODO: Generate JSON Schema for exported data
             metadata["schema"] = {}
 
-        metadata_file = output_dir / "metadata.json"
+        metadata_file = safe_output_path(output_dir, "metadata.json")
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 

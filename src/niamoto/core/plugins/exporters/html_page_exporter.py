@@ -33,6 +33,7 @@ from niamoto.common.utils.emoji import emoji
 from niamoto.common.i18n import I18nResolver
 from niamoto.common.table_resolver import resolve_entity_table, resolve_reference_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
+from niamoto.core.plugins.exporters.path_utils import safe_output_path
 from niamoto.core.plugins.models import (
     TargetConfig,
     HtmlExporterParams,
@@ -1278,7 +1279,7 @@ class HtmlPageExporter(ExporterPlugin):
                     # Decide whether to raise or continue
 
                 rendered_html = template.render(context)
-                output_file_path = output_dir / page_config.output_file
+                output_file_path = safe_output_path(output_dir, page_config.output_file)
                 output_file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(output_file_path, "w", encoding="utf-8") as f:
                     f.write(rendered_html)
@@ -1297,6 +1298,8 @@ class HtmlPageExporter(ExporterPlugin):
                 self.stats["total_files_generated"] += 1
                 logger.debug(f"Rendered static page: {output_file_path}")
 
+            except ValueError:
+                raise
             except Exception as e:
                 logger.error(
                     f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
@@ -1739,8 +1742,28 @@ class HtmlPageExporter(ExporterPlugin):
             f"{group_by_key}/" in group_config.output_pattern
             or "{group_by}/" in group_config.output_pattern
         ):
-            return output_dir / output_file_name
-        return group_output_dir / output_file_name
+            return safe_output_path(output_dir, output_file_name)
+        return safe_output_path(group_output_dir, output_file_name)
+
+    def _resolve_group_index_output_path(
+        self,
+        *,
+        group_config: GroupConfigWeb,
+        group_by_key: str,
+        output_dir: Path,
+        group_output_dir: Path,
+    ) -> Path:
+        """Compute the output path for one group index page."""
+        output_file_name = group_config.index_output_pattern.format(
+            group_by=group_by_key
+        )
+
+        if (
+            f"{group_by_key}/" in group_config.index_output_pattern
+            or "{group_by}/" in group_config.index_output_pattern
+        ):
+            return safe_output_path(output_dir, output_file_name)
+        return safe_output_path(group_output_dir, output_file_name)
 
     def _render_widgets_for_item(
         self,
@@ -2574,21 +2597,12 @@ class HtmlPageExporter(ExporterPlugin):
                     processed_items.append(processed)
                 normalized_items = processed_items
 
-            # Output index file to the specific group directory
-            index_output_file = Path(
-                group_config.index_output_pattern.format(group_by=group_by_key)
+            index_output_path = self._resolve_group_index_output_path(
+                group_config=group_config,
+                group_by_key=group_by_key,
+                output_dir=output_dir,
+                group_output_dir=group_output_dir,
             )
-
-            # Check if index_output_pattern already includes the group name to avoid duplication
-            if (
-                f"{group_by_key}/" in group_config.index_output_pattern
-                or "{group_by}/" in group_config.index_output_pattern
-            ):
-                # Remove the group prefix from output path to avoid duplication
-                index_output_path = output_dir / index_output_file
-            else:
-                # Keep current behavior for backward compatibility
-                index_output_path = group_output_dir / index_output_file
 
             nav_depth, depth = self._compute_page_depths(
                 page_output_path=index_output_path,

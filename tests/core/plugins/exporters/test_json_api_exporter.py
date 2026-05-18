@@ -557,27 +557,78 @@ class TestJsonApiExporterSecurity:
         exporter = JsonApiExporter(Mock())
 
         # Test with directory traversal attempt
-        malicious_pattern = "../../../etc/passwd"
+        malicious_pattern = "../escaped.json"
         params = JsonApiExporterParams(
-            output_dir="/safe/dir", detail_output_pattern=malicious_pattern
+            output_dir="api", detail_output_pattern=malicious_pattern
         )
 
         item = {"id": 1}
         group_config = GroupConfig(group_by="test")
 
-        # Current implementation doesn't validate paths - this documents the security issue
         with tempfile.TemporaryDirectory() as tmp_dir:
-            # This should raise an error due to path traversal attempt
-            with pytest.raises((PermissionError, OSError)):
+            output_dir = Path(tmp_dir) / "api"
+            output_dir.mkdir()
+
+            with pytest.raises(ValueError, match="escapes output directory"):
                 exporter._generate_detail_file(
                     item,
                     "test",
                     group_config,
                     params,
-                    Path(tmp_dir),
+                    output_dir,
                     DataMapper(group_config, params),
                     JsonOptions(),
                 )
+            assert not (Path(tmp_dir) / "escaped.json").exists()
+
+    def test_index_output_pattern_cannot_escape_output_dir(self):
+        """Test that index output patterns cannot escape the export directory."""
+        exporter = JsonApiExporter(Mock())
+        group_config = GroupConfig(
+            group_by="test", index=IndexConfig(fields=[{"id": "id"}])
+        )
+        params = JsonApiExporterParams(
+            output_dir="api", index_output_pattern="../escaped-index.json"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "api"
+            output_dir.mkdir()
+            exporter.stats["groups_processed"]["test"] = {
+                "total_items": 1,
+                "detail_files_generated": 0,
+                "index_generated": False,
+                "errors": 0,
+            }
+
+            with pytest.raises(ValueError, match="escapes output directory"):
+                exporter._generate_index_file(
+                    [{"id": 1}],
+                    "test",
+                    group_config,
+                    params,
+                    output_dir,
+                    DataMapper(group_config, params),
+                    JsonOptions(),
+                )
+            assert not (Path(tmp_dir) / "escaped-index.json").exists()
+
+    def test_error_file_cannot_escape_output_dir(self):
+        """Test that error files cannot escape the export directory."""
+        exporter = JsonApiExporter(Mock())
+        exporter.errors = [{"error": "boom"}]
+        params = JsonApiExporterParams(
+            output_dir="api",
+            error_handling=ErrorHandling(error_file="../errors.json"),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "api"
+            output_dir.mkdir()
+
+            with pytest.raises(ValueError, match="escapes output directory"):
+                exporter._save_errors(output_dir, params)
+            assert not (Path(tmp_dir) / "errors.json").exists()
 
     def test_data_size_limits(self):
         """Test that large data sets are handled safely."""
