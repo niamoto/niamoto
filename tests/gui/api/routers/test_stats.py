@@ -7,6 +7,7 @@ import duckdb
 import yaml
 from fastapi.testclient import TestClient
 
+from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import stats as stats_router
 from niamoto.gui.api.routers.stats import (
     _load_import_entities_config,
@@ -1430,3 +1431,54 @@ def test_validation_rules_default_and_roundtrip(tmp_path, monkeypatch):
 
     reloaded = asyncio.run(stats_router.get_validation_rules())
     assert reloaded == updated
+
+
+def test_validation_rules_put_requires_desktop_auth_when_configured(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    client = TestClient(create_app())
+    payload = {
+        "rules": [
+            {
+                "rule_type": "required",
+                "target": "dataset_occurrences.locality",
+                "method": "manual",
+                "params": {"allow_empty": False},
+            }
+        ]
+    }
+
+    response = client.put("/api/stats/validation/rules", json=payload)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+    assert not (tmp_path / "config" / "validation.yml").exists()
+
+
+def test_validation_rules_put_accepts_desktop_auth_token(tmp_path, monkeypatch):
+    monkeypatch.setattr(stats_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    client = TestClient(create_app())
+    payload = {
+        "rules": [
+            {
+                "rule_type": "required",
+                "target": "dataset_occurrences.locality",
+                "method": "manual",
+                "params": {"allow_empty": False},
+            }
+        ]
+    }
+
+    response = client.put(
+        "/api/stats/validation/rules",
+        json=payload,
+        headers={"x-niamoto-desktop-token": "desktop-secret"},
+    )
+
+    assert response.status_code == 200
+    assert (tmp_path / "config" / "validation.yml").exists()
