@@ -1,8 +1,10 @@
 """Regression tests for transform route group filtering."""
 
+import asyncio
 from pathlib import Path
 
 import pytest
+import yaml
 
 from niamoto.gui.api.routers import transform as transform_router
 
@@ -107,3 +109,28 @@ def test_transform_status_keeps_group_metadata() -> None:
 
     assert status.group_by is None
     assert status.group_bys == ["plots", "taxons"]
+
+
+def test_get_transform_sources_reads_root_dict_group(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            {
+                "group_by": "shapes",
+                "sources": [
+                    {"name": "shape_stats"},
+                    {"name": "raw_shape_stats"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: tmp_path)
+
+    response = asyncio.run(transform_router.get_transform_sources(group_by="shapes"))
+
+    assert response == {"sources": ["raw_shape_stats", "shape_stats"]}

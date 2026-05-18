@@ -606,7 +606,9 @@ async def get_transform_sources(
         if isinstance(transform_config, list):
             transforms = transform_config
         elif isinstance(transform_config, dict):
-            transforms = transform_config.get("transforms", [])
+            transforms = transform_config.get("transforms")
+            if transforms is None:
+                transforms = [transform_config]
         else:
             transforms = []
 
