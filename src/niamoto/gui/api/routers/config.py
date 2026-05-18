@@ -41,6 +41,7 @@ from niamoto.core.imports.config_models import GenericImportConfig
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
+TRANSFORM_CONFIG_WRITE_LOCK = threading.RLock()
 EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
 
 
@@ -1735,27 +1736,28 @@ async def update_transform_widget(
         Updated widget summary
     """
     try:
-        groups = _load_transform_config()
-        group = _find_transform_group(groups, group_by)
+        with TRANSFORM_CONFIG_WRITE_LOCK:
+            groups = _load_transform_config()
+            group = _find_transform_group(groups, group_by)
 
-        if not group:
-            # Auto-créer seulement si le group_by est une référence connue
-            if not _is_known_reference(group_by):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Group '{group_by}' not found and is not a known reference in import.yml",
-                )
-            group = _find_or_create_transform_group_impl(groups, group_by)
+            if not group:
+                # Auto-créer seulement si le group_by est une référence connue
+                if not _is_known_reference(group_by):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Group '{group_by}' not found and is not a known reference in import.yml",
+                    )
+                group = _find_or_create_transform_group_impl(groups, group_by)
 
-        if "widgets_data" not in group:
-            group["widgets_data"] = {}
+            if "widgets_data" not in group:
+                group["widgets_data"] = {}
 
-        group["widgets_data"][widget_id] = {
-            "plugin": update.plugin,
-            "params": update.params,
-        }
+            group["widgets_data"][widget_id] = {
+                "plugin": update.plugin,
+                "params": update.params,
+            }
 
-        _save_transform_config(groups)
+            _save_transform_config(groups)
 
         return WidgetSummary(
             id=widget_id,
@@ -1782,21 +1784,24 @@ async def delete_transform_widget(group_by: str, widget_id: str) -> Dict[str, bo
         Success status
     """
     try:
-        groups = _load_transform_config()
-        group = _find_transform_group(groups, group_by)
+        with TRANSFORM_CONFIG_WRITE_LOCK:
+            groups = _load_transform_config()
+            group = _find_transform_group(groups, group_by)
 
-        if not group:
-            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+            if not group:
+                raise HTTPException(
+                    status_code=404, detail=f"Group '{group_by}' not found"
+                )
 
-        widgets_data = group.get("widgets_data", {})
-        if widget_id not in widgets_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
-            )
+            widgets_data = group.get("widgets_data", {})
+            if widget_id not in widgets_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+                )
 
-        del widgets_data[widget_id]
-        _save_transform_config(groups)
+            del widgets_data[widget_id]
+            _save_transform_config(groups)
 
         return {"success": True}
 
