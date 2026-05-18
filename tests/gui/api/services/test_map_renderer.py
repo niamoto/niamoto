@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from niamoto.gui.api.services.map_renderer import MapConfig, MapRenderer
+from niamoto.gui.api.services.map_renderer import MapConfig, MapRenderer, MapStyle
 
 
 def test_render_rejects_invalid_geojson():
@@ -114,3 +114,32 @@ def test_render_plotly_uses_feature_label_for_hover_text():
     html = MapRenderer.render(geojson, config=MapConfig(), engine="plotly")
 
     assert "Preferred label" in html
+
+
+def test_render_leaflet_escapes_title_and_dataset_popup_content():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {
+                    "label": '</script><script>alert("label")</script><img src=x>',
+                },
+            }
+        ],
+    }
+    config = MapConfig(
+        title='</title><script>alert("title")</script>',
+        style=MapStyle(color='red";alert("style")//'),
+    )
+
+    html = MapRenderer.render(geojson, config=config, engine="leaflet")
+
+    assert "&lt;/title&gt;&lt;script&gt;alert(&quot;title&quot;)&lt;/script&gt;" in html
+    assert '</script><script>alert("label")' not in html
+    assert "<img src=x>" not in html
+    assert "\\u003c/script\\u003e\\u003cscript\\u003e" in html
+    assert "popupContent.textContent = String(popupLabel);" in html
+    assert "layer.bindPopup('<strong>'" not in html
+    assert "red&quot;;alert" not in html
