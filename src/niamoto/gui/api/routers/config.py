@@ -1979,6 +1979,15 @@ async def update_export_widget(
         Updated widget configuration
     """
     try:
+        if (
+            update.plugin != "hierarchical_nav_widget"
+            and update.data_source != widget_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Widget data_source must match the widget_id path parameter",
+            )
+
         export_config = _load_export_config()
         exports = export_config.setdefault("exports", [])
         for export_entry in exports:

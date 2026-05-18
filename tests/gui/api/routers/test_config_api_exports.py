@@ -70,6 +70,52 @@ def test_update_export_widget_preserves_layout_and_accepts_localized_metadata(
     assert widget["template"] == "custom.html"
 
 
+def test_update_export_widget_rejects_mismatched_data_source(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    original_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "exporter": "html_page_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [
+                            {
+                                "plugin": "bar_plot",
+                                "data_source": "richness",
+                                "params": {"x_axis": "name"},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    export_path.write_text(
+        yaml.safe_dump(original_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.put(
+        "/api/config/export/taxons/widgets/richness_copy",
+        json={
+            "plugin": "bar_plot",
+            "data_source": "richness",
+            "params": {"x_axis": "name"},
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == (
+        "Widget data_source must match the widget_id path parameter"
+    )
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    assert saved == original_config
+
+
 def test_update_export_widget_can_clear_metadata(gui_duckdb_client, gui_duckdb_context):
     export_path = gui_duckdb_context / "config" / "export.yml"
     export_path.write_text(
