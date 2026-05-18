@@ -1339,34 +1339,39 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
             if group.get("group_by") == group_by:
                 widgets = group.get("widgets", [])
 
-                # Create a map of frontend widget id -> widget
-                widget_map = {}
-                for widget in widgets:
-                    widget_id = _resolve_export_widget_id(group_by, widget)
-                    if widget_id:
-                        widget_map[widget_id] = widget
+                indexed_widgets = [
+                    {
+                        "id": _resolve_export_widget_id(group_by, widget),
+                        "widget": widget,
+                        "used": False,
+                    }
+                    for widget in widgets
+                ]
 
                 # Reorder based on request
                 new_widgets = []
-                order_idx = 0
                 for widget_id in request.widget_ids:
-                    if widget_id in widget_map:
-                        widget = widget_map[widget_id]
-                        # Update layout.order to match new position
-                        if "layout" not in widget:
-                            widget["layout"] = {}
-                        widget["layout"]["order"] = order_idx
-                        new_widgets.append(widget)
-                        del widget_map[widget_id]
-                        order_idx += 1
+                    match = next(
+                        (
+                            entry
+                            for entry in indexed_widgets
+                            if not entry["used"] and entry["id"] == widget_id
+                        ),
+                        None,
+                    )
+                    if match is not None:
+                        match["used"] = True
+                        new_widgets.append(match["widget"])
 
-                # Add any remaining widgets not in the list
-                for widget in widget_map.values():
+                # Add any remaining widgets, including unresolved and duplicate-ID leftovers.
+                for entry in indexed_widgets:
+                    if not entry["used"]:
+                        new_widgets.append(entry["widget"])
+
+                for order_idx, widget in enumerate(new_widgets):
                     if "layout" not in widget:
                         widget["layout"] = {}
                     widget["layout"]["order"] = order_idx
-                    new_widgets.append(widget)
-                    order_idx += 1
 
                 group["widgets"] = new_widgets
 

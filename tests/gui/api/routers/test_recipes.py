@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import recipes
 from niamoto.gui.api.routers.recipes import SourceInfo
 
@@ -162,3 +163,60 @@ def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
     payload = response.json()
     assert payload["source_name"] == "occurrences"
     assert payload["table_name"] == "dataset_occurrences"
+
+
+def test_reorder_widgets_preserves_unresolved_widgets(monkeypatch, tmp_path):
+    export_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [
+                            {
+                                "plugin": "chart_widget",
+                                "data_source": "alpha",
+                                "layout": {"order": 0},
+                            },
+                            {
+                                "plugin": "legacy_widget",
+                                "title": "Unresolved legacy widget",
+                                "layout": {"order": 1},
+                            },
+                            {
+                                "plugin": "table_widget",
+                                "data_source": "beta",
+                                "layout": {"order": 2},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    saved_configs = []
+
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(recipes, "load_export_config", lambda _work_dir: export_config)
+    monkeypatch.setattr(
+        recipes,
+        "save_export_config",
+        lambda _work_dir, config: saved_configs.append(config),
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/recipes/taxons/reorder",
+        json={"widget_ids": ["beta", "alpha"]},
+    )
+
+    assert response.status_code == 200, response.text
+    saved_widgets = saved_configs[0]["exports"][0]["groups"][0]["widgets"]
+    assert [widget.get("data_source") for widget in saved_widgets] == [
+        "beta",
+        "alpha",
+        None,
+    ]
+    assert saved_widgets[2]["plugin"] == "legacy_widget"
+    assert [widget["layout"]["order"] for widget in saved_widgets] == [0, 1, 2]
