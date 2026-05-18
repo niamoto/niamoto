@@ -449,8 +449,15 @@ class StandardProfileAutoConfigService:
         profile: StandardProfileConfig,
     ) -> StandardProfileAutoConfigResult:
         notes: list[str] = []
-        records, loaded_columns = self._load_record_sample(profile.source, notes)
-        columns = loaded_columns or self._schema_columns(profile.source)
+        record_source = self._record_source_for_profile(profile, notes)
+        if record_source != profile.source:
+            notes.append(
+                f"Output rows will be read from {record_source.type}:{record_source.name} "
+                "because the selected source is backed by that imported source."
+            )
+
+        records, loaded_columns = self._load_record_sample(record_source, notes)
+        columns = loaded_columns or self._schema_columns(record_source)
 
         mapped_terms: dict[str, StandardProfileAutoConfigTerm] = {}
         for term_name, aliases in HUMBOLDT_EVENT_TERM_ALIASES.items():
@@ -502,7 +509,7 @@ class StandardProfileAutoConfigService:
                 },
                 "metadata": {
                     "auto_config": {
-                        "record_source": profile.source.model_dump(mode="json"),
+                        "record_source": record_source.model_dump(mode="json"),
                         "rows_sampled": len(records),
                         "unresolved": unresolved,
                     }
@@ -522,7 +529,7 @@ class StandardProfileAutoConfigService:
             terms=terms,
             unresolved=unresolved,
             notes=notes,
-            record_source=profile.source,
+            record_source=record_source,
             rows_sampled=len(records),
             columns_inspected=len(columns),
         )
