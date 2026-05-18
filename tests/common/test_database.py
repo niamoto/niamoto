@@ -224,6 +224,26 @@ def test_duckdb_read_only_request_falls_back_after_writable_open(tmp_path) -> No
     db_write.engine.dispose()
 
 
+def test_duckdb_execute_select_keeps_writable_mode_registered(tmp_path) -> None:
+    """Pool refreshes should not make a live writable Database look closed."""
+
+    db_path = tmp_path / "mixed-mode-after-select.duckdb"
+
+    db_write = Database(str(db_path), optimize=False)
+    db_write.execute_sql("CREATE TABLE test_table (id INTEGER)")
+    result = db_write.execute_select("SELECT COUNT(*) FROM test_table")
+    assert result is not None
+
+    db_read_request = Database(str(db_path), read_only=True, optimize=False)
+
+    assert db_write.read_only is False
+    assert db_read_request.requested_read_only is True
+    assert db_read_request.read_only is False
+
+    db_read_request.engine.dispose()
+    db_write.engine.dispose()
+
+
 def test_connection_reuse_reuses_same_connection(duckdb_database: Any) -> None:
     """Shared connection mode should reuse one checked-out connection per thread."""
 
