@@ -27,6 +27,7 @@ from niamoto.gui.api.routers.site import (
     _resolve_navigation,
     _validate_static_pages,
 )
+from niamoto.gui.api.routers import site as site_router
 
 
 def _write_config(path: Path, data: object) -> None:
@@ -60,6 +61,22 @@ def test_export_bibtex_handles_blank_and_null_fields():
     assert response.status_code == 200, response.text
     assert "@article{unknown2024a," in response.text
     assert "@article{unknown0000untitled," in response.text
+
+
+def test_import_bibtex_rejects_oversized_upload(monkeypatch):
+    client = TestClient(create_app())
+    monkeypatch.setattr(site_router, "MAX_BIBTEX_UPLOAD_SIZE_BYTES", 10)
+    monkeypatch.setattr(site_router, "BIBTEX_UPLOAD_CHUNK_SIZE_BYTES", 4)
+
+    response = client.post(
+        "/api/site/import-bibtex",
+        files={"file": ("references.bib", b"@" * 11, "application/x-bibtex")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == (
+        "BibTeX file exceeds the maximum allowed size of 10 bytes"
+    )
 
 
 def test_import_csv_rejects_duplicate_normalized_headers():
