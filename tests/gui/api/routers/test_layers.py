@@ -142,3 +142,19 @@ def test_get_layer_info_rejects_unsupported_file_types(monkeypatch, tmp_path):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Unsupported file type: .txt"
+
+
+def test_get_layer_info_rejects_paths_outside_imports(monkeypatch, tmp_path):
+    outside_file = tmp_path / "outside.geojson"
+    outside_file.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.layers.get_working_directory",
+        lambda: tmp_path,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/layers/%2E%2E/outside.geojson")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access denied: path outside imports"

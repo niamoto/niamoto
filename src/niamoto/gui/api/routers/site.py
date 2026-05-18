@@ -520,6 +520,31 @@ def _create_backup(file_path: Path) -> Optional[Path]:
     return backup_path
 
 
+def _resolve_project_file_path(work_dir: Path, path: str) -> Path:
+    """Resolve a project-relative path and ensure it stays inside the project."""
+    return _resolve_path_under_root(
+        work_dir,
+        path,
+        detail="Access denied: path outside project",
+    )
+
+
+def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
+    """Resolve a path below root_dir and reject sibling-prefix escapes."""
+    try:
+        root_dir_resolved = root_dir.resolve()
+        file_path = (root_dir / path).resolve()
+        file_path.relative_to(root_dir_resolved)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=detail) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid path") from exc
+
+    return file_path
+
+
 def _save_export_config(config: Dict[str, Any]) -> Path:
     """Save export.yml configuration with backup."""
     work_dir = get_working_directory()
@@ -1864,17 +1889,7 @@ async def get_file_content(path: str):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Security: ensure path doesn't escape project directory
-    file_path = work_dir / path
-    try:
-        file_path = file_path.resolve()
-        work_dir_resolved = work_dir.resolve()
-        if not str(file_path).startswith(str(work_dir_resolved)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside project"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_project_file_path(work_dir, path)
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -1945,17 +1960,7 @@ async def get_data_content(path: str):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Security: ensure path doesn't escape project directory
-    file_path = work_dir / path
-    try:
-        file_path = file_path.resolve()
-        work_dir_resolved = work_dir.resolve()
-        if not str(file_path).startswith(str(work_dir_resolved)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside project"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_project_file_path(work_dir, path)
 
     # Only allow JSON files
     if file_path.suffix.lower() != ".json":
@@ -1998,17 +2003,7 @@ async def update_data_content(update: DataFileUpdate):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Security: ensure path doesn't escape project directory
-    file_path = work_dir / update.path
-    try:
-        file_path = file_path.resolve()
-        work_dir_resolved = work_dir.resolve()
-        if not str(file_path).startswith(str(work_dir_resolved)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside project"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_project_file_path(work_dir, update.path)
 
     # Only allow JSON files
     if file_path.suffix.lower() != ".json":
@@ -2048,17 +2043,7 @@ async def update_file_content(update: FileContentUpdate):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Security: ensure path doesn't escape project directory
-    file_path = work_dir / update.path
-    try:
-        file_path = file_path.resolve()
-        work_dir_resolved = work_dir.resolve()
-        if not str(file_path).startswith(str(work_dir_resolved)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside project"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_project_file_path(work_dir, update.path)
 
     # Only allow writing to text files (markdown, txt, json)
     allowed_extensions = {".md", ".markdown", ".txt", ".json"}
@@ -2101,19 +2086,11 @@ async def serve_file(filename: str):
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    # Build file path
-    file_path = work_dir / "files" / filename
-
-    # Security: ensure path doesn't escape files directory
-    try:
-        file_path = file_path.resolve()
-        files_dir = (work_dir / "files").resolve()
-        if not str(file_path).startswith(str(files_dir)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside files folder"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_path_under_root(
+        work_dir / "files",
+        filename,
+        detail="Access denied: path outside files folder",
+    )
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -2159,19 +2136,11 @@ async def serve_niamoto_assets(filepath: str):
     except Exception:
         raise HTTPException(status_code=500, detail="Could not locate Niamoto assets")
 
-    # Build file path
-    file_path = Path(str(assets_path)) / filepath
-
-    # Security: ensure path doesn't escape assets directory
-    try:
-        file_path = file_path.resolve()
-        assets_dir = Path(str(assets_path)).resolve()
-        if not str(file_path).startswith(str(assets_dir)):
-            raise HTTPException(
-                status_code=403, detail="Access denied: path outside assets folder"
-            )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = _resolve_path_under_root(
+        Path(str(assets_path)),
+        filepath,
+        detail="Access denied: path outside assets folder",
+    )
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Asset not found: {filepath}")

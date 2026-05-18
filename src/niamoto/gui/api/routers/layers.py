@@ -254,7 +254,15 @@ async def get_layer_info(layer_path: str) -> Dict[str, Any]:
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
 
-    file_path = Path(work_dir) / layer_path
+    imports_dir = (Path(work_dir) / "imports").resolve()
+    file_path = (Path(work_dir) / layer_path).resolve()
+    try:
+        file_path.relative_to(imports_dir)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=403, detail="Access denied: path outside imports"
+        ) from exc
+
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Layer not found: {layer_path}")
 
