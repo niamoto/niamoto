@@ -445,6 +445,38 @@ class TestNiamotoDwCTransformer:
 
         assert result == []
 
+    def test_fetch_occurrences_rejects_unsafe_identifiers_before_execute(
+        self, transformer, mock_db
+    ):
+        """Unsafe SQL identifiers should be rejected before opening a connection."""
+        result = transformer._fetch_occurrences_from_db(
+            123,
+            'occurrences"; DROP TABLE taxonomy; --',
+            "taxon_ref_id",
+            "entity_taxonomy",
+            "taxonomy_id",
+        )
+
+        assert result == []
+        mock_db.engine.connect.assert_not_called()
+
+    def test_transform_rejects_unsafe_configured_identifiers(
+        self, transformer, mock_db, sample_taxon_data, sample_mapping_config
+    ):
+        """Config-derived table and column names must be validated before queries."""
+        config = {
+            **sample_mapping_config,
+            "occurrence_table": "occurrences",
+            "taxon_id_column": 'id_taxonref"; DROP TABLE taxonomy; --',
+            "taxonomy_entity": "taxonomy",
+            "taxonomy_external_id_column": "taxonomy_id",
+        }
+
+        with pytest.raises(DataTransformError):
+            transformer.transform(sample_taxon_data, config)
+
+        mock_db.engine.connect.assert_not_called()
+
     def test_map_occurrence_basic(self, transformer, sample_occurrence_data):
         """Test basic occurrence mapping."""
         transformer._current_taxon = {"full_name": "Test species"}
