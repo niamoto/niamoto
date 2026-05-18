@@ -1148,6 +1148,10 @@ class TransformerService:
             ]
             quoted_table = self._quote_sql_identifier(group_by)
             quoted_id_column = self._quote_sql_identifier(f"{group_by}_id")
+            column_definitions = [
+                f"{quoted_id_column} BIGINT PRIMARY KEY",
+                *columns,
+            ]
 
             # Drop table if recreate_table is True
             if recreate_table:
@@ -1161,8 +1165,7 @@ class TransformerService:
             # not just those with external IDs (e.g., taxonomy_id)
             create_table_sql = f"""
             CREATE TABLE IF NOT EXISTS {quoted_table} (
-                {quoted_id_column} BIGINT PRIMARY KEY,
-                {", ".join(columns)}
+                {", ".join(column_definitions)}
             )
             """
 

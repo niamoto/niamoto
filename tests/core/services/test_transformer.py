@@ -580,6 +580,14 @@ class TestTransformerService:
         create_call = mock_db.execute_sql.call_args[0][0]
         assert "CREATE TABLE IF NOT EXISTS plots" in create_call
 
+    def test_create_group_table_with_empty_widgets(self, transformer_service, mock_db):
+        """Empty widget groups should still generate valid SQL."""
+        transformer_service._create_group_table("plots", {}, recreate_table=True)
+
+        create_call = mock_db.execute_sql.call_args_list[1][0][0]
+        assert "plots_id BIGINT PRIMARY KEY" in create_call
+        assert "PRIMARY KEY,\n" not in create_call
+
     def test_create_group_table_error(self, transformer_service, mock_db):
         """Test _create_group_table with database error."""
         mock_db.execute_sql.side_effect = Exception("Database error")
