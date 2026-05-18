@@ -4298,25 +4298,19 @@ async def get_shape_distribution(
                 shape_name_col = shape_id_col
 
             quoted_occ = preparer.quote(occ_table)
-            quoted_geo = preparer.quote(geo_column)
             quoted_shape = preparer.quote(shape_table)
-            quoted_shape_geo = preparer.quote(shape_geo_col)
             quoted_shape_id = preparer.quote(shape_id_col)
             quoted_shape_name = preparer.quote(shape_name_col)
             quoted_shape_type = (
                 preparer.quote(shape_type_col) if shape_type_col else None
             )
 
-            # Build geometry expressions
-            if occ_geo_is_native:
-                occ_geom_expr = f"o.{quoted_geo}"
-            else:
-                occ_geom_expr = f"ST_GeomFromText(o.{quoted_geo})"
-
-            if shape_is_native:
-                shape_geom_expr = f"s.{quoted_shape_geo}"
-            else:
-                shape_geom_expr = f"ST_GeomFromText(s.{quoted_shape_geo})"
+            occ_geom_expr = _geometry_sql_expression(
+                db, geo_column, occ_geo_is_native, alias="o"
+            )
+            shape_geom_expr = _geometry_sql_expression(
+                db, shape_geo_col, shape_is_native, alias="s"
+            )
 
             with db.engine.connect() as conn:
                 # Load spatial extension
@@ -4325,7 +4319,14 @@ async def get_shape_distribution(
                 # Get total occurrences with geometry
                 result = conn.execute(
                     text(
-                        f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                        f"""
+                        SELECT COUNT(*)
+                        FROM (
+                            SELECT {occ_geom_expr} AS geom
+                            FROM {quoted_occ} o
+                        ) valid_occurrences
+                        WHERE geom IS NOT NULL
+                        """
                     )
                 )
                 total_with_geo = result.scalar() or 0
@@ -4341,16 +4342,25 @@ async def get_shape_distribution(
                     text(
                         f"""
                         SELECT
-                            CAST(s.{quoted_shape_id} AS VARCHAR) as shape_id,
-                            CAST(s.{quoted_shape_name} AS VARCHAR) as shape_name,
-                            {shape_type_expr} as shape_type,
-                            SUM(CASE WHEN o.{quoted_geo} IS NOT NULL THEN 1 ELSE 0 END) as occurrence_count
-                        FROM {quoted_shape} s
-                        LEFT JOIN {quoted_occ} o
-                            ON o.{quoted_geo} IS NOT NULL
-                            AND s.{quoted_shape_geo} IS NOT NULL
-                            AND ST_Intersects({occ_geom_expr}, {shape_geom_expr})
-                        WHERE s.{quoted_shape_geo} IS NOT NULL
+                            s.shape_id,
+                            s.shape_name,
+                            s.shape_type,
+                            SUM(CASE WHEN o.geom IS NOT NULL THEN 1 ELSE 0 END) as occurrence_count
+                        FROM (
+                            SELECT
+                                CAST(s.{quoted_shape_id} AS VARCHAR) as shape_id,
+                                CAST(s.{quoted_shape_name} AS VARCHAR) as shape_name,
+                                {shape_type_expr} as shape_type,
+                                {shape_geom_expr} AS geom
+                            FROM {quoted_shape} s
+                        ) s
+                        LEFT JOIN (
+                            SELECT {occ_geom_expr} AS geom
+                            FROM {quoted_occ} o
+                        ) o
+                            ON o.geom IS NOT NULL
+                            AND ST_Intersects(o.geom, s.geom)
+                        WHERE s.geom IS NOT NULL
                         GROUP BY 1, 2, 3
                         ORDER BY occurrence_count DESC
                     """
