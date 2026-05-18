@@ -1187,7 +1187,10 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
 
         elif "content_source" in page_context and page_context["content_source"]:
             # Load content from file
-            content_path = work_dir / page_context["content_source"]
+            content_source = page_context["content_source"]
+            if not isinstance(content_source, str):
+                raise HTTPException(status_code=400, detail="Invalid content source")
+            content_path = _resolve_project_file_path(work_dir, content_source)
             if content_path.is_file():
                 try:
                     content = content_path.read_text(encoding="utf-8")
@@ -1208,7 +1211,9 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                 except Exception as e:
                     page_content_html = f"<p><em>Error loading content: {e}</em></p>"
             else:
-                page_content_html = f"<p><em>Content file not found: {page_context['content_source']}</em></p>"
+                page_content_html = (
+                    f"<p><em>Content file not found: {content_source}</em></p>"
+                )
 
         # Resolve *_source JSON files (team_source, references_source, etc.)
         for key in list(page_context.keys()):
@@ -1218,7 +1223,10 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                 and key != "bibtex_source"
             ):
                 target_key = key[:-7]  # "team_source" → "team"
-                json_path = work_dir / page_context[key]
+                source_value = page_context[key]
+                if not isinstance(source_value, str):
+                    raise HTTPException(status_code=400, detail="Invalid JSON source")
+                json_path = _resolve_project_file_path(work_dir, source_value)
                 if json_path.is_file():
                     import json as json_mod
 
