@@ -2,6 +2,7 @@
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from typing import Optional
 
@@ -65,7 +66,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
             console.print("\n" + "=" * 60)
             if project_path:
                 console.print(
-                    f"[bold]Plugins loaded for project:[/bold] {project_path}"
+                    f"[bold]Plugins loaded for project:[/bold] {escape(str(project_path))}"
                 )
             else:
                 console.print("[bold]Plugins loaded[/bold] (system and user only)")
@@ -93,7 +94,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
 
         if not plugins_dict:
             console.print(
-                f"[yellow]No plugins found{' of type ' + type if type else ''}[/yellow]"
+                f"[yellow]No plugins found{escape(' of type ' + type) if type else ''}[/yellow]"
             )
             return
 
@@ -112,7 +113,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
         console.print(f"\n[dim]Total: {total} plugins")
         console.print(
             "[dim]By type: "
-            + ", ".join(f"{t}: {c}" for t, c in by_type.items())
+            + ", ".join(f"{escape(t)}: {c}" for t, c in by_type.items())
             + "[/dim]"
         )
 
@@ -128,7 +129,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
                 console.print(
                     "[dim]By scope: "
                     + ", ".join(
-                        f"{scope}: {count}"
+                        f"{escape(scope)}: {count}"
                         for scope, count in by_scope.items()
                         if count > 0
                     )
@@ -136,7 +137,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
                 )
 
     except Exception as e:
-        console.print(f"[red]Error listing plugins: {e}[/red]")
+        console.print(f"[red]Error listing plugins: {escape(str(e))}[/red]")
         raise click.ClickException(str(e))
 
 
@@ -164,9 +165,9 @@ def _display_table(
         description = _get_description(plugin_class)
 
         row = [
-            name,
-            info["type"].value,
-            description,
+            escape(str(name)),
+            escape(str(info["type"].value)),
+            escape(description),
         ]
 
         if verbose:
@@ -184,7 +185,14 @@ def _display_table(
                 )
                 else f"[red]{emoji('✗', '[X]')}[/red]"
             )
-            row.extend([scope, priority, module, has_schema])
+            row.extend(
+                [
+                    escape(str(scope)),
+                    escape(priority),
+                    escape(str(module)),
+                    has_schema,
+                ]
+            )
 
         table.add_row(*row)
 
@@ -210,22 +218,28 @@ def _display_simple(
             plugin_class = info["class"]
             description = _get_description(plugin_class)
 
-            console.print(f"  [cyan]{name}[/cyan] - {description}")
+            console.print(f"  [cyan]{escape(str(name))}[/cyan] - {escape(description)}")
 
             if verbose:
                 # Get cascade information
                 plugin_info = loader.plugin_info_by_name.get(name)
 
                 if plugin_info:
-                    console.print(f"    ├─ [yellow]Scope:[/yellow] {plugin_info.scope}")
                     console.print(
-                        f"    ├─ [blue]Priority:[/blue] {plugin_info.priority}"
+                        f"    ├─ [yellow]Scope:[/yellow] {escape(str(plugin_info.scope))}"
                     )
-                    console.print(f"    ├─ [dim]Path:[/dim] {plugin_info.path}")
+                    console.print(
+                        f"    ├─ [blue]Priority:[/blue] {escape(str(plugin_info.priority))}"
+                    )
+                    console.print(
+                        f"    ├─ [dim]Path:[/dim] {escape(str(plugin_info.path))}"
+                    )
 
                 module = plugin_class.__module__
-                console.print(f"    ├─ [dim]Module:[/dim] {module}")
-                console.print(f"    └─ [dim]Class:[/dim] {plugin_class.__name__}")
+                console.print(f"    ├─ [dim]Module:[/dim] {escape(str(module))}")
+                console.print(
+                    f"    └─ [dim]Class:[/dim] {escape(str(plugin_class.__name__))}"
+                )
 
                 if hasattr(plugin_class, "param_schema") or hasattr(
                     plugin_class, "config_model"
