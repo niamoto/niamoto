@@ -7,6 +7,7 @@ These tests verify that the plugins can be instantiated and their core methods w
 
 import unittest
 import pandas as pd
+import tempfile
 from unittest.mock import MagicMock, patch
 
 
@@ -27,61 +28,50 @@ class TestSampleTransformers(unittest.TestCase):
 
     def test_direct_attribute_transformer(self):
         """Test the direct_attribute transformer plugin."""
-        try:
-            # Import the plugin
-            from niamoto.core.plugins.transformers.extraction.direct_attribute import (
-                DirectAttributeTransformer,
-            )
+        from niamoto.core.plugins.transformers.extraction.direct_attribute import (
+            DirectAttribute,
+        )
 
-            # Create test config
-            config = {"plugin": "direct_attribute", "params": {"attribute": "name"}}
+        config = {
+            "plugin": "direct_attribute",
+            "params": {"field": "name"},
+            "group_id": 1,
+        }
 
-            # Create plugin instance
-            transformer = DirectAttributeTransformer(self.db)
+        transformer = DirectAttribute(self.db)
+        transformer.validate_config(config)
 
-            # Validate config
-            transformer.validate_config(config)
+        result = transformer.transform(SAMPLE_DF, config)
 
-            # Transform data
-            result = transformer.transform(SAMPLE_DF, config)
-
-            # Verify result
-            self.assertIsInstance(result, dict)
-            self.assertIn("data", result)
-            self.assertEqual(list(result["data"]), ["A", "B", "C"])
-
-        except ImportError:
-            self.skipTest("direct_attribute transformer not available")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["value"], "A")
 
     def test_field_aggregator_transformer(self):
         """Test the field_aggregator transformer plugin."""
-        try:
-            # Import the plugin
-            from niamoto.core.plugins.transformers.aggregation.field_aggregator import (
-                FieldAggregatorTransformer,
-            )
+        from niamoto.core.plugins.transformers.aggregation.field_aggregator import (
+            FieldAggregator,
+        )
 
-            # Create test config
-            config = {
-                "plugin": "field_aggregator",
-                "params": {"group_by": "name", "aggregate": {"value": "sum"}},
-            }
+        config = {
+            "plugin": "field_aggregator",
+            "params": {
+                "fields": [
+                    {
+                        "field": "value",
+                        "target": "total_value",
+                        "transformation": "sum",
+                    }
+                ]
+            },
+        }
 
-            # Create plugin instance
-            transformer = FieldAggregatorTransformer(self.db)
+        transformer = FieldAggregator(self.db)
+        transformer.validate_config(config)
 
-            # Validate config
-            transformer.validate_config(config)
+        result = transformer.transform(SAMPLE_DF, config)
 
-            # Transform data
-            result = transformer.transform(SAMPLE_DF, config)
-
-            # Verify result
-            self.assertIsInstance(result, dict)
-            self.assertIn("data", result)
-
-        except ImportError:
-            self.skipTest("field_aggregator transformer not available")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["total_value"]["value"], 60)
 
 
 class TestSampleExporters(unittest.TestCase):
@@ -91,36 +81,26 @@ class TestSampleExporters(unittest.TestCase):
         """Set up test fixtures."""
         self.db = MagicMock()
 
-    def test_html_exporter(self):
-        """Test the HTML exporter plugin."""
-        try:
-            # Import the plugin
-            from niamoto.core.plugins.exporters.html import HtmlExporter
+    def test_json_api_exporter(self):
+        """Test the JSON API exporter plugin."""
+        from niamoto.core.plugins.exporters.json_api_exporter import JsonApiExporter
+        from niamoto.core.plugins.models import TargetConfig
 
-            # Create test config
-            config = {
-                "plugin": "html",
-                "params": {"title": "Test Export", "template": "default"},
-            }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = TargetConfig(
+                name="test_api",
+                exporter="json_api_exporter",
+                params={
+                    "output_dir": tmpdir,
+                    "detail_output_pattern": "{group_by}/{id}.json",
+                },
+                groups=[],
+            )
 
-            # Create test data
-            data = {"table": SAMPLE_DF.to_dict("records")}
+            exporter = JsonApiExporter(self.db)
+            exporter.export(config, self.db)
 
-            # Create plugin instance
-            exporter = HtmlExporter(self.db)
-
-            # Validate config
-            exporter.validate_config(config)
-
-            # Export data
-            with patch("builtins.open", MagicMock()):
-                result = exporter.export(data, config)
-
-            # Verify result
-            self.assertIsInstance(result, str)
-
-        except ImportError:
-            self.skipTest("html exporter not available")
+        self.assertGreaterEqual(exporter.stats["total_files_generated"], 1)
 
 
 class TestSampleLoaders(unittest.TestCase):
@@ -132,93 +112,70 @@ class TestSampleLoaders(unittest.TestCase):
 
     def test_join_table_loader(self):
         """Test the join_table loader plugin."""
-        try:
-            from niamoto.core.plugins.loaders.join_table import JoinTableLoader
-            from niamoto.common.exceptions import DatabaseQueryError
+        from niamoto.common.exceptions import DatabaseQueryError
+        from niamoto.core.plugins.loaders.join_table import JoinTableLoader
 
-            config = {
-                "plugin": "join_table",
-                "data": "test_table",
-                "key": "id",
-                "join_table": "test_join_table",
-                "keys": {"source": "id_source", "reference": "id_reference"},
-            }
+        config = {
+            "plugin": "join_table",
+            "data": "test_table",
+            "key": "id",
+            "join_table": "test_join_table",
+            "keys": {"source": "id_source", "reference": "id_reference"},
+        }
 
-            mock_result = pd.DataFrame({"id": [1, 2, 3], "extra_data": ["X", "Y", "Z"]})
+        mock_result = pd.DataFrame({"id": [1, 2, 3], "extra_data": ["X", "Y", "Z"]})
 
-            self.db.has_table = MagicMock(return_value=True)
-            self.db.get_table_columns = MagicMock(
-                side_effect=lambda name: ["id", "value"]
+        self.db.has_table = MagicMock(return_value=True)
+        self.db.get_table_columns = MagicMock(side_effect=lambda name: ["id", "value"])
+        self.db.engine = MagicMock()
+        mock_connection = MagicMock()
+        self.db.engine.connect.return_value.__enter__.return_value = mock_connection
+
+        with (
+            patch(
+                "niamoto.core.plugins.loaders.join_table.EntityRegistry"
+            ) as registry_cls,
+            patch("pandas.read_sql", return_value=mock_result) as mock_read_sql,
+        ):
+            registry_cls.return_value.get.side_effect = DatabaseQueryError(
+                query="registry_lookup", message="missing"
             )
-            self.db.engine = MagicMock()
-            mock_connection = MagicMock()
-            self.db.engine.connect.return_value.__enter__.return_value = mock_connection
 
-            with (
-                patch(
-                    "niamoto.core.plugins.loaders.join_table.EntityRegistry"
-                ) as registry_cls,
-                patch("pandas.read_sql", return_value=mock_result) as mock_read_sql,
-            ):
-                registry_cls.return_value.get.side_effect = DatabaseQueryError(
-                    query="registry_lookup", message="missing"
-                )
+            loader = JoinTableLoader(self.db)
+            loader.validate_config(config)
+            result = loader.load_data(1, config)
 
-                loader = JoinTableLoader(self.db)
-                loader.validate_config(config)
-                result = loader.load_data(1, config)
-
-            self.assertIsInstance(result, pd.DataFrame)
-            mock_read_sql.assert_called_once()
-
-        except ImportError:
-            self.skipTest("join_table loader not available")
+        self.assertIsInstance(result, pd.DataFrame)
+        mock_read_sql.assert_called_once()
 
     def test_spatial_loader(self):
         """Test the spatial loader plugin."""
-        try:
-            # Import the plugin
-            from niamoto.core.plugins.loaders.spatial import SpatialLoader
+        from niamoto.core.plugins.loaders.spatial import SpatialLoader
 
-            # Create test config
-            config = {
-                "plugin": "spatial",
-                "key": "id",
-                "geometry_field": "geom",
-                "reference": {"name": "test_shapes"},
-                "main": "test_points",
-            }
+        config = {
+            "plugin": "spatial",
+            "key": "id",
+            "geometry_field": "geom",
+            "reference": {"name": "test_shapes"},
+            "main": "test_points",
+        }
+        mock_result = pd.DataFrame(
+            {"id": [1, 2, 3], "geom": ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"]}
+        )
 
-            # Mock database query result
-            mock_result = pd.DataFrame(
-                {"id": [1, 2, 3], "geom": ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"]}
-            )
+        self.db.execute = MagicMock()
+        mock_scalar = MagicMock()
+        mock_scalar.scalar.return_value = "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"
+        self.db.execute.return_value = mock_scalar
 
-            # Mock execute method to return a scalar
-            self.db.execute = MagicMock()
-            mock_scalar = MagicMock()
-            mock_scalar.scalar.return_value = "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"
-            self.db.execute.return_value = mock_scalar
+        loader = SpatialLoader(self.db)
+        loader.validate_config(config)
 
-            # Create plugin instance
-            loader = SpatialLoader(self.db)
+        with patch("pandas.read_sql", return_value=mock_result) as mock_read_sql:
+            result = loader.load_data(1, config)
+            mock_read_sql.assert_called_once()
 
-            # Validate config
-            loader.validate_config(config)
-
-            # Mock pd.read_sql to avoid text() issue with mock engine
-            with patch("pandas.read_sql", return_value=mock_result) as mock_read_sql:
-                # Load data
-                result = loader.load_data(1, config)
-
-                # Verify pd.read_sql was called
-                mock_read_sql.assert_called_once()
-
-            # Verify result
-            self.assertIsInstance(result, pd.DataFrame)
-
-        except ImportError:
-            self.skipTest("spatial loader not available")
+        self.assertIsInstance(result, pd.DataFrame)
 
 
 # Add more test classes for other plugin samples as needed
