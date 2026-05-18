@@ -23,8 +23,6 @@ const SERVER_STARTUP_TIMEOUT_SECS: u64 = 90;
 const SERVER_POLL_INTERVAL_MS: u64 = 500;
 const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
-const DESKTOP_PROBE_HEADER: &str = "x-niamoto-desktop-probe";
-const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
 const APP_LOADER_CSS: &str = include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
 
 /// Shared state to track the FastAPI server process
@@ -220,16 +218,8 @@ fn generate_startup_token() -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn health_probe_is_authenticated(
-    status: reqwest::StatusCode,
-    returned_token: Option<&str>,
-    expected_token: &str,
-) -> bool {
-    status.is_success() && returned_token == Some(expected_token)
-}
-
 /// Check if the FastAPI server is responding on the given port
-fn is_server_ready(port: u16, expected_token: &str) -> bool {
+fn is_server_ready(port: u16) -> bool {
     let client = match reqwest::blocking::Client::builder()
         .timeout(Duration::from_millis(750))
         .build()
@@ -240,17 +230,9 @@ fn is_server_ready(port: u16, expected_token: &str) -> bool {
 
     match client
         .get(format!("http://127.0.0.1:{port}/api/health"))
-        .header(DESKTOP_PROBE_HEADER, "1")
         .send()
     {
-        Ok(response) => {
-            let status = response.status();
-            let returned_token = response
-                .headers()
-                .get(DESKTOP_TOKEN_HEADER)
-                .and_then(|value| value.to_str().ok());
-            health_probe_is_authenticated(status, returned_token, expected_token)
-        }
+        Ok(response) => response.status().is_success(),
         Err(_) => false,
     }
 }
@@ -726,7 +708,7 @@ pub fn run() {
                     let mut exited_early = None;
 
                     while attempts < max_attempts {
-                        if is_server_ready(current_port, &desktop_auth_token_for_thread) {
+                        if is_server_ready(current_port) {
                             let server_state = app_handle.state::<ServerState>();
                             *server_state.process.lock().unwrap() = server_process.take();
                             break;
@@ -770,7 +752,7 @@ pub fn run() {
                         }
                     }
 
-                    if is_server_ready(current_port, &desktop_auth_token_for_thread) {
+                    if is_server_ready(current_port) {
                         write_startup_log(
                             &startup_log_path_for_thread,
                             &startup_session_for_thread,

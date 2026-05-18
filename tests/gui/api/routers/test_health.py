@@ -22,9 +22,7 @@ def create_test_client() -> TestClient:
 class TestHealthCheckEndpoint:
     """Test `/api/health` desktop startup probe behavior."""
 
-    def test_returns_probe_token_only_when_requested(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_never_returns_desktop_auth_token(self, monkeypatch: pytest.MonkeyPatch):
         client = create_test_client()
         monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
 
@@ -34,13 +32,13 @@ class TestHealthCheckEndpoint:
             "status": "ok",
             "message": "Niamoto API is running",
         }
-        assert health.DESKTOP_TOKEN_HEADER not in response.headers
+        assert "x-niamoto-desktop-token" not in response.headers
 
         probe_response = client.get(
-            "/api/health", headers={health.DESKTOP_PROBE_HEADER: "1"}
+            "/api/health", headers={"x-niamoto-desktop-probe": "1"}
         )
         assert probe_response.status_code == 200
-        assert probe_response.headers[health.DESKTOP_TOKEN_HEADER] == "desktop-secret"
+        assert "x-niamoto-desktop-token" not in probe_response.headers
 
 
 class TestReloadProjectEndpoint:

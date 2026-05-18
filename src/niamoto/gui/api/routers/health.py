@@ -19,8 +19,6 @@ from niamoto.gui.startup_logging import log_desktop_startup
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 _first_health_logged = False
-DESKTOP_PROBE_HEADER = "x-niamoto-desktop-probe"
-DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 DESKTOP_SHELL_ENV = "NIAMOTO_DESKTOP_SHELL"
 
 
@@ -37,13 +35,6 @@ async def health_check(request: Request):
         _first_health_logged = True
 
     response = JSONResponse({"status": "ok", "message": "Niamoto API is running"})
-
-    desktop_probe_requested = (
-        request.headers.get(DESKTOP_PROBE_HEADER, "").strip() == "1"
-    )
-    desktop_auth_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
-    if desktop_probe_requested and desktop_auth_token:
-        response.headers[DESKTOP_TOKEN_HEADER] = desktop_auth_token
 
     return response
 
