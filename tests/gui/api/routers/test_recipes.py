@@ -224,6 +224,65 @@ def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_pat
     assert saved_export_configs == []
 
 
+def test_save_recipe_does_not_write_transform_when_export_save_fails(
+    monkeypatch, tmp_path
+):
+    class RecipeTransformer:
+        param_schema = None
+
+    class RecipeWidget:
+        param_schema = None
+
+    def fake_get_plugin(name, plugin_type):
+        if plugin_type == PluginType.TRANSFORMER and name == "field_aggregator":
+            return RecipeTransformer
+        if plugin_type == PluginType.WIDGET and name == "bar_plot":
+            return RecipeWidget
+        raise KeyError(name)
+
+    saved_transform_configs = []
+    monkeypatch.setattr(
+        recipes.PluginRegistry, "get_plugin", staticmethod(fake_get_plugin)
+    )
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        recipes,
+        "load_transform_config",
+        lambda _work_dir: [{"group_by": "taxons", "sources": [], "widgets_data": {}}],
+    )
+    monkeypatch.setattr(
+        recipes,
+        "load_export_config",
+        lambda _work_dir: {"exports": []},
+    )
+    monkeypatch.setattr(
+        recipes,
+        "save_transform_config",
+        lambda _work_dir, config: saved_transform_configs.append(config),
+    )
+
+    def fail_save_export_config(_work_dir, _config):
+        raise OSError("simulated export save failure")
+
+    monkeypatch.setattr(recipes, "save_export_config", fail_save_export_config)
+
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    response = client.post(
+        "/api/recipes/save",
+        json={
+            "group_by": "taxons",
+            "recipe": {
+                "widget_id": "richness",
+                "transformer": {"plugin": "field_aggregator", "params": {}},
+                "widget": {"plugin": "bar_plot", "params": {}},
+            },
+        },
+    )
+
+    assert response.status_code == 500
+    assert saved_transform_configs == []
+
+
 def test_delete_recipe_removes_widget_only_from_html_page_exporter(
     monkeypatch, tmp_path
 ):
