@@ -1,9 +1,12 @@
 """File management API endpoints."""
 
 import csv
+import ipaddress
 import json
+import socket
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from urllib.parse import urlparse
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import pandas as pd
 import requests
@@ -48,6 +51,57 @@ class ApiTestResponse(BaseModel):
     success: bool
     data: Optional[Any] = None
     error: Optional[str] = None
+
+
+def _is_disallowed_api_address(address: str) -> bool:
+    """Return True when an API test target points at a non-public address."""
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return True
+
+    return (
+        ip.is_loopback
+        or ip.is_private
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _validate_api_test_url(url: str) -> Optional[str]:
+    """Validate user-provided API test URLs before server-side requests."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return "Only http and https API URLs are allowed"
+    if not parsed.hostname:
+        return "API URL must include a hostname"
+
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return "API URL host is not allowed"
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            resolved = socket.getaddrinfo(
+                hostname,
+                parsed.port,
+                type=socket.SOCK_STREAM,
+            )
+        except socket.gaierror:
+            return "API URL host could not be resolved"
+
+        addresses = {info[4][0] for info in resolved}
+    else:
+        addresses = {str(ip)}
+
+    if any(_is_disallowed_api_address(address) for address in addresses):
+        return "API URL host is not allowed"
+
+    return None
 
 
 @router.post("/analyze")
@@ -209,6 +263,10 @@ def find_matching_columns(
 async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
     """Test an API connection with provided configuration."""
     try:
+        validation_error = _validate_api_test_url(request.url)
+        if validation_error:
+            return ApiTestResponse(success=False, error=validation_error)
+
         response = await run_in_threadpool(
             requests.get,
             request.url,
