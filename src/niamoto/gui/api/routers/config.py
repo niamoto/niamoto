@@ -41,6 +41,7 @@ from niamoto.core.imports.config_models import GenericImportConfig
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
+EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
 
 
 # Wrapper functions for backward compatibility (use get_working_directory)
@@ -2130,26 +2131,6 @@ async def update_index_generator(
         Updated configuration
     """
     try:
-        export_config = _load_export_config()
-
-        # Find the group
-        target_group = None
-        for export_entry in export_config.get("exports", []):
-            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
-                "groups", []
-            )
-            for group in groups:
-                if group.get("group_by") == group_by:
-                    target_group = group
-                    break
-            if target_group:
-                break
-
-        if not target_group:
-            raise HTTPException(
-                status_code=404, detail=f"Group '{group_by}' not found in export config"
-            )
-
         # Convert Pydantic model to dict
         config_dict = config.model_dump(exclude_none=True)
 
@@ -2185,25 +2166,47 @@ async def update_index_generator(
                 for v in config_dict["views"]
             ]
 
-        # Insert index_generator before widgets if widgets exists
-        if "widgets" in target_group:
-            # Reorder keys: everything before widgets, then index_generator, then widgets
-            new_group = {}
-            for key in target_group:
-                if key == "widgets":
-                    new_group["index_generator"] = config_dict
-                    new_group["widgets"] = target_group["widgets"]
-                elif key != "index_generator":
-                    new_group[key] = target_group[key]
-            # If widgets wasn't in the loop (shouldn't happen), add index_generator
-            if "index_generator" not in new_group:
-                new_group["index_generator"] = config_dict
-            target_group.clear()
-            target_group.update(new_group)
-        else:
-            target_group["index_generator"] = config_dict
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
 
-        _save_export_config(export_config)
+            # Find the group
+            target_group = None
+            for export_entry in export_config.get("exports", []):
+                groups = export_entry.get("groups") or export_entry.get(
+                    "params", {}
+                ).get("groups", [])
+                for group in groups:
+                    if group.get("group_by") == group_by:
+                        target_group = group
+                        break
+                if target_group:
+                    break
+
+            if not target_group:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found in export config",
+                )
+
+            # Insert index_generator before widgets if widgets exists
+            if "widgets" in target_group:
+                # Reorder keys: everything before widgets, then index_generator, then widgets
+                new_group = {}
+                for key in target_group:
+                    if key == "widgets":
+                        new_group["index_generator"] = config_dict
+                        new_group["widgets"] = target_group["widgets"]
+                    elif key != "index_generator":
+                        new_group[key] = target_group[key]
+                # If widgets wasn't in the loop (shouldn't happen), add index_generator
+                if "index_generator" not in new_group:
+                    new_group["index_generator"] = config_dict
+                target_group.clear()
+                target_group.update(new_group)
+            else:
+                target_group["index_generator"] = config_dict
+
+            _save_export_config(export_config)
 
         return config_dict
 
