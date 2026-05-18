@@ -686,8 +686,25 @@ async def update_dataset_config(dataset_name: str, config: Dict[str, Any] = Body
         with open(config_path, "r", encoding="utf-8") as f:
             import_config = yaml.safe_load(f) or {}
 
-        entities = import_config.get("entities") or {}
-        datasets_section = entities.get("datasets") or {}
+        if not isinstance(import_config, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="Malformed import.yml: root must be an object",
+            )
+
+        entities = import_config.get("entities")
+        if not isinstance(entities, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="Malformed import.yml: entities must be an object",
+            )
+
+        datasets_section = entities.get("datasets")
+        if not isinstance(datasets_section, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="Malformed import.yml: entities.datasets must be an object",
+            )
 
         if dataset_name not in datasets_section:
             raise HTTPException(
