@@ -934,9 +934,7 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
         if update.backup and config_path.exists():
             backup_path = create_backup(config_path)
 
-        # Write new configuration
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(update.content, f, default_flow_style=False, sort_keys=False)
+        _write_yaml_atomic(config_path, update.content)
 
         return ConfigResponse(
             success=True,

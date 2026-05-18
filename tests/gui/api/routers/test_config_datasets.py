@@ -117,6 +117,45 @@ def test_update_dataset_config_rejects_malformed_entities_without_writing(
     assert not (config_dir / "backups").exists()
 
 
+def test_update_config_preserves_existing_file_when_yaml_write_fails(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    config_path = config_dir / "config.yml"
+    original_text = yaml.safe_dump(
+        {"project": {"name": "Existing"}, "database": {"path": "db/niamoto.duckdb"}},
+        sort_keys=False,
+    )
+    config_path.write_text(original_text, encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    def fail_dump(*_args, **_kwargs):
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(config_router.yaml, "safe_dump", fail_dump)
+
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/config/config",
+        json={
+            "content": {
+                "project": {"name": "Replacement"},
+                "database": {"path": "db/replacement.duckdb"},
+            },
+            "backup": False,
+        },
+    )
+
+    assert response.status_code == 500
+    assert "simulated disk failure" in response.json()["detail"]
+    assert config_path.read_text(encoding="utf-8") == original_text
+    assert list(config_dir.glob(".config.yml.*.tmp")) == []
+
+
 def test_update_dataset_config_rejects_malformed_datasets_without_writing(
     monkeypatch,
     tmp_path,
