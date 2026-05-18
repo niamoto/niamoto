@@ -506,6 +506,10 @@ def _evaluate_holdout_score(
     return score, preds, confs
 
 
+def _can_evaluate_holdout(test_records: list[dict], train_records: list[dict]) -> bool:
+    return bool(test_records) and bool(train_records)
+
+
 def evaluate_niamoto_protocol(
     gold_path: Path,
     n_splits: int = 5,
@@ -674,6 +678,9 @@ def evaluate_niamoto_protocol(
             train_records = synthetic_records + [
                 r for r in real_records if not predicate(r)
             ]
+            if not _can_evaluate_holdout(test_records, train_records):
+                progress.finish(step_label, "skipped empty train/test split")
+                continue
             score, _preds, _confs = _evaluate_holdout_score(
                 test_records,
                 train_records,
@@ -690,6 +697,9 @@ def evaluate_niamoto_protocol(
         train_records = synthetic_records + [
             r for r in real_records if r.get("language") != lang
         ]
+        if not _can_evaluate_holdout(test_records, train_records):
+            progress.finish(step_label, "skipped empty train/test split")
+            continue
         score, preds, confs = _evaluate_holdout_score(
             test_records,
             train_records,
@@ -707,6 +717,9 @@ def evaluate_niamoto_protocol(
         train_records = synthetic_records + [
             r for r in real_records if _dataset_family(r["source_dataset"]) != family
         ]
+        if not _can_evaluate_holdout(test_records, train_records):
+            progress.finish(step_label, "skipped empty train/test split")
+            continue
         score, preds, confs = _evaluate_holdout_score(
             test_records,
             train_records,
