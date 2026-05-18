@@ -16,12 +16,14 @@ import tracemalloc
 from pathlib import Path
 
 # Ensure project is importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = REPO_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
 
-from niamoto.core.imports.profiler import DataProfiler
-from niamoto.core.imports.data_analyzer import DataAnalyzer
-from niamoto.core.imports.widget_generator import WidgetGenerator
-from niamoto.core.plugins.plugin_loader import PluginLoader
+from niamoto.core.imports.profiler import DataProfiler  # noqa: E402
+from niamoto.core.imports.data_analyzer import DataAnalyzer  # noqa: E402
+from niamoto.core.imports.widget_generator import WidgetGenerator  # noqa: E402
+from niamoto.core.plugins.plugin_loader import PluginLoader  # noqa: E402
 
 
 def evaluate_file(file_path: Path) -> dict:
