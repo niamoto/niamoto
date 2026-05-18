@@ -162,3 +162,61 @@ def test_render_widget_escapes_missing_widget_transform_key(monkeypatch, tmp_pat
     assert response.status_code == 200
     assert "<img src=x onerror=alert(1)>" not in response.text
     assert "&lt;img src=x onerror=alert(1)&gt;" in response.text
+
+
+def test_render_widget_rejects_unsafe_plugin_dependencies(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    db_path = tmp_path / "niamoto.duckdb"
+    db_path.write_text("", encoding="utf-8")
+    (config_dir / "export.yml").write_text(
+        """
+exports:
+  - groups:
+      - group_by: taxon
+        widgets:
+          - plugin: unsafe_widget
+            data_source: richness
+            params: {}
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    class FakeDbContext:
+        def __enter__(self):
+            return object()
+
+        def __exit__(self, *_args):
+            return False
+
+    class UnsafeWidget:
+        def __init__(self, db):
+            self.db = db
+
+        def render(self, _data, _params):
+            return "<div>Widget</div>"
+
+        def get_dependencies(self):
+            return {'/assets/vendor.js" onerror="alert(1)'}
+
+    async def fake_get_entity_detail(group_by: str, entity_id: str):
+        return SimpleNamespace(widgets_data={"richness": {"value": 1}})
+
+    monkeypatch.setattr(entities, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(entities, "get_database_path", lambda: db_path)
+    monkeypatch.setattr(entities, "get_entity_detail", fake_get_entity_detail)
+    monkeypatch.setattr(entities, "open_database", lambda _db_path: FakeDbContext())
+    monkeypatch.setattr(
+        entities.PluginRegistry,
+        "get_plugin",
+        staticmethod(lambda _plugin_id, _plugin_type: UnsafeWidget),
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/entities/render-widget/taxon/1/richness")
+
+    assert response.status_code == 200
+    assert "Unsafe widget dependency" in response.text
+    assert 'onerror="alert(1)' not in response.text
+    assert "<script" not in response.text
