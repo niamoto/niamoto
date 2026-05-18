@@ -139,12 +139,12 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                 )
 
             if (
-                params["shape_field"] not in data.columns
-                and params["shape_field"] != "geometry"
+                params.shape_field not in data.columns
+                and params.shape_field != "geometry"
             ):
                 geometry = data.geometry
             else:
-                geometry = data[params["shape_field"]]
+                geometry = data[params.shape_field]
 
             if geometry.empty:
                 raise DataTransformError("No geometry found in the data")
@@ -153,20 +153,20 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
             main_geom = geometry.iloc[0]
 
             # Get the correspondence of Holdridge values
-            holdridge_values = params["holdridge_values"]
+            holdridge_values = params.holdridge_values
 
             # Open the Holdridge raster
-            with rasterio.open(params["holdridge_path"]) as src:
+            with rasterio.open(params.holdridge_path) as src:
                 # Mask the raster with the geometry
                 masked, mask_transform = mask(
-                    src, [main_geom], crop=True, nodata=params["nodata"]
+                    src, [main_geom], crop=True, nodata=params.nodata
                 )
 
                 # Get the Holdridge data (first band)
                 holdridge_data = masked[0]
 
                 # Filter the nodata values
-                nodata = params["nodata"]
+                nodata = params.nodata
                 valid_mask = holdridge_data != nodata
                 valid_data = holdridge_data[valid_mask]
 
@@ -178,11 +178,11 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                     }
 
                 # Load the forest layer
-                forest_gdf = gpd.read_file(params["forest_path"], engine="pyogrio")
+                forest_gdf = gpd.read_file(params.forest_path, engine="pyogrio")
 
                 if forest_gdf.empty:
                     raise DataTransformError(
-                        f"No data found in the forest layer: {params['forest_path']}"
+                        f"No data found in the forest layer: {params.forest_path}"
                     )
 
                 # Ensure the CRS matches
