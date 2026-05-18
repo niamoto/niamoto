@@ -443,9 +443,20 @@ def _import_job_to_history_entry(job: dict) -> dict | None:
 
 
 def _get_import_history_entries() -> list[dict]:
+    jobs: list[dict]
+    for _attempt in range(2):
+        try:
+            jobs = list(import_jobs.values())
+            break
+        except RuntimeError as exc:
+            if "dictionary changed size during iteration" not in str(exc):
+                raise
+    else:
+        return []
+
     entries = [
         entry
-        for job in import_jobs.values()
+        for job in jobs
         if (entry := _import_job_to_history_entry(job)) is not None
     ]
     return sorted(entries, key=_history_timestamp, reverse=True)

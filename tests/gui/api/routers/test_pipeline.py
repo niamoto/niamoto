@@ -311,6 +311,46 @@ def test_pipeline_history_merges_terminal_import_jobs(monkeypatch):
     assert history[0]["group_by"] == "occurrences"
 
 
+def test_pipeline_history_survives_import_jobs_mutation_during_snapshot(monkeypatch):
+    class MutatingImportJobs(dict):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._mutated = False
+
+        def values(self):
+            iterator = super().values()
+            for value in iterator:
+                if not self._mutated:
+                    self._mutated = True
+                    self["import-added"] = {
+                        "id": "import-added",
+                        "status": "completed",
+                        "completed_at": "2026-04-25T08:35:00+00:00",
+                    }
+                yield value
+
+    import_history = MutatingImportJobs(
+        {
+            "import-original": {
+                "id": "import-original",
+                "status": "completed",
+                "entity_name": "occurrences",
+                "completed_at": "2026-04-25T08:30:00+00:00",
+            }
+        }
+    )
+    app = _build_history_app([], monkeypatch, import_history=import_history)
+    client = TestClient(app)
+
+    response = client.get("/api/pipeline/history?limit=5")
+
+    assert response.status_code == 200
+    assert [entry["id"] for entry in response.json()] == [
+        "import-added",
+        "import-original",
+    ]
+
+
 def test_pipeline_history_rejects_zero_limit(monkeypatch):
     app = _build_history_app([{"id": "a"}], monkeypatch)
     client = TestClient(app)
