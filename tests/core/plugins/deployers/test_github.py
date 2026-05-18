@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 
+import httpx
 import pytest
 
 from niamoto.core.plugins.deployers.github import (
@@ -17,6 +18,22 @@ from niamoto.core.plugins.deployers.models import DeployConfig
 
 async def _collect_lines(generator):
     return [line async for line in generator]
+
+
+class _FakeGitHubResponse:
+    def __init__(self, status_code: int = 200, payload: dict | None = None):
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = ""
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            request = httpx.Request("GET", "https://api.github.com/test")
+            response = httpx.Response(self.status_code, request=request, text=self.text)
+            raise httpx.HTTPStatusError("GitHub API error", request, response)
 
 
 def _run_git(git_binary: str, *args: str, cwd: Path | None = None) -> str:
@@ -126,3 +143,82 @@ def test_github_deployer_blocks_large_api_fallback_without_git(monkeypatch):
 
         assert any("Git is not available on this system" in line for line in lines)
         assert any(line.strip() == "data: DONE" for line in lines)
+
+
+def test_github_deployer_api_fallback_preserves_nojekyll(monkeypatch):
+    captured_tree_entries = []
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            self.blob_index = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, url):
+            if url == "/repos/arsis-dev/niamoto-test":
+                return _FakeGitHubResponse(payload={"size": 1})
+            if url == "/repos/arsis-dev/niamoto-test/git/refs/heads/gh-pages":
+                return _FakeGitHubResponse(payload={"object": {"sha": "parent-sha"}})
+            return _FakeGitHubResponse(status_code=404)
+
+        async def post(self, url, json):
+            if url == "/repos/arsis-dev/niamoto-test/git/blobs":
+                self.blob_index += 1
+                return _FakeGitHubResponse(payload={"sha": f"blob-{self.blob_index}"})
+            if url == "/repos/arsis-dev/niamoto-test/git/trees":
+                captured_tree_entries.extend(json["tree"])
+                return _FakeGitHubResponse(payload={"sha": "tree-sha"})
+            if url == "/repos/arsis-dev/niamoto-test/git/commits":
+                return _FakeGitHubResponse(payload={"sha": "commit-sha-12345678"})
+            return _FakeGitHubResponse(status_code=404)
+
+        async def patch(self, url, json):
+            if url == "/repos/arsis-dev/niamoto-test/git/refs/heads/gh-pages":
+                return _FakeGitHubResponse()
+            return _FakeGitHubResponse(status_code=404)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        exports_dir = Path(temp_dir) / "exports"
+        exports_dir.mkdir(parents=True, exist_ok=True)
+        (exports_dir / "index.html").write_text("<h1>Hello</h1>", encoding="utf-8")
+
+        monkeypatch.setattr(
+            "niamoto.core.plugins.deployers.github.httpx.AsyncClient",
+            FakeAsyncClient,
+        )
+
+        deployer = GitHubDeployer()
+        config = DeployConfig(
+            platform="github",
+            exports_dir=exports_dir,
+            project_name="niamoto-test",
+            extra={"repo": "arsis-dev/niamoto-test", "branch": "gh-pages"},
+        )
+
+        lines = asyncio.run(
+            _collect_lines(
+                deployer._deploy_with_api(
+                    config=config,
+                    owner="arsis-dev",
+                    repo="niamoto-test",
+                    branch="gh-pages",
+                    token="github_pat_test",
+                    file_paths=[("index.html", str(exports_dir / "index.html"))],
+                )
+            )
+        )
+
+        nojekyll_entry = next(
+            entry for entry in captured_tree_entries if entry["path"] == ".nojekyll"
+        )
+        assert [entry["path"] for entry in captured_tree_entries] == [
+            "index.html",
+            ".nojekyll",
+        ]
+        assert nojekyll_entry["mode"] == "100644"
+        assert nojekyll_entry["type"] == "blob"
+        assert any("SUCCESS: Deployed to GitHub Pages" in line for line in lines)

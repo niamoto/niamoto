@@ -297,6 +297,28 @@ class GitHubDeployer(DeployerPlugin):
                 if index < total:
                     await asyncio.sleep(GITHUB_API_WRITE_DELAY_SECONDS)
 
+            if not any(entry["path"] == ".nojekyll" for entry in tree_entries):
+                try:
+                    resp = await client.post(
+                        f"/repos/{owner}/{repo}/git/blobs",
+                        json={"content": "", "encoding": "utf-8"},
+                    )
+                    resp.raise_for_status()
+                    tree_entries.append(
+                        {
+                            "path": ".nojekyll",
+                            "mode": "100644",
+                            "type": "blob",
+                            "sha": resp.json()["sha"],
+                        }
+                    )
+                except httpx.HTTPStatusError as exc:
+                    yield self.sse_error(
+                        f"Failed to prepare .nojekyll: {exc.response.text[:200]}"
+                    )
+                    yield self.sse_done()
+                    return
+
             yield self.sse_log("Creating file tree...")
             try:
                 tree_resp = await client.post(
