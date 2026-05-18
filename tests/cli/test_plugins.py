@@ -369,3 +369,39 @@ class TestPluginsCommand:
         assert "Single line description" in result.output  # Period removed
         assert "Multi-line with spaces" in result.output
         assert result.output.count("No description available") >= 1
+
+    def test_plugin_output_escapes_rich_markup(self, runner):
+        """Test plugin names and descriptions render Rich markup literally."""
+        plugin_class = Mock(
+            __name__="[bold]PluginClass[/bold]",
+            __module__="test.[blue]module[/blue]",
+            __doc__="[red]Danger[/red] plugin.",
+            spec=["__name__", "__module__", "__doc__"],
+        )
+        mock_plugins = {
+            "[cyan]danger[/cyan]": {
+                "type": PluginType.TRANSFORMER,
+                "class": plugin_class,
+            }
+        }
+        mock_registry_cls = create_mock_registry(mock_plugins)
+        mock_loader = create_mock_loader(mock_plugins)
+
+        with patch(
+            "niamoto.core.plugins.plugin_loader.PluginLoader", return_value=mock_loader
+        ):
+            with patch("niamoto.common.config.Config"):
+                with patch(
+                    "niamoto.core.plugins.registry.PluginRegistry", mock_registry_cls
+                ):
+                    if "niamoto.cli.commands.plugins" in sys.modules:
+                        del sys.modules["niamoto.cli.commands.plugins"]
+                    from niamoto.cli.commands.plugins import plugins
+
+                    result = runner.invoke(plugins, ["--format", "simple", "--verbose"])
+
+        assert result.exit_code == 0
+        assert "[cyan]danger[/cyan]" in result.output
+        assert "[red]Danger[/red] plugin" in result.output
+        assert "[bold]PluginClass[/bold]" in result.output
+        assert "test.[blue]module[/blue]" in result.output
