@@ -1,3 +1,5 @@
+import { hasDesktopBridge, invokeDesktop } from './bridge'
+
 export type ReloadProjectState = 'loaded' | 'welcome' | 'invalid-project'
 
 interface ReloadProjectPayload {
@@ -39,15 +41,9 @@ function isReloadProjectPayload(value: unknown): value is ReloadProjectPayload {
 export async function reloadDesktopProject(
   options: ReloadProjectOptions = {}
 ): Promise<ReloadProjectPayload> {
-  const response = await fetch('/api/health/reload-project', {
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to reload project on server')
-  }
-
-  const payload: unknown = await response.json()
+  const payload: unknown = hasDesktopBridge()
+    ? await invokeDesktop('reload_desktop_project')
+    : await fetchReloadProject()
   if (!isReloadProjectPayload(payload)) {
     throw new Error('Received an invalid reload-project response')
   }
@@ -73,4 +69,16 @@ export async function reloadDesktopProject(
   }
 
   return result
+}
+
+async function fetchReloadProject(): Promise<unknown> {
+  const response = await fetch('/api/health/reload-project', {
+    method: 'POST',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to reload project on server')
+  }
+
+  return response.json()
 }
