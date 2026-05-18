@@ -4,13 +4,57 @@ Tests for plugin discovery and loading.
 This module tests the automatic discovery and loading of plugins from the filesystem.
 """
 
-import pytest
+import importlib
+import inspect
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.base import (
+    Plugin,
+    PluginType,
+    TransformerPlugin,
+    ExporterPlugin,
+    LoaderPlugin,
+    WidgetPlugin,
+    DeployerPlugin,
+)
 from niamoto.core.plugins.registry import PluginRegistry
+
+
+BASE_PLUGIN_CLASSES = {
+    Plugin,
+    TransformerPlugin,
+    ExporterPlugin,
+    LoaderPlugin,
+    WidgetPlugin,
+    DeployerPlugin,
+}
+
+
+def load_discovered_plugin_class(plugin_info):
+    """Load the concrete plugin class described by discovery metadata."""
+    module = importlib.import_module(plugin_info["module"])
+    plugin_type = PluginType(plugin_info["type"])
+
+    candidates = [
+        obj
+        for _, obj in inspect.getmembers(module)
+        if inspect.isclass(obj)
+        and obj not in BASE_PLUGIN_CLASSES
+        and issubclass(obj, Plugin)
+        and getattr(obj, "type", None) == plugin_type
+        and obj.__module__ == module.__name__
+    ]
+
+    assert candidates, (
+        f"No concrete {plugin_type.value} plugin class found in {plugin_info['module']}"
+    )
+    assert len(candidates) == 1, (
+        f"Expected one concrete plugin class in {plugin_info['module']}, "
+        f"found {[candidate.__name__ for candidate in candidates]}"
+    )
+    return candidates[0]
 
 
 class TestPluginDiscovery:
@@ -50,43 +94,26 @@ class TestPluginDiscovery:
         test_plugins = discovered[:3] if len(discovered) > 3 else discovered
 
         for plugin_info in test_plugins:
-            try:
-                # Determine the likely class name based on plugin name and type
-                plugin_class_name = plugin_info["name"].capitalize()
-                if plugin_info["type"] == "transformer":
-                    plugin_class_name += "Transformer"
-                elif plugin_info["type"] == "exporter":
-                    plugin_class_name += "Exporter"
-                elif plugin_info["type"] == "loader":
-                    plugin_class_name += "Loader"
+            plugin_class = load_discovered_plugin_class(plugin_info)
 
-                # Load the plugin
-                plugin_class = plugin_loader.load_plugin(
-                    plugin_info["module"], plugin_class_name
-                )
+            # Verify that the plugin class was loaded
+            assert plugin_class is not None
 
-                # Verify that the plugin class was loaded
-                assert plugin_class is not None
+            # Create an instance (with a mock db)
+            mock_db = MagicMock()
+            plugin_instance = plugin_class(mock_db)
 
-                # Create an instance (with a mock db)
-                mock_db = MagicMock()
-                plugin_instance = plugin_class(mock_db)
-
-                # Check that it has the required methods
+            # Check type-specific methods
+            if plugin_info["type"] == PluginType.TRANSFORMER.value:
                 assert hasattr(plugin_instance, "validate_config")
-
-                # Check type-specific methods
-                if plugin_info["type"] == PluginType.TRANSFORMER.value:
-                    assert hasattr(plugin_instance, "transform")
-                elif plugin_info["type"] == PluginType.EXPORTER.value:
-                    assert hasattr(plugin_instance, "export")
-                elif plugin_info["type"] == PluginType.LOADER.value:
-                    assert hasattr(plugin_instance, "load_data")
-
-            except Exception as e:
-                pytest.skip(
-                    f"Skipping plugin loading test for {plugin_info['name']}: {str(e)}"
-                )
+                assert hasattr(plugin_instance, "transform")
+            elif plugin_info["type"] == PluginType.EXPORTER.value:
+                assert hasattr(plugin_instance, "export")
+            elif plugin_info["type"] == PluginType.LOADER.value:
+                assert hasattr(plugin_instance, "validate_config")
+                assert hasattr(plugin_instance, "load_data")
+            elif plugin_info["type"] == PluginType.DEPLOYER.value:
+                assert hasattr(plugin_instance, "deploy")
 
     def test_register_discovered_plugins(
         self, plugin_loader, clear_registry, core_plugins_path
@@ -97,27 +124,14 @@ class TestPluginDiscovery:
 
         # Register the plugins
         for plugin_info in discovered:
-            try:
-                # Register the plugin
-                plugin_class_name = plugin_info["name"].capitalize()
-                if plugin_info["type"] == "transformer":
-                    plugin_class_name += "Transformer"
-                elif plugin_info["type"] == "exporter":
-                    plugin_class_name += "Exporter"
-                elif plugin_info["type"] == "loader":
-                    plugin_class_name += "Loader"
-
-                plugin_loader.register_plugin(
-                    plugin_info["module"], plugin_class_name, plugin_info["type"]
-                )
-            except Exception as e:
-                pytest.skip(
-                    f"Skipping plugin registration test for {plugin_info['name']}: {str(e)}"
-                )
+            plugin_class = load_discovered_plugin_class(plugin_info)
+            PluginRegistry.register_plugin(
+                plugin_info["name"], plugin_class, PluginType(plugin_info["type"])
+            )
 
         # Check that plugins were registered
-        registry = PluginRegistry.get_registry()
-        assert len(registry) > 0
+        registry = PluginRegistry.list_plugins()
+        assert any(registry.values())
 
         # Check that plugins can be retrieved by type
         for plugin_type in PluginType:

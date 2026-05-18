@@ -13,14 +13,14 @@ from niamoto.core.plugins.base import PluginType
 
 # Sample transformer plugins to test
 TRANSFORMER_PLUGINS = [
-    ("transformers.extraction.direct_attribute", "DirectAttributeTransformer"),
-    ("transformers.aggregation.field_aggregator", "FieldAggregatorTransformer"),
+    ("transformers.extraction.direct_attribute", "DirectAttribute"),
+    ("transformers.aggregation.field_aggregator", "FieldAggregator"),
     # Add more transformer plugins as needed
 ]
 
 # Sample exporter plugins to test
 EXPORTER_PLUGINS = [
-    ("exporters.html", "HtmlExporter"),
+    ("exporters.json_api_exporter", "JsonApiExporter"),
     # Add more exporter plugins as needed
 ]
 
@@ -30,6 +30,25 @@ LOADER_PLUGINS = [
     ("loaders.spatial", "SpatialLoader"),
     # Add more loader plugins as needed
 ]
+
+VALID_TRANSFORMER_CONFIGS = {
+    "DirectAttribute": {
+        "plugin": "direct_attribute",
+        "params": {"field": "name"},
+    },
+    "FieldAggregator": {
+        "plugin": "field_aggregator",
+        "params": {
+            "fields": [
+                {
+                    "field": "value",
+                    "target": "total_value",
+                    "transformation": "sum",
+                }
+            ]
+        },
+    },
+}
 
 
 class TestPluginParametrized:
@@ -65,10 +84,7 @@ class TestPluginParametrized:
             plugin = plugin_class(mock_db)
 
             # Test with minimal valid config
-            valid_config = {
-                "plugin": class_name.replace("Transformer", "").lower(),
-                "params": {},
-            }
+            valid_config = VALID_TRANSFORMER_CONFIGS[class_name]
 
             try:
                 plugin.validate_config(valid_config)
@@ -95,7 +111,6 @@ class TestPluginParametrized:
             assert plugin.type == PluginType.EXPORTER
 
             # Check required methods
-            assert hasattr(plugin, "validate_config")
             assert hasattr(plugin, "export")
 
     @pytest.mark.parametrize("plugin_info", LOADER_PLUGINS)
@@ -126,23 +141,29 @@ class TestTransformerPluginsBehavior:
         "plugin_info,config,expected_keys",
         [
             (
-                (
-                    "transformers.extraction.direct_attribute",
-                    "DirectAttributeTransformer",
-                ),
-                {"plugin": "direct_attribute", "params": {"attribute": "name"}},
-                ["data"],
+                ("transformers.extraction.direct_attribute", "DirectAttribute"),
+                {
+                    "plugin": "direct_attribute",
+                    "params": {"field": "name"},
+                    "group_id": 1,
+                },
+                ["value"],
             ),
             (
-                (
-                    "transformers.aggregation.field_aggregator",
-                    "FieldAggregatorTransformer",
-                ),
+                ("transformers.aggregation.field_aggregator", "FieldAggregator"),
                 {
                     "plugin": "field_aggregator",
-                    "params": {"group_by": "category", "aggregate": {"value": "sum"}},
+                    "params": {
+                        "fields": [
+                            {
+                                "field": "value",
+                                "target": "total_value",
+                                "transformation": "sum",
+                            }
+                        ]
+                    },
                 },
-                ["data"],
+                ["total_value"],
             ),
             # Add more test cases as needed
         ],
@@ -164,22 +185,18 @@ class TestTransformerPluginsBehavior:
             # Create plugin instance
             plugin = plugin_class(mock_db)
 
-            try:
-                # Validate config
-                plugin.validate_config(config)
+            # Validate config
+            plugin.validate_config(config)
 
-                # Transform data
-                result = plugin.transform(sample_dataframe, config)
+            # Transform data
+            result = plugin.transform(sample_dataframe, config)
 
-                # Check result type
-                assert isinstance(result, dict)
+            # Check result type
+            assert isinstance(result, dict)
 
-                # Check expected keys
-                for key in expected_keys:
-                    assert key in result
-
-            except Exception as e:
-                pytest.skip(f"Transformer test skipped due to error: {str(e)}")
+            # Check expected keys
+            for key in expected_keys:
+                assert key in result
 
 
 class TestLoaderPluginsBehavior:
@@ -192,7 +209,10 @@ class TestLoaderPluginsBehavior:
                 ("loaders.join_table", "JoinTableLoader"),
                 {
                     "plugin": "join_table",
-                    "params": {"table": "test_table", "join_field": "id"},
+                    "data": "test_table",
+                    "key": "id",
+                    "join_table": "test_join_table",
+                    "keys": {"source": "id_source", "reference": "id_reference"},
                 },
                 pd.DataFrame({"id": [1, 2, 3], "extra": ["A", "B", "C"]}),
             ),
@@ -211,20 +231,22 @@ class TestLoaderPluginsBehavior:
             plugin = plugin_class(mock_db)
 
             # Configure mock_db to return the mock result
+            mock_db.has_table.return_value = True
+            mock_db.get_table_columns.side_effect = lambda name: ["id", "value"]
             mock_db.execute_query.return_value = mock_result
+            mock_db.engine.connect.return_value.__enter__.return_value = mock_db
 
-            try:
-                # Validate config
-                plugin.validate_config(config)
+            # Validate config
+            plugin.validate_config(config)
 
-                # Load data
+            # Load data
+            from unittest.mock import patch
+
+            with patch("pandas.read_sql", return_value=mock_result):
                 result = plugin.load_data(1, config)
 
-                # Check result type
-                assert isinstance(result, pd.DataFrame)
-
-            except Exception as e:
-                pytest.skip(f"Loader test skipped due to error: {str(e)}")
+            # Check result type
+            assert isinstance(result, pd.DataFrame)
 
 
 # Add more test classes as needed for other plugin types

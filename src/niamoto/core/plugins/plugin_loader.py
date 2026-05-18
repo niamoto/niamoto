@@ -627,8 +627,10 @@ class PluginLoader:
 
                                     # Look for plugin classes
                                     for name, obj in inspect.getmembers(module):
-                                        if inspect.isclass(obj) and is_plugin_class(
-                                            obj
+                                        if (
+                                            inspect.isclass(obj)
+                                            and obj.__module__ == module.__name__
+                                            and is_plugin_class(obj)
                                         ):
                                             plugin_type = obj.type.value
                                             break
@@ -639,18 +641,29 @@ class PluginLoader:
                                 continue
 
                         if plugin_type:
-                            # Add to discovered plugins
+                            # Add only files that define concrete plugin classes.
                             is_core = "niamoto/core/plugins" in str(file_path)
                             module_name = self._get_module_name(file_path, is_core)
+                            module = importlib.import_module(module_name)
+                            plugin_classes = [
+                                obj
+                                for _, obj in inspect.getmembers(module)
+                                if inspect.isclass(obj)
+                                and obj.__module__ == module.__name__
+                                and is_plugin_class(obj)
+                            ]
 
-                            discovered.append(
-                                {
-                                    "path": str(file_path),
-                                    "module": module_name,
-                                    "name": file_path.stem,
-                                    "type": plugin_type,
-                                }
-                            )
+                            for plugin_class in plugin_classes:
+                                discovered.append(
+                                    {
+                                        "path": str(file_path),
+                                        "module": module_name,
+                                        "name": getattr(
+                                            plugin_class, "name", file_path.stem
+                                        ),
+                                        "type": plugin_class.type.value,
+                                    }
+                                )
 
         except Exception as e:
             logger.error(f"Error discovering plugins: {str(e)}")

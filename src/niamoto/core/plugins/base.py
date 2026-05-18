@@ -447,6 +447,7 @@ def register(name: str, plugin_type: Optional[PluginType] = None):
 
         # Register the plugin using the provided name and determined type
         try:
+            plugin_class.name = name
             PluginRegistry.register_plugin(name, plugin_class, actual_type)
             # Optional: Log successful registration
             # logger.debug(f"Registered plugin '{name}' of type {actual_type.value}")

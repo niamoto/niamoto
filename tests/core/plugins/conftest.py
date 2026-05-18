@@ -124,8 +124,8 @@ def load_test_plugin(request, core_plugins_path):
 
     Usage:
         @pytest.mark.parametrize('plugin_info', [
-            ('transformers.extraction.direct_attribute', 'DirectAttributeTransformer'),
-            ('transformers.aggregation.field_aggregator', 'FieldAggregatorTransformer'),
+            ('transformers.extraction.direct_attribute', 'DirectAttribute'),
+            ('transformers.aggregation.field_aggregator', 'FieldAggregator'),
         ])
         def test_something(load_test_plugin, plugin_info):
             module_path, class_name = plugin_info
@@ -140,17 +140,9 @@ def load_test_plugin(request, core_plugins_path):
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
-        try:
-            # Import the module
-            full_module_path = f"niamoto.core.plugins.{module_path}"
-            module = importlib.import_module(full_module_path)
-
-            # Get the plugin class
-            plugin_class = getattr(module, class_name)
-            return plugin_class
-        except (ImportError, AttributeError) as e:
-            pytest.skip(f"Could not load plugin {module_path}.{class_name}: {str(e)}")
-            return None
+        full_module_path = f"niamoto.core.plugins.{module_path}"
+        module = importlib.import_module(full_module_path)
+        return getattr(module, class_name)
 
     return _load_plugin
 
