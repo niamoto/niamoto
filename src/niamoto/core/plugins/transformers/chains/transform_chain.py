@@ -11,6 +11,9 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.common.exceptions import DataTransformError
+from niamoto.core.plugins.transformers.chains.reference_resolver import (
+    ReferenceResolver,
+)
 
 
 class TransformStepConfig(BasePluginParams):
@@ -137,87 +140,42 @@ class TransformChain(TransformerPlugin):
         if not params:
             return {}
 
-        resolved = {}
+        resolver = ReferenceResolver(context)
+        return {
+            key: self._resolve_reference_value(value, context, resolver)
+            for key, value in params.items()
+        }
 
-        for key, value in params.items():
-            if isinstance(value, str) and value.startswith("@"):
-                # C'est une référence à un résultat précédent
-                ref_parts = value[1:].split(".")
-                ref_key = ref_parts[0]
+    def _resolve_reference_value(
+        self,
+        value: Any,
+        context: Dict[str, Any],
+        resolver: ReferenceResolver,
+    ) -> Any:
+        if isinstance(value, str) and value.startswith("@"):
+            ref_key = value[1:].split(".", 1)[0].split("|", 1)[0]
+            if ref_key in context and "." not in value:
+                return context[ref_key]
 
-                if ref_key not in context:
-                    # La référence n'existe pas, utiliser la valeur telle quelle
-                    resolved[key] = value
-                    continue
+            try:
+                return resolver.resolve(value)
+            except ValueError:
+                if ref_key in context:
+                    return context[ref_key]
+                return value
 
-                ref_value = context[ref_key]
+        if isinstance(value, dict):
+            return {
+                key: self._resolve_reference_value(item, context, resolver)
+                for key, item in value.items()
+            }
 
-                # Si la référence a des sous-parties (ex: @step1.field1)
-                if len(ref_parts) > 1:
-                    try:
-                        for part in ref_parts[1:]:
-                            if isinstance(ref_value, dict) and part in ref_value:
-                                ref_value = ref_value[part]
-                            elif hasattr(ref_value, part):
-                                ref_value = getattr(ref_value, part)
-                            else:
-                                # Sous-partie non trouvée, utiliser la valeur complète
-                                ref_value = context[ref_key]
-                                break
-                    except Exception:
-                        # En cas d'erreur, utiliser la valeur telle quelle
-                        resolved[key] = value
-                        continue
+        if isinstance(value, list):
+            return [
+                self._resolve_reference_value(item, context, resolver) for item in value
+            ]
 
-                resolved[key] = ref_value
-            elif isinstance(value, dict):
-                # Résoudre récursivement les références dans les sous-dictionnaires
-                resolved[key] = self._resolve_references(value, context)
-            elif isinstance(value, list):
-                # Résoudre les références dans les listes
-                resolved_list = []
-                for item in value:
-                    if isinstance(item, dict):
-                        resolved_list.append(self._resolve_references(item, context))
-                    elif isinstance(item, str) and item.startswith("@"):
-                        # Référence dans une liste
-                        ref_parts = item[1:].split(".")
-                        ref_key = ref_parts[0]
-
-                        if ref_key not in context:
-                            resolved_list.append(item)
-                            continue
-
-                        ref_value = context[ref_key]
-
-                        # Si la référence a des sous-parties
-                        if len(ref_parts) > 1:
-                            try:
-                                for part in ref_parts[1:]:
-                                    if (
-                                        isinstance(ref_value, dict)
-                                        and part in ref_value
-                                    ):
-                                        ref_value = ref_value[part]
-                                    elif hasattr(ref_value, part):
-                                        ref_value = getattr(ref_value, part)
-                                    else:
-                                        ref_value = context[ref_key]
-                                        break
-                            except Exception:
-                                resolved_list.append(item)
-                                continue
-
-                        resolved_list.append(ref_value)
-                    else:
-                        resolved_list.append(item)
-
-                resolved[key] = resolved_list
-            else:
-                # Valeur simple, pas de résolution nécessaire
-                resolved[key] = value
-
-        return resolved
+        return value
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
