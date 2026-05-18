@@ -579,10 +579,11 @@ def infer_column_type(values: List[str]) -> str:
 async def browse_files(path: str = ".") -> Dict[str, Any]:
     """Browse files in the filesystem."""
     try:
-        p = Path(path).resolve()
-
-        # Security check - ensure we're not going outside project directory
-        # In production, this should be more restrictive
+        p = _resolve_path_under_root(
+            get_working_directory(),
+            path,
+            detail="Access denied: path outside project directory",
+        )
 
         if not p.exists():
             raise HTTPException(status_code=404, detail="Path not found")
@@ -613,6 +614,8 @@ async def browse_files(path: str = ".") -> Dict[str, Any]:
             "items": sorted(items, key=lambda x: (x["type"] != "directory", x["name"])),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

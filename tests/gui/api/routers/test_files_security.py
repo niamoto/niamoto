@@ -47,3 +47,41 @@ def test_serve_file_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Access denied"
+
+
+def test_browse_files_rejects_paths_outside_project(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    sibling_dir = tmp_path / "project-backup"
+    work_dir.mkdir()
+    sibling_dir.mkdir()
+    (sibling_dir / "secret.txt").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.files.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/files/browse",
+        params={"path": "../project-backup"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access denied: path outside project directory"
+
+
+def test_browse_files_preserves_missing_project_path_404(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    work_dir.mkdir()
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.files.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/files/browse", params={"path": "missing"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Path not found"
