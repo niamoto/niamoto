@@ -378,13 +378,46 @@ async def check_compatibility(check: CompatibilityCheck):
         Compatibility result with explanation
     """
     try:
-        # For now, return a simple compatibility check
-        # This could be enhanced with actual plugin compatibility logic
+        load_all_plugins()
 
-        result = CompatibilityResult(compatible=True, reason=None, suggestions=[])
+        plugin_info = None
+        for plugin_type in PluginType:
+            if PluginRegistry.has_plugin(check.plugin_id, plugin_type):
+                plugin_class = PluginRegistry.get_plugin(check.plugin_id, plugin_type)
+                plugin_info = get_plugin_info_from_class(check.plugin_id, plugin_class)
+                break
+
+        if plugin_info is None:
+            raise HTTPException(
+                status_code=404, detail=f"Plugin '{check.plugin_id}' not found"
+            )
+
+        source_type = check.source_data.get("type")
+        if (
+            isinstance(source_type, str)
+            and source_type
+            and source_type not in plugin_info.compatible_inputs
+            and "any" not in plugin_info.compatible_inputs
+        ):
+            return CompatibilityResult(
+                compatible=False,
+                reason=(
+                    f"Input type '{source_type}' is not compatible with "
+                    f"plugin '{check.plugin_id}'"
+                ),
+                suggestions=["Use one of: " + ", ".join(plugin_info.compatible_inputs)],
+            )
+
+        result = CompatibilityResult(
+            compatible=True,
+            reason=f"Plugin '{check.plugin_id}' accepts the provided source data.",
+            suggestions=[],
+        )
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error checking compatibility: {str(e)}"
