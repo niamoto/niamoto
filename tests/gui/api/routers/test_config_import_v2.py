@@ -83,6 +83,41 @@ def test_list_backups_does_not_expose_absolute_paths(monkeypatch, tmp_path):
     assert str(work_dir) not in response.text
 
 
+def test_restore_backup_rejects_paths_outside_backup_directory(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    backup_dir = config_dir / "backups"
+    backup_dir.mkdir(parents=True)
+    config_path = config_dir / "import.yml"
+    config_path.write_text("version: '2'\nentities: {}\n", encoding="utf-8")
+
+    absolute_backup = tmp_path / "import_absolute.yml"
+    absolute_backup.write_text(
+        "version: '2'\nentities:\n  datasets: {}\n", encoding="utf-8"
+    )
+    traversed_backup = config_dir / "import_traversed.yml"
+    traversed_backup.write_text(
+        "version: '2'\nentities:\n  references: {}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    absolute_response = client.post(
+        "/api/config/import/backup/restore",
+        json={"backup_filename": str(absolute_backup)},
+    )
+    traversal_response = client.post(
+        "/api/config/import/backup/restore",
+        json={"backup_filename": "../import_traversed.yml"},
+    )
+
+    assert absolute_response.status_code == 400
+    assert traversal_response.status_code == 400
+    assert config_path.read_text(encoding="utf-8") == "version: '2'\nentities: {}\n"
+    assert list(backup_dir.iterdir()) == []
+
+
 def test_save_import_v2_rejects_missing_entities_without_writing(
     monkeypatch,
     tmp_path,
