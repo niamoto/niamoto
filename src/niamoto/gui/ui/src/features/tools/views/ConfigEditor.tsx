@@ -47,7 +47,6 @@ const CONFIG_TABS: { value: ConfigType; label: string; description: string }[] =
 
 interface BackupInfo {
   filename: string
-  path: string
   size: number
   modified: string
 }
