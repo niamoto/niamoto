@@ -124,6 +124,25 @@ def test_files_endpoint_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Access denied: path outside files folder"
 
 
+def test_files_listing_rejects_parent_folder_escape(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    sibling_dir = tmp_path / "project-backup"
+    work_dir.mkdir()
+    sibling_dir.mkdir()
+    (sibling_dir / "secret.md").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.site.get_working_directory",
+        lambda: work_dir,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/site/files", params={"folder": ".."})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access denied: path outside project"
+
+
 def test_assets_endpoint_rejects_sibling_prefix_escape(monkeypatch, tmp_path):
     assets_dir = tmp_path / "assets"
     sibling_dir = tmp_path / "assets-backup"
