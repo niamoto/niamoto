@@ -261,7 +261,7 @@ async def get_table_preview(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 

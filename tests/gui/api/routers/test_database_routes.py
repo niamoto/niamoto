@@ -76,8 +76,16 @@ def test_database_schema_uses_duckdb_fixture_without_reflection_errors(
 def test_table_preview_uses_read_only_duckdb_connection(
     gui_duckdb_client: TestClient,
     gui_duckdb_project,
+    monkeypatch,
 ):
     db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    read_only_values = []
+
+    def recording_open_database(path, *, read_only=False):
+        read_only_values.append(read_only)
+        return open_database(path, read_only=read_only)
+
+    monkeypatch.setattr(database_router, "open_database", recording_open_database)
 
     with open_database(db_path, read_only=True):
         response = gui_duckdb_client.get(
@@ -89,3 +97,4 @@ def test_table_preview_uses_read_only_duckdb_connection(
     assert payload["table_name"] == "dataset_occurrences"
     assert payload["total_rows"] == 3
     assert [row["id"] for row in payload["rows"]] == [1, 2, 3]
+    assert read_only_values == [True]
