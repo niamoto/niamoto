@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -128,7 +129,17 @@ def restore_paths(paths: list[str]) -> None:
             ]
         )
     for p in untracked:
-        (ROOT / p).unlink(missing_ok=True)
+        path = _worktree_path(p)
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+
+
+def _worktree_path(relative_path: str) -> Path:
+    path = ROOT / relative_path
+    path.parent.resolve().relative_to(ROOT)
+    return path
 
 
 def evaluate_metric(
