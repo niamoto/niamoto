@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from urllib.parse import quote
 from unittest.mock import patch
 
+import duckdb
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
@@ -30,6 +31,48 @@ def test_entities_available_use_read_only_duckdb_connections(
         response = gui_duckdb_client.get("/api/entities/available")
 
     assert response.status_code == 200, response.text
+    assert open_database_mock.call_args is not None
+    assert open_database_mock.call_args.kwargs.get("read_only") is True
+
+
+def test_entity_detail_uses_read_only_duckdb_connections(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    """Entity detail reads should not open DuckDB in write mode."""
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE taxons (
+                taxons_id INTEGER,
+                general_info JSON,
+                widgets_data JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO taxons VALUES (
+                101,
+                '{"name": {"value": "Araucaria columnaris"}}',
+                '{"count": 3}'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.entities.open_database",
+        wraps=entities.open_database,
+    ) as open_database_mock:
+        response = gui_duckdb_client.get("/api/entities/entity/taxons/101")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == "101"
     assert open_database_mock.call_args is not None
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 

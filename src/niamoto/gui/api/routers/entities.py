@@ -172,7 +172,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             quoted_table = quote_identifier(db, group_by)
             quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
@@ -244,7 +244,7 @@ async def get_entity_detail(group_by: str, entity_id: str):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             quoted_table = quote_identifier(db, group_by)
             quoted_id_column = quote_identifier(db, id_column)
             with db.session() as session:
