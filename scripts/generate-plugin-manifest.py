@@ -91,11 +91,7 @@ def _first_paragraph(docstring: str | None) -> str:
 
 def _plugins_in_file(path: Path) -> list[dict[str, Any]]:
     """Parse a single .py file and return all @register'd plugins."""
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except SyntaxError as exc:
-        print(f"SyntaxError in {path}: {exc}", file=sys.stderr)
-        return []
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
     results: list[dict[str, Any]] = []
     for node in ast.walk(tree):
