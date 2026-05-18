@@ -157,6 +157,23 @@ class TestCreateApp:
         assets_routes = [path for path in route_paths if path.startswith("/assets")]
         assert len(assets_routes) == 0
 
+    def test_partial_ui_build_without_assets_does_not_crash(
+        self, tmp_path, monkeypatch
+    ):
+        """A dist directory with only index.html should still mount the SPA."""
+        ui_build = tmp_path / "ui" / "dist"
+        ui_build.mkdir(parents=True)
+        (ui_build / "index.html").write_text("<html>App</html>", encoding="utf-8")
+        monkeypatch.setattr("niamoto.gui.api.app.UI_BUILD_DIR", ui_build)
+
+        app = create_app()
+        client = TestClient(app)
+
+        route_paths = [route.path for route in app.routes]
+        assets_routes = [path for path in route_paths if path.startswith("/assets")]
+        assert assets_routes == []
+        assert client.get("/").status_code == 200
+
     def test_create_app_without_explicit_project_keeps_job_store_disabled(
         self, monkeypatch
     ):
