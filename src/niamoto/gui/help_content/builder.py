@@ -110,6 +110,10 @@ def build_help_content(
 
     if not docs_root.exists():
         raise FileNotFoundError(f"Docs root does not exist: {docs_root}")
+    if output_root == docs_root or output_root.is_relative_to(docs_root):
+        raise ValueError(
+            "Help content output root must not be the docs root or a subdirectory of it"
+        )
 
     pages_root = output_root / "pages"
     assets_root = output_root / "assets"
