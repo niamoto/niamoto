@@ -69,6 +69,25 @@ class TestClassObjectAnalyzer:
         assert analysis.entity_count == 1
         assert len(analysis.class_objects) == 3
 
+    def test_analyze_valid_csv_with_quote_in_path(self, tmp_path):
+        """CSV paths containing quotes should be escaped for DuckDB."""
+        quoted_dir = tmp_path / "o'brien"
+        quoted_dir.mkdir()
+        csv_path = quoted_dir / "class_objects.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f, delimiter=",")
+            writer.writerow(
+                ["id", "class_object", "class_name", "class_value", "plot_id"]
+            )
+            writer.writerow([1, "cover_forest", "Foret", 0.34, 2])
+            writer.writerow([2, "cover_forest", "Hors-foret", 0.66, 2])
+
+        analysis = analyze_csv(csv_path)
+
+        assert analysis.is_valid is True
+        assert analysis.row_count == 2
+        assert analysis.entity_column == "plot_id"
+
     def test_class_object_detection(self, valid_csv_comma):
         """Test correct detection of class_objects and their properties."""
         analysis = analyze_csv(valid_csv_comma)
