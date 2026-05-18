@@ -6,6 +6,7 @@ import pandas as pd
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 
 
 class SpatialParams(BasePluginParams):
@@ -92,12 +93,18 @@ class SpatialLoader(LoaderPlugin):
         params = validated_config.params
 
         # Resolve entity names to physical table names via EntityRegistry
-        reference_table = self._resolve_table_name(config["reference"]["name"])
-        main_table = self._resolve_table_name(config["main"])
+        reference_table = quote_identifier(
+            self._resolve_table_name(config["reference"]["name"]),
+            "reference table name",
+        )
+        main_table = quote_identifier(
+            self._resolve_table_name(config["main"]), "main table name"
+        )
+        geometry_field = quote_identifier(params.geometry_field, "geometry field")
 
         # Get shape geometry
         shape_query = f"""
-            SELECT {params.geometry_field}
+            SELECT {geometry_field}
             FROM {reference_table}
             WHERE id = :id
         """
@@ -109,7 +116,7 @@ class SpatialLoader(LoaderPlugin):
             FROM {main_table} m
             WHERE ST_Contains(
                 ST_GeomFromText(:shape_geom),
-                m.{params.geometry_field}
+                m.{geometry_field}
             )
         """
 

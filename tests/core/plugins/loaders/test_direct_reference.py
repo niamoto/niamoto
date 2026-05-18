@@ -131,8 +131,8 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         # Check pd.read_sql call
         expected_query = """
                 SELECT m.*
-                FROM main_data_table m
-                WHERE m.ref_id = :id
+                FROM "main_data_table" m
+                WHERE m."ref_id" = :id
             """
         mock_pd_read_sql.assert_called_once()
         call_args = mock_pd_read_sql.call_args

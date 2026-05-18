@@ -13,6 +13,7 @@ from niamoto.common.exceptions import DataLoadError
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from pydantic import ConfigDict, Field
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 
 
 class StatsLoaderParams(BasePluginParams):
@@ -173,8 +174,12 @@ class StatsLoader(LoaderPlugin):
         except Exception:
             pass
 
+        quoted_ref_field = quote_identifier(ref_field, "reference field")
+        quoted_grouping = quote_identifier(config["grouping"], "grouping table name")
+        quoted_id_field = quote_identifier(id_field, "id field")
+
         query = text(f"""
-            SELECT {ref_field} FROM {config["grouping"]} WHERE {id_field} = :group_id
+            SELECT {quoted_ref_field} FROM {quoted_grouping} WHERE {quoted_id_field} = :group_id
         """)
 
         with self.db.connection() as conn:
@@ -209,10 +214,14 @@ class StatsLoader(LoaderPlugin):
         self, config: Dict[str, Any], group_id: int
     ) -> pd.DataFrame:
         """Load data from the database."""
+        quoted_data = quote_identifier(config["data"], "data table name")
+        quoted_grouping = quote_identifier(config["grouping"], "grouping table name")
+        quoted_key = quote_identifier(config.get("key", "id"), "foreign key field")
+
         query = f"""
             SELECT m.*
-            FROM {config["data"]} m
-            JOIN {config["grouping"]} ref ON m.{config.get("key", "id")} = ref.id
+            FROM {quoted_data} m
+            JOIN {quoted_grouping} ref ON m.{quoted_key} = ref.id
             WHERE ref.id = :group_id
         """
 

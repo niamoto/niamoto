@@ -110,8 +110,8 @@ class TestStatsLoader(NiamotoTestCase):
         query_string = str(args[0]).strip()  # Get the query text
         expected_query = """
                 SELECT m.*
-                FROM main_table m
-                JOIN ref_table ref ON m.foreign_key = ref.id
+                FROM "main_table" m
+                JOIN "ref_table" ref ON m."foreign_key" = ref.id
                 WHERE ref.id = :group_id
             """.strip()
         # Normalize whitespace for comparison

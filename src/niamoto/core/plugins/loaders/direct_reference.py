@@ -12,6 +12,7 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError, DatabaseQueryError
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 
 
 class DirectReferenceParams(BasePluginParams):
@@ -158,6 +159,9 @@ class DirectReferenceLoader(LoaderPlugin):
             )
 
         try:
+            quoted_main = quote_identifier(physical_main, "main table name")
+            quoted_ref = quote_identifier(physical_ref, "reference table name")
+            quoted_key = quote_identifier(key_field, "foreign key field")
             ref_key = params.ref_key
             if ref_key:
                 # Determine the entity's ID field from registry metadata
@@ -174,20 +178,25 @@ class DirectReferenceLoader(LoaderPlugin):
                 except (DatabaseQueryError, AttributeError, KeyError):
                     pass
 
+                quoted_ref_key = quote_identifier(ref_key, "reference key field")
+                quoted_ref_id_field = quote_identifier(
+                    ref_id_field, "reference id field"
+                )
+
                 # JOIN data table with reference table to match via ref_key
                 query = text(f"""
                     SELECT m.*
-                    FROM {physical_main} m
-                    JOIN {physical_ref} r ON m.{key_field} = r."{ref_key}"
-                    WHERE r."{ref_id_field}" = :id
+                    FROM {quoted_main} m
+                    JOIN {quoted_ref} r ON m.{quoted_key} = r.{quoted_ref_key}
+                    WHERE r.{quoted_ref_id_field} = :id
                 """)
                 with self.db.connection() as conn:
                     return pd.read_sql(query, conn, params={"id": group_id})
             else:
                 query = text(f"""
                     SELECT m.*
-                    FROM {physical_main} m
-                    WHERE m.{key_field} = :id
+                    FROM {quoted_main} m
+                    WHERE m.{quoted_key} = :id
                 """)
                 with self.db.connection() as conn:
                     return pd.read_sql(query, conn, params={"id": group_id})
