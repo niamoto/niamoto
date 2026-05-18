@@ -61,6 +61,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Keep the staged temporary workspace after the benchmark",
     )
+    parser.add_argument(
+        "--cleanup-logs",
+        action="store_true",
+        help="Remove benchmark log files before exiting",
+    )
     return parser.parse_args()
 
 
@@ -172,6 +177,7 @@ def main() -> int:
     try:
         print(f"Staging instance from {source_instance}...")
         print(f"Workspace: {staged_instance}")
+        print(f"Logs: {logs_dir}")
         print()
 
         transform_result = run_step(
@@ -220,8 +226,9 @@ def main() -> int:
             return 0
         return 1
     finally:
-        if not args.keep_workdir:
+        if args.cleanup_logs:
             shutil.rmtree(logs_dir, ignore_errors=True)
+        if not args.keep_workdir:
             shutil.rmtree(staged_instance.parent, ignore_errors=True)
 
 
