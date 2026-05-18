@@ -289,6 +289,30 @@ class TestConfig(NiamotoTestCase):
         self.assertTrue(first.database_path.endswith("db/first.duckdb"))
         self.assertTrue(second.database_path.endswith("db/second.duckdb"))
 
+    def test_substitutes_plain_environment_variable_placeholders(self):
+        """Plain $VAR placeholders should be substituted without braced vars."""
+
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(
+                {
+                    **Config._default_config(),
+                    "database": {"path": "$NIAMOTO_TEST_DB_PATH"},
+                },
+                f,
+            )
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
+
+        with patch.dict(os.environ, {"NIAMOTO_TEST_DB_PATH": "db/plain.duckdb"}):
+            config = Config(config_dir=self.config_dir, create_default=False)
+
+        self.assertTrue(config.database_path.endswith("db/plain.duckdb"))
+
     def test_empty_imports_config(self):
         """Test error when imports configuration is empty."""
         os.makedirs(self.config_dir, exist_ok=True)

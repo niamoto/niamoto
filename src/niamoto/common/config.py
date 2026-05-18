@@ -335,7 +335,7 @@ class Config:
     def _substitute_env_variables(content: str, *, source: str) -> str:
         """Replace ${VAR} or ${VAR:-default} placeholders with environment values."""
 
-        if "${" not in content:
+        if "${" not in content and not Config._PLAIN_ENV_PATTERN.search(content):
             return content
 
         def replace(match: re.Match[str]) -> str:
