@@ -12,6 +12,7 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
+from niamoto.core.plugins.transformers.class_objects.utils import aggregate_class_values
 
 
 class GroupConfig(BaseModel):
@@ -273,8 +274,11 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
 
             # Process each group
             for group in params.groups:
-                # Filter data for this field
-                field_data = data[data["class_object"] == group.field]
+                # Filter data for this field and collapse duplicate class rows.
+                field_data = aggregate_class_values(
+                    data[data["class_object"] == group.field],
+                    ["class_object", "class_name"],
+                )
 
                 if len(field_data) == 0:
                     raise DataTransformError(

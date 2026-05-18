@@ -12,6 +12,7 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
+from niamoto.core.plugins.transformers.class_objects.utils import aggregate_class_values
 
 
 class CategoriesExtractorParams(BasePluginParams):
@@ -181,8 +182,11 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
                     },
                 )
 
-            # Filter data for this class_object
-            field_data = data[data["class_object"] == class_object_name]
+            # Filter data for this class_object and collapse duplicate class rows.
+            field_data = aggregate_class_values(
+                data[data["class_object"] == class_object_name],
+                ["class_object", "class_name"],
+            )
 
             if len(field_data) == 0:
                 raise DataTransformError(
@@ -211,12 +215,6 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
                     counts.append(value)
             else:
                 # Auto-detect categories: sort by value (descending) like top_ranking
-                # Convert class_value to numeric for sorting
-                field_data = field_data.copy()
-                field_data["class_value"] = pd.to_numeric(
-                    field_data["class_value"], errors="coerce"
-                )
-
                 # Sort by value descending and take top N
                 sorted_data = field_data.sort_values(
                     "class_value", ascending=False

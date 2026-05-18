@@ -95,6 +95,30 @@ def test_basic_category_extraction(plugin, sample_data):
     assert pytest.approx(result["counts"][4]) == 0.0  # HUMIDE (missing)
 
 
+def test_duplicate_category_rows_are_summed(plugin, sample_data):
+    """Duplicate rows for an ordered category should be summed."""
+    duplicate = pd.DataFrame(
+        {
+            "class_object": ["land_use", "land_use"],
+            "class_name": ["NUM", "UM"],
+            "class_value": [9.9, 4.5],
+        }
+    )
+    data = pd.concat([sample_data, duplicate], ignore_index=True)
+    config = {
+        "plugin": "class_object_categories_extractor",
+        "params": {
+            "class_object": "land_use",
+            "categories_order": ["NUM", "UM"],
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert result["tops"] == ["NUM", "UM"]
+    assert pytest.approx(result["counts"]) == [730.0, 225.0]
+
+
 def test_error_missing_columns(plugin):
     """Test error if required columns are missing from input data."""
     bad_data = pd.DataFrame(

@@ -93,6 +93,30 @@ def test_single_group_aggregation(plugin, sample_data):
     assert dist["Hors-forêt"] == 700
 
 
+def test_duplicate_class_rows_are_summed(plugin, sample_data):
+    """Duplicate class rows for the same class object should be aggregated."""
+    duplicate = pd.DataFrame(
+        {
+            "class_object": ["cover_forest", "cover_forest"],
+            "class_name": ["Forêt", "Hors-forêt"],
+            "class_value": [25, 75],
+        }
+    )
+    data = pd.concat([sample_data, duplicate], ignore_index=True)
+    config = {
+        "plugin": "class_object_binary_aggregator",
+        "params": {
+            "source": "shape_stats",
+            "groups": [{"label": "forest_cover", "field": "cover_forest"}],
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert result["forest_cover"]["Forêt"] == 325.0
+    assert result["forest_cover"]["Hors-forêt"] == 775.0
+
+
 def test_legacy_binary_config_is_migrated(plugin, sample_data):
     """Legacy generated binary config should still transform successfully."""
     config = {

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ConfigDict, ValidationError
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, register, PluginType
 from niamoto.common.exceptions import DataTransformError
+from niamoto.core.plugins.transformers.class_objects.utils import aggregate_class_values
 
 
 # Specific model for the mapping within each category
@@ -166,7 +167,10 @@ class ClassObjectCategoriesMapper(TransformerPlugin):
             for category, category_config in params.categories.items():
                 # Get data for this class object
                 class_object = category_config.class_object
-                category_data = data[data["class_object"] == class_object]
+                category_data = aggregate_class_values(
+                    data[data["class_object"] == class_object],
+                    ["class_object", "class_name"],
+                )
 
                 if len(category_data) == 0:
                     raise DataTransformError(

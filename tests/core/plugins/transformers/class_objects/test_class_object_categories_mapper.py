@@ -86,6 +86,36 @@ def test_single_category_mapping(mock_db, sample_data):
     assert pytest.approx(forest_type_result["Leafy"]) == 250.2
 
 
+def test_duplicate_mapped_category_rows_are_summed(mock_db, sample_data):
+    """Duplicate source class rows should be summed before mapping."""
+    plugin = ClassObjectCategoriesMapper(mock_db)
+    duplicate = pd.DataFrame(
+        {
+            "class_object": ["forest_type", "forest_type"],
+            "class_name": ["resineux", "feuillus"],
+            "class_value": [10.0, 20.0],
+        }
+    )
+    data = pd.concat([sample_data, duplicate], ignore_index=True)
+    config = {
+        "plugin": "class_object_categories_mapper",
+        "params": {
+            "source": "shape_stats",
+            "categories": {
+                "Forest Type": {
+                    "class_object": "forest_type",
+                    "mapping": {"Resinous": "resineux", "Leafy": "feuillus"},
+                }
+            },
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert pytest.approx(result["Forest Type"]["Resinous"]) == 110.5
+    assert pytest.approx(result["Forest Type"]["Leafy"]) == 270.2
+
+
 def test_multiple_category_mapping(mock_db, sample_data):
     """Test mapping for multiple output categories."""
     plugin = ClassObjectCategoriesMapper(mock_db)
