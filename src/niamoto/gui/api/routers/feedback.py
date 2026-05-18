@@ -16,6 +16,8 @@ from niamoto.gui.api.url_security import validate_public_http_url
 router = APIRouter()
 
 _FORWARD_TIMEOUT = 30.0
+_MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
+_SCREENSHOT_READ_CHUNK_BYTES = 1024 * 1024
 
 
 def _normalize_worker_feedback_url(worker_url: str) -> str:
@@ -55,7 +57,7 @@ async def _forward_feedback(
     ]
 
     if screenshot is not None:
-        content = await screenshot.read()
+        content = await _read_upload_limited(screenshot)
         files.append(
             (
                 "screenshot",
@@ -89,6 +91,32 @@ async def _forward_feedback(
         body = {"data": body}
 
     return response.status_code, body
+
+
+async def _read_upload_limited(upload: UploadFile) -> bytes:
+    """Read an upload while enforcing the screenshot size limit."""
+    chunks: list[bytes] = []
+    total = 0
+
+    while True:
+        remaining = _MAX_SCREENSHOT_BYTES - total
+        read_size = min(_SCREENSHOT_READ_CHUNK_BYTES, remaining + 1)
+        chunk = await upload.read(read_size)
+        if not chunk:
+            break
+
+        total += len(chunk)
+        if total > _MAX_SCREENSHOT_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Screenshot is too large. "
+                    f"Maximum size is {_MAX_SCREENSHOT_BYTES} bytes."
+                ),
+            )
+        chunks.append(chunk)
+
+    return b"".join(chunks)
 
 
 @router.post("/submit")
