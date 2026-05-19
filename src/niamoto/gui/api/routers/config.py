@@ -45,6 +45,7 @@ DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
 EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
 VALID_CONFIG_NAMES = ("import", "transform", "export", "config")
+INDEX_SUGGESTION_RECORD_LIMIT = 1000
 
 
 def _validate_config_name(config_name: str) -> None:
@@ -4315,6 +4316,7 @@ def _load_table_records(
     table_name: str,
     *,
     columns: Optional[List[str]] = None,
+    limit: Optional[int] = INDEX_SUGGESTION_RECORD_LIMIT,
 ) -> List[Dict[str, Any]]:
     """Load table records, optionally selecting only the requested columns."""
     from niamoto.common.database import Database
@@ -4330,8 +4332,16 @@ def _load_table_records(
             )
         else:
             quoted_columns = "*"
+        params: Dict[str, int] = {}
+        limit_clause = ""
+        if limit is not None:
+            params["_limit"] = max(1, int(limit))
+            limit_clause = " LIMIT :_limit"
         rows = (
-            db.session.execute(text(f"SELECT {quoted_columns} FROM {quoted_table}"))
+            db.session.execute(
+                text(f"SELECT {quoted_columns} FROM {quoted_table}{limit_clause}"),
+                params,
+            )
             .mappings()
             .all()
         )
@@ -5079,6 +5089,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                         )
                         if column in set(available_record_columns)
                     ],
+                    limit=INDEX_SUGGESTION_RECORD_LIMIT,
                 )
                 all_rank_values = _get_distinct_values_for_path(
                     transformed_records, record_rank_path
@@ -5099,6 +5110,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                     columns=_get_hierarchy_record_columns(
                         source_columns, join_candidates=[group_id_column, "id"]
                     ),
+                    limit=INDEX_SUGGESTION_RECORD_LIMIT,
                 )
 
             hierarchy_transformed_records: List[Dict[str, Any]] = []
@@ -5119,6 +5131,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                             )
                             if column in set(transformed_columns)
                         ],
+                        limit=INDEX_SUGGESTION_RECORD_LIMIT,
                     )
                 hierarchy_transformed_records = transformed_records
             else:
