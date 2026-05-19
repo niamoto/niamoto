@@ -226,9 +226,100 @@ class TestFragmentationAnalysis:
         assert result["edge_density"] == pytest.approx(expected_density)
         assert result["edge_unit"] == expected_unit
 
-    # --- TODO: Add more specific tests ---
-    # - Test each metric individually (meff, lpi, edge_density, core_area, connectivity, size_dist)
-    #   with known geometries to verify calculations.
-    # - Test different area_units (km2, m2) and check if calculations/results scale correctly.
-    # - Test error handling (e.g., file not found if mock is not used, invalid geometry in input data).
-    # - Test edge cases (e.g., single large patch, many tiny patches).
+    @patch("geopandas.read_file")
+    def test_transform_advanced_metrics_for_intersecting_forest(
+        self, mock_read_file, area_of_interest, mock_forest_data
+    ):
+        """Test advanced metrics against deterministic non-empty forest patches."""
+        mock_read_file.return_value = mock_forest_data
+        config = {
+            "params": {
+                "forest_path": "dummy/forest.shp",
+                "metrics": [
+                    "patch_count",
+                    "meff",
+                    "edge_density",
+                    "largest_patch_index",
+                    "core_area",
+                    "connectivity_index",
+                    "size_distribution",
+                ],
+                "area_unit": "ha",
+                "edge_width": 100,
+            }
+        }
+
+        result = self.plugin.transform(area_of_interest, config)
+
+        assert result["patch_count"] == 3
+        assert result["patch_sizes"] == pytest.approx([400.0, 100.0, 25.0])
+        assert result["total_forest_area"] == pytest.approx(525.0)
+        assert result["landscape_area"] == pytest.approx(10000.0)
+        assert result["meff"] == pytest.approx(17.0625)
+        assert result["meff_unit"] == "ha"
+        assert result["largest_patch"] == pytest.approx(400.0)
+        assert result["largest_patch_index"] == pytest.approx(4.0)
+        assert result["edge_length"] == pytest.approx(14000.0)
+        assert result["edge_density"] == pytest.approx(1.4)
+        assert result["edge_unit"] == "m/ha"
+        assert result["core_areas"] == pytest.approx([324.0, 64.0, 9.0])
+        assert result["total_core_area"] == pytest.approx(397.0)
+        assert result["core_area_percentage"] == pytest.approx(397.0 / 525.0 * 100)
+        assert result["connectivity_index"] == pytest.approx(
+            (400.0**2 + 100.0**2 + 25.0**2) / 525.0**2
+        )
+        assert result["size_classes"] == {
+            "labels": [
+                "1-5",
+                "5-10",
+                "10-50",
+                "50-100",
+                "100-500",
+                "500-1000",
+                "> 1000",
+            ],
+            "counts": [0, 0, 1, 0, 2, 0, 0],
+            "areas": [0.0, 0.0, 25.0, 0.0, 500.0, 0.0, 0.0],
+            "percentages": [0.0, 0.0, 4.76, 0.0, 95.24, 0.0, 0.0],
+        }
+
+    @pytest.mark.parametrize(
+        ("area_unit", "expected_patch_sizes", "expected_total_area", "expected_meff"),
+        [
+            ("ha", [400.0, 100.0, 25.0], 525.0, 17.0625),
+            ("km2", [4.0, 1.0, 0.25], 5.25, 0.170625),
+            ("m2", [4000000.0, 1000000.0, 250000.0], 5250000.0, 170625.0),
+        ],
+    )
+    @patch("geopandas.read_file")
+    def test_transform_metrics_scale_with_area_unit(
+        self,
+        mock_read_file,
+        area_of_interest,
+        mock_forest_data,
+        area_unit,
+        expected_patch_sizes,
+        expected_total_area,
+        expected_meff,
+    ):
+        """Test area-based metrics scale consistently for each supported unit."""
+        mock_read_file.return_value = mock_forest_data
+        config = {
+            "params": {
+                "forest_path": "dummy/forest.shp",
+                "metrics": [
+                    "patch_count",
+                    "meff",
+                    "largest_patch_index",
+                ],
+                "area_unit": area_unit,
+            }
+        }
+
+        result = self.plugin.transform(area_of_interest, config)
+
+        assert result["area_unit"] == area_unit
+        assert result["patch_sizes"] == pytest.approx(expected_patch_sizes)
+        assert result["total_forest_area"] == pytest.approx(expected_total_area)
+        assert result["meff"] == pytest.approx(expected_meff)
+        assert result["largest_patch_index"] == pytest.approx(4.0)
