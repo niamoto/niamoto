@@ -36,6 +36,9 @@ SERVE_FILE_IMAGE_EXTENSIONS = {
     ".webp",
 }
 
+SPATIAL_IMPORT_ENTITY_TYPES = {"reference", "references", "shape", "shapes", "spatial"}
+SPATIAL_ARCHIVE_EXTENSIONS = (".zip", ".geojson", ".gpkg")
+
 
 def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
     """Resolve a path below root_dir and reject sibling-prefix escapes."""
@@ -185,18 +188,15 @@ async def analyze_file(
 
         # Basic analysis based on file type
         filename_lower = file.filename.lower()
-        # Check if it's a spatial file for shapes/spatial reference import
-        is_spatial = entity_type == "reference" and filename_lower.endswith(
-            (".zip", ".shp", ".geojson", ".gpkg")
-        )
+        is_spatial_entity = entity_type in SPATIAL_IMPORT_ENTITY_TYPES
 
-        if is_spatial:
+        if is_spatial_entity and filename_lower.endswith(SPATIAL_ARCHIVE_EXTENSIONS):
             result = await analyze_shape(content, file.filename)
         elif filename_lower.endswith(".csv"):
             result = await analyze_csv(content, file.filename)
         elif filename_lower.endswith((".xls", ".xlsx")):
             result = await analyze_excel(content, file.filename)
-        elif filename_lower.endswith(".shp"):
+        elif is_spatial_entity and filename_lower.endswith(".shp"):
             return {
                 "error": "Shapefile analysis requires all component files (.shp, .shx, .dbf). Please upload a ZIP file containing all shapefile components."
             }

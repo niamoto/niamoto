@@ -44,6 +44,51 @@ def test_analyze_file_accepts_uppercase_supported_extensions(
     analyzer.assert_awaited_once()
 
 
+def test_analyze_file_routes_shapes_zip_to_spatial_analyzer():
+    client = TestClient(create_app())
+    analyzer = AsyncMock(
+        return_value={
+            "filename": "plots.zip",
+            "type": "shapefile",
+            "feature_count": 2,
+        }
+    )
+
+    with patch("niamoto.gui.api.routers.files.analyze_shape", analyzer):
+        response = client.post(
+            "/api/files/analyze",
+            files={"file": ("plots.zip", b"fake zip content")},
+            data={"entity_type": "shapes"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "filename": "plots.zip",
+        "type": "shapefile",
+        "feature_count": 2,
+        "entity_type": "shapes",
+        "suggestions": {},
+    }
+    analyzer.assert_awaited_once()
+
+
+def test_analyze_file_reports_component_message_for_shapes_shp_upload():
+    client = TestClient(create_app())
+
+    with patch("niamoto.gui.api.routers.files.analyze_shape") as analyzer:
+        response = client.post(
+            "/api/files/analyze",
+            files={"file": ("plots.shp", b"fake shp content")},
+            data={"entity_type": "shapes"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "error": "Shapefile analysis requires all component files (.shp, .shx, .dbf). Please upload a ZIP file containing all shapefile components."
+    }
+    analyzer.assert_not_called()
+
+
 def test_test_api_connection_uses_requests_stack():
     client = TestClient(create_app())
     mocked_response = Mock()
