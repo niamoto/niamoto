@@ -13,6 +13,51 @@ from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
 
 
+def test_list_export_widgets_reads_groups_under_params(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "params": {
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "widgets": [
+                                        {
+                                            "plugin": "interactive_map",
+                                            "data_source": "plot_map",
+                                            "params": {"geometry_field": "geo_pt"},
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/config/export/plots/widgets")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == [
+        {
+            "plugin": "interactive_map",
+            "data_source": "plot_map",
+            "params": {"geometry_field": "geo_pt"},
+        }
+    ]
+
+
 def test_update_export_widget_preserves_layout_and_accepts_localized_metadata(
     gui_duckdb_client, gui_duckdb_context
 ):
