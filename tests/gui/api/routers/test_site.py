@@ -353,6 +353,7 @@ class TestSiteGroups:
                                     "index_generator": {
                                         "enabled": True,
                                         "template": "_group_index.html",
+                                        "output_pattern": "custom-plots/{id}.html",
                                         "page_config": {"title": "Plots"},
                                         "filters": [],
                                         "display_fields": [],
@@ -377,6 +378,10 @@ class TestSiteGroups:
             assert data["groups"][0]["name"] == "plots"
             assert data["groups"][0]["output_pattern"] == "plots/{id}.html"
             assert data["groups"][0]["index_output_pattern"] == "plots/index.html"
+            assert (
+                data["groups"][0]["index_generator"]["output_pattern"]
+                == "custom-plots/{id}.html"
+            )
             assert data["groups"][0]["widgets_count"] == 1
         finally:
             shutil.rmtree(temp_dir)
