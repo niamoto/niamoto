@@ -11,10 +11,28 @@ from pathlib import Path
 import tempfile
 import shutil
 import yaml
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+
+
+class FakePreviewEngine:
+    """Minimal preview engine for endpoint contract tests."""
+
+    def __init__(self):
+        self.requests = []
+
+    def _compute_etag(self, request):
+        return "test-preview-etag"
+
+    def render(self, request):
+        self.requests.append(request)
+        return SimpleNamespace(
+            html="<html><body><main>Template preview</main></body></html>",
+            etag="test-preview-etag",
+        )
 
 
 @pytest.fixture
@@ -154,16 +172,22 @@ class TestTemplatesEndpoints:
 
     def test_get_suggestions_requires_reference_name(self, client):
         """Test GET /api/templates/{reference}/suggestions."""
-        # Test with valid reference name
         response = client.get("/api/templates/taxons/suggestions")
-        # Should not crash even without database
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code == 200, response.text
+
+        data = response.json()
+        assert data["entity_type"] == "taxons"
+        assert data["total_suggestions"] == len(data["suggestions"])
+        assert data["total_suggestions"] > 0
 
     def test_get_configured_widgets(self, client):
         """Test GET /api/templates/{group_by}/configured."""
         response = client.get("/api/templates/taxons/configured")
-        # Should return configured widgets from transform.yml
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "configured_ids": ["elevation_binned_distribution_bar_plot"],
+            "has_config": True,
+        }
 
     def test_get_enrichment_catalog(self, client):
         """Test GET /api/templates/{reference}/enrichment-catalog."""
@@ -233,11 +257,15 @@ class TestTemplatesEndpoints:
                 "reference_kind": "hierarchical",
             },
         )
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert "group_by" in data
-            assert "sources" in data
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["group_by"] == "taxons"
+        assert data["sources"][0]["name"] == "occurrences"
+        assert data["sources"][0]["relation"]["plugin"] == "nested_set"
+        assert data["widgets_data"]["test_widget"] == {
+            "plugin": "binned_distribution",
+            "params": {"field": "elevation"},
+        }
 
     def test_generate_config_uses_import_relation_and_dataset(
         self, client, test_work_dir
@@ -477,11 +505,18 @@ class TestTemplatesEndpoints:
 
     def test_preview_template_returns_html(self, client):
         """Test GET /api/preview/{template_id} returns HTML."""
-        response = client.get("/api/preview/test_template?group_by=taxons")
-        # Should return HTML even if template not found (400 = missing params, 404 = not found)
-        assert response.status_code in [200, 400, 404, 500]
-        if response.status_code == 200:
-            assert "text/html" in response.headers.get("content-type", "")
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get("/api/preview/test_template?group_by=taxons")
+
+        assert response.status_code == 200, response.text
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "Template preview" in response.text
+        assert preview_engine.requests[0].template_id == "test_template"
+        assert preview_engine.requests[0].group_by == "taxons"
 
     def test_widget_suggestions_requires_group_by(self, client):
         """Test GET /api/templates/widget-suggestions/{group_by}."""
@@ -506,7 +541,7 @@ class TestTemplatesEndpoints:
             "/api/templates/taxons/combined-suggestions",
             json={"fields": ["elevation", "dbh"]},
         )
-        assert response.status_code in [200, 422, 500]
+        assert response.status_code == 422
 
     def test_combined_suggestions_hides_unexpected_exception_details(self, client):
         """Unexpected backend errors should not leak internals to clients."""
@@ -679,27 +714,29 @@ class TestTemplatesRouterRegistration:
 
     def test_templates_router_is_included(self, client):
         """Verify templates router endpoints are accessible."""
-        # Check that /api/templates/* endpoints respond (not 404 from missing route)
         response = client.get("/api/templates/categories")
-        assert response.status_code != 404 or "not found" not in response.text.lower()
+        assert response.status_code == 200, response.text
 
     def test_templates_endpoints_have_correct_prefix(self, client):
         """Verify all templates endpoints use /api/templates prefix."""
-        # This ensures the router is mounted with correct prefix
-        endpoints = [
-            "/api/templates/categories",
-            "/api/templates/taxons/suggestions",
-            "/api/templates/taxons/configured",
-            "/api/preview/test",
-        ]
-        for endpoint in endpoints:
+        expected_statuses = {
+            "/api/templates/categories": 200,
+            "/api/templates/taxons/suggestions": 200,
+            "/api/templates/taxons/configured": 200,
+        }
+        for endpoint, expected_status in expected_statuses.items():
             response = client.get(endpoint)
-            # Should not return "Not Found" for the route itself
-            # (may return other errors like 500 if DB not available)
-            assert (
-                response.status_code != 404
-                or response.json().get("detail") != "Not Found"
-            )
+            assert response.status_code == expected_status, response.text
+
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get("/api/preview/test")
+
+        assert response.status_code == 200, response.text
+        assert preview_engine.requests[0].template_id == "test"
 
 
 class TestTemplatesHelperFunctions:
@@ -768,72 +805,82 @@ class TestPreviewEndpoint:
 
     def test_preview_with_group_by_parameter(self, client):
         """Test preview endpoint uses group_by parameter."""
-        response = client.get(
-            "/api/preview/elevation_binned_distribution_bar_plot",
-            params={"group_by": "taxons"},
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get(
+                "/api/preview/elevation_binned_distribution_bar_plot",
+                params={"group_by": "taxons"},
+            )
+
+        assert response.status_code == 200, response.text
+        assert preview_engine.requests[0].template_id == (
+            "elevation_binned_distribution_bar_plot"
         )
-        # Should process the request (400 = bad request, 404 = not found, 500 = DB error)
-        assert response.status_code in [200, 400, 404, 500]
+        assert preview_engine.requests[0].group_by == "taxons"
 
     def test_preview_with_entity_id_parameter(self, client):
         """Test preview endpoint accepts entity_id parameter."""
-        response = client.get(
-            "/api/preview/test_template",
-            params={"group_by": "taxons", "entity_id": "123"},
-        )
-        assert response.status_code in [200, 400, 404, 500]
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get(
+                "/api/preview/test_template",
+                params={"group_by": "taxons", "entity_id": "123"},
+            )
+
+        assert response.status_code == 200, response.text
+        assert preview_engine.requests[0].template_id == "test_template"
+        assert preview_engine.requests[0].group_by == "taxons"
+        assert preview_engine.requests[0].entity_id == "123"
 
     def test_preview_returns_html_content_type(self, client):
         """Test preview endpoint returns HTML content type."""
-        response = client.get(
-            "/api/preview/test_template", params={"group_by": "taxons"}
-        )
-        if response.status_code == 200:
-            content_type = response.headers.get("content-type", "")
-            assert "text/html" in content_type
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get(
+                "/api/preview/test_template", params={"group_by": "taxons"}
+            )
 
-    def test_preview_legacy_class_object_scalar_template_id(
-        self, client, test_work_dir
-    ):
+        assert response.status_code == 200, response.text
+        content_type = response.headers.get("content-type", "")
+        assert "text/html" in content_type
+
+    def test_preview_legacy_class_object_scalar_template_id(self, client):
         """Legacy *_field_aggregator_* IDs must resolve to class_object previews."""
-        transform_path = Path(test_work_dir) / "config" / "transform.yml"
-        with open(transform_path, "r", encoding="utf-8") as f:
-            transform_config = yaml.safe_load(f) or []
-
-        transform_config.append(
-            {
-                "group_by": "shapes",
-                "sources": [
-                    {
-                        "name": "shape_stats",
-                        "data": "imports/raw_shape_stats.csv",
-                        "grouping": "shapes",
-                    }
-                ],
-                "widgets_data": {},
-            }
-        )
-        with open(transform_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(transform_config, f, sort_keys=False)
-
-        imports_dir = Path(test_work_dir) / "imports"
-        imports_dir.mkdir(exist_ok=True)
-        csv_path = imports_dir / "raw_shape_stats.csv"
-        csv_path.write_text(
-            "class_object,class_name,class_value\nforest_reserve_ha,value,11800\n",
-            encoding="utf-8",
+        from niamoto.gui.api.services.templates.utils.widget_utils import (
+            parse_dynamic_template_id,
         )
 
-        response = client.get(
-            "/api/preview/forest_reserve_ha_field_aggregator_radial_gauge",
-            params={"group_by": "shapes", "source": "shape_stats"},
-        )
+        template_id = "forest_reserve_ha_field_aggregator_radial_gauge"
+        assert parse_dynamic_template_id(template_id) == {
+            "column": "forest_reserve_ha",
+            "transformer": "field_aggregator",
+            "widget": "radial_gauge",
+        }
 
-        # Preview engine may return 500 if no DB exists in the test dir,
-        # but should not return 404 (route must exist)
-        assert response.status_code != 404, "Preview route not found"
-        if response.status_code == 200:
-            assert "<p class='error'>" not in response.text.lower()
+        preview_engine = FakePreviewEngine()
+        with patch(
+            "niamoto.gui.api.routers.preview.get_preview_engine",
+            return_value=preview_engine,
+        ):
+            response = client.get(
+                f"/api/preview/{template_id}",
+                params={"group_by": "shapes", "source": "shape_stats"},
+            )
+
+        assert response.status_code == 200, response.text
+        assert "<p class='error'>" not in response.text.lower()
+        assert preview_engine.requests[0].template_id == template_id
+        assert preview_engine.requests[0].group_by == "shapes"
+        assert preview_engine.requests[0].source == "shape_stats"
 
     def test_field_aggregator_radial_gauge_preprocesses_scalar_value(self):
         """field_aggregator output must be flattened for radial_gauge."""
