@@ -791,12 +791,15 @@ async def get_groups():
         index_generator = None
         if index_gen_data:
             index_generator = GroupIndexConfig(
-                enabled=index_gen_data.get("enabled", False),
-                template=index_gen_data.get("template", "group_index.html"),
-                page_config=index_gen_data.get("page_config", {}),
-                filters=index_gen_data.get("filters", []),
-                display_fields=index_gen_data.get("display_fields", []),
-                views=index_gen_data.get("views", []),
+                **{
+                    "enabled": False,
+                    "template": "group_index.html",
+                    "page_config": {},
+                    "filters": [],
+                    "display_fields": [],
+                    "views": [],
+                    **index_gen_data,
+                }
             )
             if not index_output_pattern and group_name:
                 index_output_pattern = f"{group_name}/index.html"
