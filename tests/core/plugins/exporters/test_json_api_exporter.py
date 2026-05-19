@@ -532,32 +532,32 @@ class TestJsonApiExporterSecurity:
         return mock_db
 
     def test_sql_injection_prevention(self, mock_db_with_engine):
-        """Test that SQL injection is prevented in table names."""
+        """Test that table names are quoted before query execution."""
         exporter = JsonApiExporter(mock_db_with_engine)
+        mock_db_with_engine.has_table.return_value = True
 
-        # Test with malicious table name
         malicious_table = "taxon; DROP TABLE users; --"
 
-        # This should not execute the malicious SQL
         result = exporter._fetch_group_data(
-            mock_db_with_engine, "test_source", malicious_table
+            mock_db_with_engine, malicious_table, "taxon"
         )
 
-        # Verify the connection was attempted but with the malicious string
-        mock_db_with_engine.engine.connect.assert_called()
+        assert result == []
+        mock_db_with_engine.has_table.assert_called_once_with(malicious_table)
+        mock_db_with_engine.engine.connect.assert_called_once()
 
-        # The current implementation is vulnerable - this test documents the issue
-        # In a secure implementation, this should either:
-        # 1. Validate table names against a whitelist
-        # 2. Use parameterized queries
-        # 3. Escape table names properly
-        assert result == []  # Should return empty due to invalid table
+        connection = (
+            mock_db_with_engine.engine.connect.return_value.__enter__.return_value
+        )
+        connection.execute.assert_called_once()
+        executed_query = str(connection.execute.call_args.args[0])
+        assert 'FROM "taxon; DROP TABLE users; --"' in executed_query
+        assert "FROM taxon; DROP TABLE users; --" not in executed_query
 
     def test_file_path_validation(self):
-        """Test that file paths are properly validated."""
+        """Test that detail output paths cannot escape the export directory."""
         exporter = JsonApiExporter(Mock())
 
-        # Test with directory traversal attempt
         malicious_pattern = "../escaped.json"
         params = JsonApiExporterParams(
             output_dir="api", detail_output_pattern=malicious_pattern
@@ -570,16 +570,19 @@ class TestJsonApiExporterSecurity:
             output_dir = Path(tmp_dir) / "api"
             output_dir.mkdir()
 
-            with pytest.raises(ValueError, match="escapes output directory"):
-                exporter._generate_detail_file(
-                    item,
-                    "test",
-                    group_config,
-                    params,
-                    output_dir,
-                    DataMapper(group_config, params),
-                    JsonOptions(),
-                )
+            with patch("builtins.open", mock_open()) as opened:
+                with pytest.raises(ValueError, match="escapes output directory"):
+                    exporter._generate_detail_file(
+                        item,
+                        "test",
+                        group_config,
+                        params,
+                        output_dir,
+                        DataMapper(group_config, params),
+                        JsonOptions(),
+                    )
+
+            opened.assert_not_called()
             assert not (Path(tmp_dir) / "escaped.json").exists()
 
     def test_index_output_pattern_cannot_escape_output_dir(self):
