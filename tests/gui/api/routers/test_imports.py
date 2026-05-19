@@ -1,6 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.core.imports.config_models import ConnectorType
@@ -267,6 +269,152 @@ def test_execute_import_reference_prunes_old_terminal_jobs(monkeypatch, tmp_path
     finally:
         imports.import_jobs.clear()
         imports.import_jobs.update(before_jobs)
+
+
+def test_delete_entity_drops_registry_table_before_removing_config(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "plots": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/plots.csv",
+                            }
+                        }
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    events = []
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    class FakeDB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def has_table(self, table_name):
+            return table_name in {
+                imports.EntityRegistry.ENTITIES_TABLE,
+                "actual_imported_plots",
+            }
+
+        def execute_sql(self, sql):
+            current_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+            assert "plots" in current_config["entities"]["references"]
+            events.append(sql)
+
+    class FakeRegistry:
+        ENTITIES_TABLE = imports.EntityRegistry.ENTITIES_TABLE
+
+        def __init__(self, db):
+            self.db = db
+
+        def get(self, entity_name):
+            assert entity_name == "plots"
+            return SimpleNamespace(table_name="actual_imported_plots")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", lambda _path: FakeDB())
+    monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
+    monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
+
+    response = asyncio.run(
+        imports.delete_entity("reference", "plots", delete_table=True)
+    )
+
+    assert response["success"] is True
+    assert response["table_dropped"] is True
+    assert events == ['DROP TABLE IF EXISTS "actual_imported_plots"']
+    updated_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert "plots" not in updated_config["entities"]["references"]
+
+
+def test_delete_entity_keeps_config_when_requested_table_drop_fails(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {"occurrences": {"connector": {"type": "file"}}},
+                    "references": {},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    class FakeDB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def has_table(self, table_name):
+            return table_name in {
+                imports.EntityRegistry.ENTITIES_TABLE,
+                "dataset_occurrences",
+            }
+
+        def execute_sql(self, sql):
+            raise RuntimeError("drop failed")
+
+    class FakeRegistry:
+        ENTITIES_TABLE = imports.EntityRegistry.ENTITIES_TABLE
+
+        def __init__(self, db):
+            self.db = db
+
+        def get(self, entity_name):
+            return SimpleNamespace(table_name="dataset_occurrences")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", lambda _path: FakeDB())
+    monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
+    monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
+
+    with pytest.raises(imports.HTTPException) as exc_info:
+        asyncio.run(imports.delete_entity("dataset", "occurrences", delete_table=True))
+
+    assert exc_info.value.status_code == 500
+    current_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert "occurrences" in current_config["entities"]["datasets"]
 
 
 def test_process_generic_import_all_records_failure_event(monkeypatch, tmp_path):
