@@ -71,7 +71,10 @@ def _raise_http_error(message: str) -> None:
 async def get_enrichment_config_for_reference(reference_name: str):
     """Return all enrichment sources configured for one reference."""
 
-    return await asyncio.to_thread(get_reference_enrichment_config, reference_name)
+    try:
+        return await asyncio.to_thread(get_reference_enrichment_config, reference_name)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/config", response_model=EnrichmentReferenceConfigResponse)
