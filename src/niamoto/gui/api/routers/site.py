@@ -22,6 +22,8 @@ _ROOT_INDEX_TEMPLATE = "index.html"
 _ROOT_INDEX_OUTPUT = "index.html"
 MAX_BIBTEX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 BIBTEX_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
+CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 MAX_SITE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 SITE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
@@ -2462,6 +2464,26 @@ async def _read_bibtex_upload(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
+async def _read_csv_import_upload(file: UploadFile) -> bytes:
+    """Read CSV imports with a hard size cap."""
+    chunks: List[bytes] = []
+    total_size = 0
+
+    while chunk := await file.read(CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES):
+        total_size += len(chunk)
+        if total_size > MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "CSV file exceeds the maximum allowed size "
+                    f"of {MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES} bytes"
+                ),
+            )
+        chunks.append(chunk)
+
+    return b"".join(chunks)
+
+
 def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
     """
     Parse a single BibTeX entry into a reference dictionary.
@@ -2742,7 +2764,7 @@ async def import_csv(
         )
 
     try:
-        content = await file.read()
+        content = await _read_csv_import_upload(file)
         text = content.decode("utf-8", errors="replace")
 
         # Parse CSV
